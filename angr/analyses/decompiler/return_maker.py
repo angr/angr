@@ -67,21 +67,21 @@ class ReturnMaker(AILGraphWalker):
                 #         ins_addr=stmt.tags["ins_addr"],
                 #     )
                 # )
-                for ret_val in ret_val.locations:
-                    if isinstance(ret_val, SimRegArg):
-                        reg = self.arch.registers[ret_val.reg_name]
+                for ret_val_loc in ret_val.locations:
+                    if isinstance(ret_val_loc, SimRegArg):
+                        reg = self.arch.registers[ret_val_loc.reg_name]
                         new_stmt.ret_exprs.append(
                             ailment.Expr.Register(
                                 self._next_atom(),
                                 None,
                                 reg[0],
-                                ret_val.size * self.arch.byte_width,
-                                reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
+                                ret_val_loc.size * self.arch.byte_width,
+                                reg_name=self.arch.translate_register_name(reg[0], ret_val_loc.size),
                                 ins_addr=stmt.tags["ins_addr"],
                             )
                         )
                     else:
-                        l.warning("Unsupported type of return expression %s.", type(ret_val))
+                        l.warning("Unsupported type of return expression %s.", type(ret_val_loc))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
             return new_stmt

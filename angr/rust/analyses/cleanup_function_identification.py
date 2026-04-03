@@ -15,10 +15,13 @@ CLEANUP_FUNCTIONS = (
 
 
 class CleanupFunctionIdentification(Analysis):
+    """Identify cleanup functions (deallocators, drop glue, etc.) in Rust binaries."""
+
     def __init__(self):
         self._analyze()
 
-    def _is_nullstub_function(self, func: Function):
+    @staticmethod
+    def _is_nullstub_function(func: Function):
         if func.size == 0 and not func.is_plt:
             return True
         if len(list(func.blocks)) == 1:

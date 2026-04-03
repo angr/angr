@@ -1,9 +1,13 @@
 from __future__ import annotations
+# pylint:disable=missing-class-docstring,no-self-use
 
 import contextlib
 import logging
 
 import archinfo
+
+from networkx import NetworkXError
+
 from angr.ailment import Block, Const
 from angr.ailment.expression import (
     Convert,
@@ -11,8 +15,6 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
-from networkx import NetworkXError
-
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from angr.rust.utils.demangler import normalize
 
@@ -137,7 +139,7 @@ class TransformationPass(OptimizationPass):
         elif isinstance(terminal, Call):
             pass
         else:
-            l.debug(f"Unexpected terminal: {terminal}")
+            l.debug("Unexpected terminal: %s", terminal)
             return
         # Remove old edges
         if old_target:

@@ -8,6 +8,8 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class StructMatcher:
+    """Match memory write patterns against known Rust struct layouts."""
+
     def __init__(self, project):
         self.project = project
         self._matchers = (self._match_Arguments,)
@@ -31,14 +33,17 @@ class StructMatcher:
             and isinstance(fields[args_len_offset], Const)
             and 1 >= fields[pieces_len_offset].value - fields[args_len_offset].value >= 0
             and extract_str_from_addr(self.project, fields[pieces_ptr_offset].value) is not None
+            and (
+                fmt_offset in fields
+                or (
+                    args_len_offset == fmt_offset - self.project.arch.bytes
+                    and isinstance(fields[args_len_offset], Const)
+                    and fields[args_len_offset].value == 0
+                    and fields[args_len_offset].size == 2 * self.project.arch.bytes
+                )
+            )
         ):
-            if fmt_offset in fields or (
-                args_len_offset == fmt_offset - self.project.arch.bytes
-                and isinstance(fields[args_len_offset], Const)
-                and fields[args_len_offset].value == 0
-                and fields[args_len_offset].size == 2 * self.project.arch.bytes
-            ):
-                return arguments_ty
+            return arguments_ty
         return None
 
     def match(self, fields):
@@ -50,6 +55,8 @@ class StructMatcher:
 
 
 class KnownStructs(KnowledgeBasePlugin):
+    """Store known Rust struct type definitions."""
+
     def __init__(self, kb):
         super().__init__(kb)
         self.known_struct_types = OrderedDict()

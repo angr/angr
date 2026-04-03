@@ -1,15 +1,17 @@
 from __future__ import annotations
+# pylint:disable=missing-class-docstring,no-self-use
 
 import archinfo
+
+from angr import SIM_LIBRARIES
 from angr.ailment import Const, AILBlockWalker, Block
 from angr.ailment.expression import BinaryOp, VirtualVariable, UnaryOp, StringLiteral, FunctionLikeMacro, Call
 from angr.ailment.statement import Store, Assignment, ConditionalJump, Label, Jump, Statement
-
-from .base import TransformationPass, SSAVariableHelper
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 from angr.rust.mixins.srda_mixin import SRDAMixin
 from angr.rust.sim_type import RustSimTypeVec, RustSimTypeInt
-from angr import SIM_LIBRARIES
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
+
+from .base import TransformationPass, SSAVariableHelper
 
 
 class VecIndexingWalker(AILBlockWalker):

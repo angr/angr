@@ -5,7 +5,7 @@ from collections.abc import Callable
 from collections import defaultdict, OrderedDict, Counter
 import logging
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.expression import (
     StackBaseOffset,
@@ -13,7 +13,7 @@ from angr.ailment.expression import (
     StringLiteral,
     Struct,
     Array,
-    Enum,
+    RustEnum as AilRustEnum,
     Let,
     FunctionLikeMacro,
 )
@@ -67,8 +67,8 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
-from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from angr.rust.typehoon.translator import RustTypeTranslator
+from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
     import archinfo
@@ -245,7 +245,6 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
             full=full,
             indent_str=indent_str,
         )
-        return
 
 
 #
@@ -2749,7 +2748,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.FunctionLikeMacro: self._handle_FunctionLikeMacro,
             StringLiteral: self._handle_Expr_StringLiteral,
             Struct: self._handle_Expr_Struct,
-            Enum: self._handle_Expr_Enum,
+            AilRustEnum: self._handle_Expr_RustEnum,
             Array: self._handle_Expr_Array,
             Let: self._handle_Expr_Let,
         }
@@ -3745,7 +3744,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Tmp(self, expr: Tmp, **kwargs):
         l.warning("FIXME: Leftover Tmp expressions are found.")
-        return self._variable(SimTemporaryVariable(expr.tmp_idx), expr.size)
+        return self._variable(SimTemporaryVariable(expr.tmp_idx, expr.size), expr.size)
 
     def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None, **kwargs):
         inline_string = False
@@ -3932,7 +3931,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
-    def _handle_Expr_Enum(self, expr: Enum, **kwargs):
+    def _handle_Expr_RustEnum(self, expr: AilRustEnum, **kwargs):
         return RustEnum(
             expr.name,
             [self._handle(field) for field in expr.fields],

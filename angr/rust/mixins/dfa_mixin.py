@@ -11,6 +11,8 @@ from angr.rust.utils.ail import unwrap_stack_vvar_reference, CallFinder
 
 @dataclass
 class StackDefinition:
+    """A definition of a stack variable."""
+
     data: Expression
     stmt: Statement
     stmt_idx: int
@@ -25,7 +27,8 @@ class DFAMixin:
     def __init__(self, graph=None):
         self.graph = graph
 
-    def _extract_operands(self, expr):
+    @staticmethod
+    def _extract_operands(expr):
         if isinstance(expr, BinaryOp) and expr.op == "Add" and isinstance(expr.operands[1], Const):
             return expr.operands[0], expr.operands[1].value
         return expr, 0
@@ -95,7 +98,8 @@ class DFAMixin:
                 stack_defs[dst_vvar.stack_offset] = StackDefinition(data, stmt, idx, block)
         return stack_defs
 
-    def extract_write_to_stack_vvar(self, stmt) -> tuple[VirtualVariable | None, Expression | None]:
+    @staticmethod
+    def extract_write_to_stack_vvar(stmt) -> tuple[VirtualVariable | None, Expression | None]:
         if isinstance(stmt, Assignment):
             if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
                 return stmt.dst, stmt.src
@@ -110,7 +114,8 @@ class DFAMixin:
                 return dst, stmt.data
         return None, None
 
-    def extract_stack_data_flow(self, stmt):
+    @staticmethod
+    def extract_stack_data_flow(stmt):
         dst_offset = None
         src_offset = None
         size = None
@@ -174,7 +179,8 @@ class DFAMixin:
             return stmts, dst_offset
         return None, None
 
-    def extract_stack_to_reg_data_flow(self, stmt):
+    @staticmethod
+    def extract_stack_to_reg_data_flow(stmt):
         src_offset = None
         size = None
         dst, src = None, None
@@ -200,7 +206,7 @@ class DFAMixin:
 
     def get_def_block_and_stmt(self, data):
         for block in self.graph.nodes:
-            for idx, stmt in enumerate(block.statements):
+            for _, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment) and stmt.src is data:
                     return block, stmt
         return None, None

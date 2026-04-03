@@ -8,6 +8,8 @@ from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
 
 
 class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
+    """Infer potential struct/enum argument types and return types for function calls."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -83,10 +85,15 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             return
         prototype = call_expr.prototype.normalize()
         returnty = prototype.returnty
-        if is_composite_type(returnty) and not call_expr.prototype.is_arg0_retbuf:
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
-                stmt.dst.tags["type"] = returnty
-                self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
+        if (
+            is_composite_type(returnty)
+            and not call_expr.prototype.is_arg0_retbuf
+            and isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_reg
+        ):
+            stmt.dst.tags["type"] = returnty
+            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
 
     def _detect_callsite_discriminant_hint(self, post_callsite_path):
         """

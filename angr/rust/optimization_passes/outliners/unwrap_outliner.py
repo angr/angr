@@ -18,6 +18,8 @@ UNWRAP_FUNCTIONS = {
 
 
 class UnwrapSimplifierState:
+    """State for tracking unwrap pattern detection."""
+
     def __init__(
         self, conditional_jump_block, unwrap_failed_block, ownership_move_block, cmp_expr, unwrap_failed_func_name
     ):
@@ -59,6 +61,8 @@ class UnwrapSimplifierState:
 
 
 class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransformationMixin, SSAVariableMixin):
+    """Replace unwrap/expect patterns with simplified function call expressions."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -77,7 +81,8 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _extract_vvar_from_cond(self, cond: BinaryOp):
+    @staticmethod
+    def _extract_vvar_from_cond(cond: BinaryOp):
         op0 = cond.operands[0]
         if isinstance(op0, Load):
             return unwrap_stack_vvar_reference(op0.addr)
@@ -118,31 +123,30 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                         and unwrap_failed_func_name == OPTION_UNWRAP_FAILED_FUNCTION
                     ):
                         variant = enum_ty.get_variant_by_name("Some")
-                    if variant:
-                        if cmp_vvar.was_stack:
-                            offset = cmp_vvar.stack_offset + variant.first_field_offset
-                            size = variant.size - variant.first_field_offset
-                            dst_vvar = self.new_stack_vvar(offset, size * 8, cmp_vvar.tags)
-                            unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
-                            first_block, second_block = self.split_block(pred, last_stmt)
-                            self.remove_block(unwrap_failed_block)
-                            replacement = Call(
-                                idx=last_stmt.idx,
-                                target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
-                                prototype=RustSimTypeFunction(
-                                    args=[RustSimTypeInt(cmp_vvar.bits)], returnty=variant.type
-                                ).with_arch(self.project.arch),
-                                args=[cmp_vvar],
-                                ret_expr=None,
-                                **last_stmt.tags,
-                            )
-                            replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
-                            replacement.bits = dst_vvar.bits
-                            second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
-                            return
+                    if variant and cmp_vvar.was_stack:
+                        offset = cmp_vvar.stack_offset + variant.first_field_offset
+                        size = variant.size - variant.first_field_offset
+                        dst_vvar = self.new_stack_vvar(offset, size * 8, cmp_vvar.tags)
+                        unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
+                        _, second_block = self.split_block(pred, last_stmt)
+                        self.remove_block(unwrap_failed_block)
+                        replacement = Call(
+                            idx=last_stmt.idx,
+                            target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
+                            prototype=RustSimTypeFunction(
+                                args=[RustSimTypeInt(cmp_vvar.bits)], returnty=variant.type
+                            ).with_arch(self.project.arch),
+                            args=[cmp_vvar],
+                            ret_expr=None,
+                            **last_stmt.tags,
+                        )
+                        replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
+                        replacement.bits = dst_vvar.bits
+                        second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
+                        return
                 # Outline unwrap without knowing the enum type
                 unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
-                first_block, second_block = self.split_block(pred, last_stmt)
+                _first_block, second_block = self.split_block(pred, last_stmt)
                 assert self.remove_block(unwrap_failed_block)
                 replacement = Call(
                     idx=last_stmt.idx,

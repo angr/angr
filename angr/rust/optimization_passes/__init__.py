@@ -5,7 +5,6 @@ from .error_propagation_simplifier import ErrorPropagationSimplifier
 from .function_prototype_inference import FunctionPrototypeInference
 from .cleanup_code_remover import CleanupCodeRemover
 from .deref_coercion_simplifier import DerefCoercionSimplifier
-from .macro.show_macro_simplifier import ShowMacroSimplifier
 from .macro.vec_macro_simplifier import VecMacroSimplifier
 from .outliners.string_cmp_outliner import StringCmpOutliner
 from .outliners.string_literal_outliner import StringLiteralOutliner
@@ -21,8 +20,6 @@ from .rust_calling_convention import RustCallingConvention
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
 from .struct_return_simplifier import StructReturnSimplifier
-from .alloc_simplifier import AllocSimplifier
-from .type_corrector import TypeCorrector
 from .struct_instantiation_simplifier import StructInstantiationSimplifier
 
 

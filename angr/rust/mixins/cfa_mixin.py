@@ -28,18 +28,21 @@ class CFAMixin:
     def get_one_successor(self, block) -> Block:
         return next(self._graph.successors(block))
 
-    def first_non_label_stmt(self, block) -> Statement | None:
+    @staticmethod
+    def first_non_label_stmt(block) -> Statement | None:
         for stmt in block.statements:
             if not isinstance(stmt, Label):
                 return stmt
         return None
 
-    def last_stmt(self, block) -> Statement | None:
+    @staticmethod
+    def last_stmt(block) -> Statement | None:
         if block.statements:
             return block.statements[-1]
         return None
 
-    def replace_stmt(self, block, stmts, replacement):
+    @staticmethod
+    def replace_stmt(block, stmts, replacement):
         idx = max(block.statements.index(stmt) for stmt in stmts)
         block.statements.insert(idx, replacement)
         for stmt in stmts:

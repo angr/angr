@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 
 class RustTypehoon(Typehoon):
+    """Rust-aware type inference engine extending the base Typehoon."""
+
     def __init__(
         self,
         constraints,

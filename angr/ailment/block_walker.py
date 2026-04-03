@@ -1,9 +1,9 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
 from collections import OrderedDict
+from collections.abc import Callable
 from abc import abstractmethod
 from typing import Any, Generic, TypeVar, cast
-from collections.abc import Callable
 
 from . import Block
 from .statement import (
@@ -35,7 +35,7 @@ from .expression import (
     MultiStatementExpression,
     VirtualVariable,
     Phi,
-    Enum,
+    RustEnum,
     Struct,
     Array,
     StringLiteral,
@@ -88,7 +88,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             Phi: self._handle_Phi,
             Extract: self._handle_Extract,
             Insert: self._handle_Insert,
-            Enum: self._handle_Enum,
+            RustEnum: self._handle_RustEnum,
             Struct: self._handle_Struct,
             Array: self._handle_Array,
             FunctionLikeMacro: self._handle_FunctionLikeMacro,
@@ -323,7 +323,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Enum(self, expr_idx: int, expr: Enum, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement, block: Block | None):
         for idx, field in enumerate(expr.fields):
             self._handle_expr(idx, field, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
@@ -511,7 +511,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
-    def _handle_Enum(self, expr_idx: int, expr: Enum, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement, block: Block | None):
         for idx, field in enumerate(expr.fields):
             self._handle_expr(idx, field, stmt_idx, stmt, block)
 
@@ -998,7 +998,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             return result
         return expr
 
-    def _handle_Enum(self, expr_idx: int, expr: Enum, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement, block: Block | None):
         changed = False
         new_fields = []
         for idx, field in enumerate(expr.fields):

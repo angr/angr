@@ -4,6 +4,8 @@ from pprint import pformat
 
 
 class RustCallingConventionModel:
+    """Stores inferred calling convention facts for a Rust function."""
+
     def __init__(self):
         self.memory_writes = defaultdict(dict)
         self.callsite_memory_writes = defaultdict(dict)

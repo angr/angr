@@ -17,6 +17,9 @@ from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import parse_type
 from angr.errors import AngrAIError
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.rust.typehoon.typehoon import RustTypehoon
+from angr.rust.optimization_passes import get_rust_optimization_passes
 from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
@@ -32,15 +35,11 @@ from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
 from .structured_codegen.rust import RustStructuredCodeGenerator
-from angr.analyses.typehoon.typehoon import Typehoon
-from angr.rust.typehoon.typehoon import RustTypehoon
-from angr.rust.optimization_passes import get_rust_optimization_passes
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
-    from .structured_codegen.c import CStructuredCodeGenerator
     from .structured_codegen.base import BaseStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)

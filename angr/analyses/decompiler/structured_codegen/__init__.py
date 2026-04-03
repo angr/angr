@@ -22,4 +22,5 @@ __all__ = (
     "InstructionMappingElement",
     "PositionMapping",
     "PositionMappingElement",
+    "RustStructuredCodeGenerator",
 )

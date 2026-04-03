@@ -4,7 +4,7 @@ from typing import Any
 
 
 from angr.ailment import BinaryOp, Assignment
-from angr.ailment.expression import Load, Const, VirtualVariable, Enum
+from angr.ailment.expression import Load, Const, VirtualVariable, RustEnum
 from angr.ailment.statement import ConditionalJump, Return, Label, Call, Store
 from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.mixins import DFAMixin
@@ -89,7 +89,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
             dst.statements
             and isinstance(dst.statements[-1], Return)
             and dst.statements[-1].ret_exprs
-            and isinstance(dst.statements[-1].ret_exprs[0], Enum)
+            and isinstance(dst.statements[-1].ret_exprs[0], RustEnum)
         )
         # pred = next(graph.predecessors(src), None)
         # if pred and pred.statements and isinstance(pred.statements[-1], ConditionalJump):
@@ -137,8 +137,8 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                     return variant
         return None
 
-    def __group_move_stmts_for_block(self, block, scrutinee: VirtualVariable, variant: EnumVariant):
-        field_offsets = variant.field_offsets
+    def __group_move_stmts_for_block(self, block, scrutinee: VirtualVariable, variant: EnumVariant):  # pylint:disable=unused-private-member
+        _ = variant.field_offsets
         move_stmts = []
         cur_size = 0
         expected_size = variant.size - variant.first_field_offset
@@ -171,14 +171,10 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                     failed_stmts.append(stmt)
             else:
                 break
-        if expected_size == 80:
-            import ipdb
-
-            ipdb.set_trace()
         if not failed_stmts and cur_size == expected_size:
             move_stmt = None
             if len(move_stmts) >= 2:
-                dst_offset = move_stmts[0].dst.stacK_offset
+                _ = move_stmts[0].dst.stacK_offset
                 # TODO: Group move stmts
             elif len(move_stmts) == 1:
                 move_stmt = move_stmts[0]
@@ -228,7 +224,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                 and isinstance(jmp.true_target, Const)
                 and isinstance(jmp.false_target, Const)
             ):
-                scrutinee, discriminant, cmp_op, leftover = self.extract_scrutinee_and_discriminant(jmp.condition)
+                scrutinee, discriminant, cmp_op, _ = self.extract_scrutinee_and_discriminant(jmp.condition)
                 if scrutinee and (
                     (enum_ty := scrutinee.tags.get("type", None))
                     and isinstance(enum_ty, (RustSimTypeOption, RustSimTypeResult))

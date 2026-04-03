@@ -2,13 +2,15 @@ from __future__ import annotations
 from angr.ailment import Const
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Call
-from .utils import CallRewriter, replace_argument_pairs
 from angr.rust.sim_type import RustSimTypeSlice
 from angr.calling_conventions import SimStructArg, SimFunctionArgument, SimRegArg
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from .utils import CallRewriter, replace_argument_pairs
 
 
 class SliceArgRewriter(OptimizationPass):
+    """Rewrite consecutive register arguments into Rust slice types."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -63,7 +65,7 @@ class SliceArgRewriter(OptimizationPass):
             # )
         return None
 
-    def _rewrite_slice_arguments(self, call: Call, block, stmt):
+    def _rewrite_slice_arguments(self, call: Call, _block, _stmt):
         if isinstance(call.target, Const) and call.target.value in self.kb.functions:
             func = self.kb.functions[call.target.value]
             if (

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-import re
 from collections import defaultdict
 from pathlib import Path
 import json
@@ -22,63 +21,15 @@ from angr.rust.sim_type import (
 )
 from angr.rust.utils.demangler import demangle
 from angr.calling_conventions import default_cc
-from angr.rust.definitions.commit_versions import COMMIT_VERSIONS
 from angr.analyses import Analysis, AnalysesHub
-from angr.knowledge_plugins.cfg import MemoryDataSort
 from angr.sim_type import SimTypeFunction
 
 l = logging.getLogger(__name__)
 
 
-class RustVersionIdentifier:
-    def __init__(self, project):
-        self.cfg = project.kb.cfgs.get_most_accurate()
-
-    def _get_all_strings(self):
-        lst = []
-        if self.cfg is None:
-            return lst
-        for v in self.cfg.memory_data.values():
-            if v.sort in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
-                try:
-                    lst.append(v.content.decode())
-                except UnicodeDecodeError:
-                    pass
-        return lst
-
-    def _extract_rustc_version(self):
-        lines = self._get_all_strings()
-
-        # 1. Try to find /rustc/<commit_hash>/
-        rustc_commit_pattern = re.compile(r"/rustc/([0-9a-f]{40})[/\\]")
-        for line in lines:
-            match = rustc_commit_pattern.search(line)
-            if match:
-                commit_hash = match.group(1)
-                l.debug(f"Found rustc commit hash: {commit_hash}")
-
-                version = COMMIT_VERSIONS.get(commit_hash, None)
-                if version:
-                    return version
-                return None
-
-        # 2. Fallback: Try to find version string like rustc 1.46.0 or rust-1.46.0
-        version_patterns = [
-            re.compile(r"rustc\s+([0-9]+\.[0-9]+\.[0-9]+)"),
-            re.compile(r"rust-([0-9]+\.[0-9]+\.[0-9]+)"),
-        ]
-        for pattern in version_patterns:
-            for line in lines:
-                match = pattern.search(line)
-                if match:
-                    return match.group(1)
-        return None
-
-    def identify_rust_version(self):
-        return self._extract_rustc_version() or "1.88.0"
-
-
 class TypeDBLoader(Analysis):
+    """Load Rust type definitions from a version-specific JSON type database."""
+
     def __init__(self):
         self._struct_db = None
         self._prototype_db = None
@@ -138,7 +89,8 @@ class TypeDBLoader(Analysis):
                 return RustSimTypeSlice(data_ptr_ty.pts_to).with_arch(self.project.arch)
         return ty
 
-    def _unwrap_argument_type(self, ty: RustSimStruct):
+    @staticmethod
+    def _unwrap_argument_type(ty: RustSimStruct):
         # Handle wrapper structs in the latest Rust versions
         # https://doc.rust-lang.org/src/core/fmt/rt.rs.html#14-23
         # enum ArgumentType<'a> {
@@ -335,11 +287,11 @@ class TypeDBLoader(Analysis):
         type_db_filename = f"{rustc_version}.json"
         type_db_path = Path(__file__).parent.joinpath("type_db").joinpath(type_db_filename)
         if not type_db_path.exists():
-            l.warning(f"Type database for Rust version {rustc_version} not found at {type_db_path}.")
+            l.warning("Type database for Rust version %s not found at %s.", rustc_version, type_db_path)
             return
-        type_db_json = json.loads(type_db_path.read_text())
+        type_db_json = json.loads(type_db_path.read_text(encoding="utf-8"))
         self._struct_db = {struct_data["name"]: struct_data for struct_data in type_db_json["structs"]}
-        for struct_name, struct_data in self._struct_db.items():
+        for _, struct_data in self._struct_db.items():
             self._parse_type(struct_data)
         l.info("Loaded %d structs from type database.", len(self._structs))
 
@@ -351,17 +303,17 @@ class TypeDBLoader(Analysis):
             func = self.kb.functions[addr]
             name_to_func_addrs[demangle(func.name)].append(addr)
 
-        prototypes = defaultdict(list)
+        name_to_prototypes = defaultdict(list)
         for func_data in prototype_db:
             prototype = self._parse_Prototype(func_data["prototype"])
             if prototype is not None:
                 prototype = prototype.with_arch(self.project.arch)
                 func_name = func_data["name"]
-                prototypes[func_name].append(prototype)
+                name_to_prototypes[func_name].append(prototype)
 
-        l.info("Loaded %d functions from type database.", len(prototypes))
+        l.info("Loaded %d functions from type database.", len(name_to_prototypes))
 
-        for func_name, prototypes in prototypes.items():
+        for func_name, prototypes in name_to_prototypes.items():
             for prototype in prototypes:
                 for func_addr in name_to_func_addrs[func_name]:
                     # Re-fetch the function each time to get the current object from the cache

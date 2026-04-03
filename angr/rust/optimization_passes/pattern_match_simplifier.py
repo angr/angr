@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.expression import VirtualVariable, Load
 from angr.ailment.statement import Label, Assignment, Return
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
@@ -19,6 +19,8 @@ from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 
 
 class PatternMatchWalker(SequenceWalker, DFAMixin):
+    """Walker that converts condition nodes into pattern match or if-let nodes."""
+
     def __init__(self, var_manager, graph):
         super().__init__()
         self.var_manager = var_manager
@@ -27,6 +29,8 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
     @staticmethod
     def _find_first_block(node):
         class BlockFinder(SequenceWalker):
+            """Finds the first block in a sequence node."""
+
             def __init__(self):
                 super().__init__(
                     handlers={ailment.Block: self._handle_Block}, force_forward_scan=True, update_seqnode_in_place=False
@@ -38,9 +42,8 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                     return None
                 return super()._handle(node, **kwargs)
 
-            def _handle_Block(self, block, **kwargs):
+            def _handle_Block(self, block, **_kwargs):
                 self.block = block
-                return None
 
         finder = BlockFinder()
         finder.walk(node)
@@ -121,8 +124,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                 ((false_variant, false_move_stmts), false_node),
             ]
         )
-        result = PatternMatchNode(scrutinee, arms, None, addr)
-        return result
+        return PatternMatchNode(scrutinee, arms, None, addr)
 
     def _build_if_let(self, true_node, true_variant, scrutinee, addr, leftover):
         true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
@@ -132,8 +134,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         pattern = (true_variant, true_move_stmts)
         if leftover:
             true_node = ConditionNode(addr, None, leftover, true_node, None)
-        result = IfLetNode(pattern, scrutinee, true_node, None, addr)
-        return result
+        return IfLetNode(pattern, scrutinee, true_node, None, addr)
 
     def _is_simple_return(self, node):
         if isinstance(node, ailment.Block):
@@ -227,6 +228,8 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
 
 
 class PatternMatchSimplifier(SequenceOptimizationPass):
+    """Recover idiomatic Rust pattern match constructs from condition nodes."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_STRUCTURING

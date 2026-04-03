@@ -18,6 +18,8 @@ STR_CMP_EQ_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::eq
 
 
 class StrCmpSimplifierWalker(AILBlockRewriter):
+    """Rewrite string comparison expressions to use simplified binary ops."""
+
     def __init__(self, context: DerefCoercionSimplifier):
         super().__init__()
         self.context = context
@@ -47,6 +49,8 @@ class StrCmpSimplifierWalker(AILBlockRewriter):
 
 
 class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
+    """Simplify explicit deref coercion operations on string arguments."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY

@@ -25,6 +25,8 @@ l = logging.getLogger(__name__)
 
 
 class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRDAMixin):
+    """Remove cleanup code such as deallocation and drop calls."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -73,7 +75,7 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
                 if isinstance(block.statements[-1], Return):
                     block.statements[-1].ret_exprs = []
                 elif not self._is_simple_block(block):
-                    l.debug(f"Removed the last statement of\n{block}")
+                    l.debug("Removed the last statement of\n%s", block)
                     block.statements = block.statements[:-1]
                 else:
                     blocks_to_remove.add(block)

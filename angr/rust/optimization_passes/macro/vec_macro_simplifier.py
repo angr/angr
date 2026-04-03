@@ -16,6 +16,8 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 
 
 class SimplificationState:
+    """Track state during vec! macro simplification."""
+
     def __init__(self, context: VecMacroSimplifier, alloc_block, alloc_call):
         self.context = context
         self.alloc_block = alloc_block
@@ -32,7 +34,8 @@ class SimplificationState:
         # Statements that construct the final object
         self.construct_stmt = None
 
-    def _extract_stack_offset_and_size(self, vvars: list[VirtualVariable]):
+    @staticmethod
+    def _extract_stack_offset_and_size(vvars: list[VirtualVariable]):
         sorted_vvars = sorted(vvars, key=lambda v: v.stack_offset)
         cur_offset = sorted_vvars[0].stack_offset
         size = 0
@@ -130,6 +133,8 @@ RUST_CONVERT_TO_VEC_FUNCTIONS = ["alloc::slice::hack::into_vec"]
 
 
 class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixin, CFGTransformationMixin):
+    """Simplify vec! macro expansion patterns."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -167,7 +172,8 @@ class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixi
                 return SimplificationState(self, block, alloc_call)
         return None
 
-    def extract_vvar_and_offset(self, expr) -> [VirtualVariable | None, int | None]:
+    @staticmethod
+    def extract_vvar_and_offset(expr) -> [VirtualVariable | None, int | None]:
         if (
             isinstance(expr, BinaryOp)
             and expr.op == "Add"

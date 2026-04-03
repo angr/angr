@@ -366,6 +366,8 @@ __all__ = (
     "manager",
     "options",
     "register_analysis",
+    "rust_analyses",
+    "rust_knowledge_plugins",
     "sim_options",
     "types",
 )

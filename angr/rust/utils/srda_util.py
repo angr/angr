@@ -8,6 +8,8 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
 
 class SRDAUtil:
+    """Utility wrapper for SSA reaching definitions analysis queries."""
+
     def __init__(self, srda: SReachingDefinitionsAnalysis):
         self.srda = srda
         self.srda_view = SRDAView(srda.model)

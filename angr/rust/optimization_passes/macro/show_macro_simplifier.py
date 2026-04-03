@@ -16,6 +16,8 @@ SHOW_ERROR_OR_WARNING_MACROS = {
 
 
 class ShowMacroSimplifier(OptimizationPass, CFAMixin):
+    """Simplify Rust show/display macro invocations."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY

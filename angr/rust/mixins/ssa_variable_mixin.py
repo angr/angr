@@ -6,6 +6,8 @@ from angr.rust.mixins.srda_mixin import SRDAMixin
 
 
 class SSAVariableMixin:
+    """Mixin for creating and fixing SSA stack virtual variables."""
+
     def __init__(self, context: OptimizationPass):
         self.context = context
 
@@ -36,6 +38,8 @@ class SSAVariableMixin:
 
 
 class _StackVVarRewriter(AILBlockRewriter):
+    """Rewrite stack virtual variable references to use newly created variables."""
+
     def __init__(self, srda: SRDAMixin, new_stack_vvars: dict, project):
         super().__init__()
         self._srda = srda

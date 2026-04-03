@@ -7,6 +7,8 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 
 
 class VecOutliner(OptimizationPass):
+    """Replace Vec construction patterns with vec! macro expressions."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -51,6 +53,8 @@ class VecOutliner(OptimizationPass):
             return stmt
 
         class StringStructWalker(AILBlockRewriter):
+            """Walk blocks rewriting Assignment statements via a callback."""
+
             def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
                 return callback(stmt_idx, stmt, block)
 

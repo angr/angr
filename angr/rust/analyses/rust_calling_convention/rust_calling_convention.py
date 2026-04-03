@@ -94,16 +94,16 @@ class RustCallingConventionAnalysis(Analysis):
                 )
                 if clinic:
                     self.graph = clinic.graph
-            except Exception as e:
-                l.error(f"Failed to recover AIL graph for {normalize(self.func.name)}")
+            except Exception as e:  # pylint:disable=broad-exception-caught
+                l.error("Failed to recover AIL graph for %s", normalize(self.func.name))
                 l.error("".join(traceback.format_exception(e)))
 
         if self.graph:
             self._fact_collector = FactCollector(self)
             try:
                 self._analyze()
-            except Exception as e:
-                l.error(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
+            except Exception as e:  # pylint:disable=broad-exception-caught
+                l.error("Rust calling convention analysis failed for %s", normalize(self.func.name))
                 l.error("".join(traceback.format_exception(e)))
 
     # -- properties ----------------------------------------------------------
@@ -120,7 +120,7 @@ class RustCallingConventionAnalysis(Analysis):
         self._fact_collector.collect()
         self.model.inferred_prototype = self._infer_prototype()
         self.kb.rust_calling_conventions[self.func.addr] = self.model
-        l.debug(f"Analysis result for {demangle(self.func.name)} (addr: {hex(self.func.addr)}): {self.model}")
+        l.debug("Analysis result for %s (addr: %s): %s", demangle(self.func.name), hex(self.func.addr), self.model)
 
     # -- prototype inference -------------------------------------------------
 
@@ -254,7 +254,7 @@ class RustCallingConventionAnalysis(Analysis):
             path_memory_writes = memory_writes[path]
             discriminant = None
             for offset in sorted(path_memory_writes.keys()):
-                expr, func_addr = path_memory_writes[offset]
+                expr, _ = path_memory_writes[offset]
                 arg_ty = RustSimTypeInt(expr.bits, signed=False)
                 fields[f"field_{offset}"] = arg_ty
                 if offset == 0 and isinstance(expr, Const):
@@ -318,7 +318,7 @@ class RustCallingConventionAnalysis(Analysis):
         fc = self._fact_collector
         combo_arg_types = {}
 
-        def callback(call: Call, block, stmt, is_expr):
+        def callback(call: Call, _block, _stmt, is_expr):  # pylint:disable=unused-argument
             i = 0
             while i + 1 < len(call.args or []):
                 arg = call.args[i]
@@ -409,7 +409,7 @@ class RustCallingConventionAnalysis(Analysis):
         # Deduplicate candidates by (size, discriminant value)
         candidates_and_discriminants = []
         visited = set()
-        for (candidate, discriminant), path in candidates_and_paths:
+        for (candidate, discriminant), _ in candidates_and_paths:
             key = (candidate.size, discriminant.value if discriminant else None)
             if key not in visited:
                 visited.add(key)
@@ -417,7 +417,7 @@ class RustCallingConventionAnalysis(Analysis):
         candidates_and_discriminants = tuple(sorted(candidates_and_discriminants, key=lambda item: item[0].size))
 
         if len(candidates_and_discriminants) == 2:
-            discriminants = list(discriminant for _, discriminant in candidates_and_discriminants)
+            discriminants = [discriminant for _, discriminant in candidates_and_discriminants]
             discriminant_sizes = {discriminant.bits for discriminant in discriminants if discriminant is not None}
             if len(discriminant_sizes) == 1:
                 discriminant_size = next(iter(discriminant_sizes))
@@ -496,7 +496,7 @@ class RustCallingConventionAnalysis(Analysis):
 
         if len(candidates_and_discriminants) >= 2:
             structs_by_size = {}
-            for candidate, discriminant in candidates_and_discriminants:
+            for candidate, _ in candidates_and_discriminants:
                 if candidate.size not in structs_by_size:
                     structs_by_size[candidate.size] = candidate
             if len(structs_by_size) == 2:
@@ -515,7 +515,7 @@ class RustCallingConventionAnalysis(Analysis):
                 and not all(discriminant is None for _, discriminant in candidates_and_discriminants)
             ):
                 variants = []
-                for candidate, discriminant in candidates_and_discriminants:
+                for candidate, _ in candidates_and_discriminants:
                     variant_name = f"variant{candidate.size // self.project.arch.byte_width}"
                     variants.append(
                         EnumVariant(

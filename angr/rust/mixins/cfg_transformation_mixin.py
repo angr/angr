@@ -1,17 +1,21 @@
 from __future__ import annotations
+
+import contextlib
 import logging
 
 import networkx
+from networkx import NetworkXError
 
 from angr.ailment import Const, Block
 from angr.ailment.expression import VirtualVariable, Phi
 from angr.ailment.statement import Jump, ConditionalJump, Assignment
-from networkx import NetworkXError
 
 l = logging.getLogger(name=__name__)
 
 
 class CFGTransformationMixin:
+    """Mixin providing CFG graph transformation operations (block removal, splitting, etc.)."""
+
     def __init__(self, graph):
         self._graph: networkx.DiGraph = graph
         self._block_by_addr_and_idx = None
@@ -64,10 +68,8 @@ class CFGTransformationMixin:
         if removed:
             target_block = self._block_by_addr_and_idx.get((jump_target, jump_target_idx), None)
             if target_block:
-                try:
+                with contextlib.suppress(NetworkXError):
                     self._graph.remove_edge(block, target_block)
-                except NetworkXError:
-                    pass
         return removed
 
     def remove_false_branch(self, block: Block):
@@ -175,10 +177,8 @@ class CFGTransformationMixin:
                 pass
         else:
             for succ in list(self._graph.successors(block)):
-                try:
+                with contextlib.suppress(NetworkXError):
                     self._graph.remove_edge(block, succ)
-                except NetworkXError:
-                    pass
         new_target_block = self._block_by_addr_and_idx.get((new_target, new_target_idx), None)
         assert new_target_block is not None
         self._graph.add_edge(block, new_target_block)
@@ -187,7 +187,7 @@ class CFGTransformationMixin:
         graph = self._graph
 
         if block not in graph:
-            l.warning(f"{block} not in graph")
+            l.warning("%s not in graph", block)
             return False
 
         succs = list(graph.successors(block))
@@ -203,7 +203,7 @@ class CFGTransformationMixin:
                 return False
 
         if num_successors == 1:
-            new_target_block = list(graph.successors(block))[0]
+            new_target_block = next(iter(graph.successors(block)))
             for pred in list(graph.predecessors(block)):
                 self.replace_jump_target(pred, block.addr, block.idx, new_target_block.addr, new_target_block.idx)
         elif num_successors == 0:
@@ -218,7 +218,7 @@ class CFGTransformationMixin:
         self._update_phi_variables_after_removing_block(graph, preds, block)
         if (block.addr, block.idx) in self._block_by_addr_and_idx:
             del self._block_by_addr_and_idx[(block.addr, block.idx)]
-        l.debug(f"Block:\n{block!s}removed by {self.__class__.__module__}.{self.__class__.__name__}")
+        l.debug("Block:\n%sremoved by %s.%s", block, self.__class__.__module__, self.__class__.__name__)
 
         # Remove old successors (and their successors recursively) with no predecessor
         # Notice that old successors may not be connected to the predecessors of original block
@@ -230,7 +230,10 @@ class CFGTransformationMixin:
                 if (succ.addr, succ.idx) in self._block_by_addr_and_idx:
                     del self._block_by_addr_and_idx[(succ.addr, succ.idx)]
                 l.debug(
-                    f"Successor:\n{block!s}removed by {self.__class__.__module__}.{self.__class__.__name__} because of zero in-degree"
+                    "Successor:\n%sremoved by %s.%s because of zero in-degree",
+                    block,
+                    self.__class__.__module__,
+                    self.__class__.__name__,
                 )
 
         return True

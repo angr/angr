@@ -33,7 +33,8 @@ class UnreachableBranchFixer(OptimizationPass, CFGTransformationMixin):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _calculate_vvar_val(self, vvar, block):
+    @staticmethod
+    def _calculate_vvar_val(vvar, block):
         val = vvar
         for stmt in reversed(block.statements):
             if isinstance(val, VirtualVariable) and isinstance(stmt, Assignment) and stmt.dst.likes(val):

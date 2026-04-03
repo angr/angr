@@ -346,7 +346,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         # TODO
         pass
 
-    def _handle_expr_Enum(self, expr):
+    def _handle_expr_RustEnum(self, expr):
         # TODO
         pass
 

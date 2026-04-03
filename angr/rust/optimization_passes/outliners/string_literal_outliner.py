@@ -10,6 +10,8 @@ from angr.rust.optimization_passes.utils import extract_str
 
 
 class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
+    """Replace string literal construction patterns with StringLiteral expressions."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -28,7 +30,7 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
         def callback(expr: Struct):
             new_fields = OrderedDict()
             new_field_offsets = {}
-            field_names = sorted(list(expr.field_names.items()), key=lambda ele: ele[0])
+            field_names = sorted(expr.field_names.items(), key=lambda ele: ele[0])
             changed = False
             while len(field_names) >= 2:
                 offset, field_name = field_names.pop(0)
@@ -63,6 +65,8 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
             return expr
 
         class StructWalker(AILBlockRewriter):
+            """Walk blocks rewriting Struct expressions via a callback."""
+
             def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
                 return callback(expr)
 

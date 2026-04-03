@@ -39,6 +39,8 @@ l = logging.getLogger(__name__)
 
 
 class FormatWrapperIdentification(Analysis):
+    """Identify functions that wrap format/print operations."""
+
     def __init__(self):
         self._format_wrappers = {}
 
@@ -68,6 +70,8 @@ AnalysesHub.register_default("FormatWrapperIdentification", FormatWrapperIdentif
 
 
 class FormatWrappers(KnowledgeBasePlugin):
+    """Knowledge base plugin for resolving format wrapper functions."""
+
     def __init__(self, kb):
         super().__init__(kb)
         self._analyzed = False
@@ -84,6 +88,8 @@ KnowledgeBasePlugin.register_default("format_wrappers", FormatWrappers)
 
 
 class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin):
+    """Recover print-like macros from format argument construction patterns."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -120,7 +126,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 if fmt_str.endswith("\n"):
                     return "writeln", fmt_str[:-1], RustSimTypeSize(signed=False)
                 return "write", fmt_str, RustSimTypeSize(signed=False)
-        l.error(f"Can't find a macro for {func_name}")
+        l.error("Can't find a macro for %s", func_name)
         assert False
 
     def _is_debug_formatter(self, arg: Struct):
@@ -270,7 +276,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 return None, None
         return argument_structs, stmts_to_remove
 
-    def replace_call(self, call: Call, block: Block, stmt):
+    def replace_call(self, call: Call, _block: Block, _stmt):
         name = self.match_call(call, FORMAT_FUNCTIONS, monopolize=False, use_trait_name=False)
         if name is None and isinstance(call.target, Const):
             name = self.project.kb.format_wrappers.resolve(call.target.value)

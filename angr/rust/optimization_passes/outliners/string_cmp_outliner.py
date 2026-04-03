@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from archinfo import Endness
 
 from angr.ailment import AILBlockRewriter, BinaryOp, Const
@@ -9,6 +10,8 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 
 
 class StringCmpOutliner(OptimizationPass):
+    """Outline string comparison operations into simplified expressions."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -25,11 +28,10 @@ class StringCmpOutliner(OptimizationPass):
         try:
             byteorder = "big" if self.project.arch.memory_endness == Endness.BE else "little"
             decoded_str = int.to_bytes(value, size, byteorder).decode("UTF-8")
-            decoded_str = (
+            return (
                 decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
             )
-            return decoded_str
-        except Exception:
+        except (OverflowError, UnicodeDecodeError, ValueError):
             return None
 
     def _extract_cmp(self, expr):

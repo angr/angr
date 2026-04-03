@@ -7,6 +7,8 @@ from angr.analyses import Analysis, AnalysesHub
 
 
 class RustTypeHintsAnalysis(Analysis):
+    """Collect type hints from Rust-specific patterns in the AIL graph."""
+
     def __init__(self, func, graph):
         self._func = func
         self._graph = graph

@@ -5,6 +5,8 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class RustCallingConventions(KnowledgeBasePlugin, MutableMapping):
+    """Store inferred Rust calling conventions keyed by function address."""
+
     def __init__(self, kb):
         super().__init__(kb)
         self._store = {}

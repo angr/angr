@@ -9,7 +9,7 @@ from angr.errors import SimMemoryMissingError
 from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
 
-from angr.ailment.expression import StringLiteral, Struct, Array, Enum, Let, FunctionLikeMacro
+from angr.ailment.expression import StringLiteral, Struct, Array, RustEnum, Let, FunctionLikeMacro
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction, SimTypePointer
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
@@ -599,7 +599,7 @@ class SimEngineVRAIL(
             self._expr(field)
         return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
 
-    def _handle_expr_Enum(self, expr: Enum):
+    def _handle_expr_RustEnum(self, expr: RustEnum):
         for field in expr.fields:
             self._expr(field)
         return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())

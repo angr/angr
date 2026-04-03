@@ -81,7 +81,7 @@ class CalleeWriteCollector:
         visitor = CallVisitor(self._handle_call)
         visitor.visit(self._fc.graph)
 
-    def _handle_call(self, call: Call, block: Block, stmt: Statement, is_expr: bool):
+    def _handle_call(self, call: Call, block: Block, _stmt: Statement, is_expr: bool):  # pylint:disable=unused-argument
         if not isinstance(call.target, Const) or call.target.value not in self._fc.project.kb.functions:
             return
         if not self._call_forwards_arg0(call):

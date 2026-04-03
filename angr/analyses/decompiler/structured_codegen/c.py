@@ -269,7 +269,7 @@ class CConstruct:
 
     def __init__(self, codegen, tags=None):
         self.tags = tags or {}
-        self.codegen: StructuredCodeGenerator = codegen
+        self.codegen: BaseStructuredCodeGenerator = codegen
         self.idx = codegen.next_idx(self.__class__.__name__)
 
     def c_repr(self, initial_pos=0, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
@@ -587,7 +587,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             # Discover all nested structs
             # we rely on the behavior that if you extend a list while it is iterating you will see those values
-            for ty in extern_types:  # pylint
+            for ty in extern_types:  # pylint:disable=modified-iterating-list
                 for field in ty.fields.values():
                     field = unpack_typeref(field)
                     while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):

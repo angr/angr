@@ -12,6 +12,8 @@ from angr.rust.utils.ail import unwrap_stack_vvar_reference
 
 
 class StructBuilder(Analysis):
+    """Build Rust struct types from memory write patterns."""
+
     def __init__(self, context, strict=False):
         self.context = context
         self.pending_potential_structs = []
@@ -68,7 +70,8 @@ class StructBuilder(Analysis):
                 fixed_field_exprs[offset] = expr
         return fixed_field_exprs
 
-    def _rebase_field_exprs(self, field_exprs, field_offset):
+    @staticmethod
+    def _rebase_field_exprs(field_exprs, field_offset):
         rebased_field_exprs = {}
         for offset in field_exprs:
             if offset - field_offset >= 0:

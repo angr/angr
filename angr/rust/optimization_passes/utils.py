@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import Block, AILBlockRewriter
 from angr.ailment.statement import Label, Jump, SideEffectStatement, Statement
 from angr.ailment.expression import Const, Call
@@ -35,9 +35,8 @@ def extract_str(project, str_ptr, str_len):
     ):
         with contextlib.suppress(UnicodeDecodeError):
             decoded_str = memory.load(str_ptr, str_len).decode("utf-8")
-            # decoded_str = (
-            #     decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
-            # )
+            # decoded_str = decoded_str if decoded_str.replace(
+            #     "\n", "").replace("\t", "").replace("\r", "").isprintable() else None
     return decoded_str
 
 
@@ -54,6 +53,8 @@ def extract_str_from_addr(project, addr):
 
 
 class SideEffectStatementRewriter(AILBlockRewriter):
+    """Rewrite SideEffectStatement nodes via a callback."""
+
     def __init__(self, callback):
         super().__init__()
         self.callback = callback
@@ -66,6 +67,8 @@ class SideEffectStatementRewriter(AILBlockRewriter):
 
 
 class CallRewriter(AILBlockRewriter):
+    """Rewrite Call expressions and SideEffectStatements via a callback."""
+
     def __init__(self, callback):
         super().__init__()
         self.callback = callback

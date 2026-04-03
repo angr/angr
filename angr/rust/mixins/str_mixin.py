@@ -3,6 +3,8 @@ from angr.ailment import Const
 
 
 class StrMixin:
+    """Mixin for extracting Rust string literals from binary memory."""
+
     def __init__(self, project):
         self.project = project
 
