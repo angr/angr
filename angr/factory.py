@@ -2,23 +2,25 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import overload, TYPE_CHECKING
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, overload
 
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from angr.exploration_techniques.base import ExplorationTechnique
 
-from .knowledge_plugins.functions import Function
-from .sim_state import SimState
-from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
-from .callable import Callable
-from .errors import AngrError
-from .engines import UberEngine, ProcedureEngine
-from .sim_type import SimTypeFunction, SimTypeInt
-from .codenode import HookNode, SyscallNode
 from .block import Block, SootBlock
+from .callable import Callable
+from .calling_conventions import PointerWrapper, SimCCUnknown, SimRegArg, SimStackArg, default_cc
+from .codenode import HookNode, SyscallNode
+from .engines import ProcedureEngine, UberEngine
+from .errors import AngrError
+from .knowledge_plugins.functions import Function
 from .sim_manager import SimulationManager
+from .sim_state import SimState
+from .sim_type import SimTypeFunction, SimTypeInt
+from .typing import AddressType
 
 try:
     from .engines import UberEnginePcode
@@ -314,23 +316,23 @@ class AngrObjectFactory:
     def block(
         self,
         addr: int,
-        size=None,
-        max_size=None,
-        byte_string=None,
-        thumb=False,
-        backup_state=None,
-        extra_stop_points=None,
-        opt_level=None,
-        num_inst=None,
-        traceflags=0,
-        insn_bytes=None,
-        strict_block_end=None,
-        collect_data_refs=False,
-        cross_insn_opt=True,
-        load_from_ro_regions=False,
-        const_prop=False,
-        initial_regs=None,
-        skip_stmts=False,
+        size: int | None = None,
+        max_size: int | None = None,
+        byte_string: bytes | bytearray | None = None,
+        thumb: bool = False,
+        backup_state: SimState[Any, Any] | None = None,
+        extra_stop_points: Iterable[int] | None = None,
+        opt_level: int | None = None,
+        num_inst: int | None = None,
+        traceflags: int = 0,
+        insn_bytes: bytes | bytearray | None = None,
+        strict_block_end: bool | None = None,
+        collect_data_refs: bool = False,
+        cross_insn_opt: bool = True,
+        load_from_ro_regions: bool = False,
+        const_prop: bool = False,
+        initial_regs: Iterable[int | str] | None = None,
+        skip_stmts: bool = False,
     ) -> Block: ...
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
@@ -338,45 +340,45 @@ class AngrObjectFactory:
     def block(
         self,
         addr: SootAddressDescriptor,
-        size=None,
-        max_size=None,
-        byte_string=None,
-        thumb=False,
-        backup_state=None,
-        extra_stop_points=None,
-        opt_level=None,
-        num_inst=None,
-        traceflags=0,
-        insn_bytes=None,
-        strict_block_end=None,
-        collect_data_refs=False,
-        load_from_ro_regions=False,
-        const_prop=False,
-        cross_insn_opt=True,
-        skip_stmts=False,
+        size: int | None = None,
+        max_size: int | None = None,
+        byte_string: bytes | bytearray | None = None,
+        thumb: bool = False,
+        backup_state: SimState[Any, Any] | None = None,
+        extra_stop_points: Iterable[int] | None = None,
+        opt_level: int | None = None,
+        num_inst: int | None = None,
+        traceflags: int = 0,
+        insn_bytes: bytes | bytearray | None = None,
+        strict_block_end: bool | None = None,
+        collect_data_refs: bool = False,
+        load_from_ro_regions: bool = False,
+        const_prop: bool = False,
+        cross_insn_opt: bool = True,
+        skip_stmts: bool = False,
     ) -> SootBlock: ...
 
     def block(
         self,
-        addr,
-        size=None,
-        max_size=None,
-        byte_string=None,
-        thumb=False,
-        backup_state=None,
-        extra_stop_points=None,
-        opt_level=None,
-        num_inst=None,
-        traceflags=0,
-        insn_bytes=None,
-        strict_block_end=None,
-        collect_data_refs=False,
-        cross_insn_opt=True,
-        load_from_ro_regions=False,
-        const_prop=False,
-        initial_regs=None,
-        skip_stmts=False,
-    ):
+        addr: AddressType,
+        size: int | None = None,
+        max_size: int | None = None,
+        byte_string: bytes | bytearray | None = None,
+        thumb: bool = False,
+        backup_state: SimState[Any, Any] | None = None,
+        extra_stop_points: Iterable[int] | None = None,
+        opt_level: int | None = None,
+        num_inst: int | None = None,
+        traceflags: int = 0,
+        insn_bytes: bytes | bytearray | None = None,
+        strict_block_end: bool | None = None,
+        collect_data_refs: bool = False,
+        cross_insn_opt: bool = True,
+        load_from_ro_regions: bool = False,
+        const_prop: bool = False,
+        initial_regs: Iterable[int | str] | None = None,
+        skip_stmts: bool = False,
+    ) -> Block | SootBlock:
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
 
@@ -404,7 +406,7 @@ class AngrObjectFactory:
             skip_stmts=skip_stmts,
         )
 
-    def fresh_block(self, addr, size, backup_state=None):
+    def fresh_block(self, addr: AddressType, size: int, backup_state: SimState[Any, Any] | None = None) -> Block:
         return Block(addr, project=self.project, size=size, backup_state=backup_state)
 
     cc.SimRegArg = SimRegArg

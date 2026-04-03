@@ -1,63 +1,64 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, overload, Literal
 
-from collections.abc import Callable
 import logging
 from collections import defaultdict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, overload
 
+import archinfo
 import networkx
-from sortedcontainers import SortedDict
-
 import pyvex
+from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from cle import (
     ELF,
     PE,
+    XBE,
     Blob,
-    PEStubs,
-    TLSObject,
-    MachO,
+    Coff,
     ExternObject,
-    KernelObject,
     FunctionHintSource,
     Hex,
-    Coff,
+    KernelObject,
+    MachO,
+    PEStubs,
     SRec,
-    XBE,
+    TLSObject,
 )
 from cle.backends import NamedRegion
-import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
-from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
+from sortedcontainers import SortedDict
 
-from angr.knowledge_plugins.functions.function_manager import FunctionManager
-from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, get_block_key, block_key_to_size
-from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.procedures.procedure_dict import SIM_PROCEDURES
-from angr.errors import (
-    AngrCFGError,
-    SimTranslationError,
-    SimMemoryError,
-    SimIRSBError,
-    SimEngineError,
-    AngrUnsupportedSyscallError,
-    SimError,
-)
-from angr.codenode import HookNode, BlockNode, FuncNode
-from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from angr.analyses import Analysis
 from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.block import Block
+from angr.codenode import BlockNode, FuncNode, HookNode, SootBlockNode, SyscallNode
+from angr.engines.vex.lifter import VEX_IRSB_MAX_INST, VEX_IRSB_MAX_SIZE
+from angr.errors import (
+    AngrCFGError,
+    AngrUnsupportedSyscallError,
+    SimEngineError,
+    SimError,
+    SimIRSBError,
+    SimMemoryError,
+    SimTranslationError,
+)
+from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump  # pylint:disable=unused-import
+from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.typing import AddressType
+from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
+
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 if TYPE_CHECKING:
-    from angr.sim_state import SimState
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import K
+    from angr.sim_state import SimState
 
-    AddressType = int | SootAddressDescriptor
     MethodType = int | SootMethodDescriptor
 
 
@@ -437,14 +438,14 @@ class CFGBase(Analysis):
 
     def _to_snippet(
         self,
-        cfg_node=None,
-        addr=None,
-        size=None,
-        thumb=False,
-        jumpkind=None,
-        base_state=None,
+        cfg_node: CFGNode | None = None,
+        addr: AddressType | None = None,
+        size: int | None = None,
+        thumb: bool = False,
+        jumpkind: str | None = None,
+        base_state: SimState[AddressType, Any] | None = None,
         byte_string: bytes | None = None,
-    ):
+    ) -> BlockNode | SyscallNode | HookNode | SootBlockNode:
         """
         Convert a CFGNode instance to a CodeNode object.
 
@@ -474,13 +475,17 @@ class CFGBase(Analysis):
             byte_string = cfg_node.byte_string
 
         if byte_string is not None:
+            if not isinstance(addr, int):
+                raise TypeError("SootAddressDescriptor cannot be used to initialize a BlockNode")
             return BlockNode(addr, size, thumb=thumb, bytestr=byte_string)  # pylint: disable=no-member
         return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state)
 
-    def _node_key_to_snippet(self, node_key: K, jumpkind: str | None = None, base_state=None) -> BlockNode:
+    def _node_key_to_snippet(
+        self, node_key: K, jumpkind: str | None = None, base_state: SimState[AddressType, Any] | None = None
+    ) -> BlockNode | SyscallNode | HookNode | SootBlockNode:
         addr = block_key_to_addr(node_key)
         size = block_key_to_size(node_key)
-        thumb = is_arm_arch(self.project.arch) and addr % 2 == 1
+        thumb = isinstance(addr, int) and is_arm_arch(self.project.arch) and addr % 2 == 1
         if not isinstance(addr, int):
             byte_string = None
         else:
@@ -499,7 +504,9 @@ class CFGBase(Analysis):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
-    def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx, get_jumpkind):
+    def _arm_thumb_filter_jump_successors(
+        self, irsb: pyvex.IRSB, successors, get_ins_addr, get_exit_stmt_idx, get_jumpkind
+    ):
         """
         Filter successors for THUMB mode basic blocks, and remove those successors that won't be taken normally.
 
@@ -536,6 +543,9 @@ class CFGBase(Analysis):
         can_produce_exits = set()  # addresses of instructions that can produce exits
         bb = self._lift(irsb.addr, size=irsb.size, thumb=True)
 
+        if not isinstance(bb, Block):
+            return successors
+
         # step A: filter exits using capstone (since it's faster than re-lifting the entire block to VEX)
         THUMB_BRANCH_INSTRUCTIONS = {
             "beq",
@@ -557,6 +567,7 @@ class CFGBase(Analysis):
             "cbz",
             "cbnz",
         }
+
         for cs_insn in bb.capstone.insns:
             if cs_insn.mnemonic.split(".")[0] in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
@@ -572,17 +583,17 @@ class CFGBase(Analysis):
         conc_temps = {}
 
         for stmt in bb.vex.statements:
-            if stmt.tag == "Ist_IMark":
+            if isinstance(stmt, pyvex.stmt.IMark):
                 if it_counter > 0:
                     it_counter -= 1
                     can_produce_exits.add(stmt.addr + stmt.delta)
-            elif stmt.tag == "Ist_WrTmp":
+            elif isinstance(stmt, pyvex.stmt.WrTmp):
                 val = stmt.data
-                if val.tag == "Iex_Const":
+                if isinstance(val, pyvex.expr.Const):
                     conc_temps[stmt.tmp] = val.con.value
-            elif stmt.tag == "Ist_Put" and stmt.offset == self.project.arch.registers["itstate"][0]:
+            elif isinstance(stmt, pyvex.stmt.Put) and stmt.offset == self.project.arch.registers["itstate"][0]:
                 val = stmt.data
-                if val.tag == "Iex_RdTmp":
+                if isinstance(val, pyvex.expr.RdTmp):
                     if val.tmp in conc_temps:
                         # We found an IT instruction!!
                         # Determine how many instructions are conditional
@@ -591,7 +602,7 @@ class CFGBase(Analysis):
                         while itstate != 0:
                             it_counter += 1
                             itstate >>= 8
-                elif val.tag == "Iex_Const":
+                elif isinstance(val, pyvex.expr.Const):
                     it_counter = 0
                     itstate = val.con.value
                     while itstate != 0:
@@ -2419,7 +2430,7 @@ class CFGBase(Analysis):
                 # stack pointer changes or not; for large functions, we simply detect how far away we jump as well as
                 # if there are any other functions identified between the source and the destination.
                 if len(src_function.block_addrs_set) <= 10:
-                    regs = {self.project.arch.sp_offset}
+                    regs: set[int] = {self.project.arch.sp_offset or 0}
                     if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
                         regs.add(self.project.arch.bp_offset)
                     sptracker = self.project.analyses[StackPointerTracker].prep()(
@@ -2933,7 +2944,7 @@ class CFGBase(Analysis):
                 return dst_key
         return None
 
-    def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):
+    def _lift(self, addr: AddressType, *args, opt_level: int = 1, cross_insn_opt: bool = False, **kwargs):
         """
         Lift a basic block of code. Will use the base state as a source of bytes if possible.
         """
@@ -2945,7 +2956,9 @@ class CFGBase(Analysis):
     # Indirect jumps processing
     #
 
-    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
+    def _resolve_indirect_jump_timelessly(
+        self, addr: int, block, func_addr: int, jumpkind: str
+    ) -> tuple[bool, list[int]]:
         """
         Attempt to quickly resolve an indirect jump.
 
