@@ -229,7 +229,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     if (
                         isinstance(data, VirtualVariable)
                         and data.was_parameter
-                        and arg_value.args is not None and data.varid - 1 < len(arg_value.args)
+                        and arg_value.args is not None
+                        and data.varid - 1 < len(arg_value.args)
                     ):
                         fields[offset] = arg_value.args[data.varid - 1]
                 struct = self.project.analyses.StructBuilder(context=self, strict=True).build(fields, argument_ty)

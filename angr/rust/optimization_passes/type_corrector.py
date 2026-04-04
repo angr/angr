@@ -62,7 +62,9 @@ class TypeCorrector(OptimizationPass):
                 self._set_unified_variable(other_var, unified_variable)
         self.variable_manager.assign_unified_variable_names(
             labels=self.kb.labels,
-            arg_names=list(self._func.prototype.arg_names) if self._func.prototype and self._func.prototype.arg_names else None,
+            arg_names=list(self._func.prototype.arg_names)
+            if self._func.prototype and self._func.prototype.arg_names
+            else None,
             reset=True,
         )
 

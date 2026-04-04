@@ -111,8 +111,10 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 and (cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition))
             ):
                 call = self.get_terminal_vvar_value(cmp_vvar)
-                if isinstance(call, Call) and call.prototype is not None and isinstance(
-                    call.prototype.returnty, (RustSimTypeResult, RustSimTypeOption)
+                if (
+                    isinstance(call, Call)
+                    and call.prototype is not None
+                    and isinstance(call.prototype.returnty, (RustSimTypeResult, RustSimTypeOption))
                 ):
                     enum_ty = call.prototype.returnty
                     variant = None

@@ -17,9 +17,7 @@ class CallFinder(AILBlockViewer):
         if not self.call:
             self.call = stmt
 
-    def _handle_CallExpr(
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ):  # pylint: disable=unused-argument
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):  # pylint: disable=unused-argument
         if not self.call:
             self.call = expr
 
@@ -135,9 +133,7 @@ class CallVisitor(AILBlockViewer):
         super().__init__()
         self.callback = callback
 
-    def _handle_CallExpr(
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ):  # pylint: disable=unused-argument
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):  # pylint: disable=unused-argument
         self.callback(expr, block, stmt, is_expr=True)
 
     def visit(self, graph):

@@ -58,7 +58,8 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and self.match_call(stmt.src, DEREF_COERCION_FUNCTIONS)
-                    and stmt.src.args is not None and len(stmt.src.args) == 1  # pyright: ignore[reportAttributeAccessIssue]
+                    and stmt.src.args is not None
+                    and len(stmt.src.args) == 1  # pyright: ignore[reportAttributeAccessIssue]
                 ):
                     self._vvar_replacements[stmt.dst.varid] = stmt.src.args[0]  # pyright: ignore[reportAttributeAccessIssue]
                     self._stmts_to_remove[block].append(stmt)
