@@ -9,7 +9,7 @@ class TypeHints(KnowledgeBasePlugin):
     def __init__(self, kb):
         super().__init__(kb)
         self.vvar_type_hints = {}
-        self._translator = RustTypeTranslator(arch=self._kb._project.arch)
+        self._translator = RustTypeTranslator(self._kb._project.arch)
 
     def add_type_hint(self, vvar, ty):
         ty_const = self._translator.simtype2tc(ty)

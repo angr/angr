@@ -46,15 +46,18 @@ class _StackVVarRewriter(AILBlockRewriter):
         self._new_stack_vvars = new_stack_vvars
         self._project = project
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
-        if expr.op == "Reference":
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        if stmt is not None and block is not None and expr.op == "Reference":
             operand = expr.operand
             if (
                 isinstance(operand, VirtualVariable)
                 and operand.was_stack
                 and operand.varid not in self._new_stack_vvars
             ):
-                vvar = self._srda.get_stack_vvar_by_insn(operand.stack_offset, stmt.tags["ins_addr"], block.idx)
+                ins_addr = stmt.tags.get("ins_addr")
+                if ins_addr is None:
+                    return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+                vvar = self._srda.get_stack_vvar_by_insn(operand.stack_offset, ins_addr, block.idx)
                 if vvar and vvar.varid in self._new_stack_vvars:
                     new_expr = expr.copy()
                     new_expr.operand = vvar
@@ -62,12 +65,15 @@ class _StackVVarRewriter(AILBlockRewriter):
         return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_VirtualVariable(
-        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst is expr):
             return expr
-        if expr.was_stack:
-            vvar = self._srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.tags["ins_addr"], block.idx)
+        if stmt is not None and block is not None and expr.was_stack:
+            ins_addr = stmt.tags.get("ins_addr")
+            if ins_addr is None:
+                return expr
+            vvar = self._srda.get_stack_vvar_by_insn(expr.stack_offset, ins_addr, block.idx)
             if vvar and vvar.varid in self._new_stack_vvars:
                 if expr.size < vvar.size:
                     return Load(
@@ -79,10 +85,10 @@ class _StackVVarRewriter(AILBlockRewriter):
                 return vvar
         return expr
 
-    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
-        expr = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
-        if isinstance(expr.addr, UnaryOp) and expr.addr.op == "Reference":
-            operand = expr.addr.operand
-            if operand.size == expr.size:
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        result = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        if isinstance(result, Load) and isinstance(result.addr, UnaryOp) and result.addr.op == "Reference":
+            operand = result.addr.operand
+            if operand.size == result.size:
                 return operand
-        return expr
+        return result

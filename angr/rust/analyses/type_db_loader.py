@@ -31,8 +31,8 @@ class TypeDBLoader(Analysis):
     """Load Rust type definitions from a version-specific JSON type database."""
 
     def __init__(self):
-        self._struct_db = None
-        self._prototype_db = None
+        self._struct_db: dict = {}
+        self._prototype_db: dict = {}
         self._pending_types = set()
 
         self._analyze()
@@ -250,7 +250,7 @@ class TypeDBLoader(Analysis):
         if None in args:
             return None
         ret_ty = self._parse_type(data["returnty"])
-        return self._fit_abi(RustSimTypeFunction(args, ret_ty)).with_arch(self.project.arch)
+        return self._fit_abi(RustSimTypeFunction(args, ret_ty)).with_arch(self.project.arch)  # pyright: ignore[reportArgumentType]
 
     def _negotiate_prototype(self, prototype: RustSimTypeFunction, old_prototype: SimTypeFunction):
         # Negotiate the prototype with the old one to ensure compatibility
@@ -261,20 +261,20 @@ class TypeDBLoader(Analysis):
         ):
             # If the return type is a large struct/enum that fits in two registers, assume it's returned directly
             if (
-                sum(arg_ty.size for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args)
+                sum(arg_ty.size or 0 for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args)
                 and old_prototype.returnty
                 and old_prototype.returnty.size == self.project.arch.bits * 2
             ):
                 return prototype
             if (
-                sum(arg_ty.size for arg_ty in old_prototype.args)
+                sum(arg_ty.size or 0 for arg_ty in old_prototype.args)
                 == sum(arg_ty.size for arg_ty in prototype.args) + self.project.arch.bits
             ):
                 new_args = list(prototype.args)
                 new_args.insert(0, RustSimTypeReference(prototype.returnty))
                 return RustSimTypeFunction(new_args, None, is_arg0_retbuf=True).with_arch(self.project.arch)
         else:
-            if sum(arg_ty.size for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args):
+            if sum(arg_ty.size or 0 for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args):
                 return prototype
         return None
 
@@ -328,7 +328,9 @@ class TypeDBLoader(Analysis):
                             negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
                         if negotiated_prototype is not None:
                             func.prototype = negotiated_prototype
-                            func.calling_convention = default_cc(self.project.arch.name)(self.project.arch)
+                            cc_cls = default_cc(self.project.arch.name)
+                            if cc_cls is not None:
+                                func.calling_convention = cc_cls(self.project.arch)
                             func.is_prototype_guessed = False
 
 

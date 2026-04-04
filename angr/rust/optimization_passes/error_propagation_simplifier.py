@@ -102,7 +102,7 @@ class ErrorPropagationWalker(SequenceWalker):
             for vvar, use in uses
         )
 
-    def _handle_PatternMatch(self, node: PatternMatchNode, **kwargs):
+    def _handle_PatternMatch(self, node: PatternMatchNode, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
         err_node, ok_node = None, None
         new_dst_vvar = None
         for (variant, move_stmts), arm in node.arms.items():
@@ -137,7 +137,7 @@ class ErrorPropagationWalker(SequenceWalker):
                 new_ok_node = super()._handle(ok_node)
                 return new_ok_node or ok_node
             if isinstance(node.scrutinee, Call):
-                node.scrutinee.tags["propagates_error"] = True
+                node.scrutinee.tags["propagates_error"] = True  # pyright: ignore[reportGeneralTypeIssues]
                 new_ok_node = super()._handle(ok_node)
                 return new_ok_node or ok_node
 
@@ -154,14 +154,14 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
-        self._graph = kwargs.get("graph")
+        self._graph = kwargs["graph"]
         self.block_by_addr_and_idx = {(block.addr, block.idx): block for block in self._graph.nodes}
         self.varid_to_assignment = self._collect_varid_to_assignment_mappings()
 
         self.analyze()
 
     def _check(self):
-        return bool(self.seq.nodes), None
+        return bool(self.seq is not None and self.seq.nodes), None
 
     def _collect_varid_to_assignment_mappings(self):
         varid_to_assignment = {}

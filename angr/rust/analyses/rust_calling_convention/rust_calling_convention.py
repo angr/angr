@@ -12,6 +12,7 @@ from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Call
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.functions import Function
+from angr.sim_type import SimTypeFunction
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.utils import extract_str, extract_str_from_addr
 from angr.rust.sim_type import (
@@ -72,9 +73,10 @@ class RustCallingConventionAnalysis(Analysis):
         self.callsite_discriminant_hint = callsite_discriminant_hint
         self.graph = None
 
-        self.calling_convention = func.calling_convention or default_cc(self.project.arch.name)(self.project.arch)
+        cc_cls = default_cc(self.project.arch.name)
+        self.calling_convention = func.calling_convention or (cc_cls(self.project.arch) if cc_cls else None)
 
-        self._fact_collector: FactCollector | None = None
+        self._fact_collector: FactCollector
 
         if self.func.addr in self.kb.rust_calling_conventions:
             self.model = self.kb.rust_calling_conventions[self.func.addr]
@@ -118,16 +120,16 @@ class RustCallingConventionAnalysis(Analysis):
         if self.func.prototype is None:
             return
         self._fact_collector.collect()
-        self.model.inferred_prototype = self._infer_prototype()
+        self.model.inferred_prototype = self._infer_prototype(self.func.prototype)
         self.kb.rust_calling_conventions[self.func.addr] = self.model
         l.debug("Analysis result for %s (addr: %s): %s", demangle(self.func.name), hex(self.func.addr), self.model)
 
     # -- prototype inference -------------------------------------------------
 
-    def _infer_prototype(self):
-        returnty, is_arg0_ret_buf = self._infer_return_type()
+    def _infer_prototype(self, prototype: SimTypeFunction):
+        returnty, is_arg0_ret_buf = self._infer_return_type(prototype)
         args = []
-        for arg_idx, old_arg_type in enumerate(self.func.prototype.args):
+        for arg_idx, old_arg_type in enumerate(prototype.args):
             if is_arg0_ret_buf and arg_idx == 0:
                 args.append(RustSimTypeReference(returnty).with_arch(self.project.arch))
                 returnty = None
@@ -137,19 +139,18 @@ class RustCallingConventionAnalysis(Analysis):
                 arg_type = old_arg_type
             args.append(arg_type)
         args = self._infer_combo_arg_types(args)
-        prototype = self.func.prototype
         if returnty:
-            returnty = RustTypeTranslator(self.project, self.project.arch).ctype2rust(returnty)
+            returnty = RustTypeTranslator(self.project.arch).ctype2rust(returnty)
         return RustSimTypeFunction(
             args=args,
-            returnty=returnty,
+            returnty=returnty,  # pyright: ignore[reportArgumentType]
             label=prototype.label,
             arg_names=prototype.arg_names,
             variadic=prototype.variadic,
             is_arg0_retbuf=is_arg0_ret_buf,
         )
 
-    def _infer_return_type(self) -> tuple[RustSimType | None, bool]:
+    def _infer_return_type(self, prototype: SimTypeFunction) -> tuple[RustSimType | None, bool]:
         # The first argument is not used as return buffer
         if (
             len(self.model.callsite_memory_writes[0]) != 0
@@ -181,7 +182,7 @@ class RustCallingConventionAnalysis(Analysis):
             #   2 const values, differ by 1 → Result<T, E>, smaller discriminant is Ok
             #   2 const values, differ by >1 → Option<T>, smaller value is None's discriminant
             #                                  (the other value is a concrete payload, not a discriminant)
-            if self.func.prototype.returnty and self.func.prototype.returnty.size == self.project.arch.bits * 2:
+            if prototype.returnty and prototype.returnty.size == self.project.arch.bits * 2:
                 arch_bytes = self.project.arch.bytes
                 payload_ty = RustSimStruct(
                     OrderedDict(
@@ -244,7 +245,7 @@ class RustCallingConventionAnalysis(Analysis):
                             ).with_arch(self.project.arch),
                             False,
                         )
-            return self.func.prototype.returnty, False
+            return prototype.returnty, False  # pyright: ignore[reportReturnType]
 
         memory_writes = self.model.memory_writes[0]
         candidates_and_paths = []
@@ -319,8 +320,10 @@ class RustCallingConventionAnalysis(Analysis):
         combo_arg_types = {}
 
         def callback(call: Call, _block, _stmt, is_expr):  # pylint:disable=unused-argument
+            if not call.args:
+                return
             i = 0
-            while i + 1 < len(call.args or []):
+            while i + 1 < len(call.args):
                 arg = call.args[i]
                 next_arg = call.args[i + 1]
                 if isinstance(arg, VirtualVariable) and isinstance(next_arg, VirtualVariable):
@@ -365,7 +368,7 @@ class RustCallingConventionAnalysis(Analysis):
             for arg_ty in call.prototype.args:
                 if cur_offset == arg_offset:
                     return arg_ty
-                cur_offset += arg_ty.size
+                cur_offset += arg_ty.size or 0
                 if cur_offset > arg_offset:
                     break
         return None
@@ -393,7 +396,7 @@ class RustCallingConventionAnalysis(Analysis):
         offset = 0
         for field_type in field_types:
             fields[f"field_{offset}"] = field_type
-            offset += field_type.size // self.project.arch.byte_width
+            offset += (field_type.size or 0) // self.project.arch.byte_width
         return RustSimStruct(
             fields,
             name=f"struct{sum(field.size or 0 for field in fields.values()) // 8}",

@@ -88,7 +88,7 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
                 call = find_call(last_stmt)
                 last_stmt.ret_exprs = []
                 if call and not self._should_remove(call):
-                    call.bits = None
+                    call.bits = None  # pyright: ignore[reportAttributeAccessIssue]
                     new_stmts = block.statements.copy()
                     new_stmts[-1] = SideEffectStatement(self.manager.next_atom(), call, **call.tags)
                     new_stmts.append(last_stmt)

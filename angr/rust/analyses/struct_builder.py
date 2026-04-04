@@ -32,7 +32,7 @@ class StructBuilder(Analysis):
     def _truncate(self, data, bits):
         if bits < data.bits:
             if isinstance(data, Const):
-                bv = claripy.BVV(data.value, data.bits)
+                bv = claripy.BVV(data.value_int, data.bits)
                 leftover = data.copy()
                 data = data.copy()
                 data.bits = bits
@@ -47,12 +47,10 @@ class StructBuilder(Analysis):
             if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.project.arch.byte_width
-                leftover = data.copy()
-                leftover.addr = data.addr + Const(None, None, size, data.addr.bits)
-                leftover.size = leftover_size
-                data = data.copy()
-                data.size = size
-                return data, leftover
+                leftover_addr = data.addr + Const(None, None, size, data.addr.bits)
+                leftover = Load(None, leftover_addr, leftover_size, data.endness, **data.tags)
+                new_data = Load(None, data.addr, size, data.endness, **data.tags)
+                return new_data, leftover
         return None, None
 
     def _fix_field_exprs(self, field_exprs, struct_ty):
@@ -89,17 +87,17 @@ class StructBuilder(Analysis):
         ele_ty = ele_ptr.pts_to
         len_expr = field_exprs[len_offset]
         if isinstance(len_expr, Const):
-            if len_expr.value > 64:
+            if len_expr.value_int > 64:
                 # That's insane
                 return None
             if isinstance(ptr_expr, Const):
-                for i in range(len_expr.value):
+                for i in range(len_expr.value_int):
                     ele_expr = ptr_expr.copy()
                     ele_expr.value = ptr_expr.value + ele_ty.size // 8 * i
                     ele_expr.tags["type"] = ele_ty
                     elements.append(ele_expr)
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
-                for i in range(len_expr.value):
+                for i in range(len_expr.value_int):
                     ele_expr = self.context.new_stack_vvar(
                         vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags, record=False
                     )

@@ -22,6 +22,8 @@ class TypeCorrector(OptimizationPass):
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
 
+        if self._variable_kb is None:
+            return
         self.variable_manager: VariableManagerInternal = self._variable_kb.variables.get_function_manager(
             self._func.addr
         )
@@ -60,7 +62,7 @@ class TypeCorrector(OptimizationPass):
                 self._set_unified_variable(other_var, unified_variable)
         self.variable_manager.assign_unified_variable_names(
             labels=self.kb.labels,
-            arg_names=self._func.prototype.arg_names if self._func.prototype else None,
+            arg_names=list(self._func.prototype.arg_names) if self._func.prototype and self._func.prototype.arg_names else None,
             reset=True,
         )
 
@@ -69,15 +71,16 @@ class TypeCorrector(OptimizationPass):
             block: ailment.Block
             for stmt in block.statements:
                 if isinstance(stmt, Store) and isinstance(stmt.data, Struct):
-                    var = stmt.variable if stmt.variable is not None else stmt.addr.variable
-                    self._set_variable_type(var, stmt.data.type)
+                    var = stmt.variable if stmt.variable is not None else stmt.addr.variable  # pyright: ignore[reportAttributeAccessIssue]
+                    self._set_variable_type(var, stmt.data.type)  # pyright: ignore[reportAttributeAccessIssue]
                 elif (
                     isinstance(stmt, Call)
                     and stmt.prototype
                     and isinstance(stmt.prototype.returnty, RustSimStruct)
-                    and stmt.ret_expr
+                    and stmt.ret_expr  # pyright: ignore[reportAttributeAccessIssue]
                 ):
-                    self._set_variable_type(stmt.ret_expr.variable, stmt.prototype.returnty)
+                    ret_expr = stmt.ret_expr  # pyright: ignore[reportAttributeAccessIssue]
+                    self._set_variable_type(ret_expr.variable, stmt.prototype.returnty)
                 elif (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.src, Call)

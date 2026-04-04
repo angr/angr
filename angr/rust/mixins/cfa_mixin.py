@@ -12,7 +12,7 @@ class CFAMixin:
     Control Flow Analysis Mixin
     """
 
-    def __init__(self, graph, project=None):
+    def __init__(self, graph, project):
         self._graph = graph
         self._project = project
 
@@ -50,6 +50,8 @@ class CFAMixin:
 
     def terminal_call(self, block) -> Call | None:
         stmt = self.last_stmt(block)
+        if stmt is None:
+            return None
         finder = CallFinder()
         finder.walk_statement(stmt, block)
         if not finder.call and isinstance(stmt, ConditionalJump) and len(block.statements) > 1:

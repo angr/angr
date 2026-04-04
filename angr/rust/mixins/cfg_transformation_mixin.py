@@ -18,7 +18,7 @@ class CFGTransformationMixin:
 
     def __init__(self, graph):
         self._graph: networkx.DiGraph = graph
-        self._block_by_addr_and_idx = None
+        self._block_by_addr_and_idx: dict[tuple[int, int | None], Block] = {}
 
         self.update_block_indexes()
 
@@ -31,11 +31,11 @@ class CFGTransformationMixin:
         removed = False
         last_stmt = block.statements[-1] if block.statements else None
         if isinstance(jump_target, Const):
-            jump_target = jump_target.value
+            jump_target = jump_target.value_int
         if isinstance(last_stmt, Jump):
             if (
                 isinstance(last_stmt.target, Const)
-                and last_stmt.target.value == jump_target
+                and last_stmt.target.value_int == jump_target
                 and last_stmt.target_idx == jump_target_idx
             ):
                 block.statements = block.statements[:-1]
@@ -44,14 +44,14 @@ class CFGTransformationMixin:
             new_target, new_target_idx = None, None
             if (
                 isinstance(last_stmt.true_target, Const)
-                and last_stmt.true_target.value == jump_target
+                and last_stmt.true_target.value_int == jump_target
                 and last_stmt.true_target_idx == jump_target_idx
             ):
                 new_target = last_stmt.false_target
                 new_target_idx = last_stmt.false_target_idx
             elif (
                 isinstance(last_stmt.false_target, Const)
-                and last_stmt.false_target.value == jump_target
+                and last_stmt.false_target.value_int == jump_target
                 and last_stmt.false_target_idx == jump_target_idx
             ):
                 new_target = last_stmt.true_target
@@ -75,11 +75,13 @@ class CFGTransformationMixin:
     def remove_false_branch(self, block: Block):
         if block.statements and isinstance(block.statements[-1], ConditionalJump):
             jump = block.statements[-1]
-            self.remove_jump_target(block, jump.false_target, jump.false_target_idx)
+            false_target = jump.false_target
+            if isinstance(false_target, Const):
+                self.remove_jump_target(block, false_target, jump.false_target_idx)
 
     @staticmethod
     def _update_phi_variables_after_removing_block(graph, preds, removed_block: Block) -> None:
-        rblock_phi_to_src: dict[int, dict[tuple[int, int | None], int]] = {}
+        rblock_phi_to_src: dict[int, dict[tuple[int, int | None], VirtualVariable | None]] = {}
         for stmt in removed_block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
                 rblock_phi_to_src[stmt.dst.varid] = dict(stmt.src.src_and_vvars)
@@ -119,14 +121,14 @@ class CFGTransformationMixin:
         new_target_idx: int | None,
     ):
         if isinstance(old_target, Const):
-            old_target = old_target.value
+            old_target = old_target.value_int
         if isinstance(new_target, Const):
-            new_target = new_target.value
+            new_target = new_target.value_int
         last_stmt = block.statements[-1] if block.statements else None
         if isinstance(last_stmt, Jump):
             if old_target is None or (
                 isinstance(last_stmt.target, Const)
-                and last_stmt.target.value == old_target
+                and last_stmt.target.value_int == old_target
                 and last_stmt.target_idx == old_target_idx
             ):
                 new_stmt = last_stmt.copy()
@@ -134,35 +136,38 @@ class CFGTransformationMixin:
                 new_stmt.target_idx = new_target_idx
                 block.statements[-1] = new_stmt
         elif isinstance(last_stmt, ConditionalJump):
+            true_tgt = last_stmt.true_target
+            false_tgt = last_stmt.false_target
             if old_target is None or (
-                isinstance(last_stmt.true_target, Const)
-                and isinstance(last_stmt.false_target, Const)
+                isinstance(true_tgt, Const)
+                and isinstance(false_tgt, Const)
                 and (
-                    (last_stmt.true_target.value == old_target and last_stmt.false_target.value == new_target)
-                    or (last_stmt.false_target.value == old_target and last_stmt.true_target.value == new_target)
+                    (true_tgt.value_int == old_target and false_tgt.value_int == new_target)
+                    or (false_tgt.value_int == old_target and true_tgt.value_int == new_target)
                 )
             ):
-                target = Const(0, None, new_target, last_stmt.true_target.bits)
-                if last_stmt.true_target.value == old_target and last_stmt.false_target.value == new_target:
-                    new_target_idx = last_stmt.false_target_idx
-                else:
-                    new_target_idx = last_stmt.true_target_idx
-                block.statements[-1] = Jump(
-                    last_stmt.idx,
-                    target,
-                    new_target_idx,
-                    **last_stmt.tags,
-                )
+                if isinstance(true_tgt, Const) and isinstance(false_tgt, Const):
+                    target = Const(0, None, new_target, true_tgt.bits)
+                    if true_tgt.value_int == old_target and false_tgt.value_int == new_target:
+                        new_target_idx = last_stmt.false_target_idx
+                    else:
+                        new_target_idx = last_stmt.true_target_idx
+                    block.statements[-1] = Jump(
+                        last_stmt.idx,
+                        target,
+                        new_target_idx,
+                        **last_stmt.tags,
+                    )
             elif (
                 isinstance(last_stmt.true_target, Const)
-                and last_stmt.true_target.value == old_target
+                and last_stmt.true_target.value_int == old_target
                 and last_stmt.true_target_idx == old_target_idx
             ):
                 last_stmt.true_target.value = new_target
                 last_stmt.true_target_idx = new_target_idx
             elif (
                 isinstance(last_stmt.false_target, Const)
-                and last_stmt.false_target.value == old_target
+                and last_stmt.false_target.value_int == old_target
                 and last_stmt.false_target_idx == old_target_idx
             ):
                 last_stmt.false_target.value = new_target

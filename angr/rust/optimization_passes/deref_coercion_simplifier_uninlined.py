@@ -43,7 +43,7 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block):
+    def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block):  # pyright: ignore[reportIncompatibleMethodOverride]
         if isinstance(stmt, Assignment) and stmt.dst == expr and expr.varid in self._vvar_replacements:
             self._stmts_to_remove[block].append(stmt)
             return None
@@ -58,9 +58,9 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and self.match_call(stmt.src, DEREF_COERCION_FUNCTIONS)
-                    and len(stmt.src.args) == 1
+                    and stmt.src.args is not None and len(stmt.src.args) == 1  # pyright: ignore[reportAttributeAccessIssue]
                 ):
-                    self._vvar_replacements[stmt.dst.varid] = stmt.src.args[0]
+                    self._vvar_replacements[stmt.dst.varid] = stmt.src.args[0]  # pyright: ignore[reportAttributeAccessIssue]
                     self._stmts_to_remove[block].append(stmt)
 
         for block in self._graph.nodes:

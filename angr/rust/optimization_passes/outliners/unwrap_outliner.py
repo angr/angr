@@ -37,8 +37,11 @@ class UnwrapSimplifierState:
 
     def _decide_err_or_none_discriminant(self):
         jump: ConditionalJump = self.conditional_jump_block.statements[-1]
-        if isinstance(jump.condition.operands[1], Const):
-            op = jump.condition.op
+        condition = jump.condition
+        if not isinstance(condition, BinaryOp):
+            return None
+        if isinstance(condition.operands[1], Const):
+            op = condition.op
             if (
                 op == "CmpEQ"
                 and isinstance(jump.true_target, Const)
@@ -56,7 +59,7 @@ class UnwrapSimplifierState:
                     self.unwrap_failed_block.idx,
                 )
             ):
-                return jump.condition.operands[1].value
+                return condition.operands[1].value
         return None
 
 
@@ -108,7 +111,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 and (cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition))
             ):
                 call = self.get_terminal_vvar_value(cmp_vvar)
-                if isinstance(call, Call) and isinstance(
+                if isinstance(call, Call) and call.prototype is not None and isinstance(
                     call.prototype.returnty, (RustSimTypeResult, RustSimTypeOption)
                 ):
                     enum_ty = call.prototype.returnty
@@ -140,9 +143,11 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                             ret_expr=None,
                             **last_stmt.tags,
                         )
-                        replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
+                        if replacement.prototype is not None:
+                            replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
                         replacement.bits = dst_vvar.bits
-                        second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
+                        if second_block is not None:
+                            second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
                         return
                 # Outline unwrap without knowing the enum type
                 unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
@@ -158,7 +163,8 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                     ret_expr=None,
                     **last_stmt.tags,
                 )
-                second_block.statements[-1] = replacement
+                if second_block is not None:
+                    second_block.statements[-1] = replacement  # pyright: ignore[reportArgumentType, reportCallIssue]
 
     def _analyze(self, cache=None):
         for block in list(self._graph.nodes):

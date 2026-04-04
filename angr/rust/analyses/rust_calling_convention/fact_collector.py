@@ -26,7 +26,7 @@ class MemoryWriteCollector(AILBlockViewer):
         self._fc = fc
 
         self._path = None
-        self._path_srda = None
+        self._path_srda: SRDAMixin | None = None
 
     def collect(self):
         paths = Pathfinder(self._fc.graph, self._fc).find_ret2arg0_paths(remove_phi=True)
@@ -44,7 +44,7 @@ class MemoryWriteCollector(AILBlockViewer):
         path = self._path
         if path not in self._fc.memory_writes[arg_idx]:
             self._fc.memory_writes[arg_idx][path] = {}
-        if isinstance(expr, VirtualVariable):
+        if isinstance(expr, VirtualVariable) and self._path_srda is not None:
             expr = self._path_srda.get_terminal_vvar_value(expr) or expr
         self._fc.memory_writes[arg_idx][path][offset] = (expr, self._fc.func.addr)
 
@@ -84,11 +84,12 @@ class CalleeWriteCollector:
     def _handle_call(self, call: Call, block: Block, _stmt: Statement, is_expr: bool):  # pylint:disable=unused-argument
         if not isinstance(call.target, Const) or call.target.value not in self._fc.project.kb.functions:
             return
-        if not self._call_forwards_arg0(call):
+        args = call.args
+        if not args or not self._call_forwards_arg0(call):
             return
         func = self._fc.project.kb.functions[call.target.value]
-        if func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
-            tmp = Tmp(None, None, 0, call.args[2].value * self._fc.project.arch.byte_width)
+        if func.name == "memcpy" and args is not None and len(args) == 3 and isinstance(args[2], Const):
+            tmp = Tmp(None, None, 0, args[2].value * self._fc.project.arch.byte_width)
             self._fc.has_write_to_arg0 = True
             # Use a single-block path as the key, consistent with memory_writes keying.
             path = (block,)
@@ -108,8 +109,6 @@ class CalleeWriteCollector:
 
     def _call_forwards_arg0(self, call: Call) -> bool:
         """Does this call pass the current function's arg0 (parameter vvar 0) as its first argument?"""
-        if not call.args:
-            return False
         arg0 = call.args[0]
         if isinstance(arg0, VirtualVariable):
             vvar = self._fc.get_terminal_vvar(arg0)

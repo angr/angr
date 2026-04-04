@@ -60,7 +60,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             return None
         prototype = call_expr.prototype.normalize()
         returnty = prototype.returnty
-        if not is_composite_type(returnty):
+        if returnty is None or not is_composite_type(returnty):
             return None
         arg0 = call_expr.args[0] if call_expr.args else None
         if not (
@@ -71,11 +71,12 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         ):
             return None
         call = call_expr.copy()
-        call.args = call.args[1:]
+        if call.args is not None:
+            call.args = call.args[1:]
         call.bits = returnty.size
         call.prototype = prototype
         dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
-        dst_vvar.tags["type"] = returnty
+        dst_vvar.tags["type"] = returnty  # pyright: ignore[reportGeneralTypeIssues]
         self.project.kb.type_hints.add_type_hint(dst_vvar, returnty)
         return Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
 
@@ -92,7 +93,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.was_reg
         ):
-            stmt.dst.tags["type"] = returnty
+            stmt.dst.tags["type"] = returnty  # pyright: ignore[reportGeneralTypeIssues]
             self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
 
     def _detect_callsite_discriminant_hint(self, post_callsite_path):

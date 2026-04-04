@@ -46,7 +46,7 @@ class StringOutliner(OptimizationPass):
         class AssignmentRewriter(AILBlockRewriter):
             """Walk blocks rewriting Assignment statements via a callback."""
 
-            def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
+            def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:  # pyright: ignore[reportIncompatibleMethodOverride]
                 return callback(stmt_idx, stmt, block)
 
         rewriter = AssignmentRewriter()

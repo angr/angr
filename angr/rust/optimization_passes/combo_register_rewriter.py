@@ -29,6 +29,8 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
     def _analyze(self, cache=None):
         ident_to_vvar = {}
         first_offset_to_vvar = {}
+        if self._arg_vvars is None:
+            return
         for arg_vvar, _ in self._arg_vvars.values():
             if (
                 isinstance(arg_vvar, VirtualVariable)
@@ -74,7 +76,7 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
             return expr
 
         rewriter = CallRewriter(handle_Call)
-        rewriter.expr_handlers[UnaryOp] = handle_UnaryOp
+        rewriter.expr_handlers[UnaryOp] = handle_UnaryOp  # pyright: ignore[reportArgumentType]
 
         for block in self._graph.nodes:
             rewriter.walk(block)
