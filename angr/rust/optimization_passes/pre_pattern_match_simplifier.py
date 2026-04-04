@@ -3,9 +3,9 @@ import logging
 from typing import Any
 
 
-from angr.ailment import BinaryOp, Assignment
+from angr.ailment import BinaryOp
 from angr.ailment.expression import Load, Const, VirtualVariable, RustEnum
-from angr.ailment.statement import ConditionalJump, Return, Label, Call, Store
+from angr.ailment.statement import ConditionalJump, Return, Call
 from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.mixins import DFAMixin
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
@@ -137,7 +137,6 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                     return variant
         return None
 
-
     def _group_move_stmts_for_block(self, block, scrutinee: VirtualVariable, variant: EnumVariant):
         stack_defs = self.collect_stack_defs_at(block)
         src_to_dst_and_stack_def = {}
@@ -187,7 +186,9 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                     and isinstance(enum_ty, (RustSimTypeOption, RustSimTypeResult))
                 ):
                     true_block = self.blocks_by_addr_and_idx.get((jmp.true_target.value_int, jmp.true_target_idx), None)
-                    false_block = self.blocks_by_addr_and_idx.get((jmp.false_target.value_int, jmp.false_target_idx), None)
+                    false_block = self.blocks_by_addr_and_idx.get(
+                        (jmp.false_target.value_int, jmp.false_target_idx), None
+                    )
                     true_variant = enum_ty.get_variant(discriminant)
                     false_variant = self.inverse_variant(enum_ty, discriminant)
                     if cmp_op == "CmpNE":
