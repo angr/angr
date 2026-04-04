@@ -17,7 +17,9 @@ class CallFinder(AILBlockViewer):
         if not self.call:
             self.call = stmt
 
-    def _handle_CallExpr(self, _expr_idx: int, expr: Call, _stmt_idx: int, _stmt: Statement, _block: Block | None):
+    def _handle_CallExpr(
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):  # pylint: disable=unused-argument
         if not self.call:
             self.call = expr
 
@@ -91,7 +93,7 @@ def deref_vvar_and_offset(expr) -> tuple[VirtualVariable, int] | tuple[None, Non
             and isinstance(op0.operand, VirtualVariable)
             and isinstance(op1, Const)
         ):
-            return op0.operand, op1.value
+            return op0.operand, op1.value_int
     return None, None
 
 
@@ -107,7 +109,7 @@ def extract_vvar_and_offset(expr) -> tuple[VirtualVariable, int] | tuple[None, N
         and isinstance(expr.operands[0], VirtualVariable)
         and isinstance(expr.operands[1], Const)
     ):
-        return expr.operands[0], expr.operands[1].value
+        return expr.operands[0], expr.operands[1].value_int
     return None, None
 
 
@@ -122,7 +124,7 @@ def unwrap_stack_vvar_reference_with_offset(expr) -> tuple[VirtualVariable, int]
             and expr.operand.operands[0].was_stack
             and isinstance(expr.operand.operands[1], Const)
         ):
-            return expr.operand.operands[0], expr.operand.operands[1].value
+            return expr.operand.operands[0], expr.operand.operands[1].value_int
     return None, None
 
 
@@ -133,10 +135,9 @@ class CallVisitor(AILBlockViewer):
         super().__init__()
         self.callback = callback
 
-    def _handle_Call(self, _stmt_idx: int, stmt: Call, block: Block | None):
-        self.callback(stmt, block, stmt, is_expr=False)
-
-    def _handle_CallExpr(self, _expr_idx: int, expr: Call, _stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):  # pylint: disable=unused-argument
         self.callback(expr, block, stmt, is_expr=True)
 
     def visit(self, graph):

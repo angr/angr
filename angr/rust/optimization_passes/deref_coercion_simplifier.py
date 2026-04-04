@@ -24,7 +24,7 @@ class StrCmpSimplifierWalker(AILBlockRewriter):
         super().__init__()
         self.context = context
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):  # pyright: ignore[reportIncompatibleMethodOverride]
         if expr.op == "CmpEQ" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:  # noqa: SIM102
             if (
                 isinstance(expr.operands[0], Call)
@@ -86,7 +86,7 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
                         value = self.get_terminal_vvar_value(vvar)
                         if isinstance(value, FunctionLikeMacro):
                             returnty = value.returnty
-                        elif isinstance(value, Call):
+                        elif isinstance(value, Call) and value.prototype is not None:
                             returnty = value.prototype.returnty
                         if isinstance(returnty, RustSimStruct) and returnty.name == string_ty.name:
                             arg1 = args.pop(0)

@@ -38,9 +38,7 @@ class RustTypehoon(Typehoon):
             stackvar_max_sizes,
             stack_offset_tvs,
             constraint_set_degradation_threshold,
-            type_translator=type_translator
-            if type_translator is not None
-            else RustTypeTranslator(project=self.project, arch=self.project.arch),
+            type_translator=(type_translator if type_translator is not None else RustTypeTranslator(self.project.arch)),
         )
 
     def update_variable_types(
@@ -103,6 +101,9 @@ class RustTypehoon(Typehoon):
         """
         Translate solutions in type variables to solutions in SimTypes.
         """
+
+        if self.solution is None:
+            return
 
         simtypes_solution = {}
         translator = self._type_translator

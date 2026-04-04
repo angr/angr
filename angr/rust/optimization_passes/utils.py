@@ -61,7 +61,7 @@ class SideEffectStatementRewriter(AILBlockRewriter):
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
         new_stmt = self.callback(stmt, block, stmt)
-        if new_stmt:
+        if new_stmt and block is not None:
             block.statements[stmt_idx] = new_stmt
         return new_stmt
 
@@ -75,7 +75,7 @@ class CallRewriter(AILBlockRewriter):
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         new_stmt = self.callback(expr, block, stmt)
-        if new_stmt:
+        if new_stmt and block is not None:
             block.statements[stmt_idx] = new_stmt
         return new_stmt
 

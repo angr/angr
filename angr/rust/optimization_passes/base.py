@@ -76,7 +76,7 @@ class TransformationPass(OptimizationPass):
                 terminal.idx,
                 Const(0, None, succ.addr, self.project.arch.bits),
                 succ.idx,
-                ins_addr=terminal.ins_addr,
+                ins_addr=terminal.ins_addr,  # pyright: ignore[reportAttributeAccessIssue]
             )
 
     def old_replace_jump_target(self, block, old_target: Block | None, new_target: Block):
@@ -113,12 +113,15 @@ class TransformationPass(OptimizationPass):
                     )
                 )
             ):
-                target = Const(0, None, new_target.addr, terminal.true_target.bits)
+                true_target = terminal.true_target
+                if true_target is None:
+                    return
+                target = Const(0, None, new_target.addr, true_target.bits)
                 block.statements[-1] = Jump(
                     terminal.idx,
                     target,
                     new_target.idx,
-                    ins_addr=terminal.ins_addr,
+                    ins_addr=terminal.ins_addr,  # pyright: ignore[reportAttributeAccessIssue]
                 )
             elif (
                 isinstance(terminal.true_target, Const)

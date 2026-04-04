@@ -294,9 +294,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         # handle type hints
         self.type_lifter = (
-            RustTypeTranslator(arch=self.project.arch)
-            if self.project.is_rust_binary
-            else TypeTranslator(self.project.arch)
+            RustTypeTranslator(self.project.arch) if self.project.is_rust_binary else TypeTranslator(self.project.arch)
         )
         self.vvar_type_hints = {}
         if type_hints:

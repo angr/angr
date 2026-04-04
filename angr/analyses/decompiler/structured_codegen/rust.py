@@ -2817,7 +2817,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.cstyle_ifs = value
 
     def _translate_prototype_to_rust(self, prototype: SimTypeFunction):
-        translator = RustTypeTranslator(project=self.project, arch=self.project.arch)
+        translator = RustTypeTranslator(self.project.arch)
         args = [translator.ctype2rust(arg) for arg in prototype.args]
         returnty = translator.ctype2rust(prototype.returnty)
         return RustSimTypeFunction(args, returnty, prototype.label, prototype.arg_names, prototype.variadic)

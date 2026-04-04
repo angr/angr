@@ -24,7 +24,10 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
         super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
 
-        self._var_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
+        if self._variable_kb is not None:
+            self._var_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
+        else:
+            self._var_manager = None
 
         self.analyze()
 
@@ -74,6 +77,8 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
                 and offset0 == ptr_offset
                 and offset1 == len_offset
             ):
+                if self._var_manager is None:
+                    return None
                 ty = self._var_manager.get_variable_type(vvar0.variable)
                 if isinstance(ty, TypeRef):
                     ty = ty.type

@@ -45,7 +45,7 @@ class StructBuilder:
     def _truncate(self, data, bits):
         if bits < data.bits:
             if isinstance(data, Const):
-                bv = claripy.BVV(data.value, data.bits)
+                bv = claripy.BVV(data.value_int, data.bits)
                 leftover = data.copy()
                 data = data.copy()
                 data.bits = bits
@@ -60,12 +60,10 @@ class StructBuilder:
             if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.context.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.context.project.arch.byte_width
-                leftover = data.copy()
-                leftover.addr = data.addr + Const(None, None, size, data.addr.bits)
-                leftover.size = leftover_size
-                data = data.copy()
-                data.size = size
-                return data, leftover
+                leftover_addr = data.addr + Const(None, None, size, data.addr.bits)
+                leftover = Load(None, leftover_addr, leftover_size, data.endness, **data.tags)
+                new_data = Load(None, data.addr, size, data.endness, **data.tags)
+                return new_data, leftover
         return None, None
 
     def _fix_field_exprs(self, field_exprs, struct_ty):
@@ -102,13 +100,13 @@ class StructBuilder:
         len_expr = field_exprs[len_offset]
         if isinstance(len_expr, Const):
             if isinstance(ptr_expr, Const):
-                for i in range(len_expr.value):
+                for i in range(len_expr.value_int):
                     ele_expr = ptr_expr.copy()
                     ele_expr.value = ptr_expr.value + ele_ty.size // 8 * i
                     ele_expr.tags["type"] = ele_ty
                     elements.append(ele_expr)
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
-                for i in range(len_expr.value):
+                for i in range(len_expr.value_int):
                     ele_expr = self.context.new_stack_vvar(
                         vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags, record=False
                     )
@@ -253,7 +251,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 first_stack_def = used_defs[0]
                 new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
                 src = self._convert_to_stack_vvar(struct) or struct
-                src.tags["type"] = struct_ty
+                src.tags["type"] = struct_ty  # pyright: ignore[reportGeneralTypeIssues]
                 new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
 
                 # Collect type hints
@@ -349,7 +347,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
 
     def _align_prototype_and_args(self):
         def callback(expr: Call, _block, _stmt):
-            args = list(expr.args)
+            args = list(expr.args or [])
             prototype = expr.prototype
             if prototype and len(args) > len(prototype.args):
                 new_args = []
@@ -358,7 +356,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 cur_offset = 0
                 for arg_ty in prototype.args:
                     offset_to_arg_ty[cur_offset] = arg_ty
-                    cur_offset += arg_ty.size // self.project.arch.bytes
+                    cur_offset += (arg_ty.size or 0) // self.project.arch.bytes
                 cur_offset = 0
                 while args:
                     arg = args.pop(0)
@@ -425,7 +423,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     cur_offset = 0
                     for arg_ty in call.prototype.args:
                         offset_to_arg_ty[cur_offset] = arg_ty
-                        cur_offset += arg_ty.size // 8
+                        cur_offset += (arg_ty.size or 0) // 8
                     for offset in set(offset_to_arg) & set(offset_to_arg_ty):
                         arg = offset_to_arg[offset]
                         arg_ty = offset_to_arg_ty[offset]

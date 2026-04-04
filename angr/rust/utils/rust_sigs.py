@@ -20,7 +20,9 @@ def get_default_sig_dir(arch_name: str = "x86_64", platform: str = "linux") -> s
         base_dir = os.path.join(os.path.dirname(sys.executable), "flirt_signatures")
     else:
         if "angrmanagement" in sys.modules:
-            angrm_dir = os.path.dirname(os.path.realpath(sys.modules["angrmanagement"].__file__))
+            angrm_file = sys.modules["angrmanagement"].__file__
+            assert angrm_file is not None
+            angrm_dir = os.path.dirname(os.path.realpath(angrm_file))
             base_dir = os.path.join(angrm_dir, "resources", "flirt_signatures")
         else:
             base_dir = None

@@ -124,7 +124,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                 ((false_variant, false_move_stmts), false_node),
             ]
         )
-        return PatternMatchNode(scrutinee, arms, None, addr)
+        return PatternMatchNode(scrutinee, arms, None, addr)  # pyright: ignore[reportArgumentType]
 
     def _build_if_let(self, true_node, true_variant, scrutinee, addr, leftover):
         true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
@@ -172,7 +172,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
             return enum_ty
         return None
 
-    def _handle_Condition(self, node, **kwargs):
+    def _handle_Condition(self, node, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
         scrutinee, discriminant, cmp_op, leftover = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(
             node.condition
         )
@@ -242,9 +242,11 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
         self.analyze()
 
     def _check(self):
-        return bool(self.seq.nodes), None
+        return bool(self.seq is not None and self.seq.nodes), None
 
     def _analyze(self, cache=None):
+        if self._variable_kb is None:
+            return
         walker = PatternMatchWalker(self._variable_kb.variables.get_function_manager(self._func.addr), self._graph)
         walker.walk(self.seq)
         self.out_seq = self.seq

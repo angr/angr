@@ -166,6 +166,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         if (
                             isinstance(data, VirtualVariable)
                             and data.was_parameter
+                            and arg_value.args is not None
                             and data.varid - 1 < len(arg_value.args)
                         ):
                             fields[offset] = arg_value.args[data.varid - 1]
@@ -177,7 +178,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
 
     def _try_find_argument_structs(self, arguments_struct: Struct, arguments_def_block: Block, arguments_def_stmt):
         args = arguments_struct.get_field("args")
-        if args.length == 0:
+        if args is None or not isinstance(args, Array) or args.length == 0:
             return [], {}
         argument_ty = (
             self.project.kb.known_structs["core::fmt::rt::Argument"]
@@ -186,7 +187,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         argument_structs = []
         stmts_to_remove = defaultdict(list)
         arg_vvars = []
-        for arg in args.elements:
+        for arg in args.elements:  # narrowed by isinstance check above
             arg_vvar = self.get_stack_vvar_by_insn(
                 arg.stack_offset,
                 arguments_def_stmt.tags["ins_addr"],
@@ -211,9 +212,12 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         # Pattern-1: Argument(s) are constructed via calls
         if all(isinstance(arg_value, Call) for arg_value in arg_values):
             for arg_value in arg_values:
+                if not isinstance(arg_value, Call):
+                    continue
                 arg_def_block, arg_def_stmt = self.get_def_block_and_stmt(arg_value)
                 fields = {}
-                func = self.project.kb.functions.get(arg_value.target.value, None)
+                target = arg_value.target
+                func = self.project.kb.functions.get(target.value, None) if isinstance(target, Const) else None
                 clinic = self.project.kb.clinic_factory.get(func)
                 for block in clinic.graph.nodes:
                     for stmt in block.statements:
@@ -225,7 +229,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     if (
                         isinstance(data, VirtualVariable)
                         and data.was_parameter
-                        and data.varid - 1 < len(arg_value.args)
+                        and arg_value.args is not None and data.varid - 1 < len(arg_value.args)
                     ):
                         fields[offset] = arg_value.args[data.varid - 1]
                 struct = self.project.analyses.StructBuilder(context=self, strict=True).build(fields, argument_ty)
@@ -292,6 +296,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     and 0 <= pieces.length - args.length <= 1
                     and all(isinstance(arg, VirtualVariable) and arg.was_stack for arg in args.elements)
                 ):
+                    if arguments_def_block is None:
+                        return None
                     macro_args, stmts_to_remove = self._try_find_argument_structs(
                         arguments_struct, arguments_def_block, arguments_def_stmt
                     )
@@ -309,16 +315,18 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                             or macro_arg.get_field("field_0")
                             for macro_arg in macro_args
                         ]
-                        for block, stmts in stmts_to_remove.items():
+                        for block, stmts in (stmts_to_remove or {}).items():
                             for stmt in stmts:
                                 self._stmts_to_remove[block].append(stmt)
                         self._stmts_to_remove[arguments_def_block].append(arguments_def_stmt)
                         fmt_str = ""
                         for piece, placeholder in zip(pieces, placeholders):
-                            fmt_str += piece + placeholder
+                            fmt_str += (piece or "") + placeholder
                         macro_name, fmt_str, returnty = self._select_macro(name, fmt_str)
+                        if macro_name is None or fmt_str is None:
+                            return None
                         if returnty is not None:
-                            returnty = returnty.with_arch(self.project.arch)
+                            returnty = returnty.with_arch(self.project.arch)  # pyright: ignore[reportAttributeAccessIssue]
                         macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
                         return FunctionLikeMacro(
                             None,

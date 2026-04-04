@@ -205,6 +205,7 @@ class DFAMixin:
         return None, None
 
     def get_def_block_and_stmt(self, data):
+        assert self.graph is not None
         for block in self.graph.nodes:
             for _, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment) and stmt.src is data:

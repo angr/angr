@@ -22,10 +22,16 @@ def is_composite_type(ty):
 
 
 class RustSimType:
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    @property
+    def size(self) -> int:
         raise NotImplementedError
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
+        raise NotImplementedError
+
+    def c_repr(  # type: ignore[override]
+        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True, **kwargs
+    ):
         return self.repr(name, full, memo, indent)
 
 
@@ -36,7 +42,7 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         super().__init__(signed, label)
         self._size = size
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         if name is None or len(name) == 0:
             return repr(self)
         return f"{name}: {self!r}"
@@ -50,7 +56,8 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return align
 
     @property
-    def size(self):
+    def size(self) -> int:
+        assert self._size is not None
         return self._size
 
     def __repr__(self):
@@ -100,7 +107,7 @@ class RustSimTypeSize(RustSimTypeInt):
         return RustSimTypeSize(signed=d.get("signed", True), label=d.get("label"))
 
 
-class RustSimTypeFunction(RustSimType, SimTypeFunction):
+class RustSimTypeFunction(RustSimType, SimTypeFunction):  # pyright: ignore[reportIncompatibleMethodOverride]
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
     a certain return value.
@@ -109,8 +116,8 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
     _ident = "rust_func"
     _args = ("args", "returnty", "label", "arg_names", "variadic", "is_arg0_retbuf", "is_class_member_function")
 
-    args: list[RustSimType]
-    returnty: RustSimType | None
+    args: list[RustSimType]  # pyright: ignore[reportIncompatibleVariableOverride]
+    returnty: RustSimType | None  # pyright: ignore[reportIncompatibleVariableOverride]
 
     base = False
 
@@ -130,7 +137,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         :param returnty: The return type of the function, or none for void
         :param variadic: Whether the function accepts varargs
         """
-        super().__init__(args, returnty, label, arg_names, variadic)
+        super().__init__(args, returnty, label, arg_names, variadic)  # pyright: ignore[reportArgumentType]
         self.is_arg0_retbuf = is_arg0_retbuf
         self.is_class_member_function = is_class_member_function
 
@@ -162,8 +169,8 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
 
     def _with_arch(self, arch):
         out = RustSimTypeFunction(
-            [a.with_arch(arch) for a in self.args],
-            self.returnty.with_arch(arch) if self.returnty is not None else None,
+            [a.with_arch(arch) for a in self.args],  # pyright: ignore[reportAttributeAccessIssue]
+            self.returnty.with_arch(arch) if self.returnty is not None else None,  # pyright: ignore[reportAttributeAccessIssue]
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
@@ -182,8 +189,8 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
     def _init_str(self):
         return "{}([{}], {}{}{}{})".format(
             self.__class__.__name__,
-            ", ".join([arg._init_str() for arg in self.args]),
-            self.returnty._init_str(),
+            ", ".join([arg._init_str() for arg in self.args]),  # pyright: ignore[reportAttributeAccessIssue]
+            self.returnty._init_str(),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             (f', label="{self.label}"') if self.label else "",
             (f", arg_names=[{self._arg_names_str(show_variadic=False)}]") if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
@@ -197,7 +204,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             and is_composite_type(self.args[0].pts_to)
         ):
             prototype = self.copy()
-            prototype.returnty = self.args[0].pts_to
+            prototype.returnty = self.args[0].pts_to  # pyright: ignore[reportAttributeAccessIssue]
             prototype.args = self.args[1:]
             prototype.is_arg0_retbuf = False
             return prototype
@@ -245,7 +252,7 @@ class RustSimTypeReference(RustSimType, SimTypePointer):
     def __repr__(self):
         return f"&{self.pts_to}"
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         # if pts_to is SimTypeBottom, we return a *u8
         if isinstance(self.pts_to, SimTypeBottom):
             out = "*u8"
@@ -293,7 +300,7 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
     def __repr__(self):
         return "[{}{}]".format(self.elem_type, "" if self.length is None else f"; {self.length}")
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         if name is None:
             return repr(self)
 
@@ -306,6 +313,11 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
 
     def copy(self):
         return RustSimTypeArray(self.elem_type, length=self.length, label=self.label)
+
+    @property
+    def size(self):
+        fget = SimTypeArray.size.fget
+        return fget(self) if fget else 0
 
 
 class RustSimStruct(RustSimType, SimStruct):
@@ -344,16 +356,18 @@ class RustSimStruct(RustSimType, SimStruct):
             return self._size
         if not self.fields:
             return 0
-        size = super().size
+        fget = SimStruct.size.fget
+        size = fget(self) if fget else 0
         if size == 0:
             return 0
+        assert self._arch is not None
         align = self.alignment * self._arch.bytes
         if size % align != 0:
             size += align - (size % align)
         self._size = size
         return size
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         if not full or (memo is not None and self in memo):
             if name is None:
                 return repr(self)
@@ -361,7 +375,7 @@ class RustSimStruct(RustSimType, SimStruct):
 
         indented = " " * indent if indent is not None else ""
         new_indent = indent + 4 if indent is not None else None
-        new_indented = " " * new_indent if indent is not None else ""
+        new_indented = " " * new_indent if new_indent is not None else ""
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
@@ -447,7 +461,7 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
     def __init__(self, size, signed=True, label=None, offset=0):
         super().__init__(size, signed, label, offset)
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         super(SimTypeNumOffset, self).c_repr(name, full, memo, indent)
 
 
@@ -477,7 +491,7 @@ class RustSimTypeSlice(RustSimStruct, SimType):
 
         return out
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         if name is None or len(name) == 0:
             return repr(self)
         return f"{name}: {self!r}"
@@ -489,6 +503,7 @@ class RustSimTypeSlice(RustSimStruct, SimType):
 
     @property
     def size(self):
+        assert self._arch is not None
         return self._arch.bits * 2
 
     def __repr__(self):
@@ -547,7 +562,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
 
         return out
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         if name is None or len(name) == 0:
             return repr(self)
         return f"{name}: {self!r}"
@@ -580,7 +595,11 @@ class RustSimTypeBottom(RustSimType, SimTypeBottom):
     _ident = "rust_bot"
     _args = ("label",)
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    @property
+    def size(self) -> int:
+        return 0
+
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         return "BOT"
 
 
@@ -702,7 +721,7 @@ class RustSimEnum(RustSimType, SimType):
     def size(self) -> int:
         if self._size is None:
             self._size = max((variant.bits for variant in self.variants), default=0)
-        return self._size
+        return self._size or 0
 
     def copy(self):
         out = RustSimEnum(self.name, self.variants).with_arch(self._arch)
@@ -715,7 +734,7 @@ class RustSimEnum(RustSimType, SimType):
         out._size = self._size
         return out
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         return self.name
 
     def __repr__(self):
@@ -807,7 +826,7 @@ class RustSimTypeOption(RustSimEnum):
         out._size = self._size
         return out
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         return self.name
 
     def __repr__(self):
@@ -899,7 +918,7 @@ class RustSimTypeResult(RustSimEnum):
         out._size = self._size
         return out
 
-    def repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         return self.name
 
     def __repr__(self):

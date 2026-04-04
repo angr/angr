@@ -79,7 +79,7 @@ class SliceArgRewriter(OptimizationPass):
                 session = func.calling_convention.arg_session(func.prototype.returnty)
                 for arg_ty in func.prototype.args:
                     offset_to_arg_ty[cur_offset] = (arg_ty, func.calling_convention.next_arg(session, arg_ty))
-                    cur_offset += arg_ty.size
+                    cur_offset += arg_ty.size or 0
                 arg_to_offset = {}
                 cur_offset = 0
                 for arg in call.args:

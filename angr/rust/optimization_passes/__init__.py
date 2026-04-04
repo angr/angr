@@ -5,7 +5,6 @@ from .error_propagation_simplifier import ErrorPropagationSimplifier
 from .function_prototype_inference import FunctionPrototypeInference
 from .cleanup_code_remover import CleanupCodeRemover
 from .deref_coercion_simplifier import DerefCoercionSimplifier
-from .macro.vec_macro_simplifier import VecMacroSimplifier
 from .outliners.string_cmp_outliner import StringCmpOutliner
 from .outliners.string_literal_outliner import StringLiteralOutliner
 from .outliners.string_outliner import StringOutliner
@@ -40,7 +39,6 @@ def get_rust_optimization_passes():
         StringLiteralOutliner,
         UnwrapOutliner,
         FormatMacroSimplifier,
-        VecMacroSimplifier,
         # ShowMacroSimplifier,
         DerefCoercionSimplifier,
         StructReturnSimplifier,

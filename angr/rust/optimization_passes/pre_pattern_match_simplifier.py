@@ -137,49 +137,6 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                     return variant
         return None
 
-    def __group_move_stmts_for_block(self, block, scrutinee: VirtualVariable, variant: EnumVariant):  # pylint:disable=unused-private-member
-        _ = variant.field_offsets
-        move_stmts = []
-        cur_size = 0
-        expected_size = variant.size - variant.first_field_offset
-        pending_stmts = list(block.statements)
-        failed_stmts = []
-        while pending_stmts:
-            stmt = pending_stmts.pop(0)
-            if isinstance(stmt, Label):
-                continue
-            src_vvar = None
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
-                if isinstance(stmt.src, Load):
-                    src_vvar = unwrap_stack_vvar_reference(stmt.src.addr)
-                elif isinstance(stmt.src, VirtualVariable):
-                    src_vvar = stmt.src
-            if isinstance(stmt, Store) and ((vvar := unwrap_stack_vvar_reference(stmt.dst)) and vvar.was_stack):
-                if isinstance(stmt.src, Load):
-                    src_vvar = unwrap_stack_vvar_reference(stmt.src.addr)
-                elif isinstance(stmt.src, VirtualVariable):
-                    src_vvar = stmt.src
-            if isinstance(src_vvar, VirtualVariable) and src_vvar.was_stack:
-                if src_vvar.stack_offset == scrutinee.stack_offset + variant.first_field_offset + cur_size:
-                    cur_size += stmt.dst.size
-                    move_stmts.append(stmt)
-                    if cur_size >= expected_size:
-                        break
-                    pending_stmts = failed_stmts + pending_stmts
-                    failed_stmts = []
-                else:
-                    failed_stmts.append(stmt)
-            else:
-                break
-        if not failed_stmts and cur_size == expected_size:
-            move_stmt = None
-            if len(move_stmts) >= 2:
-                _ = move_stmts[0].dst.stacK_offset
-                # TODO: Group move stmts
-            elif len(move_stmts) == 1:
-                move_stmt = move_stmts[0]
-            if move_stmt:
-                self.project.kb.type_hints.add_type_hint(move_stmt.dst, variant.fields[0][0])
 
     def _group_move_stmts_for_block(self, block, scrutinee: VirtualVariable, variant: EnumVariant):
         stack_defs = self.collect_stack_defs_at(block)
@@ -229,16 +186,17 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                     (enum_ty := scrutinee.tags.get("type", None))
                     and isinstance(enum_ty, (RustSimTypeOption, RustSimTypeResult))
                 ):
-                    true_block = self.blocks_by_addr_and_idx.get((jmp.true_target.value, jmp.true_target_idx), None)
-                    false_block = self.blocks_by_addr_and_idx.get((jmp.false_target.value, jmp.false_target_idx), None)
+                    true_block = self.blocks_by_addr_and_idx.get((jmp.true_target.value_int, jmp.true_target_idx), None)
+                    false_block = self.blocks_by_addr_and_idx.get((jmp.false_target.value_int, jmp.false_target_idx), None)
                     true_variant = enum_ty.get_variant(discriminant)
                     false_variant = self.inverse_variant(enum_ty, discriminant)
                     if cmp_op == "CmpNE":
                         true_variant, false_variant = false_variant, true_variant
-                    if true_block and true_variant:
-                        self._group_move_stmts_for_block(true_block, scrutinee, true_variant)
-                    if false_block and false_variant:
-                        self._group_move_stmts_for_block(false_block, scrutinee, false_variant)
+                    if isinstance(scrutinee, VirtualVariable):
+                        if true_block and true_variant:
+                            self._group_move_stmts_for_block(true_block, scrutinee, true_variant)
+                        if false_block and false_variant:
+                            self._group_move_stmts_for_block(false_block, scrutinee, false_variant)
 
     def _analyze(self, cache=None):
         graph_copy = copy_graph(self._graph)

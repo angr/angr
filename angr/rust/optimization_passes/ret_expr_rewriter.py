@@ -42,7 +42,7 @@ class RetExprRewriter(OptimizationPass):
                 func = self.kb.functions[call_stmt.expr.target.value]
                 if func.prototype and func.calling_convention and func.prototype.returnty:
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
-                    ret_locs = self._flatten_locs(ret_val)
+                    ret_locs = self._flatten_locs(ret_val)  # pyright: ignore[reportArgumentType]
                     if (
                         isinstance(ret_val, SimStructArg)
                         and len(ret_val.locs) >= 2
@@ -50,13 +50,14 @@ class RetExprRewriter(OptimizationPass):
                     ):
                         regs = []
                         for reg_arg in ret_locs:
-                            reg_offset, reg_size = self.project.arch.registers[reg_arg.reg_name]
+                            reg_name = reg_arg.reg_name  # pyright: ignore[reportAttributeAccessIssue]
+                            reg_offset, reg_size = self.project.arch.registers[reg_name]
                             reg = Register(
                                 None,
                                 None,
                                 reg_offset,
                                 reg_size * 8,
-                                reg_name=reg_arg.reg_name,
+                                reg_name=reg_name,
                             )
                             regs.append(reg)
                         ret_expr = ComboRegister(None, None, regs)

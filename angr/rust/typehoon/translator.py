@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import archinfo
 from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
 from angr.analyses.typehoon import typeconsts
 from angr.analyses.typehoon.typeconsts import TypeConstant, IntVar
@@ -34,9 +35,8 @@ class RustTypeTranslator(TypeTranslator):
     - simtype2tc / lift: RustSimType -> TypeConstant
     """
 
-    def __init__(self, project=None, arch=None):
+    def __init__(self, arch: archinfo.Arch):
         super().__init__(arch)
-        self.project = project
 
     # ----------------------------------------------------------------
     # TypeConstant -> RustSimType (tc2simtype direction)
@@ -52,28 +52,27 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_Pointer32(self, tc):
         return self._translate_Pointer64(tc)
 
-    def _translate_Int8(self, tc):
+    def _translate_Int8(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=8, signed=False).with_arch(self.arch)
 
-    def _translate_Int16(self, tc):
+    def _translate_Int16(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=16, signed=False).with_arch(self.arch)
 
     def _translate_Int32(self, tc):
         return RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
 
-    def _translate_Int64(self, tc):
+    def _translate_Int64(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=64, signed=False).with_arch(self.arch)
 
-    def _translate_Int128(self, tc):
+    def _translate_Int128(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=128, signed=False).with_arch(self.arch)
 
     def _translate_IntVar(self, tc: IntVar):
         return RustSimTypeInt(size=tc.size, signed=False).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array):
-        _ = self._tc2simtype(tc.element)
-        # TODO: Maybe array should be translated to struct?
-        return RustSimTypeInt(size=64, signed=False).with_arch(self.arch)
+        elem_type = self._tc2simtype(tc.element)
+        return RustSimTypeArray(elem_type, tc.count).with_arch(self.arch)
 
     def _translate_Struct(self, tc):
         if tc in self.structs:
@@ -107,13 +106,15 @@ class RustTypeTranslator(TypeTranslator):
             if isinstance(translated_type, RustSimTypeTempRef):
                 next_offset = self.arch.bytes + offset
             else:
-                next_offset = translated_type.size // self.arch.byte_width + offset
+                next_offset = (translated_type.size or 0) // self.arch.byte_width + offset
 
         return s
 
     def _translate_Result(self, tc: typeconsts.RustEnum):
         ok_variant = tc.get_variant("Ok")
         err_variant = tc.get_variant("Err")
+        assert ok_variant is not None
+        assert err_variant is not None
         ok_type = self._tc2simtype(ok_variant.fields[0][0])
         err_type = self._tc2simtype(err_variant.fields[0][0])
         return RustSimTypeResult(
@@ -129,6 +130,8 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_Option(self, tc: typeconsts.RustEnum):
         none_variant = tc.get_variant("None")
         some_variant = tc.get_variant("Some")
+        assert none_variant is not None
+        assert some_variant is not None
         some_type = self._tc2simtype(some_variant.fields[0][0])
         return RustSimTypeOption(
             none_variant.discriminant,
@@ -140,12 +143,13 @@ class RustTypeTranslator(TypeTranslator):
         ).with_arch(self.arch)
 
     def _translate_RustEnum(self, tc: typeconsts.RustEnum):
-        if tc.name.startswith("core::result::Result<") or tc.name.startswith("Result<"):
+        name = tc.name or f"enum_{tc.size}"
+        if name.startswith("core::result::Result<") or name.startswith("Result<"):
             return self._translate_Result(tc)
-        if tc.name.startswith("core::option::Option<") or tc.name.startswith("Option<"):
+        if name.startswith("core::option::Option<") or name.startswith("Option<"):
             return self._translate_Option(tc)
         return RustSimEnum(
-            tc.name,
+            name,
             [
                 EnumVariant(
                     variant.name,

@@ -73,11 +73,13 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             while cur_offset in fields:
                 expr = fields[cur_offset]
                 offset, size = self._is_stack_mem(expr)
-                if offset == src_stack_offset + cur_offset:
+                if offset == src_stack_offset + cur_offset and size is not None:
                     cur_offset += size
                 else:
                     return None
         if cur_offset == sum(field.size for field in fields.values()):
+            if not isinstance(src_stack_offset, int):
+                return None
             return self.get_stack_vvar_by_insn(
                 src_stack_offset, block.statements[-1].tags["ins_addr"], block.idx, size=cur_offset
             )
@@ -100,15 +102,16 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             if isinstance(struct.fields[0], Const):
                 discriminant = struct.fields[0].value
             variant = None
-            if isinstance(prototype.returnty, (RustSimTypeResult, RustSimTypeOption)):
-                variant = prototype.returnty.get_variant(discriminant)
+            returnty = prototype.returnty
+            if isinstance(returnty, (RustSimTypeResult, RustSimTypeOption)):
+                variant = returnty.get_variant(discriminant)
                 if not variant and discriminant is not None:
-                    variant = prototype.returnty.get_variant(None)
-            if variant and struct.size == variant.size:
-                new_expr = self._remove_discriminant_from_struct(struct, variant)
-                if len(new_expr.fields) == 1 and 0 in new_expr.fields:
-                    new_expr = new_expr.fields[0]
-                return RustEnum(None, variant.name, [new_expr], prototype.returnty.with_arch(self.project.arch).size)
+                    variant = returnty.get_variant(None)
+                if variant and struct.size == variant.size:
+                    new_expr = self._remove_discriminant_from_struct(struct, variant)
+                    if len(new_expr.fields) == 1 and 0 in new_expr.fields:
+                        new_expr = new_expr.fields[0]
+                    return RustEnum(None, variant.name, [new_expr], returnty.with_arch(self.project.arch).size)
         return struct
 
     def collect_ret_expr(self, path):
@@ -140,7 +143,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
         paths = Pathfinder(self._graph, self).find_ret2arg0_paths()
         for path in paths:
             ret_expr, stmts_to_remove = self.collect_ret_expr(path)
-            if ret_expr:
+            if ret_expr and stmts_to_remove is not None:
                 for block in path[1:]:
                     blocks_to_remove.add(block)
                 head_block = path[0]

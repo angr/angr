@@ -1,6 +1,10 @@
 from __future__ import annotations
 from collections import defaultdict
 from pprint import pformat
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from angr.rust.sim_type import RustSimTypeFunction
 
 
 class RustCallingConventionModel:
@@ -11,7 +15,7 @@ class RustCallingConventionModel:
         self.callsite_memory_writes = defaultdict(dict)
         self.memory_reads = defaultdict(dict)
         self.none_discriminant = None
-        self.inferred_prototype = None
+        self.inferred_prototype: RustSimTypeFunction | None = None
         self.has_write_to_arg0 = False
         self.const_ret_values = set()  # set of (ret_value, overflow_ret_value|None) tuples
 
