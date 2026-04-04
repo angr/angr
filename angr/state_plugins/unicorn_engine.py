@@ -301,15 +301,14 @@ class Uniwrapper:
     """Wrapper around unicorn.Uc that tracks mapped memory and hooks."""
 
     # pylint: disable=missing-class-docstring
-    def __init__(self, arch, cache_key, thumb=False):
+    def __init__(self, arch, cache_key):
         l.debug("Creating unicorn state!")
         self.arch = arch
         self.cache_key = cache_key
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        uc_mode = arch.uc_mode_thumb if thumb else arch.uc_mode
-        self._uc = unicorn.Uc(arch.uc_arch, uc_mode)
+        self._uc = unicorn.Uc(arch.uc_arch, arch.uc_mode)
 
     def __getattr__(self, name):
         # Delegate attribute access to the underlying Uc instance
@@ -834,17 +833,16 @@ class Unicorn(SimStatePlugin):
     @property
     def uc(self):
         new_id = next(_unicounter)
-        is_thumb = self.state.arch.qemu_name == "arm" and self.state.arch.is_thumb(self.state.addr)
         if (
             not hasattr(_unicorn_tls, "uc")
             or _unicorn_tls.uc is None
             or _unicorn_tls.uc.arch != self.state.arch
             or _unicorn_tls.uc.cache_key != self.cache_key
         ):
-            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key, thumb=is_thumb)
+            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
         elif _unicorn_tls.uc.id != self._unicount:
             if not self._reuse_unicorn:
-                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key, thumb=is_thumb)
+                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
             else:
                 # l.debug("Reusing unicorn state!")
                 _unicorn_tls.uc.reset()
@@ -1722,7 +1720,17 @@ class Unicorn(SimStatePlugin):
             if flags is None:
                 raise SimValueError("symbolic cpsr")
 
-            uc.reg_write(self._uc_const.UC_ARM_REG_CPSR, self.state.solver.eval(flags))
+            # Read existing CPSR to preserve processor mode and other bits,
+            # then merge in just the NZCV flags (top 4 bits) from VEX state.
+            existing_cpsr = uc.reg_read(self._uc_const.UC_ARM_REG_CPSR)
+            nzcv = self.state.solver.eval(flags) & 0xF0000000
+            new_cpsr = (existing_cpsr & ~0xF0000000) | nzcv
+            # Set T bit (bit 5) based on whether the current address indicates Thumb mode
+            if self.state.arch.is_thumb(self.state.addr):
+                new_cpsr |= 0x20
+            else:
+                new_cpsr &= ~0x20
+            uc.reg_write(self._uc_const.UC_ARM_REG_CPSR, new_cpsr)
 
         # Restore saved symbolic VEX CC registers
         for reg_name, saved_reg_val in saved_cc_regs.items():
@@ -1826,6 +1834,13 @@ class Unicorn(SimStatePlugin):
             setattr(state.regs, r, v)
 
         # some architecture-specific register fixups
+        if state.arch.qemu_name == "arm":
+            # Unicorn returns the raw PC without bit 0 set, but angr uses bit 0 to indicate Thumb mode.
+            # Read the CPSR T bit (bit 5) and set PC bit 0 accordingly.
+            cpsr = self.uc.reg_read(self._uc_const.UC_ARM_REG_CPSR)
+            if cpsr & 0x20:  # T bit is set -> Thumb mode
+                state.regs.ip = state.solver.eval(state.regs.ip) | 1
+
         if state.arch.name in {"X86", "AMD64"}:
             # update the eflags
             state.regs.eflags = claripy.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), state.arch.bits)

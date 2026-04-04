@@ -1727,13 +1727,12 @@ VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
 	std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
 	address_t lift_address;
 
+	uc_mem_read(this->uc, block_address, instructions.get(), block_size);
+	lift_address = block_address;
 	if ((arch == UC_ARCH_ARM) && is_thumb_mode()) {
-		lift_address = block_address | 1;
+		// Set bit 0 so VEX knows to decode as Thumb
+		lift_address |= 1;
 	}
-	else {
-		lift_address = block_address;
-	}
-	uc_mem_read(this->uc, lift_address, instructions.get(), block_size);
 	return vex_lift(vex_guest, vex_archinfo, instructions.get(), lift_address, 99, block_size,
 	    1 /* opt_level */,
 	    0 /* traceflags */,
@@ -2332,8 +2331,10 @@ void State::start_propagating_taint() {
 		// Block was not lifted and processed before. So it could end in syscall
 		curr_block_details.vex_lift_result = lift_block(block_address, block_size);
 		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
-		    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
+		    (curr_block_details.vex_lift_result->size > curr_block_details.block_size)) {
 			// Failed to lift block to VEX. We don't execute the block because it could end in a syscall.
+			// For Thumb code, VEX may split blocks at different points than unicorn (e.g., IT blocks),
+			// so a smaller VEX block is acceptable — we only need the jumpkind to check for syscalls.
 			stop(STOP_VEX_LIFT_FAILED);
 			return;
 		}
