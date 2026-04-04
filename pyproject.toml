@@ -169,7 +169,7 @@ testpaths = [
 branch = true
 source = [ "angr" ]
 parallel = true
-patch = [ "_exit" ]
+patch = [ "fork", "_exit" ]
 
 [tool.coverage.report]
 show_missing = true
