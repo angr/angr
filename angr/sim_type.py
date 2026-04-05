@@ -929,7 +929,7 @@ class SimTypePointer(SimTypeReg):
             d.pop("offset")
         if "q" in d and not d["q"]:
             d.pop("q")
-        if (disp := d.pop("disposition")) != PointerDisposition.UNKNOWN:
+        if (disp := d.pop("disposition", PointerDisposition.UNKNOWN)) != PointerDisposition.UNKNOWN:
             d["disp"] = int(disp)
         return d
 
@@ -1667,28 +1667,29 @@ class SimStruct(NamedTypeMixin, SimType):
         if self._arch is None:
             raise ValueError("Need an arch to calculate offsets")
 
-        offsets = {}
-        offset_so_far = 0
+        offsets = {}  # field name -> offset in bytes
+        bitoffset_so_far = 0  # offset in *bits*
         for name, ty in self.fields.items():
-            if ty.size is None:
+            ty_size = ty.size
+            if ty_size is None:
                 l.debug(
                     "Found a bottom field in struct %s. Ignore and increment the offset using the default "
                     "element size.",
                     self.name,
                 )
                 continue
-            if not self._pack:
-                align = ty.alignment
+            if not self._pack and ty_size > 0:
+                align = ty.alignment * self._arch.byte_width
                 if align is NotImplemented:
                     # hack!
                     align = 1
-                if offset_so_far % align != 0:
-                    offset_so_far += align - offset_so_far % align
-                offsets[name] = offset_so_far
-                offset_so_far += ty.size // self._arch.byte_width
+                if bitoffset_so_far % align != 0:
+                    bitoffset_so_far += align - bitoffset_so_far % align
+                offsets[name] = bitoffset_so_far // self._arch.byte_width
+                bitoffset_so_far += ty_size
             else:
-                offsets[name] = offset_so_far // self._arch.byte_width
-                offset_so_far += ty.size
+                offsets[name] = bitoffset_so_far // self._arch.byte_width
+                bitoffset_so_far += ty_size
 
         return offsets
 

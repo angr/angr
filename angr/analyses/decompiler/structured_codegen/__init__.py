@@ -8,6 +8,7 @@ from .base import (
     PositionMapping,
 )
 from .c import CStructuredCodeGenerator, CStructuredCodeWalker
+from .rust import RustStructuredCodeGenerator
 from .dwarf_import import ImportSourceCode
 from .dummy import DummyStructuredCodeGenerator
 
@@ -21,4 +22,5 @@ __all__ = (
     "InstructionMappingElement",
     "PositionMapping",
     "PositionMappingElement",
+    "RustStructuredCodeGenerator",
 )

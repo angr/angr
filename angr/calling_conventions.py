@@ -40,6 +40,7 @@ from .sim_type import (
     SimTypeBitfield,
 )
 from .state_plugins.sim_action_object import SimActionObject
+from .rust.sim_type import RustSimEnum
 
 l = logging.getLogger(name=__name__)
 
@@ -1293,7 +1294,7 @@ class SimLyingRegArg(SimRegArg):
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
             value = claripy.fpToFP(
-                claripy.fp.RM.RM_NearestTiesEven,
+                claripy.fp.RM.RM_NearestTiesEven,  # pyright: ignore[reportAttributeAccessIssue]
                 value.raw_to_fp(),
                 claripy.FSORT_DOUBLE,  # type: ignore
             )
@@ -1627,6 +1628,8 @@ class SimCCSystemVAMD64(SimCC):
     def next_arg(self, session, arg_type):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if isinstance(arg_type, RustSimEnum):
+            arg_type = arg_type.as_struct_ty()
         state = session.getstate()
         classification = self._classify(arg_type)
         try:
@@ -1655,6 +1658,8 @@ class SimCCSystemVAMD64(SimCC):
             return None
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
+        if isinstance(ty, RustSimEnum):
+            ty = ty.as_struct_ty()
         classification = self._classify(ty)
         if any(cls == "MEMORY" for cls in classification):
             assert all(cls == "MEMORY" for cls in classification)
@@ -1710,11 +1715,14 @@ class SimCCSystemVAMD64(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
-                    assert subty.size
+                    if isinstance(subty, RustSimEnum):
+                        subty = subty.as_struct_ty()
+                    if subty.size == 0:
+                        continue
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
-                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
@@ -1888,7 +1896,7 @@ class SimCCARM(SimCC):
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
-                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
@@ -2132,7 +2140,7 @@ class SimCCRISCV64(SimCC):
 
                 for name, field_ty in arg_type.fields.items():
                     offset = arg_type.offsets[name]
-                    field_size = field_ty.size // 8
+                    field_size = (field_ty.size or 0) // 8
 
                     reg_idx = offset // self.arch.bytes
                     reg_offset = offset % self.arch.bytes
@@ -2332,7 +2340,7 @@ class SimCCO32(SimCC):
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
-                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)

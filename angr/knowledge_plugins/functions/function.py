@@ -9,9 +9,11 @@ import contextlib
 import json
 from functools import wraps
 from typing import TYPE_CHECKING
+import re
 
 import networkx
 import pydemumble
+import rust_demangler
 
 from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
@@ -1855,16 +1857,30 @@ class Function(Serializable):
         return addr
 
     def is_rust_function(self):
-        ast = pydemumble.demangle(self.name)
-        if ast:
-            nodes = ast.split("::")
-            if len(nodes) >= 2:
-                last_node = nodes[-1]
-                return (
-                    len(last_node) == 17
-                    and last_node.startswith("h")
-                    and all(c in "0123456789abcdef" for c in last_node[1:])
-                )
+        """
+        Determines if the function name follows Rust mangling conventions.
+        """
+        name = self.name
+
+        # 1. Check for Rust v0 mangling (Newer standard, e.g., _RNvCs...)
+        # Starts with _R followed by alphanumeric/underscores
+        if name.startswith("_R"):
+            return True
+
+        # 2. Check for Legacy/Itanium mangling (Standard, e.g., _ZN3std2io...)
+        # Rust legacy symbols almost always start with _ZN
+        if name.startswith("_ZN"):
+            # To distinguish from C++, look for the specific Rust hash pattern at the end.
+            # Rust legacy symbols typically end with 'h' followed by 16 hex characters.
+            # Example: _ZN3std2io5stdio6_print17h560ab85309735912E
+            rust_hash_pattern = re.compile(r"h[0-9a-fA-F]{16}E?$")
+            if rust_hash_pattern.search(name):
+                return True
+
+            # Fallback: If no hash is found, it *might* still be Rust (unhashed symbols),
+            # but _ZN is shared with C++.
+            # You might optionally check for common Rust crates in the name here.
+
         return False
 
     @staticmethod
@@ -1912,10 +1928,9 @@ class Function(Serializable):
 
     @property
     def demangled_name(self):
-        ast = pydemumble.demangle(self.name).strip()
         if self.is_rust_function():
-            nodes = ast.split("::")[:-1]
-            ast = "::".join([Function._rust_fmt_node(node) for node in nodes])
+            return rust_demangler.demangle(self.name)
+        ast = pydemumble.demangle(self.name).strip()
         return ast or self.name
 
     @property

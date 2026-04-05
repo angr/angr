@@ -40,6 +40,7 @@ from angr.ailment.expression import (
     Tmp,
     DirtyExpression,
     Reinterpret,
+    ComboRegister,
 )
 
 from angr.ailment.tagged_object import TaggedObject
@@ -89,6 +90,7 @@ class SimEngineSSARewriting(
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
+        self._varid_to_combo_reg = {}
 
     @property
     def current_vvar_id(self) -> int:
@@ -316,6 +318,21 @@ class SimEngineSSARewriting(
             return None
         assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
+
+    def _handle_expr_String(self, expr):
+        return expr
+
+    def _handle_expr_Struct(self, expr):
+        return expr
+
+    def _handle_expr_Array(self, expr):
+        return expr
+
+    def _handle_expr_Let(self, expr):
+        return expr
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        return expr
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
         vvar = self._expr_to_vvar(expr, True)
@@ -576,6 +593,8 @@ class SimEngineSSARewriting(
             return self._replace_def_reg(thing, value, orig_tags)
         if isinstance(thing, Tmp) and self.rewrite_tmps:
             return self._replace_def_tmp(thing, value, orig_tags)
+        if isinstance(thing, ComboRegister):
+            return self._replace_def_combo_reg(thing, value, orig_tags)
         if isinstance(thing, VirtualVariable):
             # update liveness info
             if thing.category == VirtualVariableCategory.REGISTER:
@@ -585,6 +604,39 @@ class SimEngineSSARewriting(
                 for suboff in range(thing.stack_offset, thing.stack_offset + thing.size):
                     self.state.stackvars[suboff] = thing
         return None
+
+    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
+        # Create individual register VirtualVariables for each sub-register
+        reg_vvars = []
+        for reg in expr.registers:
+            reg_varid = self._current_vvar_id
+            self._current_vvar_id += 1
+            reg_vvar = VirtualVariable(
+                self.ail_manager.next_atom(),
+                reg_varid,
+                reg.bits,
+                VirtualVariableCategory.REGISTER,
+                oident=reg.reg_offset,
+                **(reg.tags | {"ins_addr": self.ins_addr}),
+            )
+            for suboff in range(reg.reg_offset, reg.reg_offset + reg.size):
+                self.state.registers[suboff] = reg_vvar
+            reg_vvars.append(reg_vvar)
+
+        vvid = self._current_vvar_id
+        self._current_vvar_id += 1
+        result = VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.COMBO_REGISTER,
+            oident=tuple(reg.reg_offset for reg in expr.registers),
+            reg_vvars=reg_vvars,
+            **expr.tags,
+        )
+        for reg_vvar in result.reg_vvars:
+            self._varid_to_combo_reg[reg_vvar.varid] = result
+        return Assignment(self.ail_manager.next_atom(), result, value, **orig_tags.tags)
 
     def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
         """

@@ -10,7 +10,7 @@ import angr.ailment as ailment
 import claripy
 import networkx
 
-
+from angr.ailment.expression import StringLiteral
 from angr.utils.graph import GraphUtils
 from angr.utils.graph import dominates, inverted_idoms
 from angr.utils.ail import is_head_controlled_loop_block
@@ -922,10 +922,10 @@ class ConditionProcessor:
 
         if isinstance(
             condition,
-            (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
+            (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE, StringLiteral),
         ):
             return _dummy_bvs(condition, self._condition_mapping, must_bool=must_bool)
-        if isinstance(condition, ailment.Expr.Call):
+        if isinstance(condition, (ailment.Expr.Call, ailment.Expr.FunctionLikeMacro)):
             return _dummy_bvs(
                 condition,
                 self._condition_mapping,

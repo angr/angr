@@ -37,6 +37,7 @@ dependencies = [
     "pypcode>=3.2.1,<4.0",
     "pyvex==9.2.209.dev0",
     "rich>=13.1.0",
+    "rust-demangler==1.0",
     "sortedcontainers",
     "sympy",
     "typing-extensions",
@@ -90,6 +91,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 angr = ["py.typed", "unicornlib.*", "rustylib.*", "*.json"]
+"angr.rust.analyses" = ["type_db/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }

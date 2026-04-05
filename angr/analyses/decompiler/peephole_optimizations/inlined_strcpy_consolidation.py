@@ -1,6 +1,8 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
+from archinfo import Endness
+
 from angr.ailment.expression import (
     Call,
     Expression,
@@ -29,16 +31,28 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
     NAME = "Consolidate multiple inlined strcpy calls"
     stmt_classes = ((SideEffectStatement, SideEffectStatement), (SideEffectStatement, Store))
 
-    def optimize(self, stmts: list[SideEffectStatement], **kwargs):
+    def optimize(self, stmts: list[SideEffectStatement], stmt_idx: int | None = None, block=None, **kwargs):  # type: ignore[override]
+        proj = self.project
+        if proj is not None and proj.is_rust_binary:
+            return None
+        kb = self.kb
+        if kb is None:
+            return None
         last_stmt, stmt = stmts
         if InlinedStrcpy.is_inlined_strcpy(last_stmt):
-            s_last: bytes = self.kb.custom_strings[last_stmt.expr.args[1].value]
+            assert last_stmt.expr.args is not None
+            last_arg1 = last_stmt.expr.args[1]
+            assert isinstance(last_arg1, Const)
+            s_last: bytes = kb.custom_strings[int(last_arg1.value)]
             addr_last = last_stmt.expr.args[0]
             new_str = None  # will be set if consolidation should happen
 
             if isinstance(stmt, SideEffectStatement) and InlinedStrcpy.is_inlined_strcpy(stmt):
                 # consolidating two calls
-                s_curr: bytes = self.kb.custom_strings[stmt.expr.args[1].value]
+                assert stmt.expr.args is not None
+                curr_arg1 = stmt.expr.args[1]
+                assert isinstance(curr_arg1, Const)
+                s_curr: bytes = kb.custom_strings[int(curr_arg1.value)]
                 addr_curr = stmt.expr.args[0]
                 # determine if the two addresses are consecutive
                 delta = self._get_delta(addr_last, addr_curr)
@@ -56,15 +70,16 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         r, s = True, "\x00"
                     else:
                         r, s = InlinedStrcpy.is_integer_likely_a_string(
-                            stmt.data.value, stmt.size, stmt.endness, min_length=1
+                            int(stmt.data.value), stmt.size, Endness(stmt.endness), min_length=1
                         )
                     if r:
+                        assert s is not None
                         new_str = s_last + s.encode("ascii")
 
             if new_str is not None:
                 if new_str.endswith(b"\x00"):
                     call_name = "strcpy"
-                    new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
+                    new_str_idx = kb.custom_strings.allocate(new_str[:-1])
                     args = [
                         last_stmt.expr.args[0],
                         Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
@@ -72,11 +87,11 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                     prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strcpy")
                 else:
                     call_name = "strncpy"
-                    new_str_idx = self.kb.custom_strings.allocate(new_str)
+                    new_str_idx = kb.custom_strings.allocate(new_str)
                     args = [
                         last_stmt.expr.args[0],
                         Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
-                        Const(None, None, len(new_str), self.project.arch.bits),
+                        Const(None, None, len(new_str), proj.arch.bits if proj is not None else 64),
                     ]
                     prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
 
@@ -113,10 +128,10 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const):
                 base_0, offset_0 = InlinedStrcpyConsolidation._parse_addr(addr.operands[0])
-                return base_0, offset_0 + addr.operands[1].value
+                return base_0, offset_0 + int(addr.operands[1].value)
             if addr.op == "Sub" and isinstance(addr.operands[1], Const):
                 base_0, offset_0 = InlinedStrcpyConsolidation._parse_addr(addr.operands[0])
-                return base_0, offset_0 - addr.operands[1].value
+                return base_0, offset_0 - int(addr.operands[1].value)
 
         return addr, 0
 

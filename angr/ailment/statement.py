@@ -1,4 +1,4 @@
-# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
+# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions,unused-import
 from __future__ import annotations
 from collections.abc import Iterable
 from abc import ABC, abstractmethod
@@ -9,7 +9,7 @@ from typing_extensions import Self
 from angr import ailment
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
 from .tagged_object import TaggedObject
-from .expression import Atom, Expression, DirtyExpression
+from .expression import Atom, Expression, DirtyExpression, Call  # noqa: F401 - Call re-exported for compatibility
 
 
 class Statement(TaggedObject, ABC):
@@ -232,7 +232,10 @@ class Store(Statement):
 
     def __str__(self):
         if self.variable is None:
-            return f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
+            return (
+                f"STORE(addr={self.addr}, data={self.data!s}, size={self.size},"
+                f" endness={self.endness}, guard={self.guard})"
+            )
         return f"{self.variable.name} ={'L' if self.endness == 'Iend_LE' else 'B'} {self.data}<{self.size}>" + (
             "" if self.guard is None else f"[{self.guard}]"
         )

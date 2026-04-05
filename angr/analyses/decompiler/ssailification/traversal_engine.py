@@ -638,6 +638,27 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             result.add((None, v))
         return result
 
+    def _handle_expr_Array(self, expr) -> Value:
+        for element in expr.elements:
+            self._expr(element)
+        return set()
+
+    def _handle_expr_Struct(self, expr) -> Value:
+        for field in expr.fields.values():
+            self._expr(field)
+        return set()
+
+    def _handle_expr_String(self, expr) -> Value:  # pylint:disable=unused-argument, no-self-use
+        return set()
+
+    def _handle_expr_Let(self, expr) -> Value:
+        return set()
+
+    def _handle_expr_FunctionLikeMacro(self, expr) -> Value:
+        for arg in expr.args:
+            self._expr(arg)
+        return set()
+
     def _handle_expr_Reinterpret(self, expr) -> Value:
         self._expr(expr.operand)
         return set()

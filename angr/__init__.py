@@ -197,6 +197,9 @@ from .emulator import Emulator, EmulatorStopReason
 # for compatibility reasons
 from . import sim_manager as manager
 
+from .rust import analyses as rust_analyses
+from .rust import knowledge_plugins as rust_knowledge_plugins
+
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
 
@@ -363,6 +366,8 @@ __all__ = (
     "manager",
     "options",
     "register_analysis",
+    "rust_analyses",
+    "rust_knowledge_plugins",
     "sim_options",
     "types",
 )

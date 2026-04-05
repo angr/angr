@@ -567,6 +567,13 @@ class SimEngineLightAIL(
             "MultiStatementExpression": self._handle_expr_MultiStatementExpression,
             "BasePointerOffset": self._handle_expr_BasePointerOffset,
             "StackBaseOffset": self._handle_expr_StackBaseOffset,
+            "StringLiteral": self._handle_expr_StringLiteral,
+            "Struct": self._handle_expr_Struct,
+            "Array": self._handle_expr_Array,
+            "RustEnum": self._handle_expr_RustEnum,
+            "Let": self._handle_expr_Let,
+            "FunctionLikeMacro": self._handle_expr_FunctionLikeMacro,
+            "ComboRegister": self._handle_expr_ComboRegister,
         }
         self._unop_handlers: dict[str, Callable[[ailment.UnaryOp], DataType_co]] = {
             "Not": self._handle_unop_Not,
@@ -809,6 +816,37 @@ class SimEngineLightAIL(
 
     @abstractmethod
     def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co: ...
+
+    def _handle_expr_StringLiteral(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Struct(self, expr) -> DataType_co:
+        for field in expr.fields.values():
+            self._expr(field)
+        return self._top(expr.bits)
+
+    def _handle_expr_Array(self, expr) -> DataType_co:
+        for element in expr.elements:
+            self._expr(element)
+        return self._top(expr.bits)
+
+    def _handle_expr_RustEnum(self, expr) -> DataType_co:
+        for child_expr in expr.fields:
+            self._expr(child_expr)
+        return self._top(expr.bits)
+
+    def _handle_expr_Let(self, expr) -> DataType_co:
+        return self._top(expr.bits)
+
+    def _handle_expr_FunctionLikeMacro(self, expr) -> DataType_co:
+        for arg in expr.args:
+            self._expr(arg)
+        return self._top(expr.bits)
+
+    def _handle_expr_ComboRegister(self, expr) -> DataType_co:
+        for reg in expr.registers:
+            self._expr(reg)
+        return self._top(expr.bits)
 
     #
     # UnOps

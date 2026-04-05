@@ -22,7 +22,7 @@ from angr.ailment.expression import (
     ITE,
     UnaryOp,
 )
-from angr.ailment.expression import Call
+from angr.ailment.expression import Call, FunctionLikeMacro
 from angr.ailment.statement import Statement, Assignment, Store, CAS, SideEffectStatement
 from angr.ailment.block_walker import AILBlockViewer
 
@@ -229,7 +229,7 @@ class AILBlacklistExprTypeWalker(AILBlockViewer):
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression, FunctionLikeMacro))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -237,7 +237,7 @@ def is_const_and_vvar_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression, FunctionLikeMacro))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -245,7 +245,7 @@ def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression, FunctionLikeMacro))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -253,7 +253,7 @@ def is_const_vvar_load_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call))
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, FunctionLikeMacro))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
