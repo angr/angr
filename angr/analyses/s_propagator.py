@@ -171,6 +171,10 @@ class SPropagatorAnalysis(Analysis):
                 # Do not propagate Inserts
                 # if this is not acceptable, just make sure we don't proagate inserts into the base of other inserts...
                 continue
+            if vvar_id in stmt.tags.get("extra_defs", []):
+                # This stmt performs a def - if we remove it, the def is lost.
+                # TODO: if you can figure out how to make sure some other statement gets the extra_defs, do it
+                continue
             if is_phi_assignment(stmt):
                 phi_varids[vvar_id] = {
                     src_vvar.varid if src_vvar is not None else None for _, src_vvar in stmt.src.src_and_vvars

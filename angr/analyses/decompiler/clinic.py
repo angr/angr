@@ -28,6 +28,7 @@ from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimCCUsercall
 from angr.sim_type import (
+    PointerDisposition,
     SimType,
     SimTypeChar,
     SimTypeInt,
@@ -161,6 +162,7 @@ class Clinic(Analysis):
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
+        entry_node_addr: ailment.Address | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
         end_stage: ClinicStage | None = None,
@@ -195,7 +197,10 @@ class Clinic(Analysis):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: ailment.Address = self.function.addr, None
+        if entry_node_addr is not None:
+            self.entry_node_addr = entry_node_addr
+        else:
+            self.entry_node_addr: ailment.Address = self.function.addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
@@ -777,7 +782,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=self._removed_vvar_ids,
@@ -811,7 +816,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
@@ -833,7 +838,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
@@ -3742,7 +3747,15 @@ class Clinic(Analysis):
                 )
                 for i in range(func_arg_count):
                     if i in arg_result:
-                        new_arg_types.append(arg_result[i])
+                        argty = arg_result[i]
+                        if (
+                            isinstance(argty, SimTypePointer)
+                            and argty.disposition == PointerDisposition.UNKNOWN
+                            and func.prototype is not None
+                            and isinstance((oldargty := func.prototype.args[i]), SimTypePointer)
+                        ):
+                            argty.disposition = oldargty.disposition
+                        new_arg_types.append(argty)
                     else:
                         if func.prototype is not None:
                             new_arg_types.append(func.prototype.args[i])
