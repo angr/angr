@@ -42,6 +42,14 @@ from .typeconsts import (
     Int128,
     Int256,
     Int512,
+    SInt8,
+    UInt8,
+    SInt16,
+    UInt16,
+    SInt32,
+    UInt32,
+    SInt64,
+    UInt64,
     Pointer,
     Pointer32,
     Pointer64,
@@ -80,6 +88,14 @@ Float32_ = Float32()
 Float64_ = Float64()
 Enum_ = Enum()
 Fd_ = Fd()
+SInt8_ = SInt8()
+UInt8_ = UInt8()
+SInt16_ = SInt16()
+UInt16_ = UInt16()
+SInt32_ = SInt32()
+UInt32_ = UInt32()
+SInt64_ = SInt64()
+UInt64_ = UInt64()
 
 
 PRIMITIVE_TYPES = {
@@ -92,6 +108,14 @@ PRIMITIVE_TYPES = {
     Int128_,
     Int256_,
     Int512_,
+    SInt8_,
+    UInt8_,
+    SInt16_,
+    UInt16_,
+    SInt32_,
+    UInt32_,
+    SInt64_,
+    UInt64_,
     Pointer32_,
     Pointer64_,
     Bottom_,
@@ -118,15 +142,32 @@ BASE_LATTICE_64.add_edge(Int_, Int8_)
 BASE_LATTICE_64.add_edge(Int512_, Bottom_)
 BASE_LATTICE_64.add_edge(Int256_, Bottom_)
 BASE_LATTICE_64.add_edge(Int128_, Bottom_)
-BASE_LATTICE_64.add_edge(Int32_, Bottom_)
-BASE_LATTICE_64.add_edge(Int16_, Bottom_)
-BASE_LATTICE_64.add_edge(Int8_, Bottom_)
-BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
-BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
+# Int8: signed/unsigned children
+BASE_LATTICE_64.add_edge(Int8_, SInt8_)
+BASE_LATTICE_64.add_edge(Int8_, UInt8_)
+BASE_LATTICE_64.add_edge(SInt8_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt8_, Bottom_)
+# Int16: signed/unsigned children
+BASE_LATTICE_64.add_edge(Int16_, SInt16_)
+BASE_LATTICE_64.add_edge(Int16_, UInt16_)
+BASE_LATTICE_64.add_edge(SInt16_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt16_, Bottom_)
+# Int32: signed/unsigned children + Enum, Fd
+BASE_LATTICE_64.add_edge(Int32_, SInt32_)
+BASE_LATTICE_64.add_edge(Int32_, UInt32_)
+BASE_LATTICE_64.add_edge(SInt32_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt32_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Enum_)
 BASE_LATTICE_64.add_edge(Enum_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Fd_)
 BASE_LATTICE_64.add_edge(Fd_, Bottom_)
+# Int64: signed/unsigned children + Pointer64
+BASE_LATTICE_64.add_edge(Int64_, SInt64_)
+BASE_LATTICE_64.add_edge(Int64_, UInt64_)
+BASE_LATTICE_64.add_edge(SInt64_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt64_, Bottom_)
+BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
+BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
@@ -141,15 +182,32 @@ BASE_LATTICE_32.add_edge(Int_, Int8_)
 BASE_LATTICE_32.add_edge(Int512_, Bottom_)
 BASE_LATTICE_32.add_edge(Int256_, Bottom_)
 BASE_LATTICE_32.add_edge(Int128_, Bottom_)
-BASE_LATTICE_32.add_edge(Int64_, Bottom_)
+# Int8: signed/unsigned children
+BASE_LATTICE_32.add_edge(Int8_, SInt8_)
+BASE_LATTICE_32.add_edge(Int8_, UInt8_)
+BASE_LATTICE_32.add_edge(SInt8_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt8_, Bottom_)
+# Int16: signed/unsigned children
+BASE_LATTICE_32.add_edge(Int16_, SInt16_)
+BASE_LATTICE_32.add_edge(Int16_, UInt16_)
+BASE_LATTICE_32.add_edge(SInt16_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt16_, Bottom_)
+# Int32: signed/unsigned children + Pointer32, Enum, Fd
+BASE_LATTICE_32.add_edge(Int32_, SInt32_)
+BASE_LATTICE_32.add_edge(Int32_, UInt32_)
+BASE_LATTICE_32.add_edge(SInt32_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
 BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
-BASE_LATTICE_32.add_edge(Int16_, Bottom_)
-BASE_LATTICE_32.add_edge(Int8_, Bottom_)
 BASE_LATTICE_32.add_edge(Int32_, Enum_)
 BASE_LATTICE_32.add_edge(Enum_, Bottom_)
-BASE_LATTICE_64.add_edge(Int32_, Fd_)
-BASE_LATTICE_64.add_edge(Fd_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Fd_)
+BASE_LATTICE_32.add_edge(Fd_, Bottom_)
+# Int64: signed/unsigned children
+BASE_LATTICE_32.add_edge(Int64_, SInt64_)
+BASE_LATTICE_32.add_edge(Int64_, UInt64_)
+BASE_LATTICE_32.add_edge(SInt64_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt64_, Bottom_)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,

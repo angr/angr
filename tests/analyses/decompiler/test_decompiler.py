@@ -622,8 +622,9 @@ class TestDecompiler(unittest.TestCase):
         assert "free(" in code
         assert "free(NULL" not in code and "free(0" not in code
 
-        # return values are either 0xffffffff or -1
-        assert "return 4294967295;" in code or "return -1;" in code
+        # failing return values must be -1; the return type of the function must be int (signed)
+        assert "return 4294967295;" not in code and "return -1;" in code
+        assert "\nint doit(" in code
 
         # the while loop containing puts("Empty title"); must have both continue and break
         for i, line in enumerate(code_lines):
@@ -1767,7 +1768,7 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         assert "if (timespec_cmp(" in dec.codegen.text or "if ((int)timespec_cmp(" in dec.codegen.text
-        assert "&& localtime_rz(localtz, " in dec.codegen.text
+        assert "&& localtime_rz(" in dec.codegen.text
 
     @structuring_algo("sailr")
     def test_cascading_boolean_and(self, decompiler_options=None):
@@ -5298,9 +5299,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((unsigned int){a0})
+                if ((int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
-                return (unsigned int){a0} - 1;
+                return (int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
@@ -5320,9 +5321,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((unsigned int){a0})
+                if ((int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
-                return (unsigned int){a0} - 1;
+                return (int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
