@@ -1294,7 +1294,7 @@ class SimLyingRegArg(SimRegArg):
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
             value = claripy.fpToFP(
-                claripy.fp.RM.RM_NearestTiesEven,
+                claripy.fp.RM.RM_NearestTiesEven,  # pyright: ignore[reportAttributeAccessIssue]
                 value.raw_to_fp(),
                 claripy.FSORT_DOUBLE,  # type: ignore
             )
@@ -1722,7 +1722,7 @@ class SimCCSystemVAMD64(SimCC):
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
-                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
@@ -1896,7 +1896,7 @@ class SimCCARM(SimCC):
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
-                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
@@ -2140,7 +2140,7 @@ class SimCCRISCV64(SimCC):
 
                 for name, field_ty in arg_type.fields.items():
                     offset = arg_type.offsets[name]
-                    field_size = field_ty.size // 8
+                    field_size = (field_ty.size or 0) // 8
 
                     reg_idx = offset // self.arch.bytes
                     reg_offset = offset % self.arch.bytes
@@ -2340,7 +2340,7 @@ class SimCCO32(SimCC):
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
-                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)

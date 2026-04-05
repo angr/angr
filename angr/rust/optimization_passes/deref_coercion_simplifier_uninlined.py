@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from angr.ailment import AILBlockRewriter
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.expression import Call, VirtualVariable
 from angr.rust.mixins import SRDAMixin, CFAMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.ailment.statement import Assignment
@@ -57,11 +57,12 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, Call)
                     and self.match_call(stmt.src, DEREF_COERCION_FUNCTIONS)
                     and stmt.src.args is not None
                     and len(stmt.src.args) == 1  # pyright: ignore[reportAttributeAccessIssue]
                 ):
-                    self._vvar_replacements[stmt.dst.varid] = stmt.src.args[0]  # pyright: ignore[reportAttributeAccessIssue]
+                    self._vvar_replacements[stmt.dst.varid] = stmt.src.args[0]
                     self._stmts_to_remove[block].append(stmt)
 
         for block in self._graph.nodes:

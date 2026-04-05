@@ -19,7 +19,8 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
 
     def optimize(self, stmt: Assignment | Store, stmt_idx: int | None = None, block=None, **kwargs):
         # Skip Rust binaries
-        if self.project.is_rust_binary:
+        proj = self.project
+        if proj is not None and proj.is_rust_binary:
             return None
         should_replace = False
         dst_offset, src_offset, store_size = None, None, None

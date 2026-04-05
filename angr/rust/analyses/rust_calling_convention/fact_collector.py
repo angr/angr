@@ -109,6 +109,8 @@ class CalleeWriteCollector:
 
     def _call_forwards_arg0(self, call: Call) -> bool:
         """Does this call pass the current function's arg0 (parameter vvar 0) as its first argument?"""
+        if not call.args:
+            return False
         arg0 = call.args[0]
         if isinstance(arg0, VirtualVariable):
             vvar = self._fc.get_terminal_vvar(arg0)

@@ -269,7 +269,7 @@ class CConstruct:
 
     def __init__(self, codegen, tags=None):
         self.tags = tags or {}
-        self.codegen: BaseStructuredCodeGenerator = codegen
+        self.codegen: CStructuredCodeGenerator = codegen  # type: ignore[assignment]
         self.idx = codegen.next_idx(self.__class__.__name__)
 
     def c_repr(self, initial_pos=0, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):

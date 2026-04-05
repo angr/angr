@@ -551,7 +551,7 @@ class Clinic(Analysis):
         caller_block.statements[call_idx] = None  # type: ignore
         if (
             isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
-            and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
+            and caller_block.statements[call_idx - 2].data.value == caller_successor.addr  # pyright: ignore[reportAttributeAccessIssue]
         ):
             # don't push the return address
             caller_block.statements.pop(call_idx - 5)  # t6 = rsp<8>
@@ -563,8 +563,8 @@ class Clinic(Analysis):
             caller_block.statements.pop(call_idx - 5)  # t7 = (t5 - 0x80<64>) <- wtf is this??
         elif (
             isinstance(caller_block.statements[call_idx - 1], ailment.Stmt.Store)
-            and caller_block.statements[call_idx - 1].addr.base == "stack_base"
-            and caller_block.statements[call_idx - 1].data.value == caller_successor.addr
+            and caller_block.statements[call_idx - 1].addr.base == "stack_base"  # pyright: ignore[reportAttributeAccessIssue]
+            and caller_block.statements[call_idx - 1].data.value == caller_successor.addr  # pyright: ignore[reportAttributeAccessIssue]
         ):
             caller_block.statements.pop(call_idx - 1)  # s_10 =L 0x401225<64><8>
 
@@ -626,7 +626,7 @@ class Clinic(Analysis):
                 self.varid_to_combo_reg = {}
 
             def _handle_VirtualVariable(
-                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
             ):
                 if expr.was_combo_reg:
                     for reg_vvar in expr.reg_vvars:
@@ -1258,7 +1258,7 @@ class Clinic(Analysis):
                                     ins_addr=callsite_ins_addr,
                                     reg_name=cc.cc.RETURN_VAL.reg_name,
                                 )
-                                last_stmt.bits = reg_size * 8
+                                last_stmt.bits = reg_size * 8  # pyright: ignore[reportAttributeAccessIssue]
 
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
@@ -1934,7 +1934,7 @@ class Clinic(Analysis):
                     )
                     reg_vvars.append(arg_vvar)
                     self.vvar_id_start += 1
-                arg_vvar.tags["reg_vvars"] = reg_vvars
+                arg_vvar.tags["reg_vvars"] = reg_vvars  # pyright: ignore[reportGeneralTypeIssues]
         return arg_vvars
 
     @timethis

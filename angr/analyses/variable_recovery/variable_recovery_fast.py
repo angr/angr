@@ -100,9 +100,9 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             self._analysis,
             self.arch,
             self.function,
-            stack_region=self.stack_region.copy(),
-            register_region=self.register_region.copy(),
-            global_region=self.global_region.copy(),
+            stack_region=self.stack_region.copy(),  # pyright: ignore[reportCallIssue]
+            register_region=self.register_region.copy(),  # pyright: ignore[reportCallIssue]
+            global_region=self.global_region.copy(),  # pyright: ignore[reportCallIssue]
             typevars=self.typevars,
             type_constraints=self.type_constraints,
             func_typevar=self.func_typevar,
@@ -129,15 +129,15 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         self.phi_variables = {}  # A mapping from original variable and its corresponding phi variable
         self.successor_block_addr = successor
 
-        merged_stack_region = self.stack_region.copy()
+        merged_stack_region = self.stack_region.copy()  # pyright: ignore[reportCallIssue]
         merged_stack_region.set_state(self)
         merge_occurred = merged_stack_region.merge([other.stack_region for other in others], None)
 
-        merged_register_region = self.register_region.copy()
+        merged_register_region = self.register_region.copy()  # pyright: ignore[reportCallIssue]
         merged_register_region.set_state(self)
         merge_occurred |= merged_register_region.merge([other.register_region for other in others], None)
 
-        merged_global_region = self.global_region.copy()
+        merged_global_region = self.global_region.copy()  # pyright: ignore[reportCallIssue]
         merged_global_region.set_state(self)
         merge_occurred |= merged_global_region.merge([other.global_region for other in others], None)
 
@@ -300,7 +300,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         if type_hints:
             self._parse_type_hints(type_hints)
         if (
-            self.project.is_rust_binary
+            func_graph is not None
+            and self.project.is_rust_binary
             and len(func_graph.nodes) > 0
             and all(isinstance(node, ailment.Block) for node in func_graph.nodes)
         ):
@@ -594,7 +595,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         }
         if size not in mapping:
             raise TypeError(f"Unsupported size {size}.")
-        return mapping.get(size)(value)
+        return mapping[size](value)
 
     def _peephole_optimize(self, block: Block):
         # find regN = xor(regN, regN) and replace it with PUT(regN) = 0
@@ -602,9 +603,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         while i < len(block.vex.statements) - 3:
             stmt0 = block.vex.statements[i]
             next_i = i + 1
-            if isinstance(stmt0, pyvex.IRStmt.WrTmp) and isinstance(stmt0.data, pyvex.IRStmt.Get):
+            if isinstance(stmt0, pyvex.IRStmt.WrTmp) and isinstance(stmt0.data, pyvex.IRExpr.Get):
                 stmt1 = block.vex.statements[i + 1]
-                if isinstance(stmt1, pyvex.IRStmt.WrTmp) and isinstance(stmt1.data, pyvex.IRStmt.Get):
+                if isinstance(stmt1, pyvex.IRStmt.WrTmp) and isinstance(stmt1.data, pyvex.IRExpr.Get):
                     next_i = i + 2
                     if stmt0.data.offset == stmt1.data.offset and stmt0.data.ty == stmt1.data.ty:
                         next_i = i + 3
@@ -625,7 +626,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                             block._vex = block.vex.copy()
                             block.vex.statements[i] = pyvex.IRStmt.NoOp()
                             block.vex.statements[i + 1] = pyvex.IRStmt.NoOp()
-                            zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))
+                            zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))  # pyright: ignore[reportOptionalMemberAccess]
                             block.vex.statements[i + 2] = pyvex.IRStmt.Put(zero, reg_offset)
             i = next_i
         return block

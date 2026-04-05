@@ -144,18 +144,18 @@ class LoaderSerializer:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             for db_o in db_objects:
-                load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
-                path = Path(db_o.path)
+                load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                path = Path(db_o.path)  # pyright: ignore[reportArgumentType]
 
                 if not path.exists():
                     # dump the content to a temporary file if the
                     # original file does not exist anymore
                     tmp_path = Path(tmpdir) / path.name
                     with open(tmp_path, "wb") as f:
-                        f.write(db_o.content)
+                        f.write(db_o.content)  # pyright: ignore[reportArgumentType]
                     path = tmp_path
 
-                if db_o.main_object:
+                if db_o.main_object:  # pyright: ignore[reportGeneralTypeIssues]
                     main_opts = load_opts
                     main_path = str(path)
                 else:

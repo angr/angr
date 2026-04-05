@@ -323,23 +323,23 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None):
         for idx, field in enumerate(expr.fields):
             self._handle_expr(idx, field, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
         for idx, field in enumerate(expr.fields.values()):
             self._handle_expr(idx, field, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement | None, block: Block | None):
         for idx, ele in enumerate(expr.elements):
             self._handle_expr(idx, ele, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_FunctionLikeMacro(
-        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if expr.args:
             for i, arg in enumerate(expr.args):
@@ -347,12 +347,12 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_StringLiteral(
-        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_ComboRegister(
-        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         for idx, reg in enumerate(expr.registers):
             self._handle_expr(idx, reg, stmt_idx, stmt, block)
@@ -463,7 +463,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         return None
 
     def _handle_ComboRegister(
-        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         for idx, reg in enumerate(expr.registers):
             self._handle_expr(idx, reg, stmt_idx, stmt, block)
@@ -511,27 +511,27 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
-    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None):
         for idx, field in enumerate(expr.fields):
             self._handle_expr(idx, field, stmt_idx, stmt, block)
 
-    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
         for idx, field in enumerate(expr.fields.values()):
             self._handle_expr(idx, field, stmt_idx, stmt, block)
 
-    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement | None, block: Block | None):
         for idx, ele in enumerate(expr.elements):
             self._handle_expr(idx, ele, stmt_idx, stmt, block)
 
     def _handle_FunctionLikeMacro(
-        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if expr.args:
             for i, arg in enumerate(expr.args):
                 self._handle_expr(i, arg, stmt_idx, stmt, block)
 
     def _handle_StringLiteral(
-        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         pass
 
@@ -657,10 +657,11 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
                 changed = True
 
         if changed:
+            side_effect_expr: Call = new_expr if isinstance(new_expr, Call) else stmt.expr
             return SideEffectStatement(
                 stmt.idx,
-                new_expr,
-                ret_expr=stmt.ret_expr,
+                side_effect_expr,
+                ret_expr=new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr,
                 **stmt.tags,
             )
@@ -774,7 +775,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return expr
 
     def _handle_ComboRegister(
-        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         changed = False
         new_regs = []
@@ -998,7 +999,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             return result
         return expr
 
-    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_RustEnum(self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None):
         changed = False
         new_fields = []
         for idx, field in enumerate(expr.fields):
@@ -1016,11 +1017,11 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return expr
 
     def _handle_StringLiteral(
-        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         return expr
 
-    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
         changed = False
         new_fields = OrderedDict()
         for idx, (offset, field) in enumerate(expr.fields.items()):
@@ -1037,7 +1038,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             return new_expr
         return expr
 
-    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement | None, block: Block | None):
         changed = False
         new_elements = []
         for idx, ele in enumerate(expr.elements):
@@ -1055,7 +1056,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return expr
 
     def _handle_FunctionLikeMacro(
-        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         changed = False
 

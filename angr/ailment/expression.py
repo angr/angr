@@ -327,6 +327,7 @@ class VirtualVariable(Atom):
             assert isinstance(self.oident, tuple)
             return self.oident
         if self.was_parameter and self.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
+            assert isinstance(self.oident, tuple)
             assert isinstance(self.oident[1], tuple)
             return self.oident[1]
         raise TypeError("Is not a combo register")
@@ -1991,11 +1992,11 @@ class Call(Expression):
         return f"Call({self.target}, {s})"
 
     @property
-    def verbose_op(self):
+    def verbose_op(self) -> str:
         return "call"
 
     @property
-    def op(self):
+    def op(self) -> str:
         return "call"
 
     def has_atom(self, atom, identity=True):
@@ -2105,7 +2106,7 @@ class StringLiteral(Expression):
         else:
             r, replaced = False, self
 
-        return r, replaced
+        return r, replaced  # pyright: ignore[reportReturnType]
 
     matches = likes
 
@@ -2342,10 +2343,10 @@ class FunctionLikeMacro(Macro):
     __hash__ = TaggedObject.__hash__
 
     @property
-    def size(self):
+    def size(self) -> int:
         if self.bits:
             return self.bits // 8
-        return None
+        return 0
 
     def _hash_core(self):
         return stable_hash((FunctionLikeMacro, self.idx, self.name))
