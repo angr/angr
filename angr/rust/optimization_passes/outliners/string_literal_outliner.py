@@ -67,7 +67,7 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
         class StructWalker(AILBlockRewriter):
             """Walk blocks rewriting Struct expressions via a callback."""
 
-            def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+            def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
                 return callback(expr)
 
         walker = StructWalker()

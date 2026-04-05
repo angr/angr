@@ -22,7 +22,7 @@ class CallFinder(AILBlockViewer):
             self.call = expr
 
     def _handle_FunctionLikeMacro(
-        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if not self.call and self.include_macro:
             self.call = expr

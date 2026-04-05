@@ -631,7 +631,7 @@ class Clinic(Analysis):
                 self.varid_to_combo_reg = {}
 
             def _handle_VirtualVariable(
-                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
             ):
                 if expr.was_combo_reg:
                     for reg_vvar in expr.reg_vvars:
@@ -1948,7 +1948,7 @@ class Clinic(Analysis):
                     )
                     reg_vvars.append(arg_vvar)
                     self.vvar_id_start += 1
-                arg_vvar.tags["reg_vvars"] = reg_vvars
+                arg_vvar.tags["reg_vvars"] = reg_vvars  # pyright: ignore[reportGeneralTypeIssues]
         return arg_vvars
 
     @timethis

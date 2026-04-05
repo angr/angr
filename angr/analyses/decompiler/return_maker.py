@@ -50,7 +50,7 @@ class ReturnMaker(AILGraphWalker):
                         reg[0],
                         ret_val.size * self.arch.byte_width,
                         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
-                        ins_addr=stmt.tags["ins_addr"],
+                        ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
                     )
                 )
             elif isinstance(ret_val, SimComboArg):
@@ -77,7 +77,7 @@ class ReturnMaker(AILGraphWalker):
                                 reg[0],
                                 ret_val_loc.size * self.arch.byte_width,
                                 reg_name=self.arch.translate_register_name(reg[0], ret_val_loc.size),
-                                ins_addr=stmt.tags["ins_addr"],
+                                ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
                             )
                         )
                     else:

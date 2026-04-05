@@ -242,7 +242,8 @@ class SimEngineVRAIL(
                 isinstance(expr.target, (ailment.Expr.Const, str))
                 or expr.tags.get("is_prototype_guessed", True) is False
             ):
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, expr.args)
+                if expr.args is not None:
+                    self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
@@ -930,11 +931,15 @@ class SimEngineVRAIL(
 
         # xor does not transfer type variables; instead, it forces both operands to be unsigned integers
         if isinstance(r0.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(r0.data.size()))
-            self.state.add_type_constraint(tc)
+            int_type_0 = typeconsts.unsigned_int_type(r0.data.size())
+            if int_type_0 is not None:
+                tc = typevars.Subtype(r0.typevar, int_type_0)
+                self.state.add_type_constraint(tc)
         if isinstance(r1.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r1.typevar, typeconsts.unsigned_int_type(r1.data.size()))
-            self.state.add_type_constraint(tc)
+            int_type_1 = typeconsts.unsigned_int_type(r1.data.size())
+            if int_type_1 is not None:
+                tc = typevars.Subtype(r1.typevar, int_type_1)
+                self.state.add_type_constraint(tc)
 
         r = self.state.top(expr.bits)
         return RichR(r)

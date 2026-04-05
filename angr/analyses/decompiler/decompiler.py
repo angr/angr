@@ -387,7 +387,7 @@ class Decompiler(Analysis):
             self.region_identifier,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
-            arg_vvars=set(clinic.arg_vvars),
+            arg_vvars=set(clinic.arg_vvars) if clinic.arg_vvars is not None else set(),
             edges_to_remove=clinic.edges_to_remove,
         )
 
@@ -426,7 +426,7 @@ class Decompiler(Analysis):
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
-                arg_vvars=set(self.clinic.arg_vvars),
+                arg_vvars=set(self.clinic.arg_vvars) if self.clinic is not None and self.clinic.arg_vvars is not None else set(),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
@@ -681,7 +681,7 @@ class Decompiler(Analysis):
         """
 
         # extract everything from the cache
-        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints
+        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints or {}
         func_typevar = cache.func_typevar
         var_to_typevar = cache.var_to_typevar
         arg_vvars = cache.arg_vvars
@@ -780,7 +780,8 @@ class Decompiler(Analysis):
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
-            const_values.add(expr.value)
+            if isinstance(expr.value, int):
+                const_values.add(expr.value)
 
         def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
             block_walker = ailment.AILBlockViewer(

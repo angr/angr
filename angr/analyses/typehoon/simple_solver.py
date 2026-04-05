@@ -503,7 +503,11 @@ class ConstraintGraphNode:
         else:
             raise TypeError(f"Unsupported type {type(self.typevar)}")
         variance = Variance.COVARIANT if self.variance == label.variance else Variance.CONTRAVARIANT
-        var = typevar if not labels else DerivedTypeVariable(typevar, None, labels=labels)
+        if not labels:
+            var = typevar
+        else:
+            assert isinstance(typevar, (TypeVariable, DerivedTypeVariable))
+            var = DerivedTypeVariable(typevar, None, labels=labels)
         assert isinstance(var, (TypeVariable, DerivedTypeVariable))
         return ConstraintGraphNode(var, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN)
 
@@ -879,8 +883,9 @@ class SimpleSolver:
         non_primitive_endpoints: set[TypeVariable | DerivedTypeVariable],
         constraint_graph,
     ) -> set[TypeConstraint]:
-        constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
-        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
+        endpoints: set[TypeConstant | TypeVariable | DerivedTypeVariable] = set(non_primitive_endpoints)
+        constraints_0 = self._solve_constraints_between(constraint_graph, endpoints, PRIMITIVE_TYPES)
+        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, endpoints)
         return constraints_0 | constraints_1
 
     @staticmethod
@@ -1593,10 +1598,11 @@ class SimpleSolver:
         """
 
         graph = networkx.DiGraph()
+        interesting: set[TypeVariable | DerivedTypeVariable | TypeConstant] = set(interesting_variables)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
                 self._constraint_graph_add_edges(
-                    graph, constraint.sub_type, constraint.super_type, interesting_variables
+                    graph, constraint.sub_type, constraint.super_type, interesting
                 )
         self._constraint_graph_saturate(graph)
         self._constraint_graph_remove_self_loops(graph)

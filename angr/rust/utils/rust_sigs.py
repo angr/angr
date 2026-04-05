@@ -10,7 +10,7 @@ from angr.utils.env import is_pyinstaller
 l = logging.getLogger(name=__name__)
 
 try:
-    from flirt_signatures import signatures_path
+    from flirt_signatures import signatures_path  # pyright: ignore[reportMissingImports]
 except ImportError:
     signatures_path = None
 
