@@ -34,3 +34,5 @@ dist
 docs/_build
 uv.lock
 target/
+*.core
+tests/cores/crasher
