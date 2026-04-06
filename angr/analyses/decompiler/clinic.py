@@ -47,7 +47,6 @@ from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
-from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.s_liveness import SLivenessAnalysis
 from .ail_simplifier import AILSimplifier
@@ -66,6 +65,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from angr.analyses.s_reaching_definitions import SRDAModel
     from .notes import DecompilationNote
     from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
@@ -208,7 +208,7 @@ class Clinic(Analysis):
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
-        self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
+        self.reaching_definitions: SRDAModel | None = None
         self._cache = cache
         self._mode = mode
         self._max_type_constraints = max_type_constraints
@@ -520,9 +520,12 @@ class Clinic(Analysis):
         # update the call edge
         # first, remove the call statement. this is a type error but will be resolved later
         caller_block.statements[call_idx] = None  # type: ignore
+        retaddr_saving_stmt_2 = caller_block.statements[call_idx - 2] if call_idx - 2 >= 0 else None
+        retaddr_saving_stmt_1 = caller_block.statements[call_idx - 1] if call_idx - 1 >= 0 else None
         if (
-            isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
-            and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
+            isinstance(retaddr_saving_stmt_2, ailment.Stmt.Store)
+            and isinstance(retaddr_saving_stmt_2.data, ailment.Expr.Const)
+            and retaddr_saving_stmt_2.data.value == caller_successor.addr
         ):
             # don't push the return address
             caller_block.statements.pop(call_idx - 5)  # t6 = rsp<8>
@@ -533,9 +536,11 @@ class Clinic(Analysis):
             )  # STORE(addr=t5, data=0x40121b<64>, size=8, endness=Iend_LE, guard=None)
             caller_block.statements.pop(call_idx - 5)  # t7 = (t5 - 0x80<64>) <- wtf is this??
         elif (
-            isinstance(caller_block.statements[call_idx - 1], ailment.Stmt.Store)
-            and caller_block.statements[call_idx - 1].addr.base == "stack_base"
-            and caller_block.statements[call_idx - 1].data.value == caller_successor.addr
+            isinstance(retaddr_saving_stmt_1, ailment.Stmt.Store)
+            and isinstance(retaddr_saving_stmt_1.addr, ailment.Expr.StackBaseOffset)
+            and retaddr_saving_stmt_1.addr.base == "stack_base"
+            and isinstance(retaddr_saving_stmt_1.data, ailment.Expr.Const)
+            and retaddr_saving_stmt_1.data.value == caller_successor.addr
         ):
             caller_block.statements.pop(call_idx - 1)  # s_10 =L 0x401225<64><8>
 
@@ -1143,7 +1148,6 @@ class Clinic(Analysis):
                                     ins_addr=callsite_ins_addr,
                                     reg_name=cc.cc.RETURN_VAL.reg_name,
                                 )
-                                last_stmt.bits = reg_size * 8
 
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
@@ -1365,13 +1369,15 @@ class Clinic(Analysis):
 
                 ret_reg_offset = self.project.arch.ret_offset
                 if target_func.returning and ret_reg_offset is not None:
+                    tags = dict(target.tags)
+                    tags.pop("reg_name", None)
                     ret_expr = ailment.Expr.Register(
                         self._ail_manager.next_atom(),
                         None,
                         ret_reg_offset,
                         self.project.arch.bits,
                         reg_name=self.project.arch.translate_register_name(ret_reg_offset, size=self.project.arch.bits),
-                        **target.tags,
+                        **tags,
                     )
                 else:
                     ret_expr = None
@@ -1542,8 +1548,8 @@ class Clinic(Analysis):
 
         blocks_by_addr_and_idx: dict[ailment.Address, ailment.Block] = {}
 
-        if cache is not None:
-            cache: dict[ailment.Block, NamedTuple] = {}
+        if cache is None:
+            cache = {}
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
@@ -1838,6 +1844,7 @@ class Clinic(Analysis):
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
+        assert ssailification.out_graph is not None
         return ssailification.out_graph
 
     def _resize_function_arguments(
