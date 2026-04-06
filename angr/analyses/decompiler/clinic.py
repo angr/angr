@@ -232,8 +232,6 @@ class Clinic(Analysis):
 
         self._ail_graph: networkx.DiGraph = None  # type: ignore
         self._spt = None
-        # cached block-level reaching definition analysis results and propagator results
-        self._block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
         self._preserve_vvar_ids: set[int] = set()
         self._type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
 
@@ -685,7 +683,6 @@ class Clinic(Analysis):
         self._ail_graph = self._simplify_blocks(
             self._ail_graph,
             stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
             preserve_vvar_ids=self._preserve_vvar_ids,
             type_hints=self._type_hints,
         )
@@ -725,30 +722,20 @@ class Clinic(Analysis):
             arg_vvars=self.arg_vvars,
         )
 
-        # Run simplification passes again. there might be more chances for peephole optimizations after function-level
-        # simplification
-        self._update_progress(48.0, text="Simplifying blocks 2")
-        self._ail_graph = self._simplify_blocks(
-            self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
-        )
-
         # Run simplification passes
-        self._update_progress(49.0, text="Running simplifications 2")
+        self._update_progress(47.0, text="Running simplifications 2")
         self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
-        self._update_progress(48.0, text="Simplifying blocks 2.5")
-        self._ail_graph = self._simplify_blocks(
+        self._update_progress(49.0, text="Simplifying function 1.5")
+        self._simplify_function(
             self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=False,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=self.arg_vvars,
         )
 
     def _stage_make_function_callsites(self) -> None:
@@ -785,17 +772,6 @@ class Clinic(Analysis):
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
-        # After global optimization, there might be more chances for peephole optimizations.
-        # Simplify blocks for the second time
-        self._update_progress(60.0, text="Simplifying blocks 3")
-        self._ail_graph = self._simplify_blocks(
-            self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
-        )
-
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
         self._ail_graph = self._run_simplification_passes(
@@ -816,15 +792,6 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
-        )
-
-        self._update_progress(75.0, text="Simplifying blocks 4")
-        self._ail_graph = self._simplify_blocks(
-            self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
         )
 
         # Simplify the entire function for the fourth time
@@ -970,14 +937,11 @@ class Clinic(Analysis):
             max_iterations=1,
         )
 
-        # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
-
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(35.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")
@@ -1578,6 +1542,9 @@ class Clinic(Analysis):
 
         blocks_by_addr_and_idx: dict[ailment.Address, ailment.Block] = {}
 
+        if cache is not None:
+            cache: dict[ailment.Block, NamedTuple] = {}
+
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
                 ail_block,
@@ -1732,7 +1699,18 @@ class Clinic(Analysis):
         self.reaching_definitions = simp._reaching_definitions
 
         # the function graph has been updated at this point
-        return simp.simplified
+        if not simp.simplified:
+            return False
+
+        # invoke BlockSimplifier to apply peephole optimizations if possible
+        self._simplify_blocks(
+            ail_graph,
+            stack_pointer_tracker=self._spt,
+            preserve_vvar_ids=preserve_vvar_ids,
+            type_hints=self._type_hints,
+        )
+
+        return True
 
     @timethis
     def _run_simplification_passes(
