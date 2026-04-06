@@ -124,6 +124,11 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     new_const = Const(const0.idx, None, const0.value + const1.value, const0.bits, **const0.tags)
                     return BinaryOp(expr.idx, "Mul", [x0, new_const], expr.signed, **expr.tags)
 
+            if isinstance(op0, StackBaseOffset) and isinstance(op1, Const) and op1.is_int:
+                return StackBaseOffset(expr.idx, op0.bits, op0.offset + op1.value_int, **expr.tags)
+            if isinstance(op1, StackBaseOffset) and isinstance(op0, Const) and op0.is_int:
+                return StackBaseOffset(expr.idx, op1.bits, op1.offset + op0.value_int, **expr.tags)
+
         elif expr.op == "Sub":
             if (
                 isinstance(op0, Const)
@@ -185,6 +190,11 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(op0, StackBaseOffset) and isinstance(op1, StackBaseOffset):
                 assert isinstance(op0.offset, int) and isinstance(op1.offset, int)
                 return Const(expr.idx, None, op0.offset - op1.offset, expr.bits, **expr.tags)
+
+            if isinstance(op0, StackBaseOffset) and isinstance(op1, Const) and op1.is_int:
+                return StackBaseOffset(expr.idx, op0.bits, op0.offset - op1.value_int, **expr.tags)
+            if isinstance(op1, StackBaseOffset) and isinstance(op0, Const) and op0.is_int:
+                return StackBaseOffset(expr.idx, op1.bits, op1.offset - op0.value_int, **expr.tags)
 
         elif expr.op == "And":
             op0, op1 = expr.operands
