@@ -661,7 +661,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         for arg0 in a0:
             for arg1 in a1:
                 if (arg0[0] is None or arg1[0] is None) and (arg0[1] is not None and arg1[1] is not None):
-                    result.add((arg0[0] or arg1[0], arg0[1] + sign * arg1[1]))
+                    if (arg0[0] is not None or arg1[0] is not None) and (arg0[1] == 0 or arg1[1] == 0):
+                        r = (arg0[0] or arg1[0]) + sign * arg1[1] + arg0[1], 0
+                    else:
+                        r = arg0[0] or arg1[0], arg0[1] + sign * arg1[1]
+                    result.add(r)
         if len(result) > CUTOFF:
             result = set(sorted(result, key=offset_sort_key)[:CUTOFF])
         return result
