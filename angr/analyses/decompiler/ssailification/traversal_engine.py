@@ -248,7 +248,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for popped_offset in popped:
                 secret_stash[popped_offset].update(self.state.stackvar_defs.pop(popped_offset, set()))
                 for def2 in secret_stash[popped_offset]:
-                    self.state.stackvar_defs[full_offset].add(def2)
+                    self.state.stackvar_defs[full_offset] |= {def2}
                     definfo = self.def_info[def2]
                     if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
@@ -287,8 +287,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = defs
 
         if def_as is not None:
+            def_as_frozen = frozenset(def_as)
             for suboff in range(full_offset, full_offset + full_size):
-                self.state.stackvar_defs[suboff] = def_as
+                self.state.stackvar_defs[suboff] = def_as_frozen
 
         return self.state.live_stackvars[offset]
 
@@ -352,8 +353,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = {def2} | liveish_defs
 
         if def_as is not None:
+            def_as_frozen = frozenset(def_as)
             for suboff in range(offset, end_offset):
-                self.state.stackvar_defs[suboff] = def_as
+                self.state.stackvar_defs[suboff] = def_as_frozen
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
         full_offset, full_size, popped = self.state.register_unify(offset, size)
@@ -363,7 +365,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for popped_offset in popped:
                 secret_stash[popped_offset].update(self.state.register_defs.pop(popped_offset, set()))
                 for def2 in secret_stash[popped_offset]:
-                    self.state.register_defs[full_offset].add(def2)
+                    self.state.register_defs[full_offset] |= {def2}
                     definfo = self.def_info[def2]
                     if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
@@ -400,8 +402,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = defs
 
         if def_as is not None:
+            def_as_frozen = frozenset(def_as)
             for suboff in range(full_offset, full_offset + full_size):
-                self.state.register_defs[suboff] = def_as
+                self.state.register_defs[suboff] = def_as_frozen
 
         return self.state.live_registers[offset]
 
@@ -415,8 +418,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.perform_def("reg", def_, offset, size, offset, size)
         self.state.register_blackout.discard(offset)
 
+        v = frozenset({def_})
         for suboff in range(offset, offset + size):
-            self.state.register_defs[suboff] = {def_}
+            self.state.register_defs[suboff] = v
 
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
@@ -600,9 +604,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _handle_expr_StackBaseOffset(self, expr: StackBaseOffset) -> Value:
         if not self.stackvars:
-            return set()
+            return frozenset()
         if not isinstance(expr.offset, int):
-            return set()
+            return frozenset()
 
         if expr.offset not in self.state.pending_ptr_defines:
             self.state.pending_ptr_defines[expr.offset] = [(self._acodeloc(), expr)]
@@ -617,15 +621,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         else:
             self.state.pending_ptr_defines[expr.offset].append((self._acodeloc(), expr))
 
-        return {(expr.offset, 0)}
+        return frozenset({(expr.offset, 0)})
 
     def _handle_expr_Tmp(self, expr: Tmp):
         return self.state.live_tmps[expr.tmp_idx]
 
     def _handle_expr_Const(self, expr) -> Value:
         if isinstance(expr.value, int):
-            return {(None, expr.value)}
-        return set()
+            return frozenset({(None, expr.value)})
+        return frozenset()
 
     def _handle_expr_Convert(self, expr: Convert) -> Value:
         val = self._expr(expr.operand)
@@ -636,15 +640,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             if expr.is_signed and v > 1 << (expr.from_bits - 1):
                 v -= 1 << expr.from_bits
             result.add((None, v))
-        return result
+        return frozenset(result)
 
     def _handle_expr_Reinterpret(self, expr) -> Value:
         self._expr(expr.operand)
-        return set()
+        return frozenset()
 
     def _handle_expr_UnaryOp(self, expr) -> Value:
         self._expr(expr.operand)
-        return set()
+        return frozenset()
 
     def _handle_expr_BinaryOp(self, expr) -> Value:
         a0 = self._expr(expr.operands[0])
@@ -655,16 +659,16 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         elif expr.op == "Sub":
             sign = -1
         else:
-            return set()
+            return frozenset()
 
-        result: Value = set()
+        result = set()
         for arg0 in a0:
             for arg1 in a1:
                 if (arg0[0] is None or arg1[0] is None) and (arg0[1] is not None and arg1[1] is not None):
                     result.add((arg0[0] or arg1[0], arg0[1] + sign * arg1[1]))
         if len(result) > CUTOFF:
             result = set(sorted(result, key=offset_sort_key)[:CUTOFF])
-        return result
+        return frozenset(result)
 
     def _handle_expr_Phi(self, expr) -> Value:
         result = set()
@@ -673,7 +677,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 result.update(self._expr(vvar))
         if len(result) > CUTOFF:
             result = set(sorted(result, key=offset_sort_key)[:CUTOFF])
-        return result
+        return frozenset(result)
 
     def _handle_expr_ITE(self, expr: ITE):
         self._expr(expr.cond)
@@ -708,10 +712,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     # pylint: disable=unused-argument,no-self-use
     def _handle_expr_MultiStatementExpression(self, expr) -> Value:
-        return set()
+        return frozenset()
 
     def _handle_expr_BasePointerOffset(self, expr) -> Value:
-        return set()
+        return frozenset()
 
     def _unreachable(self, *args, **kwargs):
         assert False, "unreachable"

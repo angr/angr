@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def
 
 # (stack offset | None, const value or offset from orig stack offset)
-Value: TypeAlias = "set[tuple[int | None, int]]"
+Value: TypeAlias = "frozenset[tuple[int | None, int]]"
 
 
 class TraversalState:
@@ -28,27 +28,27 @@ class TraversalState:
         live_vvars: MutableMapping[int, Value] | None = None,
         stackvar_bases: MutableMapping[int, tuple[int, int]] | None = None,
         register_bases: MutableMapping[int, tuple[int, int]] | None = None,
-        stackvar_defs: MutableMapping[int, set[Def]] | None = None,
-        register_defs: MutableMapping[int, set[Def]] | None = None,
+        stackvar_defs: MutableMapping[int, frozenset[Def]] | None = None,
+        register_defs: MutableMapping[int, frozenset[Def]] | None = None,
         pending_ptr_defines_nonlocal_live: set[int] | None = None,
     ):
         self.arch = arch
         self.func = func
 
         self.register_blackout = set(register_blackout or ())
-        self.live_registers = defaultdict(set, {} if live_registers is None else live_registers)
-        self.live_stackvars = defaultdict(set, {} if live_stackvars is None else live_stackvars)
-        self.live_vvars = defaultdict(set, {} if live_vvars is None else live_vvars)
+        self.live_registers = defaultdict(frozenset, {} if live_registers is None else live_registers)
+        self.live_stackvars = defaultdict(frozenset, {} if live_stackvars is None else live_stackvars)
+        self.live_vvars = defaultdict(frozenset, {} if live_vvars is None else live_vvars)
         self.live_tmps: MutableMapping[int, Value] = defaultdict(
-            set
+            frozenset
         )  # tmps are internal to a block only and never propagated from another state
 
         self.stackvar_bases: MutableMapping[int, tuple[int, int]] = stackvar_bases if stackvar_bases is not None else {}
         self.register_bases: MutableMapping[int, tuple[int, int]] = register_bases if register_bases is not None else {}
         self.pending_ptr_defines: dict[int, list[tuple[AILCodeLocation, StackBaseOffset]]] = {}
         self.pending_ptr_defines_nonlocal_live = pending_ptr_defines_nonlocal_live or set()
-        self.stackvar_defs = defaultdict(set, {} if stackvar_defs is None else stackvar_defs)
-        self.register_defs = defaultdict(set, {} if register_defs is None else register_defs)
+        self.stackvar_defs = defaultdict(frozenset, {} if stackvar_defs is None else stackvar_defs)
+        self.register_defs = defaultdict(frozenset, {} if register_defs is None else register_defs)
 
     def stackvar_unify(self, offset: int, size: int) -> tuple[int, int, set[int]]:
         seen = (offset, offset + size)
@@ -109,9 +109,9 @@ class TraversalState:
             live_vvars=self.live_vvars,
             pending_ptr_defines_nonlocal_live=set(self.pending_ptr_defines_nonlocal_live),
             stackvar_bases=dict(self.stackvar_bases),
-            stackvar_defs={k: set(v) for k, v in self.stackvar_defs.items()},
+            stackvar_defs=self.stackvar_defs,
             register_bases=dict(self.register_bases),
-            register_defs={k: set(v) for k, v in self.register_defs.items()},
+            register_defs=self.register_defs,
         )
 
     def merge(self, *others: TraversalState) -> bool:
@@ -120,13 +120,13 @@ class TraversalState:
         for o in others:
             for k, v in o.live_registers.items():
                 merge_occurred |= bool(v.difference(self.live_registers[k]))
-                self.live_registers[k].update(v)
+                self.live_registers[k] |= v
             for k, v in o.live_stackvars.items():
                 merge_occurred |= bool(v.difference(self.live_stackvars[k]))
-                self.live_stackvars[k].update(v)
+                self.live_stackvars[k] |= v
             for k, v in o.live_vvars.items():
                 merge_occurred |= bool(v.difference(self.live_vvars[k]))
-                self.live_vvars[k].update(v)
+                self.live_vvars[k] |= v
             for k0, (k1, s1) in o.stackvar_bases.items():
                 k2, s2 = self.stackvar_bases.get(k0, (k0, 0))
                 k3 = min(k1, k2)
@@ -143,10 +143,10 @@ class TraversalState:
                     self.register_bases[k0] = (k3, s3)
             for k, d in o.stackvar_defs.items():
                 merge_occurred |= bool(d.difference(self.stackvar_defs[k]))
-                self.stackvar_defs[k].update(d)
+                self.stackvar_defs[k] |= d
             for k, d in o.register_defs.items():
                 merge_occurred |= bool(d.difference(self.register_defs[k]))
-                self.register_defs[k].update(d)
+                self.register_defs[k] |= d
             merge_occurred |= bool(
                 o.pending_ptr_defines_nonlocal_live.difference(self.pending_ptr_defines_nonlocal_live)
             )
