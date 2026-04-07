@@ -14,6 +14,7 @@ from functools import wraps
 import angr.ailment as ailment
 
 import angr
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import (
     SimTypeInt,
@@ -3244,7 +3245,7 @@ class TestDecompiler(unittest.TestCase):
         cproto = "int authenticate(char *username, char *password)"
         _, proto, _ = convert_cproto_to_py(cproto + ";")
         f.prototype = proto.with_arch(p.arch)
-        f.is_prototype_guessed = False
+        f.prototype_source = PrototypeSource.USER
 
         d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert cproto in d.codegen.text
