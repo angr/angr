@@ -1492,6 +1492,7 @@ class TestDecompiler(unittest.TestCase):
         cca = proj.analyses.CallingConvention(f)
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
+        f.prototype_source = PrototypeSource.USER  # so it's not overwritten
 
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes("AMD64", "linux")
         d = proj.analyses.Decompiler(
