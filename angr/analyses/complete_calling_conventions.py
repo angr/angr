@@ -17,6 +17,7 @@ from angr.utils.graph import GraphUtils
 from angr.simos import SimWindows
 from angr.utils.mp import mp_context, Initializer
 from angr.knowledge_plugins.cfg import CFGModel
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis, CFGFast
 
 if TYPE_CHECKING:
@@ -201,11 +202,15 @@ class CompleteCallingConventionsAnalysis(Analysis):
         func: Function,
         prototype: SimTypeFunction | None,
         prototype_libname: str | None,
-        prototype_guessed: bool | None,
+        prototype_source: PrototypeSource | None,
     ) -> None:
-        if func.prototype is None or func.is_prototype_guessed or self._force:
-            if prototype_guessed is not None:
-                func.is_prototype_guessed = prototype_guessed
+        if (
+            func.prototype is None
+            or func.is_prototype_guessed
+            or (prototype_source is not None and func.prototype_source.value < prototype_source.value)
+            or self._force
+        ):
+            func.prototype_source = prototype_source if prototype_source is not None else PrototypeSource.NONE
             func.prototype = prototype
             func.prototype_libname = prototype_libname
 
@@ -215,12 +220,12 @@ class CompleteCallingConventionsAnalysis(Analysis):
         if self._workers == 0:
             self._update_progress(0)
             for idx, func_addr in enumerate(self._func_addrs):
-                cc, proto, proto_libname, proto_guessed, _ = self._analyze_core(func_addr)
+                cc, proto, proto_libname, proto_source, _ = self._analyze_core(func_addr)
 
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
                     func.calling_convention = cc
-                    self._set_function_prototype(func, proto, proto_libname, proto_guessed)
+                    self._set_function_prototype(func, proto, proto_libname, proto_source)
                     if proto_libname is not None:
                         self.prototype_libnames.add(proto_libname)
                 func.ran_cca = True
@@ -285,7 +290,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             while idx < total_funcs:
                 try:
                     with self._results_lock:
-                        func_addr, cc, proto, proto_libname, proto_guessed, varman = self._results.get(
+                        func_addr, cc, proto, proto_libname, proto_source, varman = self._results.get(
                             True, timeout=0.01
                         )
                 except queue.Empty:
@@ -295,7 +300,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
                     func.calling_convention = cc
-                    self._set_function_prototype(func, proto, proto_libname, proto_guessed)
+                    self._set_function_prototype(func, proto, proto_libname, proto_source)
                     if proto_libname is not None:
                         self.prototype_libnames.add(proto_libname)
 
@@ -343,39 +348,41 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 continue
 
             if callee_info is not None:
-                callee_info: dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None, bool | None]]
+                callee_info: dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None, PrototypeSource | None]]
                 for callee, (
                     callee_cc,
                     callee_proto,
                     callee_proto_libname,
-                    callee_proto_guessed,
+                    callee_proto_source,
                 ) in callee_info.items():
                     callee_func = self.kb.functions.get_by_addr(callee)
                     callee_func.calling_convention = callee_cc
-                    self._set_function_prototype(callee_func, callee_proto, callee_proto_libname, callee_proto_guessed)
+                    self._set_function_prototype(callee_func, callee_proto, callee_proto_libname, callee_proto_source)
 
             idx += 1
             if self._low_priority and idx % 3 == 0:
                 time.sleep(0.1)
 
             try:
-                cc, proto, proto_libname, proto_guessed, varman = self._analyze_core(func_addr)
+                cc, proto, proto_libname, proto_source, varman = self._analyze_core(func_addr)
             except Exception:  # pylint:disable=broad-except
                 _l.error("Worker %d: Exception occurred during _analyze_core().", worker_id, exc_info=True)
-                cc, proto, proto_libname, proto_guessed, varman = None, None, None, None, None
+                cc, proto, proto_libname, proto_source, varman = None, None, None, None, None
             with self._results_lock:
-                self._results.put((func_addr, cc, proto, proto_libname, proto_guessed, varman))
+                self._results.put((func_addr, cc, proto, proto_libname, proto_source, varman))
 
     def _analyze_core(
         self, func_addr: int
-    ) -> tuple[SimCC | None, SimTypeFunction | None, str | None, bool | None, VariableManagerInternal | None]:
+    ) -> tuple[
+        SimCC | None, SimTypeFunction | None, str | None, PrototypeSource | None, VariableManagerInternal | None
+    ]:
         func = self.kb.functions.get_by_addr(func_addr)
         if func.ran_cca and not self._force:
             return (
                 func.calling_convention,
                 func.prototype,
                 func.prototype_libname,
-                func.is_prototype_guessed,
+                func.prototype_source,
                 self.kb.variables.get_function_manager(func_addr),
             )
 
@@ -418,7 +425,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 cc_analysis.cc,
                 cc_analysis.prototype,
                 cc_analysis.prototype_libname if cc_analysis.prototype_libname is not None else func.prototype_libname,
-                not cc_analysis.proto_from_symbol,
+                PrototypeSource.SIMPROC if cc_analysis.proto_from_symbol else PrototypeSource.CCA_LOW,
                 self.kb.variables.get_function_manager(func_addr),
             )
         _l.info("Cannot determine calling convention for %r.", func)
@@ -446,12 +453,12 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def _get_callees_cc_prototypes(
         self, caller_func_addr: int
-    ) -> dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None, bool | None]]:
+    ) -> dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None, PrototypeSource | None]]:
         d = {}
         for callee in self.kb.functions.callgraph.successors(caller_func_addr):
             if callee != caller_func_addr and callee not in d:
                 func = self.kb.functions.get_by_addr(callee)
-                tpl = func.calling_convention, func.prototype, func.prototype_libname, func.is_prototype_guessed
+                tpl = func.calling_convention, func.prototype, func.prototype_libname, func.prototype_source
                 d[callee] = tpl
         return d
 

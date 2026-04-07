@@ -8,6 +8,7 @@ import unittest
 import archinfo
 import angr
 from angr.calling_conventions import SimCCSystemVAMD64
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimType, SimTypeEnum, SimTypeInt, SimTypePointer, parse_type, parse_defns, SimTypeFunction
 from angr.analyses.typehoon.typeconsts import Enum, Int32
 from angr.analyses.typehoon.translator import TypeTranslator
@@ -137,7 +138,7 @@ class TestEnumTypeInference(unittest.TestCase):
         prototype = SimTypeFunction([color_enum], SimTypeInt(signed=True))
         color_to_rgb_func.prototype = prototype
         color_to_rgb_func.calling_convention = SimCCSystemVAMD64(self.proj.arch)
-        color_to_rgb_func.is_prototype_guessed = False
+        color_to_rgb_func.prototype_source = PrototypeSource.USER
 
         # Attempt decompilation
         dec = self.proj.analyses.Decompiler(color_to_rgb_func)

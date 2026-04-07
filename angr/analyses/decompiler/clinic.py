@@ -20,6 +20,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.codenode import BlockNode, FuncNode
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.utils import timethis
@@ -1076,6 +1077,9 @@ class Clinic(Analysis):
                     if target_func.prototype is None:
                         target_func.prototype = cc.prototype
                         target_func.prototype_libname = cc.prototype_libname
+                        target_func.prototype_source = (
+                            PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW
+                        )
                     continue
 
             # case 3: the callee is a PLT function
@@ -1087,6 +1091,9 @@ class Clinic(Analysis):
                     if target_func.prototype is None:
                         target_func.prototype = cc.prototype
                         target_func.prototype_libname = cc.prototype_libname
+                        target_func.prototype_source = (
+                            PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW
+                        )
                     continue
 
             # case 4: fall back to call site analysis
@@ -1153,15 +1160,29 @@ class Clinic(Analysis):
                                 )
 
         # finally, recover the calling convention of the current function
-        if self.function.prototype is None or self.function.calling_convention is None:
+        if (
+            self.function.prototype is None or self.function.calling_convention is None
+        ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
+            old_proto = self.function.prototype
+            old_source = self.function.prototype_source
+
+            self.function.prototype = None  # clear it
+            self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
             self.project.analyses.CompleteCallingConventions(
                 fail_fast=self._fail_fast,  # type: ignore
-                recover_variables=True,
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
                 skip_signature_matched_functions=False,
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
+
+            if (
+                old_source >= PrototypeSource.CCA_LOW
+                and old_proto is not None
+                and self.function.prototype is not None
+                and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
+            ):
+                self.function.prototype.returnty = old_proto.returnty
 
     @timethis
     def _track_stack_pointers(self):
@@ -1514,6 +1535,7 @@ class Clinic(Analysis):
             if cc is None:
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
 
+            assert prototype is None or isinstance(prototype, SimTypeFunction)
             new_last_stmt = last_stmt.copy()
             new_last_stmt.expr.calling_convention = cc
             new_last_stmt.expr.prototype = prototype
@@ -2001,7 +2023,7 @@ class Clinic(Analysis):
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb: KnowledgeBase):
         if self.function.prototype is not None:
-            if not self.function.is_prototype_guessed:
+            if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
                 # do not overwrite an existing function prototype
                 # if you want to re-generate the prototype, clear the existing one first
                 return
@@ -2043,7 +2065,7 @@ class Clinic(Analysis):
                 returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
-        self.function.is_prototype_guessed = False
+        self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
 
     @timethis
     def _recover_and_link_variables(
@@ -3748,7 +3770,7 @@ class Clinic(Analysis):
                     variadic=func.prototype.variadic if func.prototype is not None else False,
                 ).with_arch(self.project.arch)
                 func.prototype = new_type
-                func.is_prototype_guessed = False
+                func.prototype_source = PrototypeSource.CALLSITE_DECOMPILER
 
 
 register_analysis(Clinic, "Clinic")
