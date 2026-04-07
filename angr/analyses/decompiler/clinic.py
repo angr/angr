@@ -1163,6 +1163,9 @@ class Clinic(Analysis):
         if (
             self.function.prototype is None or self.function.calling_convention is None
         ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
+            old_proto = self.function.prototype
+            old_source = self.function.prototype_source
+
             self.function.prototype = None  # clear it
             self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
             self.project.analyses.CompleteCallingConventions(
@@ -1172,6 +1175,11 @@ class Clinic(Analysis):
                 skip_signature_matched_functions=False,
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
+
+            if old_source >= PrototypeSource.CCA_LOW and (
+                isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None
+            ):
+                self.function.prototype.returnty = old_proto.returnty
 
     @timethis
     def _track_stack_pointers(self):
