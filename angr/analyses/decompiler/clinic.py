@@ -1176,8 +1176,11 @@ class Clinic(Analysis):
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
 
-            if old_source >= PrototypeSource.CCA_LOW and (
-                isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None
+            if (
+                old_source >= PrototypeSource.CCA_LOW
+                and old_proto is not None
+                and self.function.prototype is not None
+                and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
             ):
                 self.function.prototype.returnty = old_proto.returnty
 
@@ -1532,6 +1535,7 @@ class Clinic(Analysis):
             if cc is None:
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
 
+            assert prototype is None or isinstance(prototype, SimTypeFunction)
             new_last_stmt = last_stmt.copy()
             new_last_stmt.expr.calling_convention = cc
             new_last_stmt.expr.prototype = prototype

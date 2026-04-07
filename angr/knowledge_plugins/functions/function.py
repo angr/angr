@@ -161,6 +161,8 @@ class Function(Serializable):
         "transition_graph",
     )
 
+    _prototype_source: PrototypeSource
+
     def __init__(
         self,
         function_manager: FunctionManager | None,
@@ -229,15 +231,16 @@ class Function(Serializable):
         # Function prototype
         self._prototype = prototype
         self._prototype_libname = prototype_libname
-        self._prototype_source = prototype_source
         if prototype_source is None:
-            self._prototype_source: PrototypeSource = (
+            self._prototype_source = (
                 PrototypeSource.NONE
                 if prototype is None
                 else PrototypeSource.GUESSED
                 if is_prototype_guessed
                 else PrototypeSource.USER
             )
+        else:
+            self._prototype_source = prototype_source
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
@@ -378,12 +381,12 @@ class Function(Serializable):
             self._function_manager.set_function_returning(self.addr, v)
 
     @property
-    def calling_convention(self):
+    def calling_convention(self) -> SimCC | None:
         return self._calling_convention
 
     @calling_convention.setter
     @dirty_func
-    def calling_convention(self, cc: SimCC):
+    def calling_convention(self, cc: SimCC | None):
         self._calling_convention = cc
 
     @property
@@ -413,7 +416,7 @@ class Function(Serializable):
                         arg_names.append(self._prototype.arg_names[i])
                     else:
                         arg_names.append(f"a{i}")
-            proto.arg_names = arg_names
+            proto.arg_names = tuple(arg_names)
         self._prototype = proto
 
     @property
@@ -1665,7 +1668,7 @@ class Function(Serializable):
         end_addresses: defaultdict[int, list[BlockNode]] = defaultdict(list)
 
         for block in self.nodes:
-            if isinstance(block, BlockNode):
+            if isinstance(block, BlockNode) and isinstance(block.addr, int):
                 end_addr = block.addr + block.size
                 end_addresses[end_addr].append(block)
 

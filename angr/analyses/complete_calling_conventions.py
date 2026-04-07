@@ -348,7 +348,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 continue
 
             if callee_info is not None:
-                callee_info: dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None, bool | None]]
+                callee_info: dict[int, tuple[SimCC | None, SimTypeFunction | None, str | None, PrototypeSource | None]]
                 for callee, (
                     callee_cc,
                     callee_proto,
