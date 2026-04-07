@@ -726,7 +726,6 @@ class Clinic(Analysis):
             narrow_expressions=False,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
-            simplify_blocks=False,
         )
 
         # Run simplification passes
@@ -736,11 +735,13 @@ class Clinic(Analysis):
         )
 
         self._update_progress(49.0, text="Simplifying blocks 1")
-        self._simplify_blocks(
+        self._simplify_function(
             self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=False,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=self.arg_vvars,
         )
 
     def _stage_make_function_callsites(self) -> None:

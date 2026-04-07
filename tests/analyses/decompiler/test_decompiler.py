@@ -2133,9 +2133,8 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
-        # the ternary expression should not be propagated. however, we fail to narrow the ebx expression at 0x400c4f,
-        # so we over-propagate the ternary expression once
-        assert d.codegen.text.count("?") in (1, 2)
+        # the ternary expression should not be propagated, if a ternary expression exists at all.
+        assert d.codegen.text.count("?") in {0, 1}
 
     @for_all_structuring_algos
     def test_decompiling_prototype_recovery_two_blocks(self, decompiler_options=None):
