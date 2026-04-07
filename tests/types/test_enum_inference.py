@@ -138,7 +138,7 @@ class TestEnumTypeInference(unittest.TestCase):
         prototype = SimTypeFunction([color_enum], SimTypeInt(signed=True))
         color_to_rgb_func.prototype = prototype
         color_to_rgb_func.calling_convention = SimCCSystemVAMD64(self.proj.arch)
-        color_to_rgb_func.prototype_source = PrototypeSource.GUESSED
+        color_to_rgb_func.prototype_source = PrototypeSource.USER
 
         # Attempt decompilation
         dec = self.proj.analyses.Decompiler(color_to_rgb_func)

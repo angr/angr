@@ -25,6 +25,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeFunction,
 )
+from angr.calling_conventions import default_cc
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -3076,6 +3077,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         f = proj.kb.functions["record_relation"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
 
         print_decompilation_result(d)
         text = d.codegen.text
@@ -3246,8 +3248,11 @@ class TestDecompiler(unittest.TestCase):
         _, proto, _ = convert_cproto_to_py(cproto + ";")
         f.prototype = proto.with_arch(p.arch)
         f.prototype_source = PrototypeSource.USER
+        f.calling_convention = default_cc(p.arch.name)(p.arch)
 
         d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
         assert cproto in d.codegen.text
 
     @structuring_algo("sailr")
@@ -4574,9 +4579,11 @@ class TestDecompiler(unittest.TestCase):
         f1 = p.kb.functions["f1"]
         assert f1 is not None
         f1.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        f1.prototype_source = PrototypeSource.USER
         entry = p.kb.functions[p.entry]
         assert entry is not None
         entry.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        entry.prototype_source = PrototypeSource.USER
         # decompile!
         decompiler_options = decompiler_options or []
         decompiler_options += [("semvar_naming", False), ("loopctr_naming", False)]
@@ -4629,9 +4636,11 @@ class TestDecompiler(unittest.TestCase):
         f1 = p.kb.functions["f1"]
         assert f1 is not None and f1.prototype is not None
         f1.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        f1.prototype_source = PrototypeSource.USER
         entry = p.kb.functions[p.entry]
         assert entry is not None and entry.prototype is not None
         entry.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        entry.prototype_source = PrototypeSource.USER
 
         dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
