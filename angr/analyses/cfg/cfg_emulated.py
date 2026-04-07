@@ -1071,7 +1071,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     stmt_idx=pending_job_src_exit_stmt_idx,
                     ins_addr=pending_job.src_exit_ins_addr,
                 )
-
+                self._update_function_transition_graph(
+                    pending_job_src_block_id,
+                    pending_job_key,
+                    jumpkind="Ijk_FakeRet",
+                    stmt_idx=pending_job_src_exit_stmt_idx,
+                    confirmed=True,
+                )
                 return None
 
         pending_job_state.history.jumpkind = "Ijk_FakeRet"
