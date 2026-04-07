@@ -1283,9 +1283,15 @@ class SimEngineVRBase(
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
 
-        if offset >= 4096 and self._likely_pointer(offset):
-            # typevar is the actual offset
-            return TypeVariable()
+        if offset >= 4096:
+            if self._likely_pointer(offset):
+                # typevar is the actual offset
+                return TypeVariable()
+            if (self.arch.bits == 32 and offset > 0x7FFF_FFFF) or (
+                self.arch.bits == 64 and offset > 0x7FFF_FFFF_FFFF_FFFF
+            ):
+                # probably a negative offset
+                return TypeVariable()
 
         return DerivedTypeVariable(
             typevar,

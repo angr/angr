@@ -78,7 +78,7 @@ class FunctionParser:
             prototype_ref = make_type_reference(function.prototype)
             obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
-        obj.is_prototype_guessed = function.is_prototype_guessed
+        obj.prototype_source = function.prototype_source.value
         obj.info = function.info.to_json().encode("utf-8") if function.info else b""
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
@@ -198,6 +198,8 @@ class FunctionParser:
         if cmsg.HasField("returning"):
             returning = cmsg.returning
 
+        from angr.knowledge_plugins.functions.function import PrototypeSource  # pylint:disable=import-outside-toplevel
+
         obj = Function(
             function_manager,
             cmsg.ea,
@@ -211,7 +213,7 @@ class FunctionParser:
             calling_convention=cc,
             prototype=proto,
             prototype_libname=cmsg.prototype_libname or None,
-            is_prototype_guessed=cmsg.is_prototype_guessed,
+            prototype_source=PrototypeSource(cmsg.prototype_source),
         )
         obj._project = project
         obj.normalized = cmsg.normalized

@@ -14,6 +14,7 @@ from functools import wraps
 import angr.ailment as ailment
 
 import angr
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import (
     SimTypeInt,
@@ -24,6 +25,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeFunction,
 )
+from angr.calling_conventions import default_cc
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -1490,6 +1492,7 @@ class TestDecompiler(unittest.TestCase):
         cca = proj.analyses.CallingConvention(f)
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
+        f.prototype_source = PrototypeSource.USER  # so it's not overwritten
 
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes("AMD64", "linux")
         d = proj.analyses.Decompiler(
@@ -2133,9 +2136,8 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
-        # the ternary expression should not be propagated. however, we fail to narrow the ebx expression at 0x400c4f,
-        # so we over-propagate the ternary expression once
-        assert d.codegen.text.count("?") in (1, 2)
+        # the ternary expression should not be propagated, if a ternary expression exists at all.
+        assert d.codegen.text.count("?") in {0, 1}
 
     @for_all_structuring_algos
     def test_decompiling_prototype_recovery_two_blocks(self, decompiler_options=None):
@@ -3073,9 +3075,10 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["record_relation"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
 
         print_decompilation_result(d)
         text = d.codegen.text
@@ -3245,9 +3248,12 @@ class TestDecompiler(unittest.TestCase):
         cproto = "int authenticate(char *username, char *password)"
         _, proto, _ = convert_cproto_to_py(cproto + ";")
         f.prototype = proto.with_arch(p.arch)
-        f.is_prototype_guessed = False
+        f.prototype_source = PrototypeSource.USER
+        f.calling_convention = default_cc(p.arch.name)(p.arch)
 
         d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
         assert cproto in d.codegen.text
 
     @structuring_algo("sailr")
@@ -3427,7 +3433,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["treat_file"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
@@ -4574,9 +4580,11 @@ class TestDecompiler(unittest.TestCase):
         f1 = p.kb.functions["f1"]
         assert f1 is not None
         f1.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        f1.prototype_source = PrototypeSource.USER
         entry = p.kb.functions[p.entry]
         assert entry is not None
         entry.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        entry.prototype_source = PrototypeSource.USER
         # decompile!
         decompiler_options = decompiler_options or []
         decompiler_options += [("semvar_naming", False), ("loopctr_naming", False)]
@@ -4629,9 +4637,11 @@ class TestDecompiler(unittest.TestCase):
         f1 = p.kb.functions["f1"]
         assert f1 is not None and f1.prototype is not None
         f1.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        f1.prototype_source = PrototypeSource.USER
         entry = p.kb.functions[p.entry]
         assert entry is not None and entry.prototype is not None
         entry.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        entry.prototype_source = PrototypeSource.USER
 
         dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)

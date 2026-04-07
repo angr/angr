@@ -927,6 +927,34 @@ class TestCfgfast(unittest.TestCase):
         assert 0x1001B5EC in proj.kb.functions
         assert proj.kb.functions[0x1001B5EC].name == "_security_check_cookie"
 
+    def test_universal_binary_amd64(self):
+        path = os.path.join(test_location, "multi_arch", "fauxware_macho_multiarch")
+        proj = angr.Project(path, arch=archinfo.arch_from_id("amd64"))
+
+        assert hasattr(proj.loader.main_object, "child_objects")
+        assert len(proj.loader.main_object.child_objects) == 1
+        assert proj.loader.main_object.child_objects[0].arch.name == "AMD64"
+
+        cfg = proj.analyses.CFGFast()
+        func_names = {func.name for func in cfg.kb.functions.values()}
+        assert "_main" in func_names
+        assert "_accepted" in func_names
+        assert "_authenticate" in func_names
+
+    def test_universal_binary_aarch64(self):
+        path = os.path.join(test_location, "multi_arch", "fauxware_macho_multiarch")
+        proj = angr.Project(path, arch=archinfo.arch_from_id("aarch64"))
+
+        assert hasattr(proj.loader.main_object, "child_objects")
+        assert len(proj.loader.main_object.child_objects) == 1
+        assert proj.loader.main_object.child_objects[0].arch.name == "AARCH64"
+
+        cfg = proj.analyses.CFGFast()
+        func_names = {func.name for func in cfg.kb.functions.values()}
+        assert "_main" in func_names
+        assert "_accepted" in func_names
+        assert "_authenticate" in func_names
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):

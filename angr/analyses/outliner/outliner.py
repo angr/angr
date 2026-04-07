@@ -281,8 +281,8 @@ class Outliner(Analysis):
         for stmt in block.statements:
             if is_phi_assignment(stmt):
                 all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
-                old_addrs = set(src_addrs) - set(all_stmt_srcs)
-                new_addrs = set(all_stmt_srcs) - set(src_addrs)
+                new_addrs = set(src_addrs) - set(all_stmt_srcs)
+                old_addrs = set(all_stmt_srcs) - set(src_addrs)
                 if len(old_addrs) == 1 and len(new_addrs) == 1:
                     # only source block is replaced by a new one
                     old_addr = next(iter(old_addrs))
