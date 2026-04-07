@@ -5,7 +5,6 @@ import json
 
 from collections import defaultdict
 
-from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.calling_conventions import SimCC, SimCCUsercall, CC_NAMES
 from angr.codenode import BlockNode, HookNode, FuncNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
@@ -198,6 +197,8 @@ class FunctionParser:
         returning = None
         if cmsg.HasField("returning"):
             returning = cmsg.returning
+
+        from angr.knowledge_plugins.functions.function import PrototypeSource  # pylint:disable=import-outside-toplevel
 
         obj = Function(
             function_manager,
