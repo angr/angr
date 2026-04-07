@@ -53,7 +53,9 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
             elif expr.op in {"Add", "Sub"}:
                 expr0, expr1 = expr.operands
-                if isinstance(expr1, Convert) and expr1.from_bits == 32 and expr1.to_bits == 64:
+                if (isinstance(expr1, Convert) and expr1.from_bits == 32 and expr1.to_bits == 64) or (
+                    isinstance(expr1, BinaryOp) and expr1.op == "Sar"
+                ):
                     r = self._match_case_a(expr0, expr1)
                     if r is not None:
                         return self._reconvert(r, conv_expr) if conv_expr is not None else r
@@ -110,13 +112,22 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
         return None
 
-    def _match_case_a(self, expr0: Expression, expr1: Convert) -> BinaryOp | None:
+    def _match_case_a(self, expr0: Expression, expr1: Convert | BinaryOp) -> BinaryOp | None:
         # (
         #   (((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) -
         #   Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>))
         # )
+        #
+        # or
+        # (Conv(64I->32I, ((Conv(32I->s64I, Conv(64I->32I, vvar_59{r32|8b})) * 0x4325c53f<64>) >>a 0x24<8>)) -
+        #  (Conv(64I->32I, vvar_59{r32|8b}) >>a 0x1f<8>)
+        # )
 
-        expr1_op = expr1.operand
+        if isinstance(expr1, Convert):
+            expr1_op = expr1.operand
+        else:
+            assert isinstance(expr1, BinaryOp)
+            expr1_op = expr1
 
         if (
             isinstance(expr0, BinaryOp)
@@ -125,6 +136,8 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             and expr0.operands[1].value == 0xFFFFFFFF
         ):
             expr0 = expr0.operands[0]
+        elif isinstance(expr0, Convert) and expr0.from_bits == 64 and expr0.to_bits == 32:
+            expr0 = expr0.operand
         else:
             return None
 
