@@ -3433,7 +3433,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["treat_file"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
