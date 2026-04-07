@@ -658,6 +658,7 @@ class Clinic(Analysis):
             only_consts=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             max_iterations=1,
+            simplify_blocks=False,
         )
 
     def _stage_track_stack_pointers(self) -> None:
@@ -725,6 +726,7 @@ class Clinic(Analysis):
             narrow_expressions=False,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
+            simplify_blocks=False,
         )
 
         # Run simplification passes
@@ -733,14 +735,12 @@ class Clinic(Analysis):
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
-        self._update_progress(49.0, text="Simplifying function 1.5")
-        self._simplify_function(
+        self._update_progress(49.0, text="Simplifying blocks 1")
+        self._simplify_blocks(
             self._ail_graph,
-            remove_dead_memdefs=False,
-            unify_variables=False,
-            narrow_expressions=False,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=self.arg_vvars,
+            stack_pointer_tracker=self._spt,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
         )
 
     def _stage_make_function_callsites(self) -> None:
@@ -940,15 +940,16 @@ class Clinic(Analysis):
             only_consts=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             max_iterations=1,
+            simplify_blocks=False,
         )
 
         # Simplify blocks
-        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(35.0, text="Simplifying blocks 1")
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the first time
+        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         self._update_progress(45.0, text="Simplifying function 1")
         self._simplify_function(
             ail_graph,
@@ -958,6 +959,7 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=False,
             rewrite_ccalls=False,
             max_iterations=1,
+            simplify_blocks=False,
         )
 
         # clear _blocks_by_addr_and_size so no one can use it again
@@ -1634,6 +1636,7 @@ class Clinic(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
+        simplify_blocks: bool = True,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -1654,6 +1657,7 @@ class Clinic(Analysis):
                 removed_vvar_ids=removed_vvar_ids,
                 arg_vvars=arg_vvars,
                 preserve_vvar_ids=preserve_vvar_ids,
+                simplify_blocks=simplify_blocks,
             )
             if not simplified:
                 break
@@ -1673,6 +1677,7 @@ class Clinic(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
+        simplify_blocks: bool = True,
     ):
         """
         Simplify the entire function once.
@@ -1708,13 +1713,14 @@ class Clinic(Analysis):
         if not simp.simplified:
             return False
 
-        # invoke BlockSimplifier to apply peephole optimizations if possible
-        self._simplify_blocks(
-            ail_graph,
-            stack_pointer_tracker=self._spt,
-            preserve_vvar_ids=preserve_vvar_ids,
-            type_hints=self._type_hints,
-        )
+        if simplify_blocks:
+            # invoke BlockSimplifier to apply peephole optimizations if possible
+            self._simplify_blocks(
+                ail_graph,
+                stack_pointer_tracker=self._spt,
+                preserve_vvar_ids=preserve_vvar_ids,
+                type_hints=self._type_hints,
+            )
 
         return True
 
