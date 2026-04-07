@@ -117,7 +117,7 @@ class FunctionParser:
             block.ea = b.addr
             block.size = b.size
             if isinstance(b, BlockNode):
-                block.bytes = b.bytestr
+                block.bytes = b.bytestr or b""
             blocks_list.append(block)
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
