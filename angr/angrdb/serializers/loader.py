@@ -5,6 +5,7 @@ import json
 import binascii
 import logging
 import tempfile
+import archinfo
 
 import cle
 
@@ -25,6 +26,8 @@ class LoadArgsJSONEncoder(json.JSONEncoder):
                 "__custom_type__": "bytes",
                 "__v__": binascii.hexlify(o).decode("ascii"),
             }
+        if isinstance(o, archinfo.Arch):
+            return {"__custom_type__": "arch", "name": o.name, "endness": o.memory_endness, "bits": o.bits}
         return super().default(o)
 
 
@@ -42,6 +45,12 @@ class LoadArgsJSONDecoder(json.JSONDecoder):
                 case "bytes":
                     if "__v__" in d:
                         return binascii.unhexlify(d["__v__"])
+                case "arch":
+                    return archinfo.arch_from_id(
+                        d["name"],
+                        d.get("endness", ""),
+                        d.get("bits", ""),
+                    )
         return d
 
 
@@ -145,6 +154,12 @@ class LoaderSerializer:
         with tempfile.TemporaryDirectory() as tmpdir:
             for db_o in db_objects:
                 load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
+
+                if db_o.backend is not None:
+                    load_opts["backend"] = db_o.backend
+
+                load_opts = {k: v for k, v in load_opts.items() if v is not None}
+
                 path = Path(db_o.path)
 
                 if not path.exists():
