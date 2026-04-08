@@ -246,9 +246,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
             for popped_offset in popped:
-                secret_stash[popped_offset].update(self.state.stackvar_defs.pop(popped_offset, set()))
+                v = self.state.stackvar_defs.pop(popped_offset, set())
+                secret_stash[popped_offset].update(v)
                 for def2 in secret_stash[popped_offset]:
-                    self.state.stackvar_defs[full_offset].add(def2)
+                    # print(popped)
+                    self.state.stackvar_defs.add_value(full_offset, full_offset + 1, def2)  # FIXME:
                     definfo = self.def_info[def2]
                     if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
@@ -287,8 +289,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = defs
 
         if def_as is not None:
-            for suboff in range(full_offset, full_offset + full_size):
-                self.state.stackvar_defs[suboff] = def_as
+            self.state.stackvar_defs.add(full_offset, full_offset + full_size, def_as)
 
         return self.state.live_stackvars[offset]
 
@@ -315,15 +316,17 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         reached_fixedpoint = False
         while not reached_fixedpoint:
             reached_fixedpoint = True
-            for suboff in range(offset, end_offset):
-                secret_stash[suboff].update(self.state.stackvar_defs.pop(suboff, set()))
+            to_pop = []
+            for suboff, suboff_end, defs in self.state.stackvar_defs.items(offset, end_offset, set()):
+                to_pop.append(suboff)
+                secret_stash[suboff].update(defs)
                 old_defs = secret_stash[suboff]
                 # set up current var mapping
                 self.state.stackvar_bases[suboff] = (offset, size)
                 other_defs.update(old_defs)
                 # additional consideration: if this def only provides values for some bytes,
                 # make sure the implicated but not overwritten defs are unified
-                if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
+                if not base_offset + extra_offset <= suboff < suboff_end - 1 < base_offset + extra_offset + base_size:
                     liveish_defs.update(old_defs)
                     for old_def in old_defs:
                         definfo = self.def_info[old_def]
@@ -344,6 +347,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                             reached_fixedpoint = False
                         size = end_offset - offset
 
+            for tp in to_pop:
+                self.state.stackvar_defs._map.pop(tp, None)
+
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, [(None, None)])[-1]
         def_as = None
         if loc2 is not None:
@@ -352,8 +358,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = {def2} | liveish_defs
 
         if def_as is not None:
-            for suboff in range(offset, end_offset):
-                self.state.stackvar_defs[suboff] = def_as
+            self.state.stackvar_defs.add(offset, end_offset, def_as)
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
         full_offset, full_size, popped = self.state.register_unify(offset, size)

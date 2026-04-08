@@ -5,6 +5,7 @@ from collections.abc import MutableMapping
 
 from angr.ailment.expression import StackBaseOffset
 from angr.code_location import AILCodeLocation
+from .rangeset_map import RangeSetMap
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def
@@ -28,7 +29,7 @@ class TraversalState:
         live_vvars: MutableMapping[int, Value] | None = None,
         stackvar_bases: MutableMapping[int, tuple[int, int]] | None = None,
         register_bases: MutableMapping[int, tuple[int, int]] | None = None,
-        stackvar_defs: MutableMapping[int, set[Def]] | None = None,
+        stackvar_defs: RangeSetMap[int, set[Def]] | None = None,
         register_defs: MutableMapping[int, set[Def]] | None = None,
         pending_ptr_defines_nonlocal_live: set[int] | None = None,
     ):
@@ -47,7 +48,7 @@ class TraversalState:
         self.register_bases: MutableMapping[int, tuple[int, int]] = register_bases if register_bases is not None else {}
         self.pending_ptr_defines: dict[int, list[tuple[AILCodeLocation, StackBaseOffset]]] = {}
         self.pending_ptr_defines_nonlocal_live = pending_ptr_defines_nonlocal_live or set()
-        self.stackvar_defs = defaultdict(set, {} if stackvar_defs is None else stackvar_defs)
+        self.stackvar_defs = RangeSetMap(stackvar_defs)
         self.register_defs = defaultdict(set, {} if register_defs is None else register_defs)
 
     def stackvar_unify(self, offset: int, size: int) -> tuple[int, int, set[int]]:
@@ -109,7 +110,7 @@ class TraversalState:
             live_vvars=self.live_vvars,
             pending_ptr_defines_nonlocal_live=set(self.pending_ptr_defines_nonlocal_live),
             stackvar_bases=dict(self.stackvar_bases),
-            stackvar_defs={k: set(v) for k, v in self.stackvar_defs.items()},
+            stackvar_defs=self.stackvar_defs,
             register_bases=dict(self.register_bases),
             register_defs={k: set(v) for k, v in self.register_defs.items()},
         )
@@ -141,9 +142,7 @@ class TraversalState:
                 if (k2, s2) != (k3, s3):
                     merge_occurred = True
                     self.register_bases[k0] = (k3, s3)
-            for k, d in o.stackvar_defs.items():
-                merge_occurred |= bool(d.difference(self.stackvar_defs[k]))
-                self.stackvar_defs[k].update(d)
+            merge_occurred |= self.stackvar_defs.merge(o.stackvar_defs)
             for k, d in o.register_defs.items():
                 merge_occurred |= bool(d.difference(self.register_defs[k]))
                 self.register_defs[k].update(d)
