@@ -41,6 +41,7 @@ class TraversalAnalysis:
         self._function = func
         self._ail_graph = ail_graph
         self._func_args = func_args
+        self.input_states: dict[ailment.Block, dict[ailment.Block | None, TraversalState]] = {}
         self.start_states: dict[ailment.Block, TraversalState] = {}
         self._pending: set[ailment.Block] = set()
 
@@ -60,6 +61,7 @@ class TraversalAnalysis:
 
     #
     # Main analysis routines
+    #
 
     def _analyze(self):
         for _ in range(2):
@@ -103,15 +105,26 @@ class TraversalAnalysis:
         :return:        A tuple: (any changes occur, successor state)
         """
 
-        state = self.start_states.get(node, None)
-        if state is None:
-            state = self.start_states[node] = self._initial_abstract_state()
-            state = state.copy()
+        input_states = self.input_states.get(node, None)
+        if input_states is None:
+            state = self._initial_abstract_state()
+            self.input_states[node] = {None: state}
+            self.start_states[node] = state
         else:
             if node not in self._pending:
                 return
             self._pending.discard(node)
-            state = state.copy()
+
+            if len(input_states) == 1:
+                state = next(iter(input_states.values()))
+                self.start_states[node] = state
+            else:
+                all_states = list(input_states.values())
+                state = all_states[0].copy()
+                for other_state in all_states[1:]:
+                    state.merge(other_state)
+                self.start_states[node] = state
+        state = state.copy()
         self._engine_ail.process(state, block=node)
 
         succ_count = len(self._ail_graph.succ[node])
@@ -120,12 +133,10 @@ class TraversalAnalysis:
                 succ_state = self._engine_ail.hclb_side_exit_state
             else:
                 succ_state = state
-            if succ not in self.start_states:
-                self.start_states[succ] = succ_state.copy() if i != succ_count - 1 else succ_state
-                merged = True
-            else:
-                existing = self.start_states[succ]
-                merged = existing.merge(state)
-            if merged:
+            if succ not in self.input_states:
+                self.input_states[succ] = {}
+            existing = self.input_states[succ].get(node, None)
+            self.input_states[succ][node] = succ_state.copy() if i != succ_count - 1 else succ_state
+            if existing != succ_state:
                 self._pending.add(succ)
         self._engine_ail.hclb_side_exit_state = None
