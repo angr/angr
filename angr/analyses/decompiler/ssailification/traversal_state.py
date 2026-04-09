@@ -13,6 +13,24 @@ if TYPE_CHECKING:
 Value: TypeAlias = "set[tuple[int | None, int]]"
 
 
+def has_conflicting_value_types(vs: Value) -> bool:
+    """
+    Value contains two types of entries: (int, *) that indicates a stack offset, and (None, int) that indicates a
+    constant value. This method returns True if a set of Values contains both types of entries, otherwise False.
+
+    """
+
+    is_spoffset, is_const = False, False
+    for v in vs:
+        if v[0] is not None:
+            is_spoffset = True
+        else:
+            is_const = True
+        if is_spoffset and is_const:
+            return True
+    return False
+
+
 class TraversalState:
     """
     The abstract state for the traversal engine.
