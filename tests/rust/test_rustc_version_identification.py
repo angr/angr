@@ -3,6 +3,12 @@ from __future__ import annotations
 import os
 import unittest
 
+# angr.rust.utils.rust_sigs locates the Rust FLIRT signature directory via
+# angrmanagement's bundled submodule (angrmanagement/resources/flirt_signatures), but only when
+# angrmanagement has already been imported. Import it here so RustcVersionIdentification can find
+# the signatures; CI always has angr-management installed, and local dev envs should too.
+import angrmanagement  # noqa: F401
+
 import angr
 
 BINARIES_BASE = os.path.join(
