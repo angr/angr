@@ -597,9 +597,9 @@ class TestDecompiler(unittest.TestCase):
         assert "fflush(stdout);" in code.lower()
 
         access_count = code.count("access(")
-        assert access_count == 2, (
-            f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
-        )
+        assert (
+            access_count == 2
+        ), f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
 
         m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == -1\)", code)
         if m is None:
@@ -613,9 +613,9 @@ class TestDecompiler(unittest.TestCase):
             if "convert(" in line:
                 # the previous line must be a curly brace
                 assert i > 0
-                assert code_lines[i - 1] == "{", (
-                    "Some arguments to convert() are probably not folded into this call statement."
-                )
+                assert (
+                    code_lines[i - 1] == "{"
+                ), "Some arguments to convert() are probably not folded into this call statement."
                 break
         else:
             assert False, "Call to convert() is not found in decompilation output."
@@ -718,9 +718,9 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
         lines = code.split("\n")
-        assert "local_strcat(char *a0, char *a1)" in lines[0], (
-            f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
-        )
+        assert (
+            "local_strcat(char *a0, char *a1)" in lines[0]
+        ), f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
 
     @for_all_structuring_algos
     def test_decompiling_strings_local_strcat_with_local_strlen(self, decompiler_options=None):
@@ -749,9 +749,9 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
         lines = code.split("\n")
-        assert "local_strcat(char *a0, char *a1)" in lines[0], (
-            f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
-        )
+        assert (
+            "local_strcat(char *a0, char *a1)" in lines[0]
+        ), f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
 
     @for_all_structuring_algos
     def test_decompilation_call_expr_folding(self, decompiler_options=None):
@@ -772,9 +772,9 @@ class TestDecompiler(unittest.TestCase):
 
         code = dec.codegen.text
         m = re.search(r"v(\d+) = (\(.*\))?strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
-        assert m is not None, (
-            "The result of strlen() should be directly assigned to a stack variable because of call-expression folding."
-        )
+        assert (
+            m is not None
+        ), "The result of strlen() should be directly assigned to a stack variable because of call-expression folding."
         assert m.group(1) != m.group(2)
 
         func_1 = cfg.functions["strlen_should_not_fold"]
@@ -1565,7 +1565,6 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions[0x403C78]
-        proj.analyses.VariableRecoveryFast(f)
         cca = proj.analyses.CallingConvention(f)
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
