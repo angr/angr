@@ -123,7 +123,7 @@ class AnalysesHub(PluginVendor[Any]):
         self.project = project
 
     def _init_plugin(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
-        return AnalysisFactory(self.project, plugin_cls)
+        return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))
 
     def __getstate__(self):  # type: ignore[reportIncompatibleMethodOverride]
         s = super().__getstate__()
@@ -134,7 +134,7 @@ class AnalysesHub(PluginVendor[Any]):
         super().__setstate__(s)
 
     def __getitem__(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
-        return AnalysisFactory(self.project, plugin_cls)
+        return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))
 
 
 class KnownAnalysesPlugin(typing.Protocol):
@@ -181,10 +181,7 @@ class AnalysisFactory(Generic[A]):
     def __init__(self, project: Project, analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
-        self.__doc__ = ""
-        self.__doc__ += analysis_cls.__doc__ or ""
-        self.__doc__ += analysis_cls.__init__.__doc__ or ""
-        self.__call__.__func__.__signature__ = Signature.from_callable(analysis_cls.__init__)
+        self.__sig = Signature.from_callable(analysis_cls.__init__)
 
     def prep(
         self,
@@ -200,7 +197,7 @@ class AnalysisFactory(Generic[A]):
         @t.start_as_current_span(self._analysis_cls.__name__)
         def wrapper(*args, **kwargs):
             span = telemetry.get_current_span()
-            sig = cast(Signature, self.__call__.__func__.__signature__)
+            sig = cast(Signature, self.__sig)
             bound = sig.bind(None, *args, **kwargs)
             for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
                 if name in ("kwargs", "self"):
