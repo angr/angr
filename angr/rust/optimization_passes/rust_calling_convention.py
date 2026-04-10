@@ -1,5 +1,6 @@
 from __future__ import annotations
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.knowledge_plugins.functions.function import PrototypeSource
 
 
 class RustCallingConvention(OptimizationPass):
@@ -21,4 +22,4 @@ class RustCallingConvention(OptimizationPass):
         rcc = self.project.analyses.RustCallingConvention(self._func)
         self._func.prototype = rcc.prototype
         self._func.calling_convention = rcc.calling_convention
-        self._func.is_prototype_guessed = False
+        self._func.prototype_source = PrototypeSource.CCA_DECOMPILER

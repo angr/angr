@@ -5,6 +5,7 @@ from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
+from angr.knowledge_plugins.functions.function import PrototypeSource
 
 
 class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
@@ -50,7 +51,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                 )
                 call_expr.prototype = rcc.model.inferred_prototype
                 func.prototype = call_expr.prototype
-                func.is_prototype_guessed = False
+                func.prototype_source = PrototypeSource.CCA_DECOMPILER
 
     def _rewrite_retbuf_call(self, call_expr: Call):
         """If the call has a retbuf arg0, rewrite it into Assignment(dst_stack_vvar, call)."""

@@ -23,6 +23,7 @@ from angr.rust.utils.demangler import demangle
 from angr.calling_conventions import default_cc
 from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import SimTypeFunction
+from angr.knowledge_plugins.functions.function import PrototypeSource
 
 l = logging.getLogger(__name__)
 
@@ -331,7 +332,7 @@ class TypeDBLoader(Analysis):
                             cc_cls = default_cc(self.project.arch.name)
                             if cc_cls is not None:
                                 func.calling_convention = cc_cls(self.project.arch)
-                            func.is_prototype_guessed = False
+                            func.prototype_source = PrototypeSource.SIGNATURES
 
 
 AnalysesHub.register_default("TypeDBLoader", TypeDBLoader)

@@ -1542,6 +1542,7 @@ class Clinic(Analysis):
                     **last_stmt.tags,
                 )
                 IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
+                call_tags = {**last_stmt.tags, "is_prototype_guessed": False}
                 call_stmt = ailment.Stmt.SideEffectStatement(
                     None,
                     ailment.Expr.Call(
@@ -1552,8 +1553,7 @@ class Clinic(Analysis):
                             self.project.arch
                         ),
                         args=[arg_expr],
-                        is_prototype_guessed=False,
-                        **last_stmt.tags,
+                        **call_tags,
                     ),
                     ret_expr=None,
                     **last_stmt.tags,
