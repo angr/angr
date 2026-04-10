@@ -423,6 +423,9 @@ class Decompiler(Analysis):
             variable_manager = None
             if clinic.variable_kb is not None and self.func.addr in clinic.variable_kb.variables:
                 variable_manager = clinic.variable_kb.variables[self.func.addr]
+            region_simplifier_params = self.options_to_params(self.options_by_class["region_simplifier"])
+            # The Rust flavor forces if-else simplification off regardless of user options.
+            region_simplifier_params.pop("simplify_ifelse", None)
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
@@ -433,7 +436,7 @@ class Decompiler(Analysis):
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
                 simplify_ifelse=self._flavor != "rust",
-                **self.options_to_params(self.options_by_class["region_simplifier"]),
+                **region_simplifier_params,
             )
             seq_node = s.result
             seq_node = self._run_post_structuring_simplification_passes(
