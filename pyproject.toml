@@ -79,7 +79,7 @@ dev = [
     "sortedcontainers-stubs>=2.4.3",
 ]
 docs = ["furo", "myst-parser", "sphinx", "sphinx-autodoc-typehints"]
-extras = ["angr[angrdb,keystone,unicorn,llm]", "pysoot"]
+extras = ["angr[angrdb,keystone,unicorn,llm]", "pysoot", "flirt_signatures"]
 
 [tool.setuptools]
 include-package-data = true
@@ -109,6 +109,7 @@ pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
+flirt_signatures = { git = "https://github.com/angr/flirt_signatures.git", branch = "master" }
 
 [tool.ruff]
 line-length = 120
