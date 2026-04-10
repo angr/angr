@@ -3641,7 +3641,8 @@ class Clinic(Analysis):
                 ail_graph.add_edge(new_node, succ)
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
-        assert self.variable_kb is not None
+        if self.variable_kb is None:
+            return {}
 
         variables = self.variable_kb.variables[self.function.addr]
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
