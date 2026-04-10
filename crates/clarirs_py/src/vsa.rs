@@ -170,10 +170,24 @@ pub fn identical(a: Bound<'_, Base>, b: Bound<'_, Base>) -> Result<bool, Claripy
     ))
 }
 
+/// Simplify an expression using VSA reduction.
+///
+/// This is a compatibility shim for `claripy.backends.vsa.simplify()`.
+/// It simplifies the expression and then reduces it using VSA abstract
+/// interpretation, returning the result as an AST node.
+#[pyfunction]
+pub fn simplify<'py>(
+    py: Python<'py>,
+    expr: Bound<'py, Base>,
+) -> Result<Bound<'py, Base>, ClaripyError> {
+    reduce(py, expr)
+}
+
 pub(crate) fn import(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     add_pyfunctions!(
         m,
         reduce,
+        simplify,
         is_true,
         is_false,
         has_true,
