@@ -111,6 +111,26 @@ impl PyFSort {
         let from_size = class.getattr("from_size")?;
         Ok((from_size.into_any(), (self.0.size(),)))
     }
+
+    pub fn __eq__(&self, other: &PyFSort) -> bool {
+        self.0 == other.0
+    }
+
+    pub fn __ne__(&self, other: &PyFSort) -> bool {
+        self.0 != other.0
+    }
+
+    pub fn __hash__(&self) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        self.0.size().hash(&mut h);
+        h.finish()
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!("FSORT_{}", self.0.size())
+    }
 }
 
 impl From<PyFSort> for FSort {
