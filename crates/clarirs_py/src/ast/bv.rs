@@ -311,6 +311,26 @@ impl BV {
         self.inner.depth() == 1
     }
 
+    pub fn is_true(&self) -> bool {
+        // A BV is "true" if it's a concrete non-zero value
+        if let Ok(simplified) = self.inner.simplify()
+            && let BitVecOp::BVV(bv) = simplified.op()
+        {
+            return !bv.is_zero();
+        }
+        false
+    }
+
+    pub fn is_false(&self) -> bool {
+        // A BV is "false" if it's a concrete zero value
+        if let Ok(simplified) = self.inner.simplify()
+            && let BitVecOp::BVV(bv) = simplified.op()
+        {
+            return bv.is_zero();
+        }
+        false
+    }
+
     #[pyo3(signature = (respect_annotations=true))]
     pub fn simplify<'py>(
         &self,

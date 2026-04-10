@@ -406,6 +406,26 @@ impl FP {
         self.inner.depth() == 1
     }
 
+    pub fn is_true(&self) -> bool {
+        // A FP is "true" if it's a concrete non-zero value
+        if let Ok(simplified) = self.inner.simplify()
+            && let FloatOp::FPV(fp) = simplified.op()
+        {
+            return !fp.is_zero();
+        }
+        false
+    }
+
+    pub fn is_false(&self) -> bool {
+        // A FP is "false" if it's a concrete zero value
+        if let Ok(simplified) = self.inner.simplify()
+            && let FloatOp::FPV(fp) = simplified.op()
+        {
+            return fp.is_zero();
+        }
+        false
+    }
+
     #[pyo3(signature = (respect_annotations=true))]
     pub fn simplify<'py>(
         &self,
