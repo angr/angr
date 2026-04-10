@@ -315,12 +315,12 @@ class TypeVariable:
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("labels", "type_var")
 
-    type_var: TypeVariable
+    type_var: TypeVariable | TypeConstant
     labels: tuple[BaseLabel, ...]
 
     def __init__(
         self,
-        type_var: TypeVariable | DerivedTypeVariable,
+        type_var: TypeVariable | DerivedTypeVariable | TypeConstant,
         label: BaseLabel | None,
         labels: Iterable[BaseLabel] | None = None,
         idx=None,

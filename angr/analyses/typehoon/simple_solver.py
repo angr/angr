@@ -503,11 +503,7 @@ class ConstraintGraphNode:
         else:
             raise TypeError(f"Unsupported type {type(self.typevar)}")
         variance = Variance.COVARIANT if self.variance == label.variance else Variance.CONTRAVARIANT
-        if not labels:
-            var = typevar
-        else:
-            assert isinstance(typevar, (TypeVariable, DerivedTypeVariable))
-            var = DerivedTypeVariable(typevar, None, labels=labels)
+        var = typevar if not labels else DerivedTypeVariable(typevar, None, labels=labels)
         assert isinstance(var, (TypeVariable, DerivedTypeVariable))
         return ConstraintGraphNode(var, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN)
 
