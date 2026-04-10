@@ -198,7 +198,7 @@ def guess_value_type(value: int | float, project: angr.Project) -> SimType | Non
     return None
 
 
-def type_to_rust_repr_chunks(ty: "SimType | RustSimType", name=None, name_type=None, full=False, indent_str=""):
+def type_to_rust_repr_chunks(ty: SimType | RustSimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
     """
@@ -558,7 +558,9 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         yield indent_str, None
 
         # header comments (if they exist)
-        header_comments = self.codegen.kb.comments.get(self.codegen.rust_func.addr, []) if self.codegen.rust_func is not None else []
+        header_comments = (
+            self.codegen.kb.comments.get(self.codegen.rust_func.addr, []) if self.codegen.rust_func is not None else []
+        )
         if header_comments:
             header_cmt = self._line_wrap_comment("".join(header_comments))
             yield header_cmt, None
@@ -1545,7 +1547,11 @@ class RustGoto(RustStatement):
         indent_str = self.indent_str(indent=indent)
         lbl = None
         if self.codegen is not None:
-            lbl = self.codegen.map_addr_to_label.get((self.target, self.target_idx)) if isinstance(self.target, (int, type(None))) else None
+            lbl = (
+                self.codegen.map_addr_to_label.get((self.target, self.target_idx))
+                if isinstance(self.target, (int, type(None)))
+                else None
+            )
 
         yield indent_str, None
         if self.codegen.comment_gotos:
@@ -1834,7 +1840,11 @@ class RustVariable(RustExpression):
 
         self.variable: SimVariable = variable
         self.unified_variable: SimVariable | None = unified_variable
-        self.variable_type: SimType = variable_type.with_arch(self.codegen.project.arch) if variable_type is not None else RustSimTypeInt().with_arch(self.codegen.project.arch)
+        self.variable_type: SimType = (
+            variable_type.with_arch(self.codegen.project.arch)
+            if variable_type is not None
+            else RustSimTypeInt().with_arch(self.codegen.project.arch)
+        )
         self.tags = tags
 
     @property
@@ -2304,7 +2314,9 @@ class RustTypeCast(RustExpression):
         "tags",
     )
 
-    def __init__(self, src_type: "SimType | None", dst_type: "RustSimType | SimType", expr: RustExpression, tags=None, **kwargs):
+    def __init__(
+        self, src_type: SimType | None, dst_type: RustSimType | SimType, expr: RustExpression, tags=None, **kwargs
+    ):
         super().__init__(**kwargs)
         # assert isinstance(dst_type, RustSimType)
         _src = src_type or expr.type
@@ -2827,7 +2839,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _translate_prototype_to_rust(self, prototype: SimTypeFunction):
         translator = RustTypeTranslator(self.project.arch)
         args: list[RustSimType] = [translator.ctype2rust(arg) for arg in prototype.args]  # pyright: ignore[reportAssignmentType]
-        returnty: RustSimType | None = translator.ctype2rust(prototype.returnty) if prototype.returnty is not None else None  # pyright: ignore[reportAssignmentType]
+        returnty: RustSimType | None = (
+            translator.ctype2rust(prototype.returnty) if prototype.returnty is not None else None
+        )  # pyright: ignore[reportAssignmentType]
         return RustSimTypeFunction(args, returnty, prototype.label, prototype.arg_names, prototype.variadic)
 
     def _analyze(self):
@@ -3113,7 +3127,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return _force_type_cast(base_type, data_type, expr)
                 return RustUnaryOp("Dereference", expr, codegen=self)
 
-        stride = 1 if isinstance(base_type, SimTypeBottom) else (base_type.size or 0) // self.project.arch.byte_width or 1
+        stride = (
+            1 if isinstance(base_type, SimTypeBottom) else (base_type.size or 0) // self.project.arch.byte_width or 1
+        )
         index, remainder = divmod(offset, stride)
         if index != 0:
             index = RustConstant(index, RustSimTypeInt(), codegen=self)
@@ -4228,7 +4244,7 @@ class RustStructuredCodeWalker:
 
 class MakeTypecastsImplicit(RustStructuredCodeWalker):
     @classmethod
-    def collapse(cls, dst_ty: "SimType | RustSimType | None", child: RustExpression) -> RustExpression:
+    def collapse(cls, dst_ty: SimType | RustSimType | None, child: RustExpression) -> RustExpression:
         result = child
         if isinstance(child, RustTypeCast):
             intermediate_ty = child.dst_type
@@ -4246,7 +4262,9 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
                 if (dst_ty.size or 0) <= (start_ty.size or 0) and (dst_ty.size or 0) <= (intermediate_ty.size or 0):
                     # this is a down- or neutral-cast with an intermediate step that doesn't matter
                     result = child.expr
-                elif (dst_ty.size or 0) >= (intermediate_ty.size or 0) >= (start_ty.size or 0) and intermediate_ty.signed == start_ty.signed:
+                elif (dst_ty.size or 0) >= (intermediate_ty.size or 0) >= (
+                    start_ty.size or 0
+                ) and intermediate_ty.signed == start_ty.signed:
                     # this is an up- or neutral-cast which is monotonically ascending
                     # we can leave out the dst_ty.signed check
                     result = child.expr

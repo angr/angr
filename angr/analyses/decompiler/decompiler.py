@@ -426,7 +426,9 @@ class Decompiler(Analysis):
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
-                arg_vvars=set(self.clinic.arg_vvars) if self.clinic is not None and self.clinic.arg_vvars is not None else set(),
+                arg_vvars=set(self.clinic.arg_vvars)
+                if self.clinic is not None and self.clinic.arg_vvars is not None
+                else set(),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,

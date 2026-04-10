@@ -299,7 +299,9 @@ class TestStructurer(unittest.TestCase):
         if_code = p.analyses.CStructuredCodeGenerator(f, if_seq, cfg=cfg, omit_func_header=True).text  # pyright: ignore[reportOptionalMemberAccess]
         assert "if" in if_code  # pyright: ignore[reportOptionalMemberAccess]
         assert "accepted()" in if_code  # pyright: ignore[reportOptionalMemberAccess]
-        assert "read" not in if_code  # should only be found in the code above the if  # pyright: ignore[reportOptionalMemberAccess]
+        assert (
+            "read" not in if_code
+        )  # should only be found in the code above the if  # pyright: ignore[reportOptionalMemberAccess]
 
         # generate only code under first if-stmt with correct variables by modifying the original codegen object
         codegen._sequence = if_seq  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]

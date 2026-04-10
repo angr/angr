@@ -1601,9 +1601,7 @@ class SimpleSolver:
         interesting: set[TypeVariable | DerivedTypeVariable | TypeConstant] = set(interesting_variables)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
-                self._constraint_graph_add_edges(
-                    graph, constraint.sub_type, constraint.super_type, interesting
-                )
+                self._constraint_graph_add_edges(graph, constraint.sub_type, constraint.super_type, interesting)
         self._constraint_graph_saturate(graph)
         self._constraint_graph_remove_self_loops(graph)
         self._constraint_graph_recall_forget_split(graph)

@@ -494,7 +494,8 @@ class ReachingDefinitionsState:
             self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
     def get_definitions(
-        self, atom: Atom | Definition[Atom, CodeLoc] | Iterable[Atom] | Iterable[Definition[Atom, CodeLoc]] | MultiValues
+        self,
+        atom: Atom | Definition[Atom, CodeLoc] | Iterable[Atom] | Iterable[Definition[Atom, CodeLoc]] | MultiValues,
     ) -> set[Definition[Atom, CodeLoc]]:
         return self.live_definitions.get_definitions(atom)
 
@@ -502,12 +503,16 @@ class ReachingDefinitionsState:
         return self.live_definitions.get_values(spec)
 
     def get_one_value(
-        self, spec: A | Definition[A, CodeLoc] | Iterable[A] | Iterable[Definition[A, CodeLoc]], strip_annotations: bool = False
+        self,
+        spec: A | Definition[A, CodeLoc] | Iterable[A] | Iterable[Definition[A, CodeLoc]],
+        strip_annotations: bool = False,
     ) -> claripy.ast.bv.BV | None:
         return self.live_definitions.get_one_value(spec, strip_annotations=strip_annotations)
 
     @overload
-    def get_concrete_value(self, spec: Atom | Definition[Atom, CodeLoc] | Iterable[Atom], cast_to: type[int]) -> int | None: ...
+    def get_concrete_value(
+        self, spec: Atom | Definition[Atom, CodeLoc] | Iterable[Atom], cast_to: type[int]
+    ) -> int | None: ...
 
     @overload
     def get_concrete_value(
