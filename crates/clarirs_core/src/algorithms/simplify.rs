@@ -92,6 +92,8 @@ impl<'c> Simplify<'c> for DynAst<'c> {
 enum SimplifyError<'c> {
     #[error("Missing child at index {0}")]
     MissingChild(usize),
+    #[error("Missing {} children", .0.len())]
+    MissingChildren(Vec<usize>),
     #[error("Re-run simplification")]
     #[allow(dead_code)]
     ReRun(DynAst<'c>),
@@ -131,6 +133,48 @@ impl<'c> SimplifyState<'c> {
             self.last_missed_child = Some(index);
             Err(SimplifyError::MissingChild(index))
         }
+    }
+
+    /// Return simplified versions of all children in one shot. If any are
+    /// missing, returns `MissingChildren` listing every missing index so the
+    /// main simplify loop can schedule them in one batch. This is crucial for
+    /// n-ary ops (like Concat) with many children: fetching them one at a
+    /// time causes quadratic re-runs of simplify_inner.
+    fn get_all_simplified(&self) -> Result<Vec<DynAst<'c>>, SimplifyError<'c>> {
+        let missing: Vec<usize> = self
+            .children
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| c.is_none().then_some(i))
+            .collect();
+        if !missing.is_empty() {
+            return Err(SimplifyError::MissingChildren(missing));
+        }
+        Ok(self.children.iter().map(|c| c.clone().unwrap()).collect())
+    }
+
+    fn get_all_bool_simplified(&self) -> Result<Vec<BoolAst<'c>>, SimplifyError<'c>> {
+        self.get_all_simplified()?
+            .into_iter()
+            .map(|c| {
+                c.into_bool()
+                    .ok_or(SimplifyError::Error(ClarirsError::TypeError(
+                        "Expected bool child".into(),
+                    )))
+            })
+            .collect()
+    }
+
+    fn get_all_bv_simplified(&self) -> Result<Vec<BitVecAst<'c>>, SimplifyError<'c>> {
+        self.get_all_simplified()?
+            .into_iter()
+            .map(|c| {
+                c.into_bitvec()
+                    .ok_or(SimplifyError::Error(ClarirsError::TypeError(
+                        "Expected bitvector child".into(),
+                    )))
+            })
+            .collect()
     }
 
     fn get_bool_simplified(&mut self, index: usize) -> Result<BoolAst<'c>, SimplifyError<'c>> {
@@ -282,6 +326,27 @@ fn simplify<'c>(
                     work_stack.push(state);
                     // Push the missing child onto the stack
                     work_stack.push(child_state);
+                }
+                Err(SimplifyError::MissingChildren(indices)) => {
+                    // Batch-simplify all missing children at once to avoid
+                    // O(n^2) behaviour for wide n-ary ops like Concat. We use
+                    // direct recursion here: the parent op is allowed to
+                    // defer all its children with a single request and we
+                    // simplify each child via the normal entry point. Stack
+                    // depth is bounded by the nesting depth of n-ary ops,
+                    // not by the number of children.
+                    for idx in indices {
+                        if state.children[idx].is_none() {
+                            let child_expr = state.expr.get_child(idx).unwrap();
+                            let simplified =
+                                simplify(&child_expr, respect_annotations, error_on_dbz)?;
+                            state.children[idx] = Some(simplified);
+                        }
+                    }
+                    // All requested children are now cached; re-push the
+                    // state so simplify_inner will run again with children
+                    // available.
+                    work_stack.push(state);
                 }
                 Err(SimplifyError::ReRun(new_ast)) => {
                     // Push a new state with the new_ast onto the stack

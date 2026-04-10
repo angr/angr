@@ -338,6 +338,15 @@ impl<'c> Op<'c> for BooleanOp<'c> {
         BooleanOp::child_iter(self)
     }
 
+    /// O(1) direct indexing for n-ary And/Or. See the note on
+    /// BitVecOp::get_child for why.
+    fn get_child(&self, index: usize) -> Option<DynAst<'c>> {
+        match self {
+            BooleanOp::And(args) | BooleanOp::Or(args) => args.get(index).cloned().map(Into::into),
+            _ => self.child_iter().nth(index),
+        }
+    }
+
     fn is_true(&self) -> bool {
         matches!(self, BooleanOp::BoolV(true))
     }

@@ -342,6 +342,24 @@ impl<'c> Op<'c> for BitVecOp<'c> {
         BitVecOp::child_iter(self)
     }
 
+    /// O(1) direct indexing for n-ary ops. Without this override the default
+    /// impl uses `child_iter().nth(index)`, which walks the iterator from the
+    /// start and is O(index). When simplification processes all N children
+    /// of an n-ary op, iterating get_child(0..N) then costs O(N^2).
+    /// Overriding for Concat/And/Or/Xor/Add/Mul restores linear-time child
+    /// traversal for wide expressions.
+    fn get_child(&self, index: usize) -> Option<DynAst<'c>> {
+        match self {
+            BitVecOp::And(args)
+            | BitVecOp::Or(args)
+            | BitVecOp::Xor(args)
+            | BitVecOp::Add(args)
+            | BitVecOp::Mul(args)
+            | BitVecOp::Concat(args) => args.get(index).cloned().map(Into::into),
+            _ => self.child_iter().nth(index),
+        }
+    }
+
     fn variables(&self) -> BTreeSet<InternedString> {
         if let BitVecOp::BVS(s, _) = self {
             let mut set = BTreeSet::new();

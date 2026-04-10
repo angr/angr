@@ -124,9 +124,9 @@ pub(crate) fn simplify_bool<'c>(
                 return state.rerun(ctx.and(absorbed_args)?);
             }
 
-            let simplified_args = (0..args.len())
-                .map(|i| state.get_bool_simplified(i))
-                .collect::<Result<Vec<_>, _>>()?;
+            // Simplify all children in one batch to avoid quadratic re-runs
+            // for wide And.
+            let simplified_args = state.get_all_bool_simplified()?;
             Ok(ctx.and(simplified_args)?)
         }
         BooleanOp::Or(args) => {
@@ -214,9 +214,9 @@ pub(crate) fn simplify_bool<'c>(
                 return state.rerun(ctx.or(absorbed_args)?);
             }
 
-            let simplified_args = (0..args.len())
-                .map(|i| state.get_bool_simplified(i))
-                .collect::<Result<Vec<_>, _>>()?;
+            // Simplify all children in one batch to avoid quadratic re-runs
+            // for wide Or.
+            let simplified_args = state.get_all_bool_simplified()?;
             Ok(ctx.or(simplified_args)?)
         }
         BooleanOp::Xor(..) => {

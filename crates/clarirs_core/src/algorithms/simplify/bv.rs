@@ -19,11 +19,9 @@ pub(crate) fn simplify_bv<'c>(
                 _ => Ok(ctx.not(arc)?),
             }
         }
-        BitVecOp::And(args) => {
-            // Simplify all children
-            let simplified: Vec<BitVecAst<'c>> = (0..args.len())
-                .map(|i| state.get_bv_simplified(i))
-                .collect::<Result<_, _>>()?;
+        BitVecOp::And(_) => {
+            // Simplify all children in one batch to avoid quadratic re-runs.
+            let simplified = state.get_all_bv_simplified()?;
 
             let size = simplified[0].size();
 
@@ -227,11 +225,9 @@ pub(crate) fn simplify_bv<'c>(
                 }
             }
         }
-        BitVecOp::Or(args) => {
-            // Simplify all children
-            let simplified: Vec<BitVecAst<'c>> = (0..args.len())
-                .map(|i| state.get_bv_simplified(i))
-                .collect::<Result<_, _>>()?;
+        BitVecOp::Or(_) => {
+            // Simplify all children in one batch to avoid quadratic re-runs.
+            let simplified = state.get_all_bv_simplified()?;
 
             let size = simplified[0].size();
             let all_ones =
@@ -347,11 +343,9 @@ pub(crate) fn simplify_bv<'c>(
                 }
             }
         }
-        BitVecOp::Xor(args) => {
-            // Simplify all children
-            let simplified: Vec<BitVecAst<'c>> = (0..args.len())
-                .map(|i| state.get_bv_simplified(i))
-                .collect::<Result<_, _>>()?;
+        BitVecOp::Xor(_) => {
+            // Simplify all children in one batch to avoid quadratic re-runs.
+            let simplified = state.get_all_bv_simplified()?;
 
             let size = simplified[0].size();
 
@@ -481,11 +475,9 @@ pub(crate) fn simplify_bv<'c>(
                 _ => Ok(ctx.neg(arc)?),
             }
         }
-        BitVecOp::Add(args) => {
-            // Simplify all children
-            let simplified: Vec<BitVecAst<'c>> = (0..args.len())
-                .map(|i| state.get_bv_simplified(i))
-                .collect::<Result<_, _>>()?;
+        BitVecOp::Add(_) => {
+            // Simplify all children in one batch to avoid quadratic re-runs.
+            let simplified = state.get_all_bv_simplified()?;
 
             let size = simplified[0].size();
 
@@ -631,11 +623,9 @@ pub(crate) fn simplify_bv<'c>(
                 _ => Ok(ctx.sub(arc, arc1)?),
             }
         }
-        BitVecOp::Mul(args) => {
-            // Simplify all children
-            let simplified: Vec<BitVecAst<'c>> = (0..args.len())
-                .map(|i| state.get_bv_simplified(i))
-                .collect::<Result<_, _>>()?;
+        BitVecOp::Mul(_) => {
+            // Simplify all children in one batch to avoid quadratic re-runs.
+            let simplified = state.get_all_bv_simplified()?;
 
             let size = simplified[0].size();
 
@@ -1234,11 +1224,11 @@ pub(crate) fn simplify_bv<'c>(
                 _ => Ok(ctx.extract(arc, *high, *low)?),
             }
         }
-        BitVecOp::Concat(args) => {
-            // Simplify all children first
-            let simplified_args: Vec<BitVecAst<'c>> = (0..args.len())
-                .map(|i| state.get_bv_simplified(i))
-                .collect::<Result<Vec<_>, _>>()?;
+        BitVecOp::Concat(_) => {
+            // Simplify all children in one batch. Fetching them one at a
+            // time would make simplify_inner re-run for every child and
+            // turn wide Concats into a quadratic cost.
+            let simplified_args = state.get_all_bv_simplified()?;
 
             // Flatten nested Concats and filter zero-size args
             let mut flattened: Vec<BitVecAst<'c>> = Vec::new();
