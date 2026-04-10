@@ -67,7 +67,6 @@ from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.analyses.typehoon.typehoon import Typehoon
 from angr.ailment.expression import Struct, Array, RustEnum, Let, FunctionLikeMacro
 from .ail_simplifier import AILSimplifier
 from .ssailification.ssailification import Ssailification

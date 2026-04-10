@@ -241,9 +241,8 @@ class SimEngineVRAIL(
             if (
                 isinstance(expr.target, (ailment.Expr.Const, str))
                 or expr.tags.get("is_prototype_guessed", True) is False
-            ):
-                if expr.args is not None:
-                    self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
+            ) and expr.args is not None:
+                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore

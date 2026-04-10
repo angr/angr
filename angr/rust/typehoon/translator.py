@@ -144,9 +144,9 @@ class RustTypeTranslator(TypeTranslator):
 
     def _translate_RustEnum(self, tc: typeconsts.RustEnum):
         name = tc.name or f"enum_{tc.size}"
-        if name.startswith("core::result::Result<") or name.startswith("Result<"):
+        if name.startswith(("core::result::Result<", "Result<")):
             return self._translate_Result(tc)
-        if name.startswith("core::option::Option<") or name.startswith("Option<"):
+        if name.startswith(("core::option::Option<", "Option<")):
             return self._translate_Option(tc)
         return RustSimEnum(
             name,
