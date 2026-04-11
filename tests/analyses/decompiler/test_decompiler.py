@@ -1583,7 +1583,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         proj.analyses.CFGFast(normalize=True)
-        d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
+        d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options, expr_collapse_depth=5)
         assert d.codegen is not None and isinstance(d.codegen.text, str) and d.codegen.map_pos_to_node is not None
 
         assert "..." in d.codegen.text, "codegen should have a too-deep expression replaced with '...'"

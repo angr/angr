@@ -359,12 +359,16 @@ class AILSimplifier(Analysis):
         equivalence = set()
         for block in self.func_graph:
             for stmt_idx, stmt in enumerate(block.statements):
-                if isinstance(stmt, Assignment):
-                    if isinstance(stmt.dst, VirtualVariable) and isinstance(
-                        stmt.src, (VirtualVariable, Tmp, Call, Convert)
-                    ):
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
-                        equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and (
+                        isinstance(stmt.src, (VirtualVariable, Tmp, Call, Convert))
+                        or (isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Call))
+                    )
+                ):
+                    codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
+                    equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
                 elif isinstance(stmt, WeakAssignment):
                     codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                     equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
@@ -1572,6 +1576,19 @@ class AILSimplifier(Analysis):
                     # register variable = Convert(Call)
                     call = eq.atom1
                     # call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
+                elif (
+                    isinstance(eq.atom1, Convert)
+                    and isinstance(eq.atom1.operand, UnaryOp)
+                    and eq.atom1.operand.op == "Reference"
+                    and isinstance(eq.atom1.operand.operand, Call)
+                ):
+                    # register variable = Convert(&Call())
+                    call = eq.atom1.operand.operand
+                    # call_addr = call.target.value if isinstance(call.target, Const) else None
+                elif isinstance(eq.atom1, Load) and isinstance(eq.atom1.addr, Call):
+                    # register variable = Load(Call)
+                    call = eq.atom1.addr
+                    # call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif eq.is_weakassignment:
                     # variable =w something else
                     call = eq.atom1
