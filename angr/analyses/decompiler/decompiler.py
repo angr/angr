@@ -48,6 +48,7 @@ if TYPE_CHECKING:
 
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from .structured_codegen.base import BaseStructuredCodeGenerator
+    from angr.analyses.decompiler.clinic import Clinic
 
 l = logging.getLogger(name=__name__)
 
@@ -90,6 +91,7 @@ class Decompiler(Analysis):
         use_cache: bool = True,
         update_cache: bool = True,
         expr_collapse_depth: int = 16,
+        clinic: Clinic | None = None,
         clinic_graph=None,
         clinic_entry_node_addr=None,
         clinic_arg_vvars=None,
@@ -175,7 +177,7 @@ class Decompiler(Analysis):
             else None
         )
 
-        self.clinic = None  # mostly for debugging purposes
+        self.clinic = clinic  # mostly for debugging purposes
         self._clinic_graph = clinic_graph
         self._clinic_entry_node_addr = clinic_entry_node_addr
         self._clinic_arg_vvars = clinic_arg_vvars
@@ -285,7 +287,7 @@ class Decompiler(Analysis):
             l.debug("Decompilation cache hit")
         else:
             old_codegen = None
-            old_clinic = None
+            old_clinic = self.clinic
             ite_exprs = self._ite_exprs
             binop_operators = self._binop_operators
             l.debug("Decompilation cache miss")
