@@ -1984,7 +1984,14 @@ class Function(Serializable):
     @property
     def demangled_name(self):
         if self.is_rust_function():
-            return rust_demangler.demangle(self.name)
+            parts = rust_demangler.demangle(self.name).split("::")
+            # Drop the trailing 17-char `h<16 hex>` disambiguation hash if present (e.g.,
+            # "std::rt::lang_start::h9b2e0b6aeda0bae0" -> "std::rt::lang_start").
+            if len(parts) >= 2:
+                last = parts[-1]
+                if len(last) == 17 and last.startswith("h") and all(c in "0123456789abcdef" for c in last[1:]):
+                    parts = parts[:-1]
+            return "::".join(parts)
         ast = pydemumble.demangle(self.name).strip()
         return ast or self.name
 
