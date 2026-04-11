@@ -103,7 +103,7 @@ class TestExpressionOverfolding(unittest.TestCase):
         t = dec.codegen.text
         lines = t.split("\n")
         for line in lines:
-            assert len(line.strip(" ")) < 750, f"Line is too long: {line}"
+            assert len(line.strip(" ")) < 200, f"Line is too long: {line}"
 
 
 if __name__ == "__main__":

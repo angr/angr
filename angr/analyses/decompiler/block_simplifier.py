@@ -228,7 +228,7 @@ class BlockSimplifier(Analysis):
         replace_loads: bool = False,
         gp: int | None = None,
         replace_registers: bool = True,
-        max_expr_depth: int | None = 7,
+        max_expr_depth: int | None = 13,
     ) -> tuple[bool, Block]:
         new_statements = block.statements[::]
         replaced = False
