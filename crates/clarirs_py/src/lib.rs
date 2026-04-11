@@ -118,6 +118,7 @@ fn is_true(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
         match bv_expr {
             CoerceBV::BV(bv_expr) => Ok(bv_expr.get().inner.simplify()?.is_true()),
             CoerceBV::Int(int_expr) => Ok(int_expr != BigInt::ZERO),
+            CoerceBV::Bool(bool_expr) => Ok(bool_expr.get().inner.simplify()?.is_true()),
         }
     } else if let Ok(fp_expr) = expr.clone().extract::<CoerceFP>() {
         match fp_expr {
@@ -139,6 +140,7 @@ fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
         match bv_expr {
             CoerceBV::BV(bv_expr) => Ok(bv_expr.get().inner.simplify()?.is_false()),
             CoerceBV::Int(int_expr) => Ok(int_expr == BigInt::ZERO),
+            CoerceBV::Bool(bool_expr) => Ok(bool_expr.get().inner.simplify()?.is_false()),
         }
     } else if let Ok(fp_expr) = expr.clone().extract::<CoerceFP>() {
         match fp_expr {

@@ -5,6 +5,23 @@ use pyo3::types::{PyFloat, PyInt};
 
 use crate::prelude::*;
 
+/// Coerce a BV into a Bool: concrete BVVs resolve to true/false directly,
+/// symbolic BVs become `bv != 0`.
+fn bv_to_bool(bv: &BV) -> Result<BoolAst<'static>, ClaripyError> {
+    let inner = &bv.inner;
+    if let Ok(simplified) = inner.simplify()
+        && let BitVecOp::BVV(v) = simplified.op()
+    {
+        return Ok(if v.is_zero() {
+            GLOBAL_CONTEXT.false_()?
+        } else {
+            GLOBAL_CONTEXT.true_()?
+        });
+    }
+    let zero = GLOBAL_CONTEXT.bvv(BitVec::from_prim_with_size(0u8, bv.size() as u32)?)?;
+    Ok(GLOBAL_CONTEXT.neq(inner, &zero)?)
+}
+
 #[derive(Clone)]
 pub struct CoerceBool<'py>(pub Bound<'py, Bool>);
 
@@ -18,6 +35,15 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBool<'py> {
             Ok(CoerceBool(
                 Bool::new(val.py(), &GLOBAL_CONTEXT.boolv(bool_val).unwrap()).unwrap(),
             ))
+        } else if let Ok(int_val) = val.cast::<PyInt>() {
+            // Coerce int (0 or non-zero) to Bool
+            let i: BigInt = int_val.extract()?;
+            Ok(CoerceBool(
+                Bool::new(val.py(), &GLOBAL_CONTEXT.boolv(i != BigInt::ZERO).unwrap()).unwrap(),
+            ))
+        } else if let Ok(bv_val) = val.cast::<BV>() {
+            // Coerce BV to Bool: concrete fast-path, otherwise `bv != 0`.
+            Ok(CoerceBool(Bool::new(val.py(), &bv_to_bool(bv_val.get())?)?))
         } else {
             Err(ClaripyError::InvalidArgumentType("Expected Bool".to_string()).into())
         }
@@ -39,6 +65,7 @@ impl<'py> From<CoerceBool<'py>> for BoolAst<'static> {
 pub enum CoerceBV<'py> {
     BV(Bound<'py, BV>),
     Int(BigInt),
+    Bool(Bound<'py, Bool>),
 }
 
 impl<'py> CoerceBV<'py> {
@@ -60,6 +87,13 @@ impl<'py> CoerceBV<'py> {
                 let bv = BitVec::from_bigint_trunc(int, size);
                 BV::new(py, &GLOBAL_CONTEXT.bvv(bv)?)
             }
+            CoerceBV::Bool(bool_val) => {
+                // Convert Bool to BV of the requested size: If(bool, 1, 0).
+                let one = GLOBAL_CONTEXT.bvv(BitVec::from_prim_with_size(1u8, size)?)?;
+                let zero = GLOBAL_CONTEXT.bvv(BitVec::from_prim_with_size(0u8, size)?)?;
+                let bv_ast = GLOBAL_CONTEXT.ite(&bool_val.get().inner, &one, &zero)?;
+                BV::new(py, &bv_ast)
+            }
         }
     }
 
@@ -67,47 +101,46 @@ impl<'py> CoerceBV<'py> {
         self.unpack(py, like.size() as u32, false)
     }
 
+    fn get_size(&self) -> Option<u32> {
+        match self {
+            CoerceBV::BV(bv) => Some(bv.get().size() as u32),
+            CoerceBV::Int(_) | CoerceBV::Bool(_) => None,
+        }
+    }
+
     pub fn unpack_pair(
         py: Python<'py>,
         lhs: &CoerceBV<'py>,
         rhs: &CoerceBV<'py>,
     ) -> Result<(Bound<'py, BV>, Bound<'py, BV>), ClaripyError> {
-        Ok(match (lhs, rhs) {
-            (CoerceBV::BV(lhs), CoerceBV::BV(rhs)) => {
-                // Check for size mismatch when both are BVs
-                let lhs_size = lhs.get().size() as u32;
-                let rhs_size = rhs.get().size() as u32;
-                if lhs_size != rhs_size {
-                    return Err(ClaripyError::TypeError(format!(
-                        "BV size mismatch: left operand has {lhs_size} bits, right operand has {rhs_size} bits"
-                    )));
-                }
-                (lhs.clone(), rhs.clone())
-            }
-            (CoerceBV::Int(_), CoerceBV::BV(rhs)) => {
-                let lhs = lhs.unpack_like(py, rhs.get())?;
-                (lhs, rhs.clone())
-            }
-            (CoerceBV::BV(lhs), CoerceBV::Int(_)) => {
-                let rhs = rhs.unpack_like(py, lhs.get())?;
-                (lhs.clone(), rhs)
-            }
-            (CoerceBV::Int(lhs_int), CoerceBV::Int(rhs_int)) => {
-                // Both args are ints, so we kinda have to guess the size
-                // Take the max size of the two ints, then round up to the nearest power of 2
+        // Determine target size from whichever operand has a concrete size
+        let lhs_size = lhs.get_size();
+        let rhs_size = rhs.get_size();
 
-                let mut size = max(lhs_int.bits() as u32, rhs_int.bits() as u32);
-                if *lhs_int < BigInt::ZERO || *rhs_int < BigInt::ZERO {
-                    // If either int is negative, we need to add an extra bit for the sign
-                    size += 1;
+        match (lhs_size, rhs_size) {
+            (Some(ls), Some(rs)) if ls != rs => Err(ClaripyError::TypeError(format!(
+                "BV size mismatch: left operand has {ls} bits, right operand has {rs} bits"
+            ))),
+            (Some(size), _) => Ok((lhs.unpack(py, size, false)?, rhs.unpack(py, size, false)?)),
+            (_, Some(size)) => Ok((lhs.unpack(py, size, false)?, rhs.unpack(py, size, false)?)),
+            (None, None) => {
+                // Both are Int or Bool - guess size
+                match (lhs, rhs) {
+                    (CoerceBV::Int(lhs_int), CoerceBV::Int(rhs_int)) => {
+                        let mut size = max(lhs_int.bits() as u32, rhs_int.bits() as u32);
+                        if *lhs_int < BigInt::ZERO || *rhs_int < BigInt::ZERO {
+                            size += 1;
+                        }
+                        let size = size.next_power_of_two();
+                        Ok((lhs.unpack(py, size, false)?, rhs.unpack(py, size, false)?))
+                    }
+                    _ => {
+                        // Bool/Bool or Bool/Int combinations - default to 1-bit
+                        Ok((lhs.unpack(py, 1, false)?, rhs.unpack(py, 1, false)?))
+                    }
                 }
-                let size = size.next_power_of_two();
-
-                let lhs = lhs.unpack(py, size, false)?;
-                let rhs = rhs.unpack(py, size, false)?;
-                (lhs, rhs)
             }
-        })
+        }
     }
 
     pub fn unpack_vec(
@@ -119,16 +152,12 @@ impl<'py> CoerceBV<'py> {
         }
 
         // First, determine the size to use
-        let size = vals
-            .iter()
-            .find(|val| matches!(val, CoerceBV::BV(_)))
-            .map(|val| match val {
-                CoerceBV::BV(bv) => bv.get().size() as u32,
-                CoerceBV::Int(_) => 0,
-            })
-            .ok_or(ClaripyError::InvalidArgumentType(
-                "Failed to extract size of BVs in list".to_string(),
-            ))?;
+        let size =
+            vals.iter()
+                .find_map(|val| val.get_size())
+                .ok_or(ClaripyError::InvalidArgumentType(
+                    "Failed to extract size of BVs in list".to_string(),
+                ))?;
 
         // Round up to the nearest power of 2
         let size = size.next_power_of_two();
@@ -148,29 +177,17 @@ impl<'py> CoerceBV<'py> {
             ));
         }
 
-        let default_size = vals
-            .iter()
-            .find(|val| matches!(val, CoerceBV::BV(_)))
-            .map(|val| match val {
-                CoerceBV::BV(bv) => bv.get().size() as u32,
-                CoerceBV::Int(_) => 0,
-            })
-            .ok_or(ClaripyError::InvalidArgumentType(
-                "Failed to extract size of BVs in list".to_string(),
-            ))?;
+        let default_size =
+            vals.iter()
+                .find_map(|val| val.get_size())
+                .ok_or(ClaripyError::InvalidArgumentType(
+                    "Failed to extract size of BVs in list".to_string(),
+                ))?;
 
         let mut results = Vec::with_capacity(vals.len());
 
         for val in vals {
-            let unpacked = match val {
-                CoerceBV::BV(bv) => Ok(bv.clone()),
-                CoerceBV::Int(int) => {
-                    // Match the size of the first BV in the list, otherwise default to 64 bits
-                    let bv = BitVec::from_bigint_trunc(int, default_size);
-                    BV::new(py, &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?)
-                }
-            };
-            results.push(unpacked?);
+            results.push(val.unpack(py, default_size, true)?);
         }
 
         Ok(results)
@@ -185,6 +202,8 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBV<'py> {
             Ok(CoerceBV::from(bv_val.to_owned()))
         } else if let Ok(int_val) = val.cast::<PyInt>() {
             Ok(CoerceBV::from(int_val.to_owned()))
+        } else if let Ok(bool_val) = val.cast::<Bool>() {
+            Ok(CoerceBV::Bool(bool_val.to_owned()))
         } else if let Ok(bytes_val) = val.extract::<Vec<u8>>() {
             Ok(CoerceBV::BV(BV::new(
                 val.py(),
@@ -341,21 +360,34 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase<'py> {
     type Error = PyErr;
 
     fn extract(val: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
-        if let Ok(bool) = CoerceBool::extract(val) {
-            Ok(CoerceBase(bool.0.cast()?.clone()))
-        } else if let Ok(bv) = CoerceBV::extract(val) {
-            match bv {
-                CoerceBV::BV(bv) => Ok(CoerceBase(bv.cast()?.clone())),
-                CoerceBV::Int(int) => {
-                    // Just default to 64 bits for now
-                    let bv = BitVec::from_bigint_trunc(&int, 64);
-                    let bv = BV::new(
-                        val.py(),
-                        &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
-                    )?;
-                    Ok(CoerceBase(bv.cast()?.clone()))
-                }
-            }
+        // Check concrete AST types first, preserving the actual type of the input.
+        // Do NOT use CoerceBool here since that now accepts BVs (via BV != 0), which
+        // would incorrectly turn a BV expression into a Bool expression in contexts
+        // like solver.solution(bv_expr, value) that need to preserve the original type.
+        if let Ok(bool_val) = val.cast::<Bool>() {
+            Ok(CoerceBase(bool_val.to_owned().cast()?.clone()))
+        } else if let Ok(bv_val) = val.cast::<BV>() {
+            Ok(CoerceBase(bv_val.to_owned().cast()?.clone()))
+        } else if let Ok(fp_val) = val.cast::<FP>() {
+            Ok(CoerceBase(fp_val.to_owned().cast()?.clone()))
+        } else if let Ok(string_val) = val.cast::<PyAstString>() {
+            Ok(CoerceBase(string_val.to_owned().cast()?.clone()))
+        } else if let Ok(py_bool) = val.extract::<bool>() {
+            // Handle Python bool literals by wrapping in BoolV
+            let bool_ast = Bool::new(
+                val.py(),
+                &GLOBAL_CONTEXT.boolv(py_bool).map_err(ClaripyError::from)?,
+            )?;
+            Ok(CoerceBase(bool_ast.cast()?.clone()))
+        } else if let Ok(int_val) = val.cast::<PyInt>() {
+            // Handle Python int literals by wrapping in BVV (64-bit default)
+            let int: BigInt = int_val.extract()?;
+            let bv = BitVec::from_bigint_trunc(&int, 64);
+            let bv_ast = BV::new(
+                val.py(),
+                &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
+            )?;
+            Ok(CoerceBase(bv_ast.cast()?.clone()))
         } else if let Ok(fp) = CoerceFP::extract(val) {
             match fp {
                 CoerceFP::FP(fp) => Ok(CoerceBase(fp.cast()?.clone())),

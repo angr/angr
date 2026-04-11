@@ -268,8 +268,11 @@ impl PySolver {
         &mut self,
         exprs: Bound<'py, PyAny>,
     ) -> Result<Vec<Bound<'py, Bool>>, ClaripyError> {
-        // Try to handle as iterable first (supports tuple, list, and any iterable)
-        let bool_exprs = if let Ok(iter) = exprs.try_iter() {
+        // First try to handle as a single Bool or BV (before trying iteration,
+        // since BV supports __getitem__ which makes it iterable in Python)
+        let bool_exprs = if let Ok(coerced) = exprs.extract::<CoerceBool>() {
+            vec![coerced.0]
+        } else if let Ok(iter) = exprs.try_iter() {
             // Convert iterable of expressions to Vec<Bound<Bool>>
             iter.map(|expr_result| {
                 let expr = expr_result
@@ -280,15 +283,9 @@ impl PySolver {
             })
             .collect::<Result<Vec<_>, _>>()?
         } else {
-            // Handle single expression case
-            vec![
-                exprs
-                    .extract::<CoerceBool>()
-                    .map_err(|_| {
-                        ClaripyError::TypeError("add: expression must be a boolean".to_string())
-                    })?
-                    .0,
-            ]
+            return Err(ClaripyError::TypeError(
+                "add: expression must be a boolean or iterable of booleans".to_string(),
+            ));
         };
 
         // Add all expressions to the solver

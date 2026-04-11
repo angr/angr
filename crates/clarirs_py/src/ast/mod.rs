@@ -34,6 +34,24 @@ pub fn and<'py>(
     py: Python<'py>,
     args: Vec<Bound<'py, PyAny>>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
+    // If all args are actually Bools (or Python bool literals) — not BVs
+    // being coerced through the Bool path — use the Bool And. Otherwise fall
+    // back to BV bitwise And.
+    let all_bools = args
+        .iter()
+        .all(|arg| arg.cast::<Bool>().is_ok() || arg.extract::<bool>().is_ok());
+    if all_bools {
+        let bool_args = args
+            .into_iter()
+            .map(|arg| {
+                arg.extract::<CoerceBool>()
+                    .map(|b| b.0.get().inner.clone())
+                    .map_err(|_| ClaripyError::TypeError("And arguments must be Bool".to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Bool::new(py, &GLOBAL_CONTEXT.and(bool_args)?)
+            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+    }
     if args.len() == 2
         && let Some(lhs) = args[0].extract::<CoerceBV>().ok()
         && let Some(rhs) = args[1].extract::<CoerceBV>().ok()
@@ -44,18 +62,10 @@ pub fn and<'py>(
             &GLOBAL_CONTEXT.bv_and(&lhs.get().inner, &rhs.get().inner)?,
         )
         .map(|b| b.into_any().cast::<Base>().unwrap().clone());
-    } else {
-        let args = args
-            .into_iter()
-            .map(|arg| {
-                arg.extract::<CoerceBool>()
-                    .map(|b| b.0.get().inner.clone())
-                    .map_err(|_| ClaripyError::TypeError("And arguments must be Bool".to_string()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        return Bool::new(py, &GLOBAL_CONTEXT.and(args)?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
+    Err(ClaripyError::TypeError(
+        "And: expected Bools or exactly two BVs".to_string(),
+    ))
 }
 
 #[pyfunction(name = "Or", signature = (*args))]
@@ -63,6 +73,22 @@ pub fn or<'py>(
     py: Python<'py>,
     args: Vec<Bound<'py, PyAny>>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
+    // Same policy as And: prefer the Bool path whenever every arg is a Bool.
+    let all_bools = args
+        .iter()
+        .all(|arg| arg.cast::<Bool>().is_ok() || arg.extract::<bool>().is_ok());
+    if all_bools {
+        let bool_args = args
+            .into_iter()
+            .map(|arg| {
+                arg.extract::<CoerceBool>()
+                    .map(|b| b.0.get().inner.clone())
+                    .map_err(|_| ClaripyError::TypeError("Or arguments must be Bool".to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Bool::new(py, &GLOBAL_CONTEXT.or(bool_args)?)
+            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+    }
     if args.len() == 2
         && let Some(lhs) = args[0].extract::<CoerceBV>().ok()
         && let Some(rhs) = args[1].extract::<CoerceBV>().ok()
@@ -73,18 +99,10 @@ pub fn or<'py>(
             &GLOBAL_CONTEXT.bv_or(&lhs.get().inner, &rhs.get().inner)?,
         )
         .map(|b| b.into_any().cast::<Base>().unwrap().clone());
-    } else {
-        let args = args
-            .into_iter()
-            .map(|arg| {
-                arg.extract::<CoerceBool>()
-                    .map(|b| b.0.get().inner.clone())
-                    .map_err(|_| ClaripyError::TypeError("And arguments must be Bool".to_string()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        return Bool::new(py, &GLOBAL_CONTEXT.or(args)?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
+    Err(ClaripyError::TypeError(
+        "Or: expected Bools or exactly two BVs".to_string(),
+    ))
 }
 
 #[pyfunction]
