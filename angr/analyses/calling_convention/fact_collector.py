@@ -481,9 +481,14 @@ class FactCollector(Analysis):
         else:
             return
 
-        # get the overflow return register offset (e.g., rdx on x64)
+        # Get the overflow return register offset (e.g., rdx on x64). This is only used to detect
+        # 128-bit return values on Rust binaries; on non-Rust binaries the overflow register is
+        # typically used as a scratch register, and counting writes to it as part of the return
+        # value size incorrectly inflates retval_size and pushes the prototype to void (see
+        # CallingConventionAnalysis._guess_retval_type which only maps 9..16 sizes to a type for
+        # Rust binaries).
         overflow_retreg_offset: int | None = None
-        if isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
+        if self.project.is_rust_binary and isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
             overflow_retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
 
         retval_sizes = []
