@@ -23,6 +23,7 @@ from angr.rust.optimization_passes import get_rust_optimization_passes
 from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
+from .structuring.phoenix import MultiStmtExprMode
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .ailgraph_walker import AILGraphWalker
@@ -293,6 +294,9 @@ class Decompiler(Analysis):
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
+        # The Rust flavor disables multi-statement-expression generation regardless of user options.
+        if self._flavor == "rust":
+            self._recursive_structurer_params["use_multistmtexprs"] = MultiStmtExprMode.NEVER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False

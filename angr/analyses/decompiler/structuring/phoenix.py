@@ -108,7 +108,7 @@ class PhoenixStructurer(StructurerBase):
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         improve_algorithm=False,
-        use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.NEVER,
+        use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.MAX_ONE_CALL,
         multistmtexpr_stmt_threshold: int = 5,
         **kwargs,
     ):
