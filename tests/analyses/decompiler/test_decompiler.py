@@ -1556,6 +1556,31 @@ class TestDecompiler(unittest.TestCase):
             r"(\w+) = __errno_location\(\);\s*error\(1, \*\(\1\), \"%s\"\);", last_lines
         )
 
+    @structuring_algo("phoenix")
+    def test_decompiling_fmt_paragraph_dowhile(self, decompiler_options=None):
+        """Test that a while(true) with two breaks to the same exit is structured as do-while with break."""
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x403C78]
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
+        code = d.codegen.text
+
+        # the inner loop should be a do-while, not while(true)
+        assert "} while (" in code, "Inner loop should be structured as do-while"
+        # there should be a break inside the do-while for the mid-loop exit
+        assert "break;" in code, "do-while should contain a break for the mid-loop exit"
+        # there should be no spurious continue that makes code unreachable
+        assert "\n            continue;\n" not in code, "No spurious continue should appear in the do-while body"
+
     @for_all_structuring_algos
     def test_decompiling_fmt0_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "fmt_0")
@@ -5253,14 +5278,14 @@ class TestDecompiler(unittest.TestCase):
             if m is not None:
                 v1, v2 = m.groups()
                 assert v1 != v2, f"Found a redundant assignment: {line}"
-        # we expect two equivalence checks like v3[1] == 7
+        # we expect two comparisons against v3[1] and 7 (== or != depending on structuring)
         var_ids = []
         for line in lines:
-            m = re.search(r"v(\d+)\[1] == 7", line)
+            m = re.search(r"v(\d+)\[1] [!=]= 7", line)
             if m is not None:
                 var_ids.append(m.group(1))
-        assert len(var_ids) == 2, f"Expected two equivalence checks, found {len(var_ids)}: {var_ids}"
-        assert len(set(var_ids)) == 1, f"Expected the same variable in both equivalence checks, found {var_ids}"
+        assert len(var_ids) == 2, f"Expected two comparisons with [1] and 7, found {len(var_ids)}: {var_ids}"
+        assert len(set(var_ids)) == 1, f"Expected the same variable in both comparisons, found {var_ids}"
 
     def test_decompiling_fauxware_wide_scrt_release_startup_lock(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "fauxware-wide.exe")
