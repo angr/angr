@@ -167,11 +167,12 @@ class Outliner(Analysis):
 
         # rewrite the callsite
         vvar_id = self._next_vvar_id()
+        callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         call_expr = Call(
             None,
             f"outlined_func_{src_node.addr:x}",
             # Const(None, None, src_node.addr, 64),
-            args=callee_arg_vvars,
+            args=callee_arg_vvars_copy,
             bits=self.project.arch.bits,
             ins_addr=src_node.addr,
         )
