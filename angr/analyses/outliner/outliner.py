@@ -259,6 +259,7 @@ class Outliner(Analysis):
             VirtualVariableCategory.REGISTER,
             oident=self.project.arch.ret_offset,
         )
+        callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         # create the callsite in the caller
         call_expr = Call(
             None,
