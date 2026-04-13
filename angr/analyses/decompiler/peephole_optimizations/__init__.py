@@ -28,6 +28,7 @@ from .bool_expr_xor_1 import BoolExprXor1
 from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
 from .remove_redundant_derefs import RemoveRedundantDerefs
+from .remove_redundant_insert import RemoveRedundantInsert
 from .remove_redundant_nots import RemoveRedundantNots
 from .remove_redundant_reinterprets import RemoveRedundantReinterprets
 from .remove_redundant_shifts import RemoveRedundantShifts
@@ -124,6 +125,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveCxxDestructorCalls,
     RewriteConvMul,
     EvaluateConstConversions,
+    RemoveRedundantInsert,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
