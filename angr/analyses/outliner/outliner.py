@@ -42,6 +42,7 @@ class Outliner(Analysis):
         src_loc: Address,
         func_entry_loc: Address | None = None,
         frontier: set[tuple[Address, bool]] | None = None,
+        child_name: str | None = None,
         vvar_id_start: int = 0xBEEF,
         block_addr_start: int = 0xAABB_0000,
         min_step: int = 1,
@@ -53,6 +54,7 @@ class Outliner(Analysis):
         self.block_addr_start = block_addr_start
         self.min_step = min_step
         self.nodes_dict = {(node.addr, node.idx): node for node in self.parent_graph}
+        self.child_name = child_name or f"outlined_func_{src_loc[0]:x}"
 
         self.src_loc = src_loc
 
@@ -209,7 +211,7 @@ class Outliner(Analysis):
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
 
-        callee_func = Function(self.kb.functions, src_node.addr)
+        callee_func = Function(self.kb.functions, src_node.addr, name=self.child_name)
         callee_func.normalized = True
         # clean up the subgraph
         self.cleanup_callee_graph(subgraph, callee_func)
@@ -257,7 +259,7 @@ class Outliner(Analysis):
         # create the callsite in the caller
         call_expr = Call(
             None,
-            f"outlined_func_{src_node.addr:x}",
+            self.child_name,
             # Const(None, None, src_node.addr, 64),
             args=callee_arg_vvars_copy,
             bits=self.project.arch.bits,
