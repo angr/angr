@@ -1,12 +1,13 @@
+# pylint:disable=missing-class-docstring
 from __future__ import annotations
 import functools
 import os
 import sys
 import contextlib
 from collections import defaultdict
+from collections.abc import Callable
 from inspect import Signature
 from typing import TYPE_CHECKING, TypeVar, Generic, cast, Any
-from collections.abc import Callable
 from types import NoneType
 from itertools import chain
 from traceback import format_exception
@@ -123,7 +124,7 @@ class AnalysesHub(PluginVendor[Any]):
         self.project = project
 
     def _init_plugin(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
-        return AnalysisFactory(self.project, plugin_cls)
+        return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
     def __getstate__(self):  # type: ignore[reportIncompatibleMethodOverride]
         s = super().__getstate__()
@@ -134,7 +135,7 @@ class AnalysesHub(PluginVendor[Any]):
         super().__setstate__(s)
 
     def __getitem__(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
-        return AnalysisFactory(self.project, plugin_cls)
+        return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
 
 class KnownAnalysesPlugin(typing.Protocol):
@@ -181,10 +182,7 @@ class AnalysisFactory(Generic[A]):
     def __init__(self, project: Project, analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
-        self.__doc__ = ""
-        self.__doc__ += analysis_cls.__doc__ or ""
-        self.__doc__ += analysis_cls.__init__.__doc__ or ""
-        self.__call__.__func__.__signature__ = Signature.from_callable(analysis_cls.__init__)
+        self.__sig = Signature.from_callable(analysis_cls.__init__)
 
     def prep(
         self,
@@ -200,7 +198,7 @@ class AnalysisFactory(Generic[A]):
         @t.start_as_current_span(self._analysis_cls.__name__)
         def wrapper(*args, **kwargs):
             span = telemetry.get_current_span()
-            sig = cast(Signature, self.__call__.__func__.__signature__)
+            sig = cast(Signature, self.__sig)
             bound = sig.bind(None, *args, **kwargs)
             for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
                 if name in ("kwargs", "self"):
@@ -292,10 +290,11 @@ class Analysis:
     named_errors: defaultdict[str, list[AnalysisLogEntry]] = defaultdict(list)
     _ram_usage: float | None = None
     _last_ramusage_update: float = 0.0
-    _progress_callback = None
+    _progress_callback: Callable | None = None
     _show_progressbar = False
     _progressbar = None
     _task = None
+    log: list
 
     _PROGRESS_WIDGETS = [
         progress.TaskProgressColumn(),
@@ -314,17 +313,17 @@ class Analysis:
         except exception:  # pylint:disable=broad-except
             if self._fail_fast:
                 raise
+            error = AnalysisLogEntry("exception occurred", exc_info=True)
+            l.error(
+                "Caught and logged %s with resilience: %s",
+                error.exc_type.__name__ if error.exc_type is not None else "UnknownException",
+                error.exc_value,  # type: ignore
+                exc_info=True,
+            )
+            if name is None:
+                self.errors.append(error)
             else:
-                error = AnalysisLogEntry("exception occurred", exc_info=True)
-                l.error(
-                    "Caught and logged %s with resilience: %s",
-                    error.exc_type.__name__,
-                    error.exc_value,  # type: ignore
-                )
-                if name is None:
-                    self.errors.append(error)
-                else:
-                    self.named_errors[name].append(error)
+                self.named_errors[name].append(error)
 
     def _initialize_progressbar(self):
         """

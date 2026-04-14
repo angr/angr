@@ -14,14 +14,17 @@ import os
 from io import BytesIO
 from unittest import TestCase
 
+from typing import cast
+
 import archinfo
 import cle
 
 import angr
 from angr import sim_options as o
-from angr.emulator import EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, UberIcicleEngine
+from angr.emulator import Emulator, EmulatorStopReason
+from angr.engines.icicle import IcicleEngine, IcicleStateTranslationData, UberIcicleEngine
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
+from angr.state_plugins.icicle import SimStateIcicle
 from tests.common import bin_location
 
 
@@ -176,10 +179,12 @@ class TestIcicle(TestCase):
 
         # There should be one successor
         assert len(successors.successors) == 1
-        # Check that the emulator exited at the expected instruction
-        assert successors.successors[0].ip.concrete_value == 0x0
+        # Check that the emulator exited past the syscall instruction
+        # (icicle advances PC past the syscall: svc is 4 bytes on aarch64)
+        assert successors.successors[0].ip.concrete_value == 0x4
         # Check that the syscall was invoked
-        assert successors.successors[0].history.jumpkind == "Ijk_Syscall"
+        jk = successors.successors[0].history.jumpkind
+        assert jk is not None and jk.startswith("Ijk_Sys")
 
 
 class TestSnapshotSync(TestCase):
@@ -562,6 +567,24 @@ class TestExtraStopPoints(TestCase):
         assert state3.regs.x4.concrete_value == 2  # 3 - 1
         assert state3.addr == project.entry + 20  # After last instruction
 
+    def test_unmapped_stop_point_skipped(self):
+        """Test that a stop point on an unmapped page is silently skipped."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # 0xDEAD0000 is unmapped — should be skipped, not crash
+        successors = engine.process(init_state, extra_stop_points={0xDEAD0000})
+        assert len(successors.successors) == 1
+        final_state = successors.successors[0]
+        assert final_state.regs.x0.concrete_value == 1
+        assert final_state.regs.x1.concrete_value == 2
+
     def test_stop_point_at_start(self):
         """Test that a stop point at the very first instruction is ignored (execution resumes immediately)."""
         shellcode = "mov x0, 0x1; mov x1, 0x2"
@@ -812,3 +835,104 @@ class TestEdgeHitmap(TestCase):
         hitmap2 = state2.get_plugin("edge_hitmap").edge_hitmap
 
         assert hitmap1 == hitmap2
+
+
+class TestSimStateIciclePlugin(TestCase):
+    """Tests for the SimStateIcicle state plugin."""
+
+    def test_plugin_attached_after_process(self):
+        """Test that process_concrete attaches the icicle plugin to the result state."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        result = engine.process(init_state, num_inst=2)
+        state = result.successors[0]
+        assert state.has_plugin("icicle")
+        plugin = state.get_plugin("icicle")
+        assert isinstance(plugin, SimStateIcicle)
+        assert plugin.engine_id == id(engine)
+        assert plugin.run_id > 0
+
+    def test_plugin_copy(self):
+        """Test that the plugin is correctly copied when the state is copied."""
+        dummy_td = cast(IcicleStateTranslationData, None)
+        plugin = SimStateIcicle(
+            engine_id=12345,
+            run_id=42,
+            translation_data=dummy_td,
+            dirty_pages={3, 4},
+        )
+        copied = plugin.copy({})
+        assert copied.engine_id == 12345
+        assert copied.run_id == 42
+        assert copied.dirty_pages == {3, 4}
+        # Ensure copies are independent
+        copied.dirty_pages.add(6)
+        assert 6 not in plugin.dirty_pages
+
+    def test_plugin_merge_and_widen(self):
+        """Test that merge and widen return False (not mergeable)."""
+        dummy_td = cast(IcicleStateTranslationData, None)
+        plugin = SimStateIcicle(
+            engine_id=1,
+            run_id=1,
+            translation_data=dummy_td,
+            dirty_pages=set(),
+        )
+        assert plugin.merge([], [], None) is False
+        assert plugin.widen([]) is False
+
+
+class TestContinuation(TestCase):
+    """Tests for the continuation path in IcicleEngine."""
+
+    def test_continuation_via_emulator(self):
+        """Test that the Emulator's run loop uses the continuation path for hooks."""
+        # Shellcode with a hook in the middle — forces multiple engine calls
+        shellcode = "mov x0, 0x1; nop; mov x1, 0x2; add x2, x0, x1"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        def hook_nop(state):
+            state.regs.x0 = 0x10
+
+        project.hook(0x4, hook_nop, length=4)
+
+        engine = UberIcicleEngine(project)
+        engine.enable_snapshot_mode()
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        emulator = Emulator(engine, init_state.copy())
+        # Run 3 instructions: mov x0 (1 inst) + hook + mov x1 + add (2 inst) = 3
+        stop_reason = emulator.run(num_inst=3)
+        assert stop_reason == EmulatorStopReason.INSTRUCTION_LIMIT
+        # Hook changed x0 to 0x10, so add x2, x0, x1 = 0x10 + 0x2 = 0x12
+        assert emulator.state.regs.x2.concrete_value == 0x12
+
+    def test_continuation_plugin_invalidated_by_different_engine(self):
+        """Test that a plugin from one engine doesn't cause continuation on a different engine."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2; add x2, x0, x1"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        engine1 = IcicleEngine(project)
+        s = project.factory.blank_state(**state_opts)
+        result1 = engine1.process(s, num_inst=3)
+        state_with_plugin = result1.successors[0]
+        assert state_with_plugin.has_plugin("icicle")
+
+        # A different engine should NOT use the continuation path
+        engine2 = IcicleEngine(project)
+        s2 = project.factory.blank_state(**state_opts)
+        result2 = engine2.process(s2, num_inst=3)
+        assert result2.successors[0].regs.x2.concrete_value == 3

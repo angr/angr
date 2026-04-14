@@ -7,6 +7,7 @@ from collections import defaultdict, UserDict
 from collections.abc import Iterable, Iterator
 import contextlib
 import json
+from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
 
@@ -45,6 +46,26 @@ def dirty_func(func):
         return func(self, *args, **kwargs)
 
     return wrapper
+
+
+class PrototypeSource(int, Enum):
+    """
+    An enumeration to represent the source of a function prototype. The values are ordered by certainty, with higher
+    values indicating more certainty.
+    """
+
+    # guessed
+    NONE = 0
+    GUESSED = 1
+    CCA_LOW = 2  # low-level IR (VEX or P-Code) based CCA
+    # slightly more certain
+    CALLSITE_LOW = 3  # low-level IR (VEX or P-Code) based call-site analysis
+    CALLSITE_DECOMPILER = 6
+    # more certain
+    CCA_DECOMPILER = 20
+    SIMPROC = 21  # SimProcedures
+    SIGNATURES = 25  # function matching, e.g., FLIRT
+    USER = 100
 
 
 class FunctionInfo(UserDict):
@@ -119,6 +140,7 @@ class Function(Serializable):
         "_project",
         "_prototype",
         "_prototype_libname",
+        "_prototype_source",
         "_ret_sites",
         "_retout_sites",
         "_returning",
@@ -128,7 +150,6 @@ class Function(Serializable):
         "evicted",
         "from_signature",
         "is_default_name",
-        "is_prototype_guessed",
         "meta_only",
         "normalized",
         "previous_names",
@@ -139,6 +160,8 @@ class Function(Serializable):
         "tags",
         "transition_graph",
     )
+
+    _prototype_source: PrototypeSource
 
     def __init__(
         self,
@@ -154,6 +177,8 @@ class Function(Serializable):
         calling_convention: SimCC | None = None,
         prototype: SimTypeFunction | None = None,
         prototype_libname: str | None = None,
+        prototype_source: PrototypeSource | None = None,
+        # deprecated
         is_prototype_guessed: bool = True,
     ):
         """
@@ -206,7 +231,16 @@ class Function(Serializable):
         # Function prototype
         self._prototype = prototype
         self._prototype_libname = prototype_libname
-        self.is_prototype_guessed = is_prototype_guessed
+        if prototype_source is None:
+            self._prototype_source = (
+                PrototypeSource.NONE
+                if prototype is None
+                else PrototypeSource.GUESSED
+                if is_prototype_guessed
+                else PrototypeSource.USER
+            )
+        else:
+            self._prototype_source = prototype_source
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
@@ -347,12 +381,12 @@ class Function(Serializable):
             self._function_manager.set_function_returning(self.addr, v)
 
     @property
-    def calling_convention(self):
+    def calling_convention(self) -> SimCC | None:
         return self._calling_convention
 
     @calling_convention.setter
     @dirty_func
-    def calling_convention(self, cc: SimCC):
+    def calling_convention(self, cc: SimCC | None):
         self._calling_convention = cc
 
     @property
@@ -382,7 +416,7 @@ class Function(Serializable):
                         arg_names.append(self._prototype.arg_names[i])
                     else:
                         arg_names.append(f"a{i}")
-            proto.arg_names = arg_names
+            proto.arg_names = tuple(arg_names)
         self._prototype = proto
 
     @property
@@ -394,6 +428,21 @@ class Function(Serializable):
         if self._prototype_libname == libname:
             return
         self._prototype_libname = libname
+        self.mark_dirty()
+
+    @property
+    def is_prototype_guessed(self) -> bool:
+        return self._prototype_source in {PrototypeSource.NONE, PrototypeSource.GUESSED, PrototypeSource.CCA_LOW}
+
+    @property
+    def prototype_source(self) -> PrototypeSource:
+        return self._prototype_source
+
+    @prototype_source.setter
+    def prototype_source(self, source: PrototypeSource) -> None:
+        if self._prototype_source == source:
+            return
+        self._prototype_source = source
         self.mark_dirty()
 
     @property
@@ -990,7 +1039,7 @@ class Function(Serializable):
         if hooker.prototype:
             self.prototype_libname = hooker.library_name
             self.prototype = hooker.prototype
-            self.is_prototype_guessed = False
+            self.prototype_source = PrototypeSource.SIMPROC
 
         cc = hooker.cc
         if cc is None and self.project is not None:
@@ -1619,7 +1668,7 @@ class Function(Serializable):
         end_addresses: defaultdict[int, list[BlockNode]] = defaultdict(list)
 
         for block in self.nodes:
-            if isinstance(block, BlockNode):
+            if isinstance(block, BlockNode) and isinstance(block.addr, int):
                 end_addr = block.addr + block.size
                 end_addresses[end_addr].append(block)
 

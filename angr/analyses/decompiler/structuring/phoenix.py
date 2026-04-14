@@ -813,7 +813,15 @@ class PhoenixStructurer(StructurerBase):
             assert result_while is not None and result_dowhile is not None
             succ_while = result_while[-1]
             succ_dowhile = result_dowhile[-1]
-            if succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
+            # Check if the while matcher would produce while(true): if the
+            # do-while's latch appears as a source in the while's outgoing
+            # edges, the latch's condition is wasted as a break.  Prefer
+            # do-while so the latch's condition becomes the loop condition.
+            dowhile_latch = result_dowhile[2]  # continue_node = latch
+            while_outgoing_srcs = {src for src, _ in result_while[1]}
+            if dowhile_latch in while_outgoing_srcs:
+                is_while = False
+            elif succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
                 sorted_nodes = GraphUtils.quasi_topological_sort_nodes(
                     self._parent_region.graph, loop_heads=[self._parent_region.head]
                 )
@@ -901,15 +909,6 @@ class PhoenixStructurer(StructurerBase):
                         if graph.has_edge(src, dst):
                             graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
                     else:
-                        has_continue = False
-                        # at the same time, examine if there is an edge that goes from src to the continue node. if so,
-                        # we deal with it here as well.
-                        continue_node_going_edge = src, continue_node
-                        if continue_node_going_edge in continue_edges:
-                            has_continue = True
-                            # do not remove the edge from continue_edges since we want to process them later in this
-                            # function.
-
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
                         # rewritten to break nodes after (if possible). directly creating break nodes may lead to
                         # unwanted results, e.g., inserting a break (that's intended to break out of the loop) inside a
@@ -985,40 +984,6 @@ class PhoenixStructurer(StructurerBase):
                             )
                         new_src_block = self._copy_and_remove_last_statement_if_jump(src_block)
                         new_node = SequenceNode(src_block.addr, nodes=[new_src_block, break_node])
-                        if has_continue:
-                            assert continue_node is not None
-
-                            if continue_node.addr is not None and self.is_a_jump_target(
-                                last_src_stmt, continue_node.addr
-                            ):
-                                # instead of a conditional break node, we should insert a condition node instead
-                                break_stmt = Jump(
-                                    None,
-                                    Const(None, None, successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.tags["ins_addr"],
-                                )
-                                break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
-                                cont_node = ContinueNode(
-                                    last_src_stmt.tags["ins_addr"],
-                                    Const(None, None, continue_node.addr, self.project.arch.bits),
-                                )
-                                cond_node = ConditionNode(
-                                    last_src_stmt.tags["ins_addr"],
-                                    None,
-                                    break_cond,
-                                    break_node,
-                                )
-                                new_node.nodes[-1] = cond_node
-                                new_node.nodes.append(cont_node)
-
-                                # we don't remove the edge (src, continue_node) from the graph or full graph. we will
-                                # process them later in this function.
-                            else:
-                                # the last statement in src_block is not the conditional jump whose one branch goes to
-                                # the loop head. it probably goes to another block that ends up going to the loop head.
-                                # we don't handle it here.
-                                pass
 
                         # we cannot modify the original src_block because loop refinement may fail and we must restore
                         # the original graph

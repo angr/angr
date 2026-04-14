@@ -29,7 +29,7 @@ from angr.project import Project
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
 from angr.calling_conventions import default_cc
-from .traversal_state import TraversalState, Value
+from .traversal_state import TraversalState, Value, has_conflicting_value_types
 from .consts import MAX_STACK_VAR_SIZE
 
 if TYPE_CHECKING:
@@ -290,7 +290,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.stackvar_defs[suboff] = def_as
 
-        return self.state.live_stackvars[offset]
+        return (
+            self.state.live_stackvars[offset]
+            if not has_conflicting_value_types(self.state.live_stackvars[offset])
+            else set()
+        )
 
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
@@ -403,7 +407,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.register_defs[suboff] = def_as
 
-        return self.state.live_registers[offset]
+        return (
+            self.state.live_registers[offset]
+            if not has_conflicting_value_types(self.state.live_registers[offset])
+            else set()
+        )
 
     def register_set(self, offset: int, size: int, value: Value, def_: Def):
         self.state.live_registers[offset] = value
@@ -583,7 +591,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self._expr(expr)
 
     def _handle_expr_VirtualVariable(self, expr):
-        return self.state.live_vvars[expr.varid]
+        return (
+            self.state.live_vvars[expr.varid]
+            if not has_conflicting_value_types(self.state.live_vvars[expr.varid])
+            else set()
+        )
 
     def _handle_expr_Register(self, expr: Register):
         return self.register_get(expr.reg_offset, expr.size, expr)

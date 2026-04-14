@@ -20,6 +20,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.codenode import BlockNode, FuncNode
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.utils import timethis
@@ -47,7 +48,6 @@ from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
-from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.s_liveness import SLivenessAnalysis
 from .ail_simplifier import AILSimplifier
@@ -66,6 +66,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from angr.analyses.s_reaching_definitions import SRDAModel
     from .notes import DecompilationNote
     from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
@@ -208,7 +209,7 @@ class Clinic(Analysis):
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
-        self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
+        self.reaching_definitions: SRDAModel | None = None
         self._cache = cache
         self._mode = mode
         self._max_type_constraints = max_type_constraints
@@ -232,8 +233,6 @@ class Clinic(Analysis):
 
         self._ail_graph: networkx.DiGraph = None  # type: ignore
         self._spt = None
-        # cached block-level reaching definition analysis results and propagator results
-        self._block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
         self._preserve_vvar_ids: set[int] = set()
         self._type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
 
@@ -522,9 +521,12 @@ class Clinic(Analysis):
         # update the call edge
         # first, remove the call statement. this is a type error but will be resolved later
         caller_block.statements[call_idx] = None  # type: ignore
+        retaddr_saving_stmt_2 = caller_block.statements[call_idx - 2] if call_idx - 2 >= 0 else None
+        retaddr_saving_stmt_1 = caller_block.statements[call_idx - 1] if call_idx - 1 >= 0 else None
         if (
-            isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
-            and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
+            isinstance(retaddr_saving_stmt_2, ailment.Stmt.Store)
+            and isinstance(retaddr_saving_stmt_2.data, ailment.Expr.Const)
+            and retaddr_saving_stmt_2.data.value == caller_successor.addr
         ):
             # don't push the return address
             caller_block.statements.pop(call_idx - 5)  # t6 = rsp<8>
@@ -535,9 +537,11 @@ class Clinic(Analysis):
             )  # STORE(addr=t5, data=0x40121b<64>, size=8, endness=Iend_LE, guard=None)
             caller_block.statements.pop(call_idx - 5)  # t7 = (t5 - 0x80<64>) <- wtf is this??
         elif (
-            isinstance(caller_block.statements[call_idx - 1], ailment.Stmt.Store)
-            and caller_block.statements[call_idx - 1].addr.base == "stack_base"
-            and caller_block.statements[call_idx - 1].data.value == caller_successor.addr
+            isinstance(retaddr_saving_stmt_1, ailment.Stmt.Store)
+            and isinstance(retaddr_saving_stmt_1.addr, ailment.Expr.StackBaseOffset)
+            and retaddr_saving_stmt_1.addr.base == "stack_base"
+            and isinstance(retaddr_saving_stmt_1.data, ailment.Expr.Const)
+            and retaddr_saving_stmt_1.data.value == caller_successor.addr
         ):
             caller_block.statements.pop(call_idx - 1)  # s_10 =L 0x401225<64><8>
 
@@ -655,6 +659,7 @@ class Clinic(Analysis):
             only_consts=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             max_iterations=1,
+            simplify_blocks=False,
         )
 
     def _stage_track_stack_pointers(self) -> None:
@@ -685,7 +690,6 @@ class Clinic(Analysis):
         self._ail_graph = self._simplify_blocks(
             self._ail_graph,
             stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
             preserve_vvar_ids=self._preserve_vvar_ids,
             type_hints=self._type_hints,
         )
@@ -725,30 +729,20 @@ class Clinic(Analysis):
             arg_vvars=self.arg_vvars,
         )
 
-        # Run simplification passes again. there might be more chances for peephole optimizations after function-level
-        # simplification
-        self._update_progress(48.0, text="Simplifying blocks 2")
-        self._ail_graph = self._simplify_blocks(
-            self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
-        )
-
         # Run simplification passes
-        self._update_progress(49.0, text="Running simplifications 2")
+        self._update_progress(47.0, text="Running simplifications 2")
         self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
-        self._update_progress(48.0, text="Simplifying blocks 2.5")
-        self._ail_graph = self._simplify_blocks(
+        self._update_progress(49.0, text="Simplifying blocks 1")
+        self._simplify_function(
             self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=False,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=self.arg_vvars,
         )
 
     def _stage_make_function_callsites(self) -> None:
@@ -785,17 +779,6 @@ class Clinic(Analysis):
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
-        # After global optimization, there might be more chances for peephole optimizations.
-        # Simplify blocks for the second time
-        self._update_progress(60.0, text="Simplifying blocks 3")
-        self._ail_graph = self._simplify_blocks(
-            self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
-        )
-
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
         self._ail_graph = self._run_simplification_passes(
@@ -816,15 +799,6 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
-        )
-
-        self._update_progress(75.0, text="Simplifying blocks 4")
-        self._ail_graph = self._simplify_blocks(
-            self._ail_graph,
-            stack_pointer_tracker=self._spt,
-            cache=self._block_simplification_cache,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-            type_hints=self._type_hints,
         )
 
         # Simplify the entire function for the fourth time
@@ -968,18 +942,16 @@ class Clinic(Analysis):
             only_consts=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             max_iterations=1,
+            simplify_blocks=False,
         )
 
-        # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
-
         # Simplify blocks
-        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(35.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the first time
+        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         self._update_progress(45.0, text="Simplifying function 1")
         self._simplify_function(
             ail_graph,
@@ -989,6 +961,7 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=False,
             rewrite_ccalls=False,
             max_iterations=1,
+            simplify_blocks=False,
         )
 
         # clear _blocks_by_addr_and_size so no one can use it again
@@ -1104,6 +1077,9 @@ class Clinic(Analysis):
                     if target_func.prototype is None:
                         target_func.prototype = cc.prototype
                         target_func.prototype_libname = cc.prototype_libname
+                        target_func.prototype_source = (
+                            PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW
+                        )
                     continue
 
             # case 3: the callee is a PLT function
@@ -1115,6 +1091,9 @@ class Clinic(Analysis):
                     if target_func.prototype is None:
                         target_func.prototype = cc.prototype
                         target_func.prototype_libname = cc.prototype_libname
+                        target_func.prototype_source = (
+                            PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW
+                        )
                     continue
 
             # case 4: fall back to call site analysis
@@ -1179,18 +1158,31 @@ class Clinic(Analysis):
                                     ins_addr=callsite_ins_addr,
                                     reg_name=cc.cc.RETURN_VAL.reg_name,
                                 )
-                                last_stmt.bits = reg_size * 8
 
         # finally, recover the calling convention of the current function
-        if self.function.prototype is None or self.function.calling_convention is None:
+        if (
+            self.function.prototype is None or self.function.calling_convention is None
+        ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
+            old_proto = self.function.prototype
+            old_source = self.function.prototype_source
+
+            self.function.prototype = None  # clear it
+            self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
             self.project.analyses.CompleteCallingConventions(
                 fail_fast=self._fail_fast,  # type: ignore
-                recover_variables=True,
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
                 skip_signature_matched_functions=False,
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
+
+            if (
+                old_source >= PrototypeSource.CCA_LOW
+                and old_proto is not None
+                and self.function.prototype is not None
+                and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
+            ):
+                self.function.prototype.returnty = old_proto.returnty
 
     @timethis
     def _track_stack_pointers(self):
@@ -1401,13 +1393,15 @@ class Clinic(Analysis):
 
                 ret_reg_offset = self.project.arch.ret_offset
                 if target_func.returning and ret_reg_offset is not None:
+                    tags = dict(target.tags)
+                    tags.pop("reg_name", None)
                     ret_expr = ailment.Expr.Register(
                         self._ail_manager.next_atom(),
                         None,
                         ret_reg_offset,
                         self.project.arch.bits,
                         reg_name=self.project.arch.translate_register_name(ret_reg_offset, size=self.project.arch.bits),
-                        **target.tags,
+                        **tags,
                     )
                 else:
                     ret_expr = None
@@ -1541,6 +1535,7 @@ class Clinic(Analysis):
             if cc is None:
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
 
+            assert prototype is None or isinstance(prototype, SimTypeFunction)
             new_last_stmt = last_stmt.copy()
             new_last_stmt.expr.calling_convention = cc
             new_last_stmt.expr.prototype = prototype
@@ -1577,6 +1572,9 @@ class Clinic(Analysis):
         """
 
         blocks_by_addr_and_idx: dict[ailment.Address, ailment.Block] = {}
+
+        if cache is None:
+            cache = {}
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
@@ -1661,6 +1659,7 @@ class Clinic(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
+        simplify_blocks: bool = True,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -1681,6 +1680,7 @@ class Clinic(Analysis):
                 removed_vvar_ids=removed_vvar_ids,
                 arg_vvars=arg_vvars,
                 preserve_vvar_ids=preserve_vvar_ids,
+                simplify_blocks=simplify_blocks,
             )
             if not simplified:
                 break
@@ -1700,6 +1700,7 @@ class Clinic(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
+        simplify_blocks: bool = True,
     ):
         """
         Simplify the entire function once.
@@ -1732,7 +1733,19 @@ class Clinic(Analysis):
         self.reaching_definitions = simp._reaching_definitions
 
         # the function graph has been updated at this point
-        return simp.simplified
+        if not simp.simplified:
+            return False
+
+        if simplify_blocks:
+            # invoke BlockSimplifier to apply peephole optimizations if possible
+            self._simplify_blocks(
+                ail_graph,
+                stack_pointer_tracker=self._spt,
+                preserve_vvar_ids=preserve_vvar_ids,
+                type_hints=self._type_hints,
+            )
+
+        return True
 
     @timethis
     def _run_simplification_passes(
@@ -1860,6 +1873,7 @@ class Clinic(Analysis):
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
+        assert ssailification.out_graph is not None
         return ssailification.out_graph
 
     def _resize_function_arguments(
@@ -2009,7 +2023,7 @@ class Clinic(Analysis):
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb: KnowledgeBase):
         if self.function.prototype is not None:
-            if not self.function.is_prototype_guessed:
+            if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
                 # do not overwrite an existing function prototype
                 # if you want to re-generate the prototype, clear the existing one first
                 return
@@ -2051,7 +2065,7 @@ class Clinic(Analysis):
                 returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
-        self.function.is_prototype_guessed = False
+        self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
 
     @timethis
     def _recover_and_link_variables(
@@ -3627,7 +3641,8 @@ class Clinic(Analysis):
                 ail_graph.add_edge(new_node, succ)
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
-        assert self.variable_kb is not None
+        if self.variable_kb is None:
+            return {}
 
         variables = self.variable_kb.variables[self.function.addr]
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
@@ -3756,7 +3771,7 @@ class Clinic(Analysis):
                     variadic=func.prototype.variadic if func.prototype is not None else False,
                 ).with_arch(self.project.arch)
                 func.prototype = new_type
-                func.is_prototype_guessed = False
+                func.prototype_source = PrototypeSource.CALLSITE_DECOMPILER
 
 
 register_analysis(Clinic, "Clinic")

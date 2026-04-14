@@ -124,7 +124,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             frontier_plus = calculate_iterated_dominace_frontier_set(frontiers, blocks)
             for block in frontier_plus:
                 # Don't generate a phi for this udef if the udef does not correspond to the actual live
-                # varible at this location
+                # variable at this location
                 if (state := traversal.start_states.get(block, None)) is not None:
                     defmap = {"stack": state.stackvar_defs, "reg": state.register_defs}[udef[0]]
                     if udef[1] not in defmap:

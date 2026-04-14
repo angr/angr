@@ -844,6 +844,14 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
+        self.expr_opts_by_type: dict[type, list[PeepholeOptimizationExprBase]] = {}
+
+        for expr_opt in expr_opts:
+            for cls in expr_opt.expr_classes if isinstance(expr_opt.expr_classes, tuple) else (expr_opt.expr_classes,):
+                assert isinstance(cls, type)
+                if cls not in self.expr_opts_by_type:
+                    self.expr_opts_by_type[cls] = []
+                self.expr_opts_by_type[cls].append(expr_opt)
 
         super().__init__(*args, **kwargs)
 
@@ -857,14 +865,16 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         redo = True
         while redo:
             redo = False
-            for expr_opt in self.expr_opts:
-                if isinstance(expr, expr_opt.expr_classes):
-                    r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
-                    if r is not None and r is not expr:
-                        assert expr.bits == r.bits
-                        expr = r
-                        redo = True
-                        break
+            if type(expr) not in self.expr_opts_by_type:
+                break
+            expr_opts = self.expr_opts_by_type[type(expr)]
+            for expr_opt in expr_opts:
+                r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
+                if r is not None and r is not expr:
+                    assert expr.bits == r.bits
+                    expr = r
+                    redo = True
+                    break
 
         if expr is not old_expr:
             self.any_update = True

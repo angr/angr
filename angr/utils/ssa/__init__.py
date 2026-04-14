@@ -21,6 +21,7 @@ from angr.ailment.expression import (
     DirtyExpression,
     ITE,
     UnaryOp,
+    VEXCCallExpression,
 )
 from angr.ailment.expression import Call
 from angr.ailment.statement import Statement, Assignment, Store, CAS, SideEffectStatement
@@ -229,7 +230,7 @@ class AILBlacklistExprTypeWalker(AILBlockViewer):
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -237,7 +238,7 @@ def is_const_and_vvar_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -245,7 +246,7 @@ def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression, VEXCCallExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -253,7 +254,7 @@ def is_const_vvar_load_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call))
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, VEXCCallExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False

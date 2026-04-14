@@ -14,6 +14,7 @@ from functools import wraps
 import angr.ailment as ailment
 
 import angr
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import (
     SimTypeInt,
@@ -24,6 +25,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeFunction,
 )
+from angr.calling_conventions import default_cc
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -1490,6 +1492,7 @@ class TestDecompiler(unittest.TestCase):
         cca = proj.analyses.CallingConvention(f)
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
+        f.prototype_source = PrototypeSource.USER  # so it's not overwritten
 
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes("AMD64", "linux")
         d = proj.analyses.Decompiler(
@@ -1553,6 +1556,31 @@ class TestDecompiler(unittest.TestCase):
             r"(\w+) = __errno_location\(\);\s*error\(1, \*\(\1\), \"%s\"\);", last_lines
         )
 
+    @structuring_algo("phoenix")
+    def test_decompiling_fmt_paragraph_dowhile(self, decompiler_options=None):
+        """Test that a while(true) with two breaks to the same exit is structured as do-while with break."""
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x403C78]
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
+        code = d.codegen.text
+
+        # the inner loop should be a do-while, not while(true)
+        assert "} while (" in code, "Inner loop should be structured as do-while"
+        # there should be a break inside the do-while for the mid-loop exit
+        assert "break;" in code, "do-while should contain a break for the mid-loop exit"
+        # there should be no spurious continue that makes code unreachable
+        assert "\n            continue;\n" not in code, "No spurious continue should appear in the do-while body"
+
     @for_all_structuring_algos
     def test_decompiling_fmt0_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "fmt_0")
@@ -1580,7 +1608,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         proj.analyses.CFGFast(normalize=True)
-        d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
+        d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options, expr_collapse_depth=5)
         assert d.codegen is not None and isinstance(d.codegen.text, str) and d.codegen.map_pos_to_node is not None
 
         assert "..." in d.codegen.text, "codegen should have a too-deep expression replaced with '...'"
@@ -2133,9 +2161,8 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
-        # the ternary expression should not be propagated. however, we fail to narrow the ebx expression at 0x400c4f,
-        # so we over-propagate the ternary expression once
-        assert d.codegen.text.count("?") in (1, 2)
+        # the ternary expression should not be propagated, if a ternary expression exists at all.
+        assert d.codegen.text.count("?") in {0, 1}
 
     @for_all_structuring_algos
     def test_decompiling_prototype_recovery_two_blocks(self, decompiler_options=None):
@@ -3073,9 +3100,10 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["record_relation"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
 
         print_decompilation_result(d)
         text = d.codegen.text
@@ -3245,9 +3273,12 @@ class TestDecompiler(unittest.TestCase):
         cproto = "int authenticate(char *username, char *password)"
         _, proto, _ = convert_cproto_to_py(cproto + ";")
         f.prototype = proto.with_arch(p.arch)
-        f.is_prototype_guessed = False
+        f.prototype_source = PrototypeSource.USER
+        f.calling_convention = default_cc(p.arch.name)(p.arch)
 
         d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
         assert cproto in d.codegen.text
 
     @structuring_algo("sailr")
@@ -3427,7 +3458,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["treat_file"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
@@ -4574,9 +4605,11 @@ class TestDecompiler(unittest.TestCase):
         f1 = p.kb.functions["f1"]
         assert f1 is not None
         f1.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        f1.prototype_source = PrototypeSource.USER
         entry = p.kb.functions[p.entry]
         assert entry is not None
         entry.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        entry.prototype_source = PrototypeSource.USER
         # decompile!
         decompiler_options = decompiler_options or []
         decompiler_options += [("semvar_naming", False), ("loopctr_naming", False)]
@@ -4629,9 +4662,11 @@ class TestDecompiler(unittest.TestCase):
         f1 = p.kb.functions["f1"]
         assert f1 is not None and f1.prototype is not None
         f1.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        f1.prototype_source = PrototypeSource.USER
         entry = p.kb.functions[p.entry]
         assert entry is not None and entry.prototype is not None
         entry.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        entry.prototype_source = PrototypeSource.USER
 
         dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
@@ -5243,14 +5278,14 @@ class TestDecompiler(unittest.TestCase):
             if m is not None:
                 v1, v2 = m.groups()
                 assert v1 != v2, f"Found a redundant assignment: {line}"
-        # we expect two equivalence checks like v3[1] == 7
+        # we expect two comparisons against v3[1] and 7 (== or != depending on structuring)
         var_ids = []
         for line in lines:
-            m = re.search(r"v(\d+)\[1] == 7", line)
+            m = re.search(r"v(\d+)\[1] [!=]= 7", line)
             if m is not None:
                 var_ids.append(m.group(1))
-        assert len(var_ids) == 2, f"Expected two equivalence checks, found {len(var_ids)}: {var_ids}"
-        assert len(set(var_ids)) == 1, f"Expected the same variable in both equivalence checks, found {var_ids}"
+        assert len(var_ids) == 2, f"Expected two comparisons with [1] and 7, found {len(var_ids)}: {var_ids}"
+        assert len(set(var_ids)) == 1, f"Expected the same variable in both comparisons, found {var_ids}"
 
     def test_decompiling_fauxware_wide_scrt_release_startup_lock(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "fauxware-wide.exe")

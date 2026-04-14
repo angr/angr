@@ -228,6 +228,7 @@ class BlockSimplifier(Analysis):
         replace_loads: bool = False,
         gp: int | None = None,
         replace_registers: bool = True,
+        max_expr_depth: int | None = 13,
     ) -> tuple[bool, Block]:
         new_statements = block.statements[::]
         replaced = False
@@ -275,10 +276,26 @@ class BlockSimplifier(Analysis):
                             new_src = new.copy()
                         else:
                             r, new_src = stmt.src.replace(old, new)
+                            if (
+                                r
+                                and max_expr_depth is not None
+                                and new_src.depth >= old.depth
+                                and new_src.depth > max_expr_depth
+                            ):
+                                # avoid replacing if the new expression is too deep, to prevent exponential blowup
+                                r = False
                         if r:
                             new_stmt = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
                     else:
                         r, new_stmt = stmt.replace(old, new)
+                        if (
+                            r
+                            and max_expr_depth is not None
+                            and new_stmt.depth >= stmt.depth
+                            and new_stmt.depth > max_expr_depth - 1
+                        ):
+                            # avoid replacing if the new statement is too deep, to prevent exponential blowup
+                            r = False
 
                 if r:
                     assert new_stmt is not None

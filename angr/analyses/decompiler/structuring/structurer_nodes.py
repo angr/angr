@@ -434,6 +434,10 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     def replace(self, old_expr, new_expr):
         return self
 
+    @property
+    def depth(self) -> int:
+        return 1
+
     def likes(self, other):
         return self == other
 

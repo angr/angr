@@ -44,6 +44,11 @@ class Statement(TaggedObject, ABC):
     def matches(self, other) -> bool:  # pylint:disable=unused-argument,no-self-use
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def depth(self) -> int:  # pylint:disable=unused-argument,no-self-use
+        raise NotImplementedError
+
     def __eq__(self, other):
         if self is other:
             return True
@@ -101,6 +106,10 @@ class Assignment(Statement):
             return True, Assignment(self.idx, replaced_dst, replaced_src, **self.tags)
         return False, self
 
+    @property
+    def depth(self):
+        return max(self.dst.depth, self.src.depth) + 1
+
     def copy(self) -> Assignment:
         return Assignment(self.idx, self.dst, self.src, **self.tags)
 
@@ -157,6 +166,10 @@ class WeakAssignment(Statement):
         if r_dst or r_src:
             return True, WeakAssignment(self.idx, replaced_dst, replaced_src, **self.tags)
         return False, self
+
+    @property
+    def depth(self):
+        return max(self.dst.depth, self.src.depth) + 1
 
     def copy(self) -> WeakAssignment:
         return WeakAssignment(self.idx, self.dst, self.src, **self.tags)
@@ -271,6 +284,10 @@ class Store(Statement):
             )
         return False, self
 
+    @property
+    def depth(self):
+        return max(self.addr.depth, self.data.depth) + 1
+
     def copy(self) -> Store:
         return Store(
             self.idx,
@@ -333,16 +350,16 @@ class Jump(Statement):
             return f"Goto({self.target}.{self.target_idx})"
         return f"Goto({self.target})"
 
-    @property
-    def depth(self):
-        return self.target.depth
-
     def replace(self, old_expr, new_expr):
         r, replaced_target = self.target.replace(old_expr, new_expr)
 
         if r:
             return True, Jump(self.idx, replaced_target, **self.tags)
         return False, self
+
+    @property
+    def depth(self):
+        return self.target.depth + 1
 
     def copy(self):
         return Jump(
@@ -476,6 +493,17 @@ class ConditionalJump(Statement):
             )
         return False, self
 
+    @property
+    def depth(self):
+        return (
+            max(
+                self.condition.depth,
+                self.true_target.depth if self.true_target is not None else 0,
+                self.false_target.depth if self.false_target is not None else 0,
+            )
+            + 1
+        )
+
     def copy(self) -> ConditionalJump:
         return ConditionalJump(
             self.idx,
@@ -600,6 +628,17 @@ class SideEffectStatement(Statement):
             )
         return False, self
 
+    @property
+    def depth(self):
+        return (
+            max(
+                self.expr.depth if self.expr is not None else 0,
+                self.ret_expr.depth if self.ret_expr is not None else 0,
+                self.fp_ret_expr.depth if self.fp_ret_expr is not None else 0,
+            )
+            + 1
+        )
+
     def copy(self) -> SideEffectStatement:
         return SideEffectStatement(
             self.idx,
@@ -672,6 +711,10 @@ class Return(Statement):
             )
 
         return False, self
+
+    @property
+    def depth(self):
+        return max(ex.depth for ex in self.ret_exprs) + 1
 
     def copy(self):
         return Return(
@@ -782,6 +825,21 @@ class CAS(Statement):
             )
         return False, self
 
+    @property
+    def depth(self) -> int:
+        return (
+            max(
+                self.addr.depth if self.addr is not None else 0,
+                self.data_lo.depth if self.data_lo is not None else 0,
+                self.data_hi.depth if self.data_hi is not None else 0,
+                self.expd_lo.depth if self.expd_lo is not None else 0,
+                self.expd_hi.depth if self.expd_hi is not None else 0,
+                self.old_lo.depth if self.old_lo is not None else 0,
+                self.old_hi.depth if self.old_hi is not None else 0,
+            )
+            + 1
+        )
+
     def copy(self) -> CAS:
         return CAS(
             self.idx,
@@ -874,6 +932,10 @@ class DirtyStatement(Statement):
             return True, DirtyStatement(self.idx, new_dirty, **self.tags)
         return False, self
 
+    @property
+    def depth(self) -> int:
+        return self.dirty.depth + 1
+
     def copy(self) -> DirtyStatement:
         return DirtyStatement(self.idx, self.dirty, **self.tags)
 
@@ -903,6 +965,10 @@ class Label(Statement):
 
     def replace(self, old_expr, new_expr):
         return False, self
+
+    @property
+    def depth(self) -> int:
+        return 1
 
     matches = likes
 
