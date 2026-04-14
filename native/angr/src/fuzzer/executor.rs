@@ -53,8 +53,9 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
     ) -> Result<ExitKind, libafl::Error> {
         *state.executions_mut() += 1;
 
-        let (emulator, exit) = Python::attach(|py| {
-            || -> _ {
+        let (emulator, exit) =
+            Python::attach(|py| {
+                || -> _ {
                 // Step 1: Copy the base state and run the apply function
                 // Copy base state by calling python copy function
                 let copied_state = self.base_state.bind(py).getattr("copy")?.call0()?;
@@ -141,7 +142,7 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     )
                 }
             })
-        })?;
+            })?;
 
         // Step 3: Handle the result
         let result = match exit.as_str() {
