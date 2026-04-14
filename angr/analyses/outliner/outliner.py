@@ -77,10 +77,9 @@ class Outliner(Analysis):
 
         if frontier:
             self.frontier_locs = frontier
-            self.frontier_vars = self._determine_frontier_vars()
         else:
             self.frontier_locs = self._determine_frontier_locs()
-            self.frontier_vars = set()
+        self.frontier_vars = set()
 
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
 
@@ -210,6 +209,29 @@ class Outliner(Analysis):
             else:
                 inclusive_frontier_noreturns.add(blk)
 
+        # identify return vars
+        for node, incl in self.frontier_locs:
+            if incl:
+                self.frontier_vars.update(self.parent_liveness.model.live_outs[node])
+                continue
+            for pred in self.parent_graph.pred[node_dict[node]]:
+                if pred not in subgraph:
+                    continue
+                self.frontier_vars.update(self.parent_liveness.model.live_outs[(pred.addr, pred.idx)])
+        self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
+
+        # generate return vvar expressions
+        if self.frontier_vars:
+            srda = (
+                self.project.analyses[SReachingDefinitionsAnalysis]
+                .prep()(self.parent_func, func_graph=self.parent_graph)
+                .model
+            )
+            ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
+        else:
+            ret_vars = []
+        ret_exprs = list(ret_vars)
+
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
 
@@ -229,18 +251,6 @@ class Outliner(Analysis):
             VirtualVariableCategory.REGISTER,
             oident=self.project.arch.ret_offset,
         )
-
-        # figure out which if any expressions are returned
-        if self.frontier_vars:
-            srda = (
-                self.project.analyses[SReachingDefinitionsAnalysis]
-                .prep()(self.parent_func, func_graph=self.parent_graph)
-                .model
-            )
-            ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
-        else:
-            ret_vars = []
-        ret_exprs = list(ret_vars)
 
         # if there are multiple successors; this means the function must return to different locations. let's build
         # the dispatcher structure (at the return site in the caller) and the return nodes (in the callee)
@@ -434,21 +444,6 @@ class Outliner(Analysis):
         """
         incl = "inclusive" if inclusive else "exclusive"
         return f"{addr[0]:#x}.{addr[1]} {incl}" if addr[1] is not None else f"{addr[0]:#x} {incl}"
-
-    def _determine_frontier_vars(self) -> set[int]:
-        """
-        Given that the loc frontier has already been set, determine which variables are live when leaving that region.
-        """
-
-        return (
-            set().union(
-                *(
-                    self.parent_liveness.model.live_outs[f] if incl else self.parent_liveness.model.live_ins[f]
-                    for f, incl in self.frontier_locs
-                )
-            )
-            - self.parent_liveness.model.live_ins[self.src_loc]
-        )
 
     def _determine_frontier_locs(self) -> set[tuple[Address, bool]]:
         _l.debug("Determining the outlining frontier starting at (%#x, %s)", self.src_loc[0], self.src_loc[1])
