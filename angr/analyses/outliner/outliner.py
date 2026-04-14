@@ -76,10 +76,9 @@ class Outliner(Analysis):
 
         if frontier:
             self.frontier_locs = frontier
-            self.frontier_vars = self._determine_frontier_vars()
         else:
             self.frontier_locs = self._determine_frontier_locs()
-            self.frontier_vars = set()
+        self.frontier_vars = set()
 
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
 
@@ -209,6 +208,25 @@ class Outliner(Analysis):
             else:
                 inclusive_frontier_noreturns.add(blk)
 
+        # identify return vars
+        for node, incl in self.frontier_locs:
+            if incl:
+                self.frontier_vars.update(self.parent_liveness.model.live_outs[node])
+                continue
+            for pred in self.parent_graph.pred[node_dict[node]]:
+                if pred not in subgraph:
+                    continue
+                self.frontier_vars.update(self.parent_liveness.model.live_outs[(pred.addr, pred.idx)])
+        self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
+
+        # generate return vvar expressions
+        if self.frontier_vars:
+            srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
+            ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
+        else:
+            ret_vars = []
+        ret_exprs = list(ret_vars)
+
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
 
@@ -228,14 +246,6 @@ class Outliner(Analysis):
             VirtualVariableCategory.REGISTER,
             oident=self.project.arch.ret_offset,
         )
-
-        # figure out which if any expressions are returned
-        if self.frontier_vars:
-            srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
-            ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
-        else:
-            ret_vars = []
-        ret_exprs = list(ret_vars)
 
         # if there are multiple successors; this means the function must return to different locations. let's build
         # the dispatcher structure (at the return site in the caller) and the return nodes (in the callee)
@@ -267,7 +277,7 @@ class Outliner(Analysis):
             ins_addr=src_node.addr,
         )
         call_stmt = Assignment(None, tuple_vvar, call_expr, ins_addr=src_node.addr)
-        new_src_node = Block(src_node.addr, src_node.original_size, [call_stmt], idx=src_node.idx)
+        new_src_node = Block(src_node.addr, src_node.original_size, statements=[call_stmt], idx=src_node.idx)
         bit_sum = 0
         for ret_var in ret_vars:
             new_src_node.statements.append(
@@ -319,26 +329,20 @@ class Outliner(Analysis):
                 ret_node.statements.append(ret_stmt)
             elif ret_node.statements and isinstance(ret_node.statements[-1], ConditionalJump):
                 # we will have to create a new node and act as the successor of ret_node
-                new_ret_node = Block(self._next_block_addr(), 0, [ret_stmt])
+                new_ret_node = Block(self._next_block_addr(), 0, statements=[ret_stmt])
                 cond_jump = ret_node.statements[-1]
                 if (
                     isinstance(cond_jump.true_target, Const)
                     and cond_jump.true_target.value == frontier_node.addr
                     and cond_jump.true_target_idx == frontier_node.idx
                 ):
-                    _, cond_jump = cond_jump.replace(
-                        cond_jump.true_target, Const(None, new_ret_node.addr, self.project.arch.bits)
-                    )
-                    cond_jump.true_target_idx = new_ret_node.idx
+                    cond_jump = ConditionalJump(None, cond_jump.condition, Const(None, new_ret_node.addr, self.project.arch.bits), cond_jump.false_target, true_target_idx=new_ret_node.idx, false_target_idx=cond_jump.false_target_idx, **cond_jump.tags)
                 if (
                     isinstance(cond_jump.false_target, Const)
                     and cond_jump.false_target.value == frontier_node.addr
                     and cond_jump.false_target_idx == frontier_node.idx
                 ):
-                    _, cond_jump = cond_jump.replace(
-                        cond_jump.false_target, Const(None, new_ret_node.addr, self.project.arch.bits)
-                    )
-                    cond_jump.false_target_idx = new_ret_node.idx
+                    cond_jump = ConditionalJump(None, cond_jump.condition, cond_jump.true_target, Const(None, new_ret_node.addr, self.project.arch.bits), true_target_idx=cond_jump.true_target_idx, false_target_idx=new_ret_node.idx, **cond_jump.tags)
                 ret_node.statements[-1] = cond_jump
                 subgraph.add_edge(ret_node, new_ret_node)
             else:
@@ -368,7 +372,7 @@ class Outliner(Analysis):
                     false_target_idx=next_dispatcher_node_addr[1],
                     ins_addr=dispatcher_node_addr[0],
                 )
-                dispatcher_node = Block(dispatcher_node_addr[0], 0, [stmt], dispatcher_node_addr[1])
+                dispatcher_node = Block(dispatcher_node_addr[0], 0, statements=[stmt], idx=dispatcher_node_addr[1])
                 self.parent_graph.add_edge(parent, dispatcher_node)
                 self.parent_graph.add_edge(dispatcher_node, node_dict[jump_target])
 
@@ -376,7 +380,7 @@ class Outliner(Analysis):
 
                 parent = dispatcher_node
 
-            final_node = Block(next_dispatcher_node_addr[0], 0, [], next_dispatcher_node_addr[1])
+            final_node = Block(next_dispatcher_node_addr[0], 0, statements=[], idx=next_dispatcher_node_addr[1])
             self.parent_graph.add_edge(parent, final_node)
             if last_jump_target:
                 final_node.statements.append(
@@ -429,21 +433,6 @@ class Outliner(Analysis):
         """
         incl = "inclusive" if inclusive else "exclusive"
         return f"{addr[0]:#x}.{addr[1]} {incl}" if addr[1] is not None else f"{addr[0]:#x} {incl}"
-
-    def _determine_frontier_vars(self) -> set[int]:
-        """
-        Given that the loc frontier has already been set, determine which variables are live when leaving that region.
-        """
-
-        return (
-            set().union(
-                *(
-                    self.parent_liveness.model.live_outs[f] if incl else self.parent_liveness.model.live_ins[f]
-                    for f, incl in self.frontier_locs
-                )
-            )
-            - self.parent_liveness.model.live_ins[self.src_loc]
-        )
 
     def _determine_frontier_locs(self) -> set[tuple[Address, bool]]:
         _l.debug("Determining the outlining frontier starting at (%#x, %s)", self.src_loc[0], self.src_loc[1])
