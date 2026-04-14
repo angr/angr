@@ -429,13 +429,32 @@ class Outliner(Analysis):
                     # only source block is replaced by a new one
                     old_addr = next(iter(old_addrs))
                     new_addr = next(iter(new_addrs))
-                    for idx, _ in enumerate(stmt.src.src_and_vvars):
-                        src, vvars = stmt.src.src_and_vvars[idx]
+                    for idx, (src, vvars) in enumerate(stmt.src.src_and_vvars):
                         if src == old_addr:
                             stmt.src.src_and_vvars[idx] = new_addr, vvars
+                elif (
+                    len(new_addrs) == 1
+                    and len(
+                        vvar_ := {
+                            vvar.varid: vvar
+                            for src, vvar in stmt.src.src_and_vvars
+                            if src in old_addrs and vvar is not None
+                        }
+                    )
+                    == 1
+                ):
+                    # all removed source nodes want the same vvar - assume it comes from before the inlined function
+                    new_addr = next(iter(new_addrs))
+                    new_vvar = next(iter(vvar_.values()))
+                    stmt.src.src_and_vvars = [
+                        (src, vvar) for src, vvar in stmt.src.src_and_vvars if src not in old_addrs
+                    ] + [(new_addr, new_vvar)]
                 else:
-                    _l.error("multiple source blocks have been replaced... it's bad")
-                    continue
+                    _l.error(
+                        "Cannot figure out how to fix phi sources at %s for %s. Decompilation will likely crash soon.",
+                        block,
+                        stmt.dst,
+                    )
 
     @staticmethod
     def _node_addr_to_str(addr: tuple[int, int | None], inclusive: bool) -> str:
