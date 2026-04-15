@@ -7,7 +7,7 @@ use libafl::{
     state::HasExecutions,
 };
 use libafl_bolts::{AsSliceMut, tuples::RefIndexable};
-use pyo3::{exceptions::PyRuntimeError, prelude::*};
+use pyo3::prelude::*;
 
 use crate::fuzzer::{EM, I, OT, S, Z};
 
@@ -53,8 +53,9 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
     ) -> Result<ExitKind, libafl::Error> {
         *state.executions_mut() += 1;
 
-        let (emulator, exit) = Python::attach(|py| {
-            || -> _ {
+        let (emulator, exit) =
+            Python::attach(|py| {
+                || -> _ {
                 // Step 1: Copy the base state and run the apply function
                 // Copy base state by calling python copy function
                 let copied_state = self.base_state.bind(py).getattr("copy")?.call0()?;
@@ -82,27 +83,34 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     .getattr("Emulator")?
                     .call1((&icicle_engine, &copied_state))?;
 
-                // Step 2.5: Set return address as breakpoint to detect normal returns
-                let calling_convention = self
-                    .base_state
-                    .getattr(py, "project")?
-                    .getattr(py, "factory")?
-                    .getattr(py, "cc")?
-                    .call0(py)?;
-                let return_addr = calling_convention
-                    .getattr(py, "return_addr")?
-                    .getattr(py, "get_value")?
-                    .call1(py, (copied_state,))?
-                    .getattr(py, "concrete_value")?
-                    .extract::<u64>(py)
-                    .map_err(|_| {
-                        PyRuntimeError::new_err(
-                            "Failed to extract return address, is it symbolic?".to_string(),
-                        )
-                    })?;
-
-                emulator.call_method1("add_breakpoint", (return_addr,))?;
-                emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
+                // Step 2.5: Set breakpoints to detect normal returns.
+                // If the user set state.globals['_fuzzer_breakpoints'] (a list of
+                // ints), use those addresses.  Otherwise fall back to auto-detecting
+                // the return address via cc.return_addr (works for shellcode where
+                // the apply_fn pushes a return address onto the stack).
+                let globals = copied_state.getattr("globals")?;
+                let user_bps = globals.call_method1("get", ("_fuzzer_breakpoints", py.None()))?;
+                if !user_bps.is_none() {
+                    let bp_list: Vec<u64> = user_bps.extract()?;
+                    for bp in bp_list {
+                        emulator.call_method1("add_breakpoint", (bp,))?;
+                        emulator.call_method1("add_breakpoint", (bp & !1,))?;
+                    }
+                } else {
+                    // Auto-detect: read the return address from the calling convention
+                    let project = copied_state.getattr("project")?;
+                    let cc = project.getattr("factory")?.call_method0("cc")?;
+                    let return_addr_loc = cc.getattr("return_addr")?;
+                    let return_addr: u64 = return_addr_loc
+                        .call_method1("get_value", (&copied_state,))?
+                        .getattr("concrete_value")?
+                        .extract()
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(
+                            format!("Could not read return address from state: {e}"),
+                        ))?;
+                    emulator.call_method1("add_breakpoint", (return_addr,))?;
+                    emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
+                }
 
                 let exit = emulator
                     .getattr("run")?
@@ -134,7 +142,7 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     )
                 }
             })
-        })?;
+            })?;
 
         // Step 3: Handle the result
         let result = match exit.as_str() {

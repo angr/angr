@@ -14,7 +14,7 @@ use libafl::{
     observers::OwnedMapObserver,
     schedulers::QueueScheduler,
     stages::StdMutationalStage,
-    state::{HasCorpus, HasSolutions, StdState},
+    state::{HasCorpus, HasExecutions, HasSolutions, StdState},
 };
 use libafl_bolts::{
     rands::StdRand,
@@ -163,6 +163,11 @@ impl Fuzzer {
 
     fn solutions(&self) -> PyResult<Py<PyAny>> {
         Python::attach(|py| self.fuzzer_state.solutions().to_py(py))
+    }
+
+    #[getter]
+    fn executions(&self) -> u64 {
+        *self.fuzzer_state.executions()
     }
 
     #[pyo3(signature = (progress_callback = None))]
