@@ -80,14 +80,14 @@ class Int1(Int):
 class Int8(Int):
     SIZE = 1
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int8"
 
 
 class Int16(Int):
     SIZE = 2
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int16"
 
 
@@ -113,22 +113,22 @@ class Int64(Int):
 
 
 class SInt8(Int8):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "sint8"
 
 
 class UInt8(Int8):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "uint8"
 
 
 class SInt16(Int16):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "sint16"
 
 
 class UInt16(Int16):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "uint16"
 
 
