@@ -368,7 +368,7 @@ class SimEngineVRBase(
             else:
                 typevar = self.state.typevars.get_type_variable(variable)
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
-            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.signed_int_type(variable.size * 8)))
+            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
     def _assign_to_vvar(
         self,
@@ -488,7 +488,7 @@ class SimEngineVRBase(
             else:
                 # the constraint below is a default constraint that may conflict with more specific ones with different
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
-                self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.signed_int_type(variable.size * 8)))
+                self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
             # add existing (delayed) type constraints
             if richr.type_constraints is not None:
@@ -864,7 +864,7 @@ class SimEngineVRBase(
 
                 else:
                     typevar = typevars.TypeVariable()
-                    self.state.add_type_constraint(typevars.Subtype(typeconsts.signed_int_type(size * 8), typevar))
+                    self.state.add_type_constraint(typevars.Subtype(typeconsts.int_type(size * 8), typevar))
 
                 # | TODO: Create a tv_sp.load.<bits>@N type variable for the stack variable
                 # | typevar = typevars.DerivedTypeVariable(
@@ -1250,7 +1250,7 @@ class SimEngineVRBase(
                 else:
                     var = next(iter(var_candidates))[0]
                 ty = typevars.TypeVariable()
-                ty_const = typeconsts.signed_int_type(bits)
+                ty_const = typeconsts.int_type(bits)
                 if not self.state.typevars.has_type_variable_for(var):
                     self.state.typevars.add_type_variable(var, ty)
                 self.state.add_type_constraint(typevars.Subtype(ty, ty_const))

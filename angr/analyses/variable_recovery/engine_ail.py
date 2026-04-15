@@ -773,7 +773,7 @@ class SimEngineVRAIL(
             # constants
             result_size = arg0.bits
             compute = r0.data * r1.data  # type: ignore
-            return RichR(compute, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
+            return RichR(compute, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
         r = self.state.top(expr.bits)
         return RichR(
@@ -917,18 +917,13 @@ class SimEngineVRAIL(
         r1 = self._expr_bv(arg1)
         result_size = arg0.bits
 
-        # logical right shift implies unsigned operand
-        if isinstance(r0.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(result_size))
-            self.state.add_type_constraint(tc)
-
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
             return RichR(r)
 
         shiftamount = r1.data.concrete_value
-        return RichR(r0.data << shiftamount, typevar=typeconsts.unsigned_int_type(result_size), type_constraints=None)
+        return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
     def _handle_binop_Shr(self, expr):
         arg0, arg1 = expr.operands
@@ -937,9 +932,9 @@ class SimEngineVRAIL(
         r1 = self._expr_bv(arg1)
         result_size = arg0.bits
 
-        # arithmetic right shift implies signed operand
+        # logical right shift implies unsigned operand
         if isinstance(r0.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r0.typevar, typeconsts.signed_int_type(result_size))
+            tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(result_size))
             self.state.add_type_constraint(tc)
 
         if not r1.data.concrete:
@@ -977,6 +972,11 @@ class SimEngineVRAIL(
         r0 = self._expr_bv(arg0)
         r1 = self._expr_bv(arg1)
         result_size = arg0.bits
+
+        # arithmetic right shift implies signed operand
+        if isinstance(r0.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r0.typevar, typeconsts.signed_int_type(result_size))
+            self.state.add_type_constraint(tc)
 
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
@@ -1183,7 +1183,7 @@ class SimEngineVRAIL(
         if expr.data.concrete:
             return RichR(
                 ~expr.data,
-                typevar=typeconsts.signed_int_type(result_size),
+                typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )
 

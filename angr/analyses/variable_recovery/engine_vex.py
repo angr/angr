@@ -283,7 +283,7 @@ class SimEngineVRVEX(
     def _handle_expr_Const(self, expr):
         return RichR(
             claripy_value(expr.con.type, expr.con.value, size=expr.con.size),
-            typevar=typeconsts.signed_int_type(expr.con.size),
+            typevar=typeconsts.int_type(expr.con.size),
         )
 
     def _handle_expr_RdTmp(self, expr):
@@ -308,7 +308,7 @@ class SimEngineVRVEX(
         result_size = expr.result_size(self.tyenv)
         if r0.data.concrete and r1.data.concrete:
             # constants
-            return RichR(sum_, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
+            return RichR(sum_, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
@@ -331,7 +331,7 @@ class SimEngineVRVEX(
         result_size = expr.result_size(self.tyenv)
         if r0.data.concrete and r1.data.concrete:
             # constants
-            return RichR(diff, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
+            return RichR(diff, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
@@ -571,7 +571,7 @@ class SimEngineVRVEX(
             # constants
             return RichR(
                 r0.data << r1.data.concrete_value,
-                typevar=typeconsts.unsigned_int_type(result_size),
+                typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )
 
