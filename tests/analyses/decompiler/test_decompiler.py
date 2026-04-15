@@ -5121,7 +5121,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            unsigned long long print_hello_world(void)
+            unsigned int print_hello_world(void)
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
