@@ -282,7 +282,8 @@ class SimEngineVRVEX(
 
     def _handle_expr_Const(self, expr):
         return RichR(
-            claripy_value(expr.con.type, expr.con.value, size=expr.con.size), typevar=typeconsts.int_type(expr.con.size)
+            claripy_value(expr.con.type, expr.con.value, size=expr.con.size),
+            typevar=typeconsts.int_type(expr.con.size),
         )
 
     def _handle_expr_RdTmp(self, expr):
@@ -419,11 +420,11 @@ class SimEngineVRVEX(
             # constants
             xt = r0.data.size()
             mul = r0.data.sign_extend(xt) * r1.data.sign_extend(xt)  # type: ignore
-            return RichR(mul)
+            return RichR(mul, typevar=typeconsts.signed_int_type(mul.size()))
 
         result_size = expr.result_size(self.tyenv)
         r = self.state.top(result_size)
-        return RichR(r)
+        return RichR(r, typevar=typeconsts.signed_int_type(result_size))
 
     @binop_handler
     def _handle_binop_MullU(self, expr):
@@ -433,17 +434,20 @@ class SimEngineVRVEX(
             # constants
             xt = r0.data.size()
             mul = r0.data.zero_extend(xt) * r1.data.zero_extend(xt)  # type: ignore
-            return RichR(mul)
+            return RichR(mul, typevar=typeconsts.unsigned_int_type(mul.size()))
 
         result_size = expr.result_size(self.tyenv)
         r = self.state.top(result_size)
-        return RichR(r)
+        return RichR(r, typevar=typeconsts.unsigned_int_type(result_size))
 
     @binop_handler
     def _handle_binop_DivMod(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr_bv(arg0)
         r1 = self._expr_bv(arg1)
+
+        # determine signedness from VEX op name
+        is_signed = "S" in expr.op  # Iop_DivModS64to32 vs Iop_DivModU64to32
 
         if r0.data.concrete and r1.data.concrete:
             # constants
@@ -476,7 +480,9 @@ class SimEngineVRVEX(
 
         result_size = expr.result_size(self.tyenv)
         r = self.state.top(result_size)
-        return RichR(r)
+        if is_signed:
+            return RichR(r, typevar=typeconsts.signed_int_type(result_size))
+        return RichR(r, typevar=typeconsts.unsigned_int_type(result_size))
 
     @binop_handler
     def _handle_binop_Div(self, expr):
@@ -526,7 +532,7 @@ class SimEngineVRVEX(
             # constants
             return RichR(
                 claripy.LShR(r0.data, r1.data.concrete_value),
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.unsigned_int_type(result_size),
                 type_constraints=None,
             )
 
@@ -547,7 +553,7 @@ class SimEngineVRVEX(
             # constants
             return RichR(
                 r0.data >> r1.data.concrete_value,
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.signed_int_type(result_size),
                 type_constraints=None,
             )
 

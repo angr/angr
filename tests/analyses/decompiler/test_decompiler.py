@@ -624,7 +624,6 @@ class TestDecompiler(unittest.TestCase):
         assert "free(" in code
         assert "free(NULL" not in code and "free(0" not in code
 
-        # return values are either 0xffffffff or -1
         assert "return 4294967295;" in code or "return -1;" in code
 
         # the while loop containing puts("Empty title"); must have both continue and break
@@ -1795,7 +1794,7 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         assert "if (timespec_cmp(" in dec.codegen.text or "if ((int)timespec_cmp(" in dec.codegen.text
-        assert "&& localtime_rz(localtz, " in dec.codegen.text
+        assert "&& localtime_rz(" in dec.codegen.text
 
     @structuring_algo("sailr")
     def test_cascading_boolean_and(self, decompiler_options=None):
@@ -5099,7 +5098,7 @@ class TestDecompiler(unittest.TestCase):
         bufvar = m.group(1)
         assert f'strncpy(&{bufvar}, "FWe#JID%WkOCZy7", 15);' in dec.codegen.text
         # ensure the stack argument for sub_401a90 is correct
-        assert "sub_401a90(2406527224);" in dec.codegen.text
+        assert "sub_401a90(-1888440072);" in dec.codegen.text
         # ensure the stack argument for the first indirect call is incorrect
         m = re.search(r"(\w+) = [^;]*sub_401a90\(", dec.codegen.text)
         assert m is not None
@@ -5120,7 +5119,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            unsigned long long print_hello_world(void)
+            unsigned int print_hello_world(void)
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
@@ -5333,9 +5332,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((unsigned int){a0})
+                if ((int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
-                return (unsigned int){a0} - 1;
+                return (int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
@@ -5355,9 +5354,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((unsigned int){a0})
+                if ((int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
-                return (unsigned int){a0} - 1;
+                return (int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]

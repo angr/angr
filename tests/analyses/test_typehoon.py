@@ -138,14 +138,14 @@ class TestTypehoon(unittest.TestCase):
         assert (
             isinstance(func_read6numbers.prototype.args[1], SimTypePointer)
             and isinstance(func_read6numbers.prototype.args[1].pts_to, SimTypeInt)
-            and func_read6numbers.prototype.args[1].pts_to.signed is False
+            and func_read6numbers.prototype.args[1].pts_to.signed is True
         )
 
         # decompile phase_2 again, and we should see an unsigned int [6] on the stack
         dec_phase2 = proj.analyses.Decompiler(func_phase2, fail_fast=True)
         assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
         print_decompilation_result(dec_phase2)
-        assert re.search(r"unsigned int v\d+\[6];", dec_phase2.codegen.text) is not None
+        assert re.search(r"  int v\d+\[6];", dec_phase2.codegen.text) is not None
 
     def test_type_inference_basic_case_0(self):
         func_f = TypeVariable(name="F")
