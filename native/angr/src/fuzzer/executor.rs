@@ -153,7 +153,6 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                 Backtrace::new(),
             )),
             "MEMORY_ERROR" => Ok(ExitKind::Crash),
-            "EMULATION_GAP" => Ok(ExitKind::Ok),
             "FAILURE" => Err(libafl::Error::Unknown(
                 "Unexpected exit reason".to_string(),
                 Backtrace::new(),

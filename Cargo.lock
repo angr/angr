@@ -729,7 +729,7 @@ dependencies = [
 [[package]]
 name = "icicle-cpu"
 version = "0.1.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "addr2line 0.26.0",
  "ahash",
@@ -749,7 +749,7 @@ dependencies = [
 [[package]]
 name = "icicle-fuzzing"
 version = "0.1.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "ahash",
  "anyhow",
@@ -769,7 +769,7 @@ dependencies = [
 [[package]]
 name = "icicle-jit"
 version = "0.2.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "cranelift",
  "cranelift-codegen",
@@ -787,7 +787,7 @@ dependencies = [
 [[package]]
 name = "icicle-linux"
 version = "0.1.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "bitflags 2.10.0",
  "bstr",
@@ -803,7 +803,7 @@ dependencies = [
 [[package]]
 name = "icicle-mem"
 version = "0.3.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "ahash",
  "tracing",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "icicle-vm"
 version = "0.2.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "anyhow",
  "icicle-cpu",
@@ -1151,7 +1151,7 @@ dependencies = [
 [[package]]
 name = "pcode"
 version = "0.2.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 
 [[package]]
 name = "petgraph"
@@ -1558,7 +1558,7 @@ checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
 [[package]]
 name = "sleigh-compile"
 version = "0.3.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "pcode",
  "serde",
@@ -1571,12 +1571,12 @@ dependencies = [
 [[package]]
 name = "sleigh-parse"
 version = "0.3.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 
 [[package]]
 name = "sleigh-runtime"
 version = "0.1.0"
-source = "git+https://github.com/rileyseefeldt/icicle-emu.git?rev=fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1#fa04ad5b16b7dc28c02c13b4fd52b8bcb40e3eb1"
+source = "git+https://github.com/angr/icicle-emu.git?rev=9a68a5f302f08a9148e894cc41b9a351959f1950#9a68a5f302f08a9148e894cc41b9a351959f1950"
 dependencies = [
  "ahash",
  "pcode",
