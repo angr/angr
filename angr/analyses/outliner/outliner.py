@@ -57,6 +57,9 @@ class Outliner(Analysis):
         self.min_step = min_step
         self.nodes_dict = {(node.addr, node.idx): node for node in self.parent_graph}
         self.child_name = child_name or f"outlined_func_{src_loc[0]:x}"
+        self.novel_parent_addrs: set[Address] = {src_loc}
+        self.novel_child_addrs: set[Address] = set()
+        self.child_retvars: set[VirtualVariable] = set()
 
         self.src_loc = src_loc
 
@@ -230,10 +233,12 @@ class Outliner(Analysis):
             ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
         else:
             ret_vars = []
+        self.child_retvars = set(ret_vars)
         ret_exprs = list(ret_vars)
 
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
+        self.novel_child_addrs.update((b.addr, b.idx) for b in subgraph)
 
         callee_func = Function(self.kb.functions, src_node.addr, name=self.child_name)
         callee_func.normalized = True
@@ -335,6 +340,7 @@ class Outliner(Analysis):
             elif ret_node.statements and isinstance(ret_node.statements[-1], ConditionalJump):
                 # we will have to create a new node and act as the successor of ret_node
                 new_ret_node = Block(self._next_block_addr(), 0, [ret_stmt])
+                self.novel_parent_addrs.add((new_ret_node.addr, new_ret_node.idx))
                 cond_jump = ret_node.statements[-1]
                 if (
                     isinstance(cond_jump.true_target, Const)
@@ -384,6 +390,7 @@ class Outliner(Analysis):
                     ins_addr=dispatcher_node_addr[0],
                 )
                 dispatcher_node = Block(dispatcher_node_addr[0], 0, [stmt], dispatcher_node_addr[1])
+                self.novel_parent_addrs.add(dispatcher_node_addr)
                 self.parent_graph.add_edge(parent, dispatcher_node)
                 self.parent_graph.add_edge(dispatcher_node, node_dict[jump_target])
 
@@ -392,6 +399,7 @@ class Outliner(Analysis):
                 parent = dispatcher_node
 
             final_node = Block(next_dispatcher_node_addr[0], 0, [], next_dispatcher_node_addr[1])
+            self.novel_parent_addrs.add(next_dispatcher_node_addr)
             self.parent_graph.add_edge(parent, final_node)
             if last_jump_target:
                 final_node.statements.append(
@@ -419,42 +427,43 @@ class Outliner(Analysis):
         srcs = list(self.parent_graph.predecessors(block))
         src_addrs = [(src.addr, src.idx) for src in srcs]
         for stmt in block.statements:
-            if is_phi_assignment(stmt):
-                assert isinstance(stmt, Assignment)
-                assert isinstance(stmt.src, Phi)
-                all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
-                new_addrs = set(src_addrs) - set(all_stmt_srcs)
-                old_addrs = set(all_stmt_srcs) - set(src_addrs)
-                if len(old_addrs) == 1 and len(new_addrs) == 1:
-                    # only source block is replaced by a new one
-                    old_addr = next(iter(old_addrs))
-                    new_addr = next(iter(new_addrs))
-                    for idx, (src, vvars) in enumerate(stmt.src.src_and_vvars):
-                        if src == old_addr:
-                            stmt.src.src_and_vvars[idx] = new_addr, vvars
-                elif (
-                    len(new_addrs) == 1
-                    and len(
-                        vvar_ := {
-                            vvar.varid: vvar
-                            for src, vvar in stmt.src.src_and_vvars
-                            if src in old_addrs and vvar is not None
-                        }
-                    )
-                    == 1
-                ):
-                    # all removed source nodes want the same vvar - assume it comes from before the inlined function
-                    new_addr = next(iter(new_addrs))
-                    new_vvar = next(iter(vvar_.values()))
-                    stmt.src.src_and_vvars = [
-                        (src, vvar) for src, vvar in stmt.src.src_and_vvars if src not in old_addrs
-                    ] + [(new_addr, new_vvar)]
+            if (
+                not isinstance(stmt, Assignment)
+                or not isinstance(stmt.src, Phi)
+                or not isinstance(stmt.dst, VirtualVariable)
+            ):
+                continue
+
+            return_vars = {v for _, v in stmt.src.src_and_vvars if v in self.child_retvars}
+            assert len(return_vars) <= 1, "This retsite runs Phi on multiple return values"
+            exemplar_return_var = next(iter(return_vars), None)
+            passthru_vars = {
+                v for s, v in stmt.src.src_and_vvars if v not in self.child_retvars and s in self.novel_parent_addrs
+            }
+            assert len(passthru_vars) <= 1, (
+                "This retsite runs Phi on multiple vars coming through the child function which are NOT defined in the function"
+            )
+            exemplar_passthru_var = next(iter(passthru_vars), None)
+
+            all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
+            old_mapping = dict(stmt.src.src_and_vvars)
+            novel_preds = set(all_stmt_srcs) & self.novel_parent_addrs
+            new_mapping: dict[Address, VirtualVariable | None] = {}
+
+            for pred in src_addrs:
+                if pred in novel_preds:
+                    if pred in self.child_retvars:
+                        assert exemplar_return_var is not None, (
+                            "This retsite wants a var defined in the child but it's none of the ret values?"
+                        )
+                        new_mapping[pred] = exemplar_return_var
+                    else:
+                        new_mapping[pred] = exemplar_passthru_var
                 else:
-                    _l.error(
-                        "Cannot figure out how to fix phi sources at %s for %s. Decompilation will likely crash soon.",
-                        block,
-                        stmt.dst,
-                    )
+                    assert pred in old_mapping
+                    new_mapping[pred] = old_mapping[pred]
+
+            stmt.src.src_and_vvars = sorted(new_mapping.items(), key=lambda x: (x[0][0], x[0][1] is not None, x[0][1]))
 
     @staticmethod
     def _node_addr_to_str(addr: tuple[int, int | None], inclusive: bool) -> str:
