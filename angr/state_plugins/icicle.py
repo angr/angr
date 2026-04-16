@@ -24,12 +24,17 @@ class SimStateIcicle(SimStatePlugin):
         run_id: int | None = None,
         translation_data: IcicleStateTranslationData | None = None,
         dirty_pages: set[int] | None = None,
+        watched_pages: set[int] | None = None,
     ):
         super().__init__()
         self.engine_id = engine_id
         self.run_id = run_id
         self.translation_data = translation_data
         self.dirty_pages = dirty_pages if dirty_pages is not None else set()
+        #: Pages that should have READ_WATCH | WRITE_WATCH set in icicle.
+        #: Accesses to these pages trap and are replayed through the pcode
+        #: engine so that state.inspect breakpoints fire.
+        self.watched_pages: set[int] = watched_pages if watched_pages is not None else set()
 
     def set_state(self, state):
         pass  # no weak ref needed
@@ -41,6 +46,7 @@ class SimStateIcicle(SimStatePlugin):
             run_id=self.run_id,
             translation_data=self.translation_data,
             dirty_pages=set(self.dirty_pages),
+            watched_pages=set(self.watched_pages),
         )
 
     def merge(self, others, merge_conditions, common_ancestor=None):

@@ -18,6 +18,8 @@ from typing_extensions import override
 from angr.errors import SimMemoryError
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
+from angr.engines.pcode.emulate import PcodeEmulatorMixin
+from angr.engines.pcode.lifter import PcodeLifterEngineMixin
 from angr.engines.successors import SimSuccessors, SuccessorsEngine
 from angr.engines.syscall import SimEngineSyscall
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
@@ -33,6 +35,15 @@ HeavyConcreteState = SimState[int, int]
 
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
+
+# icicle-mem permission bits for memory watchpoints.
+# When set on a page, any read/write causes icicle to halt with
+# ExceptionCode.ReadWatch / ExceptionCode.WriteWatch. The engine
+# then replays the faulting instruction through the pcode engine
+# so that state.memory inspect breakpoints fire — matching the
+# behavior of the VEX engine.
+ICICLE_PERM_READ_WATCH: int = 0x20
+ICICLE_PERM_WRITE_WATCH: int = 0x40
 
 
 def _syscall_jumpkind(arch_name: str, emu) -> str:
@@ -63,6 +74,11 @@ class IcicleStateTranslationData:
     explicit_page_metadata: dict[int, int | None]
     initial_cpu_icount: int
     icicle_arch: str
+
+
+class _PcodeReplayEngine(SuccessorsEngine, PcodeLifterEngineMixin, PcodeEmulatorMixin):
+    """Minimal pcode engine used to replay a single instruction so that
+    memory accesses go through state.memory (and fire inspect breakpoints)."""
 
 
 class IcicleEngine(SuccessorsEngine):
@@ -240,6 +256,16 @@ class IcicleEngine(SuccessorsEngine):
         for addr in proj._sim_procedures:
             emu.add_breakpoint(addr)
 
+        # Apply watch bits to pages marked for inspect breakpoint support.
+        icicle_plugin = state.get_plugin("icicle")
+        if isinstance(icicle_plugin, SimStateIcicle) and icicle_plugin.watched_pages:
+            watch_bits = ICICLE_PERM_READ_WATCH | ICICLE_PERM_WRITE_WATCH
+            for page_num in icicle_plugin.watched_pages:
+                if page_num in mapped_pages:
+                    page_addr = page_num * state.memory.page_size
+                    page_perms = state.memory.permissions(page_addr).concrete_value
+                    emu.mem_protect(page_addr, state.memory.page_size, page_perms | watch_bits)
+
         translation_data = IcicleStateTranslationData(
             base_state=state,
             registers=copied_registers,
@@ -290,7 +316,12 @@ class IcicleEngine(SuccessorsEngine):
         # 3.1 history.jumpkind
         exc = emu.exception_code
         if status == VmExit.UnhandledException:
-            if exc in (
+            if exc in (ExceptionCode.ReadWatch, ExceptionCode.WriteWatch):
+                # Watch traps are handled by the caller (_run_icicle
+                # replays the instruction via pcode). Mark as Boring so the
+                # state is usable for replay without triggering failure handling.
+                state.history.jumpkind = "Ijk_Boring"
+            elif exc in (
                 ExceptionCode.ReadUnmapped,
                 ExceptionCode.ReadPerm,
                 ExceptionCode.WriteUnmapped,
@@ -408,6 +439,16 @@ class IcicleEngine(SuccessorsEngine):
                 writable_pages.add(page_num)
             else:
                 writable_pages.discard(page_num)
+
+        # 2b. Re-apply watch bits after permission changes / new mappings.
+        icicle_plugin = state.get_plugin("icicle")
+        if isinstance(icicle_plugin, SimStateIcicle) and icicle_plugin.watched_pages:
+            watch_bits = ICICLE_PERM_READ_WATCH | ICICLE_PERM_WRITE_WATCH
+            for page_num in icicle_plugin.watched_pages:
+                if page_num in mapped_pages:
+                    page_addr = page_num * page_size
+                    page_perms = state.memory.permissions(page_addr).concrete_value
+                    emu.mem_protect(page_addr, page_size, page_perms | watch_bits)
 
         # 3. Copy writable pages that differ from the snapshot (COW identity check).
         base_state_pages = base_translation_data.base_state.memory._pages
@@ -622,8 +663,45 @@ class IcicleEngine(SuccessorsEngine):
         page_size = state.memory.page_size
         emu.reset_page_modification_tracking([page_num * page_size for page_num in translation_data.writable_pages])
 
-        # Run it
-        status = emu.run()
+        # Run icicle, handling watch traps in a loop.
+        #
+        # Pages marked with READ_WATCH / WRITE_WATCH cause icicle to halt
+        # instead of performing the memory access. When that happens we
+        # replay the single faulting instruction through the pcode engine,
+        # which routes the access through state.memory and therefore fires
+        # the same inspect breakpoints that VEX would. After replay we
+        # sync the resulting angr state back to icicle and resume.
+        while True:
+            status = emu.run()
+
+            if status != VmExit.UnhandledException:
+                break
+            exc = emu.exception_code
+            if exc not in (ExceptionCode.ReadWatch, ExceptionCode.WriteWatch):
+                break
+
+            # icicle → angr (full state conversion, same as normal exit)
+            replay_state = IcicleEngine.__convert_icicle_state_to_angr(
+                emu, translation_data, status
+            )
+
+            # Execute the single faulting instruction via pcode.
+            replay_state = self._replay_instruction_via_pcode(replay_state)
+
+            # angr → icicle (reuse the continuation sync path)
+            translation_data = self.__sync_continuation(
+                emu, replay_state, translation_data,
+                list(cast(SimStateIcicle, replay_state.get_plugin("icicle")).dirty_pages)
+                if replay_state.has_plugin("icicle")
+                else [],
+            )
+
+            # We consumed one instruction outside icicle.
+            if num_inst is not None:
+                remaining = emu.icount_limit - emu.cpu_icount
+                if remaining <= 0:
+                    status = VmExit.InstructionLimit
+                    break
 
         # Clean up extra stop points
         for addr in added_breakpoints:
@@ -645,6 +723,58 @@ class IcicleEngine(SuccessorsEngine):
         self._install_dirty_page_tracking(result)
 
         return result
+
+
+    # ── Watch-based inspect breakpoint support ─────────────────────────
+
+    def _replay_instruction_via_pcode(self, state: HeavyConcreteState) -> HeavyConcreteState:
+        """Re-execute the instruction at the current PC using the pcode engine.
+
+        The pcode engine interprets the instruction through angr's memory
+        model, which fires inspect breakpoints — the same path that VEX
+        uses. This is called when icicle traps on a watched page so that
+        inspect breakpoint handlers (e.g. for peripheral register dispatch)
+        see the memory access.
+        """
+        engine = _PcodeReplayEngine(self.project)
+        successors = SimSuccessors(state.addr, state)
+        engine.process_successors(
+            successors,
+            num_inst=1,
+            irsb=None,
+            insn_bytes=None,
+            size=None,
+            extra_stop_points=None,
+        )
+
+        if successors.flat_successors:
+            return successors.flat_successors[0]
+        if successors.all_successors:
+            return successors.all_successors[0]
+        log.warning("Pcode replay produced no successors at %#x", state.addr)
+        return state
+
+    @staticmethod
+    def set_watched_pages(state: HeavyConcreteState, addr: int, size: int) -> None:
+        """Mark pages covering [addr, addr+size) for watch-based inspect support.
+
+        When icicle executes a load or store to a watched page, it traps
+        and the engine replays the faulting instruction through the pcode
+        engine. This causes the access to go through state.memory, firing
+        any registered inspect breakpoints — matching VEX engine behavior.
+
+        The watch bits are stored on the SimStateIcicle plugin and applied
+        to the icicle VM during state conversion (angr's permission model
+        is only 3 bits wide and cannot store the watch flags).
+        """
+        plugin = state.get_plugin("icicle")
+        if not isinstance(plugin, SimStateIcicle):
+            return
+        page_size = state.memory.page_size
+        start_page = addr // page_size
+        end_page = (addr + size - 1) // page_size
+        for page_num in range(start_page, end_page + 1):
+            plugin.watched_pages.add(page_num)
 
 
 class UberIcicleEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, IcicleEngine):
