@@ -1,24 +1,15 @@
 # pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
 from collections.abc import Iterable
-from collections.abc import Sequence
 from abc import ABC, abstractmethod
+
+import claripy
 from typing_extensions import Self
 
-from angr.sim_type import SimTypeFunction
-
-try:
-    import claripy
-except ImportError:
-    claripy = None
-
+from angr import ailment
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
 from .tagged_object import TaggedObject
 from .expression import Atom, Expression, DirtyExpression
-
-if TYPE_CHECKING:
-    from angr.calling_conventions import SimCC
 
 
 class Statement(TaggedObject, ABC):
@@ -41,7 +32,7 @@ class Statement(TaggedObject, ABC):
         raise NotImplementedError
 
     def eq(self, expr0, expr1):  # pylint:disable=no-self-use
-        if claripy is not None and (isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base)):
+        if isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base):
             return expr0 is expr1
         return expr0 == expr1
 
@@ -52,6 +43,18 @@ class Statement(TaggedObject, ABC):
     @abstractmethod
     def matches(self, other) -> bool:  # pylint:disable=unused-argument,no-self-use
         raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def depth(self) -> int:  # pylint:disable=unused-argument,no-self-use
+        raise NotImplementedError
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        return type(self) is type(other) and self.likes(other) and self.idx == other.idx
+
+    __hash__ = TaggedObject.__hash__
 
 
 class Assignment(Statement):
@@ -70,16 +73,11 @@ class Assignment(Statement):
         self.dst = dst
         self.src = src
 
-    def __eq__(self, other):
-        return type(other) is Assignment and self.idx == other.idx and self.dst == other.dst and self.src == other.src
-
     def likes(self, other):
         return type(other) is Assignment and self.dst.likes(other.dst) and self.src.likes(other.src)
 
     def matches(self, other):
         return type(other) is Assignment and self.dst.matches(other.dst) and self.src.matches(other.src)
-
-    __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
         return stable_hash((Assignment, self.idx, self.dst, self.src))
@@ -108,8 +106,15 @@ class Assignment(Statement):
             return True, Assignment(self.idx, replaced_dst, replaced_src, **self.tags)
         return False, self
 
+    @property
+    def depth(self):
+        return max(self.dst.depth, self.src.depth) + 1
+
     def copy(self) -> Assignment:
         return Assignment(self.idx, self.dst, self.src, **self.tags)
+
+    def deep_copy(self, manager) -> Assignment:
+        return Assignment(manager.next_atom(), self.dst.deep_copy(manager), self.src.deep_copy(manager), **self.tags)
 
 
 class WeakAssignment(Statement):
@@ -129,18 +134,11 @@ class WeakAssignment(Statement):
         self.dst = dst
         self.src = src
 
-    def __eq__(self, other):
-        return (
-            type(other) is WeakAssignment and self.idx == other.idx and self.dst == other.dst and self.src == other.src
-        )
-
     def likes(self, other):
         return type(other) is WeakAssignment and self.dst.likes(other.dst) and self.src.likes(other.src)
 
     def matches(self, other):
         return type(other) is WeakAssignment and self.dst.matches(other.dst) and self.src.matches(other.src)
-
-    __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
         return stable_hash((WeakAssignment, self.idx, self.dst, self.src))
@@ -169,8 +167,17 @@ class WeakAssignment(Statement):
             return True, WeakAssignment(self.idx, replaced_dst, replaced_src, **self.tags)
         return False, self
 
+    @property
+    def depth(self):
+        return max(self.dst.depth, self.src.depth) + 1
+
     def copy(self) -> WeakAssignment:
         return WeakAssignment(self.idx, self.dst, self.src, **self.tags)
+
+    def deep_copy(self, manager) -> WeakAssignment:
+        return WeakAssignment(
+            manager.next_atom(), self.dst.deep_copy(manager), self.src.deep_copy(manager), **self.tags
+        )
 
 
 class Store(Statement):
@@ -210,17 +217,6 @@ class Store(Statement):
         self.guard = guard
         self.offset = offset  # variable_offset
 
-    def __eq__(self, other):
-        return (
-            type(other) is Store
-            and self.idx == other.idx
-            and self.eq(self.addr, other.addr)
-            and self.eq(self.data, other.data)
-            and self.size == other.size
-            and self.guard == other.guard
-            and self.endness == other.endness
-        )
-
     def likes(self, other):
         return (
             type(other) is Store
@@ -240,8 +236,6 @@ class Store(Statement):
             and self.guard == other.guard
             and self.endness == other.endness
         )
-
-    __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
         return stable_hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
@@ -290,6 +284,10 @@ class Store(Statement):
             )
         return False, self
 
+    @property
+    def depth(self):
+        return max(self.addr.depth, self.data.depth) + 1
+
     def copy(self) -> Store:
         return Store(
             self.idx,
@@ -298,6 +296,19 @@ class Store(Statement):
             self.size,
             self.endness,
             guard=self.guard,
+            variable=self.variable,
+            offset=self.offset,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> Store:
+        return Store(
+            manager.next_atom(),
+            self.addr.deep_copy(manager),
+            self.data.deep_copy(manager),
+            self.size,
+            self.endness,
+            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
             variable=self.variable,
             offset=self.offset,
             **self.tags,
@@ -320,16 +331,11 @@ class Jump(Statement):
         self.target = target
         self.target_idx = target_idx
 
-    def __eq__(self, other):
-        return type(other) is Jump and self.idx == other.idx and self.target == other.target
-
     def likes(self, other):
         return type(other) is Jump and is_none_or_likeable(self.target, other.target)
 
     def matches(self, other):
         return type(other) is Jump and is_none_or_matchable(self.target, other.target)
-
-    __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
         return stable_hash((Jump, self.idx, self.target))
@@ -344,10 +350,6 @@ class Jump(Statement):
             return f"Goto({self.target}.{self.target_idx})"
         return f"Goto({self.target})"
 
-    @property
-    def depth(self):
-        return self.target.depth
-
     def replace(self, old_expr, new_expr):
         r, replaced_target = self.target.replace(old_expr, new_expr)
 
@@ -355,10 +357,21 @@ class Jump(Statement):
             return True, Jump(self.idx, replaced_target, **self.tags)
         return False, self
 
+    @property
+    def depth(self):
+        return self.target.depth + 1
+
     def copy(self):
         return Jump(
             self.idx,
             self.target,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager):
+        return Jump(
+            manager.next_atom(),
+            self.target.deep_copy(manager),
             **self.tags,
         )
 
@@ -394,17 +407,6 @@ class ConditionalJump(Statement):
         self.true_target_idx = true_target_idx
         self.false_target_idx = false_target_idx
 
-    def __eq__(self, other):
-        return (
-            type(other) is ConditionalJump
-            and self.idx == other.idx
-            and self.condition == other.condition
-            and self.true_target == other.true_target
-            and self.false_target == other.false_target
-            and self.true_target_idx == other.true_target_idx
-            and self.false_target_idx == other.false_target_idx
-        )
-
     def likes(self, other):
         return (
             type(other) is ConditionalJump
@@ -420,8 +422,6 @@ class ConditionalJump(Statement):
             and is_none_or_matchable(self.true_target, other.true_target)
             and is_none_or_matchable(self.false_target, other.false_target)
         )
-
-    __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
         return stable_hash(
@@ -493,6 +493,17 @@ class ConditionalJump(Statement):
             )
         return False, self
 
+    @property
+    def depth(self):
+        return (
+            max(
+                self.condition.depth,
+                self.true_target.depth if self.true_target is not None else 0,
+                self.false_target.depth if self.false_target is not None else 0,
+            )
+            + 1
+        )
+
     def copy(self) -> ConditionalJump:
         return ConditionalJump(
             self.idx,
@@ -504,138 +515,90 @@ class ConditionalJump(Statement):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> ConditionalJump:
+        return ConditionalJump(
+            manager.next_atom(),
+            self.condition.deep_copy(manager),
+            self.true_target.deep_copy(manager) if self.true_target is not None else None,
+            self.false_target.deep_copy(manager) if self.false_target is not None else None,
+            true_target_idx=self.true_target_idx,
+            false_target_idx=self.false_target_idx,
+            **self.tags,
+        )
 
-class Call(Expression, Statement):
+
+class SideEffectStatement(Statement):
     """
-    Call is both an expression and a statement.
+    A statement wrapping an expression that has side effects (e.g., a function call).
 
-    When used as a statement, it will set ret_expr, fp_ret_expr, or both if both of them should hold return values.
-    When used as an expression, both ret_expr and fp_ret_expr should be None (and should be ignored). The size of the
-    call expression is stored in the bits attribute.
+    When wrapping a Call expression, ret_expr and fp_ret_expr hold the return value destinations.
     """
 
     __slots__ = (
-        "args",
-        "calling_convention",
+        "expr",
         "fp_ret_expr",
-        "prototype",
         "ret_expr",
-        "target",
     )
 
     def __init__(
         self,
         idx: int | None,
-        target: Expression | str,
-        calling_convention: SimCC | None = None,
-        prototype: SimTypeFunction | None = None,
-        args: Sequence[Expression] | None = None,
+        expr: ailment.expression.Call,
         ret_expr: Expression | None = None,
         fp_ret_expr: Expression | None = None,
-        bits: int | None = None,
         **kwargs,
     ):
-        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
+        super().__init__(idx, **kwargs)
 
-        self.target = target
-        self.calling_convention = calling_convention
-        self.prototype = prototype
-        self.args = args
+        self.expr = expr
         self.ret_expr = ret_expr
         self.fp_ret_expr = fp_ret_expr
-        if bits is not None:
-            self.bits = bits
-        elif ret_expr is not None:
-            self.bits = ret_expr.bits
-        elif fp_ret_expr is not None:
-            self.bits = fp_ret_expr.bits
-        else:
-            self.bits = 0  # uhhhhhhhhhhhhhhhhhhh
+
+    @property
+    def bits(self):
+        return self.expr.bits if isinstance(self.expr, Expression) else 0
+
+    @property
+    def size(self):
+        return self.bits // 8
 
     def likes(self, other):
         return (
-            type(other) is Call
-            and is_none_or_likeable(self.target, other.target)
-            and self.calling_convention == other.calling_convention
-            and self.prototype == other.prototype
-            and is_none_or_likeable(self.args, other.args, is_list=True)
+            type(other) is SideEffectStatement
+            and self.expr.likes(other.expr)
             and is_none_or_likeable(self.ret_expr, other.ret_expr)
             and is_none_or_likeable(self.fp_ret_expr, other.fp_ret_expr)
         )
 
     def matches(self, other):
         return (
-            type(other) is Call
-            and is_none_or_matchable(self.target, other.target)
-            and self.calling_convention == other.calling_convention
-            and self.prototype == other.prototype
-            and is_none_or_matchable(self.args, other.args, is_list=True)
+            type(other) is SideEffectStatement
+            and self.expr.matches(other.expr)
             and is_none_or_matchable(self.ret_expr, other.ret_expr)
             and is_none_or_matchable(self.fp_ret_expr, other.fp_ret_expr)
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
-        return stable_hash((Call, self.idx, self.target))
+        return stable_hash((SideEffectStatement, self.idx, self.expr))
 
     def __repr__(self):
-        return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
+        return f"SideEffectStatement ({self.expr!r})"
 
     def __str__(self):
-        cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
-        if self.args is None:
-            if self.calling_convention is not None:
-                s = (
-                    (f"{cc}")
-                    if self.prototype is None
-                    else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
-                )
-            else:
-                s = (f"{cc}") if self.prototype is None else repr(self.prototype)
-        else:
-            s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
-
         ret_s = "no-ret-value" if self.ret_expr is None else f"{self.ret_expr}"
         fp_ret_s = "no-fp-ret-value" if self.fp_ret_expr is None else f"{self.fp_ret_expr}"
-
-        return f"Call({self.target}, {s}, ret: {ret_s}, fp_ret: {fp_ret_s})"
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    @property
-    def verbose_op(self):
-        return "call"
-
-    @property
-    def op(self):
-        return "call"
+        return f"{self.expr!s} ret: {ret_s}, fp_ret: {fp_ret_s}"
 
     def replace(self, old_expr: Expression, new_expr: Expression):
-        if isinstance(self.target, Expression):
-            r0, replaced_target = self.target.replace(old_expr, new_expr)
+        if self.expr == old_expr:
+            r_expr = True
+            replaced_expr = new_expr
         else:
-            r0 = False
-            replaced_target = self.target
+            r_expr, replaced_expr = self.expr.replace(old_expr, new_expr)
 
-        r = r0
-
-        new_args = None
-        if self.args:
-            new_args = []
-            for arg in self.args:
-                if arg == old_expr:
-                    r_arg = True
-                    replaced_arg = new_expr
-                else:
-                    r_arg, replaced_arg = arg.replace(old_expr, new_expr)
-                r |= r_arg
-                new_args.append(replaced_arg)
+        r = r_expr
 
         new_ret_expr = self.ret_expr
-        new_bits = self.bits
         if self.ret_expr:
             if self.ret_expr == old_expr:
                 r_ret = True
@@ -644,8 +607,6 @@ class Call(Expression, Statement):
                 r_ret, replaced_ret = self.ret_expr.replace(old_expr, new_expr)
             r |= r_ret
             new_ret_expr = replaced_ret
-            if replaced_ret is not None:
-                new_bits = replaced_ret.bits
 
         new_fp_ret_expr = self.fp_ret_expr
         if self.fp_ret_expr:
@@ -658,29 +619,41 @@ class Call(Expression, Statement):
             new_fp_ret_expr = replaced_fp_ret
 
         if r:
-            return True, Call(
+            return True, SideEffectStatement(
                 self.idx,
-                replaced_target,
-                calling_convention=self.calling_convention,
-                prototype=self.prototype,
-                args=new_args,
+                replaced_expr,
                 ret_expr=new_ret_expr,
                 fp_ret_expr=new_fp_ret_expr,
-                bits=new_bits,
                 **self.tags,
             )
         return False, self
 
-    def copy(self):
-        return Call(
+    @property
+    def depth(self):
+        return (
+            max(
+                self.expr.depth if self.expr is not None else 0,
+                self.ret_expr.depth if self.ret_expr is not None else 0,
+                self.fp_ret_expr.depth if self.fp_ret_expr is not None else 0,
+            )
+            + 1
+        )
+
+    def copy(self) -> SideEffectStatement:
+        return SideEffectStatement(
             self.idx,
-            self.target,
-            calling_convention=self.calling_convention,
-            prototype=self.prototype,
-            args=self.args[::] if self.args is not None else None,
+            self.expr.copy(),
             ret_expr=self.ret_expr,
             fp_ret_expr=self.fp_ret_expr,
-            bits=self.bits,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> SideEffectStatement:
+        return SideEffectStatement(
+            manager.next_atom(),
+            self.expr.deep_copy(manager),
+            ret_expr=self.ret_expr.deep_copy(manager) if self.ret_expr is not None else None,
+            fp_ret_expr=self.fp_ret_expr.deep_copy(manager) if self.fp_ret_expr is not None else None,
             **self.tags,
         )
 
@@ -696,16 +669,11 @@ class Return(Statement):
         super().__init__(idx, **kwargs)
         self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 
-    def __eq__(self, other):
-        return type(other) is Return and self.idx == other.idx and self.ret_exprs == other.ret_exprs
-
     def likes(self, other):
         return type(other) is Return and is_none_or_likeable(self.ret_exprs, other.ret_exprs, is_list=True)
 
     def matches(self, other):
         return type(other) is Return and is_none_or_matchable(self.ret_exprs, other.ret_exprs, is_list=True)
-
-    __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
         return stable_hash((Return, self.idx, tuple(self.ret_exprs)))
@@ -744,10 +712,21 @@ class Return(Statement):
 
         return False, self
 
+    @property
+    def depth(self):
+        return max(ex.depth for ex in self.ret_exprs) + 1
+
     def copy(self):
         return Return(
             self.idx,
             self.ret_exprs[::],
+            **self.tags,
+        )
+
+    def deep_copy(self, manager):
+        return Return(
+            manager.next_atom(),
+            [expr.deep_copy(manager) for expr in self.ret_exprs],
             **self.tags,
         )
 
@@ -806,8 +785,6 @@ class CAS(Statement):
             )
         )
 
-    __hash__ = TaggedObject.__hash__
-
     def __repr__(self):
         if self.old_hi is None:
             return f"CAS({self.addr}, {self.data_lo}, {self.expd_lo}, {self.old_lo})"
@@ -848,6 +825,21 @@ class CAS(Statement):
             )
         return False, self
 
+    @property
+    def depth(self) -> int:
+        return (
+            max(
+                self.addr.depth if self.addr is not None else 0,
+                self.data_lo.depth if self.data_lo is not None else 0,
+                self.data_hi.depth if self.data_hi is not None else 0,
+                self.expd_lo.depth if self.expd_lo is not None else 0,
+                self.expd_hi.depth if self.expd_hi is not None else 0,
+                self.old_lo.depth if self.old_lo is not None else 0,
+                self.old_hi.depth if self.old_hi is not None else 0,
+            )
+            + 1
+        )
+
     def copy(self) -> CAS:
         return CAS(
             self.idx,
@@ -858,6 +850,20 @@ class CAS(Statement):
             self.expd_hi,
             self.old_lo,
             self.old_hi,
+            endness=self.endness,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> CAS:
+        return CAS(
+            manager.next_atom(),
+            self.addr.deep_copy(manager),
+            self.data_lo.deep_copy(manager),
+            self.data_hi.deep_copy(manager) if self.data_hi is not None else None,
+            self.expd_lo.deep_copy(manager),
+            self.expd_hi.deep_copy(manager) if self.expd_hi is not None else None,
+            self.old_lo.deep_copy(manager),
+            self.old_hi.deep_copy(manager) if self.old_hi is not None else None,
             endness=self.endness,
             **self.tags,
         )
@@ -926,8 +932,15 @@ class DirtyStatement(Statement):
             return True, DirtyStatement(self.idx, new_dirty, **self.tags)
         return False, self
 
+    @property
+    def depth(self) -> int:
+        return self.dirty.depth + 1
+
     def copy(self) -> DirtyStatement:
         return DirtyStatement(self.idx, self.dirty, **self.tags)
+
+    def deep_copy(self, manager) -> DirtyStatement:
+        return DirtyStatement(manager.next_atom(), self.dirty.deep_copy(manager), **self.tags)
 
     def likes(self, other):
         return type(other) is DirtyStatement and self.dirty.likes(other.dirty)
@@ -953,6 +966,10 @@ class Label(Statement):
     def replace(self, old_expr, new_expr):
         return False, self
 
+    @property
+    def depth(self) -> int:
+        return 1
+
     matches = likes
 
     def _hash_core(self):
@@ -971,3 +988,6 @@ class Label(Statement):
 
     def copy(self) -> Label:
         return Label(self.idx, self.name, **self.tags)
+
+    def deep_copy(self, manager) -> Label:
+        return Label(manager.next_atom(), self.name, **self.tags)

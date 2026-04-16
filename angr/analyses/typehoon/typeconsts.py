@@ -80,14 +80,14 @@ class Int1(Int):
 class Int8(Int):
     SIZE = 1
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int8"
 
 
 class Int16(Int):
     SIZE = 2
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int16"
 
 
@@ -98,11 +98,58 @@ class Int32(Int):
         return "int32"
 
 
+class Fd(Int):
+    SIZE = 4
+
+    def __repr__(self, memo=None) -> str:
+        return "fd"
+
+
 class Int64(Int):
     SIZE = 8
 
     def __repr__(self, memo=None) -> str:
         return "int64"
+
+
+class SInt8(Int8):
+    def __repr__(self, memo=None) -> str:
+        return "sint8"
+
+
+class UInt8(Int8):
+    def __repr__(self, memo=None) -> str:
+        return "uint8"
+
+
+class SInt16(Int16):
+    def __repr__(self, memo=None) -> str:
+        return "sint16"
+
+
+class UInt16(Int16):
+    def __repr__(self, memo=None) -> str:
+        return "uint16"
+
+
+class SInt32(Int32):
+    def __repr__(self, memo=None) -> str:
+        return "sint32"
+
+
+class UInt32(Int32):
+    def __repr__(self, memo=None) -> str:
+        return "uint32"
+
+
+class SInt64(Int64):
+    def __repr__(self, memo=None) -> str:
+        return "sint64"
+
+
+class UInt64(Int64):
+    def __repr__(self, memo=None) -> str:
+        return "uint64"
 
 
 class Int128(Int):
@@ -490,6 +537,16 @@ def int_type(bits: int) -> Int:
         512: Int512,
     }
     return mapping[bits]() if bits in mapping else IntVar(bits)
+
+
+def signed_int_type(bits: int) -> Int:
+    mapping = {8: SInt8, 16: SInt16, 32: SInt32, 64: SInt64}
+    return mapping[bits]() if bits in mapping else int_type(bits)
+
+
+def unsigned_int_type(bits: int) -> Int:
+    mapping = {8: UInt8, 16: UInt16, 32: UInt32, 64: UInt64}
+    return mapping[bits]() if bits in mapping else int_type(bits)
 
 
 def float_type(bits: int) -> Float | None:

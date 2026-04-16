@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from angr.ailment.statement import DirtyStatement, Statement, Call
-from angr.ailment.expression import Const, DirtyExpression, Expression
+from angr.ailment.statement import DirtyStatement, Statement, SideEffectStatement
+from angr.ailment.expression import Call, Const, DirtyExpression, Expression
+from angr import sim_type
 from .rewriter_base import DirtyRewriterBase
 
 
@@ -14,7 +15,10 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
         # TODO: Rewrite more dirty statements
-        return self._rewrite_expr_to_call(dirty.dirty)
+        call_expr = self._rewrite_expr_to_call(dirty.dirty)
+        if call_expr is None:
+            return None
+        return SideEffectStatement(dirty.idx, call_expr, **dirty.tags)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
         return self._rewrite_expr_to_call(dirty)
@@ -32,9 +36,10 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     idx=dirty.idx,
                     target=f"__in{self._inout_intrinsic_suffix(bits)}",
                     calling_convention=None,
-                    prototype=None,
+                    prototype=sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
+                    ).with_arch(self.arch),
                     args=(portno,),
-                    ret_expr=None,
                     bits=dirty.bits,
                     **dirty.tags,
                 )
@@ -49,9 +54,10 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     dirty.idx,
                     target=f"__out{self._inout_intrinsic_suffix(bits)}",
                     calling_convention=None,
-                    prototype=None,
+                    prototype=sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
+                    ).with_arch(self.arch),
                     args=(portno, data),
-                    ret_expr=None,
                     bits=None,
                     **dirty.tags,
                 )
@@ -72,3 +78,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                 return "dword"
             case _:
                 return f"_{bits}"
+
+    @staticmethod
+    def _inout_intrinsic_type(bits: int) -> sim_type.SimType:
+        return sim_type.SimTypeNum(bits, signed=False)

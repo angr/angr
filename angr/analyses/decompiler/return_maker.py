@@ -26,9 +26,7 @@ class ReturnMaker(AILGraphWalker):
     def _next_atom(self) -> int:
         return self.ail_manager.next_atom()
 
-    def _handle_Return(
-        self, stmt_idx: int, stmt: ailment.Stmt.Return, block: ailment.Block | None
-    ):  # pylint:disable=unused-argument
+    def _handle_Return(self, stmt_idx: int, stmt: ailment.Stmt.Return, block: ailment.Block | None):  # pylint:disable=unused-argument
         if (
             block is not None
             and not stmt.ret_exprs

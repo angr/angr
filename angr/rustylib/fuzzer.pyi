@@ -89,6 +89,24 @@ class ClientStats:
     def edges_total(self) -> int | None:
         pass
 
+class HavocMutator:
+    def __init__(self, max_stack_pow: int | None = None):
+        """
+        Configuration for the standard Havoc mutator.
+
+        :param max_stack_pow: Maximum power of 2 for the number of stacked mutations per iteration.
+            Defaults to 7 (up to 128 stacked mutations). Lower values produce less aggressive mutations.
+        """
+
+class DeterministicMutator:
+    def __init__(self, values: list[bytes]):
+        """
+        A mutator that cycles through a fixed sequence of values instead of random mutations.
+        Useful for writing tests with predictable mutation outputs.
+
+        :param values: Non-empty list of byte values to cycle through.
+        """
+
 class Fuzzer:
     def __init__(
         self,
@@ -98,6 +116,8 @@ class Fuzzer:
         apply_fn: Callable[[SimState, bytes], None],
         timeout: int = 0,
         seed: int | None = None,
+        max_mutations: int | None = None,
+        mutator: HavocMutator | DeterministicMutator | None = None,
     ):
         """
         Initialize the fuzzer with the given parameters.

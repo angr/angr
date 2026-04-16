@@ -330,12 +330,12 @@ class FastConstantPropagation(Analysis):
             if isinstance(node, HookNode):
                 # attempt to convert it into a function
                 if self.kb.functions.contains_addr(node.addr):
-                    node = self.kb.functions.get_by_addr(node.addr)
+                    node = self.kb.functions.get_by_addr(node.addr, meta_only=True)
                 else:
                     continue
             if isinstance(node, FuncNode):
                 if self.kb.functions.contains_addr(node.addr):
-                    callee = self.kb.functions.get_by_addr(node.addr)
+                    callee = self.kb.functions.get_by_addr(node.addr, meta_only=True)
                     if callee.calling_convention is not None and callee.prototype is not None:
                         # consume args and overwrite the return register
                         self._handle_function(state, callee)
@@ -351,7 +351,7 @@ class FastConstantPropagation(Analysis):
                     callee = next(succ for succ in succs if isinstance(succ, (FuncNode, HookNode)))
                     # attempt to convert it into a function
                     if self.kb.functions.contains_addr(callee.addr):
-                        callee = self.kb.functions.get_by_addr(callee.addr)
+                        callee = self.kb.functions.get_by_addr(callee.addr, meta_only=True)
                     else:
                         callee = None
                     state = self._handle_function(state, callee)

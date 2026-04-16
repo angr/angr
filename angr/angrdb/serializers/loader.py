@@ -1,9 +1,11 @@
 from __future__ import annotations
 from typing import Any
-from io import BytesIO
+from pathlib import Path
 import json
 import binascii
 import logging
+import tempfile
+import archinfo
 
 import cle
 
@@ -24,6 +26,8 @@ class LoadArgsJSONEncoder(json.JSONEncoder):
                 "__custom_type__": "bytes",
                 "__v__": binascii.hexlify(o).decode("ascii"),
             }
+        if isinstance(o, archinfo.Arch):
+            return {"__custom_type__": "arch", "name": o.name, "endness": o.memory_endness, "bits": o.bits}
         return super().default(o)
 
 
@@ -41,6 +45,12 @@ class LoadArgsJSONDecoder(json.JSONDecoder):
                 case "bytes":
                     if "__v__" in d:
                         return binascii.unhexlify(d["__v__"])
+                case "arch":
+                    return archinfo.arch_from_id(
+                        d["name"],
+                        d.get("endness", ""),
+                        d.get("bits", ""),
+                    )
         return d
 
 
@@ -132,33 +142,42 @@ class LoaderSerializer:
 
     @staticmethod
     def load(session):
-        all_objects = {}  # path to object
-        main_object = None
+        main_path = None
+        lib_paths = []
 
         db_objects: list[DbObject] = session.query(DbObject)
-        load_args = {}
+        main_opts = None
+        lib_opts = {}
 
         decoder = LoadArgsJSONDecoder()
 
-        for db_o in db_objects:
-            all_objects[db_o.path] = db_o
-            if db_o.main_object:
-                main_object = db_o
-            load_args[db_o] = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for db_o in db_objects:
+                load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
 
-        if main_object is None:
-            raise AngrCorruptDBError("Corrupt database: No main object.")
+                if db_o.backend is not None:
+                    load_opts["backend"] = db_o.backend
 
-        # build params
-        # FIXME: Load other objects
+                load_opts = {k: v for k, v in load_opts.items() if v is not None}
 
-        loader = cle.Loader(BytesIO(main_object.content), main_opts=load_args[main_object])
+                path = Path(db_o.path)
 
-        skip_mainbin, _ = LoaderSerializer.should_skip_main_binary(loader)
+                if not path.exists():
+                    # dump the content to a temporary file if the
+                    # original file does not exist anymore
+                    tmp_path = Path(tmpdir) / path.name
+                    with open(tmp_path, "wb") as f:
+                        f.write(db_o.content)
+                    path = tmp_path
 
-        loader._main_binary_path = main_object.path
-        if not skip_mainbin:
-            # fix the binary name of the main binary
-            loader.main_object.binary = main_object.path
+                if db_o.main_object:
+                    main_opts = load_opts
+                    main_path = str(path)
+                else:
+                    lib_opts[path.name] = load_opts
+                    lib_paths.append(str(path))
 
-        return loader
+            if main_path is None:
+                raise AngrCorruptDBError("Corrupt database: No main object.")
+
+            return cle.Loader(main_path, preload_libs=lib_paths, main_opts=main_opts, lib_opts=lib_opts)

@@ -4,8 +4,8 @@ import string
 
 from archinfo import Endness
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, UnaryOp, Insert
+from angr.ailment.statement import Assignment, Store, Statement, SideEffectStatement
 
 from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
@@ -32,22 +32,33 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
         assert self.project is not None
 
-        if (
-            isinstance(stmt, Assignment)
-            and isinstance(stmt.dst, VirtualVariable)
-            and stmt.dst.was_stack
-            and isinstance(stmt.src, Const)
-            and isinstance(stmt.src.value, int)
-        ):
-            inlined_strcpy_candidate = True
-            src = stmt.src
-            strcpy_dst = StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset)
+        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+            if isinstance(stmt.src, Const) and isinstance(stmt.src.value, int):
+                inlined_strcpy_candidate = True
+                src = stmt.src
+                strcpy_dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
+            elif (
+                isinstance(stmt.src, Insert)
+                and isinstance(stmt.src.base, (Const, VirtualVariable))
+                and isinstance(stmt.src.value, Const)
+                and isinstance(stmt.src.offset, Const)
+            ):
+                inlined_strcpy_candidate = True
+                src = stmt.src.value
+                strcpy_dst = StackBaseOffset(
+                    self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset + stmt.src.offset.value
+                )
         elif (
             isinstance(stmt, Store)
             and isinstance(stmt.addr, UnaryOp)
             and stmt.addr.op == "Reference"
             and isinstance(stmt.addr.operand, VirtualVariable)
             and stmt.addr.operand.was_stack
+            and isinstance(stmt.data, Const)
+            and isinstance(stmt.data.value, int)
+        ) or (
+            isinstance(stmt, Store)
+            and isinstance(stmt.addr, StackBaseOffset)
             and isinstance(stmt.data, Const)
             and isinstance(stmt.data.value, int)
         ):
@@ -66,15 +77,19 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                return Call(
+                return SideEffectStatement(
                     stmt.idx,
-                    "strncpy",
-                    args=[
-                        strcpy_dst,
-                        Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                        Const(None, None, len(s), self.project.arch.bits),
-                    ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
+                    Call(
+                        stmt.idx,
+                        "strncpy",
+                        args=[
+                            strcpy_dst,
+                            Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                            Const(None, None, len(s), self.project.arch.bits),
+                        ],
+                        prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                        **stmt.tags,
+                    ),
                     **stmt.tags,
                 )
 
@@ -120,15 +135,19 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         block.statements = [ss for ss in block.statements if ss is not None]
 
                         str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                        return Call(
+                        return SideEffectStatement(
                             stmt.idx,
-                            "strncpy",
-                            args=[
-                                strcpy_dst,
-                                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                                Const(None, None, len(s), self.project.arch.bits),
-                            ],
-                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
+                            Call(
+                                stmt.idx,
+                                "strncpy",
+                                args=[
+                                    strcpy_dst,
+                                    Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                                    Const(None, None, len(s), self.project.arch.bits),
+                                ],
+                                prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                                **stmt.tags,
+                            ),
                             **stmt.tags,
                         )
 
@@ -161,9 +180,30 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             ):
                 if isinstance(stmt.src, Const):
                     r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
+                if (
+                    isinstance(stmt.src, Insert)
+                    and (
+                        isinstance(stmt.src.base, Const)
+                        or (
+                            isinstance(stmt.src.base, VirtualVariable)
+                            and stmt.src.base.was_stack
+                            and stmt.src.base.stack_offset == stmt.dst.stack_offset
+                        )
+                    )
+                    and isinstance(stmt.src.offset, Const)
+                    and isinstance(stmt.src.value, Const)
+                ):
+                    r[stmt.dst.stack_offset + stmt.src.offset.value] = (
+                        idx,
+                        ail_const_to_be(stmt.src.value, self.project.arch.memory_endness),
+                    )
                 else:
                     r[stmt.dst.stack_offset] = idx, None
-
+            elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
+                if isinstance(stmt.data, Const):
+                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, self.project.arch.memory_endness)
+                else:
+                    r[stmt.addr.offset] = idx, None
         return r
 
     @staticmethod
@@ -206,11 +246,11 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     @staticmethod
     def is_inlined_strcpy(stmt: Statement) -> bool:
         return (
-            isinstance(stmt, Call)
-            and isinstance(stmt.target, str)
-            and stmt.target == "strncpy"
-            and stmt.args is not None
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], Const)
-            and "custom_string" in stmt.args[1].tags
+            isinstance(stmt, SideEffectStatement)
+            and isinstance(stmt.expr.target, str)
+            and stmt.expr.target == "strncpy"
+            and stmt.expr.args is not None
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[1], Const)
+            and "custom_string" in stmt.expr.args[1].tags
         )

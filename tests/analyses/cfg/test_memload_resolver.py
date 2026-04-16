@@ -23,6 +23,10 @@ class TestMemloadResolver(unittest.TestCase):
         node = cfg.model.get_any_node(0x566A50)
         assert node is not None
         assert node.function_address == 0x566A50
+        # function 0x498930 should be a separate function
+        node = cfg.model.get_any_node(0x496030)
+        assert node is not None
+        assert node.function_address == 0x496030
         # function 0x49C4D0 should include many blocks, including 0x49C50A
         func = cfg.kb.functions[0x49C4D0]
         assert func is not None

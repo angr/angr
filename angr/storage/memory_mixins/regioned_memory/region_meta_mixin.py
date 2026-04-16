@@ -198,9 +198,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
             return super().store(addr, data, size=size, endness=endness, **kwargs)
         return super().store(addr, data, size=size, endness=endness, **kwargs)
 
-    def load(
-        self, addr, size=None, *, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs
-    ):  # pylint:disable=unused-argument
+    def load(self, addr, size=None, *, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs):  # pylint:disable=unused-argument
         # if bbl_addr is not None and stmt_id is not None:
         return super().load(addr, size=size, **kwargs)
 

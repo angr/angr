@@ -15,10 +15,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['HDCPType']}"
 		},
 		"OPMXboxGetHDCPStatus": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': 'enum'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': 'enum'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus']}"
 		},
 		"OPMXboxGetHDCPStatusAndType": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': 'enum'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': 'enum'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus', 'pHDCPType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': 'enum'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': 'enum'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus', 'pHDCPType']}"
 		}
 	}
 }

@@ -1,10 +1,14 @@
 from __future__ import annotations
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from archinfo.arch_arm import is_arm_arch
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .cfg_model import CFGModel
+
+if TYPE_CHECKING:
+    from .cfg_model import CFG_ADDR_TYPES
 
 
 class CFGManager(KnowledgeBasePlugin):
@@ -27,17 +31,29 @@ class CFGManager(KnowledgeBasePlugin):
         if ident not in self.cfgs:
             if self._kb is not None and self._kb._project is not None:
                 is_arm = is_arm_arch(self._kb._project.arch)
+                cache_limit = self._kb._project.get_cfg_node_cache_limit()
+                edge_cache_limit = self._kb._project.get_cfg_edge_cache_limit()
             else:
                 is_arm = False
-            self.cfgs[ident] = CFGModel(ident, cfg_manager=self, is_arm=is_arm)
+                cache_limit = None
+                edge_cache_limit = None
+            self.cfgs[ident] = CFGModel(
+                ident,
+                cfg_manager=self,
+                is_arm=is_arm,
+                cache_limit=cache_limit,
+                edge_cache_limit=edge_cache_limit,
+            )
         return self.cfgs[ident]
 
     def __setitem__(self, ident, model):
         self.cfgs[ident] = model
 
-    def new_model(self, prefix):
+    def new_model(self, prefix, addr_type: CFG_ADDR_TYPES = "int"):
         if prefix not in self.cfgs:
-            return self[prefix]
+            model = self[prefix]
+            model.addr_type = addr_type
+            return model
 
         # find a unique ident
         i = 0
@@ -46,7 +62,9 @@ class CFGManager(KnowledgeBasePlugin):
             if ident not in self.cfgs:
                 break
             i += 1
-        return self[ident]
+        model = self[ident]
+        model.addr_type = addr_type
+        return model
 
     def copy(self):
         cm = CFGManager(self._kb)
@@ -90,6 +108,8 @@ class CFGManager(KnowledgeBasePlugin):
     def __setstate__(self, state):
         self._kb = state["_kb"]
         self.cfgs = state["cfgs"]
+        for cfg_model in self.cfgs.values():
+            cfg_model._cfg_manager = self
 
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)

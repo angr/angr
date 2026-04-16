@@ -242,7 +242,8 @@ class TestAILExec(unittest.TestCase):
         ref = ailment.expression.UnaryOp(idx=0, op="Reference", operand=vvar, bits=p.arch.bits)
 
         call_tgt = ailment.expression.Const(None, None, 0xDEADBEEF, p.arch.bits)
-        call = ailment.statement.Call(idx=0, target=call_tgt, args=[ref])
+        call_expr = ailment.expression.Call(idx=0, target=call_tgt, args=[ref], bits=p.arch.bits)
+        call = ailment.statement.SideEffectStatement(idx=0, expr=call_expr)
         call.tags["ins_addr"] = 0x400000
 
         jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, p.arch.bits))
@@ -279,14 +280,18 @@ class TestAILExec(unittest.TestCase):
         # Simulate that the call target already returned a value (as if we just came back from a callee).
         state.callstack.passed_rets = ((claripy.BVV(0x1234, 32),),)
 
-        # A Call statement with no return assignment (unused return value).
-        call_stmt = ailment.statement.Call(
+        # A Call expression wrapped in SideEffectStatement with no return assignment (unused return value).
+        call_expr = ailment.expression.Call(
             idx=0,
             target=ailment.expression.Const(None, None, 0x5000, 32),
             args=[],
+            bits=32,
+        )
+        call_stmt = ailment.statement.SideEffectStatement(
+            idx=0,
+            expr=call_expr,
             ret_expr=None,
             fp_ret_expr=None,
-            bits=32,
         )
         # The light AIL engine expects statements to carry an instruction address tag.
         call_stmt.tags["ins_addr"] = 0x400000

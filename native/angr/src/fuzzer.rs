@@ -1,7 +1,9 @@
 pub mod corpus;
 pub mod executor;
 pub mod monitor;
+pub mod mutator;
 
+use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use libafl::{
@@ -9,11 +11,10 @@ use libafl::{
     events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
     inputs::{BytesInput, NopToTargetBytes},
-    mutators::{HavocMutationsType, HavocScheduledMutator, havoc_mutations},
     observers::OwnedMapObserver,
     schedulers::QueueScheduler,
     stages::StdMutationalStage,
-    state::{HasCorpus, HasSolutions, StdState},
+    state::{HasCorpus, HasExecutions, HasSolutions, StdState},
 };
 use libafl_bolts::{
     rands::StdRand,
@@ -26,6 +27,7 @@ use crate::fuzzer::{
     corpus::{DynCorpus, PyInMemoryCorpus, PyOnDiskCorpus},
     executor::PyExecutorInner,
     monitor::CallbackMonitor,
+    mutator::DynMutator,
 };
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
@@ -45,7 +47,7 @@ pub(crate) type Z = StdFuzzer<
     CrashFeedback,
 >;
 pub(crate) type E = PyExecutorInner<S>;
-pub(crate) type M = HavocScheduledMutator<HavocMutationsType>;
+pub(crate) type M = DynMutator;
 
 #[pyclass(module = "angr.rustylib.fuzzer", unsendable)]
 struct Fuzzer {
@@ -58,6 +60,8 @@ struct Fuzzer {
 #[pymethods]
 impl Fuzzer {
     #[new]
+    #[pyo3(signature = (base_state, corpus, solutions, apply_fn, timeout=None, seed=0, max_mutations=None, mutator=None))]
+    #[allow(clippy::too_many_arguments)]
     fn py_new(
         base_state: Bound<PyAny>,
         corpus: Bound<PyAny>,
@@ -65,9 +69,24 @@ impl Fuzzer {
         apply_fn: Bound<PyAny>,
         timeout: Option<u64>,
         seed: u64,
+        max_mutations: Option<u64>,
+        mutator: Option<Bound<PyAny>>,
     ) -> PyResult<Self> {
         if !apply_fn.is_callable() {
             return Err(PyTypeError::new_err("Expected a callable harness function"));
+        }
+
+        // Register the edge_hitmap plugin if not already present
+        let py = base_state.py();
+        let has_plugin: bool = base_state
+            .call_method1("has_plugin", ("edge_hitmap",))?
+            .extract()?;
+        if !has_plugin {
+            let edge_hitmap_plugin = py
+                .import("angr.state_plugins.edge_hitmap")?
+                .getattr("SimStateEdgeHitmap")?
+                .call0()?;
+            base_state.call_method1("register_plugin", ("edge_hitmap", edge_hitmap_plugin))?;
         }
 
         let observer = OwnedMapObserver::new("", vec![0u8; 65536]);
@@ -112,9 +131,15 @@ impl Fuzzer {
             CrashFeedback,
         > = StdFuzzer::new(QueueScheduler::new(), feedback, objective);
 
-        let stages = tuple_list!(StdMutationalStage::new(HavocScheduledMutator::new(
-            havoc_mutations()
-        )),);
+        let mutator = mutator::build_mutator(mutator.as_ref())?;
+        let stage = if let Some(max_iter) = max_mutations {
+            let max_iter = NonZeroUsize::new(max_iter as usize)
+                .ok_or_else(|| PyRuntimeError::new_err("max_mutations must be > 0"))?;
+            StdMutationalStage::with_max_iterations(mutator, max_iter)
+        } else {
+            StdMutationalStage::new(mutator)
+        };
+        let stages = tuple_list!(stage);
 
         let executor = PyExecutorInner::new(
             base_state,
@@ -138,6 +163,11 @@ impl Fuzzer {
 
     fn solutions(&self) -> PyResult<Py<PyAny>> {
         Python::attach(|py| self.fuzzer_state.solutions().to_py(py))
+    }
+
+    #[getter]
+    fn executions(&self) -> u64 {
+        *self.fuzzer_state.executions()
     }
 
     #[pyo3(signature = (progress_callback = None))]
@@ -188,5 +218,7 @@ pub fn fuzzer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<corpus::PyInMemoryCorpus>()?;
     m.add_class::<corpus::PyOnDiskCorpus>()?;
     m.add_class::<monitor::ClientStats>()?;
+    m.add_class::<mutator::PyHavocMutator>()?;
+    m.add_class::<mutator::PyDeterministicMutator>()?;
     Ok(())
 }

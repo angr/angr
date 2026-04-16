@@ -508,7 +508,10 @@ def simplify_lowered_switches(region: SequenceNode, var2condnodes: dict[Any, lis
 
 
 def simplify_lowered_switches_core(
-    region: SequenceNode, var, condnodes, functions  # pylint:disable=unused-argument
+    region: SequenceNode,
+    var,
+    condnodes,
+    functions,  # pylint:disable=unused-argument
 ) -> bool:
     node_to_condnode = {}
     parent_node_to_condnodes = defaultdict(list)

@@ -51,7 +51,8 @@ def get_function_name(s):
 
 
 def register_kernel_types():
-    register_types(parse_types("""
+    register_types(
+        parse_types("""
     typedef int mode_t;
     typedef unsigned int umode_t;
     typedef int clockid_t;
@@ -65,7 +66,8 @@ def register_kernel_types():
     typedef uint64_t u64;
     typedef int32_t __s32;
     typedef int64_t loff_t;
-    """))
+    """)
+    )
 
 
 def convert_cproto_to_py(c_decl) -> tuple[str, SimTypeFunction, str]:

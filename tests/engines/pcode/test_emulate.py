@@ -6,7 +6,6 @@ import unittest
 from dataclasses import dataclass
 
 import claripy
-import pypcode
 from pypcode import OpCode
 
 import angr
@@ -83,7 +82,6 @@ OP = MockPcodeOp
 VN = MockVarnode
 
 
-@unittest.skipUnless(pypcode, "pypcode is not available")
 class TestPcodeEmulatorMixin(unittest.TestCase):
     """
     Test P-Code engine emulator mixin

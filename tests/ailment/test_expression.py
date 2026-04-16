@@ -6,7 +6,6 @@ import angr.ailment as ailment
 
 
 class TestExpression(unittest.TestCase):
-
     def test_phi_hashing(self):
         vvar_0 = ailment.expression.VirtualVariable(100, 0, 32, ailment.expression.VirtualVariableCategory.REGISTER, 16)
         vvar_1 = ailment.expression.VirtualVariable(101, 1, 32, ailment.expression.VirtualVariableCategory.REGISTER, 16)

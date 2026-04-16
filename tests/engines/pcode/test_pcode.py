@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import os
-from unittest import TestCase, skipUnless, main
+from unittest import TestCase, main
 
 import archinfo
-import pypcode
 
 import angr
 
@@ -14,7 +13,6 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
-@skipUnless(pypcode, "pypcode not available")
 class TestPcodeEngine(TestCase):
     def test_shellcode(self):
         """
@@ -44,7 +42,7 @@ class TestPcodeEngine(TestCase):
 
         # Recover the CFG
         c = p.analyses.CFGFast(normalize=True)
-        assert len(c.model.nodes()) == 4
+        assert len(list(c.model.nodes())) == 4
 
         # Execute symbolically
         s = p.factory.call_state(base_address, prototype=prototype)

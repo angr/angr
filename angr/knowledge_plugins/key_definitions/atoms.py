@@ -115,8 +115,7 @@ class Atom:
                 raise ValueError("You must provide a size when specifying the register offset")
         else:
             raise TypeError(
-                "Unsupported type of register. It must be a string (for register name) or an int (for "
-                "register offset)"
+                "Unsupported type of register. It must be a string (for register name) or an int (for register offset)"
             )
         return Register(reg_offset, size, arch=arch)
 

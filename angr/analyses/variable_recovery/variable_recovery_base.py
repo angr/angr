@@ -11,8 +11,11 @@ import archinfo
 import claripy
 from claripy.annotation import Annotation
 from archinfo import Arch
+from angr import ailment
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 
+from angr.analyses.dominance_frontier import DominanceFrontier
+from angr.codenode import CodeNode
 from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
 from angr.utils.cowdict import DefaultChainMapCOW
@@ -90,12 +93,12 @@ class VariableRecoveryBase(Analysis):
 
     def __init__(
         self,
-        func,
+        func: Function,
         max_iterations,
         store_live_variables: bool,
         vvar_to_vvar: dict[int, int] | None = None,
-        func_graph: networkx.DiGraph | None = None,
-        entry_node_addr: int | tuple[int, int | None] | None = None,
+        func_graph: networkx.DiGraph[CodeNode] | networkx.DiGraph[ailment.Block] | None = None,
+        entry_node_addr: int | ailment.Address | None = None,
     ):
         self.function = func
         self.func_graph = func_graph
@@ -137,22 +140,34 @@ class VariableRecoveryBase(Analysis):
             entry_node_addr = self.entry_node_addr if self.entry_node_addr is not None else self.function.addr
             assert entry_node_addr is not None
             if isinstance(entry_node_addr, int):
+                # assert T is CodeNode
                 func_entry = next(iter(node for node in self.func_graph if node.addr == entry_node_addr))
             elif isinstance(entry_node_addr, tuple):
+                # assert T is ailment.Block
                 func_entry = next(
                     iter(
                         node
                         for node in self.func_graph
-                        if node.addr == entry_node_addr[0] and node.idx == entry_node_addr[1]
+                        if node.addr == entry_node_addr[0] and node.idx == entry_node_addr[1]  # type: ignore
                     )
                 )
             else:
                 raise TypeError(f"Unsupported entry node address type: {type(entry_node_addr)}")
-        df = self.project.analyses.DominanceFrontier(self.function, func_graph=self.func_graph, entry=func_entry)
+            df: DominanceFrontier[CodeNode] | DominanceFrontier[ailment.Block] = DominanceFrontier(
+                self.function,
+                func_graph=cast("networkx.DiGraph[CodeNode | ailment.Block]", self.func_graph),
+                entry=func_entry,
+            )  # type: ignore
+        else:
+            df = DominanceFrontier(self.function)
         self._dominance_frontiers = defaultdict(set)
         for b0, domfront in df.frontiers.items():
-            for d in domfront:
-                self._dominance_frontiers[d.addr].add(b0.addr)
+            if isinstance(b0, CodeNode):
+                for d in domfront:
+                    self._dominance_frontiers[d.addr].add(b0.addr)
+            elif isinstance(b0, ailment.Block):
+                for d in cast("Iterable[ailment.Block]", domfront):
+                    self._dominance_frontiers[(d.addr, d.idx)].add((b0.addr, b0.idx))
 
     def _post_analysis(self):
         # remove temporary variables (stack variables created by _ensure_variable_existence() that are 1-byte long,
@@ -433,9 +448,7 @@ class VariableRecoveryStateBase:
     #
 
     @staticmethod
-    def _mo_cmp(
-        mos_self: set[SimMemoryObject], mos_other: set[SimMemoryObject], addr: int, size: int
-    ):  # pylint:disable=unused-argument
+    def _mo_cmp(mos_self: set[SimMemoryObject], mos_other: set[SimMemoryObject], addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 

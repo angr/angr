@@ -9,7 +9,7 @@ import unittest
 
 import angr
 
-from tests.common import bin_location
+from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -26,6 +26,7 @@ class TestCCallRewriting(unittest.TestCase):
 
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=[("semvar_naming", False)])
         assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
 
         assert "PEB * sub_401030(void)" in dec.codegen.text
         assert "PEB *v0;" in dec.codegen.text

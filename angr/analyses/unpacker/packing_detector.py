@@ -117,7 +117,11 @@ class PackingDetector(Analysis):
         byte_counts = [0] * 256
 
         for start, end in regions:
-            for b in self.project.loader.memory.load(start, end - start):
+            try:
+                data = self.project.loader.memory.load(start, end - start)
+            except KeyError:
+                continue
+            for b in data:
                 byte_counts[b] += 1
 
         total = sum(byte_counts)

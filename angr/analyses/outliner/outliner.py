@@ -6,8 +6,8 @@ from typing import TypeVar
 import networkx
 
 from angr.ailment import Block, Address
-from angr.ailment.statement import Call, Assignment, ConditionalJump, Return, Jump
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Return, Jump
+from angr.ailment.expression import Call, Const, BinaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ssa import is_phi_assignment
 from angr.analyses import Analysis, AnalysesHub
@@ -167,11 +167,12 @@ class Outliner(Analysis):
 
         # rewrite the callsite
         vvar_id = self._next_vvar_id()
+        callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         call_expr = Call(
             None,
             f"outlined_func_{src_node.addr:x}",
             # Const(None, None, src_node.addr, 64),
-            args=callee_arg_vvars,
+            args=callee_arg_vvars_copy,
             bits=self.project.arch.bits,
             ins_addr=src_node.addr,
         )
@@ -281,8 +282,8 @@ class Outliner(Analysis):
         for stmt in block.statements:
             if is_phi_assignment(stmt):
                 all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
-                old_addrs = set(src_addrs) - set(all_stmt_srcs)
-                new_addrs = set(all_stmt_srcs) - set(src_addrs)
+                new_addrs = set(src_addrs) - set(all_stmt_srcs)
+                old_addrs = set(all_stmt_srcs) - set(src_addrs)
                 if len(old_addrs) == 1 and len(new_addrs) == 1:
                     # only source block is replaced by a new one
                     old_addr = next(iter(old_addrs))

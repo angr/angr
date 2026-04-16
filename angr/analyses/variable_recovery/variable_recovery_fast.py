@@ -25,11 +25,12 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
 from angr.analyses.typehoon.typeconsts import Int, TypeConstant, BottomType, TopType
-from angr.analyses.typehoon.lifter import TypeLifter
+from angr.analyses.typehoon.translator import TypeTranslator
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
 import contextlib
+
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
@@ -286,7 +287,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._unify_variables = unify_variables
 
         # handle type hints
-        self.type_lifter = TypeLifter(self.project.arch.bits)
+        self.type_lifter = TypeTranslator(self.project.arch)
         self.vvar_type_hints = {}
         if type_hints:
             self._parse_type_hints(type_hints)

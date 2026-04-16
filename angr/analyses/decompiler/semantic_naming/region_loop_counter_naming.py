@@ -211,9 +211,7 @@ class RegionLoopCounterNaming(RegionNamingBase):
         Assign standard names (i, j, k, ...) to counter variables based on nesting depth.
         """
         # Sort loops by nesting depth (outermost first), then by address for stability
-        sorted_loops = sorted(
-            self._loop_nodes, key=lambda ln: (self._loop_info[ln]["nesting_depth"], ln.addr if ln.addr else 0)
-        )
+        sorted_loops = sorted(self._loop_nodes, key=lambda ln: (self._loop_info[ln]["nesting_depth"], ln.addr or 0))
 
         for loop_node in sorted_loops:
             counter_var = self._loop_info[loop_node]["counter_var"]

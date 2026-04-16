@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.protos import cfg_pb2
 from angr.serializable import Serializable
 
 
@@ -26,6 +27,20 @@ class JumptableInfo:
         self.size = size
         self.entry_size = entry_size
         self.entries = entries
+
+    def serialize_to_cmessage(self):
+        cmsg = cfg_pb2.JumptableInfo()
+        if self.addr is not None:
+            cmsg.addr = self.addr
+        cmsg.size = self.size
+        cmsg.entry_size = self.entry_size
+        cmsg.entries.extend(self.entries)
+        return cmsg
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg) -> JumptableInfo:
+        addr = cmsg.addr if cmsg.HasField("addr") else None
+        return cls(addr, cmsg.size, cmsg.entry_size, list(cmsg.entries))
 
 
 class IndirectJump(Serializable):
@@ -117,6 +132,41 @@ class IndirectJump(Serializable):
             return self.jumptables[0].entries
         return None
 
+    @classmethod
+    def _get_cmsg(cls):
+        return cfg_pb2.IndirectJump()
+
+    def serialize_to_cmessage(self):
+        cmsg = self._get_cmsg()
+        cmsg.addr = self.addr
+        cmsg.ins_addr = self.ins_addr
+        cmsg.func_addr = self.func_addr
+        cmsg.jumpkind = self.jumpkind
+        cmsg.stmt_idx = self.stmt_idx
+        cmsg.resolved_targets.extend(self.resolved_targets)
+        cmsg.jumptable = self.jumptable
+        for jt in self.jumptables:
+            cmsg.jumptables.append(jt.serialize_to_cmessage())
+        cmsg.type = self.type if self.type is not None else IndirectJumpType.Unknown
+        return cmsg
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs) -> IndirectJump:
+        obj = cls(
+            addr=cmsg.addr,
+            ins_addr=cmsg.ins_addr,
+            func_addr=cmsg.func_addr,
+            jumpkind=cmsg.jumpkind,
+            stmt_idx=cmsg.stmt_idx,
+            resolved_targets=list(cmsg.resolved_targets),
+            jumptable=cmsg.jumptable,
+            type_=cmsg.type,
+        )
+        for jt_cmsg in cmsg.jumptables:
+            ji = JumptableInfo.parse_from_cmessage(jt_cmsg)
+            obj.jumptables.append(ji)
+        return obj
+
     def __repr__(self):
         status = ""
         if self.jumptable or self.jumptable_entries:
@@ -126,6 +176,6 @@ class IndirectJump(Serializable):
             if self.jumptable_entries is not None:
                 status += f" with {len(self.jumptable_entries)} entries"
             if len(self.jumptables) > 1:
-                status += f" (+{len(self.jumptables)-1} jumptables)"
+                status += f" (+{len(self.jumptables) - 1} jumptables)"
 
         return "<IndirectJump {:#08x} - ins {:#08x}{}>".format(self.addr, self.ins_addr, " " + status if status else "")

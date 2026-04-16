@@ -66,7 +66,6 @@ class TestCdg(unittest.TestCase):
 
         # Manually set the CFG
         cfg.model.graph = g
-        cfg.model._nodes = {}
         cfg._edge_map = {}
         cfg._loop_back_edges = []
         cfg._overlapped_loop_headers = []

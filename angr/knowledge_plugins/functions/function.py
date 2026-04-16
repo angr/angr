@@ -4,9 +4,10 @@ import os
 import logging
 import itertools
 from collections import defaultdict, UserDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 import contextlib
 import json
+from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
 
@@ -19,10 +20,11 @@ import claripy
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode, FuncNode
+from angr.knowledge_plugins.xrefs.xref import XRef
 from angr.serializable import Serializable
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.procedures import SIM_LIBRARIES
-from angr.procedures.definitions import SimSyscallLibrary
+from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
 from angr.protos import function_pb2
 from angr.calling_conventions import DEFAULT_CC, default_cc
 from angr.sim_type import SimTypeFunction, parse_defns
@@ -44,6 +46,26 @@ def dirty_func(func):
         return func(self, *args, **kwargs)
 
     return wrapper
+
+
+class PrototypeSource(int, Enum):
+    """
+    An enumeration to represent the source of a function prototype. The values are ordered by certainty, with higher
+    values indicating more certainty.
+    """
+
+    # guessed
+    NONE = 0
+    GUESSED = 1
+    CCA_LOW = 2  # low-level IR (VEX or P-Code) based CCA
+    # slightly more certain
+    CALLSITE_LOW = 3  # low-level IR (VEX or P-Code) based call-site analysis
+    CALLSITE_DECOMPILER = 6
+    # more certain
+    CCA_DECOMPILER = 20
+    SIMPROC = 21  # SimProcedures
+    SIGNATURES = 25  # function matching, e.g., FLIRT
+    USER = 100
 
 
 class FunctionInfo(UserDict):
@@ -118,6 +140,7 @@ class Function(Serializable):
         "_project",
         "_prototype",
         "_prototype_libname",
+        "_prototype_source",
         "_ret_sites",
         "_retout_sites",
         "_returning",
@@ -127,7 +150,6 @@ class Function(Serializable):
         "evicted",
         "from_signature",
         "is_default_name",
-        "is_prototype_guessed",
         "meta_only",
         "normalized",
         "previous_names",
@@ -138,6 +160,8 @@ class Function(Serializable):
         "tags",
         "transition_graph",
     )
+
+    _prototype_source: PrototypeSource
 
     def __init__(
         self,
@@ -153,6 +177,8 @@ class Function(Serializable):
         calling_convention: SimCC | None = None,
         prototype: SimTypeFunction | None = None,
         prototype_libname: str | None = None,
+        prototype_source: PrototypeSource | None = None,
+        # deprecated
         is_prototype_guessed: bool = True,
     ):
         """
@@ -205,7 +231,16 @@ class Function(Serializable):
         # Function prototype
         self._prototype = prototype
         self._prototype_libname = prototype_libname
-        self.is_prototype_guessed = is_prototype_guessed
+        if prototype_source is None:
+            self._prototype_source = (
+                PrototypeSource.NONE
+                if prototype is None
+                else PrototypeSource.GUESSED
+                if is_prototype_guessed
+                else PrototypeSource.USER
+            )
+        else:
+            self._prototype_source = prototype_source
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
@@ -324,7 +359,7 @@ class Function(Serializable):
         self.mark_dirty()
 
     @property
-    def project(self):
+    def project(self) -> Project | None:
         if self._project is None and self._function_manager is not None:
             # try to set it from function manager
             self._project = self._function_manager._kb._project
@@ -346,12 +381,12 @@ class Function(Serializable):
             self._function_manager.set_function_returning(self.addr, v)
 
     @property
-    def calling_convention(self):
+    def calling_convention(self) -> SimCC | None:
         return self._calling_convention
 
     @calling_convention.setter
     @dirty_func
-    def calling_convention(self, cc: SimCC):
+    def calling_convention(self, cc: SimCC | None):
         self._calling_convention = cc
 
     @property
@@ -381,7 +416,7 @@ class Function(Serializable):
                         arg_names.append(self._prototype.arg_names[i])
                     else:
                         arg_names.append(f"a{i}")
-            proto.arg_names = arg_names
+            proto.arg_names = tuple(arg_names)
         self._prototype = proto
 
     @property
@@ -393,6 +428,21 @@ class Function(Serializable):
         if self._prototype_libname == libname:
             return
         self._prototype_libname = libname
+        self.mark_dirty()
+
+    @property
+    def is_prototype_guessed(self) -> bool:
+        return self._prototype_source in {PrototypeSource.NONE, PrototypeSource.GUESSED, PrototypeSource.CCA_LOW}
+
+    @property
+    def prototype_source(self) -> PrototypeSource:
+        return self._prototype_source
+
+    @prototype_source.setter
+    def prototype_source(self, source: PrototypeSource) -> None:
+        if self._prototype_source == source:
+            return
+        self._prototype_source = source
         self.mark_dirty()
 
     @property
@@ -469,6 +519,10 @@ class Function(Serializable):
                 )
 
     @property
+    def code_nodes(self) -> dict[int, CodeNode]:
+        return self._local_blocks
+
+    @property
     def cyclomatic_complexity(self):
         """
         The cyclomatic complexity of the function.
@@ -493,7 +547,7 @@ class Function(Serializable):
         return self._cyclomatic_complexity
 
     @property
-    def xrefs(self):
+    def xrefs(self) -> Iterator[XRef]:
         """
         An iterator of all xrefs of the current function.
 
@@ -625,17 +679,20 @@ class Function(Serializable):
             return
 
         for x in self.xrefs:
-            if isinstance(x.dst, int):
-                try:
-                    md = cfg.memory_data[x.dst]
-                except KeyError:
-                    continue
-                if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
-                    continue
-                if len(md.content) < minimum_length:
-                    continue
+            if x.dst is None:
+                continue
+            try:
+                md = cfg.memory_data[x.dst]
+            except KeyError:
+                continue
+            if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
+                continue
+            if md.content is None:
+                continue
+            if len(md.content) < minimum_length:
+                continue
 
-                yield md.addr, md.content
+            yield md.addr, md.content
 
     @property
     def local_runtime_values(self):
@@ -818,6 +875,7 @@ class Function(Serializable):
         """
         :return: the function's binary offset (i.e., non-rebased address)
         """
+        assert self.binary is not None
         return self.addr - self.binary.mapped_base
 
     @property
@@ -825,6 +883,7 @@ class Function(Serializable):
         """
         :return: the function's Symbol, if any
         """
+        assert self.binary is not None
         return self.binary.loader.find_symbol(self.addr)
 
     @property
@@ -835,6 +894,7 @@ class Function(Serializable):
         if self.project is None:
             l.error("Cannot generate pseudocode because the function is not associated with any angr project.")
             return None
+        assert self._function_manager is not None
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
         return dec.codegen.text if dec.codegen else None
 
@@ -979,7 +1039,7 @@ class Function(Serializable):
         if hooker.prototype:
             self.prototype_libname = hooker.library_name
             self.prototype = hooker.prototype
-            self.is_prototype_guessed = False
+            self.prototype_source = PrototypeSource.SIMPROC
 
         cc = hooker.cc
         if cc is None and self.project is not None:
@@ -1027,7 +1087,14 @@ class Function(Serializable):
 
     @dirty_func
     def _transit_to(
-        self, from_node: CodeNode, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False
+        self,
+        from_node: CodeNode,
+        to_node,
+        outside=False,
+        ins_addr=None,
+        stmt_idx=None,
+        is_exception=False,
+        update_func_block_count: bool = True,
     ):
         """
         Registers an edge between basic blocks in this function's transition graph.
@@ -1042,15 +1109,15 @@ class Function(Serializable):
         """
 
         if outside:
-            from_node = self._register_node(True, from_node)
+            from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
             if to_node is not None:
-                to_node = self._register_node(False, to_node)
+                to_node = self._register_node(False, to_node, update_func_block_count=update_func_block_count)
 
             self._jumpout_sites.add(from_node)
         else:
-            from_node = self._register_node(True, from_node)
+            from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
             if to_node is not None:
-                to_node = self._register_node(True, to_node)
+                to_node = self._register_node(True, to_node, update_func_block_count=update_func_block_count)
 
         type_ = "transition" if not is_exception else "exception"
         if to_node is not None:
@@ -1075,6 +1142,7 @@ class Function(Serializable):
         ins_addr=None,
         return_to_outside=False,
         syscall: bool = False,
+        update_func_block_count: bool = True,
     ):
         """
         Registers an edge between the caller basic block and callee function.
@@ -1091,22 +1159,26 @@ class Function(Serializable):
         :type  ins_addr:    int or None
         """
 
-        from_node = self._register_node(True, from_node)
+        from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
 
         self.transition_graph.add_edge(
             from_node, to_func, type="syscall" if syscall else "call", stmt_idx=stmt_idx, ins_addr=ins_addr
         )
         if ret_node is not None and not syscall:
-            ret_node = self._register_node(return_to_outside is False, ret_node)
-            self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
+            ret_node = self._register_node(
+                return_to_outside is False, ret_node, update_func_block_count=update_func_block_count
+            )
+            self._fakeret_to(
+                from_node, ret_node, to_outside=return_to_outside, update_func_block_count=update_func_block_count
+            )
 
         self._local_transition_graph = None
 
     @dirty_func
-    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
-        from_node = self._register_node(True, from_node)
+    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
+        from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
         if confirmed:
-            to_node = self._register_node(not to_outside, to_node)
+            to_node = self._register_node(not to_outside, to_node, update_func_block_count=update_func_block_count)
 
         if confirmed is None:
             self.transition_graph.add_edge(from_node, to_node, type="fake_return", outside=to_outside)
@@ -1135,20 +1207,17 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
-    @dirty_func
-    def _update_local_blocks(self, node: CodeNode):
-        if node.addr not in self._local_blocks or self._local_blocks[node.addr] != node:
-            self._local_blocks[node.addr] = node
-            self._local_block_addrs.add(node.addr)
-            if self._function_manager is not None:
-                self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
+    def update_func_block_count(self) -> None:
+        """Update the cached block count of this function in the function manager."""
+        if self._function_manager is not None:
+            self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
 
     @dirty_func
     def _update_addr_to_block_cache(self, node: BlockNode):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
 
-    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode:
+    def _register_node(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> CodeNode:
         # if the node already exists and is the same, we reuse the existing node
         if is_local and self._local_blocks.get(node.addr, None) == node:
             return self._local_blocks[node.addr]
@@ -1165,7 +1234,11 @@ class Function(Serializable):
         if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
             self.startpoint = node
         if is_local and node.addr not in self._local_blocks:
-            self._update_local_blocks(node)
+            # update the _local_blocks dict and _local_block_addrs set
+            self._local_blocks[node.addr] = node
+            self._local_block_addrs.add(node.addr)
+            if update_func_block_count:
+                self.update_func_block_count()
         # add BlockNodes to the addr_to_block_node cache if not already there
         if isinstance(node, BlockNode):
             self._update_addr_to_block_cache(node)
@@ -1311,7 +1384,7 @@ class Function(Serializable):
         return None
 
     @property
-    def graph(self):
+    def graph(self) -> networkx.DiGraph[CodeNode]:
         """
         Get a local transition graph. A local transition graph is a transition graph that only contains nodes that
         belong to the current function. All edges, except for the edges going out from the current function or coming
@@ -1342,7 +1415,7 @@ class Function(Serializable):
 
         return g
 
-    def graph_ex(self, exception_edges=True):
+    def graph_ex(self, exception_edges=True) -> networkx.DiGraph[CodeNode]:
         """
         Get a local transition graph with a custom configuration. A local transition graph is a transition graph that
         only contains nodes that belong to the current function. This method allows user to exclude certain types of
@@ -1525,7 +1598,7 @@ class Function(Serializable):
         """
         Draw the graph and save it to a PNG file.
         """
-        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel
+        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel,consider-using-from-import
         from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error,import-outside-toplevel
 
         tmp_graph = networkx.classes.digraph.DiGraph()
@@ -1548,6 +1621,7 @@ class Function(Serializable):
 
         :param reg_offset:          The offset of the register to register.
         """
+        assert self._function_manager is not None
         if reg_offset in self._function_manager._arg_registers and reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
@@ -1595,7 +1669,7 @@ class Function(Serializable):
         end_addresses: defaultdict[int, list[BlockNode]] = defaultdict(list)
 
         for block in self.nodes:
-            if isinstance(block, BlockNode):
+            if isinstance(block, BlockNode) and isinstance(block.addr, int):
                 end_addr = block.addr + block.size
                 end_addresses[end_addr].append(block)
 
@@ -1725,6 +1799,8 @@ class Function(Serializable):
                                     self.prototype or self.calling_convention will be kept untouched.
         """
 
+        libraries: set[SimLibrary]
+
         if not ignore_binary_name:
             # determine the library name
             if not self.is_plt:
@@ -1741,7 +1817,7 @@ class Function(Serializable):
                 node = next(iter(edges))[1]
                 if len(edges) == 1 and isinstance(node, (FuncNode, HookNode, SyscallNode)):
                     target = node.addr
-                    if self._function_manager.contains_addr(target):
+                    if self._function_manager is not None and self._function_manager.contains_addr(target):
                         target_func = self._function_manager.get_by_addr(target)
                         binary_name = target_func.binary_name
 
@@ -1795,10 +1871,11 @@ class Function(Serializable):
                     # we need to get arch from self.project
                     l.warning(
                         "Function %s does not have .project set. A possible prototype is found, but we cannot set it "
-                        "without .project.arch."
+                        "without .project.arch.",
+                        self.name,
                     )
                     return False
-                self.prototype = proto.with_arch(self.project.arch)
+                self.prototype = proto.with_arch(self.project.arch) if proto is not None else proto
                 self.prototype_libname = library.name
                 self.returning = library.is_returning(name)
 
@@ -1889,7 +1966,7 @@ class Function(Serializable):
         if self.is_rust_function():
             nodes = ast.split("::")[:-1]
             ast = "::".join([Function._rust_fmt_node(node) for node in nodes])
-        return ast if ast else self.name
+        return ast or self.name
 
     @property
     def short_name(self):
@@ -1901,7 +1978,7 @@ class Function(Serializable):
             return "<ctor>"
         if meta["dtor"]:
             return "<dtor>"
-        if "<" and ">" in func_name:
+        if "<" in func_name and ">" in func_name:
             # remove template arguments
             depth = 0
             new_name_chars = []
@@ -1935,7 +2012,7 @@ class Function(Serializable):
         must_disambiguate_by_addr = self.binary is not self.project.loader.main_object and self.binary_name is None
 
         # If there are multiple functions with the same name in the same object, disambiguate by address
-        if not must_disambiguate_by_addr:
+        if not must_disambiguate_by_addr and self._function_manager is not None:
             for func in self._function_manager.get_by_name(self.name):
                 if func is not self and func.binary is self.binary:
                     must_disambiguate_by_addr = True
@@ -1955,11 +2032,10 @@ class Function(Serializable):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
         if len(func_def.keys()) > 1:
-            raise Exception(f"Too many definitions: {list(func_def.keys())} ")
+            raise AngrValueError(f"Too many definitions: {list(func_def.keys())} ")
 
-        name: str
-        ty: SimTypeFunction
         name, ty = func_def.popitem()
+        assert isinstance(ty, SimTypeFunction)
         self.name = name
         self.prototype = ty.with_arch(self.project.arch)
         # setup the calling convention
@@ -1985,16 +2061,22 @@ class Function(Serializable):
         if self._function_manager is None:
             return set()
 
-        called = set()
+        seen: set[int] = set()
+        called: set[Function] = set()
 
         def _find_called(function_address):
-            successors = set(self._function_manager.callgraph.successors(function_address)) - called
-            for s in successors:
-                called.add(s)
+            assert self._function_manager is not None
+            for s in self._function_manager.callgraph.successors(function_address):
+                if s in seen:
+                    continue
+                seen.add(s)
+                func = self._function_manager.function(s)
+                assert func is not None
+                called.add(func)
                 _find_called(s)
 
         _find_called(self.addr)
-        return {self._function_manager.get_by_addr(a) for a in called if self._function_manager.contains_addr(a)}
+        return called
 
     def holes(self, min_size: int = 8) -> int:
         """

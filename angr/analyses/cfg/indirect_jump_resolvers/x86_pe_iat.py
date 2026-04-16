@@ -30,9 +30,7 @@ class X86PeIatResolver(IndirectJumpResolver):
         # Must be of the form: call ds:0xABCD
         return bool(opnd.type == X86_OP_MEM and opnd.mem.disp and not opnd.mem.base and not opnd.mem.index)
 
-    def resolve(
-        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
-    ):  # pylint:disable=unused-argument
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):  # pylint:disable=unused-argument
         slot = self.project.factory.block(addr).capstone.insns[-1].insn.disp
         target = cfg._fast_memory_load_pointer(slot)
         if target is None:

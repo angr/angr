@@ -114,7 +114,7 @@ def ail_similarity_to_orig_blocks(orig_block, graph_similarity, graph):
 
 
 def find_block_by_similarity(block, graph, node_list=None):
-    nodes = node_list if node_list else list(graph.nodes())
+    nodes = node_list or list(graph.nodes())
     similar_blocks = []
     for other_block in nodes:
         if is_similar(block, other_block, graph=graph):

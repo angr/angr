@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 from collections.abc import Iterator
+from typing import Any
 from typing_extensions import Self
 
 import claripy
@@ -42,7 +43,7 @@ class CallStack(SimStatePlugin):
         self.invoke_return_variable = invoke_return_variable
 
         self.block_counter = collections.Counter()
-        self.procedure_data = None
+        self.procedure_data: Any | None = None
         self.locals = {}
 
     #

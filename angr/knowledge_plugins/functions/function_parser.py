@@ -78,7 +78,7 @@ class FunctionParser:
             prototype_ref = make_type_reference(function.prototype)
             obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
-        obj.is_prototype_guessed = function.is_prototype_guessed
+        obj.prototype_source = function.prototype_source.value
         obj.info = function.info.to_json().encode("utf-8") if function.info else b""
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
@@ -107,11 +107,18 @@ class FunctionParser:
                 obj.matched_from = function_pb2.Function.FLIRT
             else:
                 raise ValueError(
-                    f"Cannot convert from_signature {function.from_signature} into a SignatureSource " f"enum."
+                    f"Cannot convert from_signature {function.from_signature} into a SignatureSource enum."
                 )
 
         # blocks
-        blocks_list = [b.serialize_to_cmessage() for b in function.blocks]
+        blocks_list = []
+        for _, b in function.code_nodes.items():
+            block = primitives_pb2.Block()
+            block.ea = b.addr
+            block.size = b.size
+            if isinstance(b, BlockNode):
+                block.bytes = b.bytestr
+            blocks_list.append(block)
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
         block_addrs_set = function.block_addrs_set
@@ -128,7 +135,7 @@ class FunctionParser:
                 block = primitives_pb2.Block()
                 block.ea = node.addr
                 block.size = node.size
-                block.bytes = node.bytestr if node.bytestr else b""
+                block.bytes = node.bytestr or b""
                 external_blocks.append(block)
 
         TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
@@ -191,6 +198,8 @@ class FunctionParser:
         if cmsg.HasField("returning"):
             returning = cmsg.returning
 
+        from angr.knowledge_plugins.functions.function import PrototypeSource  # pylint:disable=import-outside-toplevel
+
         obj = Function(
             function_manager,
             cmsg.ea,
@@ -203,8 +212,8 @@ class FunctionParser:
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=cc,
             prototype=proto,
-            prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
-            is_prototype_guessed=cmsg.is_prototype_guessed,
+            prototype_libname=cmsg.prototype_libname or None,
+            prototype_source=PrototypeSource(cmsg.prototype_source),
         )
         obj._project = project
         obj.normalized = cmsg.normalized
@@ -269,33 +278,31 @@ class FunctionParser:
         edges = {}
         fake_return_edges = defaultdict(list)
         for edge_cmsg in cmsg.graph.edges:
-            try:
-                src = FunctionParser._get_block_or_func(
+            if edge_cmsg.src_ea in blocks:
+                src = blocks[edge_cmsg.src_ea]
+            else:
+                src = FunctionParser._get_hook_or_func_node(
                     edge_cmsg.src_ea,
-                    blocks,
                     external_blocks,
                     external_func_addrs,
                     project,
                 )
-            except KeyError as err:
-                raise KeyError(f"Address of the edge source {edge_cmsg.src_ea:#x} is not found.") from err
 
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
-            try:
-                if edge_type == "call":
-                    dst = FuncNode(edge_cmsg.dst_ea)
+            if edge_type == "call":
+                dst = FuncNode(edge_cmsg.dst_ea)
+            else:
+                if edge_cmsg.dst_ea in blocks:
+                    dst = blocks[edge_cmsg.dst_ea]
                 else:
-                    dst = FunctionParser._get_block_or_func(
+                    dst = FunctionParser._get_hook_or_func_node(
                         edge_cmsg.dst_ea,
-                        blocks,
                         external_blocks,
                         external_func_addrs,
                         project,
                     )
-            except KeyError as err:
-                raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
             data = {
                 "outside": edge_cmsg.is_outside,
@@ -329,6 +336,7 @@ class FunctionParser:
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                     is_exception=edge_type == "exception",
+                    update_func_block_count=False,  # we will update the block count at the end of this function
                 )
             elif edge_type in ("call", "syscall"):
                 # find the corresponding fake_ret edge
@@ -352,6 +360,7 @@ class FunctionParser:
                             ins_addr=ins_addr,
                             return_to_outside=fake_ret_edge is None,
                             syscall=edge_type == "syscall",
+                            update_func_block_count=False,  # we will update the block count at the end of this function
                         )
                     if fake_ret_edge is not None:
                         fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
@@ -361,6 +370,7 @@ class FunctionParser:
                             fakeret_dst,
                             confirmed=fakeret_data.get("confirmed"),
                             to_outside=fakeret_data.get("outside", None),
+                            update_func_block_count=False,  # we will update the block count at the end of this function
                         )
             elif edge_type == "return":
                 obj._return_from_call(
@@ -392,19 +402,15 @@ class FunctionParser:
             if block not in added_nodes:
                 obj._register_node(True, block)
 
+        obj.update_func_block_count()
+
         obj._dirty = False
 
         return obj
 
     @staticmethod
-    def _get_block_or_func(addr, blocks, external_blocks: dict, external_func_addrs: set[int], project):
-        # should we get a block or a function?
-        try:
-            return blocks[addr]
-            # it's a block. just return it
-        except KeyError:
-            pass
-
+    def _get_hook_or_func_node(addr, external_blocks: dict, external_func_addrs: set[int], project):
+        # should we get a hook node, a func node, or a block in external_blocks?
         if addr in external_func_addrs:
             if project is not None and project.is_hooked(addr):
                 # get a hook node instead
@@ -416,8 +422,8 @@ class FunctionParser:
             return external_blocks[addr]
 
         raise ValueError(
-            "Unsupported case: The block %#x is not in local or external blocks. "
-            "This probably indicates a bug in angrdb generation."
+            f"Unsupported case: The block addr {addr:#x} is not an external function or block. "
+            f"This probably indicates a bug in angrdb generation."
         )
 
     @staticmethod

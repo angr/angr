@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
-from angr.ailment.expression import ITE, Const, VirtualVariable, Phi
+from angr.ailment.statement import Statement, SideEffectStatement, ConditionalJump, Assignment, Jump
+from angr.ailment.expression import ITE, Call, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import subgraph_between_nodes
@@ -25,8 +25,8 @@ class ITERegionConverter(OptimizationPass):
     NAME = "Transform ITE-assignment regions into ternary expression assignments"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, max_updates=10, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, max_updates=10, **kwargs):
+        super().__init__(*args, **kwargs)
         self._max_updates = max_updates
         self.analyze()
 
@@ -302,6 +302,7 @@ class ITERegionConverter(OptimizationPass):
                     stmt.dst,
                     new_src_and_vvars[0][1],
                     **stmt.tags,
+                    dephi=True,
                 )
             else:
                 new_phi = Phi(
@@ -332,5 +333,5 @@ class ITERegionConverter(OptimizationPass):
     @staticmethod
     def _is_assigning_to_vvar(stmt: Statement) -> bool:
         return (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)) or (
-            isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable)
+            isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable)
         )

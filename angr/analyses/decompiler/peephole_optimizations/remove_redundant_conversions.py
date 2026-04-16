@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Convert, Const
+
+from angr.ailment.expression import BinaryOp, Convert, Const, Insert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -12,7 +13,6 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp | Convert, **kwargs):
-
         if isinstance(expr, BinaryOp):
             return self._optimize_BinaryOp(expr)
         if isinstance(expr, Convert):
@@ -132,7 +132,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                                 expr.op,
                                 [r1, Const(c.idx, c.variable, c.value, from_bits)],
                                 expr.signed,
-                                bits=from_bits,
+                                bits=1,
                                 **expr.tags,
                             )
 
@@ -152,9 +152,20 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
 
         return None
 
-    @staticmethod
-    def _optimize_Convert(expr: Convert):
+    def _optimize_Convert(self, expr: Convert):
         operand_expr = expr.operand
+        if (
+            expr.from_type == expr.to_type == Convert.TYPE_INT
+            and isinstance(operand_expr, Insert)
+            and self.project is not None
+            and operand_expr.is_lsb_overwrite()
+            and expr.bits <= operand_expr.value.bits
+        ):
+            if expr.bits == operand_expr.value.bits:
+                return operand_expr.value
+            return Convert(
+                expr.idx, operand_expr.value.bits, expr.bits, expr.is_signed, operand_expr.value, **expr.tags
+            )
         if isinstance(operand_expr, BinaryOp):
             if operand_expr.op in {
                 "Mul",

@@ -395,6 +395,9 @@ class TestStructurer(unittest.TestCase):
         # it should not raise any exceptions
         assert dec.codegen is not None and dec.codegen.text is not None
 
+        # piggybacking this testcase to assert we don't see _INSERT(_INSERT(
+        assert "_INSERT(INSERT(" not in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

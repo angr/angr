@@ -72,7 +72,7 @@ class PickledStatesDb(PickledStatesBase):
 
         if sqlalchemy is None:
             raise ImportError(
-                f"Cannot import SQLAlchemy. Please install SQLAlchemy before using " f"{self.__class__.__name__}."
+                f"Cannot import SQLAlchemy. Please install SQLAlchemy before using {self.__class__.__name__}."
             )
 
         # ORM declarations

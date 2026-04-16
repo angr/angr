@@ -18,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 class TestIatResolver(unittest.TestCase):
     def test_iat(self):
         p = angr.Project(os.path.join(test_location, "i386", "simple_windows.exe"), auto_load_libs=False)
-        cfg = p.analyses.CFGFast()
+        cfg = p.analyses.CFGFast(retedges=True)
 
         strcmp_caller_bb = cfg.model.get_any_node(0x401010)
         assert len(strcmp_caller_bb.successors) == 1

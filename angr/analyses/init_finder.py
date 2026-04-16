@@ -55,9 +55,7 @@ class SimEngineInitFinderVEX(SimEngineNostmtVEX[None, claripy.ast.Base | int | N
                 return True
             section = obj.find_section_containing(addr)
             if section is not None:
-                return section.name in {
-                    ".bss",
-                }
+                return section.name == ".bss"
 
             if isinstance(obj, MetaELF):
                 # for ELFs, if p_memsz >= p_filesz, the extra bytes are considered NOBITS

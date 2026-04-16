@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use backtrace::Backtrace;
 use libafl::{
-    executors::{Executor, ExitKind, HasObservers, HasTimeout},
+    executors::{Executor, ExitKind, HasObservers, HasTimeout, SetTimeout},
     observers::MapObserver,
     state::HasExecutions,
 };
 use libafl_bolts::{AsSliceMut, tuples::RefIndexable};
-use pyo3::{exceptions::PyRuntimeError, prelude::*};
+use pyo3::prelude::*;
 
 use crate::fuzzer::{EM, I, OT, S, Z};
 
@@ -16,6 +16,7 @@ pub struct PyExecutorInner<S> {
     apply_fn: Py<PyAny>,
     observers: OT,
     timeout: Option<Duration>,
+    cached_engine: Option<Py<PyAny>>,
     phantom: std::marker::PhantomData<S>,
 }
 
@@ -36,6 +37,7 @@ impl<S> PyExecutorInner<S> {
             apply_fn: apply_fn.unbind(),
             observers,
             timeout,
+            cached_engine: None,
             phantom: std::marker::PhantomData,
         })
     }
@@ -62,35 +64,53 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                 let apply_fn = self.apply_fn.bind(py);
                 apply_fn.call1((&copied_state, input.as_ref()))?;
 
-                // Step 2: Use an emulator to run the target
-                let project = copied_state.getattr("project")?;
-                let icicle_engine = py
-                    .import("angr.engines.icicle")?
-                    .getattr("UberIcicleEngine")?
-                    .call1((project,))?;
+                // Step 2: Get or create the icicle engine (reuse across iterations)
+                let icicle_engine = if let Some(ref cached) = self.cached_engine {
+                    cached.bind(py).clone()
+                } else {
+                    let project = copied_state.getattr("project")?;
+                    let engine = py
+                        .import("angr.engines.icicle")?
+                        .getattr("UberIcicleEngine")?
+                        .call1((project,))?;
+                    engine.call_method0("enable_snapshot_mode")?;
+                    self.cached_engine = Some(engine.clone().unbind());
+                    engine
+                };
+
                 let emulator = py
                     .import("angr.emulator")?
                     .getattr("Emulator")?
-                    .call1((icicle_engine, &copied_state))?;
+                    .call1((&icicle_engine, &copied_state))?;
 
-                // Step 2.5: Set return address as breakpoint to detect normal returns
-                let calling_convention = self.base_state.getattr(py, "project")?
-                    .getattr(py, "factory")?
-                    .getattr(py, "cc")?
-                    .call0(py)?;
-                let return_addr = calling_convention
-                    .getattr(py, "return_addr")?
-                    .getattr(py, "get_value")?
-                    .call1(py, (copied_state,))?
-                    .getattr(py, "concrete_value")?
-                    .extract::<u64>(py).map_err(|_| {
-                        PyRuntimeError::new_err(
-                            "Failed to extract return address, is it symbolic?".to_string(),
-                        )
-                    })?;
-
-                emulator.call_method1("add_breakpoint", (return_addr,))?;
-                emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
+                // Step 2.5: Set breakpoints to detect normal returns.
+                // If the user set state.globals['_fuzzer_breakpoints'] (a list of
+                // ints), use those addresses.  Otherwise fall back to auto-detecting
+                // the return address via cc.return_addr (works for shellcode where
+                // the apply_fn pushes a return address onto the stack).
+                let globals = copied_state.getattr("globals")?;
+                let user_bps = globals.call_method1("get", ("_fuzzer_breakpoints", py.None()))?;
+                if !user_bps.is_none() {
+                    let bp_list: Vec<u64> = user_bps.extract()?;
+                    for bp in bp_list {
+                        emulator.call_method1("add_breakpoint", (bp,))?;
+                        emulator.call_method1("add_breakpoint", (bp & !1,))?;
+                    }
+                } else {
+                    // Auto-detect: read the return address from the calling convention
+                    let project = copied_state.getattr("project")?;
+                    let cc = project.getattr("factory")?.call_method0("cc")?;
+                    let return_addr_loc = cc.getattr("return_addr")?;
+                    let return_addr: u64 = return_addr_loc
+                        .call_method1("get_value", (&copied_state,))?
+                        .getattr("concrete_value")?
+                        .extract()
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(
+                            format!("Could not read return address from state: {e}"),
+                        ))?;
+                    emulator.call_method1("add_breakpoint", (return_addr,))?;
+                    emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
+                }
 
                 let exit = emulator
                     .getattr("run")?
@@ -144,13 +164,13 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
             )),
         };
 
-        // Step 4: Copy the edge map from state.history to the observer to provide feedback
+        // Step 4: Copy the edge map from edge_hitmap plugin to the observer to provide feedback
         let py_hitmap: Vec<u8> = Python::attach(|py| {
             emulator
                 .bind(py)
                 .getattr("state")?
-                .getattr("history")?
-                .getattr("last_edge_hitmap")?
+                .call_method1("get_plugin", ("edge_hitmap",))?
+                .getattr("edge_hitmap")?
                 .extract()
         })
         .map_err(|e| {
@@ -190,5 +210,11 @@ impl<S> HasObservers for PyExecutorInner<S> {
 impl<S> HasTimeout for PyExecutorInner<S> {
     fn timeout(&self) -> Duration {
         self.timeout.unwrap_or(Duration::ZERO)
+    }
+}
+
+impl<S> SetTimeout for PyExecutorInner<S> {
+    fn set_timeout(&mut self, timeout: Duration) {
+        self.timeout = Some(timeout);
     }
 }

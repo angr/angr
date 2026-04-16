@@ -8,7 +8,7 @@ from angr.ailment.statement import (
     Statement,
     Assignment,
     Store,
-    Call,
+    SideEffectStatement,
     CAS,
     Return,
     ConditionalJump,
@@ -17,7 +17,10 @@ from angr.ailment.statement import (
 )
 from angr.ailment.expression import (
     Atom,
+    Call,
     Expression,
+    Extract,
+    Insert,
     VirtualVariable,
     Load,
     BinaryOp,
@@ -215,21 +218,29 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
         return None
 
-    def _handle_stmt_Call(self, stmt):
-        new_target = self._expr(stmt.target) if stmt.target is not None and not isinstance(stmt.target, str) else None
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
+        new_target = (
+            self._expr(stmt.expr.target)
+            if stmt.expr.target is not None and not isinstance(stmt.expr.target, str)
+            else None
+        )
         new_ret_expr = self._expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
         if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
-            return Call(
+            return SideEffectStatement(
                 stmt.idx,
-                stmt.target if new_target is None else new_target,
-                calling_convention=stmt.calling_convention,
-                prototype=stmt.prototype,
-                args=stmt.args,
+                Call(
+                    stmt.idx,
+                    stmt.expr.target if new_target is None else new_target,
+                    calling_convention=stmt.expr.calling_convention,
+                    prototype=stmt.expr.prototype,
+                    args=stmt.expr.args,
+                    bits=stmt.bits,
+                    **stmt.tags,
+                ),
                 ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
-                bits=stmt.bits,
                 **stmt.tags,
             )
         return None
@@ -366,6 +377,23 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
         return None
 
+    def _handle_expr_Extract(self, expr):
+        base = self._expr(expr.base) or expr.base
+        offset = self._expr(expr.offset) or expr.offset
+
+        if base is not expr.base or offset is not expr.offset:
+            return Extract(expr.idx, expr.bits, base, offset, expr.endness, **expr.tags)
+        return None
+
+    def _handle_expr_Insert(self, expr):
+        base = self._expr(expr.base) or expr.base
+        offset = self._expr(expr.offset) or expr.offset
+        value = self._expr(expr.value) or expr.value
+
+        if base is not expr.base or offset is not expr.offset or value is not expr.value:
+            return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
+        return None
+
     def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
         new_operands = []
         updated = False
@@ -426,18 +454,14 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
 
     def _handle_expr_Call(self, expr: Call):
         new_target = self._expr(expr.target) if expr.target is not None and not isinstance(expr.target, str) else None
-        new_ret_expr = self._expr(expr.ret_expr) if expr.ret_expr is not None else None
-        new_fp_ret_expr = self._expr(expr.fp_ret_expr) if expr.fp_ret_expr is not None else None
 
-        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
+        if new_target is not None:
             return Call(
                 expr.idx,
-                expr.target if new_target is None else new_target,
+                new_target,
                 calling_convention=expr.calling_convention,
                 prototype=expr.prototype,
                 args=expr.args,
-                ret_expr=expr.ret_expr if new_ret_expr is None else new_ret_expr,
-                fp_ret_expr=expr.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
                 bits=expr.bits,
                 **expr.tags,
             )

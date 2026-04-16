@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
-from angr.ailment.expression import Const, VirtualVariable, Load
+from angr.ailment.expression import Call, Const, VirtualVariable, Load
 from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
-from angr.ailment.statement import Call
+from angr.ailment.statement import SideEffectStatement
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -68,7 +68,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
             v = self._static_vvars[expr.varid]
             if isinstance(v, Const):
                 return v
-        return None
+        return expr
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
         if isinstance(expr.addr, VirtualVariable) and expr.addr.varid in self._static_vvars:
@@ -77,7 +77,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                 buffer = self._static_buffers.get(v.buffer_ident, None)
                 if buffer is None:
                     _l.warning("Cannot find static buffer %s", v.buffer_ident)
-                    return None
+                    return expr
                 if v.offset < 0 or v.offset + expr.size > buffer.size:
                     _l.warning(
                         "Static buffer %s access out of bounds: offset=%d, size=%d, buffer_size=%d",
@@ -86,7 +86,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                         expr.size,
                         buffer.size,
                     )
-                    return None
+                    return expr
                 data = buffer.content[v.offset : v.offset + expr.size]
                 value = int.from_bytes(data, byteorder="little" if expr.endness == "Iend_LE" else "big")
                 return Const(None, None, value, expr.bits, **expr.tags)
@@ -102,7 +102,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     buffer = self._static_buffers.get(v.buffer_ident, None)
                     if buffer is None:
                         _l.warning("Cannot find static buffer %s", v.buffer_ident)
-                        return None
+                        return expr
                     # compute the length of the string in the buffer
                     data = buffer.content[v.offset :]
                     str_len = 0
@@ -185,13 +185,11 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     calling_convention=expr.calling_convention,
                     prototype=expr.prototype,
                     args=new_args,
-                    ret_expr=expr.ret_expr,
-                    fp_ret_expr=expr.fp_ret_expr,
                     bits=expr.bits,
                     **expr.tags,
                 )
 
-        return None
+        return expr
 
 
 class VVarAliasVisitor(AILBlockViewer):
@@ -224,15 +222,16 @@ class VVarAliasVisitor(AILBlockViewer):
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None):
         return Offset(expr.value, expr.bits)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        call = stmt.expr
         if (
-            stmt.target == "memcpy"
-            and isinstance(stmt.args[0], VirtualVariable)
-            and isinstance(stmt.args[1], Const)
-            and isinstance(stmt.args[2], Const)
+            call.target == "memcpy"
+            and isinstance(call.args[0], VirtualVariable)
+            and isinstance(call.args[1], Const)
+            and isinstance(call.args[2], Const)
         ):
             # got a new memcpy call that we can handle
-            dst, src, size = stmt.args
+            dst, src, size = call.args
             if dst.varid not in self._static_vvars:
                 if src.tags.get("custom_string", False):
                     ident = f"static_buf_{stmt.tags['ins_addr']}"
@@ -240,18 +239,18 @@ class VVarAliasVisitor(AILBlockViewer):
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
                 else:
                     # TODO: Support other cases
-                    return super()._handle_Call(stmt_idx, stmt, block)
+                    return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
                 if ident not in self._static_buffers:
                     self._static_buffers[ident] = fixed_buffer
                 self._static_vvars[dst.varid] = FixedBufferPtr(ident, 0)
 
-        return super()._handle_Call(stmt_idx, stmt, block)
+        return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         op0 = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         op1 = self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
         if op0 is None or op1 is None:
-            return None
+            return expr
         if expr.op == "Add":
             if isinstance(op0, FixedBufferPtr) and isinstance(op1, Offset):
                 return FixedBufferPtr(op0.buffer_ident, op0.offset + op1.value)
@@ -263,7 +262,7 @@ class VVarAliasVisitor(AILBlockViewer):
         elif expr.op == "Mul":
             if isinstance(op0, Offset) and isinstance(op1, Offset):
                 return Offset(op0.value * op1.value, expr.bits)
-        return None
+        return expr
 
 
 #
@@ -285,12 +284,12 @@ class StaticVVarRewriter(OptimizationPass):
 
     def __init__(
         self,
-        func,
+        *args,
         static_buffers: dict[str, FixedBuffer] | None = None,
         static_vvars: dict[int, FixedBufferPtr | Const] | None = None,
         **kwargs,
     ):
-        super().__init__(func, **kwargs)
+        super().__init__(*args, **kwargs)
         self._static_buffers = static_buffers
         self._static_vvars = static_vvars
         self.analyze()
@@ -301,7 +300,7 @@ class StaticVVarRewriter(OptimizationPass):
         head = {(node.addr, node.idx): node for node in self._graph}[self.entry_node_addr]
         for block in reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(self._graph, head))):
             alias_visitor.walk(block)
-        if not self._static_buffers or not self._static_vvars:
+        if not self._static_buffers and not self._static_vvars:
             return False, None
         return True, None
 

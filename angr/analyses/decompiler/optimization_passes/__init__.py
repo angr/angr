@@ -19,6 +19,7 @@ from .const_derefs import ConstantDereferencesSimplifier
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
+from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
@@ -56,6 +57,7 @@ ALL_OPTIMIZATION_PASSES = [
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
     X86GccGetPcSimplifier,
+    MipsGpSettingSimplifier,
     ITERegionConverter,
     ITEExprConverter,
     ExprOpSwapper,
@@ -144,6 +146,7 @@ __all__ = (
     "InlinedStringTransformationSimplifier",
     "InlinedStrlenSimplifier",
     "LoweredSwitchSimplifier",
+    "MipsGpSettingSimplifier",
     "ModSimplifier",
     "OptimizationPassStage",
     "RegisterSaveAreaSimplifier",

@@ -42,6 +42,14 @@ from .typeconsts import (
     Int128,
     Int256,
     Int512,
+    SInt8,
+    UInt8,
+    SInt16,
+    UInt16,
+    SInt32,
+    UInt32,
+    SInt64,
+    UInt64,
     Pointer,
     Pointer32,
     Pointer64,
@@ -53,6 +61,7 @@ from .typeconsts import (
     Float32,
     Float64,
     Enum,
+    Fd,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -78,6 +87,15 @@ Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
 Enum_ = Enum()
+Fd_ = Fd()
+SInt8_ = SInt8()
+UInt8_ = UInt8()
+SInt16_ = SInt16()
+UInt16_ = UInt16()
+SInt32_ = SInt32()
+UInt32_ = UInt32()
+SInt64_ = SInt64()
+UInt64_ = UInt64()
 
 
 PRIMITIVE_TYPES = {
@@ -90,6 +108,14 @@ PRIMITIVE_TYPES = {
     Int128_,
     Int256_,
     Int512_,
+    SInt8_,
+    UInt8_,
+    SInt16_,
+    UInt16_,
+    SInt32_,
+    UInt32_,
+    SInt64_,
+    UInt64_,
     Pointer32_,
     Pointer64_,
     Bottom_,
@@ -99,6 +125,7 @@ PRIMITIVE_TYPES = {
     Float32_,
     Float64_,
     Enum_,
+    Fd_,
 }
 
 
@@ -115,13 +142,32 @@ BASE_LATTICE_64.add_edge(Int_, Int8_)
 BASE_LATTICE_64.add_edge(Int512_, Bottom_)
 BASE_LATTICE_64.add_edge(Int256_, Bottom_)
 BASE_LATTICE_64.add_edge(Int128_, Bottom_)
-BASE_LATTICE_64.add_edge(Int32_, Bottom_)
-BASE_LATTICE_64.add_edge(Int16_, Bottom_)
-BASE_LATTICE_64.add_edge(Int8_, Bottom_)
-BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
-BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
+# Int8: signed/unsigned children
+BASE_LATTICE_64.add_edge(Int8_, SInt8_)
+BASE_LATTICE_64.add_edge(Int8_, UInt8_)
+BASE_LATTICE_64.add_edge(SInt8_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt8_, Bottom_)
+# Int16: signed/unsigned children
+BASE_LATTICE_64.add_edge(Int16_, SInt16_)
+BASE_LATTICE_64.add_edge(Int16_, UInt16_)
+BASE_LATTICE_64.add_edge(SInt16_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt16_, Bottom_)
+# Int32: signed/unsigned children + Enum, Fd
+BASE_LATTICE_64.add_edge(Int32_, SInt32_)
+BASE_LATTICE_64.add_edge(Int32_, UInt32_)
+BASE_LATTICE_64.add_edge(SInt32_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt32_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Enum_)
 BASE_LATTICE_64.add_edge(Enum_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Fd_)
+BASE_LATTICE_64.add_edge(Fd_, Bottom_)
+# Int64: signed/unsigned children + Pointer64
+BASE_LATTICE_64.add_edge(Int64_, SInt64_)
+BASE_LATTICE_64.add_edge(Int64_, UInt64_)
+BASE_LATTICE_64.add_edge(SInt64_, Bottom_)
+BASE_LATTICE_64.add_edge(UInt64_, Bottom_)
+BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
+BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
@@ -136,13 +182,32 @@ BASE_LATTICE_32.add_edge(Int_, Int8_)
 BASE_LATTICE_32.add_edge(Int512_, Bottom_)
 BASE_LATTICE_32.add_edge(Int256_, Bottom_)
 BASE_LATTICE_32.add_edge(Int128_, Bottom_)
-BASE_LATTICE_32.add_edge(Int64_, Bottom_)
+# Int8: signed/unsigned children
+BASE_LATTICE_32.add_edge(Int8_, SInt8_)
+BASE_LATTICE_32.add_edge(Int8_, UInt8_)
+BASE_LATTICE_32.add_edge(SInt8_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt8_, Bottom_)
+# Int16: signed/unsigned children
+BASE_LATTICE_32.add_edge(Int16_, SInt16_)
+BASE_LATTICE_32.add_edge(Int16_, UInt16_)
+BASE_LATTICE_32.add_edge(SInt16_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt16_, Bottom_)
+# Int32: signed/unsigned children + Pointer32, Enum, Fd
+BASE_LATTICE_32.add_edge(Int32_, SInt32_)
+BASE_LATTICE_32.add_edge(Int32_, UInt32_)
+BASE_LATTICE_32.add_edge(SInt32_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
 BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
-BASE_LATTICE_32.add_edge(Int16_, Bottom_)
-BASE_LATTICE_32.add_edge(Int8_, Bottom_)
 BASE_LATTICE_32.add_edge(Int32_, Enum_)
 BASE_LATTICE_32.add_edge(Enum_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Fd_)
+BASE_LATTICE_32.add_edge(Fd_, Bottom_)
+# Int64: signed/unsigned children
+BASE_LATTICE_32.add_edge(Int64_, SInt64_)
+BASE_LATTICE_32.add_edge(Int64_, UInt64_)
+BASE_LATTICE_32.add_edge(SInt64_, Bottom_)
+BASE_LATTICE_32.add_edge(UInt64_, Bottom_)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,
@@ -299,7 +364,12 @@ class Sketch:
             basetype = supertype
             if not isinstance(basetype, (TopType, BottomType)):
                 assert basetype.size is not None
-                if max_size not in {0, None} and basetype.size > 0 and max_size // basetype.size > 0:  # type: ignore
+                if (
+                    max_size not in {0, None}
+                    and basetype.size > 0
+                    and max_size // basetype.size > 1
+                    and basetype.size <= 8
+                ):  # type: ignore
                     supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
 
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
@@ -337,7 +407,9 @@ class Sketch:
         ):
             bt = derived_typevar.type_var.basetype
             assert bt is not None
-            return bt, True
+            if bt != Bottom_:
+                # can't flatten to BOT!
+                return bt, True
         return derived_typevar, False
 
 
@@ -642,7 +714,6 @@ class SimpleSolver:
                 _l.debug("Degraded constraint subset to %d constraints.", len(constraint_subset))
 
             while constraint_subset:
-
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
                 # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
@@ -1008,13 +1079,16 @@ class SimpleSolver:
             cls1_elems = {key for key, item in equivalence_classes.items() if item is cls1}
             existing_elements = cls0_elems | cls1_elems
             # pick a representative type variable and prioritize non-derived type variables
-            if not isinstance(cls0, DerivedTypeVariable):
+            if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls0
-            elif not isinstance(cls1, DerivedTypeVariable):
+            elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
                 rep_cls = next(
-                    iter(elem for elem in existing_elements if not isinstance(elem, DerivedTypeVariable)), cls0
+                    iter(
+                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
+                    ),
+                    cls0,
                 )
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls
@@ -1431,9 +1505,11 @@ class SimpleSolver:
                             sz = last_field.bits if last_field.bits == MAX_POINTSTO_BITS else last_field.bits // 8
                             tv_sizes[sz].add(constraint)
                     elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
-                        tv_sizes[constraint.sub_type.SIZE].add(constraint)
+                        if constraint.sub_type.SIZE is not None:
+                            tv_sizes[constraint.sub_type.SIZE].add(constraint)
                     elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
-                        tv_sizes[constraint.super_type.SIZE].add(constraint)
+                        if constraint.super_type.SIZE is not None:
+                            tv_sizes[constraint.super_type.SIZE].add(constraint)
 
             if not tv_sizes:
                 continue
@@ -1728,6 +1804,8 @@ class SimpleSolver:
             if ancestor == abstract_t2:
                 return t2
             return ancestor
+        if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
+            return t1
         if t1 == Bottom_:
             return t2
         if t2 == Bottom_:
@@ -1754,6 +1832,8 @@ class SimpleSolver:
             if ancestor == abstract_t2:
                 return t2
             return ancestor
+        if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
+            return t1
         if t1 == Top_:
             return t2
         if t2 == Top_:

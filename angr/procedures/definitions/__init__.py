@@ -8,13 +8,13 @@ import inspect
 from collections import defaultdict
 from typing import Any, TYPE_CHECKING
 
-import msgspec
 import pydemumble
 import archinfo
 
 from angr.errors import AngrMissingTypeError
+from angr.utils.json_utils import json_decode
 from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
-from angr.calling_conventions import DEFAULT_CC, CC_NAMES
+from angr.calling_conventions import DEFAULT_CC, CC_NAMES, SimCC
 from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
@@ -76,7 +76,7 @@ class SimTypeCollection:
 
             d = self.types_json[name]
             if isinstance(d, str):
-                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+                d = json_decode(d.replace("'", '"').encode("utf-8"))
             try:
                 t = SimType.from_json(d, type_collection=self, memo=memo)
             except (TypeError, ValueError) as ex:
@@ -147,7 +147,7 @@ class SimLibrary:
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
         self.prototypes_json: dict[str, Any] = {}
-        self.default_ccs = {}
+        self.default_ccs: dict[str, type[SimCC]] = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
         self.fallback_proc = ReturnUnconstrained
@@ -316,9 +316,9 @@ class SimLibrary:
                 self.non_returning.add(alt)
 
     def _apply_metadata(self, proc, arch):
-        if proc.cc is None and arch.name in self.default_ccs:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-        if proc.cc is None and arch.name in self.fallback_cc:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if self.has_prototype(proc.display_name):
             proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type: ignore
@@ -376,7 +376,7 @@ class SimLibrary:
         if name not in self.prototypes and name in self.prototypes_json:
             d = self.prototypes_json[name]
             if isinstance(d, str):
-                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+                d = json_decode(d.replace("'", '"').encode("utf-8"))
             if not isinstance(d, dict):
                 l.warning("Failed to load prototype %s from JSON", name)
                 proto = None
@@ -450,7 +450,7 @@ class SimCppLibrary(SimLibrary):
     @staticmethod
     def _try_demangle(name):
         ast = pydemumble.demangle(name)
-        return ast if ast else name
+        return ast or name
 
     @staticmethod
     def _proto_from_demangled_name(name: str) -> SimTypeFunction | None:
@@ -847,7 +847,7 @@ def load_type_collections(only=None, skip=None) -> None:
     for f in types_json_files:
         with open(f, "rb") as fp:
             data = fp.read()
-            d = msgspec.json.decode(data)
+            d = json_decode(data)
             if not isinstance(d, dict) or d.get("_t", "") != "types":
                 l.warning("Invalid type collection JSON file: %s", f)
                 continue
@@ -867,9 +867,11 @@ def load_type_collections(only=None, skip=None) -> None:
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         _DEFINITIONS_BASEDIR,
-        filter_func=lambda module_name: module_name.startswith("types_")
-        and (only is None or (only is not None and module_name[6:] in only))
-        and module_name[6:] not in skip,
+        filter_func=lambda module_name: (
+            module_name.startswith("types_")
+            and (only is None or (only is not None and module_name[6:] in only))
+            and module_name[6:] not in skip
+        ),
     ):
         pass
 
@@ -891,7 +893,7 @@ def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str
             if module_name in skip:
                 continue
             with open(os.path.join(base_dir, f), "rb") as f:
-                d = msgspec.json.decode(f.read())
+                d = json_decode(f.read())
                 if not (isinstance(d, dict) and d.get("_t", "") == "lib"):
                     l.warning("Invalid SimLibrary JSON file: %s", f)
                     continue
@@ -904,8 +906,11 @@ def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         base_dir,
-        filter_func=lambda module_name: (only is None or (only is not None and module_name in only))
-        and module_name not in skip,
+        filter_func=lambda module_name: (
+            (only is None or (only is not None and module_name in only))
+            and not module_name.startswith("parse_")
+            and module_name not in skip
+        ),
     ):
         pass
 

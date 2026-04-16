@@ -36,7 +36,6 @@ class FlirtAnalysis(Analysis):
     """
 
     def __init__(self, sig: FlirtSignature | str | None = None, max_mismatched_bytes: int = 0, dry_run: bool = False):
-
         from angr.flirt import FLIRT_SIGNATURES_BY_ARCH  # pylint:disable=import-outside-toplevel
 
         self._is_arm = is_arm_arch(self.project.arch)
@@ -101,7 +100,6 @@ class FlirtAnalysis(Analysis):
                 self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: list[bytes]) -> Generator[FlirtSignature]:
-
         from angr.flirt import STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES  # pylint:disable=import-outside-toplevel
 
         library_hits: dict[str, int] = defaultdict(int)
@@ -136,9 +134,12 @@ class FlirtAnalysis(Analysis):
                     matched = False
 
                     funcs = (
-                        self.project.kb.functions.values()
+                        self.project.kb.functions.values(meta_only=True)
                         if not updated_funcs
-                        else {self.project.kb.functions.get_by_addr(a) for a in self._get_caller_funcs(updated_funcs)}
+                        else {
+                            self.project.kb.functions.get_by_addr(a, meta_only=True)
+                            for a in self._get_caller_funcs(updated_funcs)
+                        }
                     )
                     updated_funcs = set()
 
@@ -191,7 +192,11 @@ class FlirtAnalysis(Analysis):
         return caller_funcs
 
     def _get_callee_name(
-        self, func, func_addr: int, call_addr: int, expected_name: str  # pylint:disable=unused-argument
+        self,
+        func,
+        func_addr: int,
+        call_addr: int,
+        expected_name: str,  # pylint:disable=unused-argument
     ) -> str | None:
         all_callees = set()
         for block_addr, call_target_retn_addr in func._call_sites.items():

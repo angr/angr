@@ -17,7 +17,6 @@ GetBitsTypeParams: TypeAlias = "Expression"
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:
-
     if isinstance(expr, Expression):
         return expr.bits
     if isinstance(expr, Bits):

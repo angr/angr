@@ -41,7 +41,6 @@ class PhiAssignmentCollector(SequenceWalker):
         self.walk(seq_node)
 
     def _handle_Block(self, block: Block, **kwargs) -> None:  # pylint:disable=unused-argument
-
         for stmt in block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
                 for _, vvar in stmt.src.src_and_vvars:

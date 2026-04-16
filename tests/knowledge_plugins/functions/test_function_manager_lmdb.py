@@ -44,9 +44,9 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         cache_limit = 5
         fm.cache_limit = cache_limit
 
-        assert (
-            fm.cached_function_count <= cache_limit
-        ), f"Cache limit not respected: {fm.cached_function_count} > {cache_limit}"
+        assert fm.cached_function_count <= cache_limit, (
+            f"Cache limit not respected: {fm.cached_function_count} > {cache_limit}"
+        )
         assert fm.total_function_count == total_count, "Total function count should be preserved"
         assert fm.spilled_function_count == total_count - fm.cached_function_count, "Spilled count incorrect"
 

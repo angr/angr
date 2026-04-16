@@ -54,7 +54,9 @@ class PropagationModel(Serializable):
         self.function_block_count = (
             function_block_count
             if function_block_count is not None
-            else len(function.block_addrs_set) if function is not None else None
+            else len(function.block_addrs_set)
+            if function is not None
+            else None
         )
 
     def downsize(self):

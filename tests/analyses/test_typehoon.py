@@ -4,13 +4,24 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
+import re
 import os
 import unittest
+from collections import OrderedDict
 
 import archinfo
 
 import angr
-from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import (
+    SimTypeFloat,
+    SimTypePointer,
+    SimStruct,
+    SimTypeInt,
+    SimTypeBottom,
+    SimTypeFunction,
+    SimTypeChar,
+)
 from angr.analyses.typehoon.typevars import (
     TypeVariable,
     DerivedTypeVariable,
@@ -77,7 +88,64 @@ class TestTypehoon(unittest.TestCase):
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         assert dec.codegen.text.count("UNICODE_STRING v") == 2
+
+    def test_type_inference_auto_update_and_back_propagation(self):
+        bin_path = os.path.join(test_location, "x86_64", "bomb")
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFG(normalize=True)
+
+        func_phase2 = cfg.kb.functions["phase_2"]
+        assert func_phase2.prototype_source == PrototypeSource.NONE
+
+        proj.analyses.CompleteCallingConventions()
+
+        # let's decompile phase_2 first
+        func_phase2 = cfg.kb.functions["phase_2"]
+        print(func_phase2.prototype)
+        print(func_phase2.prototype_source)
+        assert func_phase2.prototype_source == PrototypeSource.CCA_LOW
+        func_read6numbers = cfg.kb.functions["read_six_numbers"]
+        assert func_read6numbers.prototype_source == PrototypeSource.CCA_LOW
+        dec_phase2 = proj.analyses.Decompiler(func_phase2, fail_fast=True)
+        print_decompilation_result(dec_phase2)
+        assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
+        assert func_phase2.prototype_source == PrototypeSource.CCA_DECOMPILER
+
+        # (char*, char*) -> ?
+        assert func_read6numbers.prototype_source == PrototypeSource.CALLSITE_DECOMPILER
+        assert isinstance(func_read6numbers.prototype, SimTypeFunction)
+        assert len(func_read6numbers.prototype.args) == 2
+        print(func_read6numbers.prototype)
+        assert isinstance(func_read6numbers.prototype.args[0], SimTypePointer) and isinstance(
+            func_read6numbers.prototype.args[0].pts_to, SimTypeChar
+        )
+        assert isinstance(func_read6numbers.prototype.args[1], SimTypePointer) and isinstance(
+            func_read6numbers.prototype.args[1].pts_to, SimTypeChar
+        )
+
+        # decompile read_six_numbers, and its prototype should be updated to (char*, uint32_t*)
+        dec_read6numbers = proj.analyses.Decompiler(func_read6numbers, fail_fast=True)
+        assert dec_read6numbers.codegen is not None and dec_read6numbers.codegen.text is not None
+        print_decompilation_result(dec_read6numbers)
+        assert func_read6numbers.prototype_source == PrototypeSource.CCA_DECOMPILER
+        assert isinstance(func_read6numbers.prototype, SimTypeFunction)
+        assert len(func_read6numbers.prototype.args) == 2
+        assert isinstance(func_read6numbers.prototype.args[0], SimTypePointer) and isinstance(
+            func_read6numbers.prototype.args[0].pts_to, SimTypeChar
+        )
+        assert (
+            isinstance(func_read6numbers.prototype.args[1], SimTypePointer)
+            and isinstance(func_read6numbers.prototype.args[1].pts_to, SimTypeInt)
+            and func_read6numbers.prototype.args[1].pts_to.signed is True
+        )
+
+        # decompile phase_2 again, and we should see an unsigned int [6] on the stack
+        dec_phase2 = proj.analyses.Decompiler(func_phase2, fail_fast=True)
+        assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
+        print_decompilation_result(dec_phase2)
+        assert re.search(r"  int v\d+\[6];", dec_phase2.codegen.text) is not None
 
     def test_type_inference_basic_case_0(self):
         func_f = TypeVariable(name="F")
@@ -363,6 +431,21 @@ class TestTypeTranslator(unittest.TestCase):
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
+
+    def test_lift_recursive_struct(self):
+        arch = archinfo.arch_from_id("amd64")
+        fields = OrderedDict({"ptr": SimTypePointer(SimTypeBottom())})
+        st = SimStruct(fields, name="test_struct")
+        assert isinstance(st.fields["ptr"], SimTypePointer)
+        st.fields["ptr"].pts_to = st
+        st = st.with_arch(arch)
+        tx = TypeTranslator(arch)
+        tc = tx.simtype2tc(st)
+        assert isinstance(tc, Struct)
+        assert 0 in tc.fields
+        assert isinstance(tc.fields[0], Pointer64)
+        assert 0 in tc.field_names
+        assert tc.field_names[0] == "ptr"
 
 
 if __name__ == "__main__":

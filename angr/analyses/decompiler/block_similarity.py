@@ -73,8 +73,9 @@ def is_similar(
                 t1, t2 = getattr(ail_obj1, attr).value, getattr(ail_obj2, attr).value
                 i1, i2 = getattr(ail_obj1, attr + "_idx"), getattr(ail_obj2, attr + "_idx")
                 try:
-                    t1_blk, t2_blk = find_block_by_addr_and_idx(graph, t1, i1), find_block_by_addr_and_idx(
-                        graph, t2, i2
+                    t1_blk, t2_blk = (
+                        find_block_by_addr_and_idx(graph, t1, i1),
+                        find_block_by_addr_and_idx(graph, t2, i2),
                     )
                 except ValueError:
                     _l.warning("Could not find block by address in graph. It is likely that the graph is broken.")

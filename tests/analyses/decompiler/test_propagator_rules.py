@@ -34,6 +34,30 @@ class TestPropagatorRules(unittest.TestCase):
         assert dec.codegen.text.count("ObReferenceObjectByPointer(") == 1
         assert dec.codegen.text.count("ExFreePoolWithTag") == 1
 
+    def test_propagator_do_not_create_overly_deep_expressions(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "94def0c6290dbc32ebb9a6e72d2f76d0ffe66365606efeef952834768e47f1d8"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+
+        func = cfg.functions[0x14000F190]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # ensure that each line contains at most five operators
+        for line in dec.codegen.text.splitlines():
+            if line.strip() == "":
+                continue
+            op_count = line.count("+") + line.count("-") + line.count("^") + line.count("ROL") + line.count("ROR")
+            if "return" in line:
+                assert op_count <= 12
+            else:
+                assert op_count <= 7
+
 
 if __name__ == "__main__":
     unittest.main()

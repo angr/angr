@@ -46,7 +46,11 @@ impl<I: for<'de> Deserialize<'de>> TryFrom<&SerializedCorpus<I>> for InMemoryCor
     }
 }
 
-#[pyclass(module = "angr.rustylib.fuzzer", name = "InMemoryCorpus")]
+#[pyclass(
+    module = "angr.rustylib.fuzzer",
+    name = "InMemoryCorpus",
+    from_py_object
+)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PyInMemoryCorpus {
     inner: SerializedCorpus<BytesInput>,
@@ -132,7 +136,12 @@ impl PyInMemoryCorpus {
 }
 
 // On DiskCorpus wrapper
-#[pyclass(module = "angr.rustylib.fuzzer", name = "OnDiskCorpus", unsendable)]
+#[pyclass(
+    module = "angr.rustylib.fuzzer",
+    name = "OnDiskCorpus",
+    unsendable,
+    from_py_object
+)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PyOnDiskCorpus {
     pub(crate) inner: OnDiskCorpus<BytesInput>,

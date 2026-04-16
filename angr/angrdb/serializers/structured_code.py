@@ -48,7 +48,7 @@ class ConstFormatsSerializer:
                 else:  # ch == "s"
                     v_type = CConstantType.STRING.value
                     value = d_key[1:]
-                key_tpl: IdentType = int(ins_addr), v_type, value
+                key_tpl: IdentType = int(ins_addr), v_type, str(value)
                 r[key_tpl] = {}
                 for k, v in d.items():
                     r[key_tpl][k] = v is True or (isinstance(v, str) and v.lower() == "true")

@@ -16,6 +16,7 @@ from tests.common import bin_location
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware")
+REFLOW_FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware_reflow")
 
 
 class TestCfgModel(unittest.TestCase):
@@ -51,6 +52,44 @@ class TestCfgModel(unittest.TestCase):
 
         for addr in expected_removed_addrs:
             assert cfg.model.get_any_node(addr) is None
+
+    def test_cfgmodel_find_func_for_reflow(self):
+        """Test CFGModel::find_func_for_reflow in same function"""
+        proj = angr.Project(REFLOW_FAUXWARE_PATH, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()()
+
+        addr = 0x40131C
+        func = cfg.model.find_function_for_reflow_into_addr(addr)
+        assert func is not None
+        assert func.name == "main"
+
+    def test_cfgmodel_find_func_for_reflow_nonreturning(self):
+        """Test CFGModel::find_func_for_reflow right after a non-returning function call in same function"""
+        proj = angr.Project(REFLOW_FAUXWARE_PATH, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()()
+
+        addr = 0x401371
+        func = cfg.model.find_function_for_reflow_into_addr(addr)
+        assert func is not None
+        assert func.name == "main"
+
+    def test_cfgmodel_find_func_for_reflow_multifunc(self):
+        """Test CFGModel::find_func_for_reflow at function boundary"""
+        proj = angr.Project(REFLOW_FAUXWARE_PATH, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()()
+
+        addr = 0x4012C0
+        func = cfg.model.find_function_for_reflow_into_addr(addr)
+        assert func is None
+
+    def test_cfgmodel_find_func_for_reflow_nonreturning_multifunc(self):
+        """Test CFGModel::find_func_for_reflow at function boundary after a non-returning function call"""
+        proj = angr.Project(REFLOW_FAUXWARE_PATH, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()()
+
+        addr = 0x4012E6
+        func = cfg.model.find_function_for_reflow_into_addr(addr)
+        assert func is None
 
 
 if __name__ == "__main__":

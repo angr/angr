@@ -963,7 +963,7 @@ class Value(OperandPiece):
 
         # default case
         try:
-            func = self.project.kb.functions.get_by_addr(self.val)
+            func = self.project.kb.functions.get_by_addr(self.val, meta_only=True)
         except KeyError:
             func = None
 
@@ -1234,7 +1234,7 @@ class Disassembly(Analysis):
             )
             formatting = {
                 "colors": colors,
-                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item), None)),
+                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item))),
             }
 
         def col(item: Any) -> str | None:

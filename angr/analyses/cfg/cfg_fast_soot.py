@@ -31,6 +31,8 @@ except ImportError:
 
 
 class CFGFastSoot(CFGFast):
+    addr_type = "soot"
+
     def __init__(self, support_jni=False, **kwargs):
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
@@ -135,6 +137,10 @@ class CFGFastSoot(CFGFast):
                     block_id=addr,
                     soot_block=soot_block,
                 )
+
+                # add it to the model
+                self._model.add_node(addr, cfg_node)
+
             return addr, current_function_addr, cfg_node, soot_block
 
         except (SimMemoryError, SimEngineError):
@@ -326,8 +332,10 @@ class CFGFastSoot(CFGFast):
             return location.method
         return location
 
-    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
-        assert thumb is False
+    def _to_snippet(
+        self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None, byte_string=None
+    ):
+        assert thumb is False and byte_string is None
 
         if cfg_node is not None:
             addr = cfg_node.addr
@@ -443,9 +451,7 @@ class CFGFastSoot(CFGFast):
 
         return entries
 
-    def _create_jobs(
-        self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx
-    ):  # pylint:disable=arguments-differ
+    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):  # pylint:disable=arguments-differ
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -477,7 +483,7 @@ class CFGFastSoot(CFGFast):
                     self.functions[current_function_addr].returning = True
                     self._pending_jobs.add_returning_function(current_function_addr)
 
-                cfg_node.has_return = True
+                self.model.mark_node_addr_has_return(addr)
 
         elif target_addr is not None:
             # This is a direct jump with a concrete target.
@@ -603,7 +609,7 @@ class CFGFastSoot(CFGFast):
 
             self._graph_bfs_custom(
                 self.graph,
-                [fn],
+                [fn.addr],
                 self._graph_traversal_handler,
                 blockaddr_to_funcaddr,
                 tmp_functions,
@@ -640,7 +646,7 @@ class CFGFastSoot(CFGFast):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(
-                self.graph, [fn], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
+                self.graph, [fn.addr], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
             )
 
         to_remove = set()

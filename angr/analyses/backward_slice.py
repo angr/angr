@@ -462,7 +462,9 @@ class BackwardSlice(Analysis):
 
         # Find all paths from src_block to target_block
         # FIXME: This is some crappy code written in a hurry. Replace the all_simple_paths() later.
-        all_simple_paths = list(networkx.all_simple_paths(self._cfg.graph, src_block, target_block, cutoff=3))
+        all_simple_paths = list(
+            networkx.all_simple_paths(self._cfg.graph.to_networkx(), src_block, target_block, cutoff=3)
+        )
 
         for simple_path in all_simple_paths:
             if len(simple_path) <= 1:
@@ -545,7 +547,7 @@ class BackwardSlice(Analysis):
                     # Usually this is not required if basic blocks strictly end at control flow transitions. But this is
                     # not always the case for some architectures
                     all_simple_paths = list(
-                        networkx.all_simple_paths(self._cfg.graph, predecessor, target_node, cutoff=3)
+                        networkx.all_simple_paths(self._cfg.graph.to_networkx(), predecessor, target_node, cutoff=3)
                     )
 
                     previous_node = None

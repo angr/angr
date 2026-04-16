@@ -26,8 +26,8 @@ class StackCanarySimplifier(OptimizationPass):
     NAME = "Simplify stack canaries"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -181,11 +181,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         while True:
             traversed.add(block_addr)
-            try:
-                first_block = next(self._get_blocks(block_addr))
-            except StopIteration:
-                break
-
+            first_block = next(self._get_blocks(block_addr), None)
             if first_block is None:
                 break
 
@@ -290,8 +286,8 @@ class StackCanarySimplifier(OptimizationPass):
 
     def _calls_stack_chk_fail(self, node):
         for stmt in node.statements:
-            if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
-                const_target = stmt.target.value
+            if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.expr.target, ailment.Expr.Const):
+                const_target = stmt.expr.target.value
                 if const_target in self.kb.functions:
                     func = self.kb.functions.function(addr=const_target)
                     if func.name == "__stack_chk_fail":

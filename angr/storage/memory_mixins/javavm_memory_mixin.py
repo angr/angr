@@ -54,8 +54,8 @@ class JavaVmMemoryMixin(MemoryMixin):
         self.max_array_size = max_array_size
 
         # concretizing strategies
-        self.load_strategies = load_strategies if load_strategies else []
-        self.store_strategies = store_strategies if store_strategies else []
+        self.load_strategies = load_strategies or []
+        self.store_strategies = store_strategies or []
 
     @staticmethod
     def get_new_uuid():

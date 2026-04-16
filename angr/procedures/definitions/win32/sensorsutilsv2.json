@@ -12,124 +12,124 @@
 	},
 	"functions": {
 		"CollectionsListAllocateBufferAndSerialize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceCollection', 'pTargetBufferSizeInBytes', 'pTargetBuffer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceCollection', 'pTargetBufferSizeInBytes', 'pTargetBuffer']}"
 		},
 		"CollectionsListCopyAndMarshall": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Target', 'Source']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Target', 'Source']}"
 		},
 		"CollectionsListDeserializeFromBuffer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceBufferSizeInBytes', 'SourceBuffer', 'TargetCollection']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceBufferSizeInBytes', 'SourceBuffer', 'TargetCollection']}"
 		},
 		"CollectionsListGetFillableCount": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['BufferSizeBytes']}"
 		},
 		"CollectionsListGetMarshalledSize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Collection']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Collection']}"
 		},
 		"CollectionsListGetMarshalledSizeWithoutSerialization": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Collection']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Collection']}"
 		},
 		"CollectionsListGetSerializedSize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Collection']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Collection']}"
 		},
 		"CollectionsListMarshall": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Target']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Target']}"
 		},
 		"CollectionsListSerializeToBuffer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceCollection', 'TargetBufferSizeInBytes', 'TargetBuffer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceCollection', 'TargetBufferSizeInBytes', 'TargetBuffer']}"
 		},
 		"CollectionsListSortSubscribedActivitiesByConfidence": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['thresholds', 'pCollection']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['thresholds', 'pCollection']}"
 		},
 		"CollectionsListUpdateMarshalledPointer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Collection']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Collection']}"
 		},
 		"EvaluateActivityThresholds": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['newSample', 'oldSample', 'thresholds']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['newSample', 'oldSample', 'thresholds']}"
 		},
 		"GetPerformanceTime": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['TimeMs']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['TimeMs']}"
 		},
 		"InitPropVariantFromCLSIDArray": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['members', 'size', 'ppropvar']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'label': 'LPArray', 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['members', 'size', 'ppropvar']}"
 		},
 		"InitPropVariantFromFloat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltVal', 'ppropvar']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltVal', 'ppropvar']}"
 		},
 		"IsCollectionListSame": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['ListA', 'ListB']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['ListA', 'ListB']}"
 		},
 		"IsGUIDPresentInList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['guidArray', 'arrayLength', 'guidElem']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'label': 'LPArray', 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['guidArray', 'arrayLength', 'guidElem']}"
 		},
 		"IsKeyPresentInCollectionList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pList', 'pKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pList', 'pKey']}"
 		},
 		"IsKeyPresentInPropertyList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_PROPERTY_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pList', 'pKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_PROPERTY_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pList', 'pKey']}"
 		},
 		"IsSensorSubscribed": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['subscriptionList', 'currentType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['subscriptionList', 'currentType']}"
 		},
 		"PropKeyFindKeyGetBool": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetDouble": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetFileTime": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetFloat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetGuid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetInt32": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetInt64": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetNthInt64": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'Occurrence', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'Occurrence', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetNthUlong": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'Occurrence', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'Occurrence', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetNthUshort": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'Occurrence', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'Occurrence', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetPropVariant": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'TypeCheck', 'pValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'TypeCheck', 'pValue']}"
 		},
 		"PropKeyFindKeyGetUlong": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeyGetUshort": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'pRetValue']}"
 		},
 		"PropKeyFindKeySetPropVariant": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'TypeCheck', 'pValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pList', 'pKey', 'TypeCheck', 'pValue']}"
 		},
 		"PropVariantGetInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'enum'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['PropVariantValue', 'PropVariantOffset', 'PropVariantSize', 'PropVariantPointer', 'RemappedType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['PropVariantValue', 'PropVariantOffset', 'PropVariantSize', 'PropVariantPointer', 'RemappedType']}"
 		},
 		"PropertiesListCopy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_PROPERTY_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_PROPERTY_LIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Target', 'Source']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_PROPERTY_LIST', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_PROPERTY_LIST', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Target', 'Source']}"
 		},
 		"PropertiesListGetFillableCount": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['BufferSizeBytes']}"
 		},
 		"SensorCollectionGetAt": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Index', 'pSensorsList', 'pKey', 'pValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SENSOR_COLLECTION_LIST', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Index', 'pSensorsList', 'pKey', 'pValue']}"
 		},
 		"SerializationBufferAllocate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SizeInBytes', 'pBuffer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SizeInBytes', 'pBuffer']}"
 		},
 		"SerializationBufferFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Buffer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Buffer']}"
 		}
 	}
 }

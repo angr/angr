@@ -2,7 +2,7 @@ from __future__ import annotations
 from angr.ailment.expression import Const, Load
 
 from angr import SIM_LIBRARIES
-from angr.ailment.statement import Call
+from angr.ailment.expression import Call
 from angr.calling_conventions import default_cc
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS

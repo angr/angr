@@ -180,7 +180,7 @@ class RegionSimplifier(Analysis):
             if fail:
                 continue
 
-            if isinstance(definition, ailment.Stmt.Call):
+            if isinstance(definition, ailment.Stmt.SideEffectStatement):
                 # clear the existing variable since we no longer write to this variable after expression folding
                 definition = definition.copy()
                 if definition.ret_expr is not None:

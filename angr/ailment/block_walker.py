@@ -6,9 +6,9 @@ from collections.abc import Callable
 
 from . import Block
 from .statement import (
-    Call,
     CAS,
     Statement,
+    SideEffectStatement,
     ConditionalJump,
     Assignment,
     Store,
@@ -18,6 +18,7 @@ from .statement import (
     WeakAssignment,
 )
 from .expression import (
+    Call,
     Load,
     Expression,
     BinaryOp,
@@ -34,6 +35,8 @@ from .expression import (
     VirtualVariable,
     Phi,
     Atom,
+    Extract,
+    Insert,
 )
 
 ExprType = TypeVar("ExprType")
@@ -51,7 +54,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             Assignment: self._handle_Assignment,
             WeakAssignment: self._handle_WeakAssignment,
             CAS: self._handle_CAS,
-            Call: self._handle_Call,
+            SideEffectStatement: self._handle_SideEffectStatement,
             Store: self._handle_Store,
             ConditionalJump: self._handle_ConditionalJump,
             Jump: self._handle_Jump,
@@ -75,13 +78,15 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             MultiStatementExpression: self._handle_MultiStatementExpression,
             VirtualVariable: self._handle_VirtualVariable,
             Phi: self._handle_Phi,
+            Extract: self._handle_Extract,
+            Insert: self._handle_Insert,
         }
 
         self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
-            stmt_handlers if stmt_handlers else _default_stmt_handlers
+            stmt_handlers or _default_stmt_handlers
         )
         self.expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = (
-            expr_handlers if expr_handlers else _default_expr_handlers
+            expr_handlers or _default_expr_handlers
         )
 
     def walk(self, block: Block) -> BlockType:
@@ -97,8 +102,8 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
     def _handle_block_end(self, stmt_results: list[StmtType], block: Block) -> BlockType:
         raise NotImplementedError
 
-    def walk_statement(self, stmt: Statement, block: Block | None = None) -> StmtType:
-        return self._handle_stmt(0, stmt, block)
+    def walk_statement(self, stmt: Statement, block: Block | None = None, stmt_idx: int = 0) -> StmtType:
+        return self._handle_stmt(stmt_idx, stmt, block)
 
     def walk_expression(
         self,
@@ -156,12 +161,8 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
         return self._stmt_top(stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> StmtType:
-        if not isinstance(stmt.target, str):
-            self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> StmtType:
+        self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
         return self._stmt_top(stmt_idx, stmt, block)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None) -> StmtType:
@@ -294,6 +295,21 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Extract(
+        self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Insert(
+        self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
 
 class AILBlockViewer(AILBlockWalker[None, None, None]):
     """
@@ -331,12 +347,8 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         if stmt.old_hi is not None:
             self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if not isinstance(stmt.target, str):
-            self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
@@ -435,6 +447,15 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     ):
         for idx, operand in enumerate(expr.operands):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+
+    def _handle_Insert(self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
 
 class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
@@ -547,28 +568,16 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             )
         return stmt
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Statement:
-        changed = False
-
-        if isinstance(stmt.target, str):
-            new_target = None
-        else:
-            new_target = self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
-            changed = new_target is not stmt.target
-
-        new_args = None
-        if stmt.args is not None:
-            new_args = [self._handle_expr(idx, arg, stmt_idx, stmt, block) for idx, arg in enumerate(stmt.args)]
-            changed |= any(old is not new for new, old in zip(new_args, stmt.args))
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> Statement:
+        new_expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
+        changed = new_expr is not stmt.expr
 
         if changed:
-            return Call(
+            return SideEffectStatement(
                 stmt.idx,
-                new_target if new_target is not None else stmt.target,
-                calling_convention=stmt.calling_convention,
-                prototype=stmt.prototype,
-                args=new_args,
+                new_expr,
                 ret_expr=stmt.ret_expr,
+                fp_ret_expr=stmt.fp_ret_expr,
                 **stmt.tags,
             )
         return stmt
@@ -853,4 +862,32 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             expr_.expr = new_expr
             expr_.stmts = new_statements
             return expr_
+        return expr
+
+    def _handle_Extract(
+        self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+
+        if new_base is not expr.base or new_offset is not expr.offset:
+            result = expr.copy()
+            result.base = new_base
+            result.offset = new_offset
+            return result
+        return expr
+
+    def _handle_Insert(
+        self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        new_value = self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+
+        if new_base is not expr.base or new_offset is not expr.offset or new_value is not expr.value:
+            result = expr.copy()
+            result.base = new_base
+            result.offset = new_offset
+            result.value = new_value
+            return result
         return expr

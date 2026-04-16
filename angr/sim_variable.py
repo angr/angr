@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
+from typing_extensions import Self
 
 import claripy
 
@@ -48,7 +49,7 @@ class SimVariable(Serializable):
         self.size = size
         self._hash = None
 
-    def copy(self):
+    def copy(self) -> Self:
         raise NotImplementedError
 
     def loc_repr(self, arch: archinfo.Arch):
@@ -386,7 +387,7 @@ class SimStackVariable(SimMemoryVariable):
     )
 
     def __init__(
-        self, offset: int, size: int, base="sp", base_addr=None, ident=None, name=None, region=None, category=None
+        self, offset: int, size: int, base="bp", base_addr=None, ident=None, name=None, region=None, category=None
     ):
         if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...

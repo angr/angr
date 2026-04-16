@@ -536,12 +536,12 @@ class StructurerBase(Analysis):
                 cond = None
                 other_target = None
                 if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == continue_node_addr:
-                    cond = self.cond_proc.claripy_ast_from_ail_condition(stmt.condition)
+                    cond = self.cond_proc.claripy_ast_from_ail_condition(stmt.condition, must_bool=True)
                     other_target = stmt.false_target
                 elif (
                     isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == continue_node_addr
                 ):
-                    cond = claripy.Not(self.cond_proc.claripy_ast_from_ail_condition(stmt.condition))
+                    cond = claripy.Not(self.cond_proc.claripy_ast_from_ail_condition(stmt.condition, must_bool=True))
                     other_target = stmt.true_target
                 if cond is not None:
                     skip_continue_condition = False

@@ -9,7 +9,7 @@ from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
     from angr.ailment import Address
-    from angr.ailment.statement import Call
+    from angr.ailment.statement import Call, SideEffectStatement
 
 
 class AILBlockCallCounter(AILBlockViewer):
@@ -22,7 +22,7 @@ class AILBlockCallCounter(AILBlockViewer):
         super().__init__()
         self.calls: int = 0
         self.consider_conditions = consider_conditions
-        self.call_stmts: list[tuple[tuple[Address | None, int], Call]] = []
+        self.call_stmts: list[tuple[tuple[Address | None, int], SideEffectStatement]] = []
         self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None):
@@ -35,10 +35,9 @@ class AILBlockCallCounter(AILBlockViewer):
         self.call_exprs.append((((block.addr, block.idx) if block is not None else None, stmt_idx), expr))
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        self.calls += 1
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
         self.call_stmts.append((((block.addr, block.idx) if block is not None else None, stmt_idx), stmt))
-        super()._handle_Call(stmt_idx, stmt, block)
+        super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
 
 class AILCallCounter(SequenceWalker):

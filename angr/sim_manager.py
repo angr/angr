@@ -324,8 +324,8 @@ class SimulationManager:
             if isinstance(t, Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter", None)
                 if deviation_filter_saved is not None:
-                    t.options["deviation_filter"] = (
-                        lambda s, dfs=deviation_filter_saved: tech.find(s) or tech.avoid(s) or dfs(s)
+                    t.options["deviation_filter"] = lambda s, dfs=deviation_filter_saved: (
+                        tech.find(s) or tech.avoid(s) or dfs(s)
                     )
                 else:
                     t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)
@@ -432,7 +432,7 @@ class SimulationManager:
         :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        l.info("Stepping %s of %s", stash, self)
+        l.debug("Stepping %s of %s", stash, self)
         # 8<----------------- Compatibility layer -----------------
         if n is not None or until is not None:
             if once("simgr_step_n_until"):

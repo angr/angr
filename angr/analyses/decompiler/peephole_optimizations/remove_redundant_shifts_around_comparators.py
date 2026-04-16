@@ -16,9 +16,7 @@ class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
     NAME = "Remove redundant bitshifts for operands around a comparator"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(
-        self, expr: BinaryOp, stmt_idx: int | None = None, block=None, **kwargs
-    ):  # pylint:disable=unused-argument
+    def optimize(self, expr: BinaryOp, stmt_idx: int | None = None, block=None, **kwargs):  # pylint:disable=unused-argument
         # (expr_0 << N) < (expr_1 << N)  ==> expr_0 << expr_1
         # FIXME: This optimization is unsafe but seems to work for all existing case
         if expr.op in {"CmpLE", "CmpLT", "CmpEQ", "CmpNE", "CmpGE", "CmpGT"}:
@@ -69,8 +67,9 @@ class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
                 if mul_1 is not None:
                     common_shift_amount = self._get_common_shift_amount(mul_0, mul_1)
                     if common_shift_amount > 0:
-                        new_mul_0 = Const(None, None, mul_0 >> common_shift_amount, op0.bits)
-                        new_mul_1 = Const(None, None, mul_1 >> common_shift_amount, op0.bits)
+                        op_bits = op0_op.bits
+                        new_mul_0 = Const(None, None, mul_0 >> common_shift_amount, op_bits)
+                        new_mul_1 = Const(None, None, mul_1 >> common_shift_amount, op_bits)
                         new_cmp_0 = BinaryOp(op0.idx, "Mul", [op0_op, new_mul_0], op0.signed, bits=op0.bits, **op0.tags)
                         new_cmp_1 = (
                             BinaryOp(op1.idx, "Mul", [op1_op, new_mul_1], op1.signed, bits=op1.bits, **op1.tags)

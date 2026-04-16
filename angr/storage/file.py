@@ -447,7 +447,9 @@ class SimPackets(SimFileBase):
                         else (
                             (x.ast, len(x) // 8)
                             if isinstance(x, SimActionObject)
-                            else (claripy.BVV(x), len(x)) if type(x) is bytes else None
+                            else (claripy.BVV(x), len(x))
+                            if type(x) is bytes
+                            else None
                         )
                     )
                 )

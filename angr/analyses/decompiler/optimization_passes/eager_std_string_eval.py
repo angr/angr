@@ -5,8 +5,8 @@ import logging
 
 from angr.ailment import Statement, Block
 from angr.ailment.block_walker import AILBlockRewriter
-from angr.ailment.statement import WeakAssignment, Call
-from angr.ailment.expression import VirtualVariable, Const, Load, UnaryOp
+from angr.ailment.statement import WeakAssignment
+from angr.ailment.expression import Call, VirtualVariable, Const, Load, UnaryOp
 from angr.sim_type import SimType, SimTypePointer, SimTypeChar
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -65,8 +65,8 @@ class EagerStdStringEvalPass(OptimizationPass):
     NAME = "Eagerly evaluate std::string methods for constant std::string instances"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):

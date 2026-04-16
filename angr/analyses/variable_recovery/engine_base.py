@@ -293,9 +293,7 @@ class SimEngineVRBase(
                 offset = None
             variable_manager.reference_at(var, offset, codeloc, atom=src)
 
-    def _assign_to_register(
-        self, offset, richr, size, src=None, dst=None, create_variable: bool = True
-    ):  # pylint:disable=unused-argument
+    def _assign_to_register(self, offset, richr, size, src=None, dst=None, create_variable: bool = True):  # pylint:disable=unused-argument
         """
 
         :param int offset:
@@ -381,7 +379,6 @@ class SimEngineVRBase(
         create_variable: bool = True,
         vvar_id: int | None = None,
     ):  # pylint:disable=unused-argument
-
         if vvar_id is None:
             vvar_id = vvar.varid
 
@@ -460,6 +457,11 @@ class SimEngineVRBase(
         self.vvar_region[vvar_id] = annotated_data
         self.state.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
+        if vvar.was_stack:
+            # shove it on the stack so we can get it back later by reference
+            stack_addr = self.state.stack_addr_from_offset(vvar.stack_offset)
+            self.state.stack_region.store(stack_addr, annotated_data)
+
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable):
                 # optimization: if richr.typevar is a derived typevar, we simply carry it over instead of creating a
@@ -495,9 +497,7 @@ class SimEngineVRBase(
 
         return variable
 
-    def _store(
-        self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None
-    ):  # pylint:disable=unused-argument
+    def _store(self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None):  # pylint:disable=unused-argument
         """
 
         :param RichR addr:
@@ -1283,9 +1283,15 @@ class SimEngineVRBase(
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
 
-        if offset >= 4096 and self._likely_pointer(offset):
-            # typevar is the actual offset
-            return TypeVariable()
+        if offset >= 4096:
+            if self._likely_pointer(offset):
+                # typevar is the actual offset
+                return TypeVariable()
+            if (self.arch.bits == 32 and offset > 0x7FFF_FFFF) or (
+                self.arch.bits == 64 and offset > 0x7FFF_FFFF_FFFF_FFFF
+            ):
+                # probably a negative offset
+                return TypeVariable()
 
         return DerivedTypeVariable(
             typevar,

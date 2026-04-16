@@ -11,7 +11,7 @@ import angr
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.variables import VariableType
 
-from tests.common import bin_location
+from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -109,9 +109,9 @@ class TestVariableRecovery(unittest.TestCase):
                     l.error("Unsupported variable sort %s.", var_sort)
                     assert False
 
-                assert (
-                    the_var is not None
-                ), f"The variable {var_info} in groundtruth at instruction {insn_addr:#x} cannot be found in variable manager."
+                assert the_var is not None, (
+                    f"The variable {var_info} in groundtruth at instruction {insn_addr:#x} cannot be found in variable manager."
+                )
                 l.debug("Found variable %s at %#x.", the_var, insn_addr)
 
         for block_addr, variables in groundtruth["phi_variables_by_block"].items():
@@ -134,9 +134,9 @@ class TestVariableRecovery(unittest.TestCase):
                     l.error("Unsupported variable sort %s.", var_sort)
                     assert False
 
-                assert (
-                    the_var is not None
-                ), f"The phi variable {var_info} in groundtruth at block {block_addr:#x} cannot be found in variable manager."
+                assert the_var is not None, (
+                    f"The phi variable {var_info} in groundtruth at block {block_addr:#x} cannot be found in variable manager."
+                )
                 l.debug("Found phi variable %s at %#x.", the_var, block_addr)
 
     def test_variable_recovery_fauxware_authenticate_true(self):
@@ -448,6 +448,38 @@ class TestVariableRecovery(unittest.TestCase):
             },
             False,
         )
+
+    def test_format_string_type_hints_sscanf(self):
+        """
+        Test that VariableRecoveryFast extracts type hints from format strings.
+
+        The read_six_numbers function in the CMU bomb binary calls:
+            sscanf(buf, "%d %d %d %d %d %d", &a, &b, &c, &d, &e, &f)
+
+        The format string tells us each variadic argument is an int*, so type constraints
+        of the form Subtype(arg_typevar, Pointer64(Int32)) should be generated.
+        """
+        binary_path = os.path.join(test_location, "x86_64", "bomb")
+        if not os.path.exists(binary_path):
+            self.skipTest("bomb binary not found")
+
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+
+        func = cfg.kb.functions["read_six_numbers"]
+
+        # Run the decompiler which invokes VariableRecoveryFast with AIL blocks internally
+        dec = project.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+
+        # The second parameter (a1) should be typed as a pointer (int* or unsigned int*)
+        # rather than a plain integer or char*
+        assert "int *" in code or "int*" in code, f"Expected a1 to be typed as an int pointer, but got:\n{code}"
+        # It should NOT be char* - the format string should override that
+        assert "char *a1" not in code and "char* a1" not in code, f"a1 should not be typed as char*, but got:\n{code}"
 
 
 if __name__ == "__main__":

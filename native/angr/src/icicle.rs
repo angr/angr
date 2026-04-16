@@ -1,3 +1,5 @@
+#![allow(clippy::declare_interior_mutable_const)] // FIXME: https://github.com/PyO3/pyo3/issues/5768
+
 /// Icicle bindings
 ///
 /// This module provides Python bindings for the Icicle emulator, allowing
@@ -40,7 +42,7 @@ impl icicle_vm::cpu::RegHandler for X86FlagsRegHandler {
 }
 
 /// VmExit is the result of a VM execution. Borrowed directly from icicle.
-#[pyclass(module = "angr.rustylib.icicle")]
+#[pyclass(module = "angr.rustylib.icicle", from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmExit {
     /// The VM is still running.
@@ -89,7 +91,7 @@ impl From<icicle_vm::VmExit> for VmExit {
     }
 }
 
-#[pyclass(module = "angr.rustylib.icicle")]
+#[pyclass(module = "angr.rustylib.icicle", from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u64)]
 pub enum ExceptionCode {
@@ -231,6 +233,7 @@ struct Icicle {
     vm: icicle_vm::Vm,
     path_tracer: Option<PathTracerRef>,
     edge_count_hitmap: Option<Hitmap>,
+    snapshot: Option<icicle_vm::Snapshot>,
 }
 
 #[pymethods]
@@ -296,6 +299,7 @@ impl Icicle {
             vm,
             path_tracer,
             edge_count_hitmap,
+            snapshot: None,
         })
     }
 
@@ -396,13 +400,8 @@ impl Icicle {
 
     // Execution
 
-    pub fn add_breakpoint(&mut self, addr: u64) -> PyResult<()> {
-        if !self.vm.add_breakpoint(addr) {
-            return Err(PyRuntimeError::new_err(format!(
-                "Failed to add breakpoint at {addr:#x}"
-            )));
-        }
-        Ok(())
+    pub fn add_breakpoint(&mut self, addr: u64) -> bool {
+        self.vm.add_breakpoint(addr)
     }
 
     pub fn remove_breakpoint(&mut self, addr: u64) -> PyResult<()> {
@@ -476,6 +475,59 @@ impl Icicle {
             return Err(PyRuntimeError::new_err("Edge hitmap is not enabled"));
         }
         Ok(())
+    }
+
+    // Snapshot/restore
+
+    pub fn save_snapshot(&mut self) {
+        self.snapshot = Some(self.vm.snapshot());
+    }
+
+    pub fn restore_snapshot(&mut self) -> PyResult<()> {
+        let snapshot = self
+            .snapshot
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
+        self.vm.restore(snapshot);
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.clear(&mut self.vm);
+        }
+        if let Some(hitmap) = &mut self.edge_count_hitmap {
+            hitmap.as_slice_mut().fill(0);
+        }
+        Ok(())
+    }
+
+    pub fn has_snapshot(&self) -> bool {
+        self.snapshot.is_some()
+    }
+
+    pub fn clear_path_tracer(&mut self) {
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.clear(&mut self.vm);
+        }
+    }
+
+    // Dirty page tracking
+
+    /// Get the set of page-aligned virtual addresses that have been modified
+    /// since the last call to reset_page_modification_tracking.
+    #[getter]
+    pub fn get_modified_pages(&self) -> Vec<u64> {
+        self.vm.cpu.mem.modified.iter().copied().collect()
+    }
+
+    /// Reset page modification tracking so that only writes occurring after
+    /// this call are recorded.  For each given page address, the per-page
+    /// `modified` flag on the underlying physical page is cleared.  Then the
+    /// global modified-address set and TLB write cache are flushed.
+    pub fn reset_page_modification_tracking(&mut self, page_addresses: Vec<u64>) {
+        for addr in page_addresses {
+            if let Some(index) = self.vm.cpu.mem.get_physical_index(addr) {
+                self.vm.cpu.mem.get_physical_mut(index).modified = false;
+            }
+        }
+        self.vm.cpu.mem.clear_page_modification_log();
     }
 }
 

@@ -27,11 +27,8 @@ def make_state_with_stdin(content):
 
 
 def make_func(name):
-    return (
-        lambda state, arguments: SIM_LIBRARIES["libc.so.6"][0]
-        .get(name, "AMD64")
-        .execute(state, arguments=arguments)
-        .ret_expr
+    return lambda state, arguments: (
+        SIM_LIBRARIES["libc.so.6"][0].get(name, "AMD64").execute(state, arguments=arguments).ret_expr
     )
 
 

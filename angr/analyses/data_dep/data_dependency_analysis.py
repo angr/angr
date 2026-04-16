@@ -71,7 +71,7 @@ class DataDependencyGraphAnalysis(Analysis):
         self._sub_graph: DiGraph | None = None
 
         self._end_state = end_state
-        self._start_from = start_from if start_from else self.project.entry
+        self._start_from = start_from or self.project.entry
         self._end_at = end_at
         self._block_addrs = frozenset(block_addrs) if block_addrs else frozenset()
 
@@ -409,7 +409,7 @@ class DataDependencyGraphAnalysis(Analysis):
             for addr_source_node in addr_source_nodes:
                 self._graph.add_edge(addr_source_node, mem_node, label="addr_source")
 
-        return ret_val if ret_val else self._parse_statement(read_nodes)
+        return ret_val or self._parse_statement(read_nodes)
 
     def _parse_statement(self, read_nodes: dict[int, list[BaseDepNode]] | None = None) -> SimActLocation:
         """
@@ -417,7 +417,7 @@ class DataDependencyGraphAnalysis(Analysis):
         statement -> read_var | write_mem statement
         :return: The instruction address associated with the statement
         """
-        read_nodes = read_nodes if read_nodes else {}
+        read_nodes = read_nodes or {}
         sim_act = self._peek()
         nxt_act = self._peek(1)
         if not sim_act:
@@ -435,7 +435,7 @@ class DataDependencyGraphAnalysis(Analysis):
             and nxt_act.stmt_idx == sim_act.stmt_idx
         ):
             raise AngrAnalysisError(
-                "Statement must end with a write," f"but {self._peek(1)} follows a write!", self._peek(1)
+                f"Statement must end with a write,but {self._peek(1)} follows a write!", self._peek(1)
             )
 
         if sim_act.type == SimActionData.MEM:

@@ -74,8 +74,8 @@ typedef size_t uc_hook;
 
 // Unicorn API version
 #define UC_API_MAJOR 2
-#define UC_API_MINOR 0
-#define UC_API_PATCH 1
+#define UC_API_MINOR 1
+#define UC_API_PATCH 4
 // Release candidate version, 255 means the official release.
 #define UC_API_EXTRA 255
 
@@ -89,7 +89,7 @@ typedef size_t uc_hook;
   Macro to create combined version which can be compared to
   result of uc_version() API.
 */
-#define UC_MAKE_VERSION(major, minor) ((major << 8) + minor)
+#define UC_MAKE_VERSION(major, minor) (((major) << 24) + ((minor) << 16))
 
 // Scales to calculate timeout on microsecond unit
 // 1 second = 1000,000 microseconds
@@ -195,6 +195,7 @@ typedef enum uc_err {
     UC_ERR_HOOK_EXIST,      // hook for this event already existed
     UC_ERR_RESOURCE,        // Insufficient resource: uc_emu_start()
     UC_ERR_EXCEPTION,       // Unhandled CPU exception
+    UC_ERR_OVERFLOW,        // Provided buffer is not large enough: uc_reg_*2()
 } uc_err;
 
 /*
@@ -247,6 +248,51 @@ typedef uint32_t (*uc_cb_insn_in_t)(uc_engine *uc, uint32_t port, int size,
 typedef void (*uc_cb_insn_out_t)(uc_engine *uc, uint32_t port, int size,
                                  uint32_t value, void *user_data);
 
+// The definitions for `uc_cb_tlbevent_t` callback
+typedef enum uc_prot {
+    UC_PROT_NONE = 0,
+    UC_PROT_READ = 1,
+    UC_PROT_WRITE = 2,
+    UC_PROT_EXEC = 4,
+    UC_PROT_ALL = 7,
+} uc_prot;
+
+struct uc_tlb_entry {
+    uint64_t paddr;
+    uc_prot perms;
+};
+
+typedef struct uc_tlb_entry uc_tlb_entry;
+
+// All type of memory accesses for UC_HOOK_MEM_*
+typedef enum uc_mem_type {
+    UC_MEM_READ = 16,      // Memory is read from
+    UC_MEM_WRITE,          // Memory is written to
+    UC_MEM_FETCH,          // Memory is fetched
+    UC_MEM_READ_UNMAPPED,  // Unmapped memory is read from
+    UC_MEM_WRITE_UNMAPPED, // Unmapped memory is written to
+    UC_MEM_FETCH_UNMAPPED, // Unmapped memory is fetched
+    UC_MEM_WRITE_PROT,     // Write to write protected, but mapped, memory
+    UC_MEM_READ_PROT,      // Read from read protected, but mapped, memory
+    UC_MEM_FETCH_PROT,     // Fetch from non-executable, but mapped, memory
+    UC_MEM_READ_AFTER,     // Memory is read from (successful access)
+} uc_mem_type;
+
+/*
+  Callback function for tlb lookups
+
+  @vaddr: virtuall address for lookup
+  @rw: the access mode
+  @result: result entry, contains physical address (paddr) and permitted access
+  type (perms) for the entry
+
+  @return: return true if the entry was found. If a callback is present but
+  no one returns true a pagefault is generated.
+*/
+typedef bool (*uc_cb_tlbevent_t)(uc_engine *uc, uint64_t vaddr,
+                                 uc_mem_type type, uc_tlb_entry *result,
+                                 void *user_data);
+
 // Represent a TranslationBlock.
 typedef struct uc_tb {
     uint64_t pc;
@@ -296,20 +342,6 @@ typedef uint64_t (*uc_cb_mmio_read_t)(uc_engine *uc, uint64_t offset,
 typedef void (*uc_cb_mmio_write_t)(uc_engine *uc, uint64_t offset,
                                    unsigned size, uint64_t value,
                                    void *user_data);
-
-// All type of memory accesses for UC_HOOK_MEM_*
-typedef enum uc_mem_type {
-    UC_MEM_READ = 16,      // Memory is read from
-    UC_MEM_WRITE,          // Memory is written to
-    UC_MEM_FETCH,          // Memory is fetched
-    UC_MEM_READ_UNMAPPED,  // Unmapped memory is read from
-    UC_MEM_WRITE_UNMAPPED, // Unmapped memory is written to
-    UC_MEM_FETCH_UNMAPPED, // Unmapped memory is fetched
-    UC_MEM_WRITE_PROT,     // Write to write protected, but mapped, memory
-    UC_MEM_READ_PROT,      // Read from read protected, but mapped, memory
-    UC_MEM_FETCH_PROT,     // Fetch from non-executable, but mapped, memory
-    UC_MEM_READ_AFTER,     // Memory is read from (successful access)
-} uc_mem_type;
 
 // These are all op codes we support to hook for UC_HOOK_TCG_OP_CODE.
 // Be cautious since it may bring much more overhead than UC_HOOK_CODE without
@@ -372,6 +404,10 @@ typedef enum uc_hook_type {
     // Hook on specific tcg op code. The usage of this hook is similar to
     // UC_HOOK_INSN.
     UC_HOOK_TCG_OPCODE = 1 << 16,
+    // Hook on tlb fill requests.
+    // Register tlb fill request hook on the virtuall addresses.
+    // The callback will be triggert if the tlb cache don't contain an address.
+    UC_HOOK_TLB_FILL = 1 << 17,
 } uc_hook_type;
 
 // Hook type for all events of unmapped memory access
@@ -400,10 +436,13 @@ typedef enum uc_hook_type {
     (UC_HOOK_MEM_READ + UC_HOOK_MEM_WRITE + UC_HOOK_MEM_FETCH)
 
 /*
-  Callback function for hooking memory (READ, WRITE & FETCH)
+  Callback function for hooking memory (READ, WRITE & FETCH).
+
+  NOTE: The access might be splitted depending on the MMU implementation.
+  UC_TLB_VIRTUAL provides more fine-grained control about memory accessing.
 
   @type: this memory is being READ, or WRITE
-  @address: address where the code is being executed
+  @address: address where memory is being written or read to
   @size: size of data being read or written
   @value: value of data being written to memory, or irrelevant if type = READ.
   @user_data: user data passed to tracing APIs
@@ -416,8 +455,11 @@ typedef void (*uc_cb_hookmem_t)(uc_engine *uc, uc_mem_type type,
   Callback function for handling invalid memory access events (UNMAPPED and
     PROT events)
 
+  NOTE: The access might be splitted depending on the MMU implementation.
+  UC_TLB_VIRTUAL provides more fine-grained control about memory accessing.
+
   @type: this memory is being READ, or WRITE
-  @address: address where the code is being executed
+  @address: address where memory is being written or read to
   @size: size of data being read or written
   @value: value of data being written to memory, or irrelevant if type = READ.
   @user_data: user data passed to tracing APIs
@@ -493,6 +535,17 @@ typedef enum uc_query_type {
 #define UC_CTL_WRITE(type, nr) UC_CTL(type, nr, UC_CTL_IO_WRITE)
 #define UC_CTL_READ_WRITE(type, nr) UC_CTL(type, nr, UC_CTL_IO_READ_WRITE)
 
+// unicorn tlb type selection
+typedef enum uc_tlb_type {
+    // The default unicorn virtuall TLB implementation.
+    // The tlb implementation of the CPU, best to use for full system emulation.
+    UC_TLB_CPU = 0,
+    // This tlb defaults to virtuall address == physical address
+    // Also a hook is availible to override the tlb entries (see
+    // uc_cb_tlbevent_t).
+    UC_TLB_VIRTUAL
+} uc_tlb_type;
+
 // All type of controls for uc_ctl API.
 // The controls are organized in a tree level.
 // If a control don't have `Set` or `Get` for @args, it means it's r/o or w/o.
@@ -539,8 +592,22 @@ typedef enum uc_control_type {
     UC_CTL_TB_REMOVE_CACHE,
     // Invalidate all translation blocks.
     // No arguments.
-    UC_CTL_TB_FLUSH
-
+    UC_CTL_TB_FLUSH,
+    // Invalidate all TLB cache entries and translation blocks.
+    // No arguments
+    UC_CTL_TLB_FLUSH,
+    // Change the tlb implementation
+    // see uc_tlb_type for current implemented types
+    // Write: @args = (int)
+    UC_CTL_TLB_TYPE,
+    // Change the tcg translation buffer size, note that
+    // unicorn may adjust this value.
+    // Write: @args = (uint32_t)
+    // Read: @args = (uint32_t*)
+    UC_CTL_TCG_BUFFER_SIZE,
+    // controle if context_save/restore should work with snapshots
+    // Write: @args = (int)
+    UC_CTL_CONTEXT_MODE,
 } uc_control_type;
 
 /*
@@ -614,7 +681,17 @@ See sample_ctl.c for a detailed example.
     uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TB_REMOVE_CACHE, 2), (address), (end))
 #define uc_ctl_request_cache(uc, address, tb)                                  \
     uc_ctl(uc, UC_CTL_READ_WRITE(UC_CTL_TB_REQUEST_CACHE, 2), (address), (tb))
-#define uc_ctl_flush_tlb(uc) uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TB_FLUSH, 0))
+#define uc_ctl_flush_tb(uc) uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TB_FLUSH, 0))
+#define uc_ctl_flush_tlb(uc) uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TLB_FLUSH, 0))
+#define uc_ctl_tlb_mode(uc, mode)                                              \
+    uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TLB_TYPE, 1), (mode))
+#define uc_ctl_get_tcg_buffer_size(uc, size)                                   \
+    uc_ctl(uc, UC_CTL_READ(UC_CTL_TCG_BUFFER_SIZE, 1), (size))
+#define uc_ctl_set_tcg_buffer_size(uc, size)                                   \
+    uc_ctl(uc, UC_CTL_WRITE(UC_CTL_TCG_BUFFER_SIZE, 1), (size))
+#define uc_ctl_context_mode(uc, mode)                                          \
+    uc_ctl(uc, UC_CTL_WRITE(UC_CTL_CONTEXT_MODE, 1), (mode))
+
 // Opaque storage for CPU context, used with uc_context_*()
 struct uc_context;
 typedef struct uc_context uc_context;
@@ -625,13 +702,11 @@ typedef struct uc_context uc_context;
  @major: major number of API version
  @minor: minor number of API version
 
- @return hexical number as (major << 8 | minor), which encodes both
-     major & minor versions.
+ @return hexadecimal number as (major << 24 | minor << 16 | patch << 8 | extra).
      NOTE: This returned value can be compared with version number made
      with macro UC_MAKE_VERSION
 
- For example, second API version would return 1 in @major, and 1 in @minor
- The return value would be 0x0101
+ For example, Unicorn version 2.0.1 final would be 0x020001ff.
 
  NOTE: if you only care about returned value, but not major and minor values,
  set both @major & @minor arguments to NULL.
@@ -724,10 +799,9 @@ ANGR_UNICORN_API const char *(*uc_strerror)(uc_err code);
 
  @uc: handle returned by uc_open()
  @regid:  register ID that is to be modified.
- @value:  pointer to the value that will set to register @regid
+ @value:  pointer to the value that will be written to register @regid
 
- @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
-   for detailed error).
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is invalid
 */
 ANGR_UNICORN_API uc_err (*uc_reg_write)(uc_engine *uc, int regid, const void *value);
 
@@ -738,37 +812,96 @@ ANGR_UNICORN_API uc_err (*uc_reg_write)(uc_engine *uc, int regid, const void *va
  @regid:  register ID that is to be retrieved.
  @value:  pointer to a variable storing the register value.
 
- @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
-   for detailed error).
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is invalid
 */
 ANGR_UNICORN_API uc_err (*uc_reg_read)(uc_engine *uc, int regid, void *value);
+
+/*
+ Write to register.
+
+ @uc: handle returned by uc_open()
+ @regid:  register ID that is to be modified.
+ @value:  pointer to the value that will be written to register @regid
+ @size:   size of value being written; on return, size of value written
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is
+ invalid; UC_ERR_OVERFLOW if value is not large enough for the register.
+*/
+ANGR_UNICORN_API uc_err (*uc_reg_write2)(uc_engine *uc, int regid, const void *value, size_t *size);
+
+/*
+ Read register value.
+
+ @uc: handle returned by uc_open()
+ @regid:  register ID that is to be retrieved.
+ @value:  pointer to a variable storing the register value.
+ @size:   size of value buffer; on return, size of value read
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is
+ invalid; UC_ERR_OVERFLOW if value is not large enough to hold the register.
+*/
+ANGR_UNICORN_API uc_err (*uc_reg_read2)(uc_engine *uc, int regid, void *value, size_t *size);
 
 /*
  Write multiple register values.
 
  @uc: handle returned by uc_open()
- @rges:  array of register IDs to store
- @value: pointer to array of register values
+ @regs:  array of register IDs to store
+ @vals:  array of pointers to register values
  @count: length of both *regs and *vals
 
- @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
-   for detailed error).
+ @return UC_ERR_OK on success; UC_ERR_ARG if some register number or value is
+ invalid
 */
-ANGR_UNICORN_API uc_err (*uc_reg_write_batch)(uc_engine *uc, int *regs, void *const *vals,
+ANGR_UNICORN_API uc_err (*uc_reg_write_batch)(uc_engine *uc, int const *regs, void *const *vals,
                           int count);
 
 /*
  Read multiple register values.
 
  @uc: handle returned by uc_open()
- @rges:  array of register IDs to retrieve
- @value: pointer to array of values to hold registers
+ @regs:  array of register IDs to retrieve
+ @vals:  array of pointers to register values
  @count: length of both *regs and *vals
 
- @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
-   for detailed error).
+ @return UC_ERR_OK on success; UC_ERR_ARG if some register number or value is
+ invalid
 */
-ANGR_UNICORN_API uc_err (*uc_reg_read_batch)(uc_engine *uc, int *regs, void **vals, int count);
+ANGR_UNICORN_API uc_err (*uc_reg_read_batch)(uc_engine *uc, int const *regs, void **vals,
+                         int count);
+
+/*
+ Write multiple register values.
+
+ @uc: handle returned by uc_open()
+ @regs:  array of register IDs to store
+ @value: array of pointers to register values
+ @sizes: array of sizes of each value; on return, sizes of each stored register
+ @count: length of *regs, *vals and *sizes
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if some register number or value is
+ invalid; UC_ERR_OVERFLOW if some value is not large enough for the
+ corresponding register.
+*/
+ANGR_UNICORN_API uc_err (*uc_reg_write_batch2)(uc_engine *uc, int const *regs,
+                           const void *const *vals, size_t *sizes, int count);
+
+/*
+ Read multiple register values.
+
+ @uc: handle returned by uc_open()
+ @regs:  array of register IDs to retrieve
+ @value: pointer to array of values to hold registers
+ @sizes: array of sizes of each value; on return, sizes of each retrieved
+ register
+ @count: length of *regs, *vals and *sizes
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if some register number or value is
+ invalid; UC_ERR_OVERFLOW if some value is not large enough to hold the
+ corresponding register.
+*/
+ANGR_UNICORN_API uc_err (*uc_reg_read_batch2)(uc_engine *uc, int const *regs, void *const *vals,
+                          size_t *sizes, int count);
 
 /*
  Write to a range of bytes in memory.
@@ -784,7 +917,7 @@ ANGR_UNICORN_API uc_err (*uc_reg_read_batch)(uc_engine *uc, int *regs, void **va
    for detailed error).
 */
 ANGR_UNICORN_API uc_err (*uc_mem_write)(uc_engine *uc, uint64_t address, const void *bytes,
-                    size_t size);
+                    uint64_t size);
 
 /*
  Read a range of bytes in memory.
@@ -799,7 +932,80 @@ ANGR_UNICORN_API uc_err (*uc_mem_write)(uc_engine *uc, uint64_t address, const v
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_mem_read)(uc_engine *uc, uint64_t address, void *bytes, size_t size);
+ANGR_UNICORN_API uc_err (*uc_mem_read)(uc_engine *uc, uint64_t address, void *bytes, uint64_t size);
+
+/*
+ Read a range of bytes in memory after mmu translation.
+
+ @uc:      handle returned by uc_open()
+ @address: starting virtual memory address of bytes to get.
+ @prot:    The access type for the tlb lookup
+ @bytes:   pointer to a variable containing data copied from memory.
+ @size:    size of memory to read.
+
+ NOTE: @bytes must be big enough to contain @size bytes.
+
+ This function will translate the address with the MMU. Therefore all
+ pages needs to be memory mapped with the proper access rights. The MMU
+ will not translate the virtual address when the pages are not mapped
+ with the given access rights.
+
+ Note the `prot` is different from the underlying protections of the physicall
+ memory regions. For instance, if a region of phyiscal memory is mapped with
+ write-only permissions, only a call with prot == UC_PROT_WRITE will be able to
+ read the contents.
+
+ @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
+   for detailed error).
+*/
+ANGR_UNICORN_API uc_err (*uc_vmem_read)(uc_engine *uc, uint64_t address, uc_prot prot,
+                           void *bytes, size_t size);
+
+/*
+ Write to a range of bytes in memory after mmu translation.
+
+ @uc: handle returned by uc_open()
+ @address: starting memory address of bytes to set.
+ @prot:    The access type for the tlb lookup
+ @bytes:   pointer to a variable containing data to be written to memory.
+ @size:   size of memory to write to.
+
+ This function will translate the address with the MMU. Therefore all
+ pages needs to be memory mapped with the proper access rights. The MMU
+ will not translate the virtual address when the pages are not mapped
+ with the given access rights.
+
+ When the pages are mapped with the given access rights the write will
+ happen indipenden from the access rights of the mapping. So when you
+ have a page read only mapped, a call with prot == UC_PROT_READ will
+ be able to write the data.
+
+ NOTE: @bytes must be big enough to contain @size bytes.
+
+ @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
+   for detailed error).
+*/
+ANGR_UNICORN_API uc_err (*uc_vmem_write)(uc_engine *uc, uint64_t address, uc_prot prot,
+                           void *bytes, size_t size);
+
+/*
+ Translate a virtuall address to a physical address
+
+ @uc:
+ @address:  virtual address to translate
+ @prot:     The access type for the tlb lookup
+ @paddress: A pointer to store the result
+
+ This function will translate the address with the MMU. Therefore all
+ pages needs to be memory mapped with the proper access rights. The MMU
+ will not translate the virtual address when the pages are not mapped
+ with the given access rights.
+
+ @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
+   for detailed error).
+*/
+ANGR_UNICORN_API uc_err (*uc_vmem_translate)(uc_engine *uc, uint64_t address, uc_prot prot,
+                              uint64_t *paddress);
 
 /*
  Emulate machine code in a specific duration of time.
@@ -875,13 +1081,20 @@ ANGR_UNICORN_API uc_err (*uc_hook_add)(uc_engine *uc, uc_hook *hh, int type, voi
 */
 ANGR_UNICORN_API uc_err (*uc_hook_del)(uc_engine *uc, uc_hook hh);
 
-typedef enum uc_prot {
-    UC_PROT_NONE = 0,
-    UC_PROT_READ = 1,
-    UC_PROT_WRITE = 2,
-    UC_PROT_EXEC = 4,
-    UC_PROT_ALL = 7,
-} uc_prot;
+/*
+ Variables to control which state should be stored in the context.
+ Defaults to UC_CTL_CONTEXT_CPU. The options are used in a bitfield
+ so to enable more then one content the binary or of the required
+ contents can be use.
+ The UC_CTL_CONTEXT_MEMORY stores some pointers to internal allocated
+ memory. Therefor it's not possible to use this context with another
+ unicorn object.
+*/
+
+typedef enum uc_context_content {
+    UC_CTL_CONTEXT_CPU = 1,
+    UC_CTL_CONTEXT_MEMORY = 2,
+} uc_context_content;
 
 /*
  Map memory in for emulation.
@@ -901,7 +1114,8 @@ typedef enum uc_prot {
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_mem_map)(uc_engine *uc, uint64_t address, size_t size, uint32_t perms);
+ANGR_UNICORN_API uc_err (*uc_mem_map)(uc_engine *uc, uint64_t address, uint64_t size,
+                  uint32_t perms);
 
 /*
  Map existing host memory in for emulation.
@@ -925,7 +1139,7 @@ ANGR_UNICORN_API uc_err (*uc_mem_map)(uc_engine *uc, uint64_t address, size_t si
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_mem_map_ptr)(uc_engine *uc, uint64_t address, size_t size,
+ANGR_UNICORN_API uc_err (*uc_mem_map_ptr)(uc_engine *uc, uint64_t address, uint64_t size,
                       uint32_t perms, void *ptr);
 
 /*
@@ -947,7 +1161,7 @@ ANGR_UNICORN_API uc_err (*uc_mem_map_ptr)(uc_engine *uc, uint64_t address, size_
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
  */
-ANGR_UNICORN_API uc_err (*uc_mmio_map)(uc_engine *uc, uint64_t address, size_t size,
+ANGR_UNICORN_API uc_err (*uc_mmio_map)(uc_engine *uc, uint64_t address, uint64_t size,
                    uc_cb_mmio_read_t read_cb, void *user_data_read,
                    uc_cb_mmio_write_t write_cb, void *user_data_write);
 
@@ -966,7 +1180,7 @@ ANGR_UNICORN_API uc_err (*uc_mmio_map)(uc_engine *uc, uint64_t address, size_t s
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_mem_unmap)(uc_engine *uc, uint64_t address, size_t size);
+ANGR_UNICORN_API uc_err (*uc_mem_unmap)(uc_engine *uc, uint64_t address, uint64_t size);
 
 /*
  Set memory permissions for emulation memory.
@@ -986,7 +1200,7 @@ ANGR_UNICORN_API uc_err (*uc_mem_unmap)(uc_engine *uc, uint64_t address, size_t 
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_mem_protect)(uc_engine *uc, uint64_t address, size_t size,
+ANGR_UNICORN_API uc_err (*uc_mem_protect)(uc_engine *uc, uint64_t address, uint64_t size,
                       uint32_t perms);
 
 /*
@@ -1052,10 +1266,9 @@ ANGR_UNICORN_API uc_err (*uc_context_save)(uc_engine *uc, uc_context *context);
 
  @ctx: handle returned by uc_context_alloc()
  @regid:  register ID that is to be modified.
- @value:  pointer to the value that will set to register @regid
+ @value:  pointer to the value that will be written to register @regid
 
- @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
-   for detailed error).
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is invalid
 */
 ANGR_UNICORN_API uc_err (*uc_context_reg_write)(uc_context *ctx, int regid, const void *value);
 
@@ -1066,10 +1279,37 @@ ANGR_UNICORN_API uc_err (*uc_context_reg_write)(uc_context *ctx, int regid, cons
  @regid:  register ID that is to be retrieved.
  @value:  pointer to a variable storing the register value.
 
- @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
-   for detailed error).
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is invalid
 */
 ANGR_UNICORN_API uc_err (*uc_context_reg_read)(uc_context *ctx, int regid, void *value);
+
+/*
+ Write value to a register of a context.
+
+ @ctx: handle returned by uc_context_alloc()
+ @regid:  register ID that is to be modified.
+ @value:  pointer to the value that will be written to register @regid
+ @size:   size of value being written; on return, size of value written
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is
+ invalid; UC_ERR_OVERFLOW if value is not large enough for the register.
+*/
+ANGR_UNICORN_API uc_err (*uc_context_reg_write2)(uc_context *ctx, int regid, const void *value,
+                             size_t *size);
+
+/*
+ Read register value from a context.
+
+ @ctx: handle returned by uc_context_alloc()
+ @regid:  register ID that is to be retrieved.
+ @value:  pointer to a variable storing the register value.
+ @size:   size of value buffer; on return, size of value read
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if register number or value is
+ invalid; UC_ERR_OVERFLOW if value is not large enough to hold the register.
+*/
+ANGR_UNICORN_API uc_err (*uc_context_reg_read2)(uc_context *ctx, int regid, void *value,
+                            size_t *size);
 
 /*
  Write multiple register values to registers of a context.
@@ -1082,8 +1322,8 @@ ANGR_UNICORN_API uc_err (*uc_context_reg_read)(uc_context *ctx, int regid, void 
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_context_reg_write_batch)(uc_context *ctx, int *regs, void *const *vals,
-                                  int count);
+ANGR_UNICORN_API uc_err (*uc_context_reg_write_batch)(uc_context *ctx, int const *regs,
+                                  void *const *vals, int count);
 
 /*
  Read multiple register values from a context.
@@ -1096,8 +1336,42 @@ ANGR_UNICORN_API uc_err (*uc_context_reg_write_batch)(uc_context *ctx, int *regs
  @return UC_ERR_OK on success, or other value on failure (refer to uc_err enum
    for detailed error).
 */
-ANGR_UNICORN_API uc_err (*uc_context_reg_read_batch)(uc_context *ctx, int *regs, void **vals,
+ANGR_UNICORN_API uc_err (*uc_context_reg_read_batch)(uc_context *ctx, int const *regs, void **vals,
                                  int count);
+
+/*
+ Write multiple register values to registers of a context.
+
+ @ctx: handle returned by uc_context_alloc()
+ @regs:  array of register IDs to store
+ @value: array of pointers to register values
+ @sizes: array of sizes of each value; on return, sizes of each stored register
+ @count: length of *regs, *vals and *sizes
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if some register number or value is
+ invalid; UC_ERR_OVERFLOW if some value is not large enough for the
+ corresponding register.
+*/
+ANGR_UNICORN_API uc_err (*uc_context_reg_write_batch2)(uc_context *ctx, int const *regs,
+                                   const void *const *vals, size_t *sizes,
+                                   int count);
+
+/*
+ Read multiple register values from a context.
+
+ @ctx: handle returned by uc_context_alloc()
+ @regs:  array of register IDs to retrieve
+ @value: pointer to array of values to hold registers
+ @sizes: array of sizes of each value; on return, sizes of each retrieved
+ register
+ @count: length of *regs, *vals and *sizes
+
+ @return UC_ERR_OK on success; UC_ERR_ARG if some register number or value is
+ invalid; UC_ERR_OVERFLOW if some value is not large enough to hold the
+ corresponding register.
+*/
+ANGR_UNICORN_API uc_err (*uc_context_reg_read_batch2)(uc_context *ctx, int const *regs,
+                                  void *const *vals, size_t *sizes, int count);
 
 /*
  Restore the current CPU context from a saved copy.
