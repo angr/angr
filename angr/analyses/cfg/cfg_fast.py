@@ -58,7 +58,7 @@ from angr.rustylib import SegmentList
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
-from .meta_structs import get_data_regions_from_meta_regions
+from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -636,6 +636,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         indirect_calls_always_return: bool | None = None,
         jumptable_resolver_resolves_calls: bool | None = None,
         retedges: bool = False,
+        drop_bad_funcs: bool = True,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -877,6 +878,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._transitory_resolved_indirect_jumps = 0
         self._transitory_unresolved_indirect_jumps = 0
 
+        self._drop_bad_funcs = drop_bad_funcs
+
         self.stage: str = ""
 
         #
@@ -1114,7 +1117,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # no string is found
         return 0
 
-    def _scan_for_printable_widestrings(self, start_addr: int):
+    def _scan_for_printable_widestrings(self, start_addr: int, min_length: int = 3) -> int:
         addr = start_addr
         sz = []
         is_sz = True
@@ -1129,7 +1132,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if val1 is None:
                 break
             if val0 == 0 and val1 == 0:
-                if len(sz) <= 10:
+                if len(sz) < min_length * 2:
                     is_sz = False
                 break
             if val0 != 0 and val1 == 0 and val0 in self.PRINTABLES:
@@ -1485,11 +1488,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         for d in self.model.memory_data.values():
             self._seg_list.occupy(d.addr, d.size, d.sort)
 
-        # Mark metadata regions (PE import/export tables, IAT, etc.) as data
-        for addr, size, sort in get_data_regions_from_meta_regions(self.project.loader):
-            if not self._seg_list.is_occupied(addr):
-                self._seg_list.occupy(addr, size, sort)
-                self.model.memory_data[addr] = MemoryData(addr, size, sort)
+        # process metadata regions (PE import/export tables, IAT, etc.) and mark them as data
+        self._process_metadata_regions()
 
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -1853,10 +1853,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self._force_complete_scan or self._force_smart_scan:
             if self._new_memory_data_addrs:
+                new_mem_data_addrs = set()
                 self.model.tidy_data_references(
-                    memory_data_addrs=list(self._new_memory_data_addrs), seg_list=self._seg_list, fill_gaps=False
+                    memory_data_addrs=list(self._new_memory_data_addrs),
+                    seg_list=self._seg_list,
+                    fill_gaps=False,
+                    new_mem_data_addrs=new_mem_data_addrs,
                 )
                 self.reset_memory_data_addrs()
+                self._new_memory_data_addrs |= new_mem_data_addrs
 
             addr = self._next_code_addr_smart() if self._force_smart_scan else self._next_code_addr()
 
@@ -1925,6 +1930,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _post_analysis(self):
         self.stage = "Analysis (Stage 2)"
+
+        if self._drop_bad_funcs:
+            self.drop_bad_functions()
 
         self._repair_edges()
 
@@ -3394,6 +3402,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return
         self.insn_addr_to_memory_data[insn_addr] = self.model.memory_data[data_addr]
 
+    def _process_metadata_regions(self):
+        # Mark metadata regions (PE import/export tables, IAT, etc.) as data
+        for addr, size, sort in get_data_regions_from_meta_regions(self.project.loader):
+            if not self._seg_list.is_occupied(addr):
+                self._seg_list.occupy(addr, size, sort)
+                self.model.memory_data[addr] = MemoryData(addr, size, sort)
+                self.record_memory_data_addr(addr)
+
+        ptr_array_hints = get_pointer_array_hints(self.project.loader)
+        ptr_size = self.project.arch.bytes
+        remaining_ptr_hints: list[int] = []  # the pointers that may appear in the middle of an instruction
+        for addr, size in ptr_array_hints:
+            if not self._seg_list.is_occupied(addr):
+                if size > ptr_size:
+                    self._seg_list.occupy(addr, size, "pointer-array")
+                    self.model.memory_data[addr] = MemoryData(addr, size, MemoryDataSort.PointerArray)
+                    self.record_memory_data_addr(addr)
+                else:
+                    remaining_ptr_hints.append(addr)
+
     # Indirect jumps processing
 
     def _resolve_plt(self, addr, irsb, indir_jump: IndirectJump):
@@ -3963,6 +3991,36 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # if node.addr in self.kb.functions.callgraph:
         #    self.kb.functions.callgraph.remove_node(node.addr)
+
+    def drop_bad_functions(self):
+        # remove all functions that are bad, i.e., likely the result of decoding data as code
+        # - if a function jumps to data, then it's likely bad
+
+        funcs_to_remove: list[int] = []
+
+        for func_addr in self.kb.functions:
+            if not self.kb.functions.is_func_returning_unknown(func_addr):
+                continue
+            func = self.kb.functions.get_by_addr(func_addr)
+            for block_addr in sorted(func.block_addrs, reverse=True):
+                cfg_node = self.model.get_any_node(block_addr)
+                if cfg_node is not None and self.model.graph.out_degree[cfg_node] < 2:
+                    # is it jumping to data?
+                    block = self._lift(block_addr)
+                    if block.vex.jumpkind == "Ijk_NoDecode":
+                        l.debug("Removing function at %#x because of block at #%x jumps to data", func_addr, block.addr)
+                        funcs_to_remove.append(func_addr)
+                        break
+                # TODO: Include conditional jumps that jump to data
+
+        for func_addr in funcs_to_remove:
+            func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
+            for block in func.blocks:
+                # mark all blocks as data
+                self._seg_list.occupy(block.addr, block.size, "unknown")
+                # remove all CFG nodes
+                cfg_node = self.model.get_any_node(block.addr)
+                self.model.remove_node_and_graph_node(cfg_node)
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
         """

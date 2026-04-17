@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import cle
+from cle.backends import PE
 from cle.structs import DataDirectory, MemRegion, MemRegionSort
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -70,3 +71,41 @@ def get_function_hints_from_meta_regions(loader: cle.Loader) -> list[tuple[int, 
         if hasattr(obj, "meta_function_hints") and obj.meta_function_hints:
             result.extend(obj.meta_function_hints)
     return result
+
+
+def get_pointer_array_hints(loader: cle.Loader) -> list[tuple[int, int]]:
+    """
+    Extract pointer array hints and return tuples of (addr, byte count) for each pointer array.
+    """
+    ptr_array_hints = []
+    for obj in loader.all_objects:
+        if isinstance(obj, PE):
+            ptr_array_hints += get_pointer_array_hints_pe(obj)
+    return ptr_array_hints
+
+
+def get_pointer_array_hints_pe(pe: PE) -> list[tuple[int, int]]:
+    """
+    Extract pointer array hints from a PE object and return tuples of (addr, byte count) for each pointer array.
+    """
+    ptr_array_hints = []
+    ptr_size = pe.arch.bytes
+    mapped_base = pe.mapped_base
+
+    for reloc in pe.relocs:
+        ptr_array_hints.append((mapped_base + reloc.relative_addr, ptr_size))
+
+    # merge them
+    merged_array_hints = []
+    for addr, size in sorted(ptr_array_hints):
+        if not merged_array_hints:
+            merged_array_hints.append((addr, size))
+        else:
+            last_addr, last_size = merged_array_hints[-1]
+            if last_addr + last_size == addr:
+                # merge with the previous one
+                merged_array_hints[-1] = (last_addr, last_size + size)
+            else:
+                merged_array_hints.append((addr, size))
+
+    return merged_array_hints

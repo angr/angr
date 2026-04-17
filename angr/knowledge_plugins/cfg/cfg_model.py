@@ -684,6 +684,7 @@ class CFGModel(Serializable):
         seg_list: SegmentList | None = None,
         data_type_guessing_handlers: list[Callable] | None = None,
         fill_gaps: bool = True,
+        new_mem_data_addrs: set[int] | None = None,
     ) -> bool:
         """
         Go through all data references (or the ones as specified by memory_data_addrs) and determine their sizes and
@@ -828,16 +829,30 @@ class CFGModel(Serializable):
                             # the pointer does not come from current binary. skip.
                             continue
 
-                        if seg_list is not None and seg_list.is_occupied(ptr):
-                            sort = seg_list.occupied_by_sort(ptr)
-                            if sort == "code":
-                                continue
-                            if sort == "pointer-array":
-                                continue
-                            # TODO: other types
+                        ptr_data_sort, ptr_data_size = MemoryDataSort.Unknown, 0
+                        if seg_list is not None:
+                            if seg_list.is_occupied(ptr):
+                                sort = seg_list.occupied_by_sort(ptr)
+                                if sort == "code":
+                                    continue
+                                if sort == "pointer-array":
+                                    continue
+                                # TODO: other types
+                            else:
+                                # what's stored there? let's take a look
+                                next_data_addr = next(self.memory_data.irange(ptr + 1), None)
+                                max_data_size = 100 if next_data_addr is None else next_data_addr - ptr
+                                ptr_data_sort, ptr_data_size = self._guess_data_type(
+                                    ptr, max_data_size, xrefs=xrefs, seg_list=seg_list
+                                )
+
                         if ptr not in self.memory_data:
-                            new_md = MemoryData(ptr, 0, MemoryDataSort.Unknown, pointer_addr=data_addr + j)
+                            new_md = MemoryData(ptr, ptr_data_size, ptr_data_sort, pointer_addr=data_addr + j)
                             self.memory_data[ptr] = new_md
+                            if ptr_data_sort is not None and ptr_data_size > 0:
+                                seg_list.occupy(ptr, ptr_data_size, ptr_data_sort)
+                            if new_mem_data_addrs is not None:
+                                new_mem_data_addrs.add(ptr)
                             if xrefs is not None:
                                 # Make a copy of the old reference
                                 crs = []
@@ -1121,7 +1136,7 @@ class CFGModel(Serializable):
         :param node: The node to remove.
         """
         self.graph.remove_node(node)
-        self.remove_node(node.addr, node)  # FIXME: block_id param
+        self.remove_node(node.block_id, node)
         self._block_addrs_with_return.discard(node.addr)
 
     def get_intersecting_functions(
