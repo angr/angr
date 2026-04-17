@@ -24,6 +24,7 @@ from angr.engines.vex.claripy.ccall import (
     ARMG_CC_OP_SUB,
 )
 
+from angr.calling_conventions import SimCCUsercall
 from .rewriter_base import CCallRewriterBase
 
 # Valid ARM CC operation range
@@ -108,9 +109,9 @@ class ARMCCallRewriter(CCallRewriterBase):
         if op_v == ARMG_CC_OP_ADD:
             return self._rewrite_add(ccall, cond_v, inv, dep_1, dep_2)
         if op_v == ARMG_CC_OP_LOGIC:
-            return self._rewrite_logic(ccall, cond_v, inv, dep_1)
+            return self._rewrite_logic(ccall, cond_v, inv, dep_1, dep_2)
         if op_v == ARMG_CC_OP_MUL:
-            return self._rewrite_logic(ccall, cond_v, inv, dep_1)
+            return self._rewrite_logic(ccall, cond_v, inv, dep_1, dep_2)
         if op_v == ARMG_CC_OP_SBB:
             return self._rewrite_sbb(ccall, cond_v, inv, dep_1, dep_2, dep_3)
 
@@ -245,11 +246,13 @@ class ARMCCallRewriter(CCallRewriterBase):
             r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
             return self._wrap(ccall, r)
 
-        # MI/PL — N flag, sign of difference (approximate: ignores overflow)
+        # MI/PL — N flag: sign bit of (dep_1 - dep_2)
         if cond_v in {ARMCondMI, ARMCondPL}:
-            op = "CmpLT" if inv == 0 else "CmpGE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
+            res = Expr.BinaryOp(None, "Sub", (dep_1, dep_2), signed=False, **ccall.tags)
+            zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
+            nf = Expr.BinaryOp(None, "CmpLT", (res, zero), signed=True, **ccall.tags)
+            cond = nf if inv == 0 else Expr.UnaryOp(None, "Not", nf, bits=1, **ccall.tags)
+            return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
 
         # HI/LS — C=1 && Z=0, unsigned greater / unsigned less-or-same (exact)
         if cond_v in {ARMCondHI, ARMCondLS}:
@@ -300,6 +303,33 @@ class ARMCCallRewriter(CCallRewriterBase):
             r = Expr.BinaryOp(ccall.idx, op, (add_expr, zero), signed=True, **ccall.tags)
             return self._wrap(ccall, r)
 
+        # HS/LO — C flag: carry out of addition: (dep_1 + dep_2) <u dep_1
+        if cond_v in {ARMCondHS, ARMCondLO}:
+            cf = Expr.BinaryOp(None, "CmpLT", (add_expr, dep_1), signed=False, bits=1, **ccall.tags)
+            cond = cf if inv == 0 else Expr.UnaryOp(None, "Not", cf, bits=1, **ccall.tags)
+            return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
+
+        # HI/LS — C=1 && Z=0: emit pseudo-builtin
+        if cond_v in {ARMCondHI, ARMCondLS}:
+            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+            hi = Expr.Call(None, "__ADD_COND_HI__", calling_convention=cc, args=[dep_1, dep_2], bits=1, **ccall.tags)
+            cond = hi if inv == 0 else Expr.UnaryOp(None, "Not", hi, bits=1, **ccall.tags)
+            return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
+
+        # GE/LT — N==V: emit pseudo-builtin
+        if cond_v in {ARMCondGE, ARMCondLT}:
+            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+            ge = Expr.Call(None, "__ADD_COND_GE__", calling_convention=cc, args=[dep_1, dep_2], bits=1, **ccall.tags)
+            cond = ge if inv == 0 else Expr.UnaryOp(None, "Not", ge, bits=1, **ccall.tags)
+            return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
+
+        # GT/LE — !Z && N==V: emit pseudo-builtin
+        if cond_v in {ARMCondGT, ARMCondLE}:
+            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+            gt = Expr.Call(None, "__ADD_COND_GT__", calling_convention=cc, args=[dep_1, dep_2], bits=1, **ccall.tags)
+            cond = gt if inv == 0 else Expr.UnaryOp(None, "Not", gt, bits=1, **ccall.tags)
+            return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
+
         return None
 
     # ---- LOGIC / MUL (result in dep_1) ----
@@ -310,6 +340,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         cond_v: int,
         inv: int,
         dep_1: Expr.Expression,
+        dep_2: Expr.Expression | None = None,
     ) -> Expr.Expression | None:
         """
         LOGIC: flags from AND/OR/XOR result (dep_1 = result).
@@ -328,6 +359,13 @@ class ARMCCallRewriter(CCallRewriterBase):
             op = "CmpLT" if inv == 0 else "CmpGE"
             r = Expr.BinaryOp(ccall.idx, op, (dep_1, zero), signed=True, **ccall.tags)
             return self._wrap(ccall, r)
+
+        # HS/LO — C flag: shifter carry out stored in dep_2
+        if cond_v in {ARMCondHS, ARMCondLO} and dep_2 is not None:
+            if inv == 0:
+                return dep_2
+            one = Expr.Const(None, None, 1, dep_2.bits, **ccall.tags)
+            return Expr.BinaryOp(ccall.idx, "Xor", (dep_2, one), False, **ccall.tags)
 
         return None
 
@@ -348,11 +386,17 @@ class ARMCCallRewriter(CCallRewriterBase):
         """
         # HS/LO — C flag (unsigned)
         if cond_v in {ARMCondHS, ARMCondLO}:
-            if isinstance(dep_3, Expr.Const) and dep_3.value_int == 0:
-                op = "CmpGE" if inv == 0 else "CmpLT"
-            else:
-                op = "CmpGT" if inv == 0 else "CmpLE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
+            if isinstance(dep_3, Expr.Const):
+                op = ("CmpGE" if inv == 0 else "CmpLT") if dep_3.value_int == 0 else ("CmpGT" if inv == 0 else "CmpLE")
+                r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
+                return self._wrap(ccall, r)
+            # Symbolic dep_3: emit ITE
+            zero = Expr.Const(None, None, 0, dep_3.bits, **ccall.tags)
+            dep3_is_zero = Expr.BinaryOp(None, "CmpEQ", (dep_3, zero), False, bits=1, **ccall.tags)
+            c_when_zero = Expr.BinaryOp(None, "CmpGE", (dep_1, dep_2), False, bits=1, **ccall.tags)
+            c_when_one = Expr.BinaryOp(None, "CmpGT", (dep_1, dep_2), False, bits=1, **ccall.tags)
+            cf = Expr.ITE(None, dep3_is_zero, c_when_zero, c_when_one, **ccall.tags)
+            cond = cf if inv == 0 else Expr.UnaryOp(None, "Not", cf, bits=1, **ccall.tags)
+            return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
 
         return None
