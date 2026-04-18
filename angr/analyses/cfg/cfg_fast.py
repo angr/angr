@@ -1752,6 +1752,54 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 }:
                     func.info["is_alloca_probe"] = True
 
+            # determine if the function is ___CxxFrameHandler3, __EH_prolog3 family,
+            # or __SEH_prolog4 family
+            if self.kb.functions.contains_addr(func_addr):
+                func = self.kb.functions.get_by_addr(func_addr)
+                try:
+                    block = func.get_block(func.addr)
+                except Exception:
+                    block = None
+                if block is not None:
+                    b = block.bytes
+
+                    # ___CxxFrameHandler3 identification
+                    if b[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc":
+                        func.info["is_CxxFrameHandler3"] = True
+                        self._parse_cxx_frame_handler3_data(func_addr)
+
+                    # __EH_prolog3 family identification (common 23-byte prefix)
+                    elif len(b) >= 34 and b[:23] == (
+                        b"\x50"
+                        b"\x64\xff\x35\x00\x00\x00\x00"
+                        b"\x8d\x44\x24\x0c"
+                        b"\x2b\x64\x24\x0c"
+                        b"\x53\x56\x57"
+                        b"\x89\x28"
+                        b"\x8b\xe8"
+                    ):
+                        if b[31:33] == b"\x89\x65":
+                            func.info["is_EH_prolog3_catch"] = True
+                        elif b[31:33] == b"\x89\x45":
+                            func.info["is_EH_prolog3_GS"] = True
+                        else:
+                            func.info["is_EH_prolog3"] = True
+
+                    # __SEH_prolog4 family identification
+                    # starts with push <handler> (68 xx xx xx xx) then 24-byte common prefix
+                    elif len(b) >= 40 and b[0] == 0x68 and b[5:29] == (
+                        b"\x64\xff\x35\x00\x00\x00\x00"
+                        b"\x8b\x44\x24\x10"
+                        b"\x89\x6c\x24\x10"
+                        b"\x8d\x6c\x24\x10"
+                        b"\x2b\xe0"
+                        b"\x53\x56\x57"
+                    ):
+                        if b[39] == 0x89:
+                            func.info["is_SEH_prolog4_GS"] = True
+                        else:
+                            func.info["is_SEH_prolog4"] = True
+
         if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
             # this is a pcode arch - use Clinic to recover data references
 
@@ -1772,6 +1820,87 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             clinic = self.project.analyses.Clinic(func, mode=ClinicMode.COLLECT_DATA_REFS)
             for irsb_addr, refs in clinic.data_refs.items():
                 self._process_irsb_data_refs(irsb_addr, refs)
+
+    def _parse_cxx_frame_handler3_data(self, cxx_handler_addr: int):
+        """
+        When ___CxxFrameHandler3 is identified, scan the text section for
+        ``mov eax, <FuncInfo_addr>; jmp ___CxxFrameHandler3`` patterns.
+        Parse each FuncInfo struct and its UnwindMapEntry array, creating
+        MemoryData items for them.
+        """
+        from angr.analyses.cfg.pe_msvc_eh_structs import (  # pylint:disable=wrong-import-position
+            parse_funcinfo,
+            parse_unwind_map,
+            FUNCINFO_SIZE,
+            UNWINDMAPENTRY_SIZE,
+        )
+
+        loader = self.project.loader
+        main_obj = loader.main_object
+
+        # Find executable sections to scan for the pattern
+        for section in main_obj.sections:
+            if not section.is_executable:
+                continue
+
+            try:
+                section_data = loader.memory.load(section.vaddr, section.memsize)
+            except Exception:
+                continue
+
+            # Search for: B8 <imm32> E9 <rel32> where jmp target == cxx_handler_addr
+            # Also search for: B8 <imm32> E8 <rel32> (call variant)
+            offset = 0
+            while offset < len(section_data) - 10:
+                if section_data[offset] != 0xB8:
+                    offset += 1
+                    continue
+
+                opcode_after = section_data[offset + 5]
+                if opcode_after not in (0xE9, 0xE8):  # jmp rel32 or call rel32
+                    offset += 1
+                    continue
+
+                eax_val = int.from_bytes(section_data[offset + 1 : offset + 5], "little", signed=False)
+                rel32 = int.from_bytes(section_data[offset + 6 : offset + 10], "little", signed=True)
+                insn_addr = section.vaddr + offset + 5  # address of E9/E8 instruction
+                target = insn_addr + 5 + rel32
+
+                if target != cxx_handler_addr:
+                    offset += 1
+                    continue
+
+                funcinfo_addr = eax_val
+
+                # Parse the FuncInfo struct
+                fi = parse_funcinfo(loader.memory, funcinfo_addr)
+                if fi is None:
+                    offset += 10
+                    continue
+
+                # Create MemoryData for FuncInfo
+                self.model.memory_data[funcinfo_addr] = MemoryData(
+                    funcinfo_addr, FUNCINFO_SIZE, MemoryDataSort.EHFuncInfo
+                )
+
+                # Parse UnwindMapEntry array
+                if fi.max_state > 0 and fi.p_unwind_map != 0:
+                    entries = parse_unwind_map(loader.memory, fi.p_unwind_map, fi.max_state)
+                    if entries:
+                        total_size = len(entries) * UNWINDMAPENTRY_SIZE
+                        self.model.memory_data[fi.p_unwind_map] = MemoryData(
+                            fi.p_unwind_map, total_size, MemoryDataSort.EHUnwindMapEntry
+                        )
+
+                        # Register non-null action pointers as code references
+                        for entry in entries:
+                            if entry.action != 0:
+                                if loader.find_section_containing(entry.action) is not None:
+                                    self.model.memory_data[entry.addr + 4] = MemoryData(
+                                        entry.addr + 4, 4, MemoryDataSort.CodeReference
+                                    )
+
+                offset += 10
 
     def _job_queue_empty(self):
         if self._pending_jobs:
