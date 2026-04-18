@@ -653,8 +653,8 @@ class ScanfFormatParser(FormatParser):
 
     # Length modifiers and how they apply to float conversion.
     float_len_mod = {
-        b"l": sim_type.SimTypeDouble,  # 'double',
-        b"ll": sim_type.SimTypeDouble,  # 'long double',
+        b"l": sim_type.SimTypeDouble(),  # 'double',
+        b"ll": sim_type.SimTypeDouble(),  # 'long double',
     }
 
     @property
