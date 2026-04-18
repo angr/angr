@@ -80,6 +80,7 @@ message MemoryData {
         PEDelayImportDirectory = 14;
         EHFuncInfo = 15;
         EHUnwindMapEntry = 16;
+        EH4ScopeTable = 17;
     }
 
     uint64          ea = 1; // Address of the data

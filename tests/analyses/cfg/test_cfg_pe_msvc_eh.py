@@ -10,7 +10,15 @@ import unittest
 
 import angr
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.analyses.cfg.pe_msvc_eh_structs import parse_funcinfo, parse_unwind_map, FUNCINFO_SIZE, UNWINDMAPENTRY_SIZE
+from angr.analyses.cfg.pe_msvc_eh_structs import (
+    parse_funcinfo,
+    parse_unwind_map,
+    parse_eh4_scopetable,
+    FUNCINFO_SIZE,
+    UNWINDMAPENTRY_SIZE,
+    EH4_SCOPETABLE_HEADER_SIZE,
+    EH4_SCOPETABLE_RECORD_SIZE,
+)
 
 from tests.common import bin_location, is_testing
 
@@ -177,6 +185,68 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         """parse_funcinfo should return None for an address with invalid magic."""
         fi = parse_funcinfo(self.proj.loader.memory, 0x50B01000)
         assert fi is None
+
+    #
+    # _EH4_SCOPETABLE MemoryData items
+    #
+
+    def test_eh4_scopetable_memory_data_created(self):
+        """CFGFast should create EH4ScopeTable MemoryData items for SEH prolog4 callers."""
+        st_count = sum(1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EH4ScopeTable)
+        assert st_count == 52, f"Expected 52 EH4ScopeTable entries, got {st_count}"
+
+    def test_eh4_scopetable_occupied(self):
+        """EH4ScopeTable regions should be marked as occupied in _seg_list."""
+        for addr, md in self.cfg.model.memory_data.items():
+            if md.sort == MemoryDataSort.EH4ScopeTable:
+                assert self.cfg._seg_list.is_occupied(addr), f"EH4ScopeTable at {addr:#x} should be occupied"
+                sort = self.cfg._seg_list.occupied_by_sort(addr)
+                assert sort == MemoryDataSort.EH4ScopeTable, (
+                    f"EH4ScopeTable at {addr:#x} should be occupied as eh4-scopetable, got {sort}"
+                )
+
+    def test_specific_eh4_scopetable_single_record(self):
+        """A known 1-record scope table at 0x50b4ae80 should exist with correct size."""
+        assert 0x50B4AE80 in self.cfg.model.memory_data
+        md = self.cfg.model.memory_data[0x50B4AE80]
+        assert md.sort == MemoryDataSort.EH4ScopeTable
+        assert md.size == EH4_SCOPETABLE_HEADER_SIZE + 1 * EH4_SCOPETABLE_RECORD_SIZE
+
+    def test_specific_eh4_scopetable_multi_record(self):
+        """A known 8-record scope table at 0x50b4ae10 should exist with correct size."""
+        assert 0x50B4AE10 in self.cfg.model.memory_data
+        md = self.cfg.model.memory_data[0x50B4AE10]
+        assert md.sort == MemoryDataSort.EH4ScopeTable
+        assert md.size == EH4_SCOPETABLE_HEADER_SIZE + 8 * EH4_SCOPETABLE_RECORD_SIZE
+
+    #
+    # _EH4_SCOPETABLE parsing helpers
+    #
+
+    def test_parse_eh4_scopetable_known_struct(self):
+        """parse_eh4_scopetable should correctly parse the scope table at 0x50b4ae10."""
+        st = parse_eh4_scopetable(self.proj.loader.memory, 0x50B4AE10, code_range=(0x50B01000, 0x50B4DCB1))
+        assert st is not None
+        assert st.gs_cookie_offset == -2
+        assert st.eh_cookie_offset == -44
+        assert len(st.records) == 8
+        # First record
+        assert st.records[0].enclosing_level == -2
+        assert st.records[0].filter_func == 0x50B204AF
+        assert st.records[0].handler_func == 0x50B204C0
+
+    def test_parse_eh4_scopetable_finally_handler(self):
+        """A __finally scope record should have filter_func == 0."""
+        st = parse_eh4_scopetable(self.proj.loader.memory, 0x50B4AF80, code_range=(0x50B01000, 0x50B4DCB1))
+        assert st is not None
+        assert len(st.records) == 1
+        assert st.records[0].filter_func == 0
+        assert st.records[0].handler_func != 0
+
+    def test_parse_eh4_scopetable_invalid_address(self):
+        """parse_eh4_scopetable should return None for an address with invalid data."""
+        st = parse_eh4_scopetable(self.proj.loader.memory, 0x50B01000, code_range=(0x50B01000, 0x50B4DCB1))
+        assert st is None
 
 
 if __name__ == "__main__":

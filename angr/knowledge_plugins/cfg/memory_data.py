@@ -22,6 +22,7 @@ class MemoryDataSort:
     PEDelayImportDirectory = "pe-delay-import-directory"
     EHFuncInfo = "eh-funcinfo"
     EHUnwindMapEntry = "eh-unwindmapentry"
+    EH4ScopeTable = "eh4-scopetable"
 
 
 _SORT_TO_IDX = {
@@ -42,6 +43,7 @@ _SORT_TO_IDX = {
     MemoryDataSort.PEDelayImportDirectory: cfg_pb2.MemoryData.PEDelayImportDirectory,
     MemoryDataSort.EHFuncInfo: cfg_pb2.MemoryData.EHFuncInfo,
     MemoryDataSort.EHUnwindMapEntry: cfg_pb2.MemoryData.EHUnwindMapEntry,
+    MemoryDataSort.EH4ScopeTable: cfg_pb2.MemoryData.EH4ScopeTable,
 }
 
 _IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}

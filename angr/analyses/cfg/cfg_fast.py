@@ -59,7 +59,13 @@ from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
-from .pe_msvc_eh_structs import parse_funcinfo, parse_unwind_map, FUNCINFO_SIZE, UNWINDMAPENTRY_SIZE
+from .pe_msvc_eh_structs import (
+    parse_funcinfo,
+    parse_unwind_map,
+    parse_eh4_scopetable,
+    FUNCINFO_SIZE,
+    UNWINDMAPENTRY_SIZE,
+)
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -1904,6 +1910,78 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                     entry.addr + 4, 4, MemoryDataSort.CodeReference
                                 )
 
+    def _parse_seh_prolog4_scopetables(self) -> None:
+        """
+        Find all __SEH_prolog4 / __SEH_prolog4_GS functions, look up their
+        predecessor blocks in the CFG model, extract the scope-table pointer
+        (the second ``push <imm32>`` in the predecessor block), and parse the
+        referenced _EH4_SCOPETABLE structs, creating MemoryData items and
+        occupying the corresponding memory.
+        """
+        if self.project.arch.name != "X86":
+            return
+
+        seh_addrs = self.kb.functions.get_key_func_addrs("SEH_prolog4") | self.kb.functions.get_key_func_addrs(
+            "SEH_prolog4_GS"
+        )
+        if not seh_addrs:
+            return
+
+        loader = self.project.loader
+
+        # Determine executable memory range for pointer validation
+        code_min = code_max = None
+        for section in loader.main_object.sections:
+            if section.is_executable:
+                if code_min is None or section.vaddr < code_min:
+                    code_min = section.vaddr
+                end = section.vaddr + section.memsize
+                if code_max is None or end > code_max:
+                    code_max = end
+        code_range = (code_min, code_max) if code_min is not None else None
+
+        for seh_addr in seh_addrs:
+            node = self.model.get_any_node(seh_addr)
+            if node is None:
+                continue
+
+            for pred in self.graph.predecessors(node):
+                # Predecessor pattern:  push <stack_size>; push <scopetable>; call __SEH_prolog4
+                # The scope table is the operand of the second push (i.e. the one just before the call).
+                try:
+                    block = self.project.factory.block(pred.addr, size=pred.size)
+                except Exception:
+                    continue
+
+                insns = list(block.capstone.insns)
+                if len(insns) < 3:
+                    continue
+                if insns[-1].mnemonic != "call":
+                    continue
+
+                # The push right before the call carries the scope table address
+                scope_push = insns[-2]
+                if scope_push.mnemonic != "push":
+                    continue
+                op = scope_push.operands[0]
+                if op.type != capstone.x86.X86_OP_IMM:
+                    continue
+
+                scopetable_addr = op.imm & 0xFFFFFFFF
+                if scopetable_addr in self.model.memory_data and self.model.memory_data[
+                    scopetable_addr
+                ].sort == MemoryDataSort.EH4ScopeTable:
+                    continue
+
+                st = parse_eh4_scopetable(loader.memory, scopetable_addr, code_range=code_range)
+                if st is None:
+                    continue
+
+                self.model.memory_data[scopetable_addr] = MemoryData(
+                    scopetable_addr, st.total_size, MemoryDataSort.EH4ScopeTable
+                )
+                self._seg_list.occupy(scopetable_addr, st.total_size, MemoryDataSort.EH4ScopeTable)
+
     def _job_queue_empty(self):
         if self._pending_jobs:
             # fastpath
@@ -1960,6 +2038,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self._use_eh_frame:
             self._parse_cxx_frame_handler3_data()
+            self._parse_seh_prolog4_scopetables()
 
         if self._use_eh_frame and self._remaining_eh_frame_addrs:
             while self._remaining_eh_frame_addrs:

@@ -211,6 +211,158 @@ def parse_funcinfo(memory, addr: int) -> FuncInfo | None:
     )
 
 
+EH4_SCOPETABLE_HEADER_STRUCT = SimStruct(
+    fields=OrderedDict(
+        [
+            ("GSCookieOffset", SimTypeInt(signed=True)),
+            ("GSCookieXOROffset", SimTypeInt(signed=True)),
+            ("EHCookieOffset", SimTypeInt(signed=True)),
+            ("EHCookieXOROffset", SimTypeInt(signed=True)),
+        ]
+    ),
+    name="_EH4_SCOPETABLE",
+)
+
+EH4_SCOPETABLE_HEADER_SIZE = 16  # 4 * 4 bytes
+
+EH4_SCOPETABLE_RECORD_STRUCT = SimStruct(
+    fields=OrderedDict(
+        [
+            ("EnclosingLevel", SimTypeInt(signed=True)),
+            ("FilterFunc", SimTypeInt(signed=False)),
+            ("HandlerFunc", SimTypeInt(signed=False)),
+        ]
+    ),
+    name="_EH4_SCOPETABLE_RECORD",
+)
+
+EH4_SCOPETABLE_RECORD_SIZE = 12  # 3 * 4 bytes
+
+
+class EH4ScopeTable:
+    """Parsed _EH4_SCOPETABLE struct from a 32-bit PE binary."""
+
+    __slots__ = (
+        "addr",
+        "gs_cookie_offset",
+        "gs_cookie_xor_offset",
+        "eh_cookie_offset",
+        "eh_cookie_xor_offset",
+        "records",
+    )
+
+    def __init__(
+        self,
+        addr: int,
+        gs_cookie_offset: int,
+        gs_cookie_xor_offset: int,
+        eh_cookie_offset: int,
+        eh_cookie_xor_offset: int,
+        records: list[EH4ScopeRecord],
+    ):
+        self.addr = addr
+        self.gs_cookie_offset = gs_cookie_offset
+        self.gs_cookie_xor_offset = gs_cookie_xor_offset
+        self.eh_cookie_offset = eh_cookie_offset
+        self.eh_cookie_xor_offset = eh_cookie_xor_offset
+        self.records = records
+
+    @property
+    def total_size(self) -> int:
+        return EH4_SCOPETABLE_HEADER_SIZE + len(self.records) * EH4_SCOPETABLE_RECORD_SIZE
+
+    def __repr__(self):
+        return (
+            f"EH4ScopeTable(addr={self.addr:#x}, records={len(self.records)}, "
+            f"size={self.total_size})"
+        )
+
+
+class EH4ScopeRecord:
+    """Parsed _EH4_SCOPETABLE_RECORD struct from a 32-bit PE binary."""
+
+    __slots__ = ("enclosing_level", "filter_func", "handler_func")
+
+    def __init__(self, enclosing_level: int, filter_func: int, handler_func: int):
+        self.enclosing_level = enclosing_level
+        self.filter_func = filter_func
+        self.handler_func = handler_func
+
+    def __repr__(self):
+        return (
+            f"EH4ScopeRecord(enclosing={self.enclosing_level}, "
+            f"filter={self.filter_func:#x}, handler={self.handler_func:#x})"
+        )
+
+
+def parse_eh4_scopetable(
+    memory,
+    addr: int,
+    code_range: tuple[int, int] | None = None,
+) -> EH4ScopeTable | None:
+    """
+    Parse an _EH4_SCOPETABLE at the given address.
+
+    :param memory:      The loader memory interface.
+    :param addr:        The virtual address of the _EH4_SCOPETABLE.
+    :param code_range:  Optional (min_addr, max_addr) of executable memory.
+                        When provided, FilterFunc and HandlerFunc pointers are
+                        validated against this range.
+    :return:            An EH4ScopeTable object, or None if parsing fails.
+    """
+    try:
+        header = memory.load(addr, EH4_SCOPETABLE_HEADER_SIZE)
+    except Exception:
+        log.debug("Failed to read _EH4_SCOPETABLE header at %#x", addr)
+        return None
+
+    if len(header) < EH4_SCOPETABLE_HEADER_SIZE:
+        return None
+
+    gs_cookie_off, gs_cookie_xor, eh_cookie_off, eh_cookie_xor = struct.unpack("<iiii", header)
+
+    def _is_code_ptr(ptr: int) -> bool:
+        if code_range is not None:
+            return code_range[0] <= ptr < code_range[1]
+        return ptr != 0
+
+    records: list[EH4ScopeRecord] = []
+    rec_base = addr + EH4_SCOPETABLE_HEADER_SIZE
+    for i in range(64):  # reasonable upper bound
+        try:
+            data = memory.load(rec_base + i * EH4_SCOPETABLE_RECORD_SIZE, EH4_SCOPETABLE_RECORD_SIZE)
+        except Exception:
+            break
+        if len(data) < EH4_SCOPETABLE_RECORD_SIZE:
+            break
+
+        enclosing, filter_func, handler_func = struct.unpack("<iII", data)
+
+        # Validate EnclosingLevel: must be -2 (top-level) or a valid prior index
+        if enclosing != -2 and not (0 <= enclosing < i):
+            break
+        # HandlerFunc must point to executable code
+        if handler_func == 0 or not _is_code_ptr(handler_func):
+            break
+        # FilterFunc must be 0 (__finally) or point to executable code (__except)
+        if filter_func != 0 and not _is_code_ptr(filter_func):
+            break
+
+        records.append(EH4ScopeRecord(enclosing, filter_func, handler_func))
+
+    if not records:
+        return None
+
+    return EH4ScopeTable(
+        addr=addr,
+        gs_cookie_offset=gs_cookie_off,
+        gs_cookie_xor_offset=gs_cookie_xor,
+        eh_cookie_offset=eh_cookie_off,
+        eh_cookie_xor_offset=eh_cookie_xor,
+        records=records,
+    )
+
+
 def parse_unwind_map(memory, addr: int, count: int) -> list[UnwindMapEntry]:
     """
     Parse an array of UnwindMapEntry structs.
