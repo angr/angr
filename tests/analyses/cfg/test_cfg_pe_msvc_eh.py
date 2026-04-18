@@ -31,9 +31,9 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         cls.proj = angr.Project(TEST_BINARY)
         cls.cfg = cls.proj.analyses.CFGFast(normalize=True, show_progressbar=not is_testing)
 
-    # ------------------------------------------------------------------
+    #
     # Function identification
-    # ------------------------------------------------------------------
+    #
 
     def test_cxxframehandler3_identified(self):
         """___CxxFrameHandler3 should be identified at its known address."""
@@ -65,9 +65,9 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         func = self.cfg.kb.functions.get_by_addr(0x50B22E8C)
         assert func.info.get("is_SEH_prolog4_GS") is True
 
-    # ------------------------------------------------------------------
-    # No mislabelling among the identified functions
-    # ------------------------------------------------------------------
+    #
+    # EH-related functions
+    #
 
     def test_identified_functions_are_mutually_exclusive(self):
         """Each identified function should carry exactly one EH/SEH label."""
@@ -91,32 +91,24 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
             func = self.cfg.kb.functions.get_by_addr(addr)
             for label in labels:
                 if label == expected_label:
-                    assert func.info.get(label) is True, (
-                        f"Function at {addr:#x} should have {label}"
-                    )
+                    assert func.info.get(label) is True, f"Function at {addr:#x} should have {label}"
                 else:
-                    assert not func.info.get(label), (
-                        f"Function at {addr:#x} should NOT have {label}"
-                    )
+                    assert not func.info.get(label), f"Function at {addr:#x} should NOT have {label}"
 
-    # ------------------------------------------------------------------
+    #
     # FuncInfo MemoryData items
-    # ------------------------------------------------------------------
+    #
 
     def test_funcinfo_memory_data_created(self):
         """CFGFast should create EHFuncInfo MemoryData items."""
-        fi_count = sum(
-            1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EHFuncInfo
-        )
+        fi_count = sum(1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EHFuncInfo)
         assert fi_count == 132, f"Expected 132 FuncInfo entries, got {fi_count}"
 
     def test_funcinfo_memory_data_size(self):
         """Each EHFuncInfo MemoryData item should have size == FUNCINFO_SIZE."""
         for addr, md in self.cfg.model.memory_data.items():
             if md.sort == MemoryDataSort.EHFuncInfo:
-                assert md.size == FUNCINFO_SIZE, (
-                    f"FuncInfo at {addr:#x} has size {md.size}, expected {FUNCINFO_SIZE}"
-                )
+                assert md.size == FUNCINFO_SIZE, f"FuncInfo at {addr:#x} has size {md.size}, expected {FUNCINFO_SIZE}"
 
     def test_specific_funcinfo_exists(self):
         """A known FuncInfo at 0x50b489ec should exist in memory_data."""
@@ -124,15 +116,13 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         md = self.cfg.model.memory_data[0x50B489EC]
         assert md.sort == MemoryDataSort.EHFuncInfo
 
-    # ------------------------------------------------------------------
+    #
     # UnwindMapEntry MemoryData items
-    # ------------------------------------------------------------------
+    #
 
     def test_unwindmap_memory_data_created(self):
         """CFGFast should create EHUnwindMapEntry MemoryData items."""
-        uw_count = sum(
-            1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EHUnwindMapEntry
-        )
+        uw_count = sum(1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EHUnwindMapEntry)
         assert uw_count == 132, f"Expected 132 UnwindMapEntry arrays, got {uw_count}"
 
     def test_specific_unwindmap_exists(self):
@@ -143,20 +133,18 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         # FuncInfo.maxState == 6, so 6 * 8 = 48 bytes
         assert md.size == 6 * UNWINDMAPENTRY_SIZE
 
-    # ------------------------------------------------------------------
+    #
     # Code references from UnwindMapEntry action pointers
-    # ------------------------------------------------------------------
+    #
 
     def test_code_references_created_for_unwind_actions(self):
         """Non-null action pointers in UnwindMapEntry should produce CodeReference items."""
-        coderef_count = sum(
-            1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.CodeReference
-        )
+        coderef_count = sum(1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.CodeReference)
         assert coderef_count > 0, "Expected CodeReference items from unwind action pointers"
 
-    # ------------------------------------------------------------------
+    #
     # Parsing helpers
-    # ------------------------------------------------------------------
+    #
 
     def test_parse_funcinfo_known_struct(self):
         """parse_funcinfo should correctly parse the FuncInfo at 0x50b489ec."""

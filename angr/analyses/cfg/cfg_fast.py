@@ -59,6 +59,7 @@ from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
+from .pe_msvc_eh_structs import parse_funcinfo, parse_unwind_map, FUNCINFO_SIZE, UNWINDMAPENTRY_SIZE
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -809,7 +810,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._force_smart_scan = force_smart_scan
         self._force_complete_scan = force_complete_scan
         self._use_eh_frame = eh_frame
-        self._cxx_eh_data_parsed = False
         self._use_exceptions = exceptions
         self._check_funcret_max_job = check_funcret_max_job
         self._retedges = retedges
@@ -1679,6 +1679,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     b"L)\xdcH\x85d$\x08H\x01\xc4\xc9\xc3",
                 }:
                     func.info["is_rust_probestack"] = True
+                    self.kb.functions.add_key_func_addr("rust_probestack", func_addr)
 
             # determine if the function is __alloca_probe
             if func_block_count == 4:
@@ -1691,6 +1692,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     b"L\x8b\x14$L\x8b\\$\x08H\x83\xc4\x10\xc3",
                 }:
                     func.info["is_alloca_probe"] = True
+                    self.kb.functions.add_key_func_addr("alloca_probe", func_addr)
 
             # determine if the function is _guard_xfg_dispatch_icall_nop or _guard_xfg_dispatch_icall_fptr
             if func_block_count in {1, 2}:
@@ -1752,6 +1754,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     b"\x8b\xc1Y\x94\x8b\x00\x89\x04$\xc3",
                 }:
                     func.info["is_alloca_probe"] = True
+                    self.kb.functions.add_key_func_addr("alloca_probe", func_addr)
 
             # determine if the function is ___CxxFrameHandler3, __EH_prolog3 family,
             # or __SEH_prolog4 family
@@ -1767,38 +1770,43 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # ___CxxFrameHandler3 identification
                     if b[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc":
                         func.info["is_CxxFrameHandler3"] = True
+                        self.kb.functions.add_key_func_addr("CxxFrameHandler3", func_addr)
 
                     # __EH_prolog3 family identification (common 23-byte prefix)
                     elif len(b) >= 34 and b[:23] == (
-                        b"\x50"
-                        b"\x64\xff\x35\x00\x00\x00\x00"
-                        b"\x8d\x44\x24\x0c"
-                        b"\x2b\x64\x24\x0c"
-                        b"\x53\x56\x57"
-                        b"\x89\x28"
-                        b"\x8b\xe8"
+                        b"\x50\x64\xff\x35\x00\x00\x00\x00\x8d\x44\x24\x0c\x2b\x64\x24\x0c\x53\x56\x57\x89\x28\x8b\xe8"
                     ):
                         if b[31:33] == b"\x89\x65":
                             func.info["is_EH_prolog3_catch"] = True
+                            self.kb.functions.add_key_func_addr("EH_prolog3_catch", func_addr)
                         elif b[31:33] == b"\x89\x45":
                             func.info["is_EH_prolog3_GS"] = True
+                            self.kb.functions.add_key_func_addr("EH_prolog3_GS", func_addr)
                         else:
                             func.info["is_EH_prolog3"] = True
+                            self.kb.functions.add_key_func_addr("EH_prolog3", func_addr)
 
                     # __SEH_prolog4 family identification
                     # starts with push <handler> (68 xx xx xx xx) then 24-byte common prefix
-                    elif len(b) >= 40 and b[0] == 0x68 and b[5:29] == (
-                        b"\x64\xff\x35\x00\x00\x00\x00"
-                        b"\x8b\x44\x24\x10"
-                        b"\x89\x6c\x24\x10"
-                        b"\x8d\x6c\x24\x10"
-                        b"\x2b\xe0"
-                        b"\x53\x56\x57"
+                    elif (
+                        len(b) >= 40
+                        and b[0] == 0x68
+                        and b[5:29]
+                        == (
+                            b"\x64\xff\x35\x00\x00\x00\x00"
+                            b"\x8b\x44\x24\x10"
+                            b"\x89\x6c\x24\x10"
+                            b"\x8d\x6c\x24\x10"
+                            b"\x2b\xe0"
+                            b"\x53\x56\x57"
+                        )
                     ):
                         if b[39] == 0x89:
                             func.info["is_SEH_prolog4_GS"] = True
+                            self.kb.functions.add_key_func_addr("SEH_prolog4_GS", func_addr)
                         else:
                             func.info["is_SEH_prolog4"] = True
+                            self.kb.functions.add_key_func_addr("SEH_prolog4", func_addr)
 
         if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
             # this is a pcode arch - use Clinic to recover data references
@@ -1821,37 +1829,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             for irsb_addr, refs in clinic.data_refs.items():
                 self._process_irsb_data_refs(irsb_addr, refs)
 
-    def _parse_cxx_frame_handler3_data(self) -> bool:
+    def _parse_cxx_frame_handler3_data(self) -> None:
         """
-        Find all ___CxxFrameHandler3 functions (identified during
-        ``_function_completed``), look up their predecessor blocks in the CFG
-        model, lift each predecessor to VEX IR to extract the constant value
-        assigned to *eax*, and parse the referenced FuncInfo / UnwindMapEntry
-        structs, creating MemoryData items for them.
-
-        :return: ``True`` if processing was performed (or is not applicable),
-                 ``False`` if no ___CxxFrameHandler3 has been identified yet
-                 and the caller should retry later.
+        Find all ___CxxFrameHandler3 functions, look up their predecessor blocks in the CFG model, lift each
+        predecessor to VEX IR to extract the constant value assigned to eax, and parse the referenced FuncInfo (and
+        UnwindMapEntry) structs, create MemoryData items for them, and occupy memory accordingly.
         """
         if self.project.arch.name != "X86":
-            return True
+            return
 
         # Collect all identified ___CxxFrameHandler3 addresses
-        cxx_handler_addrs = [
-            addr
-            for addr, func in self.kb.functions.items()
-            if func.info.get("is_CxxFrameHandler3")
-        ]
+        cxx_handler_addrs = self.kb.functions.get_key_func_addrs("CxxFrameHandler3")
         if not cxx_handler_addrs:
-            # Not found yet — tell the caller to retry on the next round
-            return False
-
-        from angr.analyses.cfg.pe_msvc_eh_structs import (  # pylint:disable=wrong-import-position
-            parse_funcinfo,
-            parse_unwind_map,
-            FUNCINFO_SIZE,
-            UNWINDMAPENTRY_SIZE,
-        )
+            # Not found yet; try later
+            return
 
         eax_offset = self.project.arch.registers["eax"][0]
         loader = self.project.loader
@@ -1879,11 +1870,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                 if funcinfo_addr is None:
                     continue
+                if (
+                    funcinfo_addr in self.model.memory_data
+                    and self.model.memory_data[funcinfo_addr].sort == MemoryDataSort.EHFuncInfo
+                ):
+                    continue
 
                 # Parse the FuncInfo struct
                 fi = parse_funcinfo(loader.memory, funcinfo_addr)
                 if fi is None:
                     continue
+                self._seg_list.occupy(funcinfo_addr, FUNCINFO_SIZE, MemoryDataSort.EHFuncInfo)
 
                 # Create MemoryData for FuncInfo
                 self.model.memory_data[funcinfo_addr] = MemoryData(
@@ -1898,16 +1895,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         self.model.memory_data[fi.p_unwind_map] = MemoryData(
                             fi.p_unwind_map, total_size, MemoryDataSort.EHUnwindMapEntry
                         )
+                        self._seg_list.occupy(fi.p_unwind_map, total_size, MemoryDataSort.EHUnwindMapEntry)
 
                         # Register non-null action pointers as code references
                         for entry in entries:
-                            if entry.action != 0:
-                                if loader.find_section_containing(entry.action) is not None:
-                                    self.model.memory_data[entry.addr + 4] = MemoryData(
-                                        entry.addr + 4, 4, MemoryDataSort.CodeReference
-                                    )
-
-        return True
+                            if entry.action != 0 and loader.find_section_containing(entry.action) is not None:
+                                self.model.memory_data[entry.addr + 4] = MemoryData(
+                                    entry.addr + 4, 4, MemoryDataSort.CodeReference
+                                )
 
     def _job_queue_empty(self):
         if self._pending_jobs:
@@ -1963,8 +1958,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._insert_job(job)
                 return
 
-        if self._use_eh_frame and not self._cxx_eh_data_parsed:
-            self._cxx_eh_data_parsed = self._parse_cxx_frame_handler3_data()
+        if self._use_eh_frame:
+            self._parse_cxx_frame_handler3_data()
 
         if self._use_eh_frame and self._remaining_eh_frame_addrs:
             while self._remaining_eh_frame_addrs:

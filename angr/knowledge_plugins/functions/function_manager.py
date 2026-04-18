@@ -715,6 +715,8 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
         # historical function name cache
         self._old_func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
+        # key function addresses cache
+        self._key_func_addrs: defaultdict[str, set[K]] = defaultdict(set)
 
     def __setstate__(self, state):
         self.function_address_types = state["function_address_types"]
@@ -781,6 +783,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         fm._func_block_counts = self._func_block_counts.copy()
         fm._func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._func_name_to_addrs.items()})
         fm._old_func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._old_func_name_to_addrs.items()})
+        fm._key_func_addrs = defaultdict(set, {k: v.copy() for k, v in self._key_func_addrs.items()})
 
         return fm
 
@@ -805,6 +808,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._func_block_counts = {}
         self._func_name_to_addrs = defaultdict(set)
         self._old_func_name_to_addrs = defaultdict(set)
+        self._key_func_addrs = defaultdict(set)
 
     def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
         """
@@ -1156,6 +1160,11 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # update the function block count cache
         self.set_func_block_count(func.addr, len(func.block_addrs_set))
 
+        # update key function address cache
+        for key, value in func.info.items():
+            if key.startswith("is_") and value is True:
+                self.add_key_func_addr(key[3:], func.addr)
+
         # make sure all functions exist in the call graph
         self.callgraph.add_node(func.addr)
 
@@ -1407,6 +1416,16 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         :return:        None
         """
         self._func_block_counts[addr] = count
+
+    #
+    # Key functions
+    #
+
+    def get_key_func_addrs(self, func_type: str) -> list[int]:
+        return self._key_func_addrs.get(func_type, [])
+
+    def add_key_func_addr(self, func_type: str, addr: K) -> None:
+        self._key_func_addrs[func_type].add(addr)
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)
