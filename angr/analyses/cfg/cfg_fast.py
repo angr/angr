@@ -809,6 +809,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._force_smart_scan = force_smart_scan
         self._force_complete_scan = force_complete_scan
         self._use_eh_frame = eh_frame
+        self._cxx_eh_data_parsed = False
         self._use_exceptions = exceptions
         self._check_funcret_max_job = check_funcret_max_job
         self._retedges = retedges
@@ -1766,7 +1767,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # ___CxxFrameHandler3 identification
                     if b[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc":
                         func.info["is_CxxFrameHandler3"] = True
-                        self._parse_cxx_frame_handler3_data(func_addr)
 
                     # __EH_prolog3 family identification (common 23-byte prefix)
                     elif len(b) >= 34 and b[:23] == (
@@ -1821,13 +1821,31 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             for irsb_addr, refs in clinic.data_refs.items():
                 self._process_irsb_data_refs(irsb_addr, refs)
 
-    def _parse_cxx_frame_handler3_data(self, cxx_handler_addr: int):
+    def _parse_cxx_frame_handler3_data(self) -> bool:
         """
-        When ___CxxFrameHandler3 is identified, scan the text section for
-        ``mov eax, <FuncInfo_addr>; jmp ___CxxFrameHandler3`` patterns.
-        Parse each FuncInfo struct and its UnwindMapEntry array, creating
-        MemoryData items for them.
+        Find all ___CxxFrameHandler3 functions (identified during
+        ``_function_completed``), look up their predecessor blocks in the CFG
+        model, lift each predecessor to VEX IR to extract the constant value
+        assigned to *eax*, and parse the referenced FuncInfo / UnwindMapEntry
+        structs, creating MemoryData items for them.
+
+        :return: ``True`` if processing was performed (or is not applicable),
+                 ``False`` if no ___CxxFrameHandler3 has been identified yet
+                 and the caller should retry later.
         """
+        if self.project.arch.name != "X86":
+            return True
+
+        # Collect all identified ___CxxFrameHandler3 addresses
+        cxx_handler_addrs = [
+            addr
+            for addr, func in self.kb.functions.items()
+            if func.info.get("is_CxxFrameHandler3")
+        ]
+        if not cxx_handler_addrs:
+            # Not found yet — tell the caller to retry on the next round
+            return False
+
         from angr.analyses.cfg.pe_msvc_eh_structs import (  # pylint:disable=wrong-import-position
             parse_funcinfo,
             parse_unwind_map,
@@ -1835,47 +1853,36 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             UNWINDMAPENTRY_SIZE,
         )
 
+        eax_offset = self.project.arch.registers["eax"][0]
         loader = self.project.loader
-        main_obj = loader.main_object
 
-        # Find executable sections to scan for the pattern
-        for section in main_obj.sections:
-            if not section.is_executable:
+        for cxx_handler_addr in cxx_handler_addrs:
+            node = self.model.get_any_node(cxx_handler_addr)
+            if node is None:
                 continue
 
-            try:
-                section_data = loader.memory.load(section.vaddr, section.memsize)
-            except Exception:
-                continue
-
-            # Search for: B8 <imm32> E9 <rel32> where jmp target == cxx_handler_addr
-            # Also search for: B8 <imm32> E8 <rel32> (call variant)
-            offset = 0
-            while offset < len(section_data) - 10:
-                if section_data[offset] != 0xB8:
-                    offset += 1
+            for pred in self.graph.predecessors(node):
+                # Lift the predecessor block to VEX IR
+                try:
+                    block = self.project.factory.block(pred.addr, size=pred.size)
+                    irsb = block.vex
+                except Exception:
                     continue
 
-                opcode_after = section_data[offset + 5]
-                if opcode_after not in (0xE9, 0xE8):  # jmp rel32 or call rel32
-                    offset += 1
+                # Walk statements in reverse to find the last Put to eax
+                funcinfo_addr = None
+                for stmt in reversed(irsb.statements):
+                    if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == eax_offset:
+                        if isinstance(stmt.data, pyvex.IRExpr.Const):
+                            funcinfo_addr = stmt.data.con.value
+                        break
+
+                if funcinfo_addr is None:
                     continue
-
-                eax_val = int.from_bytes(section_data[offset + 1 : offset + 5], "little", signed=False)
-                rel32 = int.from_bytes(section_data[offset + 6 : offset + 10], "little", signed=True)
-                insn_addr = section.vaddr + offset + 5  # address of E9/E8 instruction
-                target = insn_addr + 5 + rel32
-
-                if target != cxx_handler_addr:
-                    offset += 1
-                    continue
-
-                funcinfo_addr = eax_val
 
                 # Parse the FuncInfo struct
                 fi = parse_funcinfo(loader.memory, funcinfo_addr)
                 if fi is None:
-                    offset += 10
                     continue
 
                 # Create MemoryData for FuncInfo
@@ -1900,7 +1907,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         entry.addr + 4, 4, MemoryDataSort.CodeReference
                                     )
 
-                offset += 10
+        return True
 
     def _job_queue_empty(self):
         if self._pending_jobs:
@@ -1955,6 +1962,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if job is not None:
                 self._insert_job(job)
                 return
+
+        if self._use_eh_frame and not self._cxx_eh_data_parsed:
+            self._cxx_eh_data_parsed = self._parse_cxx_frame_handler3_data()
 
         if self._use_eh_frame and self._remaining_eh_frame_addrs:
             while self._remaining_eh_frame_addrs:
