@@ -79,7 +79,7 @@ class CFGNode(Serializable):
         size: int,
         cfg: CFGModel,
         simprocedure_name: str | None = None,
-        no_ret: bool = False,
+        no_ret: bool | None = None,
         function_address: AddressType | None = None,
         block_id: BlockID | AddressType | None = None,
         irsb: IRSB | None = None,
@@ -189,11 +189,11 @@ class CFGNode(Serializable):
         return self._size
 
     @property
-    def no_ret(self) -> bool:
+    def no_ret(self) -> bool | None:
         return self._no_ret
 
     @no_ret.setter
-    def no_ret(self, value: bool):
+    def no_ret(self, value: bool) -> None:
         if value == self._no_ret:
             return
 
@@ -325,7 +325,7 @@ class CFGNode(Serializable):
             block_id=block_id,
             instruction_addrs=instruction_addrs,
             simprocedure_name=cmsg.simprocedure_name if cmsg.HasField("simprocedure_name") else None,
-            no_ret=cmsg.no_ret if cmsg.HasField("no_ret") else False,
+            no_ret=cmsg.no_ret if cmsg.HasField("no_ret") else None,
             function_address=cmsg.function_address if cmsg.HasField("function_address") else None,
             thumb=cmsg.thumb,
             byte_string=cmsg.byte_string if cmsg.HasField("byte_string") else None,
