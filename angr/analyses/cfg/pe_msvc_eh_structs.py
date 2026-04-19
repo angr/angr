@@ -41,15 +41,7 @@ CXXFRAMEHANDLER3_SIGNATURE = b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\
 #   push ebx; push esi; push edi;  53 56 57
 #   mov [eax], ebp;       89 28
 #   mov ebp, eax;         8B E8
-EH_PROLOG3_COMMON = (
-    b"\x50"
-    b"\x64\xff\x35\x00\x00\x00\x00"
-    b"\x8d\x44\x24\x0c"
-    b"\x2b\x64\x24\x0c"
-    b"\x53\x56\x57"
-    b"\x89\x28"
-    b"\x8b\xe8"
-)
+EH_PROLOG3_COMMON = b"\x50\x64\xff\x35\x00\x00\x00\x00\x8d\x44\x24\x0c\x2b\x64\x24\x0c\x53\x56\x57\x89\x28\x8b\xe8"
 
 # After the common prefix + 8 bytes (security cookie xor + push), the
 # distinguishing bytes at offset 31 are:
@@ -57,9 +49,9 @@ EH_PROLOG3_COMMON = (
 #   __EH_prolog3_catch: 89 65 F0       mov [ebp-0x10], esp
 #   __EH_prolog3_GS:    89 45 F0       mov [ebp-0x10], eax
 EH_PROLOG3_DISCRIM_OFFSET = 31
-EH_PROLOG3_DISCRIM = b"\xff"           # push [ebp-4]
+EH_PROLOG3_DISCRIM = b"\xff"  # push [ebp-4]
 EH_PROLOG3_CATCH_DISCRIM = b"\x89\x65"  # mov [ebp-0x10], esp
-EH_PROLOG3_GS_DISCRIM = b"\x89\x45"    # mov [ebp-0x10], eax
+EH_PROLOG3_GS_DISCRIM = b"\x89\x45"  # mov [ebp-0x10], eax
 
 # __SEH_prolog4 family common prefix (24 bytes starting at offset 5):
 #   push <handler>;        68 xx xx xx xx          (offset 0-4, varies)
@@ -69,21 +61,14 @@ EH_PROLOG3_GS_DISCRIM = b"\x89\x45"    # mov [ebp-0x10], eax
 #   lea ebp, [esp+0x10];   8D 6C 24 10             (offset 20-23)
 #   sub esp, eax;          2B E0                   (offset 24-25)
 #   push ebx; push esi; push edi;  53 56 57        (offset 26-28)
-SEH_PROLOG4_COMMON = (
-    b"\x64\xff\x35\x00\x00\x00\x00"
-    b"\x8b\x44\x24\x10"
-    b"\x89\x6c\x24\x10"
-    b"\x8d\x6c\x24\x10"
-    b"\x2b\xe0"
-    b"\x53\x56\x57"
-)
+SEH_PROLOG4_COMMON = b"\x64\xff\x35\x00\x00\x00\x00\x8b\x44\x24\x10\x89\x6c\x24\x10\x8d\x6c\x24\x10\x2b\xe0\x53\x56\x57"
 
 # After the common prefix + security cookie ops, the distinguishing byte at
 # offset 39 is:
 #   __SEH_prolog4:    50       push eax
 #   __SEH_prolog4_GS: 89       mov [ebp-0x1c], eax
 SEH_PROLOG4_DISCRIM_OFFSET = 39
-SEH_PROLOG4_DISCRIM = b"\x50"    # push eax
+SEH_PROLOG4_DISCRIM = b"\x50"  # push eax
 SEH_PROLOG4_GS_DISCRIM = b"\x89"  # mov [ebp-0x1c], eax
 
 FUNCINFO_MAGIC = 0x19930522
@@ -103,7 +88,7 @@ FUNCINFO_STRUCT = SimStruct(
     name="FuncInfo",
 )
 
-FUNCINFO_SIZE = 28  # 7 * 4 bytes
+FUNCINFO_SIZE = 36  # 9 * 4 bytes
 
 UNWINDMAPENTRY_STRUCT = SimStruct(
     fields=OrderedDict(
@@ -123,13 +108,15 @@ class FuncInfo:
 
     __slots__ = (
         "addr",
+        "eh_flags",
         "magic_number",
         "max_state",
-        "p_unwind_map",
-        "n_try_blocks",
-        "p_try_block_map",
         "n_ip_map_entries",
+        "n_try_blocks",
+        "p_es_type_list",
         "p_ip_to_state_map",
+        "p_try_block_map",
+        "p_unwind_map",
     )
 
     def __init__(
@@ -142,6 +129,8 @@ class FuncInfo:
         p_try_block_map: int,
         n_ip_map_entries: int,
         p_ip_to_state_map: int,
+        p_es_type_list: int,
+        eh_flags: int,
     ):
         self.addr = addr
         self.magic_number = magic_number
@@ -151,6 +140,8 @@ class FuncInfo:
         self.p_try_block_map = p_try_block_map
         self.n_ip_map_entries = n_ip_map_entries
         self.p_ip_to_state_map = p_ip_to_state_map
+        self.p_es_type_list = p_es_type_list
+        self.eh_flags = eh_flags
 
     def __repr__(self):
         return (
@@ -163,7 +154,7 @@ class FuncInfo:
 class UnwindMapEntry:
     """Parsed UnwindMapEntry struct from a 32-bit PE binary."""
 
-    __slots__ = ("addr", "to_state", "action")
+    __slots__ = ("action", "addr", "to_state")
 
     def __init__(self, addr: int, to_state: int, action: int):
         self.addr = addr
@@ -191,7 +182,7 @@ def parse_funcinfo(memory, addr: int) -> FuncInfo | None:
     if len(data) < FUNCINFO_SIZE:
         return None
 
-    values = struct.unpack("<IIIIIII", data)
+    values = struct.unpack("<IIIIIIIII", data)
     magic_number = values[0]
 
     # Validate magic number (basic check - the low bits should be 0x19930522)
@@ -208,6 +199,8 @@ def parse_funcinfo(memory, addr: int) -> FuncInfo | None:
         p_try_block_map=values[4],
         n_ip_map_entries=values[5],
         p_ip_to_state_map=values[6],
+        p_es_type_list=values[7],
+        eh_flags=values[8],
     )
 
 
@@ -244,10 +237,10 @@ class EH4ScopeTable:
 
     __slots__ = (
         "addr",
-        "gs_cookie_offset",
-        "gs_cookie_xor_offset",
         "eh_cookie_offset",
         "eh_cookie_xor_offset",
+        "gs_cookie_offset",
+        "gs_cookie_xor_offset",
         "records",
     )
 
@@ -272,10 +265,7 @@ class EH4ScopeTable:
         return EH4_SCOPETABLE_HEADER_SIZE + len(self.records) * EH4_SCOPETABLE_RECORD_SIZE
 
     def __repr__(self):
-        return (
-            f"EH4ScopeTable(addr={self.addr:#x}, records={len(self.records)}, "
-            f"size={self.total_size})"
-        )
+        return f"EH4ScopeTable(addr={self.addr:#x}, records={len(self.records)}, size={self.total_size})"
 
 
 class EH4ScopeRecord:
