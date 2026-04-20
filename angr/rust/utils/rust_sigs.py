@@ -32,9 +32,8 @@ def _download_flirt_signatures(target_dir: str) -> bool:
     os.makedirs(parent, exist_ok=True)
     staging = tempfile.mkdtemp(prefix="flirt_signatures-", dir=parent)
     try:
-        with urllib.request.urlopen(TARBALL_URL) as resp:
-            with tarfile.open(fileobj=resp, mode="r|gz") as tar:
-                tar.extractall(staging)
+        with urllib.request.urlopen(TARBALL_URL) as resp, tarfile.open(fileobj=resp, mode="r|gz") as tar:
+            tar.extractall(staging)
 
         entries = os.listdir(staging)
         if len(entries) == 1 and os.path.isdir(os.path.join(staging, entries[0])):

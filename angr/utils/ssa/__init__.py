@@ -230,7 +230,9 @@ class AILBlacklistExprTypeWalker(AILBlockViewer):
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro))
+        walker = AILBlacklistExprTypeWalker(
+            (Tmp, Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro)
+        )
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -238,7 +240,9 @@ def is_const_and_vvar_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro))
+        walker = AILBlacklistExprTypeWalker(
+            (Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro)
+        )
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -246,7 +250,9 @@ def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro))
+        walker = AILBlacklistExprTypeWalker(
+            (Tmp, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro)
+        )
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
