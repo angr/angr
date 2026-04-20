@@ -841,7 +841,7 @@ class TestSimStateIciclePlugin(TestCase):
     """Tests for the SimStateIcicle state plugin."""
 
     def test_plugin_attached_after_process(self):
-        """Test that process_concrete attaches the icicle plugin to the result state."""
+        """Test that processing a state attaches the icicle plugin to the result state."""
         shellcode = "mov x0, 0x1; mov x1, 0x2"
         project = angr.load_shellcode(shellcode, "aarch64")
         engine = IcicleEngine(project)
