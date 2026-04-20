@@ -6,6 +6,8 @@ from angr.mcp import __main__ as mcp_main
 
 
 class DummyMCP:
+    """Test double for the MCP server object."""
+
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
 
@@ -44,4 +46,4 @@ def test_http_path_must_be_absolute(monkeypatch) -> None:
         mcp_main.main(["--transport", "http", "--path", "mcp"])
 
     assert exc_info.value.code == 2
-    assert dummy_mcp.calls == []
+    assert not dummy_mcp.calls
