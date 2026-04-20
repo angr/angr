@@ -613,6 +613,7 @@ class FactCollector(Analysis):
 
                 if block_retval_size is not None:
                     retval_sizes.append(block_retval_size)
+                    continue
 
                 for pred, _, data in func_graph.in_edges(node, data=True):
                     edge_type = data.get("type")
