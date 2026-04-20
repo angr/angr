@@ -245,6 +245,9 @@ class StackPointerTrackerState:
         if self.is_tracking_memory and val is not None and addr is not None:
             self.memory[addr] = val
 
+        if len(self.memory) >= 100:
+            self.give_up_on_memory_tracking()
+
     def load(self, addr):
         if not self.is_tracking_memory:
             return TOP

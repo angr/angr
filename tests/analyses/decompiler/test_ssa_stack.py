@@ -52,6 +52,21 @@ class TestSSAStack(unittest.TestCase):
         lines = dec.codegen.text.splitlines()
         assert len(lines) >= 100
 
+    def test_super_large_stack(self):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "3522eabcd51ad375ac93dfcb90af83f68b84b96d8f9c4b16b25912ad2e7d088f",
+        )
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFG(data_references=True, normalize=True, show_progressbar=not WORKER)
+
+        func = cfg.functions[0x140001170]
+        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
 
 if __name__ == "__main__":
     unittest.main()
