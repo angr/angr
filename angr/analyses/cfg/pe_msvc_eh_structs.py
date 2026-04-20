@@ -412,7 +412,7 @@ def parse_unwind_map(memory, addr: int, count: int) -> list[UnwindMapEntry]:
 class TryBlockMapEntry:
     """Parsed TryBlockMapEntry struct from a 32-bit PE binary."""
 
-    __slots__ = ("addr", "try_low", "try_high", "catch_high", "n_catches", "p_handler_array", "handlers")
+    __slots__ = ("addr", "catch_high", "handlers", "n_catches", "p_handler_array", "try_high", "try_low")
 
     def __init__(
         self,
@@ -443,7 +443,7 @@ class TryBlockMapEntry:
 class HandlerType:
     """Parsed HandlerType struct from a 32-bit PE binary."""
 
-    __slots__ = ("addr", "adjectives", "p_type", "disp_catch_obj", "address_of_handler")
+    __slots__ = ("addr", "address_of_handler", "adjectives", "disp_catch_obj", "p_type")
 
     def __init__(
         self,
