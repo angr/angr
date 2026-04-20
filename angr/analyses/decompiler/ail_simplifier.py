@@ -30,6 +30,7 @@ from angr.ailment.expression import (
     StackBaseOffset,
     Expression,
     DirtyExpression,
+    Reinterpret,
     VEXCCallExpression,
     Tmp,
     Const,
@@ -179,6 +180,8 @@ class AILSimplifier(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
+        secondary_stackvars: set[int] | None = None,
+        remove_dead_assignments: bool | None = True,
     ):
         self.func = func
         self.func_graph = func_graph
@@ -186,6 +189,7 @@ class AILSimplifier(Analysis):
         self._propagator: SPropagatorAnalysis | None = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._should_remove_dead_assignments = remove_dead_assignments
         self._stack_arg_offsets = stack_arg_offsets
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
@@ -213,7 +217,7 @@ class AILSimplifier(Analysis):
     def _simplify(self):
         if self._narrow_expressions:
             _l.debug("Removing dead assignments before narrowing expressions")
-            r = self._iteratively_remove_dead_assignments()
+            r = self._should_remove_dead_assignments and self._iteratively_remove_dead_assignments()
             if r:
                 _l.debug("... dead assignments removed")
                 self.simplified = True
@@ -283,7 +287,7 @@ class AILSimplifier(Analysis):
 
         if self._unify_vars:
             _l.debug("Removing dead assignments")
-            r = self._iteratively_remove_dead_assignments()
+            r = self._should_remove_dead_assignments and self._iteratively_remove_dead_assignments()
             if r:
                 _l.debug("... dead assignments removed")
                 self.simplified = True
@@ -305,7 +309,7 @@ class AILSimplifier(Analysis):
                 self._clear_cache()
 
         _l.debug("Removing dead assignments")
-        r = self._iteratively_remove_dead_assignments()
+        r = self._should_remove_dead_assignments and self._iteratively_remove_dead_assignments()
         if r:
             _l.debug("... dead assignments removed")
             self.simplified = True
@@ -448,6 +452,14 @@ class AILSimplifier(Analysis):
                 if skip_def:
                     continue
 
+                # Do not narrow 80-bit parameter VVars.  These represent
+                # x87 long double stack arguments whose size was determined
+                # by the CC from loadF80le analysis.  VEX models x87 as
+                # F64, so all uses appear 64-bit, but narrowing to 64
+                # loses the long double type information.
+                if def_.atom.was_parameter and def_.size == 10:
+                    continue
+
                 narrow = self._narrowing_needed(def_, rd, addr_and_idx_to_block, effective_sizes)
                 if narrow.narrowable:
                     # we cannot narrow it immediately because any definition that is used by phi variables must be
@@ -522,10 +534,10 @@ class AILSimplifier(Analysis):
                 isinstance(def_stmt, Assignment)
                 and isinstance(def_stmt.src, Convert)
                 and not def_stmt.src.is_signed
-                and def_stmt.src.from_type == Convert.TYPE_INT
-                and def_stmt.src.to_type == Convert.TYPE_INT
+                and def_stmt.src.from_type == def_stmt.src.to_type
                 and def_stmt.src.from_bits < def_stmt.src.to_bits
             ):
+                # INT->INT or FP->FP widening -- the effective size is the source width
                 effective_size = def_stmt.src.from_bits // self.project.arch.byte_width
                 vvar_effective_sizes[def_.atom.varid] = effective_size
             elif (
@@ -734,16 +746,31 @@ class AILSimplifier(Analysis):
                 target_size = max(all_used_sizes)
         else:
             effective_size = effective_sizes.get(def_.atom.varid)
-            if (
-                effective_size is not None
-                and any(used_size <= effective_size for used_size in all_used_sizes)
-                and all(used_size <= effective_size for used_size in noncall_used_sizes)
-            ):
-                # special case: sometimes we have an explicit Convert that narrows the value, all other uses are either
-                # in the effective size or narrower, but we pass the full register to a function call as an argument
-                # because we do not know the real type of the argument, or there are cases like putchar(int ch) while
-                # ch is actually a char. We use effective size in such cases to narrow the variable.
-                target_size = effective_size
+            if effective_size is not None:
+                # Check if the definition is an FP->FP widening (Conv(32F->64F)).
+                # FP widening is lossless, so the variable can always be
+                # narrowed to the source precision regardless of use sizes.
+                old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+                if old_block is not None:
+                    block = self.blocks.get(old_block, old_block)
+                    if def_.codeloc.stmt_idx is not None and def_.codeloc.stmt_idx < len(block.statements):
+                        def_stmt = block.statements[def_.codeloc.stmt_idx]
+                        if (
+                            isinstance(def_stmt, Assignment)
+                            and isinstance(def_stmt.src, Convert)
+                            and def_stmt.src.from_type == def_stmt.src.to_type == Convert.TYPE_FP
+                            and def_stmt.src.from_bits < def_stmt.src.to_bits
+                        ):
+                            target_size = effective_size
+
+                if target_size is None and (
+                    any(used_size <= effective_size for used_size in all_used_sizes)
+                    and all(used_size <= effective_size for used_size in noncall_used_sizes)
+                ):
+                    # special case: sometimes we have an explicit Convert that narrows the value, all other uses
+                    # are either in the effective size or narrower, but we pass the full register to a function
+                    # call as an argument because we do not know the real type of the argument.
+                    target_size = effective_size
 
         if target_size is not None:
             for loc, atom_list in used_by_loc.items():
@@ -903,6 +930,7 @@ class AILSimplifier(Analysis):
         if replaced:
             # blocks have been rebuilt - expression propagation results are no longer reliable
             self._clear_cache()
+
         return replaced
 
     #
@@ -1454,12 +1482,19 @@ class AILSimplifier(Analysis):
                 replace_with_copy = replace_with.copy()
                 if used_expr.size != replace_with_copy.size:
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                    # Use FP type when the width mismatch involves 80-bit x87
+                    # extended precision (the only source of 80-bit values)
+                    conv_type = (
+                        Convert.TYPE_FP if used_expr.bits == 80 or replace_with_copy.bits == 80 else Convert.TYPE_INT
+                    )
                     replace_with_copy = Convert(
                         new_idx,
                         replace_with_copy.bits,
                         used_expr.bits,
                         False,
                         replace_with_copy,
+                        from_type=conv_type,
+                        to_type=conv_type,
                     )
 
                 r, new_block = self._replace_expr_and_update_block(
@@ -2208,8 +2243,27 @@ class AILSimplifier(Analysis):
                 return rewriter.result
             return r_expr
 
+        def _handle_Reinterpret(
+            expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement | None, block: Block | None
+        ):
+            new_expr = AILBlockRewriter._handle_Reinterpret(walker, expr_idx, expr, stmt_idx, stmt, block)
+            # After dirty rewriting, Reinterpret(I->F, Load) is a VEX artifact:
+            # the dirty helper (e.g. loadF80le) returned I64 which VEX wrapped in
+            # ReinterpI64asF64, but the Load already contains the float bits.
+            # Strip the Reinterpret so the type system infers float from usage.
+            if (
+                isinstance(new_expr, Reinterpret)
+                and new_expr.from_type == "I"
+                and new_expr.to_type == "F"
+                and isinstance(new_expr.operand, Load)
+            ):
+                _any_update.v = True
+                return new_expr.operand
+            return new_expr
+
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
+        walker.expr_handlers[Reinterpret] = _handle_Reinterpret
         walker.stmt_handlers[DirtyStatement] = _handle_DirtyStatement
 
         updated = False

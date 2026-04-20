@@ -55,6 +55,7 @@ class FactCollectorState:
         "simple_stack",
         "sp_value",
         "stack_reads",
+        "stack_reads_fp",
         "stack_writes",
         "tmps",
     )
@@ -70,6 +71,7 @@ class FactCollectorState:
         self.reg_reads_count = defaultdict(int)
         self.reg_writes: set[int] = set()
         self.stack_reads = {}
+        self.stack_reads_fp = set()
         self.stack_writes: set[int] = set()
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
         self.sp_value = 0
@@ -96,13 +98,15 @@ class FactCollectorState:
         for o in range(size_in_bytes):
             self.reg_writes.add(offset + o)
 
-    def stack_read(self, offset: int, size_in_bytes: int):
+    def stack_read(self, offset: int, size_in_bytes: int, fp: bool = False):
         if offset in self.stack_writes:
             return
         if offset not in self.stack_reads:
             self.stack_reads[offset] = size_in_bytes
         else:
             self.stack_reads[offset] = max(self.stack_reads[offset], size_in_bytes)
+        if fp:
+            self.stack_reads_fp.add(offset)
 
     def stack_written(self, offset: int, size_int_bytes: int):
         for o in range(size_int_bytes):
@@ -112,6 +116,7 @@ class FactCollectorState:
         new_state = FactCollectorState()
         new_state.reg_reads = self.reg_reads.copy()
         new_state.stack_reads = self.stack_reads.copy()
+        new_state.stack_reads_fp = self.stack_reads_fp.copy()
         new_state.stack_writes = self.stack_writes.copy()
         new_state.reg_writes = self.reg_writes.copy()
         new_state.callee_stored_regs = self.callee_stored_regs.copy()
@@ -128,6 +133,7 @@ class FactCollectorState:
 
 
 binop_handler = SimEngineNostmtVEX[FactCollectorState, FactData, FactCollectorState].binop_handler
+dirty_handler = SimEngineNostmtVEX[FactCollectorState, FactData, FactCollectorState].dirty_handler
 
 
 class SimEngineFactCollectorVEX(
@@ -208,6 +214,42 @@ class SimEngineFactCollectorVEX(
             self.state.register_written(stmt.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width)
             self.state.simple_regs[stmt.offset] = v
 
+    @dirty_handler
+    def _handle_dirty_x86g_dirtyhelper_loadF80le(self, stmt: pyvex.stmt.Dirty):
+        """Treat loadF80le(addr) as a 12-byte FP stack read (long double) for CC fact collection."""
+        if len(stmt.args) >= 1:
+            addr = self._expr(stmt.args[0])
+            if addr is not None and addr[0] == KIND_SP:
+                self.state.stack_read(addr[2], 12, fp=True)
+            if stmt.tmp not in (-1, 0xFFFFFFFF):
+                self.state.tmps[stmt.tmp] = addr
+
+    @dirty_handler
+    def _handle_dirty_x86g_dirtyhelper_storeF80le(self, stmt: pyvex.stmt.Dirty):
+        """Treat storeF80le(addr, val) as a 12-byte store (long double) for CC fact collection."""
+        if len(stmt.args) >= 2:
+            addr = self._expr(stmt.args[0])
+            if addr is not None and addr[0] == KIND_SP:
+                self.state.stack_written(addr[2], 12)
+
+    @dirty_handler
+    def _handle_dirty_amd64g_dirtyhelper_loadF80le(self, stmt: pyvex.stmt.Dirty):
+        """Treat loadF80le(addr) as a 16-byte FP stack read (long double) for CC fact collection."""
+        if len(stmt.args) >= 1:
+            addr = self._expr(stmt.args[0])
+            if addr is not None and addr[0] == KIND_SP:
+                self.state.stack_read(addr[2], 16, fp=True)
+            if stmt.tmp not in (-1, 0xFFFFFFFF):
+                self.state.tmps[stmt.tmp] = addr
+
+    @dirty_handler
+    def _handle_dirty_amd64g_dirtyhelper_storeF80le(self, stmt: pyvex.stmt.Dirty):
+        """Treat storeF80le(addr, val) as a 16-byte store (long double) for CC fact collection."""
+        if len(stmt.args) >= 2:
+            addr = self._expr(stmt.args[0])
+            if addr is not None and addr[0] == KIND_SP:
+                self.state.stack_written(addr[2], 16)
+
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
@@ -254,7 +296,8 @@ class SimEngineFactCollectorVEX(
             return None
 
         if addr[0] == KIND_SP:
-            self.state.stack_read(addr[2], expr.result_size(self.tyenv) // self.arch.byte_width)
+            fp = expr.ty.startswith("Ity_F")
+            self.state.stack_read(addr[2], expr.result_size(self.tyenv) // self.arch.byte_width, fp)
             return self.state.simple_stack.get(addr[2], (KIND_STACKVAL, addr[2], 0))
 
         self.state.pointer_arg_derefs[addr] |= 1
@@ -376,6 +419,18 @@ class FactCollector(Analysis):
                 if func.calling_convention is not None and func.prototype is not None:
                     # consume args and overwrite the return register
                     self._handle_function(state, func)
+                elif self._track_arg_passthru and state.sp_value is not None:
+                    # No prototype available.  Still record which of our own args
+                    # were pushed to the outgoing call stack so that the double-merge
+                    # heuristic can detect individually-passed args.
+                    pushed_args = []
+                    for off in sorted(state.simple_stack):
+                        if off >= state.sp_value:
+                            val = state.simple_stack[off]
+                            if val is not None:
+                                pushed_args.append(val)
+                    if pushed_args:
+                        self.callsites[state.ins_addr] = (func, pushed_args)
                 if func.returning is False or retnode is None:
                     # the function call does not return
                     end_states.append(state)
@@ -747,6 +802,9 @@ class FactCollector(Analysis):
         self.input_args = []
         reg_offset_created = set()
         callee_saved_regs = set()
+        def_cc = default_cc(
+            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        )
         callee_saved_reg_stack_offsets = set()
 
         if self._track_arg_uses:
@@ -769,7 +827,7 @@ class FactCollector(Analysis):
                 if (
                     offset in reg_offset_created
                     or offset == self.project.arch.bp_offset
-                    or not is_sane_register_variable(self.project.arch, offset, size)
+                    or not is_sane_register_variable(self.project.arch, offset, size, def_cc=def_cc)
                     or offset in callee_saved_regs
                 ):
                     continue
@@ -794,7 +852,8 @@ class FactCollector(Analysis):
                     if offset in stack_offset_created or offset in callee_saved_reg_stack_offsets:
                         continue
                     stack_offset_created.add(offset)
-                    arg = SimStackArg(offset - ret_addr_offset, size)
+                    is_fp = offset in state.stack_reads_fp
+                    arg = SimStackArg(offset - ret_addr_offset, size, is_fp)
                     self.input_args.append(arg)
 
 

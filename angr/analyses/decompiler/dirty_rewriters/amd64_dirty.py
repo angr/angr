@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from angr.ailment.statement import DirtyStatement, Statement, SideEffectStatement
-from angr.ailment.expression import Call, Const, DirtyExpression, Expression
+from angr.ailment.statement import DirtyStatement, Statement, SideEffectStatement, Store
+from angr.ailment.expression import Call, Const, DirtyExpression, Expression, Load, Reinterpret
 from angr import sim_type
 from .rewriter_base import DirtyRewriterBase
 
@@ -14,13 +14,20 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
     __slots__ = ()
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
-        # TODO: Rewrite more dirty statements
+        match dirty.dirty.callee:
+            case "amd64g_dirtyhelper_storeF80le":
+                return self._rewrite_storeF80le(dirty)
+
         call_expr = self._rewrite_expr_to_call(dirty.dirty)
         if call_expr is None:
             return None
         return SideEffectStatement(dirty.idx, call_expr, **dirty.tags)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
+        match dirty.callee:
+            case "amd64g_dirtyhelper_loadF80le":
+                return self._rewrite_loadF80le(dirty)
+
         return self._rewrite_expr_to_call(dirty)
 
     def _rewrite_expr_to_call(self, dirty: DirtyExpression) -> Call | None:
@@ -62,6 +69,45 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     **dirty.tags,
                 )
         return None
+
+    #
+    # x87 FP helpers
+    #
+
+    def _rewrite_storeF80le(self, dirty: DirtyStatement) -> Store | None:
+        """
+        storeF80le(addr, Reinterpret(F64->I64, fp_val)) -> Store(addr, fp_val, size=10)
+
+        Rewrites the dirty helper into a regular 10-byte memory store.
+        The size must match loadF80le (also 10 bytes) so that stack
+        round-trips (fstpt/fldt) are recognized as the same variable.
+        """
+        expr = dirty.dirty
+        if len(expr.operands) != 2:
+            return None
+        addr = expr.operands[0]
+        value = expr.operands[1]
+        # Unwrap Reinterpret(F64->I64, fp_val) to get the actual FP value
+        if isinstance(value, Reinterpret) and value.from_type == "F" and value.to_type == "I":
+            value = value.operand
+        return Store(dirty.idx, addr, value, 10, "Iend_LE", **dirty.tags)
+
+    @staticmethod
+    def _rewrite_loadF80le(dirty: DirtyExpression) -> Load | None:
+        """
+        loadF80le(addr) -> Load(addr, size=10, long_double_load=True)
+
+        Rewrites the dirty helper into a regular 10-byte memory load.
+        The long_double_load tag marks the value as x87 extended precision
+        so that downstream passes (codegen, type inference) can interpret
+        the raw 80-bit encoding correctly.
+        """
+        if len(dirty.operands) != 1:
+            return None
+        addr = dirty.operands[0]
+        tags = dict(dirty.tags)
+        tags["long_double_load"] = True
+        return Load(dirty.idx, addr, 10, "Iend_LE", **tags)
 
     #
     # in, out

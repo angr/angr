@@ -154,6 +154,11 @@ class SPropagatorAnalysis(Analysis):
         const_vvars: dict[int, Const | StackBaseOffset] = {}
         phi_varids: dict[int, set[int | None]] = {}  # mapping from phi_varid to source var IDs
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
+            if not vvar.was_reg and not vvar.was_parameter and not vvar.was_tmp:
+                continue
+
+            vvarid_to_vvar[vvar_id] = vvar
+
             if defloc.is_extern:
                 continue
 
@@ -207,7 +212,6 @@ class SPropagatorAnalysis(Analysis):
         # function mode only
         if self.mode == "function":
             assert self.func_graph is not None
-
             # find phi assignments whose source vvars are all constants/stackptrs
             # iterate until it reaches a fixed point
             changed = True
@@ -441,6 +445,8 @@ class SPropagatorAnalysis(Analysis):
             for tmp_atom, tmp_uses in tmp_and_uses.items():
                 # take a look at the definition and propagate the definition if supported
                 block = blocks[block_loc]
+                if tmp_atom not in tmp_deflocs.get(block_loc, {}):
+                    continue
                 tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
 
                 stmt = block.statements[tmp_def_stmtidx]

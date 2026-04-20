@@ -261,6 +261,18 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         zero = Expr.Const(None, None, 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                elif cond_v in {AMD64_CondTypes["CondP"], AMD64_CondTypes["CondNP"]}:
+                    if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
+                        # dep_1 & G_CC_MASK_P != 0 (CondP) or dep_1 & G_CC_MASK_P == 0 (CondNP)
+                        bitmask = AMD64_CondBitMasks["G_CC_MASK_P"]
+                        assert isinstance(bitmask, int)
+                        flag = Expr.Const(None, None, bitmask, dep_1.bits)
+                        masked_dep = Expr.BinaryOp(None, "And", [dep_1, flag], False, **ccall.tags)
+                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondNP"] else "CmpNE"
+
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondL"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],

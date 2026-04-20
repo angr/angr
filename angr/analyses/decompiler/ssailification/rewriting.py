@@ -272,6 +272,13 @@ class RewritingAnalysis:
         for kind, offset, size in sorted(self._extern_defs):
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
             if (arg_vvar := func_args_map.get((category, offset))) is not None:
+                if arg_vvar.size > size:
+                    # The extern def is a sub-read of a wider parameter (e.g. a
+                    # 4-byte read from an 8-byte double on i386).  Keep the
+                    # full-width parameter VVar so that the rewriting engine
+                    # produces Extract operations for sub-reads instead of
+                    # resizing the parameter down.
+                    continue
                 unused_func_args.discard(arg_vvar)
                 if arg_vvar.size == size:
                     vvar = arg_vvar
@@ -350,6 +357,8 @@ class RewritingAnalysis:
         for original_node in self._graph:
             node_key = original_node.addr, original_node.idx
             node = self.out_blocks.get(node_key, original_node)
+
+            # How are loads handled ?!?!?
 
             if any(
                 isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)

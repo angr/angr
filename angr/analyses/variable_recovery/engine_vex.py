@@ -116,6 +116,25 @@ class SimEngineVRVEX(
             result_size = self.tyenv.sizeof(stmt.result)
             self.tmps[stmt.result] = RichR(claripy.BVV(1, result_size))
 
+    # Dirty helpers
+
+    @SimEngineNostmtVEX.dirty_handler
+    def _handle_dirty_x86g_dirtyhelper_loadF80le(self, stmt: pyvex.stmt.Dirty):
+        """Treat loadF80le(addr) as a 12-byte load (long double) for variable recovery."""
+        if len(stmt.args) >= 1:
+            addr = self._expr_bv(stmt.args[0])
+            result = self._load(addr, 12)
+            if stmt.tmp not in (-1, 0xFFFFFFFF):
+                self.tmps[stmt.tmp] = result
+
+    @SimEngineNostmtVEX.dirty_handler
+    def _handle_dirty_x86g_dirtyhelper_storeF80le(self, stmt: pyvex.stmt.Dirty):
+        """Treat storeF80le(addr, val) as a 12-byte store (long double) for variable recovery."""
+        if len(stmt.args) >= 2:
+            addr = self._expr_bv(stmt.args[0])
+            data = self._expr(stmt.args[1])
+            self._store(addr, data, 12, atom=stmt)
+
     # Expression handlers
 
     def _expr_bv(self, expr) -> RichR[claripy.ast.BV]:
@@ -246,7 +265,7 @@ class SimEngineVRVEX(
                 ret_reg = cc.return_val(proto.returnty)
             else:
                 ret_reg = cc.RETURN_VAL
-            if isinstance(ret_reg, SimRegArg):
+            if isinstance(ret_reg, SimRegArg) and ret_reg.reg_name in self.arch.registers:
                 reg_offset, reg_size = self.arch.registers[ret_reg.reg_name]
                 data = self._top(reg_size * self.arch.byte_width)
                 self._assign_to_register(reg_offset, data, reg_size, create_variable=False)

@@ -37,6 +37,12 @@ class SimEnginePropagatorVEX(
     _handle_dirty_riscv_dirtyhelper_CSR_c = _handle_dirty_noop
     _handle_dirty_riscv_dirtyhelper_mret = _handle_dirty_noop
 
+    # x87 dirty helpers -- propagator doesn't track float values, so top is correct.
+    _handle_dirty_x86g_dirtyhelper_loadF80le = _handle_dirty_noop
+    _handle_dirty_x86g_dirtyhelper_storeF80le = _handle_dirty_noop
+    _handle_dirty_amd64g_dirtyhelper_loadF80le = _handle_dirty_noop
+    _handle_dirty_amd64g_dirtyhelper_storeF80le = _handle_dirty_noop
+
     #
     # Private methods
     #
@@ -123,6 +129,75 @@ class SimEnginePropagatorVEX(
                 for reg_name in cc.CALLER_SAVED_REGS:
                     offset, size = self.arch.registers[reg_name]
                     self.state.store_register(offset, size, self.state.top(size * self.arch.byte_width))
+        # Adjust ftop for calls where the callee returns FP via x87 ST0.
+        # On i386 cdecl, FP-returning callees push one value onto ST0,
+        # decrementing ftop by 1.  On amd64, FP is returned via xmm0 and
+        # the callee cleans up its own x87 stack, so ftop is unchanged.
+        # Only adjust when the CC returns FP via the x87 stack (not a real
+        # register like xmm0).
+        ftop_info = self.arch.registers.get("ftop")
+        if ftop_info is not None and self._cc_returns_fp_via_x87():
+            offset, size = ftop_info
+            current_ftop = self.state.load_register(offset, size)
+            if (
+                current_ftop is not None
+                and not self._is_top(current_ftop)
+                and current_ftop.concrete
+                and self._callee_returns_fp()
+            ):
+                new_ftop = (current_ftop - 1) % 8
+                self.state.store_register(offset, size, new_ftop)
+
+    def _cc_returns_fp_via_x87(self) -> bool:
+        """Check if the calling convention returns FP values via the x87 stack (ST0).
+
+        On i386, FP_RETURN_VAL is 'st0' (not in arch.registers -- uses PutI/GetI).
+        On amd64, FP_RETURN_VAL is 'xmm0' (a real register). Only i386-style
+        conventions leave ftop decremented after an FP-returning call.
+        """
+        cc = default_cc(
+            self.arch.name,
+            platform=self.project.simos.name if self.project.simos is not None else None,
+        )
+        if cc is None or cc.FP_RETURN_VAL is None:
+            return False
+        if not isinstance(cc.FP_RETURN_VAL, SimRegArg):
+            return False
+        # If the FP return register is NOT in arch.registers, it's an x87
+        # pseudo-register (st0) accessed via PutI/GetI, meaning the callee
+        # leaves the value on the x87 stack.
+        return cc.FP_RETURN_VAL.reg_name not in self.arch.registers
+
+    def _callee_returns_fp(self) -> bool:
+        """Check if the callee at this call site returns a floating-point value."""
+        if not hasattr(self.block.vex.next, "con"):
+            return False
+        callee_addr = self.block.vex.next.con.value
+        callee_func = self.project.kb.functions.function(addr=callee_addr)
+        if callee_func is None:
+            return False
+
+        # Check prototype first
+        if callee_func.prototype is not None:
+            from angr.sim_type import SimTypeFloat, SimTypeDouble
+
+            return isinstance(callee_func.prototype.returnty, (SimTypeFloat, SimTypeDouble))
+
+        # No prototype -- check structurally for x87 FP register writes (PutI
+        # to the fpreg array) anywhere in the callee.
+        fpreg_info = self.arch.registers.get("fpreg")
+        if fpreg_info is None:
+            return False
+        fpreg_base = fpreg_info[0]
+        for block_node in callee_func.blocks:
+            try:
+                vex_block = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            for stmt in vex_block.statements:
+                if isinstance(stmt, pyvex.IRStmt.PutI) and stmt.descr.base == fpreg_base:
+                    return True
+        return False
 
     #
     # VEX statement handlers

@@ -22,13 +22,30 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
             if sec is not None and sec.is_readable and (not sec.is_writable or "got" in sec.name):
                 # do we know the value that it's reading?
                 try:
-                    val = self.project.loader.memory.unpack_word(expr.addr.value, size=expr.size)
+                    if expr.size == 10:
+                        # 10-byte x87 extended precision -- read raw bytes
+                        raw = self.project.loader.memory.load(expr.addr.value, 10)
+                        val = int.from_bytes(raw, "little")
+                    else:
+                        val = self.project.loader.memory.unpack_word(expr.addr.value, size=expr.size)
                 except KeyError:
                     return None
                 if "got" in sec.name and val == 0:
                     return None
 
-                return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
+                tags = dict(expr.tags)
+                if expr.tags.get("data_type", "").startswith("Ity_F"):
+                    import struct
+
+                    if expr.bits == 64:
+                        val = struct.unpack("d", struct.pack("Q", val))[0]
+                    elif expr.bits == 32:
+                        val = struct.unpack("f", struct.pack("I", val))[0]
+
+                if expr.tags.get("long_double_load"):
+                    tags["display_hint"] = "double"
+
+                return Const(None, None, val, expr.bits, **tags, deref_src_addr=expr.addr.value)
 
             # is it loading from a blob?
             obj = self.project.loader.find_object_containing(expr.addr.value)
@@ -40,5 +57,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                     return None
 
                 return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
+
+        # FIXME: Handle floating point here
 
         return None

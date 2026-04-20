@@ -228,16 +228,34 @@ class SimplifierAILEngine(
         operand_expr = self._expr(expr.operand)
 
         if isinstance(operand_expr, ailment.expression.Convert):
-            if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
-                # eliminate the redundant Convert
+            if (
+                expr.from_bits == operand_expr.to_bits
+                and expr.to_bits == operand_expr.from_bits
+                and expr.from_type == operand_expr.to_type
+            ):
+                # eliminate the redundant Convert (same-type round-trip, e.g. 32I->64I->32I)
                 return operand_expr.operand
+            if expr.from_type == operand_expr.to_type:
+                # safe to merge: the intermediate type matches, e.g. 32I->64I->32I or 32F->64F->32F
+                return ailment.expression.Convert(
+                    expr.idx,
+                    operand_expr.from_bits,
+                    expr.to_bits,
+                    expr.is_signed,
+                    operand_expr.operand,
+                    from_type=operand_expr.from_type,
+                    to_type=expr.to_type,
+                    rounding_mode=expr.rounding_mode,
+                    **expr.tags,
+                )
+            # type mismatch in the middle (e.g. 32I->64I then 64F->32I) -- keep both
             return ailment.expression.Convert(
                 expr.idx,
-                operand_expr.from_bits,
+                expr.from_bits,
                 expr.to_bits,
                 expr.is_signed,
-                operand_expr.operand,
-                from_type=operand_expr.from_type,
+                operand_expr,
+                from_type=expr.from_type,
                 to_type=expr.to_type,
                 rounding_mode=expr.rounding_mode,
                 **expr.tags,

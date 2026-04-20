@@ -35,9 +35,14 @@ def is_sane_register_variable(
         return 16 <= reg_offset < 80  # x0-x7
 
     if arch_name == "AMD64":
-        # TODO is rbx ever a register?
-        return 24 <= reg_offset < 40 or 64 <= reg_offset < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
-        # 224 <= reg_offset < 480)  # xmm0-xmm7
+        if 24 <= reg_offset < 40 or 64 <= reg_offset < 104:  # rcx, rdx  # rsi, rdi, r8, r9, r10
+            return True
+        # XMM/YMM registers: only accept those that belong to the CC's FP arg registers
+        if 224 <= reg_offset < 480 and def_cc is not None:
+            fp_regs = getattr(def_cc, "FP_ARG_REGS", None)
+            if fp_regs:
+                return any(arch.registers.get(rn, (-1,))[0] == (reg_offset & ~0x1F) for rn in fp_regs)
+        return False
 
     if is_arm_arch(arch):
         if isinstance(arch, (ArchARMHF, ArchARMCortexM)):

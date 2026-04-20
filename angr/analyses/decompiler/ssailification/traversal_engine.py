@@ -12,6 +12,7 @@ from angr.ailment.expression import (
     Extract,
     Insert,
     Register,
+    IRegister,
     StackBaseOffset,
     ITE,
     VEXCCallExpression,
@@ -163,6 +164,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 definfo.variable_size = size2
 
         for mapping in [reg_mapping, stack_mapping]:
+            # Reset state between different kinds (reg vs stack) to prevent cross-kind merging
+            flush()
+            current_defs = set()
+            current_extent = (0, 0)
             for offset in sorted(mapping):
                 for def_ in mapping[offset]:
                     definfo = self.def_info[def_]
@@ -431,6 +436,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if isinstance(stmt.dst, Register):
             self.register_set(stmt.dst.reg_offset, stmt.dst.size, src, stmt.dst)
+        elif isinstance(stmt.dst, IRegister):
+            # Unresolved indexed register write -- resolve if possible, else skip
+            offset = stmt.dst.concrete_reg_offset()
+            if offset is not None:
+                self.register_set(offset, stmt.dst.size, src, stmt.dst)
         elif isinstance(stmt.dst, VirtualVariable):
             self.state.live_vvars[stmt.dst.varid] = src
         elif isinstance(stmt.dst, Tmp):
@@ -599,6 +609,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _handle_expr_Register(self, expr: Register):
         return self.register_get(expr.reg_offset, expr.size, expr)
+
+    def _handle_expr_IRegister(self, expr: IRegister):
+        offset = expr.concrete_reg_offset()
+        if offset is not None:
+            return self.register_get(offset, expr.size, expr)
+        # Unresolved -- walk sub-expression but return empty value
+        self._expr(expr.reg_offset)
+        return set()
 
     def _handle_expr_Load(self, expr: Load):
         addr = self._expr(expr.addr)

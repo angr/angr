@@ -5,7 +5,7 @@ import logging
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.statement import Assignment, SideEffectStatement
-from angr.ailment.expression import Atom, Call, VirtualVariable, Convert, BinaryOp, Phi, Extract
+from angr.ailment.expression import Atom, Call, VirtualVariable, Convert, BinaryOp, Phi, Extract, ITE
 from angr.ailment.utils import is_none_or_likeable
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -106,7 +106,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
     def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if isinstance(expr.offset, Const) and isinstance(expr.offset.value, int):
-            self._update_effective_bits(expr.base, expr.offset.value, expr.offset.value + expr.bits)
+            # Extract.offset is in bytes; _update_effective_bits works in bits.
+            offset_bits = expr.offset.value * 8
+            self._update_effective_bits(expr.base, offset_bits, offset_bits + expr.bits)
         self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
 
@@ -131,7 +133,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                         and is_none_or_likeable(arg.base, self._target_expr)
                     ):
                         handled = True
-                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
+                        # Extract.offset is in bytes; effective_bits uses bits.
+                        _off_bits = arg.offset.value * 8
+                        self.expr_used_as_call_arg_effective_bits = _off_bits, _off_bits + arg.bits
 
                 if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -154,7 +158,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                         and is_none_or_likeable(arg.base, self._target_expr)
                     ):
                         handled = True
-                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
+                        # Extract.offset is in bytes; effective_bits uses bits.
+                        _off_bits = arg.offset.value * 8
+                        self.expr_used_as_call_arg_effective_bits = _off_bits, _off_bits + arg.bits
 
                 if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -201,9 +207,14 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        effective_bits = self.expr_to_effective_bits.get(expr)
-        if effective_bits is None or effective_bits[1] > expr.to_bits:
-            effective_bits = 0, expr.to_bits
+        if expr.from_type == Convert.TYPE_FP or expr.to_type == Convert.TYPE_FP:
+            # Any FP conversion (FP->FP, FP->INT, INT->FP) is a value conversion,
+            # not a bit extraction.  The operand needs its full width.
+            effective_bits = 0, expr.from_bits
+        else:
+            effective_bits = self.expr_to_effective_bits.get(expr)
+            if effective_bits is None or effective_bits[1] > expr.to_bits:
+                effective_bits = 0, expr.to_bits
         self._update_effective_bits(expr.operand, effective_bits[0], effective_bits[1])
         self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
 
@@ -242,11 +253,24 @@ class ExpressionNarrower(AILBlockRewriter):
         self._new_blocks = new_blocks
 
         self.new_vvar_sizes: dict[int, int] = {}
+        self._fp_narrowed_vvars: set[int] = set()
         self.replacement_core_vvars: dict[int, list[VirtualVariable]] = defaultdict(list)
         self.narrowed_any = False
 
         for def_, narrow_info in narrowables:
             self.new_vvar_sizes[def_.atom.varid] = narrow_info.to_size
+            # Track which VVars were narrowed from FP widening definitions
+            old_block = addr2blocks.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+            if old_block is not None:
+                block = new_blocks.get(old_block, old_block)
+                if def_.codeloc.stmt_idx is not None and def_.codeloc.stmt_idx < len(block.statements):
+                    def_stmt = block.statements[def_.codeloc.stmt_idx]
+                    if (
+                        isinstance(def_stmt, Assignment)
+                        and isinstance(def_stmt.src, Convert)
+                        and def_stmt.src.from_type == def_stmt.src.to_type == Convert.TYPE_FP
+                    ):
+                        self._fp_narrowed_vvars.add(def_.atom.varid)
 
     def walk(self, block: Block):
         self.narrowed_any = False
@@ -336,15 +360,40 @@ class ExpressionNarrower(AILBlockRewriter):
 
             self.replacement_core_vvars[expr.varid].append(new_expr)
 
+            is_fp = expr.varid in self._fp_narrowed_vvars
+            # Also treat as FP when widening to 80 bits (x87 extended precision)
+            if not is_fp and expr.bits == 80:
+                is_fp = True
             return Convert(
                 None,
                 new_expr.bits,
                 expr.bits,
                 False,
                 new_expr,
+                from_type=Convert.TYPE_FP if is_fp else Convert.TYPE_INT,
+                to_type=Convert.TYPE_FP if is_fp else Convert.TYPE_INT,
                 **new_expr.tags,
             )
         return expr
+
+    def _handle_ITE(self, expr_idx, expr, stmt_idx, stmt, block):
+        result = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
+        if result is not expr:
+            # Both branches may have been wrapped in Conv(32F->64F) by
+            # _handle_VirtualVariable.  If so, unwrap them and narrow the ITE.
+            t = result.iftrue
+            f = result.iffalse
+            if (
+                isinstance(t, Convert)
+                and t.from_type == t.to_type == Convert.TYPE_FP
+                and t.from_bits < t.to_bits
+                and isinstance(f, Convert)
+                and f.from_type == f.to_type == Convert.TYPE_FP
+                and f.from_bits < f.to_bits
+                and t.from_bits == f.from_bits
+            ):
+                return ITE(result.idx, result.cond, f.operand, t.operand, bits=t.from_bits, **result.tags)
+        return result
 
     def _handle_SideEffectStatement(
         self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None

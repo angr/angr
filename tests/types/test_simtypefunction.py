@@ -60,5 +60,32 @@ class TestSimTypeFunction(unittest.TestCase):
         assert pyproto.c_repr(name="psignal", full=True) == "void (psignal)(int SIGNUM, const char *MESSAGE)"
 
 
+class TestSimTypeLongDouble(unittest.TestCase):
+    """Tests for SimTypeLongDouble sizing across architectures."""
+
+    def test_size_amd64(self):
+        import archinfo
+        from angr.sim_type import SimTypeLongDouble
+
+        t = SimTypeLongDouble().with_arch(archinfo.ArchAMD64())
+        # AMD64: long double is 80 bits (x87 extended precision)
+        assert t.size == 80
+
+    def test_size_i386(self):
+        import archinfo
+        from angr.sim_type import SimTypeLongDouble
+
+        t = SimTypeLongDouble().with_arch(archinfo.ArchX86())
+        assert t.size is not None
+        assert t.size > 0
+
+    def test_c_repr(self):
+        from angr.sim_type import SimTypeLongDouble
+
+        t = SimTypeLongDouble()
+        r = repr(t)
+        assert "long double" in r.lower() or "LongDouble" in r
+
+
 if __name__ == "__main__":
     unittest.main()

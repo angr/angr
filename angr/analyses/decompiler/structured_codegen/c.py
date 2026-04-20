@@ -38,6 +38,7 @@ from angr.sim_type import (
     SimCppClass,
     SimTypeEnum,
     SimTypeBitfield,
+    SimTypeLongDouble,
 )
 from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import (
@@ -105,15 +106,16 @@ def qualifies_for_simple_cast(ty1, ty2):
 def qualifies_for_implicit_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
-    # this function need to answer the question:
-    # when does having a cast vs having an implicit promotion affect the result?
-    # the answer: I DON'T KNOW
-    if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) or not isinstance(
+    if isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) and isinstance(
         ty2, (SimTypeInt, SimTypeChar, SimTypeNum)
     ):
-        return False
+        return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
-    return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
+    # FP widening promotions are implicit in C (float->double, float->long double, double->long double)
+    if isinstance(ty1, SimTypeFloat) and isinstance(ty2, SimTypeFloat):
+        return ty1.size is not None and ty2.size is not None and ty1.size <= ty2.size
+
+    return False
 
 
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
@@ -454,10 +456,17 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 else:
                     arg_set.add(arg.variable)
 
+        # x87 internal registers to suppress from variable declarations
+        _x87_suppress = self._get_x87_suppressed_offsets()
+
         # output each variable and its type
         for var, cvar in self.variables_in_use.items():
             if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
                 # Skip all global variables
+                continue
+
+            if isinstance(var, SimRegisterVariable) and var.reg in _x87_suppress:
+                # Skip x87 internal state registers (ftop, fptag, fpround, fc3210)
                 continue
 
             if var in arg_set or cvar.unified_variable in arg_set:
@@ -477,6 +486,17 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             unified_to_var_and_types[key].add((cvar, var_type))
 
         return unified_to_var_and_types
+
+    def _get_x87_suppressed_offsets(self) -> set[int]:
+        """Return register offsets for x87 internal state that should be hidden."""
+        arch = self.codegen.project.arch
+        suppressed: set[int] = set()
+        for name in ("ftop", "fptag", "fpround", "fc3210"):
+            if name in arch.registers:
+                off, sz = arch.registers[name]
+                for i in range(sz):
+                    suppressed.add(off + i)
+        return suppressed
 
     def variable_list_repr_chunks(self, indent=0):
         indent_str = self.indent_str(indent)
@@ -2027,6 +2047,8 @@ class CBinaryOp(CExpression):
             "Concat": self._c_repr_chunks_concat,
             "Rol": self._c_repr_chunks_rol,
             "Ror": self._c_repr_chunks_ror,
+            "MaxF": self._c_repr_chunks_maxf,
+            "MinF": self._c_repr_chunks_minf,
         }
 
         handler = OP_MAP.get(self.op)
@@ -2169,6 +2191,14 @@ class CBinaryOp(CExpression):
         yield from self._try_c_repr_chunks(self.rhs)
         yield ")", paren
 
+    def _c_repr_chunks_maxf(self):
+        fn = "fmaxf" if isinstance(self.type, SimTypeFloat) and not isinstance(self.type, SimTypeDouble) else "fmax"
+        yield from self._c_repr_chunks_opfirst(fn)
+
+    def _c_repr_chunks_minf(self):
+        fn = "fminf" if isinstance(self.type, SimTypeFloat) and not isinstance(self.type, SimTypeDouble) else "fmin"
+        yield from self._c_repr_chunks_opfirst(fn)
+
 
 class CTypeCast(CExpression):
     __slots__ = (
@@ -2185,6 +2215,8 @@ class CTypeCast(CExpression):
         self.src_type = src_type.with_arch(self.codegen.project.arch)
         self.dst_type = dst_type.with_arch(self.codegen.project.arch)
         self.expr = expr
+
+        # if "unsigned int" in str(self.dst_type
 
     @property
     def type(self):
@@ -2224,6 +2256,10 @@ class CConstant(CExpression):
         self.value: int | float | str = value
         self._type = type_.with_arch(self.codegen.project.arch)
         self.reference_values = reference_values
+
+        display_hint = self.tags.get("display_hint", None)
+        if display_hint is not None and display_hint == "double":
+            self.fmt_double = True
 
     @property
     def _ident(self) -> IdentType:
@@ -2400,7 +2436,10 @@ class CConstant(CExpression):
             str_value = self.fmt_int(self.value)
             yield str_value, self
         else:
-            yield str(self.value), self
+            s = str(self.value)
+            if isinstance(self._type, SimTypeLongDouble):
+                s += "L"
+            yield s, self
 
     def fmt_int(self, value: int) -> str:
         """
@@ -2422,6 +2461,17 @@ class CConstant(CExpression):
 
         if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
             return str(struct.unpack("d", struct.pack("Q", value))[0])
+        if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF_FFFF:
+            # 80-bit x87 extended precision: convert to Python float for display
+            significand = value & ((1 << 64) - 1)
+            exp_sign = (value >> 64) & 0xFFFF
+            exponent = exp_sign & 0x7FFF
+            sign = (exp_sign >> 15) & 1
+            if exponent == 0:
+                return "-0.0L" if sign else "0.0L"
+            bias = 16383
+            fval = ((-1) ** sign) * (significand / (1 << 63)) * (2.0 ** (exponent - bias))
+            return str(fval) + "L"
 
         if self.fmt_neg:
             if value > 0:
@@ -3039,7 +3089,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
             if type_equals(base_type, data_type) or (
-                base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
+                base_type.size is not None and data_type.size is not None and base_type.size <= data_type.size
             ):
                 # case 1: we're done because we found it
                 # case 2: we're done because we can never find it and we might as well stop early
@@ -3696,7 +3746,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
-        if expr.bits and call_expr.type.size != expr.size * self.project.arch.byte_width:
+        if (
+            expr.bits
+            and call_expr.type.size != expr.size * self.project.arch.byte_width
+            # Don't insert an integer widening cast when the prototype return type is
+            # FP.  On x87, the fpreg register is 64-bit but the return type may be
+            # float (32-bit); the size mismatch is a VEX implementation detail.
+            and not isinstance(call_expr.type, (SimTypeFloat, SimTypeDouble))
+        ):
             call_expr = CTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(
@@ -3782,7 +3839,29 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         ty = self.default_simtype_from_bits(expr_bits)
 
+        if expr.tags.get("long_double_load"):
+            ty = SimTypeLongDouble().with_arch(self.project.arch)
+        load_data_type = expr.tags.get("data_type", None)
+        if load_data_type is not None:
+            _mapping = {
+                "Ity_F32": SimTypeFloat,
+                "Ity_F64": SimTypeDouble,
+            }
+            if load_data_type in _mapping:
+                ty = _mapping.get(load_data_type)().with_arch(self.project.arch)
+
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
+            old_is_fp = isinstance(old_ty, (SimTypeFloat, SimTypeDouble))
+            proposed_is_fp = isinstance(proposed_ty, (SimTypeFloat, SimTypeDouble))
+            if old_is_fp != proposed_is_fp:
+                # When the proposed type is FP (from the pointer's basetype)
+                # and the old type is a same-sized integer default, accept the
+                # FP type -- the pointer is more informative than the Load's
+                # default integer sizing.
+                if proposed_is_fp and old_ty.size == proposed_ty.size:
+                    return proposed_ty
+                return old_ty
+
             # we do not allow returning a struct for a primitive type
             if (
                 old_ty.size == proposed_ty.size
@@ -3900,8 +3979,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                             inline_string = True
 
         if type_ is None:
-            # default to int or unsigned int, determined by likely_signed
-            type_ = self.default_simtype_from_bits(expr.bits, signed=likely_signed)
+            if isinstance(expr.value, float):
+                if expr.bits == 32:
+                    type_ = SimTypeFloat().with_arch(self.project.arch)
+                else:
+                    type_ = SimTypeDouble().with_arch(self.project.arch)
+            else:
+                # default to int or unsigned int, determined by likely_signed
+                type_ = self.default_simtype_from_bits(expr.bits, signed=likely_signed)
 
         if variable is None and "reference_variable" in expr.tags and expr.tags["reference_variable"] is not None:
             variable = expr.tags["reference_variable"]
@@ -3962,41 +4047,78 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
-        # width of converted type is easy
-        dst_type: SimTypeInt | SimTypeChar
-        if 512 >= expr.to_bits > 256:
-            dst_type = SimTypeInt512()
-        elif 256 >= expr.to_bits > 128:
-            dst_type = SimTypeInt256()
-        elif 128 >= expr.to_bits > 64:
-            dst_type = SimTypeInt128()
-        elif 64 >= expr.to_bits > 32:
-            dst_type = SimTypeLongLong()
-        elif 32 >= expr.to_bits > 16:
-            dst_type = SimTypeInt()
-        elif 16 >= expr.to_bits > 8:
-            dst_type = SimTypeShort()
-        elif 8 >= expr.to_bits > 1:
-            dst_type = SimTypeChar()
-        elif expr.to_bits == 1:
-            dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
+        is_fp = expr.to_type == Expr.ConvertType.TYPE_FP
+
+        if is_fp:
+            # FP->FP (widening/narrowing) or INT->FP (e.g., fild)
+            if expr.to_bits == 32:
+                dst_type = SimTypeFloat()
+            elif expr.to_bits == 64:
+                dst_type = SimTypeDouble()
+            elif expr.to_bits == 80:
+                # x87 precision widening: VEX uses F64 internally but x87
+                # operates in 80-bit extended precision.  This widening is
+                # implicit in C -- just return the operand without a cast.
+                return self._handle(expr.operand)
+            else:
+                raise NotImplementedError
+        elif expr.from_type == Expr.ConvertType.TYPE_FP:
+            # FP->INT (e.g., fistp)
+            dst_type: SimTypeInt | SimTypeChar
+            if 64 >= expr.to_bits > 32:
+                dst_type = SimTypeLongLong()
+            elif 32 >= expr.to_bits > 16:
+                dst_type = SimTypeInt()
+            elif 16 >= expr.to_bits > 8:
+                dst_type = SimTypeShort()
+            else:
+                dst_type = SimTypeInt()
         else:
-            raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
+            # width of converted type is easy
+            dst_type: SimTypeInt | SimTypeChar
+            if 512 >= expr.to_bits > 256:
+                dst_type = SimTypeInt512()
+            elif 256 >= expr.to_bits > 128:
+                dst_type = SimTypeInt256()
+            elif 128 >= expr.to_bits > 64:
+                dst_type = SimTypeInt128()
+            elif 64 >= expr.to_bits > 32:
+                dst_type = SimTypeLongLong()
+            elif 32 >= expr.to_bits > 16:
+                dst_type = SimTypeInt()
+            elif 16 >= expr.to_bits > 8:
+                dst_type = SimTypeShort()
+            elif 8 >= expr.to_bits > 1:
+                dst_type = SimTypeChar()
+            elif expr.to_bits == 1:
+                dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
+            else:
+                raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
 
         # convert child
         child = self._handle(expr.operand)
         orig_child_signed = getattr(child.type, "signed", False)
 
-        # signedness of converted type is hard
-        if expr.to_bits < expr.from_bits:
-            # very sketchy. basically a guess
-            # can we even generate signed downcasts?
-            dst_type.signed = orig_child_signed | expr.is_signed
-        else:
+        # signedness of converted type is hard (only relevant for integer destination types)
+        if not is_fp and expr.from_type != Expr.ConvertType.TYPE_FP:
+            if expr.to_bits < expr.from_bits:
+                # very sketchy. basically a guess
+                # can we even generate signed downcasts?
+                dst_type.signed = orig_child_signed | expr.is_signed
+            else:
+                dst_type.signed = expr.is_signed
+        elif not is_fp:
+            # FP->INT: signedness from the expression
             dst_type.signed = expr.is_signed
 
         # do we need an intermediate cast?
-        if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits and child.type is not None:
+        if (
+            not is_fp
+            and expr.from_type != Expr.ConvertType.TYPE_FP
+            and orig_child_signed != expr.is_signed
+            and expr.to_bits > expr.from_bits
+            and child.type is not None
+        ):
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
             child_ty = self.default_simtype_from_bits(child.type.size, expr.is_signed)
             child = CTypeCast(None, child_ty, child, codegen=self)

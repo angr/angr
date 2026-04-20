@@ -13,6 +13,8 @@ from angr.analyses.decompiler.optimization_passes import (
     CallStatementRewriter,
     SwitchReusedEntryRewriter,
     PostStructuringPeepholeOptimizationPass,
+    IRegReplacer,
+    InsertExtractReverter,
 )
 
 preset_basic = DecompilationPreset(
@@ -30,6 +32,8 @@ preset_basic = DecompilationPreset(
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
         PostStructuringPeepholeOptimizationPass,
+        IRegReplacer,
+        InsertExtractReverter,
     ],
 )
 

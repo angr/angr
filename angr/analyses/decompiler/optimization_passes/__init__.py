@@ -13,6 +13,7 @@ from .ite_expr_converter import ITEExprConverter
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
+from .ite_simplifier import ITESimplifier
 from .return_duplicator_low import ReturnDuplicatorLow
 from .return_duplicator_high import ReturnDuplicatorHigh
 from .const_derefs import ConstantDereferencesSimplifier
@@ -41,6 +42,8 @@ from .register_save_area_simplifier_adv import RegisterSaveAreaSimplifierAdvance
 from .inlined_strlen_simplifier import InlinedStrlenSimplifier
 from .static_vvar_rewriter import StaticVVarRewriter
 from .eager_std_string_eval import EagerStdStringEvalPass
+from .ireg_replacer import IRegReplacer
+from .insert_extract_reverter import InsertExtractReverter
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -54,6 +57,7 @@ ALL_OPTIMIZATION_PASSES = [
     BasePointerSaveSimplifier,
     DivSimplifier,
     ModSimplifier,
+    ITESimplifier,
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
     X86GccGetPcSimplifier,
@@ -84,6 +88,8 @@ ALL_OPTIMIZATION_PASSES = [
     InlinedStrlenSimplifier,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
+    IRegReplacer,
+    InsertExtractReverter,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -141,10 +147,13 @@ __all__ = (
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
+    "IRegReplacer",
     "ITEExprConverter",
     "ITERegionConverter",
+    "ITESimplifier",
     "InlinedStringTransformationSimplifier",
     "InlinedStrlenSimplifier",
+    "InsertExtractReverter",
     "LoweredSwitchSimplifier",
     "MipsGpSettingSimplifier",
     "ModSimplifier",

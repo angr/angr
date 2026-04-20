@@ -61,6 +61,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         cache_results: bool = False,
         key_prefix: str | None = None,
         profiling: bool = False,
+        initial_reg_values: list[tuple[int, int, int]] | None = None,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
@@ -90,6 +91,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._gp = gp
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
+        self._initial_reg_values = initial_reg_values
         self._initial_codeloc: CodeLocation
         self.stmts_to_remove: set[CodeLocation] = set()
         if self.flavor == "function":
@@ -229,6 +231,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             initial_codeloc=self._initial_codeloc,
             model=self.model,
         )
+        if self._initial_reg_values:
+            for reg_offset, reg_size, value in self._initial_reg_values:
+                self._initial_state.store_register(reg_offset, reg_size, claripy.BVV(value, reg_size * 8))
         return self._initial_state
 
     def _merge_states(self, node, *states: PropagatorState):

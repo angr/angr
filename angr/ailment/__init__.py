@@ -6,7 +6,7 @@ from .block import Block
 from . import statement
 from . import expression
 from .statement import Assignment, Statement
-from .expression import Expression, Const, Tmp, Register, UnaryOp, BinaryOp
+from .expression import Expression, Const, Tmp, Register, IRegister, UnaryOp, BinaryOp
 from .converter_common import Converter
 from .manager import Manager
 from .block_walker import AILBlockRewriter, AILBlockViewer, AILBlockWalker
@@ -69,6 +69,7 @@ __all__ = [
     "Expr",
     "Expression",
     "IRSBConverter",
+    "IRegister",
     "Manager",
     "PCodeIRSBConverter",
     "Register",

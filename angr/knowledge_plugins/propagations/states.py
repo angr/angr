@@ -460,6 +460,15 @@ class PropagatorVEXState(PropagatorState):
                 project.arch.registers["fpscr"][1],
                 claripy.BVV(0, 32),
             )
+        elif project.arch.name in ("X86", "AMD64"):
+            state.store_register(
+                *project.arch.registers["ftop"],
+                claripy.BVV(0, 32),
+            )
+            state.store_register(
+                *project.arch.registers["fptag"],
+                claripy.BVV(0, 64),
+            )
         return state
 
     def copy(self) -> PropagatorVEXState:

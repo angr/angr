@@ -8,6 +8,7 @@ from angr.analyses.decompiler.optimization_passes import (
     BasePointerSaveSimplifier,
     DivSimplifier,
     ModSimplifier,
+    ITESimplifier,
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
     X86GccGetPcSimplifier,
@@ -33,6 +34,8 @@ from angr.analyses.decompiler.optimization_passes import (
     DetermineLoadSizes,
     PostStructuringPeepholeOptimizationPass,
     EagerStdStringConcatenationPass,
+    IRegReplacer,
+    InsertExtractReverter,
 )
 
 preset_full = DecompilationPreset(
@@ -45,6 +48,7 @@ preset_full = DecompilationPreset(
         BasePointerSaveSimplifier,
         DivSimplifier,
         ModSimplifier,
+        ITESimplifier,
         ConstantDereferencesSimplifier,
         RetAddrSaveSimplifier,
         X86GccGetPcSimplifier,
@@ -70,6 +74,8 @@ preset_full = DecompilationPreset(
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
         EagerStdStringConcatenationPass,
+        IRegReplacer,
+        InsertExtractReverter,
     ],
 )
 
