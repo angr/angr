@@ -31,6 +31,7 @@ dependencies = [
     "protobuf>=6.33.0",
     "psutil",
     "pycparser~=3.0",
+    "platformdirs",
     "pydemumble",
     "pypcode>=3.2.1,<4.0",
     "pyvex==9.2.214.dev0",
@@ -79,7 +80,7 @@ dev = [
     "sortedcontainers-stubs>=2.4.3",
 ]
 docs = ["furo", "myst-parser", "sphinx", "sphinx-autodoc-typehints"]
-extras = ["angr[angrdb,keystone,unicorn,llm]", "pysoot", "flirt_signatures"]
+extras = ["angr[angrdb,keystone,unicorn,llm]", "pysoot"]
 
 [tool.setuptools]
 include-package-data = true
@@ -109,7 +110,6 @@ pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
-flirt_signatures = { git = "https://github.com/angr/flirt_signatures.git", branch = "master" }
 
 [tool.ruff]
 line-length = 120
