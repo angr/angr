@@ -592,11 +592,11 @@ class IsArray(BaseLabel):
 
 
 def new_dtv(
-    type_var: TypeVariable,
+    type_var: TypeVariable | TypeConstant,
     *,
     label: BaseLabel | None = None,
     labels: Sequence[BaseLabel] | None = None,
-) -> TypeVariable | DerivedTypeVariable:
+) -> TypeVariable | DerivedTypeVariable | TypeConstant:
     """
     Create a new DerivedTypeVariable with the given type variable (or DerivedTypeVariable) and labels.
     """

@@ -32,6 +32,7 @@ class RustSimType:
     def c_repr(  # type: ignore[override]
         self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True, **kwargs
     ):
+        del name_parens, kwargs
         return self.repr(name, full, memo, indent)
 
 
@@ -168,9 +169,12 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):  # pyright: ignore[repo
         return 4096  # ???????????
 
     def _with_arch(self, arch):
+        returnty = None
+        if self.returnty is not None:
+            returnty = self.returnty.with_arch(arch)  # pyright: ignore[reportAttributeAccessIssue]
         out = RustSimTypeFunction(
             [a.with_arch(arch) for a in self.args],  # pyright: ignore[reportAttributeAccessIssue]
-            self.returnty.with_arch(arch) if self.returnty is not None else None,  # pyright: ignore[reportAttributeAccessIssue]
+            returnty,
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
@@ -317,7 +321,9 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
     @property
     def size(self):
         fget = SimTypeArray.size.fget
-        return fget(self) if fget else 0
+        if fget is None:
+            return 0
+        return fget(self)
 
 
 class RustSimStruct(RustSimType, SimStruct):

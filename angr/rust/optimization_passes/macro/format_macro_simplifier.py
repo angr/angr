@@ -327,7 +327,9 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         if macro_name is None or fmt_str is None:
                             return None
                         if returnty is not None:
-                            returnty = returnty.with_arch(self.project.arch)  # pyright: ignore[reportAttributeAccessIssue]
+                            returnty = returnty.with_arch(  # pyright: ignore[reportAttributeAccessIssue]
+                                self.project.arch
+                            )
                         macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
                         return FunctionLikeMacro(
                             None,

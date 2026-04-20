@@ -986,6 +986,7 @@ class SimpleSolver:
                     base_typevar,
                     labels=labels,
                 )
+                assert not isinstance(succ_derived_typevar, TypeConstant)
                 succ_node = SketchNode(succ_derived_typevar)
                 sketch.add_edge(curr_node, succ_node, label)
                 visited[succ] = succ_node

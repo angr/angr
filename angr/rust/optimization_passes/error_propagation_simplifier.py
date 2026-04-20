@@ -102,7 +102,9 @@ class ErrorPropagationWalker(SequenceWalker):
             for vvar, use in uses
         )
 
-    def _handle_PatternMatch(self, node: PatternMatchNode, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def _handle_PatternMatch(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, node: PatternMatchNode, **kwargs
+    ):
         err_node, ok_node = None, None
         new_dst_vvar = None
         for (variant, move_stmts), arm in node.arms.items():

@@ -43,7 +43,9 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def _handle_VirtualVariable(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block
+    ):
         if isinstance(stmt, Assignment) and stmt.dst == expr and expr.varid in self._vvar_replacements:
             self._stmts_to_remove[block].append(stmt)
             return None

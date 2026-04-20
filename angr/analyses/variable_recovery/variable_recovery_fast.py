@@ -8,7 +8,7 @@ import networkx
 
 import claripy
 import pyvex
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.expression import VirtualVariable
 
 import angr.errors
@@ -626,7 +626,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                             block._vex = block.vex.copy()
                             block.vex.statements[i] = pyvex.IRStmt.NoOp()
                             block.vex.statements[i + 1] = pyvex.IRStmt.NoOp()
-                            zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))  # pyright: ignore[reportOptionalMemberAccess]
+                            size = block.vex.tyenv.sizeof(tmp0)  # pyright: ignore[reportOptionalMemberAccess]
+                            zero = pyvex.IRExpr.Const(self._get_irconst(0, size))
                             block.vex.statements[i + 2] = pyvex.IRStmt.Put(zero, reg_offset)
             i = next_i
         return block

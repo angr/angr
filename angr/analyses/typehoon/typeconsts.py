@@ -575,7 +575,7 @@ class TypeVariableReference(TypeConstant):
 #
 
 
-def int_type(bits: int) -> Int | None:
+def int_type(bits: int) -> Int:
     mapping = {
         1: Int1,
         8: Int8,

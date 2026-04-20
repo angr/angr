@@ -3,15 +3,6 @@ from __future__ import annotations
 import os
 import unittest
 
-import pytest
-
-# angr.rust.utils.rust_sigs locates the Rust FLIRT signature directory via angrmanagement's bundled
-# submodule (angrmanagement/resources/flirt_signatures), but only when angrmanagement has already
-# been imported. Importing it here puts it in sys.modules so RustcVersionIdentification can find the
-# signatures. angr-management is installed in the main CI test jobs; environments without it
-# (e.g., the smoketest on Windows/macOS) skip the whole module at collection time.
-pytest.importorskip("angrmanagement")
-
 import angr
 
 BINARIES_BASE = os.path.join(

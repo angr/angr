@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import archinfo
 from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
 from angr.analyses.typehoon import typeconsts
 from angr.analyses.typehoon.typeconsts import TypeConstant, IntVar
@@ -34,9 +33,6 @@ class RustTypeTranslator(TypeTranslator):
     - tc2simtype / concretize: TypeConstant -> RustSimType
     - simtype2tc / lift: RustSimType -> TypeConstant
     """
-
-    def __init__(self, arch: archinfo.Arch):
-        super().__init__(arch)
 
     # ----------------------------------------------------------------
     # TypeConstant -> RustSimType (tc2simtype direction)

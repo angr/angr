@@ -251,7 +251,8 @@ class TypeDBLoader(Analysis):
         if None in args:
             return None
         ret_ty = self._parse_type(data["returnty"])
-        return self._fit_abi(RustSimTypeFunction(args, ret_ty)).with_arch(self.project.arch)  # pyright: ignore[reportArgumentType]
+        fn_ty = RustSimTypeFunction(args, ret_ty)  # pyright: ignore[reportArgumentType]
+        return self._fit_abi(fn_ty).with_arch(self.project.arch)
 
     def _negotiate_prototype(self, prototype: RustSimTypeFunction, old_prototype: SimTypeFunction):
         # Negotiate the prototype with the old one to ensure compatibility

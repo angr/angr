@@ -2320,8 +2320,13 @@ class RustTypeCast(RustExpression):
         super().__init__(**kwargs)
         # assert isinstance(dst_type, RustSimType)
         _src = src_type or expr.type
-        self.src_type = _src.with_arch(self.codegen.project.arch) if hasattr(_src, "with_arch") else _src  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-        self.dst_type = dst_type.with_arch(self.codegen.project.arch) if hasattr(dst_type, "with_arch") else dst_type  # pyright: ignore[reportAttributeAccessIssue]
+        arch = self.codegen.project.arch
+        self.src_type = (
+            _src.with_arch(arch) if hasattr(_src, "with_arch") else _src
+        )  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+        self.dst_type = (
+            dst_type.with_arch(arch) if hasattr(dst_type, "with_arch") else dst_type
+        )  # pyright: ignore[reportAttributeAccessIssue]
         self.expr = expr
         self.tags = tags
 
@@ -2838,7 +2843,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _translate_prototype_to_rust(self, prototype: SimTypeFunction):
         translator = RustTypeTranslator(self.project.arch)
-        args: list[RustSimType] = [translator.ctype2rust(arg) for arg in prototype.args]  # pyright: ignore[reportAssignmentType]
+        args: list[RustSimType] = [  # pyright: ignore[reportAssignmentType]
+            translator.ctype2rust(arg) for arg in prototype.args
+        ]
         returnty: RustSimType | None = (
             translator.ctype2rust(prototype.returnty) if prototype.returnty is not None else None
         )  # pyright: ignore[reportAssignmentType]
@@ -3283,7 +3290,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             assert result is not None
             return RustUnaryOp(
                 "Dereference",
-                RustTypeCast(result.type, RustSimTypeReference(data_type), result, codegen=self),  # pyright: ignore[reportArgumentType]
+                RustTypeCast(  # pyright: ignore[reportArgumentType]
+                    result.type, RustSimTypeReference(data_type), result, codegen=self
+                ),
                 codegen=self,
             )
 

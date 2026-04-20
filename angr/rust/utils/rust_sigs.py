@@ -38,7 +38,8 @@ def _download_flirt_signatures(target_dir: str) -> bool:
         else:
             extracted_root = staging
 
-        open(os.path.join(extracted_root, SENTINEL_FILENAME), "w").close()
+        with open(os.path.join(extracted_root, SENTINEL_FILENAME), "w", encoding="utf-8"):
+            pass
 
         if os.path.isdir(target_dir):
             shutil.rmtree(target_dir)
@@ -55,9 +56,8 @@ def _download_flirt_signatures(target_dir: str) -> bool:
 
 def get_default_sig_dir(arch_name: str = "x86_64", platform: str = "linux") -> str | None:
     base_dir = os.path.join(user_cache_dir("angr"), "flirt_signatures")
-    if not os.path.isfile(os.path.join(base_dir, SENTINEL_FILENAME)):
-        if not _download_flirt_signatures(base_dir):
-            return None
+    if not os.path.isfile(os.path.join(base_dir, SENTINEL_FILENAME)) and not _download_flirt_signatures(base_dir):
+        return None
 
     sig_dir = os.path.join(base_dir, arch_name, platform, "rust")
     if os.path.isdir(sig_dir):
