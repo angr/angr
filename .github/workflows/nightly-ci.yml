@@ -36,7 +36,7 @@ jobs:
           repository: angr/binaries
           path: binaries
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
-      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v6
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest
@@ -56,7 +56,7 @@ jobs:
         with:
           repository: angr/binaries
           path: binaries
-      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v6
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest
