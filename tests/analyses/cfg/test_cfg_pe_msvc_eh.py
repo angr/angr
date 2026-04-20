@@ -13,9 +13,12 @@ from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.analyses.cfg.pe_msvc_eh_structs import (
     parse_funcinfo,
     parse_unwind_map,
+    parse_try_block_map,
     parse_eh4_scopetable,
     FUNCINFO_SIZE,
     UNWINDMAPENTRY_SIZE,
+    TRYBLOCKMAPENTRY_SIZE,
+    HANDLERTYPE_SIZE,
     EH4_SCOPETABLE_HEADER_SIZE,
     EH4_SCOPETABLE_RECORD_SIZE,
 )
@@ -247,6 +250,86 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         """parse_eh4_scopetable should return None for an address with invalid data."""
         st = parse_eh4_scopetable(self.proj.loader.memory, 0x50B01000, code_range=(0x50B01000, 0x50B4DCB1))
         assert st is None
+
+    #
+    # TryBlockMapEntry MemoryData items
+    #
+
+    def test_tryblockmap_memory_data_created(self):
+        """CFGFast should create EHTryBlockMap MemoryData items."""
+        tbm_count = sum(1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EHTryBlockMap)
+        assert tbm_count == 15, f"Expected 15 EHTryBlockMap entries, got {tbm_count}"
+
+    def test_specific_tryblockmap_exists(self):
+        """The TryBlockMap for FuncInfo at 0x50b489ec should be at 0x50b48a10."""
+        assert 0x50B48A10 in self.cfg.model.memory_data
+        md = self.cfg.model.memory_data[0x50B48A10]
+        assert md.sort == MemoryDataSort.EHTryBlockMap
+        # nTryBlocks == 2, so 2 * 20 = 40 bytes
+        assert md.size == 2 * TRYBLOCKMAPENTRY_SIZE
+
+    def test_tryblockmap_occupied(self):
+        """TryBlockMap regions should be marked as occupied in _seg_list."""
+        for addr, md in self.cfg.model.memory_data.items():
+            if md.sort == MemoryDataSort.EHTryBlockMap:
+                assert self.cfg._seg_list.is_occupied(addr), f"TryBlockMap at {addr:#x} should be occupied"
+
+    #
+    # HandlerType MemoryData items
+    #
+
+    def test_handlertype_memory_data_created(self):
+        """CFGFast should create EHHandlerType MemoryData items."""
+        ht_count = sum(1 for md in self.cfg.model.memory_data.values() if md.sort == MemoryDataSort.EHHandlerType)
+        assert ht_count == 23, f"Expected 23 EHHandlerType entries, got {ht_count}"
+
+    def test_specific_handlertype_exists(self):
+        """The HandlerType array for the first try block of FuncInfo 0x50b489ec should exist."""
+        # First try block at 0x50b48a10 points to handler array at 0x50b489dc
+        assert 0x50B489DC in self.cfg.model.memory_data
+        md = self.cfg.model.memory_data[0x50B489DC]
+        assert md.sort == MemoryDataSort.EHHandlerType
+        # nCatches == 1, so 1 * 16 = 16 bytes
+        assert md.size == 1 * HANDLERTYPE_SIZE
+
+    def test_handlertype_occupied(self):
+        """HandlerType regions should be marked as occupied in _seg_list."""
+        for addr, md in self.cfg.model.memory_data.items():
+            if md.sort == MemoryDataSort.EHHandlerType:
+                assert self.cfg._seg_list.is_occupied(addr), f"HandlerType at {addr:#x} should be occupied"
+
+    #
+    # TryBlockMapEntry / HandlerType parsing helpers
+    #
+
+    def test_parse_try_block_map_known_struct(self):
+        """parse_try_block_map should correctly parse the try blocks for FuncInfo at 0x50b489ec."""
+        try_blocks = parse_try_block_map(self.proj.loader.memory, 0x50B48A10, 2)
+        assert len(try_blocks) == 2
+
+        tb0 = try_blocks[0]
+        assert tb0.try_low == 1
+        assert tb0.try_high == 1
+        assert tb0.catch_high == 2
+        assert tb0.n_catches == 1
+        assert tb0.p_handler_array == 0x50B489DC
+        assert len(tb0.handlers) == 1
+
+        h0 = tb0.handlers[0]
+        assert h0.adjectives == 64
+        assert h0.p_type == 0
+        assert h0.address_of_handler == 0x50B0A7EC
+
+    def test_parse_try_block_map_second_entry(self):
+        """The second try block should also parse correctly."""
+        try_blocks = parse_try_block_map(self.proj.loader.memory, 0x50B48A10, 2)
+        tb1 = try_blocks[1]
+        assert tb1.try_low == 4
+        assert tb1.try_high == 4
+        assert tb1.catch_high == 5
+        assert tb1.n_catches == 1
+        assert len(tb1.handlers) == 1
+        assert tb1.handlers[0].address_of_handler == 0x50B0A919
 
 
 if __name__ == "__main__":

@@ -62,9 +62,12 @@ from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_
 from .pe_msvc_eh_structs import (
     parse_funcinfo,
     parse_unwind_map,
+    parse_try_block_map,
     parse_eh4_scopetable,
     FUNCINFO_SIZE,
     UNWINDMAPENTRY_SIZE,
+    TRYBLOCKMAPENTRY_SIZE,
+    HANDLERTYPE_SIZE,
 )
 
 if TYPE_CHECKING:
@@ -1908,6 +1911,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             if entry.action != 0 and loader.find_section_containing(entry.action) is not None:
                                 self.model.memory_data[entry.addr + 4] = MemoryData(
                                     entry.addr + 4, 4, MemoryDataSort.CodeReference
+                                )
+
+                # Parse TryBlockMapEntry array and nested HandlerType arrays
+                if fi.n_try_blocks > 0 and fi.p_try_block_map != 0:
+                    try_blocks = parse_try_block_map(loader.memory, fi.p_try_block_map, fi.n_try_blocks)
+                    if try_blocks:
+                        tbm_size = len(try_blocks) * TRYBLOCKMAPENTRY_SIZE
+                        self.model.memory_data[fi.p_try_block_map] = MemoryData(
+                            fi.p_try_block_map, tbm_size, MemoryDataSort.EHTryBlockMap
+                        )
+                        self._seg_list.occupy(fi.p_try_block_map, tbm_size, MemoryDataSort.EHTryBlockMap)
+
+                        for tb in try_blocks:
+                            if tb.handlers and tb.p_handler_array != 0:
+                                ha_size = len(tb.handlers) * HANDLERTYPE_SIZE
+                                self.model.memory_data[tb.p_handler_array] = MemoryData(
+                                    tb.p_handler_array, ha_size, MemoryDataSort.EHHandlerType
+                                )
+                                self._seg_list.occupy(
+                                    tb.p_handler_array, ha_size, MemoryDataSort.EHHandlerType
                                 )
 
     def _parse_seh_prolog4_scopetables(self) -> None:

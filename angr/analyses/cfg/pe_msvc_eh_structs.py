@@ -102,6 +102,35 @@ UNWINDMAPENTRY_STRUCT = SimStruct(
 
 UNWINDMAPENTRY_SIZE = 8  # 2 * 4 bytes
 
+TRYBLOCKMAPENTRY_STRUCT = SimStruct(
+    fields=OrderedDict(
+        [
+            ("tryLow", SimTypeInt(signed=True)),
+            ("tryHigh", SimTypeInt(signed=True)),
+            ("catchHigh", SimTypeInt(signed=True)),
+            ("nCatches", SimTypeInt(signed=False)),
+            ("pHandlerArray", SimTypeInt(signed=False)),
+        ]
+    ),
+    name="TryBlockMapEntry",
+)
+
+TRYBLOCKMAPENTRY_SIZE = 20  # 5 * 4 bytes
+
+HANDLERTYPE_STRUCT = SimStruct(
+    fields=OrderedDict(
+        [
+            ("adjectives", SimTypeInt(signed=False)),
+            ("pType", SimTypeInt(signed=False)),
+            ("dispCatchObj", SimTypeInt(signed=True)),
+            ("addressOfHandler", SimTypeInt(signed=False)),
+        ]
+    ),
+    name="HandlerType",
+)
+
+HANDLERTYPE_SIZE = 16  # 4 * 4 bytes
+
 
 class FuncInfo:
     """Parsed FuncInfo struct from a 32-bit PE binary."""
@@ -377,4 +406,135 @@ def parse_unwind_map(memory, addr: int, count: int) -> list[UnwindMapEntry]:
         to_state, action = struct.unpack("<iI", data)
         entries.append(UnwindMapEntry(addr=entry_addr, to_state=to_state, action=action))
 
+    return entries
+
+
+class TryBlockMapEntry:
+    """Parsed TryBlockMapEntry struct from a 32-bit PE binary."""
+
+    __slots__ = ("addr", "try_low", "try_high", "catch_high", "n_catches", "p_handler_array", "handlers")
+
+    def __init__(
+        self,
+        addr: int,
+        try_low: int,
+        try_high: int,
+        catch_high: int,
+        n_catches: int,
+        p_handler_array: int,
+        handlers: list[HandlerType],
+    ):
+        self.addr = addr
+        self.try_low = try_low
+        self.try_high = try_high
+        self.catch_high = catch_high
+        self.n_catches = n_catches
+        self.p_handler_array = p_handler_array
+        self.handlers = handlers
+
+    def __repr__(self):
+        return (
+            f"TryBlockMapEntry(addr={self.addr:#x}, tryLow={self.try_low}, "
+            f"tryHigh={self.try_high}, catchHigh={self.catch_high}, "
+            f"nCatches={self.n_catches})"
+        )
+
+
+class HandlerType:
+    """Parsed HandlerType struct from a 32-bit PE binary."""
+
+    __slots__ = ("addr", "adjectives", "p_type", "disp_catch_obj", "address_of_handler")
+
+    def __init__(
+        self,
+        addr: int,
+        adjectives: int,
+        p_type: int,
+        disp_catch_obj: int,
+        address_of_handler: int,
+    ):
+        self.addr = addr
+        self.adjectives = adjectives
+        self.p_type = p_type
+        self.disp_catch_obj = disp_catch_obj
+        self.address_of_handler = address_of_handler
+
+    def __repr__(self):
+        return (
+            f"HandlerType(addr={self.addr:#x}, adj={self.adjectives}, "
+            f"pType={self.p_type:#x}, handler={self.address_of_handler:#x})"
+        )
+
+
+def parse_handler_array(memory, addr: int, count: int) -> list[HandlerType]:
+    """
+    Parse an array of HandlerType structs.
+
+    :param memory:  The loader memory interface.
+    :param addr:    The virtual address of the first HandlerType.
+    :param count:   The number of entries (nCatches from TryBlockMapEntry).
+    :return:        A list of HandlerType objects.
+    """
+    handlers = []
+    for i in range(count):
+        h_addr = addr + i * HANDLERTYPE_SIZE
+        try:
+            data = memory.load(h_addr, HANDLERTYPE_SIZE)
+        except Exception:
+            log.debug("Failed to read HandlerType at %#x", h_addr)
+            break
+        if len(data) < HANDLERTYPE_SIZE:
+            break
+
+        adjectives, p_type, disp_catch_obj, address_of_handler = struct.unpack("<IIiI", data)
+        handlers.append(
+            HandlerType(
+                addr=h_addr,
+                adjectives=adjectives,
+                p_type=p_type,
+                disp_catch_obj=disp_catch_obj,
+                address_of_handler=address_of_handler,
+            )
+        )
+    return handlers
+
+
+def parse_try_block_map(memory, addr: int, count: int) -> list[TryBlockMapEntry]:
+    """
+    Parse an array of TryBlockMapEntry structs, including their nested
+    HandlerType arrays.
+
+    :param memory:  The loader memory interface.
+    :param addr:    The virtual address of the first TryBlockMapEntry.
+    :param count:   The number of entries (nTryBlocks from FuncInfo).
+    :return:        A list of TryBlockMapEntry objects.
+    """
+    entries = []
+    for i in range(count):
+        entry_addr = addr + i * TRYBLOCKMAPENTRY_SIZE
+        try:
+            data = memory.load(entry_addr, TRYBLOCKMAPENTRY_SIZE)
+        except Exception:
+            log.debug("Failed to read TryBlockMapEntry at %#x", entry_addr)
+            break
+        if len(data) < TRYBLOCKMAPENTRY_SIZE:
+            break
+
+        try_low, try_high, catch_high, n_catches, p_handler_array = struct.unpack("<iiiII", data)
+
+        handlers: list[HandlerType] = []
+        if n_catches > 0 and p_handler_array != 0:
+            handlers = parse_handler_array(memory, p_handler_array, n_catches)
+
+        entries.append(
+            TryBlockMapEntry(
+                addr=entry_addr,
+                try_low=try_low,
+                try_high=try_high,
+                catch_high=catch_high,
+                n_catches=n_catches,
+                p_handler_array=p_handler_array,
+                handlers=handlers,
+            )
+        )
     return entries
