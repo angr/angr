@@ -864,10 +864,20 @@ class CFGModel(Serializable):
                             new_data_found = True
 
             else:
-                if fill_gaps and memory_data.max_size is not None:
-                    memory_data.size = memory_data.max_size
+                if (
+                    fill_gaps
+                    and memory_data.max_size is not None
+                    and (
+                        not exec_mem_regions
+                        or (exec_mem_regions and not self._addr_in_exec_memory_regions(data_addr, exec_mem_regions))
+                    )
+                ):
+                    # do not attempt to fill gaps in executable memory regions
+                    next_occupied_addr = seg_list.next_pos_with_sort_not_in(data_addr, set())
+                    max_data_size = min(next_occupied_addr - data_addr, memory_data.max_size)
+                    memory_data.size = max_data_size
 
-            if seg_list is not None and memory_data.size is not None:
+            if seg_list is not None and memory_data.size is not None and memory_data.size > 0:
                 seg_list.occupy(data_addr, memory_data.size, memory_data.sort)
 
         return new_data_found

@@ -1421,8 +1421,8 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
     # Key functions
     #
 
-    def get_key_func_addrs(self, func_type: str) -> list[int]:
-        return self._key_func_addrs.get(func_type, [])
+    def get_key_func_addrs(self, func_type: str) -> set[int]:
+        return self._key_func_addrs.get(func_type, set())
 
     def add_key_func_addr(self, func_type: str, addr: K) -> None:
         self._key_func_addrs[func_type].add(addr)

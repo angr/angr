@@ -41,6 +41,7 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
     def setUpClass(cls):
         cls.proj = angr.Project(TEST_BINARY)
         cls.cfg = cls.proj.analyses.CFGFast(normalize=True, show_progressbar=not is_testing)
+        cls.functions = cls.proj.kb.functions
 
     #
     # Function identification
@@ -330,6 +331,17 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         assert tb1.n_catches == 1
         assert len(tb1.handlers) == 1
         assert tb1.handlers[0].address_of_handler == 0x50B0A919
+
+    #
+    # Incomplete/broken functions
+    #
+
+    def test_incomplete_function_50b47e10(self):
+        # should be 0x50b47e10 but CFGFast does not always remove nop-leading paddings yet
+        func_addr = 0x50B47E0E
+        func = self.functions.get_by_addr(func_addr)
+        assert func is not None
+        assert func.block_addrs_set == {func_addr, 0x50B47E1D, 0x50B47E37}
 
 
 if __name__ == "__main__":
