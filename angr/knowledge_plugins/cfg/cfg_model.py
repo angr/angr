@@ -873,8 +873,11 @@ class CFGModel(Serializable):
                     )
                 ):
                     # do not attempt to fill gaps in executable memory regions
-                    next_occupied_addr = seg_list.next_pos_with_sort_not_in(data_addr, set())
-                    max_data_size = min(next_occupied_addr - data_addr, memory_data.max_size)
+                    max_data_size = memory_data.max_size
+                    if seg_list is not None:
+                        next_occupied_addr = seg_list.next_pos_with_sort_not_in(data_addr, set())
+                        if next_occupied_addr is not None:
+                            max_data_size = min(next_occupied_addr - data_addr, max_data_size)
                     memory_data.size = max_data_size
 
             if seg_list is not None and memory_data.size is not None and memory_data.size > 0:
