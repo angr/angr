@@ -3,14 +3,11 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import sys
 import tarfile
 import tempfile
 import urllib.request
 
 from platformdirs import user_cache_dir
-
-from angr.utils.env import is_pyinstaller
 
 
 l = logging.getLogger(name=__name__)
@@ -23,8 +20,8 @@ SENTINEL_FILENAME = ".download_complete"
 def _download_flirt_signatures(target_dir: str) -> bool:
     """
     Download the flirt_signatures master tarball from GitHub and extract it into target_dir.
-    The tarball's top-level ``flirt_signatures-master/`` wrapper is flattened so the layout
-    matches the PyInstaller/angrmanagement bundles (``<target_dir>/<arch>/<platform>/…``).
+    The tarball's top-level ``flirt_signatures-master/`` wrapper is flattened so the resulting
+    layout is ``<target_dir>/<arch>/<platform>/…``.
 
     Returns True on success, False on any failure (network, HTTP, extraction).
     """
@@ -56,30 +53,13 @@ def _download_flirt_signatures(target_dir: str) -> bool:
         shutil.rmtree(staging, ignore_errors=True)
 
 
-def _resolve_base_dir() -> str | None:
-    if is_pyinstaller():
-        return os.path.join(os.path.dirname(sys.executable), "flirt_signatures")
-
-    if "angrmanagement" in sys.modules:
-        angrm_file = sys.modules["angrmanagement"].__file__
-        assert angrm_file is not None
-        angrm_dir = os.path.dirname(os.path.realpath(angrm_file))
-        return os.path.join(angrm_dir, "resources", "flirt_signatures")
-
-    cache_dir = os.path.join(user_cache_dir("angr"), "flirt_signatures")
-    if os.path.isfile(os.path.join(cache_dir, SENTINEL_FILENAME)):
-        return cache_dir
-
-    if _download_flirt_signatures(cache_dir):
-        return cache_dir
-
-    return None
-
-
 def get_default_sig_dir(arch_name: str = "x86_64", platform: str = "linux") -> str | None:
-    base_dir = _resolve_base_dir()
-    if base_dir:
-        sig_dir = os.path.join(base_dir, arch_name, platform, "rust")
-        if os.path.isdir(sig_dir):
-            return os.path.normpath(sig_dir)
+    base_dir = os.path.join(user_cache_dir("angr"), "flirt_signatures")
+    if not os.path.isfile(os.path.join(base_dir, SENTINEL_FILENAME)):
+        if not _download_flirt_signatures(base_dir):
+            return None
+
+    sig_dir = os.path.join(base_dir, arch_name, platform, "rust")
+    if os.path.isdir(sig_dir):
+        return os.path.normpath(sig_dir)
     return None
