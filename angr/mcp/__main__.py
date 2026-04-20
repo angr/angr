@@ -9,12 +9,12 @@ import sys
 from .server import mcp
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """Entry point for running the angr MCP server."""
     parser = argparse.ArgumentParser(description="angr MCP Server - Binary analysis via Model Context Protocol")
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse"],
+        choices=["stdio", "sse", "http"],
         default="stdio",
         help="Transport mechanism (default: stdio)",
     )
@@ -27,16 +27,24 @@ def main() -> None:
     parser.add_argument(
         "--host",
         default="localhost",
-        help="Host for SSE transport (default: localhost)",
+        help="Host for HTTP/SSE transport (default: localhost)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8000,
-        help="Port for SSE transport (default: 8000)",
+        help="Port for HTTP/SSE transport (default: 8000)",
+    )
+    parser.add_argument(
+        "--path",
+        default="/mcp",
+        help="Path for HTTP transport (default: /mcp)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    if args.transport == "http" and not args.path.startswith("/"):
+        parser.error("--path must start with '/'")
 
     # Configure logging
     logging.basicConfig(
@@ -57,6 +65,8 @@ def main() -> None:
         mcp.run(transport="stdio")
     elif args.transport == "sse":
         mcp.run(transport="sse", host=args.host, port=args.port)
+    elif args.transport == "http":
+        mcp.run(transport="http", host=args.host, port=args.port, path=args.path)
 
 
 if __name__ == "__main__":
