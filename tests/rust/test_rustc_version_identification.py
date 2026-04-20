@@ -19,9 +19,7 @@ BINARIES_BASE = os.path.join(
 )
 
 COREUTILS_BINS = [
-    "cat",
-    "ls",
-    "cp",
+    "fmt",
 ]
 
 
