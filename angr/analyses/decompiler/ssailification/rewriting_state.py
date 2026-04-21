@@ -40,8 +40,8 @@ class RewritingState:
             self.arch,
             self.func,
             self.original_block,
-            registers=copy_regs.copy(),
-            stackvars=self.stackvars,
+            registers=copy_regs,
+            stackvars=self.stackvars.copy(),
         )
 
     def append_statement(self, stmt: Statement):

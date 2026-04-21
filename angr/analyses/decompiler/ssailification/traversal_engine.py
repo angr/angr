@@ -243,6 +243,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         lst = self.state.pending_ptr_defines.pop(base_offset, [])
         pending_def = cast("Def", lst[-1][1]) if lst else None
 
+        self.state.stackvar_defs = self.state.stackvar_defs.clean()
         secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
             self.state.stackvar_defs = self.state.stackvar_defs.clean()
@@ -314,6 +315,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self.pending_ptr_defines_nonlocal[base_offset][2].add((offset, size))
 
         self.state.live_stackvars[offset] = value
+        stackvar_defs_cleaned = False
 
         other_defs: set[Def] = set()
         liveish_defs: set[Def] = set()
@@ -321,7 +323,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         reached_fixedpoint = False
         while not reached_fixedpoint:
             reached_fixedpoint = True
-            self.state.stackvar_defs = self.state.stackvar_defs.clean()
+            if not stackvar_defs_cleaned:
+                self.state.stackvar_defs = self.state.stackvar_defs.clean()
+                stackvar_defs_cleaned = True
             for suboff in range(offset, end_offset):
                 secret_stash[suboff].update(self.state.stackvar_defs.pop(suboff, set()))
                 old_defs = secret_stash[suboff]
@@ -359,7 +363,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = {def2} | liveish_defs
 
         if def_as is not None:
-            self.state.stackvar_defs = self.state.stackvar_defs.clean()
+            if not stackvar_defs_cleaned:
+                self.state.stackvar_defs = self.state.stackvar_defs.clean()
+                stackvar_defs_cleaned = True
             for suboff in range(offset, end_offset):
                 self.state.stackvar_defs[suboff] = def_as
 
