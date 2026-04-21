@@ -245,6 +245,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
+            self.state.stackvar_defs = self.state.stackvar_defs.clean()
             for popped_offset in popped:
                 secret_stash[popped_offset].update(self.state.stackvar_defs.pop(popped_offset, set()))
                 for def2 in secret_stash[popped_offset]:
@@ -287,6 +288,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = defs
 
         if def_as is not None:
+            self.state.stackvar_defs = self.state.stackvar_defs.clean()
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.stackvar_defs[suboff] = def_as
 
@@ -319,6 +321,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         reached_fixedpoint = False
         while not reached_fixedpoint:
             reached_fixedpoint = True
+            self.state.stackvar_defs = self.state.stackvar_defs.clean()
             for suboff in range(offset, end_offset):
                 secret_stash[suboff].update(self.state.stackvar_defs.pop(suboff, set()))
                 old_defs = secret_stash[suboff]
@@ -356,6 +359,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = {def2} | liveish_defs
 
         if def_as is not None:
+            self.state.stackvar_defs = self.state.stackvar_defs.clean()
             for suboff in range(offset, end_offset):
                 self.state.stackvar_defs[suboff] = def_as
 

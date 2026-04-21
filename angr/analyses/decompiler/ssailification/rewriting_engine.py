@@ -582,6 +582,7 @@ class SimEngineSSARewriting(
                 for suboff in range(thing.reg_offset, thing.reg_offset + thing.size):
                     self.state.registers[suboff] = thing
             elif thing.category == VirtualVariableCategory.STACK:
+                self.state.stackvars = self.state.stackvars.clean()
                 for suboff in range(thing.stack_offset, thing.stack_offset + thing.size):
                     self.state.stackvars[suboff] = thing
         return None
@@ -656,6 +657,7 @@ class SimEngineSSARewriting(
         vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
         if def_is_implicit:
             if kind == "stack":
+                self.state.stackvars = self.state.stackvars.clean()
                 for suboff in range(offset, offset + size):
                     self.state.stackvars[suboff] = vvar
             elif kind == "reg":
@@ -721,6 +723,7 @@ class SimEngineSSARewriting(
             combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
 
         if vvar.category == VirtualVariableCategory.STACK:
+            self.state.stackvars = self.state.stackvars.clean()
             for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
                 self.state.stackvars[suboff] = vvar
         elif vvar.category == VirtualVariableCategory.REGISTER:
