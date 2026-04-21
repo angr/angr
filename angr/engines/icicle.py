@@ -4,25 +4,32 @@ from __future__ import annotations
 
 import logging
 import os
+import typing
+from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import cast
 
+import claripy
 import pypcode
 from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
 from typing_extensions import override
 
 from angr.errors import SimMemoryError
-from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
+from angr.engines.successors import SimSuccessors, SuccessorsEngine
 from angr.engines.syscall import SimEngineSyscall
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
+from angr.sim_state import SimState
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from angr.state_plugins.icicle import SimStateIcicle
 from angr.state_plugins.inspect import BP_AFTER
 
 log = logging.getLogger(__name__)
+
+
+HeavyConcreteState = SimState[int, int]
 
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
@@ -58,7 +65,7 @@ class IcicleStateTranslationData:
     icicle_arch: str
 
 
-class IcicleEngine(ConcreteEngine):
+class IcicleEngine(SuccessorsEngine):
     """
     An angr engine that uses Icicle to execute concrete states. The purpose of
     this implementation is to provide a high-performance concrete execution
@@ -525,7 +532,28 @@ class IcicleEngine(ConcreteEngine):
         )
 
     @override
-    def process_concrete(
+    def process_successors(self, successors: SimSuccessors, *, num_inst: int | None = None, **kwargs: typing.Any):
+        extra_stop_points_arg = kwargs.pop("extra_stop_points", None)
+        extra_stop_points: set[int] | None = None
+        if extra_stop_points_arg is not None:
+            extra_stop_points = set(typing.cast(Iterable[int], extra_stop_points_arg))
+
+        if len(kwargs) > 0:
+            log.warning("IcicleEngine.process_successors received unknown kwargs: %s", kwargs)
+
+        state = typing.cast(HeavyConcreteState, self.state)
+
+        result = self._run_icicle(state, num_inst=num_inst, extra_stop_points=extra_stop_points)
+        successors.add_successor(
+            result,
+            result.ip,
+            claripy.true(),
+            result.history.jumpkind,
+            add_guard=False,
+        )
+        successors.processed = True
+
+    def _run_icicle(
         self,
         state: HeavyConcreteState,
         num_inst: int | None = None,
@@ -557,7 +585,7 @@ class IcicleEngine(ConcreteEngine):
         elif self._cached_emu is not None and self._snapshot_mode:
             # Fresh start: restore snapshot, sync only changed pages.
             if self._base_translation_data is None:
-                raise ValueError("No base translation data. Run process_concrete first with snapshot mode enabled.")
+                raise ValueError("No base translation data. Run the engine first with snapshot mode enabled.")
             self._cached_emu.restore_snapshot()
             translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
             emu = self._cached_emu

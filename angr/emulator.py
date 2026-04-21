@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
-from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
+from angr.engines.successors import SuccessorsEngine
 from angr.errors import AngrError
+from angr.sim_state import SimState
 
 log = logging.getLogger(name=__name__)
 
@@ -36,22 +37,22 @@ class EmulatorStopReason(Enum):
 
 class Emulator:
     """
-    Emulator is a utility that adapts an angr `ConcreteEngine` to a more
+    Emulator is a utility that adapts an angr `SuccessorsEngine` to a more
     user-friendly interface for concrete execution. It only supports concrete
-    execution and requires a ConcreteEngine.
+    execution.
 
     Saftey: This class is not thread-safe. It should only be used in a
     single-threaded context. It can be safely shared between multiple threads,
     provided that only one thread is using it at a time.
     """
 
-    _engine: ConcreteEngine
-    _state: HeavyConcreteState
+    _engine: SuccessorsEngine
+    _state: SimState
     _breakpoints: set[int]
 
-    def __init__(self, engine: ConcreteEngine, init_state: HeavyConcreteState):
+    def __init__(self, engine: SuccessorsEngine, init_state: SimState):
         """
-        :param engine: The `ConcreteEngine` to use for emulation.
+        :param engine: The `SuccessorsEngine` to use for emulation.
         :param init_state: The initial state to use for emulation.
         """
         self._engine = engine
@@ -59,7 +60,7 @@ class Emulator:
         self._breakpoints = set()
 
     @property
-    def state(self) -> HeavyConcreteState:
+    def state(self) -> SimState:
         """
         The current state of the emulator.
         """

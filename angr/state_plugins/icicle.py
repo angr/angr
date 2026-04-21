@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class SimStateIcicle(SimStatePlugin):
     """Engine-internal plugin for IcicleEngine continuation detection.
 
-    Attached to states produced by ``IcicleEngine.process_concrete()``.
+    Attached to states produced by ``IcicleEngine.process()``.
     Carries the metadata the engine needs to decide whether the next call
     is a lightweight continuation or requires a full snapshot restore.
     """
