@@ -1017,7 +1017,7 @@ class SimpleSolver:
         if isinstance(t, DerivedTypeVariable):
             base = t.type_var
             level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
-            return base, level
+            return base, level  # pyright: ignore[reportReturnType]
         return t, 0
 
     @staticmethod

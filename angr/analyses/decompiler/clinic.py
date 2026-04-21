@@ -2078,6 +2078,7 @@ class Clinic(Analysis):
                             reg_offsets = []
                             reg_names = []
                             for loc in locs:
+                                assert isinstance(loc, SimRegArg)
                                 reg_offsets.append(self.project.arch.registers[loc.reg_name][0])
                                 reg_names.append(loc.reg_name)
                             argvar = SimComboRegisterVariable(

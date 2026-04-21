@@ -73,9 +73,9 @@ class TypeCorrector(OptimizationPass):
             block: ailment.Block
             for stmt in block.statements:
                 if isinstance(stmt, Store) and isinstance(stmt.data, Struct):
-                    var = (  # pyright: ignore[reportAttributeAccessIssue]
-                        stmt.variable if stmt.variable is not None else stmt.addr.variable
-                    )
+                    stmt_var = stmt.variable  # pyright: ignore[reportAttributeAccessIssue]
+                    addr_var = stmt.addr.variable  # pyright: ignore[reportAttributeAccessIssue]
+                    var = stmt_var if stmt_var is not None else addr_var
                     self._set_variable_type(var, stmt.data.type)  # pyright: ignore[reportAttributeAccessIssue]
                 elif (
                     isinstance(stmt, Call)

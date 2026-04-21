@@ -198,6 +198,12 @@ def guess_value_type(value: int | float, project: angr.Project) -> SimType | Non
     return None
 
 
+def _with_arch(ty, arch):
+    if hasattr(ty, "with_arch"):
+        return ty.with_arch(arch)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+    return ty
+
+
 def type_to_rust_repr_chunks(ty: SimType | RustSimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -2315,18 +2321,18 @@ class RustTypeCast(RustExpression):
     )
 
     def __init__(
-        self, src_type: SimType | None, dst_type: RustSimType | SimType, expr: RustExpression, tags=None, **kwargs
+        self,
+        src_type: RustSimType | SimType | None,
+        dst_type: RustSimType | SimType,
+        expr: RustExpression,
+        tags=None,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         # assert isinstance(dst_type, RustSimType)
-        _src = src_type or expr.type
         arch = self.codegen.project.arch
-        self.src_type = (
-            _src.with_arch(arch) if hasattr(_src, "with_arch") else _src
-        )  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-        self.dst_type = (
-            dst_type.with_arch(arch) if hasattr(dst_type, "with_arch") else dst_type
-        )  # pyright: ignore[reportAttributeAccessIssue]
+        self.src_type = _with_arch(src_type or expr.type, arch)
+        self.dst_type = _with_arch(dst_type, arch)
         self.expr = expr
         self.tags = tags
 
@@ -3290,9 +3296,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             assert result is not None
             return RustUnaryOp(
                 "Dereference",
-                RustTypeCast(  # pyright: ignore[reportArgumentType]
-                    result.type, RustSimTypeReference(data_type), result, codegen=self
-                ),
+                RustTypeCast(result.type, RustSimTypeReference(data_type), result, codegen=self),
                 codegen=self,
             )
 
