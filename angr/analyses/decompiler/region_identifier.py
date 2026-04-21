@@ -264,6 +264,18 @@ class RegionIdentifier(Analysis):
                 elif type_ == "call":
                     graph.remove_node(dst)
                     break
+                elif (
+                    type_ == "transition"
+                    and graph.out_degree[src] == 1
+                    and graph.in_degree[dst] == 1
+                    and src is not dst
+                    and not self._block_ends_with_indirect_jump_or_call(dst)
+                ):
+                    merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
+                    # update the entry_node if necessary
+                    if entry_node is not None and entry_node is src:
+                        entry_node = merged_node
+                    break
             else:
                 break
 
@@ -1111,6 +1123,18 @@ class RegionIdentifier(Analysis):
                     continue
                 out_edges.append((region, dst, data_))
         return out_edges
+
+    @staticmethod
+    def _block_ends_with_indirect_jump_or_call(node: TNode) -> bool:
+        """Check if the last statement of a node is an indirect jump or a call."""
+        last_block = node.nodes[-1] if isinstance(node, MultiNode) else node
+        if isinstance(last_block, Block) and last_block.statements:
+            last_stmt = last_block.statements[-1]
+            if isinstance(last_stmt, Jump) and not isinstance(last_stmt.target, Const):
+                return True
+            if isinstance(last_stmt, ConditionalJump):
+                return True
+        return False
 
     @staticmethod
     def _merge_nodes(graph: TGraph, node_a: TNode, node_b: TNode, force_multinode: bool = False) -> MultiNode | None:
