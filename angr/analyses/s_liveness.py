@@ -1,5 +1,5 @@
 from __future__ import annotations
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import networkx
 from angr.ailment import Block, Address
@@ -65,11 +65,16 @@ class SLivenessAnalysis(Analysis):
 
         live_on_edges: dict[tuple[tuple[int, int | None], tuple[int, int | None]], set[int]] = {}
 
-        worklist = list(networkx.dfs_postorder_nodes(graph, source=entry))
+        worklist = deque(networkx.dfs_postorder_nodes(graph, source=entry))
         worklist_set = set(worklist)
+        single_exit_single_entry_nodes = {
+            node
+            for node in graph
+            if graph.in_degree[node] == 1 and graph.out_degree[node] == 1 and not graph.has_edge(node, node)
+        }
 
         while worklist:
-            block = worklist.pop(0)
+            block = worklist.popleft()
             worklist_set.remove(block)
 
             block_key = block.addr, block.idx
@@ -150,7 +155,7 @@ class SLivenessAnalysis(Analysis):
                     live_on_edges[key] = live
                     changed = True
 
-            if changed:
+            if changed and block not in single_exit_single_entry_nodes:
                 new_nodes = [
                     node for node in networkx.dfs_postorder_nodes(graph, source=block) if node not in worklist_set
                 ]
