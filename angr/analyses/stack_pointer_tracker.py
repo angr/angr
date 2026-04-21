@@ -219,6 +219,9 @@ class FrozenStackPointerTrackerState:
         return False
 
 
+MAX_MEMORY_ENTRIES = 100
+
+
 class StackPointerTrackerState:
     """
     Abstract state for StackPointerTracker analysis.
@@ -244,6 +247,9 @@ class StackPointerTrackerState:
         # strong update
         if self.is_tracking_memory and val is not None and addr is not None:
             self.memory[addr] = val
+
+        if len(self.memory) >= MAX_MEMORY_ENTRIES:
+            self.give_up_on_memory_tracking()
 
     def load(self, addr):
         if not self.is_tracking_memory:
