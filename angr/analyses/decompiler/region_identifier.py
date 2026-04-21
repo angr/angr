@@ -264,6 +264,17 @@ class RegionIdentifier(Analysis):
                 elif type_ == "call":
                     graph.remove_node(dst)
                     break
+                elif (
+                    type_ == "transition"
+                    and graph.out_degree[src] == 1
+                    and graph.in_degree[dst] == 1
+                    and src is not dst
+                ):
+                    merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
+                    # update the entry_node if necessary
+                    if entry_node is not None and entry_node is src:
+                        entry_node = merged_node
+                    break
             else:
                 break
 
