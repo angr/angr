@@ -91,14 +91,18 @@ class InlinedMemcpySimplifier(OptimizationPass):
                 Call(
                     stmt.idx,
                     "memcpy",
+                    calling_convention=None,
                     args=[
                         StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
                         StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
                         Const(self.manager.next_atom(), None, store_size, self.project.arch.bits),
                     ],
                     prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
+                    bits=None,
                     **stmt.tags,
                 ),
+                ret_expr=None,
+                fp_ret_expr=None,
                 **stmt.tags,
             )
 

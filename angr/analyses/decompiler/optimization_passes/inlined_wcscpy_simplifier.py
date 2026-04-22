@@ -254,7 +254,8 @@ class InlinedWcscpySimplifier(OptimizationPass):
                             if len(merged_stmt.expr.args) >= 3 and isinstance(merged_stmt.expr.args[2], Const)
                             else sz0 + sz1
                         )
-                        working = working[:i] + [(idx0, new_base, new_off, new_sz, merged_stmt)] + working[i + 2 :]  # noqa: RUF005
+                        new_item = idx0, new_base, new_off, new_sz, merged_stmt
+                        working = working[:i] + [new_item] + working[i + 2 :]  # noqa: RUF005
                         stmts_to_remove.add(idx1)
                         replacements[idx0] = merged_stmt
                         group_changed = True
@@ -307,20 +308,22 @@ class InlinedWcscpySimplifier(OptimizationPass):
 
         # swap two statements if they are out of order
         if self.is_inlined_wcsncpy(last_stmt) and self.is_inlined_wcsncpy(stmt):
+            assert isinstance(last_stmt, SideEffectStatement) and isinstance(stmt, SideEffectStatement)
             assert last_stmt.expr.args is not None and stmt.expr.args is not None
             delta = self._get_delta(last_stmt.expr.args[0], stmt.expr.args[0])
             if delta is not None and delta < 0:
                 last_stmt, stmt = stmt, last_stmt
 
         if self.is_inlined_wcsncpy(last_stmt):
-            assert last_stmt.expr.args is not None
-            s_last = self.kb.custom_strings[last_stmt.expr.args[1].value]
+            assert isinstance(last_stmt, SideEffectStatement)
+            assert last_stmt.expr.args is not None and isinstance(last_stmt.expr.args[1], Const)
+            s_last = self.kb.custom_strings[last_stmt.expr.args[1].value_int]
             addr_last = last_stmt.expr.args[0]
             new_str = None
 
             if isinstance(stmt, SideEffectStatement) and self.is_inlined_wcsncpy(stmt):
-                assert stmt.expr.args is not None
-                s_curr = self.kb.custom_strings[stmt.expr.args[1].value]
+                assert stmt.expr.args is not None and isinstance(stmt.expr.args[1], Const)
+                s_curr = self.kb.custom_strings[stmt.expr.args[1].value_int]
                 addr_curr = stmt.expr.args[0]
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):

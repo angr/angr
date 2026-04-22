@@ -100,7 +100,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 inlined_strcpy_candidate = True
                 src = stmt.src.value
                 strcpy_dst = StackBaseOffset(
-                    self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset + stmt.src.offset.value
+                    self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset + stmt.src.offset.value_int
                 )
         elif (
             isinstance(stmt, Store)
@@ -133,14 +133,18 @@ class InlinedStrcpySimplifier(OptimizationPass):
                     Call(
                         stmt.idx,
                         "strncpy",
+                        calling_convention=None,
                         args=[
                             strcpy_dst,
                             Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                             Const(None, None, len(s), self.project.arch.bits),
                         ],
                         prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                        bits=None,
                         **stmt.tags,
                     ),
+                    ret_expr=None,
+                    fp_ret_expr=None,
                     **stmt.tags,
                 )
 
@@ -186,14 +190,18 @@ class InlinedStrcpySimplifier(OptimizationPass):
                         Call(
                             stmt.idx,
                             "strncpy",
+                            calling_convention=None,
                             args=[
                                 strcpy_dst,
                                 Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                                 Const(None, None, len(s), self.project.arch.bits),
                             ],
                             prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                            bits=None,
                             **stmt.tags,
                         ),
+                        ret_expr=None,
+                        fp_ret_expr=None,
                         **stmt.tags,
                     )
 
@@ -228,7 +236,8 @@ class InlinedStrcpySimplifier(OptimizationPass):
         new_str = None
 
         if isinstance(stmt, SideEffectStatement) and self.is_inlined_strcpy(stmt):
-            s_curr = self.kb.custom_strings[stmt.expr.args[1].value]
+            assert stmt.expr.args is not None and isinstance(stmt.expr.args[1], Const)
+            s_curr = self.kb.custom_strings[stmt.expr.args[1].value_int]
             addr_curr = stmt.expr.args[0]
             delta = self._get_delta(addr_last, addr_curr)
             if delta is not None and delta == len(s_last):
@@ -242,6 +251,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 else:
                     r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.size, stmt.endness, min_length=1)
                 if r:
+                    assert s is not None
                     new_str = s_last + s.encode("ascii")
 
         if new_str is not None:
