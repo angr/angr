@@ -4354,6 +4354,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # remove all functions that are bad, i.e., likely the result of decoding data as code
         # - if a function jumps to data, then it's likely bad
 
+        BAD_FUNC_MAX_BLOCKS = 4
+
         funcs_to_remove: list[int] = []
 
         for func_addr in self.kb.functions:
@@ -4362,10 +4364,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 or self.kb.functions.is_func_returning_unknown(func_addr)
             ):
                 continue
+            if self.kb.functions.get_func_block_count(func_addr) >= BAD_FUNC_MAX_BLOCKS:
+                continue
             func = self.kb.functions.get_by_addr(func_addr)
             for block_addr in sorted(func.block_addrs, reverse=True):
                 cfg_node = self.model.get_any_node(block_addr)
-                if cfg_node is not None:
+                if cfg_node is not None and cfg_node.size > 0:
                     out_degree = self.model.graph.out_degree[cfg_node]
                     # is it jumping to data?
                     if out_degree == 0:
@@ -4398,7 +4402,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._seg_list.occupy(block.addr, block.size, "unknown")
                 # remove all CFG nodes
                 cfg_node = self.model.get_any_node(block.addr)
-                self.model.remove_node_and_graph_node(cfg_node)
+                if cfg_node is not None:
+                    self.model.remove_node_and_graph_node(cfg_node)
             del self.kb.functions[func_addr]
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
