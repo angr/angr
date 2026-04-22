@@ -175,7 +175,6 @@ class TraversalState:
             self.stackvar_defs = self.stackvar_defs.clean()
             for k, d in o.stackvar_defs.items():
                 old_len = len(self.stackvar_defs[k])
-                self.stackvar_defs = self.stackvar_defs.clean()
                 self.stackvar_defs[k].update(d)
                 merge_occurred |= len(self.stackvar_defs[k]) > old_len
 
