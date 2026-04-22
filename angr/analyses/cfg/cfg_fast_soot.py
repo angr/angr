@@ -543,6 +543,9 @@ class CFGFastSoot(CFGFast):
 
         return jobs
 
+    def drop_bad_functions(self):
+        pass
+
     def make_functions(self):
         """
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
