@@ -242,15 +242,18 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         lst = self.state.pending_ptr_defines.pop(base_offset, [])
         pending_def = cast("Def", lst[-1][1]) if lst else None
+        stackvar_defs_cleaned = False
 
         self.state.stackvar_defs = self.state.stackvar_defs.clean()
         secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
-            self.state.stackvar_defs = self.state.stackvar_defs.clean()
             for popped_offset in popped:
                 secret_stash[popped_offset].update(self.state.stackvar_defs.pop(popped_offset, set()))
                 for def2 in secret_stash[popped_offset]:
-                    self.state.stackvar_defs[full_offset].add(def2)
+                    if not stackvar_defs_cleaned:
+                        self.state.stackvar_defs = self.state.stackvar_defs.clean()
+                        stackvar_defs_cleaned = True
+                    self.state.stackvar_defs[full_offset] = self.state.stackvar_defs.get(full_offset, set()) | {def2}
                     definfo = self.def_info[def2]
                     if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
@@ -289,7 +292,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = defs
 
         if def_as is not None:
-            self.state.stackvar_defs = self.state.stackvar_defs.clean()
+            if not stackvar_defs_cleaned:
+                self.state.stackvar_defs = self.state.stackvar_defs.clean()
+                stackvar_defs_cleaned = True
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.stackvar_defs[suboff] = def_as
 

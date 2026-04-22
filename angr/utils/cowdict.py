@@ -8,8 +8,8 @@ class ChainMapCOW(ChainMap):
     """
     Implements a copy-on-write version of ChainMap that supports auto-collapsing.
 
-    Tracks logically deleted keys via a _deleted set so that pop() and del
-    work correctly even when keys live in parent maps.
+    Tracks logically deleted keys via a _deleted set so that pop() and del work correctly even when keys live in parent
+    maps.
     """
 
     def __init__(self, *args, collapse_threshold=None):
