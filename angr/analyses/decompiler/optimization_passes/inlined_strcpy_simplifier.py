@@ -52,7 +52,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
 
     def _process_block(self, block):
         # Phase 1: single-statement strcpy optimizations
-        statements = list(block.statements)
+        statements = block.statements
         changed = False
         new_statements = []
         stmt_idx = 0
