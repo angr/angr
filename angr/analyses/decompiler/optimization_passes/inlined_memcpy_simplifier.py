@@ -1,25 +1,49 @@
-# pylint:disable=arguments-differ
+# pylint:disable=no-self-use
 from __future__ import annotations
 
 from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
 from angr.ailment.statement import Assignment, Store, SideEffectStatement
 from angr import SIM_LIBRARIES
-from .base import PeepholeOptimizationStmtBase
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
-class InlinedMemcpy(PeepholeOptimizationStmtBase):
+class InlinedMemcpySimplifier(OptimizationPass):
     """
     Simplifies inlined data copying logic into calls to memcpy.
     """
 
-    __slots__ = ()
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
+    NAME = "Simplify inlined memcpy"
+    DESCRIPTION = "Simplify inlined memcpy patterns into memcpy calls"
 
-    NAME = "Simplifying inlined memcpy"
-    stmt_classes = (Assignment, Store)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.analyze()
 
-    def optimize(self, stmt: Assignment | Store, stmt_idx: int | None = None, block=None, **kwargs):
+    def _check(self):
+        return True, None
+
+    def _analyze(self, cache=None):
+        for block in list(self._graph.nodes()):
+            new_statements = []
+            changed = False
+            for stmt in block.statements:
+                replacement = self._optimize_stmt(stmt)
+                if replacement is not None:
+                    new_statements.append(replacement)
+                    changed = True
+                else:
+                    new_statements.append(stmt)
+            if changed:
+                new_block = block.copy(statements=new_statements)
+                self._update_block(block, new_block)
+
+    def _optimize_stmt(self, stmt):
         should_replace = False
         dst_offset, src_offset, store_size = None, None, None
+
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
@@ -62,22 +86,33 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
 
         if should_replace:
             assert dst_offset is not None and src_offset is not None and store_size is not None
-            # replace it with a call to memcpy
-            assert self.project is not None
             return SideEffectStatement(
                 stmt.idx,
                 Call(
                     stmt.idx,
                     "memcpy",
+                    calling_convention=None,
                     args=[
                         StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
                         StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
                         Const(self.manager.next_atom(), None, store_size, self.project.arch.bits),
                     ],
                     prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
+                    bits=None,
                     **stmt.tags,
                 ),
+                ret_expr=None,
+                fp_ret_expr=None,
                 **stmt.tags,
             )
 
         return None
+
+
+class InlinedMemcpySimplifierLate(InlinedMemcpySimplifier):
+    """
+    Same as InlinedMemcpySimplifier but runs after SSA level 1 transformation.
+    """
+
+    STAGE = OptimizationPassStage.AFTER_SSA_LEVEL1_TRANSFORMATION
+    NAME = "Simplify inlined memcpy (late)"
