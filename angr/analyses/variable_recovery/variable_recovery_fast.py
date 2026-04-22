@@ -24,7 +24,7 @@ from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
-from angr.analyses.typehoon.typeconsts import Int, TypeConstant, BottomType, TopType
+from angr.analyses.typehoon.typeconsts import Float, Int, TypeConstant, BottomType, TopType
 from angr.analyses.typehoon.translator import TypeTranslator
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
@@ -376,6 +376,18 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         internal_manager = self.variable_manager[self.function.addr]
 
+        # BUG BUG BUG: If there is no bp initialization, e.g.
+        #
+        # 00000000 <mul>:
+        # 0:   dd 44 24 04             fld    QWORD PTR [esp+0x4]
+        # 4:   dc 4c 24 0c             fmul   QWORD PTR [esp+0xc]
+        # 8:   dd 1d ef be ad de       fstp   QWORD PTR ds:0xdeadbeef
+        # e:   c3                      ret
+        #
+        # A return variable gets created at esp+0x4 mistakenly!
+        #
+        #
+
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
             ret_addr_offset = self.project.arch.bytes
@@ -550,6 +562,55 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                         has_nondefault_subtyping_constraints = True
                 if has_nondefault_subtyping_constraints:
                     self.type_constraints[func_var].difference_update(default_subtyping_constraints)
+
+            # Remove default Int upper bounds that conflict with Float lower bounds or Float equivalences.
+            # Collect variables that have Float lower bounds (Float <: tv) or are equivalent to Float (Float == tv).
+            float_vars: set[TypeVariable] = set()
+            for constraint in self.type_constraints[func_var]:
+                if isinstance(constraint, Subtype) and isinstance(constraint.sub_type, Float):
+                    if isinstance(constraint.super_type, TypeVariable):
+                        float_vars.add(constraint.super_type)
+                elif isinstance(constraint, Equivalence):
+                    if isinstance(constraint.type_a, Float) and isinstance(constraint.type_b, TypeVariable):
+                        float_vars.add(constraint.type_b)
+                    elif isinstance(constraint.type_b, Float) and isinstance(constraint.type_a, TypeVariable):
+                        float_vars.add(constraint.type_a)
+
+            if float_vars:
+                # Expand float_vars through equivalence chains
+                changed = True
+                while changed:
+                    changed = False
+                    for constraint in self.type_constraints[func_var]:
+                        if isinstance(constraint, Equivalence):
+                            t1 = constraint.type_a if isinstance(constraint.type_a, TypeVariable) else None
+                            t2 = constraint.type_b if isinstance(constraint.type_b, TypeVariable) else None
+                            if t1 in float_vars and t2 is not None and t2 not in float_vars:
+                                float_vars.add(t2)
+                                changed = True
+                            elif t2 in float_vars and t1 is not None and t1 not in float_vars:
+                                float_vars.add(t1)
+                                changed = True
+                        elif isinstance(constraint, Subtype):
+                            # Propagate through subtype chains bidirectionally:
+                            # if a value in a subtype chain is float, all connected values are too.
+                            sub = constraint.sub_type if isinstance(constraint.sub_type, TypeVariable) else None
+                            sup = constraint.super_type if isinstance(constraint.super_type, TypeVariable) else None
+                            if sub in float_vars and sup is not None and sup not in float_vars:
+                                float_vars.add(sup)
+                                changed = True
+                            elif sup in float_vars and sub is not None and sub not in float_vars:
+                                float_vars.add(sub)
+                                changed = True
+
+                # Remove tv <: Int_X for any tv in the float equivalence class
+                to_remove = set()
+                for tv in float_vars:
+                    for constraint in var_to_subtyping.get(tv, []):
+                        if isinstance(constraint.super_type, Int):
+                            to_remove.add(constraint)
+                if to_remove:
+                    self.type_constraints[func_var].difference_update(to_remove)
 
         self.variable_manager[self.function.addr].ret_val_size = self.ret_val_size
 

@@ -871,7 +871,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
             for expr_opt in expr_opts:
                 r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                 if r is not None and r is not expr:
-                    assert expr.bits == r.bits
+                    assert expr.bits == r.bits or r.bits < expr.bits
                     expr = r
                     redo = True
                     break
@@ -1062,6 +1062,7 @@ def decompile_functions(
     """
     # delayed imports to avoid circular imports
     from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
+    from angr.analyses.decompiler.decompiler import Decompiler
     from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER
 
     structurer = structurer or DEFAULT_STRUCTURER.NAME
@@ -1114,12 +1115,14 @@ def decompile_functions(
 
         exception_string = ""
         if not catch_errors:
-            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar)
+            dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar
+            )
         else:
             try:
                 # TODO: add a timeout
-                dec = proj.analyses.Decompiler(
-                    f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar, fail_fast=True
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar
                 )
             except Exception as e:
                 if postmortem:

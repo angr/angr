@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from collections import defaultdict
 from collections.abc import Mapping
+import contextlib
 import logging
 
 import networkx
 import capstone
 
-from pyvex.stmt import Put
-from pyvex.expr import RdTmp
+from pyvex.stmt import Put, PutI, WrTmp
+from pyvex.expr import Const as VexConst, RdTmp, Load
 
 from angr import ailment
 from angr.code_location import ExternalCodeLocation
@@ -37,6 +38,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeFloat,
     SimTypeDouble,
+    SimTypeLongDouble,
     parse_cpp_file,
 )
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
@@ -69,6 +71,7 @@ class CallSiteFact:
 
     def __init__(self, return_value_used):
         self.return_value_used: bool = return_value_used
+        self.return_fp_size: int | None = None  # 4=float, 8=double; None=integer/unknown
         self.args = []
 
 
@@ -267,7 +270,7 @@ class CallingConventionAnalysis(Analysis):
             facts = self.project.analyses[FactCollector].prep(kb=self.kb)(
                 self._function,
                 track_arg_uses=self._collect_facts_arg_uses,
-                track_arg_passthru=self._collect_facts_arg_passthru,
+                track_arg_passthru=self._collect_facts_arg_passthru or self.project.arch.name == "X86",
             )
             self._input_args = facts.input_args
             self._retval_size = facts.retval_size
@@ -476,8 +479,9 @@ class CallingConventionAnalysis(Analysis):
                 self._function,
             )
             return None
-        # reorder args
-        args = self._reorder_args(input_args, cc)
+        # reorder args using consolidated names so XMM sub-registers match the CC's FP_ARG_REGS
+        consolidated_args = self._consolidate_input_args(input_args)
+        args = self._reorder_args(consolidated_args, cc)
         if fixed_args is not None:
             args = args[:fixed_args]
 
@@ -496,6 +500,40 @@ class CallingConventionAnalysis(Analysis):
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
+
+        # On i386 cdecl, O0-compiled code accesses double params as two 4-byte reads.
+        # Trace F64 loads from local stack back to arg area copies to find which
+        # arg offset pairs form actual doubles, then merge only those pairs.
+        if self.project.arch.name == "X86" and not any(isinstance(a, SimStackArg) and a.size == 8 for a in args):
+            double_bp_pairs = self._find_double_arg_pairs()
+            if not double_bp_pairs:
+                # Pass-through functions (e.g. call_double_func) forward arg
+                # bytes to callees without F64 loads.  Check callee prototypes:
+                # if a callee expects double, the 8 bytes we push to that
+                # position came from our arg area and form a double pair.
+                double_bp_pairs = self._find_double_pairs_from_callee_protos(args)
+            if double_bp_pairs:
+                args = self._merge_stack_args_by_pairs(args, double_bp_pairs)
+
+        # On i386, 4-byte stack args that were individually passed to callees
+        # (preventing double-merge) are likely floats if the function does FP work.
+        # Only tag when the arg has no adjacent partner (otherwise the pair could
+        # be a double whose halves were recorded separately by the callsite tracker).
+        if self.project.arch.name == "X86" and self._function_has_fpreg_puti() and self._callsites:
+            individually_passed = self._get_individually_passed_offsets(self._callsites)
+            ret_addr_size = self.project.arch.bytes
+            arg_offsets = {a.stack_offset for a in args if isinstance(a, SimStackArg)}
+            for i, a in enumerate(args):
+                if (
+                    isinstance(a, SimStackArg)
+                    and a.size == 4
+                    and not a.is_fp
+                    and (a.stack_offset + ret_addr_size) in individually_passed
+                    and (a.stack_offset + 4) not in arg_offsets
+                    and (a.stack_offset - 4) not in arg_offsets
+                ):
+                    args[i] = SimStackArg(a.stack_offset, a.size, is_fp=True)
+
         prototype = SimTypeFunction(
             [self._guess_arg_type(arg, cc, arg_uses) for arg in args], ret_type, variadic=is_variadic
         )
@@ -714,6 +752,30 @@ class CallingConventionAnalysis(Analysis):
                 else:
                     fact.return_value_used = False
 
+        # Also check the FP return register (e.g. xmm0 on AMD64).
+        # This handles functions like double_identity at O1 where the integer
+        # return register (rax) is never written but xmm0 carries the result.
+        # For x87 (X86), FP_RETURN_VAL is 'st0' which is not in arch.registers;
+        # those cases are handled by body analysis (PutI detection) instead.
+        fp_return_val = cc.FP_RETURN_VAL
+        if fp_return_val is not None and isinstance(fp_return_val, SimRegArg):
+            try:
+                fp_reg_offset, _ = self.project.arch.registers[fp_return_val.reg_name]
+            except KeyError:
+                fp_reg_offset = None
+            if fp_reg_offset is not None:
+                fp_return_def = next(
+                    (d for d in all_defs if isinstance(d.atom, Register) and d.atom.reg_offset == fp_reg_offset),
+                    None,
+                )
+                if fp_return_def is not None:
+                    uses = all_uses.get_uses(fp_return_def)
+                    if uses:
+                        fact.return_value_used = True
+                        # Record FP return size (4=float, 8=double).
+                        atom_size = getattr(fp_return_def.atom, "size", None)
+                        fact.return_fp_size = atom_size if atom_size in (4, 8) else 8
+
     def _analyze_callsite_arguments(
         self,
         cc: SimCC,
@@ -804,13 +866,27 @@ class CallingConventionAnalysis(Analysis):
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
-                proto.returnty = SimTypeBottom(label="void")
+                # Preserve FP return types already inferred from the function body.
+                # Callsite tracking can miss uses (e.g. in release builds where the
+                # return is discarded at some but not all sites), and is less reliable
+                # than direct VEX analysis of the ret block.
+                if not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble, SimTypeLongDouble)):
+                    proto.returnty = SimTypeBottom(label="void")
             else:
                 if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
-                    returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
-                        self.project.arch.bits, SimTypeInt
-                    )(signed=True)
-                    proto.returnty = returnty.with_arch(self.project.arch)
+                    # If any callsite saw the FP return register used, infer an FP return type.
+                    fp_sizes = [f.return_fp_size for f in facts if f.return_fp_size is not None]
+                    if fp_sizes:
+                        fp_size = max(fp_sizes)
+                        if fp_size == 4:
+                            proto.returnty = SimTypeFloat().with_arch(self.project.arch)
+                        else:
+                            proto.returnty = SimTypeDouble().with_arch(self.project.arch)
+                    else:
+                        returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
+                            self.project.arch.bits, SimTypeInt
+                        )(signed=True)
+                        proto.returnty = returnty.with_arch(self.project.arch)
 
         if (
             update_arguments == UpdateArgumentsOption.AlwaysUpdate
@@ -922,6 +998,40 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
+    def _fp_reg_ranges(self) -> list[tuple[int, int]]:
+        """Return (offset, offset+size) ranges for all FP arg/return registers
+        defined by the calling convention.  Cached after first call."""
+        if not hasattr(self, "_fp_reg_ranges_cache"):
+            ranges = []
+            cc = default_cc(
+                self.project.arch.name,
+                platform=self.project.simos.name if self.project.simos is not None else None,
+            )
+            if cc is not None:
+                for reg_name in list(cc.FP_ARG_REGS or []) + (
+                    [cc.FP_RETURN_VAL.reg_name]
+                    if cc.FP_RETURN_VAL is not None
+                    and isinstance(cc.FP_RETURN_VAL, SimRegArg)
+                    and cc.FP_RETURN_VAL.reg_name in self.project.arch.registers
+                    else []
+                ):
+                    if reg_name in self.project.arch.registers:
+                        off, sz = self.project.arch.registers[reg_name]
+                        ranges.append((off, off + sz))
+            self._fp_reg_ranges_cache = ranges
+        return self._fp_reg_ranges_cache
+
+    def _is_fp_reg_offset(self, reg_offset: int) -> bool:
+        """Check if a register offset falls within any FP register range."""
+        return any(lo <= reg_offset < hi for lo, hi in self._fp_reg_ranges())
+
+    def _normalize_fp_reg_name(self, reg_offset: int) -> str | None:
+        """Normalize a sub-register offset to the canonical FP register name."""
+        for lo, hi in self._fp_reg_ranges():
+            if lo <= reg_offset < hi:
+                return self.project.arch.translate_register_name(lo, size=hi - lo)
+        return None
+
     def _consolidate_input_args(self, input_args: set[SimRegArg | SimStackArg]) -> set[SimRegArg | SimStackArg]:
         """
         Consolidate register arguments by converting partial registers to full registers on certain architectures.
@@ -933,21 +1043,290 @@ class CallingConventionAnalysis(Analysis):
         if self.project.arch.name in {"AMD64", "X86"}:
             new_input_args = set()
             for a in input_args:
-                if isinstance(a, SimRegArg) and a.size < self.project.arch.bytes:
-                    # use complete registers on AMD64 and X86
-                    reg_offset, reg_size = self.project.arch.registers[a.reg_name]
+                if not isinstance(a, SimRegArg):
+                    new_input_args.add(a)
+                    continue
+                reg_offset, reg_size = self.project.arch.registers[a.reg_name]
+                if self._is_fp_reg_offset(reg_offset):
+                    # FP sub-register variant (e.g. xmm0lq -> xmm0): normalize to the
+                    # canonical name used in the CC's FP_ARG_REGS.  Preserve the VR
+                    # access size but cap at 8 bytes (maximum scalar FP in xmm).
+                    # V128 reads become 8 (double), 4-byte reads stay 4 (float).
+                    fp_reg_name = self._normalize_fp_reg_name(reg_offset)
+                    if fp_reg_name is not None:
+                        arg = SimRegArg(fp_reg_name, min(a.size, 8))
+                    else:
+                        new_input_args.add(a)
+                        continue
+                elif a.size < self.project.arch.bytes:
+                    # GPR sub-register (e.g. eax -> rax): expand to full register
                     full_reg_offset, full_reg_size = get_reg_offset_base_and_size(
                         reg_offset, self.project.arch, size=reg_size
                     )
                     full_reg_name = self.project.arch.translate_register_name(full_reg_offset, size=full_reg_size)
                     arg = SimRegArg(full_reg_name, full_reg_size)
-                    if arg not in new_input_args:
-                        new_input_args.add(arg)
                 else:
                     new_input_args.add(a)
+                    continue
+                if arg not in new_input_args:
+                    new_input_args.add(arg)
             return new_input_args
 
         return set(input_args)
+
+    def _function_has_fpreg_puti(self) -> bool:
+        """Check if any block in the function writes to the x87 FP register file."""
+        fpreg_offset = self.project.arch.registers.get("fpreg", (None,))[0]
+        if fpreg_offset is None:
+            return False
+        for block_node in self._function.graph.nodes():
+            try:
+                irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            for stmt in irsb.statements:
+                if isinstance(stmt, PutI) and stmt.descr.base == fpreg_offset:
+                    return True
+        return False
+
+    def _find_double_arg_pairs(self) -> set[tuple[int, int]]:
+        """Trace F64 loads from local stack back to arg area copies.
+
+        On i386 O0, the compiler copies double halves from the arg area to local
+        stack, then does ``fldl [local]``.  By matching F64 loads to the 4-byte
+        stores that populated those locals, we find the exact ebp-relative offset
+        pairs that form actual double parameters.
+
+        Returns a set of ``(bp_lo, bp_hi)`` tuples.
+        """
+        import pyvex
+
+        # Pass 1: collect all local_offset -> arg_bp_offset mappings across all blocks
+        local_to_arg: dict[int, int] = {}
+        f64_local_offsets: list[int] = []
+        for block_node in self._function.graph.nodes():
+            try:
+                vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            tmps: dict[int, object] = {}
+            for s in vex.statements:
+                if isinstance(s, pyvex.IRStmt.WrTmp):
+                    tmps[s.tmp] = s.data
+                elif isinstance(s, pyvex.IRStmt.Store):
+                    local_off = self._resolve_bp_offset(s.addr, tmps)
+                    if local_off is not None and local_off < 0:
+                        arg_off = self._resolve_load_bp_offset(s.data, tmps)
+                        if arg_off is not None and arg_off > 0:
+                            local_to_arg[local_off] = arg_off
+
+            # Check if this block has FP conversion ops (F64toI32S etc.)
+            has_fp_conv = any(
+                isinstance(s, pyvex.IRStmt.WrTmp) and isinstance(s.data, pyvex.IRExpr.Binop) and "F64to" in s.data.op
+                for s in vex.statements
+            )
+            # Collect 8-byte FP load offsets.  Ity_F64 (fldl) always qualifies.
+            # Ity_I64 loads also qualify when the block has FP conversions
+            # (e.g. fisttp loads the double as I64 then converts via F64toI32S).
+            f64_types = {"Ity_F64"}
+            if has_fp_conv:
+                f64_types.add("Ity_I64")
+            for s in vex.statements:
+                if (
+                    isinstance(s, pyvex.IRStmt.WrTmp)
+                    and isinstance(s.data, pyvex.IRExpr.Load)
+                    and vex.tyenv.types[s.tmp] in f64_types
+                ):
+                    local_off = self._resolve_bp_offset(s.data.addr, tmps)
+                    if local_off is not None and local_off < 0:
+                        f64_local_offsets.append(local_off)
+
+        # Pass 2: match F64 loads to arg pairs
+        pairs: set[tuple[int, int]] = set()
+        for local_off in f64_local_offsets:
+            lo = local_to_arg.get(local_off)
+            hi = local_to_arg.get(local_off + 4)
+            if lo is not None and hi is not None:
+                pairs.add((lo, hi))
+        return pairs
+
+    def _find_double_pairs_from_callee_protos(self, args: list[SimRegArg | SimStackArg]) -> set[tuple[int, int]]:
+        """Infer double arg pairs from callee prototypes.
+
+        For pass-through functions that forward args to callees without F64
+        loads, check if a callee expects a double.  If so, the adjacent
+        4-byte arg pairs that the caller has at matching positions likely
+        form doubles.
+
+        This works because on i386 cdecl, double parameters occupy two
+        adjacent 4-byte stack slots in both the caller's and callee's frame.
+        """
+        from angr.sim_type import SimTypeDouble, SimTypeLongDouble
+
+        pairs: set[tuple[int, int]] = set()
+        ret_addr_size = self.project.arch.bytes  # 4 on i386
+
+        # Collect our own 4-byte stack arg offsets (bp-relative)
+        our_stack_args = sorted(
+            (a.stack_offset + ret_addr_size, a) for a in args if isinstance(a, SimStackArg) and a.size == 4
+        )
+        if len(our_stack_args) < 2:
+            return pairs
+
+        for cs_addr in self._function.get_call_sites():
+            target = self._function.get_call_target(cs_addr)
+            if target is None:
+                continue
+            callee = self.kb.functions.get(target)
+            if callee is None or callee.prototype is None:
+                continue
+            # Check if callee has any double parameters
+            has_double = any(isinstance(a, (SimTypeDouble, SimTypeLongDouble)) for a in callee.prototype.args)
+            if not has_double:
+                continue
+
+            # The callee expects double(s).  Merge adjacent 4-byte arg pairs
+            # in our own arg list.  This is safe because the function forwards
+            # its args to a double-taking callee, confirming the pairs.
+            i = 0
+            while i < len(our_stack_args) - 1:
+                bp_lo = our_stack_args[i][0]
+                bp_hi = our_stack_args[i + 1][0]
+                if bp_hi == bp_lo + 4:
+                    pairs.add((bp_lo, bp_hi))
+                    i += 2
+                else:
+                    i += 1
+            break  # one callee with double is enough
+
+        return pairs
+
+    @staticmethod
+    def _resolve_bp_offset(expr, tmps) -> int | None:
+        """Resolve a VEX expression to an ebp-relative offset, or None."""
+        import pyvex
+
+        if isinstance(expr, pyvex.IRExpr.RdTmp) and expr.tmp in tmps:
+            expr = tmps[expr.tmp]
+        if isinstance(expr, pyvex.IRExpr.Binop) and "Add" in expr.op:
+            for arg in expr.args:
+                if isinstance(arg, pyvex.IRExpr.Const):
+                    off = arg.con.value
+                    if off > 0x7FFFFFFF:
+                        off -= 0x100000000
+                    return off
+        return None
+
+    @staticmethod
+    def _resolve_load_bp_offset(expr, tmps) -> int | None:
+        """If *expr* is LDle(ebp + offset), return the offset."""
+        import pyvex
+
+        if isinstance(expr, pyvex.IRExpr.RdTmp) and expr.tmp in tmps:
+            expr = tmps[expr.tmp]
+        if isinstance(expr, pyvex.IRExpr.Load):
+            return CallingConventionAnalysis._resolve_bp_offset(expr.addr, tmps)
+        return None
+
+    @staticmethod
+    def _merge_stack_args_by_pairs(
+        args: list[SimRegArg | SimStackArg],
+        double_bp_pairs: set[tuple[int, int]],
+    ) -> list[SimRegArg | SimStackArg]:
+        """Merge stack arg pairs identified by _find_double_arg_pairs.
+
+        *double_bp_pairs* contains (bp_lo, bp_hi) tuples.  Convert to
+        SimStackArg offsets (bp_off - ret_addr_size) and merge matching pairs.
+        """
+        ret_addr_size = 4  # i386
+        # Build a map: stack_offset -> its pair's stack_offset
+        merge_lo: dict[int, int] = {}
+        for bp_lo, bp_hi in double_bp_pairs:
+            so_lo = bp_lo - ret_addr_size
+            so_hi = bp_hi - ret_addr_size
+            merge_lo[so_lo] = so_hi
+
+        merged_offsets: set[int] = set()
+        result: list[SimRegArg | SimStackArg] = []
+        for a in args:
+            if isinstance(a, SimStackArg) and a.stack_offset in merge_lo:
+                hi_offset = merge_lo[a.stack_offset]
+                result.append(SimStackArg(a.stack_offset, 8, is_fp=True))
+                merged_offsets.add(hi_offset)
+            elif isinstance(a, SimStackArg) and a.stack_offset in merged_offsets:
+                continue  # skip the high half
+            else:
+                result.append(a)
+        return result
+
+    @staticmethod
+    def _get_individually_passed_offsets(callsites: dict) -> set[int]:
+        """Return ebp-relative stack offsets passed individually (not paired) to callees."""
+        individually_passed: set[int] = set()
+        for _callee, cargs in callsites.values():
+            bp_offsets = {carg[1] for carg in cargs if carg is not None and carg[0] == KIND_STACKVAL}
+            for off in bp_offsets:
+                if (off + 4) not in bp_offsets and (off - 4) not in bp_offsets:
+                    individually_passed.add(off)
+        return individually_passed
+
+    @staticmethod
+    def _merge_adjacent_stack_args_to_doubles(
+        args: list[SimRegArg | SimStackArg],
+        callsites: dict | None = None,
+    ) -> list[SimRegArg | SimStackArg]:
+        """Merge adjacent 4-byte stack arg pairs into 8-byte FP args.
+
+        On i386 cdecl, O0-compiled code reads double parameters as two
+        separate 4-byte loads.  When we know the function is FP (returns
+        float/double), merge consecutive 4-byte stack arg pairs into 8-byte
+        FP args.  Float (4-byte) args and long double (12-byte) args are
+        left alone.
+
+        Skip merging a pair when either half is passed individually to a
+        callee (e.g. two separate float args passed to square_float).
+        """
+        individually_passed = (
+            CallingConventionAnalysis._get_individually_passed_offsets(callsites) if callsites else set()
+        )
+
+        stack_args = sorted(
+            [(i, a) for i, a in enumerate(args) if isinstance(a, SimStackArg) and a.size == 4 and not a.is_fp],
+            key=lambda x: x[1].stack_offset,
+        )
+        merged_indices: set[int] = set()
+        replacements: dict[int, SimStackArg] = {}
+        # ret_addr_offset: on i386, SimStackArg.stack_offset is relative to
+        # the return address; bp-relative = stack_offset + arch.bytes
+        ret_addr_size = 4  # i386
+        i = 0
+        while i < len(stack_args) - 1:
+            idx_lo, arg_lo = stack_args[i]
+            idx_hi, arg_hi = stack_args[i + 1]
+            if arg_hi.stack_offset == arg_lo.stack_offset + 4:
+                # Check if either half is passed individually to a callee
+                bp_lo = arg_lo.stack_offset + ret_addr_size
+                bp_hi = arg_hi.stack_offset + ret_addr_size
+                if bp_lo in individually_passed or bp_hi in individually_passed:
+                    i += 1
+                    continue
+                # Adjacent pair -- merge into an 8-byte FP arg
+                replacements[idx_lo] = SimStackArg(arg_lo.stack_offset, 8, is_fp=True)
+                merged_indices.add(idx_hi)
+                i += 2
+            else:
+                i += 1
+        if not merged_indices:
+            return args
+        result = []
+        for i, a in enumerate(args):
+            if i in merged_indices:
+                continue
+            if i in replacements:
+                result.append(replacements[i])
+            else:
+                result.append(a)
+        return result
 
     def _reorder_args(self, args: set[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
@@ -990,17 +1369,11 @@ class CallingConventionAnalysis(Analysis):
         # ensure stack args are consecutive if necessary
         if cc.STACKARG_SP_DIFF is not None and initial_stack_args:
             arg_by_offset = {a.stack_offset: a for a in initial_stack_args}
-            init_stackarg_offset = cc.STACKARG_SP_DIFF + cc.STACKARG_SP_BUFF
-            int_arg_size = self.project.arch.bytes
-            for stackarg_offset in range(init_stackarg_offset, max(arg_by_offset), int_arg_size):
-                if stackarg_offset not in arg_by_offset:
-                    arg_by_offset[stackarg_offset] = SimStackArg(stackarg_offset, int_arg_size)
             stack_args = [arg_by_offset[offset] for offset in sorted(arg_by_offset)]
         else:
             stack_args = initial_stack_args
 
         stack_int_args = [a for a in stack_args if not a.is_fp]
-        stack_fp_args = [a for a in stack_args if a.is_fp]
         # match int args first
         for reg_name in cc.ARG_REGS:
             try:
@@ -1024,9 +1397,10 @@ class CallingConventionAnalysis(Analysis):
                         iter(a for a in fp_args if isinstance(a, SimRegArg) and _is_same_reg(a.reg_name, reg_name))
                     )
                 except StopIteration:
-                    # have we reached the end of the args list?
-                    if [a for a in fp_args if isinstance(a, SimRegArg)] or len(stack_fp_args) > 0:
-                        # haven't reached the end yet or there are stack args
+                    # have we reached the end of the fp register args list?
+                    # Note: FP stack args (e.g. long double on AMD64) are memory-class and
+                    # don't occupy XMM register slots, so don't count them here.
+                    if [a for a in fp_args if isinstance(a, SimRegArg)]:
                         arg = SimRegArg(reg_name, self.project.arch.bytes)
                     else:
                         break
@@ -1047,6 +1421,13 @@ class CallingConventionAnalysis(Analysis):
                 return SimTypeFloat()
             if arg.size == 8:
                 return SimTypeDouble()
+        if isinstance(arg, SimStackArg) and arg.is_fp:
+            if arg.size <= 4:
+                return SimTypeFloat()
+            if arg.size <= 8:
+                return SimTypeDouble()
+            # 80-bit long double (stored as 12 or 16 bytes depending on ABI)
+            return SimTypeLongDouble()
 
         if cc is not None and arg.size == cc.arch.bytes:
             if isinstance(arg, SimRegArg):
@@ -1087,9 +1468,15 @@ class CallingConventionAnalysis(Analysis):
                 )
                 return SimTypePointer(ptr_ty, disposition=disposition)
 
+        if arg.size == 12 and arg.is_fp:
+            return SimTypeLongDouble()
         if arg.size == 8:
+            if arg.is_fp:
+                return SimTypeDouble()
             return SimTypeLongLong()
         if arg.size == 4:
+            if arg.is_fp:
+                return SimTypeFloat()
             return SimTypeInt()
         if arg.size == 2:
             return SimTypeShort()
@@ -1103,27 +1490,184 @@ class CallingConventionAnalysis(Analysis):
 
         if cc.FP_RETURN_VAL and self._function.ret_sites:
             # examine the last block of the function and see which registers are assigned to
+            fpreg_offset = self.project.arch.registers.get("fpreg", (None,))[0]
+            # Compute the byte range for the FP return register so we can match sub-register
+            # writes (e.g. Put(xmm0_lo64, f64_tmp) where reg_name resolves to "xmm0lq", not "xmm0").
+            fp_ret_range: tuple[int, int] | None = None
+            if isinstance(cc.FP_RETURN_VAL, SimRegArg) and cc.FP_RETURN_VAL.reg_name in self.project.arch.registers:
+                _fp_ret_off, _fp_ret_sz = self.project.arch.registers[cc.FP_RETURN_VAL.reg_name]
+                fp_ret_range = (_fp_ret_off, _fp_ret_off + _fp_ret_sz)
             for ret_block in self._function.ret_sites:
-                fpretval_updated, retval_updated = False, False
+                fpretval_updated, retval_updated, fpreg_puti = False, False, False
                 fp_reg_size = 0
                 try:
                     irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
                 except SimTranslationError:
                     # failed to lift the block
                     continue
+                # Collect tmp definitions so we can trace what feeds the return reg
+                tmp_defs: dict[int, object] = {}
                 for stmt in irsb.statements:
-                    if isinstance(stmt, Put) and isinstance(stmt.data, RdTmp):
-                        reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width  # type: ignore
+                    if isinstance(stmt, WrTmp):
+                        tmp_defs[stmt.tmp] = stmt.data
+                for stmt in irsb.statements:
+                    if isinstance(stmt, Put) and isinstance(stmt.data, (RdTmp, VexConst)):
+                        if isinstance(stmt.data, RdTmp):
+                            reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width  # type: ignore
+                        else:
+                            reg_size = stmt.data.result_size(irsb.tyenv) // self.project.arch.byte_width
                         reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
-                        if isinstance(cc.FP_RETURN_VAL, SimRegArg) and reg_name == cc.FP_RETURN_VAL.reg_name:
+                        # Match the FP return register by name OR by offset range (handles sub-register
+                        # writes such as Put(xmm0+0, f64_tmp) where reg_name is "xmm0lq" not "xmm0").
+                        fp_ret_match = isinstance(cc.FP_RETURN_VAL, SimRegArg) and (
+                            reg_name == cc.FP_RETURN_VAL.reg_name
+                            or (fp_ret_range is not None and fp_ret_range[0] <= stmt.offset < fp_ret_range[1])
+                        )
+                        if fp_ret_match:
                             fpretval_updated = True
                             fp_reg_size = reg_size
+                            # For V128 writes (e.g. PUT(xmm0) = Mul32F0x4_result), the size is
+                            # 16 bytes regardless of the scalar element type.  Trace back through
+                            # tmp definitions to determine whether the scalar operation was float
+                            # (F0x4 / F32) or double (F0x2 / F64) so we can return the right type.
+                            if fp_reg_size == 16 and isinstance(stmt.data, RdTmp):
+                                traced = self._trace_vex_fp_elem_size(tmp_defs, stmt.data.tmp)
+                                if traced is not None:
+                                    fp_reg_size = traced
                         elif isinstance(cc.RETURN_VAL, SimRegArg) and reg_name == cc.RETURN_VAL.reg_name:
-                            retval_updated = True
+                            if isinstance(stmt.data, VexConst):
+                                # Constant write (e.g. return 0) is always a real return value
+                                retval_updated = True
+                            else:
+                                # Check if the value written to the return register comes from
+                                # a stack/memory load (likely stack canary) vs a computation.
+                                # On O0, stack canary checks write eax from a memory load in
+                                # the return block, which looks like a return value to us.
+                                data_src = tmp_defs.get(stmt.data.tmp, stmt.data)
+                                if isinstance(data_src, Load):
+                                    # Memory load -> likely stack canary, not a real return
+                                    pass
+                                else:
+                                    retval_updated = True
+                    elif isinstance(stmt, PutI) and fpreg_offset is not None:
+                        # x87 PutI to the FP register array indicates an FP return value
+                        if stmt.descr.base == fpreg_offset:
+                            fpreg_puti = True
+                            fpretval_updated = True
+                            fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
+
+                # If the return block itself has no FP write, check predecessors.
+                # This handles cases like fp_recursive where the FP return value is
+                # written in a predecessor block and the return block only does
+                # stack cleanup + ret.  We check both x87 PutI and vector register Put.
+                if not fpretval_updated:
+                    # First pass: direct predecessors (most common case + callee call detection)
+                    for pred in self._function.graph.predecessors(ret_block):
+                        try:
+                            pred_irsb = self.project.factory.block(pred.addr, size=pred.size).vex
+                        except SimTranslationError:
+                            continue
+                        pred_tmp_defs: dict[int, object] = {}
+                        for stmt in pred_irsb.statements:
+                            if isinstance(stmt, WrTmp):
+                                pred_tmp_defs[stmt.tmp] = stmt.data
+                        for stmt in pred_irsb.statements:
+                            # x87: PutI to the FP register file
+                            if fpreg_offset is not None and isinstance(stmt, PutI) and stmt.descr.base == fpreg_offset:
+                                fpretval_updated = True
+                                fpreg_puti = True
+                                fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
+                                break
+                            # Vector Put to the FP return register (e.g. xmm0) or a sub-register
+                            if (
+                                fp_ret_range is not None
+                                and isinstance(stmt, Put)
+                                and isinstance(stmt.data, RdTmp)
+                                and fp_ret_range[0] <= stmt.offset < fp_ret_range[1]
+                            ):
+                                byte_width = self.project.arch.byte_width
+                                reg_size = pred_irsb.tyenv.sizeof(stmt.data.tmp) // byte_width  # type: ignore
+                                fpretval_updated = True
+                                fp_reg_size = reg_size
+                                if fp_reg_size == 16:
+                                    traced = self._trace_vex_fp_elem_size(pred_tmp_defs, stmt.data.tmp)
+                                    if traced is not None:
+                                        fp_reg_size = traced
+                                break
+                        # Also check: if the predecessor ends with a call to an
+                        # FP-returning function (e.g. chained_fp_calls -> call
+                        # double_identity -> ret), the callee's FP return value
+                        # becomes our return value.
+                        if not fpretval_updated and pred_irsb.jumpkind == "Ijk_Call":
+                            callee_addr = pred_irsb.next.con.value if hasattr(pred_irsb.next, "con") else None
+                            if callee_addr is not None:
+                                callee_func = self.project.kb.functions.function(addr=callee_addr)
+                                if (
+                                    callee_func is not None
+                                    and callee_func.prototype is not None
+                                    and isinstance(callee_func.prototype.returnty, (SimTypeFloat, SimTypeDouble))
+                                ):
+                                    fpretval_updated = True
+                                    fp_reg_size = 8
+                        if fpretval_updated:
+                            break
+
+                # Second pass: for functions with vector FP registers and complex CFGs,
+                # the FP return value may be written in a block that is not a direct
+                # predecessor of the ret block (e.g. inside a loop body).
+                # Restricted to x86/amd64: on ARM, VFP registers are used for general
+                # FP computation throughout the function, so a function-wide scan
+                # produces false positives (e.g. memcpy detected as returning FP).
+                # TODO: replace arch name check with a CC capability flag
+                if not fpretval_updated and fp_ret_range is not None and self.project.arch.name in ("AMD64", "X86"):
+                    elem_size = self._vex_function_fp_elem_size(fp_ret_range)
+                    if elem_size is not None:
+                        fpretval_updated = True
+                        fp_reg_size = elem_size
 
                 if fpretval_updated and not retval_updated:
-                    # possibly float
-                    return SimTypeFloat() if fp_reg_size == 4 else SimTypeDouble()
+                    if fp_reg_size == 4:
+                        return SimTypeFloat()
+                    # x87 always uses F64 internally.  An explicit F64->F32
+                    # truncation in the VEX IR (e.g. fstp dword; fld dword)
+                    # is the only reliable signal that the return is float.
+                    if self._function_has_f64_to_f32():
+                        return SimTypeFloat()
+                    # Long double detection: if the x87 FP register file was
+                    # written (PutI to fpreg) but the CC's FP return register
+                    # (xmm0 on AMD64) was NOT explicitly written, the function
+                    # returns via ST0 -> long double.  On i386 (where FP_RETURN_VAL
+                    # is st0, not a real register), fall back to the loadF80le
+                    # heuristic.
+                    if (
+                        fpreg_puti
+                        and isinstance(cc.FP_RETURN_VAL, SimRegArg)
+                        and cc.FP_RETURN_VAL.reg_name in self.project.arch.registers
+                    ):
+                        fp_ret_offset = self.project.arch.registers[cc.FP_RETURN_VAL.reg_name][0]
+                        fp_ret_written = any(isinstance(s, Put) and s.offset == fp_ret_offset for s in irsb.statements)
+                        if not fp_ret_written:
+                            # x87 FP stack written but FP return register (e.g.
+                            # xmm0 on AMD64) not written -> returns via ST0
+                            return SimTypeLongDouble()
+                    elif self._function_returns_long_double():
+                        # i386 fallback: FP_RETURN_VAL is st0 (not a real
+                        # register in archinfo), so use loadF80le heuristic
+                        return SimTypeLongDouble()
+                    # If ALL FP arguments are 4 bytes (float) and none are
+                    # 8 bytes (double), infer float return.  On SSE, xorps-based
+                    # negation has no FP-typed VEX ops, so the only precision
+                    # signal is the arg size.
+                    if self._input_args:
+                        fp_arg_sizes = [
+                            a.size
+                            for a in self._input_args
+                            if isinstance(a, SimRegArg)
+                            and self._is_fp_reg_offset(self.project.arch.registers.get(a.reg_name, (None,))[0])
+                        ]
+                        if fp_arg_sizes and all(s == 4 for s in fp_arg_sizes):
+                            return SimTypeFloat()
+                    return SimTypeDouble()
 
         if ret_val_size is not None:
             if ret_val_size == 1:
@@ -1135,7 +1679,176 @@ class CallingConventionAnalysis(Analysis):
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
 
+        # If the CC has a real FP return register (not x87 stack) and the function
+        # has FP register args but neither the integer nor FP return register is
+        # written, the function likely returns its FP input unchanged (passthrough).
+        if (
+            self._input_args
+            and isinstance(cc.FP_RETURN_VAL, SimRegArg)
+            and cc.FP_RETURN_VAL.reg_name in self.project.arch.registers
+        ):
+            fp_ret_offset = self.project.arch.registers[cc.FP_RETURN_VAL.reg_name][0]
+            for arg in self._input_args:
+                if isinstance(arg, SimRegArg) and arg.reg_name in self.project.arch.registers:
+                    arg_offset = self.project.arch.registers[arg.reg_name][0]
+                    if arg_offset == fp_ret_offset:
+                        # xmm0 is both an input arg and the FP return register
+                        return SimTypeDouble()
+
         return SimTypeBottom(label="void")
+
+    @staticmethod
+    def _trace_vex_fp_elem_size(tmp_defs: dict, start_tmp: int) -> int | None:
+        """Return 4 (float) or 8 (double) by tracing the VEX op that produced *start_tmp*.
+
+        VEX scalar-in-vector float ops have "F0x4" in the op name; double ops have "F0x2".
+        We also recognise plain "F32" / "F64" suffixes (e.g. IToF32, IToF64) for conversion ops.
+        """
+        import pyvex
+
+        seen: set[int] = set()
+        queue = [start_tmp]
+        while queue:
+            t = queue.pop(0)
+            if t in seen:
+                continue
+            seen.add(t)
+            expr = tmp_defs.get(t)
+            if expr is None:
+                continue
+            if isinstance(expr, (pyvex.IRExpr.Unop, pyvex.IRExpr.Binop, pyvex.IRExpr.Triop)):
+                op = expr.op
+                if "F0x4" in op or ("F32" in op and "F64" not in op):
+                    return 4
+                if "F0x2" in op or "F64" in op:
+                    return 8
+            # Recurse into arguments
+            if hasattr(expr, "args"):
+                for arg in expr.args:
+                    if isinstance(arg, pyvex.IRExpr.RdTmp):
+                        queue.append(arg.tmp)
+        return None
+
+    def _vex_function_fp_elem_size(self, fp_ret_range: tuple[int, int]) -> int | None:
+        """Scan all function blocks for VEX vector FP operations that write to the FP
+        return register (*fp_ret_range* is the byte range ``[lo, hi)`` of that register).
+
+        Returns 4 for float (F0x4 ops), 8 for double (F0x2 ops), or None if not detected.
+        Double (F0x2) takes priority over float (F0x4) when both are present -- a function
+        that promotes its result to double should be typed as double.
+        """
+
+        has_float_op = False
+        has_double_op = False
+
+        for block_node in self._function.graph.nodes():
+            try:
+                irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            tmp_defs: dict[int, object] = {}
+            for stmt in irsb.statements:
+                if isinstance(stmt, WrTmp):
+                    tmp_defs[stmt.tmp] = stmt.data
+            for stmt in irsb.statements:
+                if (
+                    isinstance(stmt, Put)
+                    and isinstance(stmt.data, RdTmp)
+                    and fp_ret_range[0] <= stmt.offset < fp_ret_range[1]
+                ):
+                    reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width  # type: ignore
+                    if reg_size in (4, 8):
+                        # Direct sub-register size tells us the element type
+                        if reg_size == 4:
+                            has_float_op = True
+                        else:
+                            has_double_op = True
+                    elif reg_size == 16:
+                        # V128 Put: trace the source op to determine element type
+                        traced = self._trace_vex_fp_elem_size(tmp_defs, stmt.data.tmp)
+                        if traced == 4:
+                            has_float_op = True
+                        elif traced == 8:
+                            has_double_op = True
+
+        if has_double_op:
+            return 8
+        if has_float_op:
+            return 4
+        return None
+
+    def _function_has_f64_to_f32(self) -> bool:
+        """Check whether the function contains an explicit F64->F32 conversion.
+
+        This is the only reliable binary-level signal that a function returns
+        ``float`` rather than ``double`` on x87, since VEX emulates x87 with
+        F64 and the element type in PutI descriptors is always ``Ity_F64``.
+        """
+        import pyvex
+
+        for block_node in self._function.graph.nodes():
+            try:
+                irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            for stmt in irsb.statements:
+                if (
+                    isinstance(stmt, pyvex.IRStmt.WrTmp)
+                    and isinstance(stmt.data, (pyvex.IRExpr.Unop, pyvex.IRExpr.Binop))
+                    and "F64toF32" in stmt.data.op
+                ):
+                    return True
+        return False
+
+    def _function_returns_long_double(self) -> bool:
+        """Check whether the function returns long double (x87 extended precision).
+
+        A function returns long double when it uses ``loadF80le`` (indicating
+        long-double parameters) and does NOT round through 64-bit memory before
+        returning.  The round-trip pattern (``fstp qword; fld qword``) appears
+        in VEX as an ``STle`` of an F64 value followed by ``LDle:F64`` from
+        the same address -- this truncates 80-bit precision to 64-bit, signaling
+        a ``double`` return.
+        """
+        import pyvex
+
+        has_loadF80le = False
+        has_f64_roundtrip = False
+
+        for block_node in self._function.graph.nodes():
+            try:
+                irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            for stmt in irsb.statements:
+                if isinstance(stmt, pyvex.IRStmt.Dirty) and "loadF80le" in stmt.cee.name:
+                    has_loadF80le = True
+                # Detect fstpl/fstps (STle of x87 F64/F32) followed by fldl/flds
+                # (LDle:F64/F32) anywhere in the function -- the fstp qword; fld qword
+                # pattern truncates 80-bit precision to 64-bit, indicating a double
+                # return.  We check for any x87 FP store plus any F64 load rather
+                # than matching addresses exactly, because addresses are typically
+                # computed expressions (e.g. ebp-0x20) whose VEX tmps differ between
+                # the store and the reload.  The store data is checked by type (the
+                # x87 value is wrapped in an ITE, so the direct data is an RdTmp
+                # whose type is F64, not a bare GetI).
+                if isinstance(stmt, pyvex.IRStmt.Store):
+                    store_data_type = None
+                    if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                        with contextlib.suppress(Exception):
+                            store_data_type = irsb.tyenv.lookup(stmt.data.tmp)
+                    elif isinstance(stmt.data, pyvex.IRExpr.GetI):
+                        store_data_type = "Ity_F64"
+                    if store_data_type in ("Ity_F64", "Ity_F32"):
+                        for stmt2 in irsb.statements:
+                            if (
+                                isinstance(stmt2, pyvex.IRStmt.WrTmp)
+                                and isinstance(stmt2.data, pyvex.IRExpr.Load)
+                                and irsb.tyenv.lookup(stmt2.tmp) in ("Ity_F64", "Ity_F32")
+                            ):
+                                has_f64_roundtrip = True
+
+        return has_loadF80le and not has_f64_roundtrip
 
     @staticmethod
     def _likely_saving_temp_reg(ail_block: ailment.Block, d: Definition, all_reg_defs: set[Definition]) -> bool:

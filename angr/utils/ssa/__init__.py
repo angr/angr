@@ -60,6 +60,11 @@ def get_reg_offset_base_and_size(
     :return:            A tuple of translated offset and the size of the full register.
     """
 
+    if arch.name in ("X86", "AMD64"):
+        mm_regs = [v for k, v in arch.registers.items() if k in (f"mm{v}" for v in range(8))]
+        if (reg_offset, size) in mm_regs:
+            return (reg_offset, size)
+
     base_reg_and_size = arch.get_base_register(reg_offset, size=size)
     if resilient and base_reg_and_size is None:
         base_reg_and_size = arch.get_base_register(reg_offset, size=None)
@@ -449,13 +454,24 @@ def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None, stac
             #   02 | 0x401ea0 | return Conv(32->64, vvar_279{stack -12});
             # in this case, vvar_279 is eliminatable.
             return True
+        if (
+            isinstance(def_stmt.src, Convert)
+            and isinstance(def_stmt.src.operand, VirtualVariable)
+            and def_stmt.src.operand.was_stack
+            and def_stmt.src.operand.stack_offset == vvar.stack_offset
+        ):
+            # special case: FP narrowing at the same stack slot, e.g.:
+            #   vvar_48{s-40|8b} = Conv(80F->64F, vvar_47{s-40|10b})
+            # This arises from an x87 fstpl that narrows a long double stack slot to
+            # double.  It is a compiler-generated temporary and safe to propagate.
+            return True
     return False
 
 
 def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
-    if (  # noqa: SIM103
+    if (
         vvar.was_stack
         and isinstance(def_stmt, Assignment)
         and isinstance(def_stmt.src, VirtualVariable)
@@ -475,6 +491,28 @@ def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> b
         #   02 | 0x401ea0 | return Conv(32->64, vvar_279{stack -12});
         # in this case, vvar_279 is eliminatable.
         return True
+    # A stack variable defined from an Extract or direct copy of a parameter
+    # or another stack variable is a compiler temporary.
+    if vvar.was_stack and isinstance(def_stmt, Assignment):
+        src = def_stmt.src
+        # Extract(param/stack, ...) -- reading halves of a merged double param at O0
+        if (
+            isinstance(src, Extract)
+            and isinstance(src.base, VirtualVariable)
+            and (src.base.was_parameter or src.base.was_stack)
+        ):
+            return True
+        # Direct copy: vvar_stack = vvar_param -- compiler spill of param to local
+        if isinstance(src, VirtualVariable) and (src.was_parameter or src.was_stack):
+            return True
+        # FP narrowing at the same stack slot: vvar_d{s-N|8b} = Conv(fp, vvar_ld{s-N|10b})
+        if (
+            isinstance(src, Convert)
+            and isinstance(src.operand, VirtualVariable)
+            and src.operand.was_stack
+            and src.operand.stack_offset == vvar.stack_offset
+        ):
+            return True
     return False
 
 

@@ -478,13 +478,26 @@ class SimEngineVRBase(
 
             # create constraints accordingly
             if richr.typevar is not typevar:
-                if richr.data.concrete:
+                if richr.data.concrete and not isinstance(richr.typevar, typeconsts.Float):
                     self.state.add_type_constraint(typevars.Equivalence(richr.typevar, typevar))
                 else:
                     self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
                 self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
+            elif isinstance(richr.typevar, typeconsts.Float) or (
+                richr.type_constraints
+                and any(
+                    isinstance(tc, typevars.Subtype) and isinstance(tc.sub_type, typeconsts.Float)
+                    for tc in richr.type_constraints
+                )
+            ):
+                # The incoming value has float type constraints -- propagate
+                # them to the destination typevar so the solver knows this
+                # variable holds FP data.
+                for tc in richr.type_constraints or ():
+                    if isinstance(tc, typevars.Subtype) and isinstance(tc.sub_type, typeconsts.Float):
+                        self.state.add_type_constraint(typevars.Subtype(tc.sub_type, typevar))
             else:
                 # the constraint below is a default constraint that may conflict with more specific ones with different
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.

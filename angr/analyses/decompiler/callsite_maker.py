@@ -348,19 +348,29 @@ class CallSiteMaker(Analysis):
             else:
                 fp_ret_expr = None
 
+        ret_type_bits = None
         if (
-            ret_expr is not None
-            and prototype is not None
+            prototype is not None
             and prototype.returnty is not None
             and not isinstance(prototype.returnty, SimTypeBottom)
-            and not isinstance(ret_expr, Expr.VirtualVariable)
         ):
-            # try to narrow the non-float return expression if needed
             ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
-            if ret_type_bits is not None and ret_expr.bits > ret_type_bits:
-                ret_expr = ret_expr.copy()
-                ret_expr.bits = ret_type_bits
-            # TODO: Support narrowing virtual variables
+            if ret_type_bits is not None:
+                # Narrow the return expression to match the prototype's return type
+                if (
+                    ret_expr is not None
+                    and not isinstance(ret_expr, Expr.VirtualVariable)
+                    and ret_expr.bits > ret_type_bits
+                ):
+                    ret_expr = ret_expr.copy()
+                    ret_expr.bits = ret_type_bits
+                if (
+                    fp_ret_expr is not None
+                    and not isinstance(fp_ret_expr, Expr.VirtualVariable)
+                    and fp_ret_expr.bits > ret_type_bits
+                ):
+                    fp_ret_expr = fp_ret_expr.copy()
+                    fp_ret_expr.bits = ret_type_bits
 
         tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
@@ -377,7 +387,13 @@ class CallSiteMaker(Analysis):
         )
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_call.bits:
-                new_call.bits = last_stmt.src.bits
+                # Use the return type width if available, else fall back to the
+                # original expression width.  This avoids inheriting a too-wide
+                # register width (e.g. 128-bit xmm0) for a 32-bit float return.
+                if ret_type_bits is not None:
+                    new_call.bits = ret_type_bits
+                else:
+                    new_call.bits = last_stmt.src.bits
             new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_call, **last_stmt.tags)
         else:
             if not new_call.bits:
@@ -616,10 +632,18 @@ class CallSiteMaker(Analysis):
 
         for arg_loc in arg_locs:
             if isinstance(arg_loc, SimComboArg):
-                # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
-                # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
-                # have no way to know that until later down the pipeline.
-                expanded_arg_locs += arg_loc.locations
+                # A ComboArg spans across multiple locations (mostly stack) and represents a single
+                # variable (e.g. a double on i386 cdecl occupying two 4-byte stack slots).
+                # Try to merge contiguous stack locations into a single larger SimStackArg.
+                stack_locs = [loc for loc in arg_loc.locations if isinstance(loc, SimStackArg)]
+                if len(stack_locs) == len(arg_loc.locations) and len(stack_locs) >= 2:
+                    # All locations are stack-based -- merge into a single arg at the lowest offset
+                    sorted_locs = sorted(stack_locs, key=lambda l: l.stack_offset)
+                    base_offset = sorted_locs[0].stack_offset
+                    total_size = sum(l.size for l in sorted_locs)
+                    expanded_arg_locs.append(SimStackArg(base_offset, total_size))
+                else:
+                    expanded_arg_locs += arg_loc.locations
             elif isinstance(arg_loc, SimStructArg):
                 for field_name in arg_loc.struct.fields:
                     if field_name not in arg_loc.locs:

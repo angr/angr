@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Statement, Assignment, SideEffectStatement, Store, Jump
-from angr.ailment.expression import Call, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
+from angr.ailment.expression import Call, Phi, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockViewer
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
@@ -139,10 +139,7 @@ class BlockSimplifier(Analysis):
 
         while True:
             ctr += 1
-            # block.pp()
             new_block = self._simplify_block_once(block)
-            # print()
-            # new_block.pp()
             if new_block == block:
                 break
             self._clear_cache()
@@ -274,6 +271,22 @@ class BlockSimplifier(Analysis):
                         if stmt.src == old:
                             r = True
                             new_src = new.copy()
+                        elif (
+                            isinstance(stmt.src, Phi)
+                            and all(v is not None for _, v in stmt.src.src_and_vvars)
+                            and all(
+                                (isinstance(v, Const) and v.likes(new) and v.value == new.value) for v in repls.values()
+                            )  # All same value?
+                            and {v.varid for _, v in stmt.src.src_and_vvars}
+                            == {v.varid for v in repls}  # All vvars replaced?
+                        ):
+                            # If stmt.src is a Phi variable, we can't replace any expressions
+                            # with non virtual variables. However, if we know we are going to replace
+                            # all vvars with the same constant, then just rewrite it!
+                            replaced = True
+                            new_src = new
+                            new_statements[codeloc.stmt_idx] = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
+                            break
                         else:
                             r, new_src = stmt.src.replace(old, new)
                             if (

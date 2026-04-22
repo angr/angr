@@ -82,6 +82,12 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     )
             if op0.likes(op1):
                 # x + x => 2 * x
+                if expr.floating_point:
+                    import struct
+
+                    fp_two = struct.unpack("<Q", struct.pack("<d", 2.0))[0]
+                    count = Const(expr.idx, None, fp_two, op0.bits, **expr.tags)
+                    return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, floating_point=True, **expr.tags)
                 count = Const(expr.idx, None, 2, op0.bits, **expr.tags)
                 return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, **expr.tags)
 

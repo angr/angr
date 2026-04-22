@@ -114,6 +114,21 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
     return var
 
 
+def _align_widths(a, b):
+    """Zero-extend the narrower operand so both have the same width.
+
+    This can happen when variable recovery widens a variable (e.g. F64 -> 80-bit
+    long double) but the comparison constant retains its original width.
+    """
+    if isinstance(a, claripy.ast.Bool) or isinstance(b, claripy.ast.Bool):
+        return a, b
+    if a.size() < b.size():
+        a = a.zero_extend(b.size() - a.size())
+    elif b.size() < a.size():
+        b = b.zero_extend(a.size() - b.size())
+    return a, b
+
+
 _ail2claripy_op_mapping = {
     "LogicalAnd": lambda expr, conv, _, ia: claripy.And(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
@@ -121,41 +136,65 @@ _ail2claripy_op_mapping = {
     "LogicalOr": lambda expr, conv, _, ia: claripy.Or(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
-    "CmpEQ": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) == conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpEQ": lambda expr, conv, _, ia: (lambda a, b: a == b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpNE": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) != conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpNE": lambda expr, conv, _, ia: (lambda a, b: a != b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpLE": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) <= conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpLE": lambda expr, conv, _, ia: (lambda a, b: a <= b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpLE (signed)": lambda expr, conv, _, ia: claripy.SLE(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpLE (signed)": lambda expr, conv, _, ia: (lambda a, b: claripy.SLE(a, b))(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpLT": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) < conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpLT": lambda expr, conv, _, ia: (lambda a, b: a < b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpLT (signed)": lambda expr, conv, _, ia: claripy.SLT(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpLT (signed)": lambda expr, conv, _, ia: (lambda a, b: claripy.SLT(a, b))(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpGE": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) >= conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpGE": lambda expr, conv, _, ia: (lambda a, b: a >= b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpGE (signed)": lambda expr, conv, _, ia: claripy.SGE(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpGE (signed)": lambda expr, conv, _, ia: (lambda a, b: claripy.SGE(a, b))(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpGT": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) > conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpGT": lambda expr, conv, _, ia: (lambda a, b: a > b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CmpGT (signed)": lambda expr, conv, _, ia: claripy.SGT(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpGT (signed)": lambda expr, conv, _, ia: (lambda a, b: claripy.SGT(a, b))(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CasCmpEQ": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) == conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CasCmpEQ": lambda expr, conv, _, ia: (lambda a, b: a == b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
-    "CasCmpNE": lambda expr, conv, _, ia: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) != conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CasCmpNE": lambda expr, conv, _, ia: (lambda a, b: a != b)(
+        *_align_widths(
+            conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+        )
     ),
     "CasCmpLE": lambda expr, conv, _, ia: (
         conv(expr.operands[0], nobool=True, ins_addr=ia) <= conv(expr.operands[1], nobool=True, ins_addr=ia)
@@ -994,7 +1033,15 @@ class ConditionProcessor:
             if condition.value is True or condition.value is False:
                 var = claripy.BoolV(condition.value)
             else:
-                var = claripy.BVV(condition.value, condition.bits)
+                val = condition.value
+                if isinstance(val, float):
+                    import struct
+
+                    if condition.bits == 64:
+                        val = struct.unpack("<Q", struct.pack("<d", val))[0]
+                    elif condition.bits == 32:
+                        val = struct.unpack("<I", struct.pack("<f", val))[0]
+                var = claripy.BVV(val, condition.bits)
                 if condition.idx is not None:
                     # we do not want to lose track of this constant when it has idx
                     var = var.annotate(AILExprIdAnnotation())

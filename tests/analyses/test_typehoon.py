@@ -419,6 +419,124 @@ class TestTypehoon(unittest.TestCase):
         assert "HANDLE" in all_sols
 
 
+class TestSimpleSolverPointerPropagation(unittest.TestCase):
+    """Unit tests for pointer type propagation through the SimpleSolver.
+
+    These test the specific solver behaviors that allow pointer types to be
+    inferred from Add constraints, Equivalence chains, and DTV unification.
+    """
+
+    def _solve(self, constraints):
+        """Run typehoon on a constraint set and return the solution."""
+        func_f = TypeVariable(name="F")
+        proj = angr.load_shellcode(b"\x90\x90", "x86")
+        typehoon = proj.analyses.Typehoon({func_f: constraints}, func_f)
+        return typehoon.solution
+
+    def test_pointer_from_load(self):
+        """tv_0.load.<32>@0 with int32 subtype -> tv_0 is a pointer."""
+        from angr.analyses.typehoon.typeconsts import Pointer32
+
+        tv_0 = TypeVariable(name="tv_0")
+        dtv_load = DerivedTypeVariable(tv_0, None, labels=[Load(), HasField(32, 0)])
+        constraints = {
+            Subtype(Int32(), dtv_load),
+            Subtype(dtv_load, Int32()),
+        }
+        sol = self._solve(constraints)
+        assert isinstance(sol[tv_0], Pointer32), f"Expected Pointer32, got {sol[tv_0]}"
+
+    def test_pointer_propagation_through_add(self):
+        """tv_r == tv_0 + int, tv_r.load -> tv_0 should be a pointer."""
+        from angr.analyses.typehoon.typevars import Add
+        from angr.analyses.typehoon.typeconsts import Pointer32
+
+        tv_0 = TypeVariable(name="tv_0")
+        tv_r = TypeVariable(name="tv_r")
+        dtv_load = DerivedTypeVariable(tv_r, None, labels=[Load(), HasField(32, 0)])
+        constraints = {
+            Add(tv_0, Int32(), tv_r),
+            Subtype(Int32(), dtv_load),
+            Subtype(dtv_load, Int32()),
+        }
+        sol = self._solve(constraints)
+        assert isinstance(sol[tv_0], Pointer32), f"Expected Pointer32, got {sol[tv_0]}"
+
+    def test_pointer_propagation_through_add_with_float_pointee(self):
+        """tv_r == tv_0 + int, float64 <: tv_r.load -> tv_0 should be ptr(float64)."""
+        from angr.analyses.typehoon.typevars import Add
+        from angr.analyses.typehoon.typeconsts import Pointer32
+
+        tv_0 = TypeVariable(name="tv_0")
+        tv_r = TypeVariable(name="tv_r")
+        dtv_load = DerivedTypeVariable(tv_r, None, labels=[Load(), HasField(64, 0)])
+        constraints = {
+            Add(tv_0, Int32(), tv_r),
+            Subtype(Float64(), dtv_load),
+            Subtype(dtv_load, Float64()),
+        }
+        sol = self._solve(constraints)
+        assert isinstance(sol[tv_0], Pointer32), f"Expected Pointer32, got {sol[tv_0]}"
+        assert isinstance(sol[tv_0].basetype, Float64), f"Expected Float64 pointee, got {sol[tv_0].basetype}"
+
+    def test_pointer_not_inferred_without_load(self):
+        """tv_0 + int == tv_r without load -> tv_0 should NOT be a pointer."""
+        from angr.analyses.typehoon.typevars import Add
+        from angr.analyses.typehoon.typeconsts import Pointer32
+
+        tv_0 = TypeVariable(name="tv_0")
+        tv_r = TypeVariable(name="tv_r")
+        constraints = {
+            Add(tv_0, Int32(), tv_r),
+            Subtype(tv_r, Int32()),
+        }
+        sol = self._solve(constraints)
+        # tv_0 may resolve to Int32 or TOP, but must NOT be a pointer
+        tv_0_type = sol.get(tv_0)
+        assert not isinstance(tv_0_type, Pointer32), f"Should not be a pointer, got {tv_0_type}"
+
+    def test_pointer_equivalence_preserves_dtv_structure(self):
+        """When tv_X == tv_Y and tv_X.load.@0 == tv_Z, unification should
+        produce tv_Y.load.@0 constraints, not lose the load field."""
+        from angr.analyses.typehoon.typevars import Equivalence
+        from angr.analyses.typehoon.typeconsts import Pointer32
+
+        tv_x = TypeVariable(name="tv_X")
+        tv_y = TypeVariable(name="tv_Y")
+        tv_z = TypeVariable(name="tv_Z")
+        dtv_load = DerivedTypeVariable(tv_x, None, labels=[Load(), HasField(32, 0)])
+        constraints = {
+            Equivalence(tv_x, tv_y),
+            Equivalence(dtv_load, tv_z),
+            Subtype(Float32(), tv_z),
+        }
+        sol = self._solve(constraints)
+        # Both tv_x and tv_y should be pointers since they're equivalent
+        # and tv_x has a load field
+        for tv in (tv_x, tv_y):
+            if tv in sol:
+                assert isinstance(sol[tv], Pointer32), f"Expected Pointer32 for {tv}, got {sol[tv]}"
+
+    def test_spurious_float_constraint_removed_for_pointer(self):
+        """ptr_tv <: float64 should be removed when ptr_tv is a known pointer."""
+        from angr.analyses.typehoon.typevars import Add
+        from angr.analyses.typehoon.typeconsts import Pointer32
+
+        tv_0 = TypeVariable(name="tv_0")
+        tv_r = TypeVariable(name="tv_r")
+        dtv_load = DerivedTypeVariable(tv_r, None, labels=[Load(), HasField(64, 0)])
+        constraints = {
+            Add(tv_0, Int32(), tv_r),
+            Subtype(Float64(), dtv_load),
+            Subtype(dtv_load, Float64()),
+            # Spurious constraint from FP address computation
+            Subtype(tv_0, Float64()),
+        }
+        sol = self._solve(constraints)
+        # tv_0 should still be a pointer despite the spurious float constraint
+        assert isinstance(sol[tv_0], Pointer32), f"Expected Pointer32, got {sol[tv_0]}"
+
+
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
         tx = TypeTranslator(archinfo.arch_from_id("x86"))

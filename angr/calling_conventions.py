@@ -25,6 +25,7 @@ from .sim_type import (
     SimTypeFunction,
     SimTypeFloat,
     SimTypeDouble,
+    SimTypeLongDouble,
     SimTypeReg,
     SimStruct,
     SimStructValue,
@@ -155,7 +156,6 @@ def refine_locs_with_struct_type(
             use_bytes = min(chunk_remaining, type_remaining)
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
-
         piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
@@ -1595,7 +1595,20 @@ class SimCCSystemVAMD64(SimCC):
         all_fp_args = list(sample_inst.fp_args)
         all_int_args = list(sample_inst.int_args)
         both_iter = sample_inst.memory_args
-        some_both_args = [next(both_iter) for _ in range(len(args))]
+        # Generate enough memory_args entries to cover all stack arg offsets.
+        # Large-alignment types (e.g. long double at 16 bytes) leave gaps in the
+        # consecutive 8-byte memory arg sequence, so len(args) entries may not
+        # reach the highest observed stack offset.
+        max_stack_off = max((a.stack_offset for a in args if isinstance(a, SimStackArg)), default=-1)
+        if max_stack_off >= 0:
+            some_both_args = []
+            while True:
+                m = next(both_iter)
+                some_both_args.append(m)
+                if m.stack_offset >= max_stack_off:
+                    break
+        else:
+            some_both_args = [next(both_iter) for _ in range(len(args))]
 
         for arg in args:
             ex_arg = arg
@@ -1616,6 +1629,18 @@ class SimCCSystemVAMD64(SimCC):
                 ex_arg.reg_offset = 0
 
             if ex_arg not in all_fp_args and ex_arg not in all_int_args and ex_arg not in some_both_args:
+                # For XMM sub-registers (e.g. xmm0lq resolved to ymm0), the name from register_names
+                # may be the YMM base instead of the XMM name used by the CC.  Fall back to offset
+                # comparison against fp_args.
+                if type(ex_arg) is SimRegArg and ex_arg.reg_name in arch.registers:
+                    ex_offset = arch.registers[ex_arg.reg_name][0]
+                    if any(
+                        type(fp) is SimRegArg
+                        and fp.reg_name in arch.registers
+                        and arch.registers[fp.reg_name][0] == ex_offset
+                        for fp in all_fp_args
+                    ):
+                        continue
                 if isinstance(arg, SimStackArg) and arg.stack_offset == 0:
                     continue  # ignore return address?
                 return False
@@ -1655,6 +1680,9 @@ class SimCCSystemVAMD64(SimCC):
             return None
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
+        # Long double is returned via ST0 (x87), not via memory or SSE.
+        if isinstance(ty, SimTypeLongDouble):
+            return SimLyingRegArg("st0")
         classification = self._classify(ty)
         if any(cls == "MEMORY" for cls in classification):
             assert all(cls == "MEMORY" for cls in classification)
@@ -1693,6 +1721,9 @@ class SimCCSystemVAMD64(SimCC):
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
         nchunks = 1 if ty.size is None else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        if isinstance(ty, SimTypeLongDouble):
+            # x87 80-bit extended precision is passed in memory, not SSE
+            return ["MEMORY"] * nchunks
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):

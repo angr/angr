@@ -8,6 +8,7 @@ from .a_sub_a_div import ASubADiv
 from .modulo_simplifier import ModuloSimplifier
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
 from .arm_cmpf import ARMCmpF
+from .x86_cmpf import X86CmpF
 from .bitwise_inserts import SimplifyBitwiseInserts
 from .bswap import Bswap
 from .cas_intrinsics import CASIntrinsics
@@ -62,9 +63,17 @@ from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .rewrite_conv_mul import RewriteConvMul
 from .evaluate_const_conversions import EvaluateConstConversions
+from .fptagger import Fptagger
+from .remove_fptag_nan_ite import RemoveFptagNanITE
+from .narrow_fp_ops import NarrowFPOperations
+from .sse_scalar_lowering import SSEScalarLowering
+from .sse_bitwise_select import SSEBitwiseSelect
+from .fp_sign_flip import FPSignFlipToNeg
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
+    RemoveFptagNanITE,
+    Fptagger,
     ADivConstAddAMulNDivConst,
     AMulConstDivShrConst,
     AShlConstSubA,
@@ -73,6 +82,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     ModuloSimplifier,
     ASubAShrConstShrConst,
     ARMCmpF,
+    X86CmpF,
     Bswap,
     CASIntrinsics,
     CoalesceSameCascadingIfs,
@@ -126,6 +136,10 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RewriteConvMul,
     EvaluateConstConversions,
     RemoveRedundantInsert,
+    NarrowFPOperations,
+    SSEScalarLowering,
+    SSEBitwiseSelect,
+    FPSignFlipToNeg,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [

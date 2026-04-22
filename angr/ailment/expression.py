@@ -222,6 +222,111 @@ class Register(Atom):
         return Register(manager.next_atom(), self.variable, self.reg_offset, self.bits, **self.tags)
 
 
+class IRegister(Atom):
+    """A register accessed via an indirect/indexed offset (e.g. from GetI/PutI VEX statements).
+
+    VEX GetI/PutI addresses a register array as::
+
+        base + ((ix + bias) % nElems) << shift
+
+    The *reg_offset* expression holds the raw index (ix).  When it becomes a
+    constant, :meth:`concrete_reg_offset` computes the actual register offset.
+    """
+
+    __slots__ = ("array_base", "array_bias", "array_nElems", "array_shift", "reg_offset")
+
+    def __init__(
+        self,
+        idx: int | None,
+        variable,
+        reg_offset: Expression,
+        bits: int,
+        *,
+        array_base: int = 0,
+        array_bias: int = 0,
+        array_nElems: int = 1,
+        array_shift: int = 0,
+        **kwargs,
+    ):
+        super().__init__(idx, variable, **kwargs)
+
+        self.reg_offset = reg_offset
+        self.bits = bits
+        self.array_base = array_base
+        self.array_bias = array_bias
+        self.array_nElems = array_nElems
+        self.array_shift = array_shift
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    def concrete_reg_offset(self) -> int | None:
+        """If reg_offset is a Const, compute the concrete register offset."""
+        if not isinstance(self.reg_offset, Const):
+            return None
+        ix = self.reg_offset.value
+        # Treat as signed 32-bit for wrapping indices (e.g. ftop = -1)
+        if ix >= 0x80000000:
+            ix -= 0x100000000
+        return self.array_base + (((ix + self.array_bias) % self.array_nElems) << self.array_shift)
+
+    def likes(self, other):
+        return type(self) is type(other) and self.reg_offset == other.reg_offset and self.bits == other.bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        if self.variable is None:
+            return f"ireg_{self.reg_offset}<{self.bits // 8}>"
+        return str(self.variable.name)
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash(("ireg", self.reg_offset, self.bits, self.idx))
+
+    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, IRegister]:
+        if self is old_expr:
+            return True, new_expr  # type: ignore[return-value]
+        r, new_offset = self.reg_offset.replace(old_expr, new_expr)
+        if r:
+            return True, IRegister(
+                self.idx,
+                self.variable,
+                new_offset,
+                self.bits,
+                array_base=self.array_base,
+                array_bias=self.array_bias,
+                array_nElems=self.array_nElems,
+                array_shift=self.array_shift,
+                **self.tags,
+            )
+        return False, self
+
+    def _copy_kwargs(self) -> dict:
+        return {
+            "array_base": self.array_base,
+            "array_bias": self.array_bias,
+            "array_nElems": self.array_nElems,
+            "array_shift": self.array_shift,
+        }
+
+    def copy(self) -> IRegister:
+        return IRegister(self.idx, self.variable, self.reg_offset, self.bits, **self._copy_kwargs(), **self.tags)
+
+    def deep_copy(self, manager) -> IRegister:
+        return IRegister(
+            manager.next_atom(),
+            self.variable,
+            self.reg_offset.deep_copy(manager),
+            self.bits,
+            **self._copy_kwargs(),
+            **self.tags,
+        )
+
+
 class VirtualVariableCategory(IntEnum):
     REGISTER = 0
     STACK = 1
@@ -494,6 +599,7 @@ class Op(Expression):
 
 class UnaryOp(Op):
     __slots__ = (
+        "floating_point",
         "operand",
         "variable",
         "variable_offset",
@@ -507,6 +613,7 @@ class UnaryOp(Op):
         variable=None,
         variable_offset: int | None = None,
         bits=None,
+        floating_point=False,
         **kwargs,
     ):
         super().__init__(idx, (operand.depth if isinstance(operand, Expression) else 0) + 1, op, **kwargs)
@@ -515,6 +622,8 @@ class UnaryOp(Op):
         self.bits = operand.bits if bits is None else bits
         self.variable = variable
         self.variable_offset = variable_offset
+        self.floating_point = floating_point or kwargs.get("_floating_point", False)
+        self.tags["_floating_point"] = self.floating_point
 
     def __str__(self):
         return f"({self.op} {self.operand!s})"
@@ -609,8 +718,8 @@ class Convert(UnaryOp):
         to_bits: int,
         is_signed: bool,
         operand: Expression,
-        from_type: ConvertType = TYPE_INT,
-        to_type: ConvertType = TYPE_INT,
+        from_type: ConvertType | None = None,
+        to_type: ConvertType | None = None,
         rounding_mode=None,
         **kwargs,
     ):
@@ -621,9 +730,11 @@ class Convert(UnaryOp):
         # override the size
         self.bits = to_bits
         self.is_signed = is_signed
-        self.from_type = from_type
-        self.to_type = to_type
+        self.from_type = from_type if from_type is not None else kwargs.get("_from_type", ConvertType.TYPE_INT)
+        self.to_type = to_type if to_type is not None else kwargs.get("_to_type", ConvertType.TYPE_INT)
         self.rounding_mode = rounding_mode
+
+        self.tags.update({"_from_type": self.from_type, "_to_type": self.to_type})
 
     def __str__(self):
         from_type = "I" if self.from_type == Convert.TYPE_INT else "F"
@@ -934,10 +1045,12 @@ class BinaryOp(Op):
         self.signed = signed
         self.variable = variable
         self.variable_offset = variable_offset
-        self.floating_point = floating_point
-        self.rounding_mode: str | None = rounding_mode
+        self.floating_point = floating_point or kwargs.get("_floating_point", False)
+        self.rounding_mode: str | None = rounding_mode or kwargs.get("_rounding_mode")
         self.vector_count = vector_count
         self.vector_size = vector_size
+
+        self.tags.update({"_floating_point": self.floating_point, "_rounding_mode": self.rounding_mode})
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits

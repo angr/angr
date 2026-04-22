@@ -29,6 +29,7 @@ from .expression import (
     VEXCCallExpression,
     Tmp,
     Register,
+    IRegister,
     Const,
     Reinterpret,
     MultiStatementExpression,
@@ -73,6 +74,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             VEXCCallExpression: self._handle_VEXCCallExpression,
             Tmp: self._handle_Tmp,
             Register: self._handle_Register,
+            IRegister: self._handle_IRegister,
             Reinterpret: self._handle_Reinterpret,
             Const: self._handle_Const,
             MultiStatementExpression: self._handle_MultiStatementExpression,
@@ -251,6 +253,12 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
     def _handle_Register(
         self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.reg_offset, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Const(
@@ -686,6 +694,16 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         if changed:
             new_expr = expr.copy()
             new_expr.addr = addr
+            return new_expr
+        return expr
+
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        reg_offset = self._handle_expr(0, expr.reg_offset, stmt_idx, stmt, block)
+        if reg_offset is not expr.reg_offset:
+            new_expr = expr.copy()
+            new_expr.reg_offset = reg_offset
             return new_expr
         return expr
 

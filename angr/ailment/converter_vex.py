@@ -12,12 +12,14 @@ from .statement import Assignment, CAS, Store, Jump, SideEffectStatement, Condit
 from .expression import (
     Call,
     Const,
+    IRegister,
     Register,
     Tmp,
     DirtyExpression,
     UnaryOp,
     Convert,
     BinaryOp,
+    Extract,
     Load,
     ITE,
     Reinterpret,
@@ -26,6 +28,41 @@ from .expression import (
 from .converter_common import SkipConversionNotice, Converter
 
 log = logging.getLogger(name=__name__)
+
+simop_type_to_conv_type = {
+    "F": Convert.TYPE_FP,
+    "I": Convert.TYPE_INT,
+}
+
+
+def ty_to_pow(expr):
+    return {
+        "Ity_I8": 0,
+        "Ity_I16": 1,
+        "Ity_I32": 2,
+        "Ity_F32": 2,
+        "Ity_I64": 3,
+        "Ity_F64": 3,
+        "Ity_V128": 4,
+    }[expr.descr.elemTy]
+
+
+def _geti_puti_to_ireg(expr, manager, bits):
+    """Build an IRegister for a GetI/PutI VEX operation."""
+    ix = VEXExprConverter.convert(expr.ix, manager)
+    return IRegister(
+        manager.next_atom(),
+        None,
+        ix,
+        bits,
+        array_base=expr.descr.base,
+        array_bias=expr.bias,
+        array_nElems=expr.descr.nElems,
+        array_shift=ty_to_pow(expr),
+        ins_addr=manager.ins_addr,
+        vex_block_addr=manager.block_addr,
+        vex_stmt_idx=manager.vex_stmt_idx,
+    )
 
 
 class VEXExprConverter(Converter):
@@ -123,6 +160,10 @@ class VEXExprConverter(Converter):
         return VEXExprConverter.register(expr.offset, expr.result_size(manager.tyenv), manager)
 
     @staticmethod
+    def GetI(expr, manager):
+        return _geti_puti_to_ireg(expr, manager, expr.result_size(manager.tyenv))
+
+    @staticmethod
     def Load(expr, manager):
         return Load(
             manager.next_atom(),
@@ -132,6 +173,7 @@ class VEXExprConverter(Converter):
             ins_addr=manager.ins_addr,
             vex_block_addr=manager.block_addr,
             vex_stmt_idx=manager.vex_stmt_idx,
+            data_type=expr.result_type(manager.tyenv),
         )
 
     @staticmethod
@@ -194,6 +236,8 @@ class VEXExprConverter(Converter):
                     simop._to_size,
                     simop.is_signed,
                     VEXExprConverter.convert(expr.args[0], manager),
+                    from_type=simop_type_to_conv_type.get(simop._from_type, Convert.TYPE_INT),
+                    to_type=simop_type_to_conv_type.get(simop._to_type, Convert.TYPE_INT),
                     ins_addr=manager.ins_addr,
                     vex_block_addr=manager.block_addr,
                     vex_stmt_idx=manager.vex_stmt_idx,
@@ -208,6 +252,7 @@ class VEXExprConverter(Converter):
             op_name,
             VEXExprConverter.convert(expr.args[0], manager),
             bits=expr.result_size(manager.tyenv),
+            floating_point=vexop_to_simop(expr.op)._float,
             ins_addr=manager.ins_addr,
             vex_block_addr=manager.block_addr,
             vex_stmt_idx=manager.vex_stmt_idx,
@@ -229,8 +274,74 @@ class VEXExprConverter(Converter):
         vector_count = None
         vector_size = None
         if op._vector_count is not None and op._vector_size is not None:
-            # SIMD conversions
-            op_name += "V"  # vectorized
+            if op._vector_zero and op._float and op_name in {"Add", "Sub", "Mul", "Div", "Max", "Min"}:
+                # Scalar-in-vector FP op (VEX "F0x" family, e.g. Add64F0x2, Mul32F0x4).
+                # Only the lowest lane participates; the op is semantically a scalar FP
+                # operation.  Emit Conv(N->128I, scalar_op) so downstream passes can
+                # recover the scalar value via Extract(Conv(N->128I, x), N@0) -> x.
+                scalar_bits = op._vector_size
+                atoms = [manager.next_atom(), manager.next_atom()]
+
+                def _unwrap(operand, n):
+                    """Return the scalar N-bit value inside *operand*.
+                    If it is a Conv(n->128I, x) widen that came from VEX 64UtoV128 /
+                    32UtoV128, unwrap it.  Otherwise extract the lower N bits."""
+                    if (
+                        isinstance(operand, Convert)
+                        and operand.from_type == Convert.TYPE_INT
+                        and operand.to_type == Convert.TYPE_INT
+                        and operand.from_bits == n
+                        and operand.to_bits == 128
+                    ):
+                        return operand.operand
+                    zero = Const(
+                        None,
+                        None,
+                        0,
+                        64,
+                        ins_addr=manager.ins_addr,
+                        vex_block_addr=manager.block_addr,
+                        vex_stmt_idx=manager.vex_stmt_idx,
+                    )
+                    return Extract(
+                        None,
+                        n,
+                        operand,
+                        zero,
+                        "Iend_LE",
+                        ins_addr=manager.ins_addr,
+                        vex_block_addr=manager.block_addr,
+                        vex_stmt_idx=manager.vex_stmt_idx,
+                    )
+
+                a_scalar = _unwrap(operands[0], scalar_bits)
+                b_scalar = _unwrap(operands[1], scalar_bits)
+                scalar_op_name = {"Max": "MaxF", "Min": "MinF"}.get(op_name, op_name)
+                scalar_binop = BinaryOp(
+                    atoms[0],
+                    scalar_op_name,
+                    [a_scalar, b_scalar],
+                    False,
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=manager.vex_stmt_idx,
+                    bits=scalar_bits,
+                    floating_point=True,
+                )
+                return Convert(
+                    atoms[1],
+                    scalar_bits,
+                    128,
+                    False,
+                    scalar_binop,
+                    from_type=Convert.TYPE_INT,
+                    to_type=Convert.TYPE_INT,
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=manager.vex_stmt_idx,
+                )
+            # SIMD conversions (true packed-vector ops, e.g. Add64Fx2, Mul32Fx4)
+            op_name += "V"
             vector_count = op._vector_count
             vector_size = op._vector_size
         elif op_name in {"CmpLE", "CmpLT", "CmpGE", "CmpGT", "Div", "DivMod", "Mod", "Mul", "Mull"}:
@@ -283,14 +394,16 @@ class VEXExprConverter(Converter):
                 )
             elif op._from_type == "F" and op._to_type == "I":
                 # floating point to integer
-                # floating point to floating point
                 rm = operands[0]
                 operand = operands[1]
+                # For F->I, signedness is on the target side (_to_signed),
+                # not the source side (is_signed checks _from_signed).
+                signed = op._to_signed == "S"
                 return Convert(
                     manager.next_atom(),
                     op._from_size,
                     op._to_size,
-                    op.is_signed,
+                    signed,
                     operand,
                     from_type=Convert.TYPE_FP,
                     to_type=Convert.TYPE_INT,
@@ -376,6 +489,7 @@ class VEXExprConverter(Converter):
             bits=bits,
             vector_count=vector_count,
             vector_size=vector_size,
+            floating_point=op._float,
         )
 
     @staticmethod
@@ -467,6 +581,7 @@ class VEXExprConverter(Converter):
 EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.RdTmp: VEXExprConverter.RdTmp,
     pyvex.IRExpr.Get: VEXExprConverter.Get,
+    pyvex.IRExpr.GetI: VEXExprConverter.GetI,
     pyvex.IRExpr.Unop: VEXExprConverter.Unop,
     pyvex.IRExpr.Binop: VEXExprConverter.Binop,
     pyvex.IRExpr.Triop: VEXExprConverter.Triop,
@@ -533,6 +648,20 @@ class VEXStmtConverter(Converter):
         return Assignment(
             idx,
             reg,
+            data,
+            ins_addr=manager.ins_addr,
+            vex_block_addr=manager.block_addr,
+            vex_stmt_idx=manager.vex_stmt_idx,
+        )
+
+    @staticmethod
+    def PutI(idx, stmt, manager):
+        bits = stmt.data.result_size(manager.tyenv)
+        dst = _geti_puti_to_ireg(stmt, manager, bits)
+        data = VEXExprConverter.convert(stmt.data, manager)
+        return Assignment(
+            idx,
+            dst,
             data,
             ins_addr=manager.ins_addr,
             vex_block_addr=manager.block_addr,
@@ -686,6 +815,7 @@ class VEXStmtConverter(Converter):
 
 STATEMENT_MAPPINGS = {
     pyvex.IRStmt.Put: VEXStmtConverter.Put,
+    pyvex.IRStmt.PutI: VEXStmtConverter.PutI,
     pyvex.IRStmt.WrTmp: VEXStmtConverter.WrTmp,
     pyvex.IRStmt.Store: VEXStmtConverter.Store,
     pyvex.IRStmt.Exit: VEXStmtConverter.Exit,
