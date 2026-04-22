@@ -830,6 +830,7 @@ class CFGModel(Serializable):
                             continue
 
                         ptr_data_sort, ptr_data_size = MemoryDataSort.Unknown, 0
+                        ptr_content_holder = []
                         if seg_list is not None:
                             if seg_list.is_occupied(ptr):
                                 sort = seg_list.occupied_by_sort(ptr)
@@ -843,11 +844,17 @@ class CFGModel(Serializable):
                                 next_data_addr = next(self.memory_data.irange(ptr + 1), None)
                                 max_data_size = 100 if next_data_addr is None else next_data_addr - ptr
                                 ptr_data_sort, ptr_data_size = self._guess_data_type(
-                                    ptr, max_data_size, xrefs=xrefs, seg_list=seg_list
+                                    ptr,
+                                    max_data_size,
+                                    content_holder=ptr_content_holder,
+                                    xrefs=xrefs,
+                                    seg_list=seg_list,
                                 )
 
                         if ptr not in self.memory_data:
                             new_md = MemoryData(ptr, ptr_data_size, ptr_data_sort, pointer_addr=data_addr + j)
+                            if ptr_content_holder:
+                                new_md.content = ptr_content_holder[0]
                             self.memory_data[ptr] = new_md
                             if ptr_data_sort is not None and ptr_data_size > 0:
                                 seg_list.occupy(ptr, ptr_data_size, ptr_data_sort)
