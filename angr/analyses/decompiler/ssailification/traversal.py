@@ -140,3 +140,7 @@ class TraversalAnalysis:
             if existing != succ_state:
                 self._pending.add(succ)
         self._engine_ail.hclb_side_exit_state = None
+
+        # memory optimization:
+        if self._ail_graph.in_degree[node] <= 1:
+            del self.input_states[node]
