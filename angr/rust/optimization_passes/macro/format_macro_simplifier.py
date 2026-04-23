@@ -130,10 +130,14 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         assert False
 
     def _is_debug_formatter(self, arg: Struct):
+        # Only flip to `{:?}` on positive evidence the formatter is a Debug impl.
+        # Any unknown / unsymbolized formatter (e.g. a `<T as Display>::fmt` instance
+        # that FLIRT didn't recognize) defaults to `{}`, since Display is by far the
+        # more common case and "name doesn't mention Display" is not proof of Debug.
         formatter = arg.get_field("formatter") or arg.get_field("field_8")
         if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
             name = demangle(self.project.kb.functions[formatter.value].name)
-            return "core::fmt::Display" not in name
+            return "core::fmt::Debug" in name
         return False
 
     def _try_find_arguments_struct(self, call: Call):

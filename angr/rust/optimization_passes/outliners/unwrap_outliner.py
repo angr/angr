@@ -1,8 +1,8 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load, StringLiteral
-from angr.ailment.statement import Assignment, Call, ConditionalJump
+from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load, StringLiteral, Call
+from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.rust.sim_type import RustSimTypeResult, RustSimTypeOption, RustSimTypeFunction, RustSimTypeInt
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, CFGTransformationMixin, SSAVariableMixin
@@ -166,7 +166,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                     **last_stmt.tags,
                 )
                 if second_block is not None:
-                    second_block.statements[-1] = replacement  # pyright: ignore[reportArgumentType, reportCallIssue]
+                    second_block.statements[-1] = SideEffectStatement(last_stmt.idx, replacement, **last_stmt.tags)
 
     def _analyze(self, cache=None):
         for block in list(self._graph.nodes):
