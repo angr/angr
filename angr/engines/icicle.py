@@ -598,6 +598,15 @@ class IcicleEngine(SuccessorsEngine):
                 self._cached_emu = emu
                 self._base_translation_data = translation_data
 
+        # Sync simprocedure breakpoints. Simprocs can be registered
+        # dynamically between runs (e.g. SimProcedure.call() makes a new
+        # continuation extern), so full-init's breakpoint set is not
+        # authoritative on subsequent calls. add_breakpoint is idempotent.
+        proj = state.project
+        if proj is not None:
+            for addr in proj._sim_procedures:
+                emu.add_breakpoint(addr)
+
         # Set extra stop points (cleaned up after the run).
         added_breakpoints = []
         is_arm = IcicleEngine.__is_arm(translation_data.icicle_arch)
