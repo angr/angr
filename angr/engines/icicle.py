@@ -76,10 +76,12 @@ class IcicleEngine(SuccessorsEngine):
     use with traditional fuzzing engines.
 
     This class is the base class for the Icicle engine. It implements execution
-    by creating an Icicle instance, copying the state from angr to Icicle, and then
-    running the Icicle instance. The results are then copied back to the angr
-    state. When snapshot mode is enabled, the Icicle instance is reused across
-    multiple runs, restoring from a snapshot and only syncing changed state.
+    by creating an Icicle instance, copying the state from angr to Icicle, and
+    then running the Icicle instance. The results are then copied back to the
+    angr state. The Icicle instance is cached on the engine and reused across
+    runs: the first call takes a snapshot of the fresh VM, and subsequent calls
+    either continue with the cached emu (same-run successors) or restore the
+    snapshot and delta-sync the input state (branches).
 
     For a more complete implementation, use the UberIcicleEngine class, which
     intends to provide a more complete set of features, such as hooks and syscalls.
@@ -90,7 +92,6 @@ class IcicleEngine(SuccessorsEngine):
         super().__init__(*args, **kwargs)
         self._cached_emu: Icicle | None = None
         self._base_translation_data: IcicleStateTranslationData | None = None
-        self._snapshot_mode: bool = False
         self._run_counter: int = 0
 
     @staticmethod
@@ -438,10 +439,6 @@ class IcicleEngine(SuccessorsEngine):
             icicle_arch=icicle_arch,
         )
 
-    def enable_snapshot_mode(self) -> None:
-        """Enable snapshot mode for VM reuse across multiple runs."""
-        self._snapshot_mode = True
-
     def has_snapshot(self) -> bool:
         """Check if a snapshot is available for fast restore."""
         return self._cached_emu is not None and self._cached_emu.has_snapshot()
@@ -602,21 +599,18 @@ class IcicleEngine(SuccessorsEngine):
             # blocks executed during this run, not cumulative history.
             self._cached_emu.clear_path_tracer()
             emu = self._cached_emu
-        elif self._cached_emu is not None and self._snapshot_mode:
-            # Fresh start: restore snapshot, sync only changed pages.
-            if self._base_translation_data is None:
-                raise ValueError("No base translation data. Run the engine first with snapshot mode enabled.")
+        elif self._cached_emu is not None:
+            # Branched from an earlier run: restore and delta-sync.
+            assert self._base_translation_data is not None
             self._cached_emu.restore_snapshot()
             translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
             emu = self._cached_emu
         else:
-            # Full init path
+            # First run: build the VM and snapshot it for future branches.
             emu, translation_data = self.__convert_angr_state_to_icicle(state)
-
-            if self._snapshot_mode and self._cached_emu is None:
-                emu.save_snapshot()
-                self._cached_emu = emu
-                self._base_translation_data = translation_data
+            emu.save_snapshot()
+            self._cached_emu = emu
+            self._base_translation_data = translation_data
 
         # Sync simprocedure breakpoints. Simprocs can be registered
         # dynamically between runs (e.g. SimProcedure.call() makes a new

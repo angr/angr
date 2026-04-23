@@ -196,7 +196,6 @@ class TestSnapshotSync(TestCase):
         shellcode = "ldr x1, [x0]"
         project = angr.load_shellcode(shellcode, "aarch64")
         engine = IcicleEngine(project)
-        engine.enable_snapshot_mode()
 
         state_opts = {
             "remove_options": {*o.symbolic},
@@ -316,7 +315,6 @@ class TestDirtyPageTracking(TestCase):
         project = angr.load_shellcode(shellcode, "aarch64")
 
         engine = IcicleEngine(project)
-        engine.enable_snapshot_mode()
 
         state_opts = {
             "remove_options": {*o.symbolic},
@@ -934,7 +932,6 @@ class TestContinuation(TestCase):
         project.hook(0x4, hook_nop, length=4)
 
         engine = UberIcicleEngine(project)
-        engine.enable_snapshot_mode()
         init_state = project.factory.blank_state(
             remove_options={*o.symbolic},
             add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
