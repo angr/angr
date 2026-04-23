@@ -2100,6 +2100,12 @@ class StringLiteral(Expression):
     def likes(self, other):
         return type(self) is type(other) and self.data == other.data
 
+    def copy(self):
+        return StringLiteral(self.idx, self.data, self.bits, **self.tags)
+
+    def deep_copy(self, manager):
+        return StringLiteral(manager.next_atom(), self.data, self.bits, **self.tags)
+
     def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
         if old_expr.likes(self):
             r, replaced = True, new_expr
@@ -2159,6 +2165,17 @@ class Struct(Expression):
     def copy(self):
         return Struct(self.idx, self.name, self.fields, self.field_offsets, self.bits)
 
+    def deep_copy(self, manager):
+        idx = manager.next_atom()
+        return Struct(
+            idx,
+            self.name,
+            OrderedDict((offset, field.deep_copy(manager)) for offset, field in self.fields.items()),
+            self.field_offsets.copy(),
+            self.bits,
+            **self.tags,
+        )
+
     def replace(self, old_expr, new_expr):
         new_fields = OrderedDict()
         replaced = False
@@ -2214,6 +2231,14 @@ class RustEnum(Expression):
     def copy(self):
         return RustEnum(self.idx, self.name, self.fields, self.bits)
 
+    def deep_copy(self, manager):
+        idx = manager.next_atom()
+        if isinstance(self.fields, tuple):
+            new_fields = tuple(field.deep_copy(manager) for field in self.fields)
+        else:
+            new_fields = [field.deep_copy(manager) for field in self.fields]
+        return RustEnum(idx, self.name, new_fields, self.bits, **self.tags)
+
     def replace(self, old_expr, new_expr):
         new_fields = []
         replaced = False
@@ -2267,6 +2292,14 @@ class Array(Expression):
     def copy(self):
         return Array(self.idx, self.elements, self.bits)
 
+    def deep_copy(self, manager):
+        idx = manager.next_atom()
+        if isinstance(self.elements, tuple):
+            new_elements = tuple(element.deep_copy(manager) for element in self.elements)
+        else:
+            new_elements = [element.deep_copy(manager) for element in self.elements]
+        return Array(idx, new_elements, self.bits, **self.tags)
+
     def replace(self, old_expr, new_expr):
         new_elements = []
         replaced = False
@@ -2315,6 +2348,19 @@ class Let(Op):
         return type(self) is type(other) and self.variant == other.variant and self.src == other.src
 
     matches = likes
+
+    def copy(self):
+        return Let(self.idx, self.variant, self.defs, self.src, **self.tags)
+
+    def deep_copy(self, manager):
+        idx = manager.next_atom()
+        return Let(
+            idx,
+            self.variant,
+            [def_.deep_copy(manager) for def_ in self.defs],
+            self.src.deep_copy(manager),
+            **self.tags,
+        )
 
 
 #
@@ -2371,6 +2417,17 @@ class FunctionLikeMacro(Macro):
 
     def copy(self):
         return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, self.returnty, **self.tags)
+
+    def deep_copy(self, manager):
+        return FunctionLikeMacro(
+            manager.next_atom(),
+            self.name,
+            [arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
+            self.bits,
+            self.delimiter,
+            self.returnty,
+            **self.tags,
+        )
 
     @property
     def verbose_op(self):
