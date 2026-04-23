@@ -8,10 +8,26 @@ import os
 import unittest
 
 import angr
+import networkx
+
+from angr.codenode import BlockNode
+from angr.knowledge_plugins.functions import Function
 
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
+
+
+class _MockFunctionManager:
+    def __init__(self):
+        self.callgraph = networkx.MultiDiGraph()
+        self._function_map = {}
+
+    def set_func_block_count(self, *_args, **_kwargs):
+        pass
+
+    def set_function_returning(self, *_args, **_kwargs):
+        pass
 
 
 class TestFunction(unittest.TestCase):
@@ -53,6 +69,29 @@ class TestFunction(unittest.TestCase):
         assert func_main.prototype == f.prototype
         assert func_main.calling_convention == f.calling_convention
         assert f.prototype is not None
+
+    def test_function_serialization_with_missing_block_bytes(self):
+        fm = _MockFunctionManager()
+        func = Function(
+            fm,
+            0x400000,
+            name="func",
+            syscall=False,
+            is_simprocedure=False,
+            is_plt=False,
+            binary_name="synthetic.bin",
+            returning=True,
+        )
+
+        block = BlockNode(0x400000, 4, bytestr=None)
+        func._register_node(True, block)
+
+        cmsg = func.serialize_to_cmessage()
+
+        assert len(cmsg.blocks) == 1
+        assert cmsg.blocks[0].ea == block.addr
+        assert cmsg.blocks[0].size == block.size
+        assert cmsg.blocks[0].bytes == b""
 
     def test_function_definition_application(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
