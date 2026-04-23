@@ -244,6 +244,37 @@ class TestSnapshotSync(TestCase):
         assert len(result4.successors) == 1
         assert result4[0].regs.x1.concrete_value == 0xDD
 
+    def test_snapshot_sync_code_modification(self):
+        """Code at the entry address can differ between states; each branch must
+        re-lift instead of replaying a stale JIT'd block from a sibling state."""
+        # aarch64 `movz x0, #imm16` (hw=0, Rd=x0), little-endian byte order:
+        #   movz x0, #1 -> 0xD2800020
+        #   movz x0, #2 -> 0xD2800040
+        code_a = b"\x20\x00\x80\xd2"
+        code_b = b"\x40\x00\x80\xd2"
+
+        project = angr.load_shellcode(code_a, "aarch64")
+        engine = IcicleEngine(project)
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        # First run: lifts code_a, takes the snapshot.
+        s1 = project.factory.blank_state(**state_opts)
+        assert engine.process(s1, num_inst=1)[0].regs.x0.concrete_value == 1
+
+        # Branch with code overwritten — the sync write to a previously-
+        # executed page must succeed AND drop the cached code_a block.
+        s2 = project.factory.blank_state(**state_opts)
+        s2.memory.store(project.entry, code_b)
+        assert engine.process(s2, num_inst=1)[0].regs.x0.concrete_value == 2
+
+        # Branch back to the snapshot's original code — the JIT block from
+        # the previous run must not survive the restore.
+        s3 = project.factory.blank_state(**state_opts)
+        assert engine.process(s3, num_inst=1)[0].regs.x0.concrete_value == 1
+
 
 class TestDirtyPageTracking(TestCase):
     """Unit tests for dirty page tracking optimization in the Icicle engine."""
@@ -764,7 +795,7 @@ class TestEdgeHitmap(TestCase):
         assert hitmap_1 == hitmap_2
 
     def test_edge_hitmap_multiple_blocks(self):
-        shellcode = "xor rax, rax; inc rax; cmp rax, 5; jne $-8; nop"
+        shellcode = "xor rax, rax; loop: inc rax; cmp rax, 5; jne loop; hlt"
         project = angr.load_shellcode(shellcode, "x86_64")
         engine = IcicleEngine(project)
         init_state = project.factory.blank_state(
@@ -936,3 +967,5 @@ class TestContinuation(TestCase):
         s2 = project.factory.blank_state(**state_opts)
         result2 = engine2.process(s2, num_inst=3)
         assert result2.successors[0].regs.x2.concrete_value == 3
+
+
