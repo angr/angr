@@ -5,6 +5,8 @@ from collections.abc import Callable
 from collections import defaultdict, OrderedDict, Counter
 import logging
 
+import archinfo
+
 from angr import ailment
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.expression import (
@@ -2772,6 +2774,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.VEXCCallExpression: self._handle_Expr_VEXCCallExpression,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
+            Expr.Extract: self._handle_Expr_Extract,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
@@ -3653,6 +3656,15 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
+        if isinstance(stmt.expr, FunctionLikeMacro):
+            macro = self._handle_FunctionLikeMacro(stmt.expr, is_expr=is_expr or stmt.ret_expr is not None)
+            if not is_expr and stmt.ret_expr is not None:
+                ret_expr = self._handle(stmt.ret_expr)
+                if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
+                    ret_expr = ret_expr.operand
+                return RustAssignment(ret_expr, macro, tags=stmt.tags, codegen=self)
+            return macro
+
         try:
             # Try to handle it as a normal function call
             target = self._handle(stmt.expr.target) if not isinstance(stmt.expr.target, str) else stmt.expr.target
@@ -3973,6 +3985,70 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
         return RustStringLiteral(expr.data, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Extract(self, expr: Expr.Extract, **kwargs):
+        base = self._handle(expr.base)
+        try:
+            base_type = base.type
+        except NotImplementedError:
+            base_type = None
+        base_type = base_type or RustSimTypeInt(size=expr.base.bits, signed=False).with_arch(self.project.arch)
+        base.set_type(base_type)
+
+        target_type = RustSimTypeInt(size=expr.bits, signed=False).with_arch(self.project.arch)
+        offset = (
+            expr.offset.value if isinstance(expr.offset, Expr.Const) and isinstance(expr.offset.value, int) else None
+        )
+
+        if offset is not None:
+            if expr.endness == archinfo.Endness.LE:
+                shift_bits = offset * self.project.arch.byte_width
+            else:
+                shift_bits = expr.base.bits - expr.bits - offset * self.project.arch.byte_width
+
+            shifted = base
+            if shift_bits:
+                shifted = RustBinaryOp(
+                    "Shr",
+                    base,
+                    RustConstant(
+                        shift_bits,
+                        self.default_simtype_from_size(self.project.arch.bytes, signed=False),
+                        codegen=self,
+                    ),
+                    tags=expr.tags,
+                    codegen=self,
+                )
+            return RustTypeCast(base_type, target_type, shifted, tags=expr.tags, codegen=self)
+
+        offset_expr = RustBinaryOp(
+            "Mul",
+            self._handle(expr.offset),
+            RustConstant(
+                self.project.arch.byte_width,
+                self.default_simtype_from_size(self.project.arch.bytes, signed=False),
+                codegen=self,
+            ),
+            tags=expr.tags,
+            codegen=self,
+        )
+        if expr.endness == archinfo.Endness.LE:
+            shift_expr = offset_expr
+        else:
+            shift_expr = RustBinaryOp(
+                "Sub",
+                RustConstant(
+                    expr.base.bits - expr.bits,
+                    self.default_simtype_from_size(self.project.arch.bytes, signed=False),
+                    codegen=self,
+                ),
+                offset_expr,
+                tags=expr.tags,
+                codegen=self,
+            )
+
+        shifted = RustBinaryOp("Shr", base, shift_expr, tags=expr.tags, codegen=self)
+        return RustTypeCast(base_type, target_type, shifted, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Struct(self, expr: Struct, **kwargs):
         return RustStruct(
