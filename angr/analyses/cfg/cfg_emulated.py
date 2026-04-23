@@ -1295,7 +1295,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
             # TODO: should save them all, which, unfortunately, requires some redesigning :-(
             cfg_node.input_state = sim_successors.initial_state
-        
+
         self._update_thumb_addrs(sim_successors, job.state)
 
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
