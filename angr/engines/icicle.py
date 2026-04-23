@@ -457,13 +457,30 @@ class IcicleEngine(SuccessorsEngine):
             plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
             if not isinstance(plugin, SimStateIcicle):
                 return
+            solver = state.solver
             addr = state.inspect.mem_write_address
+            if addr is None or solver.symbolic(addr):
+                return
+            addr = solver.eval(addr, cast_to=int)
+            # length is often None because `state.memory.store(addr, bvv)`
+            # is called without an explicit size — fall back to the value's
+            # bit width.
             length = state.inspect.mem_write_length
-            if isinstance(addr, int) and isinstance(length, int):
-                start_page = addr // page_size
-                end_page = (addr + length - 1) // page_size
-                for p in range(start_page, end_page + 1):
-                    plugin.dirty_pages.add(p)
+            if length is None:
+                expr = state.inspect.mem_write_expr
+                if expr is None:
+                    return
+                length = expr.size() // 8
+            elif solver.symbolic(length):
+                return
+            else:
+                length = solver.eval(length, cast_to=int)
+            if length <= 0:
+                return
+            start_page = addr // page_size
+            end_page = (addr + length - 1) // page_size
+            for p in range(start_page, end_page + 1):
+                plugin.dirty_pages.add(p)
 
         state.inspect.b("mem_write", when=BP_AFTER, action=_on_mem_write)
 
@@ -581,6 +598,9 @@ class IcicleEngine(SuccessorsEngine):
             translation_data = self.__sync_continuation(
                 self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
             )
+            # Reset the path tracer so `emu.recent_blocks` reflects only
+            # blocks executed during this run, not cumulative history.
+            self._cached_emu.clear_path_tracer()
             emu = self._cached_emu
         elif self._cached_emu is not None and self._snapshot_mode:
             # Fresh start: restore snapshot, sync only changed pages.
