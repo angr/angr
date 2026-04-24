@@ -49,7 +49,6 @@ from .sar_to_signed_div import SarToSignedDiv
 from .tidy_stack_addr import TidyStackAddr
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .rol_ror import RolRorRewriter
-from .inlined_memset import InlinedMemset
 from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .a_mul_const_sub_a import AMulConstSubA
@@ -107,7 +106,6 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     TidyStackAddr,
     InvertNegatedLogicalConjunctionsAndDisjunctions,
     RolRorRewriter,
-    InlinedMemset,
     CmpORDRewriter,
     CoalesceAdjacentShiftRights,
     ShlToMul,

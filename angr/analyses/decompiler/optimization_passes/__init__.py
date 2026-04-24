@@ -30,6 +30,7 @@ from .deadblock_remover import DeadblockRemover
 from .tag_slicer import TagSlicer
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
+from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
 from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
 from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
 from .const_prop_reverter import ConstPropOptReverter
@@ -77,10 +78,12 @@ ALL_OPTIMIZATION_PASSES = [
     CrossJumpReverter,
     FlipBooleanCmp,
     InlinedMemcpySimplifier,
+    InlinedMemsetSimplifier,
     InlinedStrcpySimplifier,
     InlinedWcscpySimplifier,
     InlinedStringTransformationSimplifier,
     InlinedMemcpySimplifierLate,
+    InlinedMemsetSimplifierLate,
     InlinedStrcpySimplifierLate,
     InlinedWcscpySimplifierLate,
     CallStatementRewriter,
@@ -154,6 +157,8 @@ __all__ = (
     "ITERegionConverter",
     "InlinedMemcpySimplifier",
     "InlinedMemcpySimplifierLate",
+    "InlinedMemsetSimplifier",
+    "InlinedMemsetSimplifierLate",
     "InlinedStrcpySimplifier",
     "InlinedStrcpySimplifierLate",
     "InlinedStringTransformationSimplifier",
