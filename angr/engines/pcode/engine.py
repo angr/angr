@@ -217,7 +217,7 @@ class HeavyPcodeMixin(
                 exit_state.scratch.target = claripy.BVV(
                     successors.addr + self.state.scratch.irsb.size, exit_state.arch.bits
                 )
-                exit_state.history.jumpkind = "Ijk_Ret"
+                exit_state.history.jumpkind = "Ijk_FakeRet"
                 exit_state.regs.ip = exit_state.scratch.target
                 if exit_state.arch.call_pushes_ret:
                     exit_state.regs.sp = exit_state.regs.sp + exit_state.arch.bytes
