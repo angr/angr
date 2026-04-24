@@ -1573,9 +1573,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 filtered_func_addrs_from_prologs = []
                 for fa in func_addrs_from_prologs:
                     closest_ptr = next(self._ptr_hints.irange(maximum=fa, reverse=True), None)
-                    if closest_ptr is None:
-                        continue
-                    if closest_ptr <= fa < closest_ptr + self._ptr_hints[closest_ptr]:
+                    if closest_ptr is not None and closest_ptr <= fa < closest_ptr + self._ptr_hints[closest_ptr]:
                         continue
                     filtered_func_addrs_from_prologs.append(fa)
                 func_addrs_from_prologs = filtered_func_addrs_from_prologs
