@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 import binascii
 import logging
-import tempfile
+from io import BytesIO
 import archinfo
 
 import cle
@@ -151,33 +151,29 @@ class LoaderSerializer:
 
         decoder = LoadArgsJSONDecoder()
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            for db_o in db_objects:
-                load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
+        for db_o in db_objects:
+            load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
 
-                if db_o.backend is not None:
-                    load_opts["backend"] = db_o.backend
+            if db_o.backend is not None:
+                load_opts["backend"] = db_o.backend
 
-                load_opts = {k: v for k, v in load_opts.items() if v is not None}
+            load_opts = {k: v for k, v in load_opts.items() if v is not None}
 
-                path = Path(db_o.path)
+            path = Path(db_o.path)
 
-                if not path.exists():
-                    # dump the content to a temporary file if the
-                    # original file does not exist anymore
-                    tmp_path = Path(tmpdir) / path.name
-                    with open(tmp_path, "wb") as f:
-                        f.write(db_o.content)
-                    path = tmp_path
+            # Use BytesIO instead of extracting to a temporary file.
+            # Ref: https://github.com/angr/angr/issues/6367
+            spec = BytesIO(db_o.content)
+            spec.name = path.name
 
-                if db_o.main_object:
-                    main_opts = load_opts
-                    main_path = str(path)
-                else:
-                    lib_opts[path.name] = load_opts
-                    lib_paths.append(str(path))
+            if db_o.main_object:
+                main_opts = load_opts
+                main_path = spec
+            else:
+                lib_opts[path.name] = load_opts
+                lib_paths.append(spec)
 
-            if main_path is None:
-                raise AngrCorruptDBError("Corrupt database: No main object.")
+        if main_path is None:
+            raise AngrCorruptDBError("Corrupt database: No main object.")
 
-            return cle.Loader(main_path, preload_libs=lib_paths, main_opts=main_opts, lib_opts=lib_opts)
+        return cle.Loader(main_path, preload_libs=lib_paths, main_opts=main_opts, lib_opts=lib_opts)
