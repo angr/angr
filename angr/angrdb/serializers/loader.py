@@ -143,6 +143,7 @@ class LoaderSerializer:
     @staticmethod
     def load(session):
         main_path = None
+        main_bin = None
         lib_paths = []
 
         db_objects: list[DbObject] = session.query(DbObject)
@@ -150,6 +151,7 @@ class LoaderSerializer:
         lib_opts = {}
 
         decoder = LoadArgsJSONDecoder()
+        name_to_path = {}
 
         for db_o in db_objects:
             load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
@@ -160,6 +162,7 @@ class LoaderSerializer:
             load_opts = {k: v for k, v in load_opts.items() if v is not None}
 
             path = Path(db_o.path)
+            name_to_path[path.name] = str(path)
 
             # Use BytesIO instead of extracting to a temporary file.
             # Ref: https://github.com/angr/angr/issues/6367
@@ -168,12 +171,21 @@ class LoaderSerializer:
 
             if db_o.main_object:
                 main_opts = load_opts
-                main_path = spec
+                main_bin = spec
+                main_path = str(path)
             else:
                 lib_opts[path.name] = load_opts
                 lib_paths.append(spec)
 
-        if main_path is None:
+        if main_bin is None:
             raise AngrCorruptDBError("Corrupt database: No main object.")
 
-        return cle.Loader(main_path, preload_libs=lib_paths, main_opts=main_opts, lib_opts=lib_opts)
+        loader = cle.Loader(main_bin, preload_libs=lib_paths, main_opts=main_opts, lib_opts=lib_opts)
+
+        loader._main_binary_path = main_path
+        # fix the binary name of each loaded object
+        for obj in loader.all_objects:
+            if obj.binary is None and obj.binary_basename is not None:
+                obj.binary = name_to_path.get(obj.binary_basename)
+
+        return loader
