@@ -2274,7 +2274,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.stage = "Analysis (Stage 2)"
 
         self._calculate_progress_and_notify(skip_percentage=True)
-        if self._drop_bad_funcs:
+        if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs:
             self.drop_bad_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
 
