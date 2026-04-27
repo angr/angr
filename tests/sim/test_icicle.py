@@ -274,6 +274,34 @@ class TestSnapshotSync(TestCase):
         s3 = project.factory.blank_state(**state_opts)
         assert engine.process(s3, num_inst=1)[0].regs.x0.concrete_value == 1
 
+    def test_snapshot_sync_new_readonly_page_content(self):
+        """A read-only page newly mapped between states must have its content
+        copied to the emu — not left as zeros."""
+        # ldr x1, [x0]
+        shellcode = "ldr x1, [x0]"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = IcicleEngine(project)
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        # First run: establishes snapshot with no extra mappings.
+        s1 = project.factory.blank_state(**state_opts)
+        s1.regs.x0 = 0x10000
+        s1.memory.map_region(0x10000, 0x1000, 0b111)
+        s1.memory.store(0x10000, 0xAA, size=8, endness="Iend_LE")
+        assert engine.process(s1, num_inst=1)[0].regs.x1.concrete_value == 0xAA
+
+        # Branch: the load target is on a newly-mapped read-only page. The
+        # delta-sync must seed its content; otherwise the load reads zero.
+        s2 = project.factory.blank_state(**state_opts)
+        s2.regs.x0 = 0x20000
+        s2.memory.map_region(0x10000, 0x1000, 0b111)
+        s2.memory.map_region(0x20000, 0x1000, 0b101)  # R + X, no W
+        s2.memory.store(0x20000, 0xBB, size=8, endness="Iend_LE")
+        assert engine.process(s2, num_inst=1)[0].regs.x1.concrete_value == 0xBB
+
 
 class TestDirtyPageTracking(TestCase):
     """Unit tests for dirty page tracking optimization in the Icicle engine."""

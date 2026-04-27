@@ -175,9 +175,7 @@ class IcicleEngine(SuccessorsEngine):
         return metadata
 
     @staticmethod
-    def __sync_registers(
-        emu: Icicle, state: HeavyConcreteState, register_names: Iterable[str]
-    ) -> set[str]:
+    def __sync_registers(emu: Icicle, state: HeavyConcreteState, register_names: Iterable[str]) -> set[str]:
         """Copy each named register from `state` into `emu`, plus the x86/AMD64 TLS
         segment base (which icicle exposes under a different name than angr).
         Returns the subset of `register_names` that succeeded — registers icicle
@@ -220,49 +218,17 @@ class IcicleEngine(SuccessorsEngine):
                 emu.edge_hitmap = hitmap_plugin.edge_hitmap
 
     @staticmethod
-    def __convert_angr_state_to_icicle(state: HeavyConcreteState) -> tuple[Icicle, IcicleStateTranslationData]:
+    def __build_emu_for(state: HeavyConcreteState) -> tuple[Icicle, IcicleStateTranslationData]:
+        """Construct a fresh `Icicle` VM and sync `state` onto it from scratch."""
         icicle_arch = IcicleEngine.__make_icicle_arch(state.arch)
         if icicle_arch is None:
             raise ValueError("Unsupported architecture")
-
         if state.project is None:
             raise ValueError("IcicleEngine requires a project to be set")
 
         emu = Icicle(icicle_arch, PROCESSORS_DIR, True, True)
-
-        register_names = (
-            r.vex_name.lower() if r.vex_name is not None else r.name for r in state.arch.register_list
-        )
-        copied_registers = IcicleEngine.__sync_registers(emu, state, register_names)
-
-        if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
-            emu.pc = state.addr & ~1
-            emu.isa_mode = 1
-        elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
-            emu.pc = state.addr
-
-        mapped_pages = IcicleEngine.__get_pages(state)
-        writable_pages = set()
-        for page_num in mapped_pages:
-            addr = page_num * state.memory.page_size
-            perm_bits = state.memory.permissions(addr).concrete_value
-            emu.mem_map(addr, state.memory.page_size, perm_bits)
-            IcicleEngine.__write_page(emu, state, page_num)
-            if perm_bits & 2:
-                writable_pages.add(page_num)
-
-        IcicleEngine.__sync_tls(emu, state)
-        IcicleEngine.__sync_edge_hitmap(emu, state)
-
-        return emu, IcicleStateTranslationData(
-            base_state=state,
-            registers=copied_registers,
-            mapped_pages=mapped_pages,
-            writable_pages=writable_pages,
-            explicit_page_metadata=IcicleEngine.__get_explicit_page_metadata(state),
-            initial_cpu_icount=emu.cpu_icount,
-            icicle_arch=icicle_arch,
-        )
+        translation_data = IcicleEngine.__sync_state_to_emu(emu, state, None, icicle_arch)
+        return emu, translation_data
 
     @staticmethod
     def __convert_icicle_state_to_angr(
@@ -338,38 +304,56 @@ class IcicleEngine(SuccessorsEngine):
         return state
 
     @staticmethod
-    def __sync_angr_state_to_icicle(
+    def __sync_state_to_emu(
         emu: Icicle,
         state: HeavyConcreteState,
-        base_translation_data: IcicleStateTranslationData,
+        base: IcicleStateTranslationData | None,
+        icicle_arch: str | None = None,
     ) -> IcicleStateTranslationData:
-        """
-        Sync only registers and writable pages from an angr state to an existing
-        Icicle VM. This is much faster than a full conversion since it skips VM
-        creation, memory mapping, and read-only page copies.
-        """
-        icicle_arch = base_translation_data.icicle_arch
+        """Sync `state` onto `emu` such that the VM matches the angr state.
 
-        IcicleEngine.__sync_registers(emu, state, base_translation_data.registers)
+        `base` represents the VM's prior translation state. Pass `None` to
+        treat the VM as freshly built (full init); pass a translation_data
+        to apply a delta against that baseline (e.g. after `restore_snapshot`).
+
+        `icicle_arch` is required when `base is None`; otherwise it's read
+        from `base`.
+        """
+        if base is None:
+            assert icicle_arch is not None
+            register_names: Iterable[str] = (
+                r.vex_name.lower() if r.vex_name is not None else r.name for r in state.arch.register_list
+            )
+        else:
+            icicle_arch = base.icicle_arch
+            register_names = base.registers
+
+        copied_registers = IcicleEngine.__sync_registers(emu, state, register_names)
 
         if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
             emu.pc = state.addr & ~1
             emu.isa_mode = 1
-        elif "arm" in icicle_arch:
+        elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
             emu.pc = state.addr
 
         # Sync mapping/permission deltas.
         page_size = state.memory.page_size
         explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
-        base_explicit_page_metadata = base_translation_data.explicit_page_metadata
-
-        candidate_pages = set(base_explicit_page_metadata).symmetric_difference(explicit_page_metadata)
-        for page_num in set(base_explicit_page_metadata).intersection(explicit_page_metadata):
-            if base_explicit_page_metadata[page_num] != explicit_page_metadata[page_num]:
-                candidate_pages.add(page_num)
-
-        mapped_pages = set(base_translation_data.mapped_pages)
-        writable_pages = set(base_translation_data.writable_pages)
+        if base is None:
+            # Empty baseline: every mapped page is "newly mapped".
+            candidate_pages = IcicleEngine.__get_pages(state)
+            mapped_pages: set[int] = set()
+            writable_pages: set[int] = set()
+            base_state_pages: dict[int, typing.Any] = {}
+        else:
+            base_explicit = base.explicit_page_metadata
+            candidate_pages = set(base_explicit).symmetric_difference(explicit_page_metadata)
+            for page_num in set(base_explicit).intersection(explicit_page_metadata):
+                if base_explicit[page_num] != explicit_page_metadata[page_num]:
+                    candidate_pages.add(page_num)
+            mapped_pages = set(base.mapped_pages)
+            writable_pages = set(base.writable_pages)
+            base_state_pages = base.base_state.memory._pages
 
         for page_num in candidate_pages:
             addr = page_num * page_size
@@ -391,8 +375,12 @@ class IcicleEngine(SuccessorsEngine):
             if not old_mapped and new_mapped:
                 emu.mem_map(addr, page_size, perm_bits)
                 mapped_pages.add(page_num)
-            elif old_mapped and new_mapped:
-                base_perm_bits = base_translation_data.base_state.memory.permissions(addr).concrete_value
+                if not perm_bits & 2:
+                    # R-only pages won't be visited by the writable-page loop
+                    # below, so this is the only place to seed their content.
+                    IcicleEngine.__write_page(emu, state, page_num)
+            elif old_mapped and new_mapped and base is not None:
+                base_perm_bits = base.base_state.memory.permissions(addr).concrete_value
                 if base_perm_bits != perm_bits:
                     emu.mem_protect(addr, page_size, perm_bits)
 
@@ -401,19 +389,21 @@ class IcicleEngine(SuccessorsEngine):
             else:
                 writable_pages.discard(page_num)
 
-        # Copy writable pages that differ from the snapshot (CoW identity check).
-        base_state_pages = base_translation_data.base_state.memory._pages
+        # Writable pages: copy those whose content differs from the baseline.
+        # For full init (base is None), `base_state_pages` is empty so the
+        # CoW check unconditionally writes every writable page.
         for page_num in writable_pages:
             if state.memory._pages.get(page_num) is base_state_pages.get(page_num):
                 continue
             IcicleEngine.__write_page(emu, state, page_num)
 
-        # restore_snapshot zeroes the hitmap, so we re-copy here.
+        # restore_snapshot zeroes the hitmap; full init starts with no
+        # hitmap. Either way we (re-)copy.
         IcicleEngine.__sync_edge_hitmap(emu, state)
 
         return IcicleStateTranslationData(
             base_state=state,
-            registers=base_translation_data.registers,
+            registers=copied_registers if base is None else base.registers,
             mapped_pages=mapped_pages,
             writable_pages=writable_pages,
             explicit_page_metadata=explicit_page_metadata,
@@ -567,11 +557,11 @@ class IcicleEngine(SuccessorsEngine):
             # Branched from an earlier run: restore and delta-sync.
             assert self._base_translation_data is not None
             self._cached_emu.restore_snapshot()
-            translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
+            translation_data = self.__sync_state_to_emu(self._cached_emu, state, self._base_translation_data)
             emu = self._cached_emu
         else:
             # First run: build the VM and snapshot it for future branches.
-            emu, translation_data = self.__convert_angr_state_to_icicle(state)
+            emu, translation_data = self.__build_emu_for(state)
             emu.save_snapshot()
             self._cached_emu = emu
             self._base_translation_data = translation_data
