@@ -883,7 +883,7 @@ class CFGModel(Serializable):
                     max_data_size = memory_data.max_size
                     if seg_list is not None:
                         next_occupied_addr = seg_list.next_pos_with_sort_not_in(data_addr, set())
-                        if next_occupied_addr is not None:
+                        if next_occupied_addr is not None and next_occupied_addr > data_addr:
                             max_data_size = min(next_occupied_addr - data_addr, max_data_size)
                     memory_data.size = max_data_size
 
