@@ -98,7 +98,7 @@ class CFGModel(Serializable):
         self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = edge_db_batch_size
         self.graph = None  # type:ignore
-        self.addr_type = addr_type
+        self._addr_type: CFG_ADDR_TYPES = addr_type
 
         # Necessary settings
         self._iropt_level = None
@@ -856,7 +856,7 @@ class CFGModel(Serializable):
                             if ptr_content_holder:
                                 new_md.content = ptr_content_holder[0]
                             self.memory_data[ptr] = new_md
-                            if ptr_data_sort is not None and ptr_data_size > 0:
+                            if ptr_data_sort is not None and ptr_data_size > 0 and seg_list is not None:
                                 seg_list.occupy(ptr, ptr_data_size, ptr_data_sort)
                             if new_mem_data_addrs is not None:
                                 new_mem_data_addrs.add(ptr)
@@ -899,6 +899,7 @@ class CFGModel(Serializable):
 
         next_free_pos = seg_list.next_free_pos(new_addr)
 
+        assert memory_data.max_size is not None
         max_size = memory_data.max_size - memory_data.size
 
         # find the immediate next memory data entry to see if max_size needs to be reduced
@@ -1176,6 +1177,7 @@ class CFGModel(Serializable):
             if self.project is None:
                 raise AngrCFGError("Please provide knowledge base")
             kb = self.project.kb
+            assert kb is not None
 
         functions = set()
         for func_addr in {n.function_address for n in self.get_all_nodes_intersecting_region(addr, size)}:
