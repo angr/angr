@@ -13,7 +13,7 @@ use icicle_fuzzing::coverage::register_afl_hit_counts_all;
 use icicle_vm::{
     cpu::{
         Cpu, ValueSource,
-        mem::{Mapping, Mmu, ReadAfterHook, perm},
+        mem::{Mapping, Mmu, perm},
     },
     injector::{PathTracerRef, add_path_tracer},
 };
@@ -236,7 +236,6 @@ struct Icicle {
     edge_count_hitmap: Option<Hitmap>,
     snapshot: Option<icicle_vm::Snapshot>,
     mem_read_hook_id: Option<u32>,
-    mem_read_after_hook_id: Option<u32>,
     mem_write_hook_id: Option<u32>,
 }
 
@@ -305,7 +304,6 @@ impl Icicle {
             edge_count_hitmap,
             snapshot: None,
             mem_read_hook_id: None,
-            mem_read_after_hook_id: None,
             mem_write_hook_id: None,
         })
     }
@@ -641,20 +639,6 @@ impl Icicle {
         Ok(())
     }
 
-    pub fn set_mem_read_after_hook(&mut self, callback: Option<Py<PyAny>>) -> PyResult<()> {
-        if let Some(id) = self.mem_read_after_hook_id.take() {
-            self.vm.cpu.mem.remove_read_after_hook(id);
-        }
-        if let Some(callback) = callback {
-            let hook = PyReadAfterHook {
-                callback: SendWrapper::new(callback),
-            };
-            self.mem_read_after_hook_id =
-                self.vm.cpu.mem.add_read_after_hook(0, u64::MAX, Box::new(hook));
-        }
-        Ok(())
-    }
-
     pub fn set_mem_write_hook(&mut self, callback: Option<Py<PyAny>>) -> PyResult<()> {
         if let Some(id) = self.mem_write_hook_id.take() {
             self.vm.cpu.mem.remove_write_hook(id);
@@ -664,14 +648,40 @@ impl Icicle {
             self.mem_write_hook_id = self.vm.cpu.mem.add_write_hook(
                 0,
                 MEM_HOOK_MAX_ADDR,
-                Box::new(move |_mem: &mut Mmu, addr: u64, value: &[u8]| {
-                    Python::attach(|py| {
-                        let bytes = PyBytes::new(py, value);
-                        let result: PyResult<Py<PyAny>> = cb.call1(py, (addr, bytes));
-                        if let Err(err) = result {
-                            err.print(py);
+                Box::new(move |mem: &mut Mmu, addr: u64, value: &[u8]| {
+                    // The callback may return None (observation only) or
+                    // a `bytes` of the same length to overwrite icicle's
+                    // memory at `addr` with — used by the engine to
+                    // propagate ``mem_write_expr`` modifications without
+                    // re-entering the Icicle wrapper while it's borrowed.
+                    let override_bytes: Option<Vec<u8>> =
+                        Python::attach(|py| match cb.call1(py, (addr, PyBytes::new(py, value))) {
+                            Ok(obj) => {
+                                if obj.is_none(py) {
+                                    None
+                                } else {
+                                    match obj.extract::<Vec<u8>>(py) {
+                                        Ok(v) => Some(v),
+                                        Err(err) => {
+                                            err.print(py);
+                                            None
+                                        }
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                err.print(py);
+                                None
+                            }
+                        });
+                    if let Some(new_bytes) = override_bytes {
+                        if new_bytes.len() == value.len() {
+                            // The active_hooks macro has taken the write
+                            // hooks list out for the duration of this
+                            // callback, so this write won't recurse.
+                            let _ = mem.write_bytes(addr, &new_bytes, perm::NONE);
                         }
-                    });
+                    }
                 }),
             );
         }
@@ -682,22 +692,6 @@ impl Icicle {
 /// Upper bound for global memory hook ranges. See the note above
 /// `set_mem_read_hook` for why we don't use `u64::MAX` here.
 const MEM_HOOK_MAX_ADDR: u64 = u64::MAX - (1 << 24);
-
-struct PyReadAfterHook {
-    callback: SendWrapper<Py<PyAny>>,
-}
-
-impl ReadAfterHook for PyReadAfterHook {
-    fn read(&mut self, _mem: &mut Mmu, addr: u64, value: &[u8]) {
-        Python::attach(|py| {
-            let bytes = PyBytes::new(py, value);
-            let result: PyResult<Py<PyAny>> = self.callback.call1(py, (addr, bytes));
-            if let Err(err) = result {
-                err.print(py);
-            }
-        });
-    }
-}
 
 fn get_reg_varnode(vm: &icicle_vm::Vm, name: &str) -> PyResult<pcode::VarNode> {
     // Try original name first, then uppercase for case-insensitive matching

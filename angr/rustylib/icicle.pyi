@@ -228,16 +228,15 @@ class Icicle:
         Pass ``None`` to clear the hook. Only one hook may be active at a time.
         """
 
-    def set_mem_read_after_hook(self, callback: typing.Callable[[int, bytes], None] | None) -> None:
-        """Install a callback fired after every memory read.
-
-        The callback is invoked with ``(addr, value_bytes)``. Pass ``None``
-        to clear the hook.
-        """
-
-    def set_mem_write_hook(self, callback: typing.Callable[[int, bytes], None] | None) -> None:
+    def set_mem_write_hook(self, callback: typing.Callable[[int, bytes], bytes | None] | None) -> None:
         """Install a callback fired on every memory write.
 
-        The callback is invoked with ``(addr, value_bytes)`` after the write
-        completes. Pass ``None`` to clear the hook.
+        The callback is invoked with ``(addr, value_bytes)`` after icicle
+        commits the write. It may return:
+        - ``None`` — observation only.
+        - ``bytes`` of the same length — overwrite ``addr`` with these bytes.
+          (Used to apply ``mem_write_expr`` modifications without re-entering
+          the Icicle wrapper.)
+
+        Pass ``None`` to clear the hook.
         """
