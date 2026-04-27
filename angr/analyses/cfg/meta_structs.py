@@ -4,6 +4,7 @@ import logging
 
 import cle
 from cle.backends import PE
+from cle.backends.pe.relocation.generic import IMAGE_REL_BASED_ABSOLUTE
 from cle.structs import DataDirectory, MemRegion, MemRegionSort
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -93,6 +94,8 @@ def get_pointer_array_hints_pe(pe: PE) -> list[tuple[int, int]]:
     mapped_base = pe.mapped_base
 
     for reloc in pe.relocs:
+        if type(reloc) is IMAGE_REL_BASED_ABSOLUTE:
+            continue
         ptr_array_hints.append((mapped_base + reloc.relative_addr, ptr_size))
 
     # merge them
