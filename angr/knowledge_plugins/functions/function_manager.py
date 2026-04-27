@@ -1270,18 +1270,24 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         return None
 
     def function(
-        self, addr=None, name=None, check_previous_names=False, create=False, syscall=False, plt=None
+        self,
+        addr: K | None = None,
+        name: str | None = None,
+        check_previous_names: bool = False,
+        create: bool = False,
+        syscall: bool = False,
+        plt: bool | None = None,
     ) -> Function | None:
         """
         Get a function object from the function manager.
 
         Pass either `addr` or `name` with the appropriate values.
 
-        :param int addr: Address of the function.
-        :param str name: Name of the function.
-        :param bool create: Whether to create the function or not if the function does not exist.
-        :param bool syscall: True to create the function as a syscall, False otherwise.
-        :param bool or None plt: True to find the PLT stub, False to find a non-PLT stub, None to disable this
+        :param addr: Address of the function.
+        :param name: Name of the function.
+        :param create: Whether to create the function or not if the function does not exist.
+        :param syscall: True to create the function as a syscall, False otherwise.
+        :param plt: True to find the PLT stub, False to find a non-PLT stub, None to disable this
                                  restriction.
         :return: The Function instance, or None if the function is not found and create is False.
         :rtype: Function or None
@@ -1421,7 +1427,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
     # Key functions
     #
 
-    def get_key_func_addrs(self, func_type: str) -> set[int]:
+    def get_key_func_addrs(self, func_type: str) -> set[K]:
         return self._key_func_addrs.get(func_type, set())
 
     def add_key_func_addr(self, func_type: str, addr: K) -> None:
