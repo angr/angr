@@ -463,103 +463,73 @@ class IcicleEngine(SuccessorsEngine):
 
     @staticmethod
     def _install_inspect_mem_hooks(emu: Icicle, state: HeavyConcreteState) -> bool:
-        """Wire icicle's MMU read/write hooks to fire SimInspect ``mem_read`` /
-        ``mem_write`` breakpoints during ``emu.run()``.
-
-        Returns True if any hooks were installed. The caller must call
-        ``_clear_inspect_mem_hooks`` after the run.
+        """Wire icicle's MMU read/write hooks to route through ``state.memory``,
+        which fires ``mem_read`` / ``mem_write`` SimInspect breakpoints
+        naturally as a side effect. Returns True if any hooks were installed.
+        The caller must call ``_clear_inspect_mem_hooks`` after the run.
 
         Notes:
-        - mem_read BP_BEFORE fires from icicle's read hook (no value yet).
-          Setting ``mem_read_expr`` to a concrete BV in BP_BEFORE overrides
-          the read result, mirroring the VEX engine's clouseau_mixin
-          behavior. Override sizes >8 bytes are not supported by icicle
-          and are silently ignored.
-        - mem_read BP_AFTER fires from icicle's read-after hook with the
-          value. Modifications to ``mem_read_expr`` here are observation-only.
-        - mem_write fires BP_BEFORE then BP_AFTER from icicle's write hook —
-          icicle has no separate before-write hook, but the value is the same
-          before and after, so observers see the right data.
-        - mem_write callbacks are observation-only: writes have already
-          committed when the hook fires. To alter a write, modify state
-          memory yourself (e.g. ``state.memory.store``) — but that path
-          syncs to icicle only at the next engine call.
+        - mem_read: ``state.memory.load`` is called from icicle's read hook,
+          so BP_BEFORE, BP_AFTER, address-concretization, and any other
+          memory-mixin behavior fire just like in the VEX engine. The final
+          value (after any user override of ``mem_read_expr``) is fed back
+          to icicle as the read result. icicle's ``ReadHook`` returns a
+          ``u64``, so size > 8 reads can't be overridden — those fall back
+          to icicle's actual memory but the BP still fires.
+        - mem_write: ``state.memory.store`` is called from icicle's write
+          hook, mirroring the write into angr's memory model and firing
+          mem_write BPs. icicle has already committed the write when the
+          hook fires, so changes to ``mem_write_expr`` only take effect in
+          ``state.memory`` — icicle keeps the original value. This means
+          subsequent reads (which we route through ``state.memory.load``)
+          will see the modified value, but icicle's internal memory will
+          not match it.
+        - We mirror icicle writes into ``state.memory`` whenever any user
+          mem_read or mem_write BP is active, so the read path's
+          ``state.memory.load`` always sees the most recent value.
         """
-        any_installed = False
+        has_read_bps = bool(IcicleEngine._user_inspect_bps(state, "mem_read"))
+        has_write_bps = bool(IcicleEngine._user_inspect_bps(state, "mem_write"))
+        if not (has_read_bps or has_write_bps):
+            return False
+
         bits = state.arch.bits
         endness = state.arch.memory_endness
         byteorder: typing.Literal["little", "big"] = "little" if endness == Endness.LE else "big"
 
-        def _bytes_to_bvv(value: bytes) -> claripy.ast.BV:
-            return claripy.BVV(int.from_bytes(value, byteorder), len(value) * 8)
-
-        if IcicleEngine._user_inspect_bps(state, "mem_read"):
+        if has_read_bps:
 
             def _on_read(addr: int, size: int) -> int | None:
-                state._inspect(
-                    "mem_read",
-                    BP_BEFORE,
-                    mem_read_address=claripy.BVV(addr, bits),
-                    mem_read_length=size,
-                    mem_read_condition=None,
-                    mem_read_endness=endness,
-                    mem_read_expr=None,
-                )
-                # If the callback set mem_read_expr, override the read.
-                # icicle's ReadHook returns u64 and serializes via
-                # to_le_bytes()[..size]; convert the user's BV (which is in
-                # the architecture's memory_endness) to a u64 whose
-                # little-endian byte sequence yields the desired in-memory
-                # bytes.
-                expr = state._inspect_getattr("mem_read_expr", None)
-                if expr is None or size > 8:
+                addr_bv = claripy.BVV(addr, bits)
+                # state.memory.load fires BP_BEFORE/BP_AFTER and honors any
+                # mem_read_expr modifications.
+                val_bv = state.memory.load(addr_bv, size, endness=endness)
+                if size > 8:
+                    # icicle's ReadHook can only return u64; let icicle
+                    # service the read from its own (in-sync) memory.
                     return None
-                value = state.solver.eval(expr, cast_to=int)
+                value = state.solver.eval(val_bv, cast_to=int)
+                # state.memory.load returned the value in the arch's
+                # memory_endness; icicle's ReadHook serializes the returned
+                # u64 via to_le_bytes()[..size]. Repack the value's bytes in
+                # the arch's endianness, then read them as little-endian to
+                # produce the u64 that yields the right in-memory bytes.
                 in_memory = value.to_bytes(size, byteorder)
                 return int.from_bytes(in_memory, "little")
 
-            def _on_read_after(addr: int, value: bytes) -> None:
-                state._inspect(
-                    "mem_read",
-                    BP_AFTER,
-                    mem_read_address=claripy.BVV(addr, bits),
-                    mem_read_length=len(value),
-                    mem_read_condition=None,
-                    mem_read_endness=endness,
-                    mem_read_expr=_bytes_to_bvv(value),
-                )
-
             emu.set_mem_read_hook(_on_read)
-            emu.set_mem_read_after_hook(_on_read_after)
-            any_installed = True
 
-        if IcicleEngine._user_inspect_bps(state, "mem_write"):
+        # Write hook: mirror icicle's write into state.memory. This both fires
+        # mem_write BPs and keeps state.memory in sync with icicle so the
+        # read hook above sees the right values. Always installed when any
+        # BP is active, even if only mem_read BPs are registered.
+        def _on_write(addr: int, value: bytes) -> None:
+            addr_bv = claripy.BVV(addr, bits)
+            val_bv = claripy.BVV(int.from_bytes(value, byteorder), len(value) * 8)
+            state.memory.store(addr_bv, val_bv, size=len(value), endness=endness)
 
-            def _on_write(addr: int, value: bytes) -> None:
-                expr = _bytes_to_bvv(value)
-                state._inspect(
-                    "mem_write",
-                    BP_BEFORE,
-                    mem_write_address=claripy.BVV(addr, bits),
-                    mem_write_length=len(value),
-                    mem_write_condition=None,
-                    mem_write_endness=endness,
-                    mem_write_expr=expr,
-                )
-                state._inspect(
-                    "mem_write",
-                    BP_AFTER,
-                    mem_write_address=claripy.BVV(addr, bits),
-                    mem_write_length=len(value),
-                    mem_write_condition=None,
-                    mem_write_endness=endness,
-                    mem_write_expr=expr,
-                )
-
-            emu.set_mem_write_hook(_on_write)
-            any_installed = True
-
-        return any_installed
+        emu.set_mem_write_hook(_on_write)
+        return True
 
     @staticmethod
     def _clear_inspect_mem_hooks(emu: Icicle) -> None:

@@ -128,6 +128,22 @@ class TestIcicleInspect(TestCase):
         # x2 = ldr [x0]; the override replaces the actual stored 0x42 with 0xDEADBEEF.
         assert successors[0].regs.x2.concrete_value == 0xDEADBEEF
 
+    def test_mem_read_override_from_bp_after(self):
+        """state.memory.load delegation lets BP_AFTER mutations of mem_read_expr take effect."""
+        engine, state = self._build()
+
+        def _on_read_after(state):
+            addr = state.solver.eval(state.inspect.mem_read_address, cast_to=int)
+            length = state.inspect.mem_read_length
+            if addr == 0x10000 and length == 8:
+                state.inspect.mem_read_expr = claripy.BVV(0xCAFEBABE, 64)
+
+        state.inspect.b("mem_read", when=angr.BP_AFTER, action=_on_read_after)
+        successors = engine.process(state, num_inst=4)
+        assert len(successors.successors) == 1
+        # x2 sees the BP_AFTER-modified value, not the actual stored 0x42.
+        assert successors[0].regs.x2.concrete_value == 0xCAFEBABE
+
     def test_mem_read_override_per_access(self):
         """Each read fires the hook (TLB stays uncached); overrides apply per-access."""
         # ldp lifts to two 8-byte reads in icicle; both must hit the hook.
