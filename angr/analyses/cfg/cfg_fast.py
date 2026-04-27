@@ -878,6 +878,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._remaining_eh_frame_addrs: list[int] | None = None
         self._remaining_function_prologue_addrs: list[int] | None = None
+        self._ptr_hints: SortedDict | None = None
         self._processed_eh_prolog3_callsites: set[int] = set()
         self._processed_cxx_frame_handler3_callsites: set[int] = set()
 
@@ -1786,7 +1787,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 func = self.kb.functions.get_by_addr(func_addr)
                 try:
                     block = func.get_block(func.addr)
-                except Exception:
+                except (SimMemoryError, SimTranslationError, SimEngineError):
                     block = None
                 if block is not None:
                     b = block.bytes
@@ -1843,7 +1844,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if not (9 <= len(func.block_addrs_set) < 12):
                 return
 
-            from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=wrong-import-position
+            from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=import-outside-toplevel
 
             clinic = self.project.analyses.Clinic(func, mode=ClinicMode.COLLECT_DATA_REFS)
             for irsb_addr, refs in clinic.data_refs.items():
@@ -1886,7 +1887,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 try:
                     block = self.project.factory.block(pred.addr, size=pred.size)
                     irsb = block.vex
-                except Exception:
+                except (SimMemoryError, SimTranslationError, SimEngineError):
                     continue
 
                 # Walk statements in reverse to find the last Put to eax
@@ -1946,7 +1947,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 try:
                     block = self.project.factory.block(pred.addr, size=pred.size)
                     irsb = block.vex
-                except Exception:
+                except (SimMemoryError, SimTranslationError, SimEngineError):
                     continue
 
                 # Walk statements in reverse to find the last Put to eax
@@ -2067,7 +2068,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # The scope table is the operand of the second push (i.e. the one just before the call).
                 try:
                     block = self.project.factory.block(pred.addr, size=pred.size)
-                except Exception:
+                except (SimMemoryError, SimTranslationError, SimEngineError):
                     continue
 
                 insns = list(block.capstone.insns)
@@ -5125,6 +5126,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 section = obj.find_section_containing(addr)
                 # If section is None, is there a segment?
                 segment = None
+                has_executable_segment = None
                 if section is None:
                     has_executable_segment = self._object_has_executable_segments(obj)
                     segment = obj.find_segment_containing(addr)

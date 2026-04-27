@@ -124,7 +124,7 @@ def get_pointer_array_hints_pe(pe: PE) -> list[tuple[int, int]]:
                     merged_array_hints[i] = ptr_addr + 4, ptr_size - 4
                     continue
                 if prefix[1:] in {b"\xff\x15", b"\xff\x25"}:
-                    # call dword ptr[addr]
+                    # call dword ptr [addr]
                     # jmp dword ptr [addr]
                     merged_array_hints[i] = ptr_addr + 4, ptr_size - 4
                     continue

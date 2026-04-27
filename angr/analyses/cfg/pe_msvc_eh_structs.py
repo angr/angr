@@ -14,10 +14,7 @@ from __future__ import annotations
 
 import logging
 import struct
-from collections import OrderedDict
 from typing import TYPE_CHECKING
-
-from angr.sim_type import SimStruct, SimTypeInt
 
 if TYPE_CHECKING:
     pass
@@ -73,61 +70,11 @@ SEH_PROLOG4_GS_DISCRIM = b"\x89"  # mov [ebp-0x1c], eax
 
 FUNCINFO_MAGIC = 0x19930522
 
-FUNCINFO_STRUCT = SimStruct(
-    fields=OrderedDict(
-        [
-            ("magicNumber", SimTypeInt(signed=False)),
-            ("maxState", SimTypeInt(signed=False)),
-            ("pUnwindMap", SimTypeInt(signed=False)),
-            ("nTryBlocks", SimTypeInt(signed=False)),
-            ("pTryBlockMap", SimTypeInt(signed=False)),
-            ("nIPMapEntries", SimTypeInt(signed=False)),
-            ("pIPtoStateMap", SimTypeInt(signed=False)),
-        ]
-    ),
-    name="FuncInfo",
-)
-
 FUNCINFO_SIZE = 36  # 9 * 4 bytes
-
-UNWINDMAPENTRY_STRUCT = SimStruct(
-    fields=OrderedDict(
-        [
-            ("toState", SimTypeInt(signed=True)),
-            ("action", SimTypeInt(signed=False)),
-        ]
-    ),
-    name="UnwindMapEntry",
-)
 
 UNWINDMAPENTRY_SIZE = 8  # 2 * 4 bytes
 
-TRYBLOCKMAPENTRY_STRUCT = SimStruct(
-    fields=OrderedDict(
-        [
-            ("tryLow", SimTypeInt(signed=True)),
-            ("tryHigh", SimTypeInt(signed=True)),
-            ("catchHigh", SimTypeInt(signed=True)),
-            ("nCatches", SimTypeInt(signed=False)),
-            ("pHandlerArray", SimTypeInt(signed=False)),
-        ]
-    ),
-    name="TryBlockMapEntry",
-)
-
 TRYBLOCKMAPENTRY_SIZE = 20  # 5 * 4 bytes
-
-HANDLERTYPE_STRUCT = SimStruct(
-    fields=OrderedDict(
-        [
-            ("adjectives", SimTypeInt(signed=False)),
-            ("pType", SimTypeInt(signed=False)),
-            ("dispCatchObj", SimTypeInt(signed=True)),
-            ("addressOfHandler", SimTypeInt(signed=False)),
-        ]
-    ),
-    name="HandlerType",
-)
 
 HANDLERTYPE_SIZE = 16  # 4 * 4 bytes
 
@@ -204,7 +151,7 @@ def parse_funcinfo(memory, addr: int) -> FuncInfo | None:
     """
     try:
         data = memory.load(addr, FUNCINFO_SIZE)
-    except Exception:
+    except KeyError:
         log.debug("Failed to read FuncInfo at %#x", addr)
         return None
 
@@ -233,30 +180,7 @@ def parse_funcinfo(memory, addr: int) -> FuncInfo | None:
     )
 
 
-EH4_SCOPETABLE_HEADER_STRUCT = SimStruct(
-    fields=OrderedDict(
-        [
-            ("GSCookieOffset", SimTypeInt(signed=True)),
-            ("GSCookieXOROffset", SimTypeInt(signed=True)),
-            ("EHCookieOffset", SimTypeInt(signed=True)),
-            ("EHCookieXOROffset", SimTypeInt(signed=True)),
-        ]
-    ),
-    name="_EH4_SCOPETABLE",
-)
-
 EH4_SCOPETABLE_HEADER_SIZE = 16  # 4 * 4 bytes
-
-EH4_SCOPETABLE_RECORD_STRUCT = SimStruct(
-    fields=OrderedDict(
-        [
-            ("EnclosingLevel", SimTypeInt(signed=True)),
-            ("FilterFunc", SimTypeInt(signed=False)),
-            ("HandlerFunc", SimTypeInt(signed=False)),
-        ]
-    ),
-    name="_EH4_SCOPETABLE_RECORD",
-)
 
 EH4_SCOPETABLE_RECORD_SIZE = 12  # 3 * 4 bytes
 
@@ -331,7 +255,7 @@ def parse_eh4_scopetable(
     """
     try:
         header = memory.load(addr, EH4_SCOPETABLE_HEADER_SIZE)
-    except Exception:
+    except KeyError:
         log.debug("Failed to read _EH4_SCOPETABLE header at %#x", addr)
         return None
 
@@ -350,7 +274,7 @@ def parse_eh4_scopetable(
     for i in range(64):  # reasonable upper bound
         try:
             data = memory.load(rec_base + i * EH4_SCOPETABLE_RECORD_SIZE, EH4_SCOPETABLE_RECORD_SIZE)
-        except Exception:
+        except KeyError:
             break
         if len(data) < EH4_SCOPETABLE_RECORD_SIZE:
             break
@@ -358,7 +282,7 @@ def parse_eh4_scopetable(
         enclosing, filter_func, handler_func = struct.unpack("<iII", data)
 
         # Validate EnclosingLevel: must be -2 (top-level) or a valid prior index
-        if enclosing != -2 and not (0 <= enclosing < i):
+        if enclosing != -2 and not 0 <= enclosing < i:
             break
         # HandlerFunc must point to executable code
         if handler_func == 0 or not _is_code_ptr(handler_func):
@@ -396,7 +320,7 @@ def parse_unwind_map(memory, addr: int, count: int) -> list[UnwindMapEntry]:
         entry_addr = addr + i * UNWINDMAPENTRY_SIZE
         try:
             data = memory.load(entry_addr, UNWINDMAPENTRY_SIZE)
-        except Exception:
+        except KeyError:
             log.debug("Failed to read UnwindMapEntry at %#x", entry_addr)
             break
 
@@ -480,7 +404,7 @@ def parse_handler_array(memory, addr: int, count: int) -> list[HandlerType]:
         h_addr = addr + i * HANDLERTYPE_SIZE
         try:
             data = memory.load(h_addr, HANDLERTYPE_SIZE)
-        except Exception:
+        except KeyError:
             log.debug("Failed to read HandlerType at %#x", h_addr)
             break
         if len(data) < HANDLERTYPE_SIZE:
@@ -514,7 +438,7 @@ def parse_try_block_map(memory, addr: int, count: int) -> list[TryBlockMapEntry]
         entry_addr = addr + i * TRYBLOCKMAPENTRY_SIZE
         try:
             data = memory.load(entry_addr, TRYBLOCKMAPENTRY_SIZE)
-        except Exception:
+        except KeyError:
             log.debug("Failed to read TryBlockMapEntry at %#x", entry_addr)
             break
         if len(data) < TRYBLOCKMAPENTRY_SIZE:

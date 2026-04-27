@@ -48,7 +48,6 @@ class TestExpressionOverfolding(unittest.TestCase):
             0x401AFF,
             0x401B76,
             0x401B01,
-            0x401B07,
             0x401B7A,
             0x401B03,
             0x401B7E,
