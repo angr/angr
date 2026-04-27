@@ -3768,8 +3768,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         remaining_ptr_hints: list[tuple[int, int]] = []  # the pointers that may appear in the middle of an instruction
         for addr, size in ptr_array_hints:
             if not self._seg_list.is_occupied(addr):
-                if size > ptr_size * 2:
-                    # `mov [off_0], off_1` involves two consecutive pointers in x86!
+                if size > ptr_size:
+                    # `mov [off_0], off_1` involves two consecutive pointers in x86, but we have filtered them out
                     self._seg_list.occupy(addr, size, "pointer-array")
                     self.model.memory_data[addr] = MemoryData(addr, size, MemoryDataSort.PointerArray)
                     self.record_memory_data_addr(addr)
