@@ -1,5 +1,7 @@
 # stub file for angr.rustylib.icicle
 
+import typing
+
 from typing_extensions import override
 
 class VmExit:
@@ -212,4 +214,30 @@ class Icicle:
 
         :arg page_addresses: Page-aligned virtual addresses whose per-page
             modified flags should be cleared.
+        """
+
+    def set_mem_read_hook(self, callback: typing.Callable[[int, int], int | None] | None) -> None:
+        """Install a callback fired before every memory read.
+
+        The callback is invoked with ``(addr, size)`` and may return:
+        - ``None`` — let the read proceed normally.
+        - ``int`` — short-circuit the read; the value's low ``size`` bytes
+          (little-endian) become the read result. Only valid for
+          ``size <= 8``; larger sizes cannot be overridden.
+
+        Pass ``None`` to clear the hook. Only one hook may be active at a time.
+        """
+
+    def set_mem_read_after_hook(self, callback: typing.Callable[[int, bytes], None] | None) -> None:
+        """Install a callback fired after every memory read.
+
+        The callback is invoked with ``(addr, value_bytes)``. Pass ``None``
+        to clear the hook.
+        """
+
+    def set_mem_write_hook(self, callback: typing.Callable[[int, bytes], None] | None) -> None:
+        """Install a callback fired on every memory write.
+
+        The callback is invoked with ``(addr, value_bytes)`` after the write
+        completes. Pass ``None`` to clear the hook.
         """

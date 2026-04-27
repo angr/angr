@@ -13,7 +13,7 @@ use icicle_fuzzing::coverage::register_afl_hit_counts_all;
 use icicle_vm::{
     cpu::{
         Cpu, ValueSource,
-        mem::{Mapping, perm},
+        mem::{Mapping, Mmu, ReadAfterHook, perm},
     },
     injector::{PathTracerRef, add_path_tracer},
 };
@@ -21,6 +21,7 @@ use icicle_vm::{
 use pyo3::{
     exceptions::{PyKeyError, PyRuntimeError},
     prelude::*,
+    types::PyBytes,
 };
 use send_wrapper::SendWrapper;
 use target_lexicon::Architecture;
@@ -234,6 +235,9 @@ struct Icicle {
     path_tracer: Option<PathTracerRef>,
     edge_count_hitmap: Option<Hitmap>,
     snapshot: Option<icicle_vm::Snapshot>,
+    mem_read_hook_id: Option<u32>,
+    mem_read_after_hook_id: Option<u32>,
+    mem_write_hook_id: Option<u32>,
 }
 
 #[pymethods]
@@ -300,6 +304,9 @@ impl Icicle {
             path_tracer,
             edge_count_hitmap,
             snapshot: None,
+            mem_read_hook_id: None,
+            mem_read_after_hook_id: None,
+            mem_write_hook_id: None,
         })
     }
 
@@ -580,6 +587,115 @@ impl Icicle {
             }
         }
         self.vm.cpu.mem.clear_page_modification_log();
+    }
+
+    // SimInspect mem_read / mem_write hooks
+    //
+    // Each setter installs a single MMU-wide hook that invokes a Python
+    // callable on every memory access. Pass `None` to remove the hook.
+    //
+    // For pages overlapped by an active hook, icicle's MMU disables TLB
+    // caching so every access takes the slow path that fires the hook.
+    // The cache-disable check (`HookEntry::range`) computes
+    // `end + page_size`, which overflows if we use `u64::MAX` as the
+    // upper bound — making the check return false and silently re-enabling
+    // TLB caching. We leave a few MiB of headroom at the top of the
+    // address space so the addition never overflows. No real workload
+    // accesses addresses that high.
+
+    pub fn set_mem_read_hook(&mut self, callback: Option<Py<PyAny>>) -> PyResult<()> {
+        if let Some(id) = self.mem_read_hook_id.take() {
+            self.vm.cpu.mem.remove_read_hook(id);
+        }
+        if let Some(callback) = callback {
+            let cb = SendWrapper::new(callback);
+            self.mem_read_hook_id = self.vm.cpu.mem.add_read_hook(
+                0,
+                MEM_HOOK_MAX_ADDR,
+                Box::new(move |_mem: &mut Mmu, addr: u64, size: u8| -> Option<u64> {
+                    // The callback may return None (fall through to memory)
+                    // or an int interpreted as little-endian bytes for the
+                    // first `size` bytes of the read result.
+                    Python::attach(|py| match cb.call1(py, (addr, size)) {
+                        Ok(obj) => {
+                            if obj.is_none(py) {
+                                None
+                            } else {
+                                match obj.extract::<u64>(py) {
+                                    Ok(v) => Some(v),
+                                    Err(err) => {
+                                        err.print(py);
+                                        None
+                                    }
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            err.print(py);
+                            None
+                        }
+                    })
+                }),
+            );
+        }
+        Ok(())
+    }
+
+    pub fn set_mem_read_after_hook(&mut self, callback: Option<Py<PyAny>>) -> PyResult<()> {
+        if let Some(id) = self.mem_read_after_hook_id.take() {
+            self.vm.cpu.mem.remove_read_after_hook(id);
+        }
+        if let Some(callback) = callback {
+            let hook = PyReadAfterHook {
+                callback: SendWrapper::new(callback),
+            };
+            self.mem_read_after_hook_id =
+                self.vm.cpu.mem.add_read_after_hook(0, u64::MAX, Box::new(hook));
+        }
+        Ok(())
+    }
+
+    pub fn set_mem_write_hook(&mut self, callback: Option<Py<PyAny>>) -> PyResult<()> {
+        if let Some(id) = self.mem_write_hook_id.take() {
+            self.vm.cpu.mem.remove_write_hook(id);
+        }
+        if let Some(callback) = callback {
+            let cb = SendWrapper::new(callback);
+            self.mem_write_hook_id = self.vm.cpu.mem.add_write_hook(
+                0,
+                MEM_HOOK_MAX_ADDR,
+                Box::new(move |_mem: &mut Mmu, addr: u64, value: &[u8]| {
+                    Python::attach(|py| {
+                        let bytes = PyBytes::new(py, value);
+                        let result: PyResult<Py<PyAny>> = cb.call1(py, (addr, bytes));
+                        if let Err(err) = result {
+                            err.print(py);
+                        }
+                    });
+                }),
+            );
+        }
+        Ok(())
+    }
+}
+
+/// Upper bound for global memory hook ranges. See the note above
+/// `set_mem_read_hook` for why we don't use `u64::MAX` here.
+const MEM_HOOK_MAX_ADDR: u64 = u64::MAX - (1 << 24);
+
+struct PyReadAfterHook {
+    callback: SendWrapper<Py<PyAny>>,
+}
+
+impl ReadAfterHook for PyReadAfterHook {
+    fn read(&mut self, _mem: &mut Mmu, addr: u64, value: &[u8]) {
+        Python::attach(|py| {
+            let bytes = PyBytes::new(py, value);
+            let result: PyResult<Py<PyAny>> = self.callback.call1(py, (addr, bytes));
+            if let Err(err) = result {
+                err.print(py);
+            }
+        });
     }
 }
 

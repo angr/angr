@@ -23,7 +23,7 @@ from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
 from angr.sim_state import SimState
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from angr.state_plugins.icicle import SimStateIcicle
-from angr.state_plugins.inspect import BP_AFTER
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
 
 log = logging.getLogger(__name__)
 
@@ -451,7 +451,122 @@ class IcicleEngine(SuccessorsEngine):
             for p in range(start_page, end_page + 1):
                 plugin.dirty_pages.add(p)
 
-        state.inspect.b("mem_write", when=BP_AFTER, action=_on_mem_write)
+        bp = state.inspect.b("mem_write", when=BP_AFTER, action=_on_mem_write)
+        bp._icicle_internal = True
+
+    @staticmethod
+    def _user_inspect_bps(state: HeavyConcreteState, event: str) -> list[BP]:
+        """Return SimInspect breakpoints for `event` excluding engine-internal ones."""
+        if not state.supports_inspect:
+            return []
+        return [bp for bp in state.inspect._breakpoints[event] if not getattr(bp, "_icicle_internal", False)]
+
+    @staticmethod
+    def _install_inspect_mem_hooks(emu: Icicle, state: HeavyConcreteState) -> bool:
+        """Wire icicle's MMU read/write hooks to fire SimInspect ``mem_read`` /
+        ``mem_write`` breakpoints during ``emu.run()``.
+
+        Returns True if any hooks were installed. The caller must call
+        ``_clear_inspect_mem_hooks`` after the run.
+
+        Notes:
+        - mem_read BP_BEFORE fires from icicle's read hook (no value yet).
+          Setting ``mem_read_expr`` to a concrete BV in BP_BEFORE overrides
+          the read result, mirroring the VEX engine's clouseau_mixin
+          behavior. Override sizes >8 bytes are not supported by icicle
+          and are silently ignored.
+        - mem_read BP_AFTER fires from icicle's read-after hook with the
+          value. Modifications to ``mem_read_expr`` here are observation-only.
+        - mem_write fires BP_BEFORE then BP_AFTER from icicle's write hook —
+          icicle has no separate before-write hook, but the value is the same
+          before and after, so observers see the right data.
+        - mem_write callbacks are observation-only: writes have already
+          committed when the hook fires. To alter a write, modify state
+          memory yourself (e.g. ``state.memory.store``) — but that path
+          syncs to icicle only at the next engine call.
+        """
+        any_installed = False
+        bits = state.arch.bits
+        endness = state.arch.memory_endness
+        byteorder: typing.Literal["little", "big"] = "little" if endness == Endness.LE else "big"
+
+        def _bytes_to_bvv(value: bytes) -> claripy.ast.BV:
+            return claripy.BVV(int.from_bytes(value, byteorder), len(value) * 8)
+
+        if IcicleEngine._user_inspect_bps(state, "mem_read"):
+
+            def _on_read(addr: int, size: int) -> int | None:
+                state._inspect(
+                    "mem_read",
+                    BP_BEFORE,
+                    mem_read_address=claripy.BVV(addr, bits),
+                    mem_read_length=size,
+                    mem_read_condition=None,
+                    mem_read_endness=endness,
+                    mem_read_expr=None,
+                )
+                # If the callback set mem_read_expr, override the read.
+                # icicle's ReadHook returns u64 and serializes via
+                # to_le_bytes()[..size]; convert the user's BV (which is in
+                # the architecture's memory_endness) to a u64 whose
+                # little-endian byte sequence yields the desired in-memory
+                # bytes.
+                expr = state._inspect_getattr("mem_read_expr", None)
+                if expr is None or size > 8:
+                    return None
+                value = state.solver.eval(expr, cast_to=int)
+                in_memory = value.to_bytes(size, byteorder)
+                return int.from_bytes(in_memory, "little")
+
+            def _on_read_after(addr: int, value: bytes) -> None:
+                state._inspect(
+                    "mem_read",
+                    BP_AFTER,
+                    mem_read_address=claripy.BVV(addr, bits),
+                    mem_read_length=len(value),
+                    mem_read_condition=None,
+                    mem_read_endness=endness,
+                    mem_read_expr=_bytes_to_bvv(value),
+                )
+
+            emu.set_mem_read_hook(_on_read)
+            emu.set_mem_read_after_hook(_on_read_after)
+            any_installed = True
+
+        if IcicleEngine._user_inspect_bps(state, "mem_write"):
+
+            def _on_write(addr: int, value: bytes) -> None:
+                expr = _bytes_to_bvv(value)
+                state._inspect(
+                    "mem_write",
+                    BP_BEFORE,
+                    mem_write_address=claripy.BVV(addr, bits),
+                    mem_write_length=len(value),
+                    mem_write_condition=None,
+                    mem_write_endness=endness,
+                    mem_write_expr=expr,
+                )
+                state._inspect(
+                    "mem_write",
+                    BP_AFTER,
+                    mem_write_address=claripy.BVV(addr, bits),
+                    mem_write_length=len(value),
+                    mem_write_condition=None,
+                    mem_write_endness=endness,
+                    mem_write_expr=expr,
+                )
+
+            emu.set_mem_write_hook(_on_write)
+            any_installed = True
+
+        return any_installed
+
+    @staticmethod
+    def _clear_inspect_mem_hooks(emu: Icicle) -> None:
+        """Remove any icicle MMU hooks installed by ``_install_inspect_mem_hooks``."""
+        emu.set_mem_read_hook(None)
+        emu.set_mem_read_after_hook(None)
+        emu.set_mem_write_hook(None)
 
     @staticmethod
     def __sync_continuation(
@@ -599,8 +714,15 @@ class IcicleEngine(SuccessorsEngine):
         page_size = state.memory.page_size
         emu.reset_page_modification_tracking([page_num * page_size for page_num in translation_data.writable_pages])
 
-        # Run it
-        status = emu.run()
+        # Wire SimInspect mem_read / mem_write breakpoints to icicle's MMU hooks.
+        installed_mem_hooks = IcicleEngine._install_inspect_mem_hooks(emu, state)
+
+        try:
+            # Run it
+            status = emu.run()
+        finally:
+            if installed_mem_hooks:
+                IcicleEngine._clear_inspect_mem_hooks(emu)
 
         # Clean up extra stop points
         for addr in added_breakpoints:
