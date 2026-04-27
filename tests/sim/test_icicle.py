@@ -964,5 +964,3 @@ class TestContinuation(TestCase):
         s2 = project.factory.blank_state(**state_opts)
         result2 = engine2.process(s2, num_inst=3)
         assert result2.successors[0].regs.x2.concrete_value == 3
-
-
