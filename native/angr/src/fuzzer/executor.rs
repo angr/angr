@@ -73,7 +73,6 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                         .import("angr.engines.icicle")?
                         .getattr("UberIcicleEngine")?
                         .call1((project,))?;
-                    engine.call_method0("enable_snapshot_mode")?;
                     self.cached_engine = Some(engine.clone().unbind());
                     engine
                 };
