@@ -43,4 +43,3 @@ class TestMCPCLI(unittest.TestCase):
 
         assert exc_info.exception.code == 2
         assert not dummy_mcp.calls
-
