@@ -5175,8 +5175,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             # also check the distance between `addr` and the closest function.
             # we don't want to have a basic block that spans across function boundaries
+            next_func_addr_adjustment = None
             next_func_addr = self.functions.ceiling_addr(addr + 1)
             if next_func_addr is not None:
+                next_func_addr_adjustment = 0
                 if (
                     self.project.arch.instruction_alignment == 1
                     and next_func_addr in self._used_function_prologue_addrs
@@ -5184,10 +5186,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # the next function might be a false positive function created by function prolog scanning and may
                     # begin in the middle of an instruction
                     # so we leave enough room for a full instruction
-                    next_func_addr += 15
+                    next_func_addr_adjustment = 15
                 distance_to_func = (
-                    next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr
-                ) - real_addr
+                    (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr)
+                    + next_func_addr_adjustment
+                    - real_addr
+                )
                 if distance_to_func != 0:
                     distance = distance_to_func if distance is None else min(distance, distance_to_func)
 
@@ -5466,6 +5470,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._seg_list.occupy(real_addr, irsb_size, "code")
                 if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
+
+            if (
+                irsb is not None
+                and next_func_addr is not None
+                and next_func_addr_adjustment > 0
+                and irsb.addr + irsb.size >= next_func_addr
+                and next_func_addr in irsb.instruction_addresses
+            ):
+                # the next function address is not in the middle of an instruction of this block; we gotta shrink it
+                irsb._size = (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr) - real_addr
+                irsb._instruction_addresses = tuple(
+                    ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
+                )
+                irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
+                irsb._exit_statements = tuple(x for x in irsb.exit_statements if x[0] < next_func_addr)
+                irsb.next = pyvex.expr.Const(
+                    pyvex.const.U32(next_func_addr) if self.project.arch.bits == 32 else pyvex.const.U64(next_func_addr)
+                )
+                irsb_string = irsb_string[: irsb.size]
 
             # Occupy the block in segment list
             if irsb is not None and irsb.size > 0:
