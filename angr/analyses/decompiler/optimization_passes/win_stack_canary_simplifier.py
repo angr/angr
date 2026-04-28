@@ -153,7 +153,7 @@ class WinStackCanarySimplifier(OptimizationPass):
             )
 
     def _find_canary_init_stmt(self) -> tuple[ailment.Block, list[int]] | None:
-        first_block = self._get_block(self._func.addr)
+        first_block = self._get_entry_block()
         if first_block is None:
             return None
 

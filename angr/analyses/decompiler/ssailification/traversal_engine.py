@@ -58,7 +58,7 @@ class DefInfo:
     variable_offset: int  # offset from beginning of region to beginning of variable
     variable_size: int
     store_offset: int  # offset from beginning of region to beginning of store
-    store_size: int
+    store_size: int | None  # None means that we don't know the size because function call of outparam void*
     supercedes: set[Def]
 
     @property
@@ -129,8 +129,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 def_,
                 full_offset,
                 full_endoffset - full_offset,
-                stack_offset,
-                0,
+                full_offset,
+                full_endoffset - full_offset,
                 loc,
             )
 
@@ -194,7 +194,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         variable_offset: int,
         variable_size: int,
         store_offset: int,
-        store_size: int,
+        store_size: int | None,
         loc: AILCodeLocation | None = None,
         supercedes: Iterable[Def] | None = None,
     ):
@@ -205,7 +205,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             or self.def_info[def_].loc == loc
             or self.def_info[def_].loc.is_extern
         ), "claiming an expression defines at two different locs"
-        if (definfo := self.def_info.get(def_)) is None or definfo.loc.is_extern:
+        if (definfo := self.def_info.get(def_)) is None:
             definfo = DefInfo(
                 def_,
                 kind,
@@ -218,6 +218,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             )
             self.def_info[def_] = definfo
         else:
+            definfo.loc = loc
             end_offset = definfo.variable_endoffset
             definfo.variable_offset = min(definfo.variable_offset, variable_offset)
             new_end_offset = max(end_offset, variable_offset + variable_size)
@@ -225,12 +226,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         return definfo
 
-    def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
+    def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int | None) -> Value:
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
-        end_offset = max(concrete_offset, base_offset) + base_size
+        end_offset = max(concrete_offset, base_offset) + (base_size or 1)
         size = end_offset - offset
         if size >= MAX_STACK_VAR_SIZE:
             return set()
@@ -299,25 +300,21 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 self.state.stackvar_defs[suboff] = def_as
 
         return (
-            self.state.live_stackvars[offset]
-            if not has_conflicting_value_types(self.state.live_stackvars[offset])
+            self.state.live_stackvars.get(offset, set())
+            if not has_conflicting_value_types(self.state.live_stackvars.get(offset, set()))
             else set()
         )
 
-    def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
+    def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int | None, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
-        end_offset = max(concrete_offset, base_offset) + base_size
+        end_offset = max(concrete_offset, base_offset) + (base_size or 0)
         size = end_offset - offset
 
         if size >= MAX_STACK_VAR_SIZE:
             return
-
-        self.state.pending_ptr_defines_nonlocal_live.discard(base_offset)
-        if base_offset in self.pending_ptr_defines_nonlocal:
-            self.pending_ptr_defines_nonlocal[base_offset][2].add((offset, size))
 
         self.state.live_stackvars[offset] = value
         stackvar_defs_cleaned = False
@@ -339,7 +336,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 other_defs.update(old_defs)
                 # additional consideration: if this def only provides values for some bytes,
                 # make sure the implicated but not overwritten defs are unified
-                if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
+                if not base_offset + extra_offset <= suboff < base_offset + extra_offset + (base_size or 1):
                     liveish_defs.update(old_defs)
                     for old_def in old_defs:
                         definfo = self.def_info[old_def]
@@ -359,6 +356,23 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                             end_offset = new_end_offset
                             reached_fixedpoint = False
                         size = end_offset - offset
+
+        self.state.pending_ptr_defines_nonlocal_live.discard(base_offset)
+        if base_offset in self.pending_ptr_defines_nonlocal:
+            self.pending_ptr_defines_nonlocal[base_offset][2].add((offset, size))
+            if base_offset not in self.state.pending_ptr_defines:
+                alt_pending_loc, alt_pending_def, _, _ = self.pending_ptr_defines_nonlocal[base_offset]
+                self.perform_def(
+                    "stack",
+                    alt_pending_def,
+                    offset,
+                    size,
+                    base_offset + extra_offset,
+                    base_size,
+                    alt_pending_loc,
+                    other_defs,
+                )
+                self.state.stackvar_defs[offset] = {alt_pending_def} | liveish_defs
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, [(None, None)])[-1]
         def_as = None
@@ -506,23 +520,33 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         def_size = None
         def_size_arg = None
-        if target == "memset":
-            # TODO other intrinsics that do a def
-            assert expr.args is not None
-            def_size_values = self._expr(expr.args[2])
-            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
-                def_size = max(def_size_values)[1]
-                def_size_arg = expr.args[2]
 
         if isinstance(target, Const) and isinstance(target.value, int):
             target = target.value
-        target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
+        if isinstance(target, str):
+            target_name = target
+            target = None
+        elif isinstance(target, int) and self.functions is not None:
+            target = self.functions(target)
+            target_name = target.name if target is not None else None
+        else:
+            target = None
+            target_name = None
+
         if expr.prototype is not None:
             proto = expr.prototype
         elif target is not None and target.prototype is not None:
             proto = target.prototype
         else:
             proto = None
+
+        if target_name in ("memset", "memcpy"):
+            # TODO other intrinsics that do a def
+            assert expr.args is not None
+            def_size_values = self._expr(expr.args[2])
+            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
+                def_size = max(def_size_values)[1]
+                def_size_arg = expr.args[2]
 
         if proto is not None:
             extra_nones = [None] * max(len(expr.args or []) - len(proto.args), 0)
@@ -549,11 +573,16 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     size = def_size
                 else:
                     if ty.pts_to is None:
-                        size = 1
+                        # WHY is this a legal case.
+                        size = None
+                    elif not ty.pts_to.size:
+                        size = None
                     else:
-                        size = (ty.pts_to.size or 8) // 8
-                        if not size:
-                            continue
+                        size = ty.pts_to.size // 8
+
+                if size == 1:
+                    # HACK: until we properly say char[] instead of char*, this is required
+                    size = None
 
                 for stackref, extra in value:
                     if stackref is not None:
@@ -639,7 +668,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # we'll require no more reads-before-writes in the rest of the function
             # to call this a new def
             if expr.offset not in self.state.stackvar_bases:
-                self.stackvar_get(expr.offset, 0, 1)
+                self.stackvar_get(expr.offset, 0, None)
                 self.state.pending_ptr_defines[expr.offset] = [(self._acodeloc(), expr)]
         else:
             self.state.pending_ptr_defines[expr.offset].append((self._acodeloc(), expr))
