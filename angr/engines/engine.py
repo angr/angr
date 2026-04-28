@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import abc
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
-
-import angr
+if TYPE_CHECKING:
+    from angr import Project
 
 StateType = TypeVar("StateType")
 ResultType = TypeVar("ResultType")
@@ -18,12 +18,12 @@ class SimEngine(Generic[StateType, ResultType], metaclass=abc.ABCMeta):
 
     state: StateType
 
-    def __init__(self, project: angr.Project):
+    def __init__(self, project: Project):
         self.project = project
         self.arch = self.project.arch
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple[Project]:
         return (self.project,)
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: tuple[Project]) -> None:
         self.project = state[0]

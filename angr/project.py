@@ -1,26 +1,43 @@
 from __future__ import annotations
+
 import logging
 import os
-import types
-from io import BytesIO, IOBase
 import pickle
 import string
+import types
 from collections import defaultdict
+from collections.abc import Callable, Iterable
+from io import BytesIO, IOBase
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, TypeVar, cast, overload
 
 import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
-from .sim_procedure import SimProcedure
-from .llm_client import LLMClient
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
+from angr.engines import SimEngine
+from angr.typing import AddressType
 
 from .errors import AngrNoPluginError
+from .llm_client import LLMClient
+from .sim_procedure import SimProcedure
+
+if TYPE_CHECKING:
+    from .simos.simos import SimOS
+
+    _T = TypeVar("_T", bound="Callable[..., Any]")
 
 l = logging.getLogger(name=__name__)
 
 
-def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
+def load_shellcode(
+    shellcode: bytes | str,
+    arch: archinfo.Arch | str,
+    start_offset: int = 0,
+    load_address: int = 0,
+    thumb: bool = False,
+    **kwargs: Any,
+) -> Project:
     """
     Load a new project based on a snippet of assembly or bytecode.
 
@@ -57,7 +74,7 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
             "entry_point": start_offset,
             "base_addr": load_address,
         },
-        **kwargs,
+        **kwargs,  # type: ignore
     )
 
 
@@ -114,26 +131,26 @@ class Project:
 
     def __init__(
         self,
-        thing,
-        default_analysis_mode=None,
-        ignore_functions=None,
-        use_sim_procedures=True,
-        exclude_sim_procedures_func=None,
-        exclude_sim_procedures_list=(),
-        arch=None,
-        simos=None,
-        engine=None,
+        thing: str | Path | BinaryIO | cle.Loader | cle.Backend,
+        default_analysis_mode: str | None = None,
+        ignore_functions: list[str] | None = None,
+        use_sim_procedures: bool = True,
+        exclude_sim_procedures_func: Callable[[str], bool] | None = None,
+        exclude_sim_procedures_list: Iterable[str] = (),
+        arch: str | archinfo.Arch | None = None,
+        simos: str | type[SimOS] | None = None,
+        engine: type[SimEngine] | None = None,
         load_options: dict[str, Any] | None = None,
-        translation_cache=True,
+        translation_cache: bool = True,
         selfmodifying_code: bool = False,
         support_selfmodifying_code: bool | None = None,  # deprecated. use selfmodifying_code instead
-        store_function=None,
-        load_function=None,
-        analyses_preset=None,
-        concrete_target=None,
-        eager_ifunc_resolution=None,
+        store_function: Callable[[Any], None] | Callable[[Any, Any], None] | None = None,
+        load_function: Callable[[Any], Project] | None = None,
+        analyses_preset: str | None = None,
+        concrete_target: Any | None = None,
+        eager_ifunc_resolution: bool | None = None,
         cache_limits: dict[str, int | None] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         # Step 1: Load the binary
 
@@ -156,7 +173,7 @@ class Project:
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
         elif not isinstance(thing, (str, Path)) or not os.path.exists(thing) or not os.path.isfile(thing):
-            raise Exception(f"Not a valid binary file: {thing!r}")
+            raise ValueError(f"Not a valid binary file: {thing!r}")
         else:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
@@ -184,7 +201,7 @@ class Project:
                 "Project causes the resulting object to be un-serializable."
             )
 
-        self._sim_procedures = {}
+        self._sim_procedures: dict[AddressType, SimProcedure] = {}
 
         self.concrete_target = concrete_target
 
@@ -195,11 +212,11 @@ class Project:
                 "Incompatible options selected for this project, please disable auto_load_libs if "
                 "you want to use a concrete target."
             )
-            raise Exception("Incompatible options for the project")
+            raise ValueError("Incompatible options for the project")
 
         if self.concrete_target and self.arch.name not in ["X86", "AMD64", "ARMHF", "ARMEL", "MIPS32"]:
             l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
-            raise Exception("Incompatible options for the project")
+            raise ValueError("Incompatible options for the project")
 
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
@@ -519,7 +536,7 @@ class Project:
         )
 
     @staticmethod
-    def _addr_to_str(addr):
+    def _addr_to_str(addr: AddressType) -> str:
         return f"{addr!r}" if isinstance(addr, SootAddressDescriptor) else f"{addr:#x}"
 
     #
@@ -528,7 +545,22 @@ class Project:
     #
 
     # pylint: disable=inconsistent-return-statements
-    def hook(self, addr, hook=None, length=0, kwargs=None, replace: bool | None = False):
+    @overload
+    def hook(
+        self, addr: AddressType, hook: None = None, length: int = 0, kwargs=None, replace: bool | None = False
+    ) -> Callable[[_T], _T]: ...
+
+    @overload
+    def hook(self, addr: AddressType, hook: _T, length: int = 0, kwargs=None, replace: bool | None = False) -> None: ...
+
+    def hook(
+        self,
+        addr: AddressType,
+        hook: _T | None = None,
+        length: int = 0,
+        kwargs: dict[str, Any] | None = None,
+        replace: bool | None = False,
+    ) -> Callable[[_T], _T] | None:
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
@@ -593,7 +625,7 @@ class Project:
         self._sim_procedures[addr] = hook
         return None
 
-    def is_hooked(self, addr) -> bool:
+    def is_hooked(self, addr: AddressType) -> bool:
         """
         Returns True if `addr` is hooked.
 
@@ -602,7 +634,7 @@ class Project:
         """
         return addr in self._sim_procedures
 
-    def hooked_by(self, addr) -> SimProcedure | None:
+    def hooked_by(self, addr: AddressType) -> SimProcedure | None:
         """
         Returns the current hook for `addr`.
 
@@ -617,7 +649,7 @@ class Project:
 
         return self._sim_procedures[addr]
 
-    def unhook(self, addr):
+    def unhook(self, addr: AddressType):
         """
         Remove a hook.
 
@@ -629,7 +661,7 @@ class Project:
 
         del self._sim_procedures[addr]
 
-    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace: bool | None = None):
+    def hook_symbol(self, symbol_name: str, simproc, kwargs=None, replace: bool | None = None):
         """
         Resolve a dependency in a binary. Looks up the address of the given symbol, and then hooks that
         address. If the symbol was not available in the loaded libraries, this address may be provided
@@ -659,7 +691,7 @@ class Project:
                 for reloc in self.loader.find_relevant_relocations(symbol_name):
                     assert reloc.symbol is not None
                     if not reloc.symbol.is_weak:
-                        raise Exception("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
+                        raise ValueError("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
                     if new_sym is None:
                         new_sym = self.loader.extern_object.make_extern(symbol_name)
                     reloc.resolve(new_sym)
@@ -793,14 +825,16 @@ class Project:
     # Private methods related to hooking
     #
 
-    def _hook_decorator(self, addr, length=0, kwargs=None, replace=False):
+    def _hook_decorator(
+        self, addr: AddressType, length: int = 0, kwargs=None, replace: bool | None = False
+    ) -> Callable[[_T], _T]:
         """
         Return a function decorator that allows easy hooking. Please refer to hook() for its usage.
 
         :return: The function decorator.
         """
 
-        def hook_decorator(func):
+        def hook_decorator(func: _T) -> _T:
             self.hook(addr, func, length=length, kwargs=kwargs, replace=replace)
             return func
 
@@ -962,8 +996,8 @@ class Project:
         return min(((sz // 256) // 100 + 1) * 50, 800)
 
 
-from .factory import AngrObjectFactory
-from .simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
+from .factory import AngrObjectFactory
 from .knowledge_base import KnowledgeBase
-from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
+from .simos import SimOS, os_mapping

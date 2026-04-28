@@ -1,27 +1,28 @@
 from __future__ import annotations
 
-import traceback
 import logging
+import traceback
 from typing import TYPE_CHECKING
 
-from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
+from archinfo.arch_soot import SootAddressDescriptor
+from pyvex import IRSB
 
 from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
-from angr.serializable import Serializable
 from angr.protos import cfg_pb2
+from angr.serializable import Serializable
+from angr.typing import AddressType
 from angr.utils.ins_addr_list import InsAddrList
+
 from .block_id import BlockID
 
 if TYPE_CHECKING:
     from angr.block import Block, SootBlock
+
     from .cfg_model import CFGModel
 
 _l = logging.getLogger(__name__)
-
-
-AddressType = int | SootAddressDescriptor
 
 
 class CFGNodeCreationFailure:
@@ -74,20 +75,20 @@ class CFGNode(Serializable):
 
     def __init__(
         self,
-        addr,
-        size,
-        cfg,
-        simprocedure_name=None,
-        no_ret=False,
-        function_address=None,
-        block_id: BlockID | int | None = None,
-        irsb=None,
-        soot_block=None,
-        instruction_addrs=None,
-        thumb=False,
-        byte_string=None,
-        is_syscall=None,
-        name=None,
+        addr: AddressType,
+        size: int,
+        cfg: CFGModel,
+        simprocedure_name: str | None = None,
+        no_ret: bool | None = None,
+        function_address: AddressType | None = None,
+        block_id: BlockID | AddressType | None = None,
+        irsb: IRSB | None = None,
+        soot_block: SootBlock | None = None,
+        instruction_addrs: list[int] | InsAddrList | None = None,
+        thumb: bool = False,
+        byte_string: bytes | None = None,
+        is_syscall: bool | None = None,
+        name: str | None = None,
     ):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
@@ -100,7 +101,7 @@ class CFGNode(Serializable):
         self._no_ret = no_ret
         self._cfg_model: CFGModel = cfg
         self._function_address = function_address
-        self._block_id: BlockID | int | None = block_id
+        self._block_id: BlockID | AddressType | None = block_id
         self._thumb = thumb
         self._byte_string: bytes | None = byte_string
 
@@ -151,11 +152,11 @@ class CFGNode(Serializable):
         self._dirty = value
 
     @property
-    def function_address(self):
+    def function_address(self) -> AddressType | None:
         return self._function_address
 
     @function_address.setter
-    def function_address(self, value):
+    def function_address(self, value: AddressType | None) -> None:
         if value == self._function_address:
             return
 
@@ -188,11 +189,11 @@ class CFGNode(Serializable):
         return self._size
 
     @property
-    def no_ret(self) -> bool:
+    def no_ret(self) -> bool | None:
         return self._no_ret
 
     @no_ret.setter
-    def no_ret(self, value: bool):
+    def no_ret(self, value: bool) -> None:
         if value == self._no_ret:
             return
 
@@ -207,7 +208,12 @@ class CFGNode(Serializable):
                 sym = proj.loader.find_symbol(self.addr)
                 if sym is not None:
                     self._name = sym.name
-            if self._name is None and isinstance(proj.arch, archinfo.ArchARM) and self.addr & 1:
+            if (
+                self._name is None
+                and isinstance(proj.arch, archinfo.ArchARM)
+                and isinstance(self.addr, int)
+                and self.addr & 1
+            ):
                 sym = proj.loader.find_symbol(self.addr - 1)
                 if sym is not None:
                     self._name = sym.name
@@ -215,7 +221,7 @@ class CFGNode(Serializable):
                 sym = proj.loader.find_symbol(self.function_address)
                 if sym is not None:
                     self._name = sym.name
-                if self._name is not None:
+                if self._name is not None and isinstance(self.addr, int) and isinstance(self.function_address, int):
                     offset = self.addr - self.function_address
                     self._name = f"{self._name}{offset:+#x}"
 
@@ -553,7 +559,7 @@ class CFGENode(CFGNode):
         s = "<CFGENode "
         if self.name is not None:
             s += self.name + " "
-        s += hex(self.addr)
+        s += hex(self.addr) if isinstance(self.addr, int) else str(self.addr)
         if self.size is not None:
             s += f"[{self.size}]"
         if self.looping_times > 0:
@@ -649,7 +655,7 @@ class CFGENode(CFGNode):
         return obj
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
+    def parse_from_cmessage(cls, cmsg, cfg: CFGModel | None = None) -> CFGNode:  # pylint:disable=arguments-differ
         base = cmsg.base
 
         # Parse block_id
