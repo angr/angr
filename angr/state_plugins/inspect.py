@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypedDict, Unpack
 
 from angr.sim_state import SimState
 from .plugin import SimStatePlugin
@@ -39,89 +39,93 @@ event_types = {
     "memory_page_map",
 }
 
-inspect_attributes = {
+class _InspectFields:
     # vex_lift
-    "vex_lift_addr",
-    "vex_lift_size",
-    "vex_lift_buff",
+    vex_lift_addr: Any
+    vex_lift_size: Any
+    vex_lift_buff: Any
     # mem_read
-    "mem_read_address",
-    "mem_read_expr",
-    "mem_read_length",
-    "mem_read_condition",
-    "mem_read_endness",
+    mem_read_address: Any
+    mem_read_expr: Any
+    mem_read_length: Any
+    mem_read_condition: Any
+    mem_read_endness: Any
     # mem_write
-    "mem_write_address",
-    "mem_write_expr",
-    "mem_write_length",
-    "mem_write_condition",
-    "mem_write_endness",
+    mem_write_address: Any
+    mem_write_expr: Any
+    mem_write_length: Any
+    mem_write_condition: Any
+    mem_write_endness: Any
     # reg_read
-    "reg_read_offset",
-    "reg_read_expr",
-    "reg_read_length",
-    "reg_read_condition",
-    "reg_read_endness",
+    reg_read_offset: Any
+    reg_read_expr: Any
+    reg_read_length: Any
+    reg_read_condition: Any
+    reg_read_endness: Any
     # reg_write
-    "reg_write_offset",
-    "reg_write_expr",
-    "reg_write_length",
-    "reg_write_condition",
-    "reg_write_endness",
+    reg_write_offset: Any
+    reg_write_expr: Any
+    reg_write_length: Any
+    reg_write_condition: Any
+    reg_write_endness: Any
     # tmp_read
-    "tmp_read_num",
-    "tmp_read_expr",
+    tmp_read_num: Any
+    tmp_read_expr: Any
     # tmp_write
-    "tmp_write_num",
-    "tmp_write_expr",
+    tmp_write_num: Any
+    tmp_write_expr: Any
     # expr
-    "expr",
-    "expr_result",
+    expr: Any
+    expr_result: Any
     # statement
-    "statement",
+    statement: Any
     # instruction
-    "instruction",
+    instruction: Any
     # irsb
-    "address",
+    address: Any
     # constraints
-    "added_constraints",
+    added_constraints: Any
     # call
-    "function_address",
+    function_address: Any
     # exit
-    "exit_target",
-    "exit_guard",
-    "exit_jumpkind",
-    "backtrace",  # unused?
+    exit_target: Any
+    exit_guard: Any
+    exit_jumpkind: Any
+    backtrace: Any  # unused?
     # symbolic_variable
-    "symbolic_name",
-    "symbolic_size",
-    "symbolic_expr",
+    symbolic_name: Any
+    symbolic_size: Any
+    symbolic_expr: Any
     # address_concretization
-    "address_concretization_strategy",
-    "address_concretization_action",
-    "address_concretization_memory",
-    "address_concretization_expr",
-    "address_concretization_result",
-    "address_concretization_add_constraints",
+    address_concretization_strategy: Any
+    address_concretization_action: Any
+    address_concretization_memory: Any
+    address_concretization_expr: Any
+    address_concretization_result: Any
+    address_concretization_add_constraints: Any
     # syscall
-    "syscall_name",
+    syscall_name: Any
     # simprocedure
-    "simprocedure_name",
-    "simprocedure_addr",
-    "simprocedure_result",
-    "simprocedure",
+    simprocedure_name: Any
+    simprocedure_addr: Any
+    simprocedure_result: Any
+    simprocedure: Any
     # dirty
-    "dirty_name",
-    "dirty_handler",
-    "dirty_args",
-    "dirty_result",
+    dirty_name: Any
+    dirty_handler: Any
+    dirty_args: Any
+    dirty_result: Any
     # engine_process
-    "sim_engine",
-    "sim_successors",
+    sim_engine: Any
+    sim_successors: Any
     # memory mapping
-    "mapped_page",
-    "mapped_address",
-}
+    mapped_page: Any
+    mapped_address: Any
+
+
+class InspectAttributes(TypedDict, _InspectFields, total=False):
+    pass
+
 
 NO_OVERRIDE = object()
 
@@ -144,19 +148,13 @@ class BP:
         enabled: bool = True,
         condition: Callable[[SimState], bool] | None = None,
         action: str | Callable[[SimState], None] | None = None,
-        **kwargs: dict[str, Any],
+        **attrs: Unpack[InspectAttributes],
     ):
-        if len({k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
-            raise ValueError(
-                f"Invalid inspect attribute(s) {kwargs} passed in. "
-                f"Should be one of {inspect_attributes}, or their _unique option."
-            )
-
         self.enabled = enabled
         self.condition = condition
         self.action = action
         self.when = when
-        self.kwargs = kwargs
+        self.attrs = attrs
 
     def check(self, state: SimState, when: str) -> bool:
         """
@@ -171,9 +169,9 @@ class BP:
             return ok
         l.debug("... after enabled and when: %s", ok)
 
-        for a in [_ for _ in self.kwargs if not _.endswith("_unique")]:
+        for a in [_ for _ in self.attrs if not _.endswith("_unique")]:
             current_expr = getattr(state.inspect, a)
-            needed = self.kwargs.get(a, None)
+            needed = self.attrs.get(a, None)
 
             l.debug("... checking condition %s", a)
 
@@ -188,7 +186,7 @@ class BP:
                     l.debug("...... not solution...")
                     c_ok = False
 
-                if c_ok and self.kwargs.get(a + "_unique", True):
+                if c_ok and self.attrs.get(a + "_unique", True):
                     l.debug("...... checking uniqueness")
                     if not state.solver.unique(current_expr):
                         l.debug("...... not unique")
@@ -229,13 +227,13 @@ class BP:
     def __repr__(self):
         return "<BP {}-action with conditions {!r}, {} condition func, {} action func>".format(
             self.when,
-            self.kwargs,
+            self.attrs,
             "no" if self.condition is None else "with",
             "no" if self.action is None else "with",
         )
 
 
-class SimInspector(SimStatePlugin):
+class SimInspector(SimStatePlugin, _InspectFields):
     """
     The breakpoint interface, used to instrument execution. For usage information, look here:
     https://docs.angr.io/core-concepts/simulation#breakpoints
@@ -251,38 +249,33 @@ class SimInspector(SimStatePlugin):
         for t in event_types:
             self._breakpoints[t] = []
 
-        self.action_attrs_set = False  # action() will set it to True if the kwargs passed in have been set as
-        # attributes to self.
-
-        for i in inspect_attributes:
-            setattr(self, i, None)
+        self.attrs = None
 
     def __dir__(self):
-        return sorted(set(dir(super()) + dir(inspect_attributes) + dir(self.__class__)))
+        return sorted(set(dir(super()) + dir(InspectAttributes) + dir(self.__class__)))
 
-    def _set_inspect_attrs(self, **kwargs: dict[str, Any]) -> None:
-        for k, v in kwargs.items():
-            if k not in inspect_attributes:
-                raise ValueError(f"Invalid inspect attribute {k} passed in. Should be one of: {inspect_attributes}")
-            setattr(self, k, v)
+    def __getattr__(self, item):
+        if item in InspectAttributes.__annotations__:
+            return self.attrs.get(item, None) if self.attrs is not None else None
+        return super().__getattribute__(item)
 
-    def action(self, event_type: str, when: str, **kwargs: dict[str, Any]) -> None:
+    def __setattr__(self, name, value):
+        if name in InspectAttributes.__annotations__ and self.attrs is not None:
+            self.attrs[name] = value
+            return value
+        return super().__setattr__(name, value)
+
+    def action(self, event_type: str, when: str, **attrs: Unpack[InspectAttributes]) -> None:
         """
         Called from within the engine when events happens. This function checks all breakpoints registered for that
         event and fires the ones whose conditions match.
         """
 
-        self._set_inspect_attrs(**kwargs)
-        self.action_attrs_set = True
+        self.attrs = attrs
 
         for bp in self._breakpoints[event_type]:
-            if not self.action_attrs_set:
-                self._set_inspect_attrs(**kwargs)
-                self.action_attrs_set = True
             if bp.check(self.state, when):
                 bp.fire(self.state)
-
-        self.action_attrs_set = False
 
     def make_breakpoint(
         self,
@@ -291,7 +284,7 @@ class SimInspector(SimStatePlugin):
         enabled: bool = True,
         condition: Callable[[SimState], bool] | None = None,
         action: str | Callable[[SimState], None] | None = None,
-        **kwargs: dict[str, Any],
+        **attrs: Unpack[InspectAttributes],
     ):
         """
         Creates and adds a breakpoint which would trigger on `event_type`. Additional arguments are passed to the
@@ -299,7 +292,7 @@ class SimInspector(SimStatePlugin):
 
         :return:    The created breakpoint, so that it can be removed later.
         """
-        bp = BP(when=when, enabled=enabled, condition=condition, action=action, **kwargs)
+        bp = BP(when=when, enabled=enabled, condition=condition, action=action, **attrs)
         self.add_breakpoint(event_type, bp)
         return bp
 
@@ -344,8 +337,7 @@ class SimInspector(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument
         c = SimInspector()
-        for i in inspect_attributes:
-            setattr(c, i, getattr(self, i))
+        c.attrs = self.attrs
 
         for t, a in self._breakpoints.items():
             c._breakpoints[t].extend(a)
@@ -364,9 +356,7 @@ class SimInspector(SimStatePlugin):
         >>> # Remove them from SimInspect
         >>> self.state._inspect.downsize()
         """
-        for k in inspect_attributes:
-            if hasattr(self, k):
-                setattr(self, k, None)
+        self.attrs = None
 
     def _combine(self, others):
         for t in event_types:
