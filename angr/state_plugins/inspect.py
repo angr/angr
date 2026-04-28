@@ -39,6 +39,7 @@ event_types = {
     "memory_page_map",
 }
 
+
 class _InspectFields:
     # vex_lift
     vex_lift_addr: Any
