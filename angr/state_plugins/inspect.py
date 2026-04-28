@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from typing import Any
 
 from angr.sim_state import SimState
 from .plugin import SimStatePlugin
@@ -136,21 +138,27 @@ class BP:
     A breakpoint.
     """
 
-    def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
+    def __init__(
+        self,
+        when: str = BP_BEFORE,
+        enabled: bool = True,
+        condition: Callable[[SimState], bool] | None = None,
+        action: str | Callable[[SimState], None] | None = None,
+        **kwargs: dict[str, Any],
+    ):
         if len({k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
             raise ValueError(
                 f"Invalid inspect attribute(s) {kwargs} passed in. "
                 f"Should be one of {inspect_attributes}, or their _unique option."
             )
 
-        self.kwargs = kwargs
-
-        self.enabled = True if enabled is None else enabled
+        self.enabled = enabled
         self.condition = condition
         self.action = action
         self.when = when
+        self.kwargs = kwargs
 
-    def check(self, state, when):
+    def check(self, state: SimState, when: str) -> bool:
         """
         Checks state `state` to see if the breakpoint should fire.
 
@@ -198,7 +206,7 @@ class BP:
         l.debug("... after condition func: %s", ok)
         return ok
 
-    def fire(self, state):
+    def fire(self, state: SimState):
         """
         Trigger the breakpoint.
 
@@ -252,14 +260,13 @@ class SimInspector(SimStatePlugin):
     def __dir__(self):
         return sorted(set(dir(super()) + dir(inspect_attributes) + dir(self.__class__)))
 
-    def _set_inspect_attrs(self, **kwargs):
+    def _set_inspect_attrs(self, **kwargs: dict[str, Any]) -> None:
         for k, v in kwargs.items():
             if k not in inspect_attributes:
                 raise ValueError(f"Invalid inspect attribute {k} passed in. Should be one of: {inspect_attributes}")
-            # l.debug("... setting %s", k)
             setattr(self, k, v)
 
-    def action(self, event_type, when, **kwargs):
+    def action(self, event_type: str, when: str, **kwargs: dict[str, Any]) -> None:
         """
         Called from within the engine when events happens. This function checks all breakpoints registered for that
         event and fires the ones whose conditions match.
@@ -277,20 +284,28 @@ class SimInspector(SimStatePlugin):
 
         self.action_attrs_set = False
 
-    def make_breakpoint(self, event_type, *args, **kwargs):
+    def make_breakpoint(
+        self,
+        event_type: str,
+        when: str = BP_BEFORE,
+        enabled: bool = True,
+        condition: Callable[[SimState], bool] | None = None,
+        action: str | Callable[[SimState], None] | None = None,
+        **kwargs: dict[str, Any],
+    ):
         """
         Creates and adds a breakpoint which would trigger on `event_type`. Additional arguments are passed to the
         :class:`BP` constructor.
 
         :return:    The created breakpoint, so that it can be removed later.
         """
-        bp = BP(*args, **kwargs)
+        bp = BP(when=when, enabled=enabled, condition=condition, action=action, **kwargs)
         self.add_breakpoint(event_type, bp)
         return bp
 
     b = make_breakpoint
 
-    def add_breakpoint(self, event_type, bp):
+    def add_breakpoint(self, event_type: str, bp: BP) -> None:
         """
         Adds a breakpoint which would trigger on `event_type`.
 
@@ -304,7 +319,9 @@ class SimInspector(SimStatePlugin):
             )
         self._breakpoints[event_type].append(bp)
 
-    def remove_breakpoint(self, event_type, bp=None, filter_func=None):
+    def remove_breakpoint(
+        self, event_type: str, bp: BP | None = None, filter_func: Callable[[BP], bool] | None = None
+    ) -> None:
         """
         Removes a breakpoint.
 
