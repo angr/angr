@@ -998,7 +998,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             percentage = min(
                 self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size, max_percentage_stage_1
             )
-            self._last_percentage = percentage
         else:
             percentage = self._last_percentage
         ram_usage = self.ram_usage / (1024 * 1024)
@@ -1022,6 +1021,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             + f"{ram_usage:0.2f} MB RAM"
         )
         self._update_progress(percentage, text=text, cfg=self)
+
+    def _update_progress(self, percentage, text=None, **kwargs):
+        self._last_percentage = percentage
+        super()._update_progress(percentage, text=text, **kwargs)
 
     # Methods for scanning the entire image
 
