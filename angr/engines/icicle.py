@@ -475,10 +475,11 @@ class IcicleEngine(SuccessorsEngine):
         Notes:
         - mem_read: routed through ``state.memory.load``, which fires
           BP_BEFORE and BP_AFTER. Modifications to ``mem_read_expr`` in
-          either BP take effect for the value icicle ultimately uses
-          (size <= 8 only). For size > 8 the BP still fires, but icicle's
-          ``ReadHook`` returns a ``u64`` so the override is silently
-          dropped — icicle reads its own memory.
+          either BP take effect for the value icicle ultimately uses.
+          icicle's ``ReadHook`` returns a ``u64``, so size > 8 reads
+          would not be overridable; in practice SLEIGH lifters split
+          all vector loads into <= 8-byte LOAD pcode ops, so this
+          path is never observed. A warning logs if it ever fires.
         - mem_write: BP_BEFORE and BP_AFTER are fired manually. Modifications
           to ``mem_write_expr`` in BP_BEFORE are propagated to icicle's
           memory so subsequent instructions see them. BP_AFTER mutations
@@ -509,9 +510,19 @@ class IcicleEngine(SuccessorsEngine):
                 # mem_read_expr modifications.
                 val_bv = state.memory.load(addr_bv, size, endness=endness)
                 if size > 8:
-                    # icicle's ReadHook can only return u64; let icicle
-                    # service the read from its own memory. The BP fired,
-                    # but any override is dropped here.
+                    # icicle's ReadHook returns u64, so we can't propagate
+                    # any user override for reads larger than 8 bytes. We
+                    # haven't observed any SLEIGH spec emit a LOAD pcode
+                    # op larger than 8 bytes — vector instructions all
+                    # decompose to <= 8-byte chunks before the JIT — so
+                    # this branch should never run. Warn so we find out
+                    # if that ever changes.
+                    log.warning(
+                        "icicle mem_read hook fired with size=%d > 8 at %#x; "
+                        "mem_read_expr override (if any) is dropped",
+                        size,
+                        addr,
+                    )
                     return None
                 value = state.solver.eval(val_bv, cast_to=int)
                 # state.memory.load returned the value in the arch's

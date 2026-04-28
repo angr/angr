@@ -178,31 +178,6 @@ class TestIcicleInspect(TestCase):
         # icicle's memory has the original value; the BP_AFTER mutation didn't apply.
         assert successors[0].regs.x2.concrete_value == 0x42
 
-    def test_size_gt_8_bp_fires_but_override_dropped(self):
-        """For reads > 8 bytes the BP fires, but the override is silently dropped."""
-        # We test against the engine's behavior by checking that the BP saw
-        # the actual icicle value (no override took effect). Since aarch64
-        # ldp lifts to two 8-byte reads, we use an x86 movdqu — even if
-        # icicle splits it into 8-byte chunks at JIT time, the test still
-        # passes because the override is dropped for any size > 8 read
-        # that does occur.
-        sizes_seen = []
-
-        def _on_read(state):
-            length = state.inspect.mem_read_length
-            sizes_seen.append(length)
-            # Always set an override; for size > 8 it must be dropped.
-            state.inspect.mem_read_expr = claripy.BVV(0xCAFEBABE, (length or 8) * 8)
-
-        engine, state = self._build()
-        state.inspect.b("mem_read", when=angr.BP_BEFORE, action=_on_read)
-        successors = engine.process(state, num_inst=4)
-        assert len(successors.successors) == 1
-        # The ldr is size 8 — override applies.
-        assert successors[0].regs.x2.concrete_value == 0xCAFEBABE
-        # We did observe at least one size <= 8 read for the ldr instruction.
-        assert any(s == 8 for s in sizes_seen), sizes_seen
-
     def test_mem_read_override_per_access(self):
         """Each read fires the hook (TLB stays uncached); overrides apply per-access."""
         # ldp lifts to two 8-byte reads in icicle; both must hit the hook.
