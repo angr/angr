@@ -878,6 +878,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._remaining_eh_frame_addrs: list[int] | None = None
         self._remaining_function_prologue_addrs: list[int] | None = None
+        self._used_function_prologue_addrs: set[int] | None = None
         self._ptr_hints: SortedDict | None = None
         self._processed_eh_prolog3_callsites: set[int] = set()
         self._processed_cxx_frame_handler3_callsites: set[int] = set()
@@ -1579,6 +1580,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     filtered_func_addrs_from_prologs.append(fa)
                 func_addrs_from_prologs = filtered_func_addrs_from_prologs
             self._remaining_function_prologue_addrs = sorted(func_addrs_from_prologs, reverse=True)
+        self._used_function_prologue_addrs = set()
 
         # assumption management
         self._decoding_assumptions: dict[int, DecodingAssumption] = {}
@@ -2190,6 +2192,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     continue
 
                 job = CFGJob(prolog_addr, prolog_addr, "Ijk_Boring", job_type=CFGJobType.FUNCTION_PROLOGUE)
+                self._used_function_prologue_addrs.add(prolog_addr)
                 self._insert_job(job)
                 self._register_analysis_job(prolog_addr, job)
                 return
@@ -4352,19 +4355,36 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def drop_bad_functions(self):
         # remove all functions that are bad, i.e., likely the result of decoding data as code
         # - if a function jumps to data, then it's likely bad
+        # - if a function starts in the middle of an instruction, then it's likely bad
 
         BAD_FUNC_MAX_BLOCKS = 4
 
-        funcs_to_remove: list[int] = []
+        nodes_to_remove: list[int] = []
+        full_funcs_to_remove: list[int] = []
 
         for func_addr in self.kb.functions:
+            # is this function starting in the middle of an instruction?
+            if func_addr in self._used_function_prologue_addrs:
+                floor_node_addr = self.model.floor_addr(func_addr - 1)
+                if floor_node_addr is not None:
+                    floor_node = self.model.get_any_node(floor_node_addr)
+                    if (
+                        floor_node is not None
+                        and floor_node.addr <= func_addr < floor_node.addr + floor_node.size
+                        and func_addr not in floor_node.instruction_addrs
+                    ):
+                        nodes_to_remove.append(func_addr)
+                        continue
+
             if not (
                 self.kb.functions.is_func_nonreturning(func_addr)
                 or self.kb.functions.is_func_returning_unknown(func_addr)
             ):
                 continue
+
             if self.kb.functions.get_func_block_count(func_addr) >= BAD_FUNC_MAX_BLOCKS:
                 continue
+
             func = self.kb.functions.get_by_addr(func_addr)
             for block_addr in sorted(func.block_addrs, reverse=True):
                 cfg_node = self.model.get_any_node(block_addr)
@@ -4377,10 +4397,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         if block_end in self.memory_data:
                             md = self.memory_data[block_end]
                             if md.size and md.sort not in {MemoryDataSort.Unknown, MemoryDataSort.Unspecified, None}:
-                                funcs_to_remove.append(func_addr)
+                                full_funcs_to_remove.append(func_addr)
                                 break
                         if self._seg_list.occupied_by_sort(block_end) == "nodecode":
-                            funcs_to_remove.append(func_addr)
+                            full_funcs_to_remove.append(func_addr)
                             break
 
                     if out_degree < 2:
@@ -4389,12 +4409,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             l.debug(
                                 "Removing function at %#x because of block at #%x jumps to data", func_addr, block.addr
                             )
-                            funcs_to_remove.append(func_addr)
+                            full_funcs_to_remove.append(func_addr)
                             break
                 # TODO: Handle Ijk_Privileged in user-space binaries
                 # TODO: Include conditional jumps that jump to data
 
-        for func_addr in funcs_to_remove:
+        for func_addr in full_funcs_to_remove:
             func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
             for block in func.blocks:
                 # mark all blocks as data
@@ -4404,6 +4424,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if cfg_node is not None:
                     self.model.remove_node_and_graph_node(cfg_node)
             del self.kb.functions[func_addr]
+
+        for node_addr in nodes_to_remove:
+            cfg_node = self.model.get_any_node(node_addr)
+            if cfg_node is not None:
+                self.model.remove_node_and_graph_node(cfg_node)
+            if self.kb.functions.contains_addr(node_addr):
+                del self.kb.functions[func_addr]
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
         """
@@ -5154,6 +5181,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # we don't want to have a basic block that spans across function boundaries
             next_func_addr = self.functions.ceiling_addr(addr + 1)
             if next_func_addr is not None:
+                if (
+                    self.project.arch.instruction_alignment == 1
+                    and next_func_addr in self._used_function_prologue_addrs
+                ):
+                    # the next function might be a false positive function created by function prolog scanning and may
+                    # begin in the middle of an instruction
+                    # so we leave enough room for a full instruction
+                    next_func_addr += 15
                 distance_to_func = (
                     next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr
                 ) - real_addr

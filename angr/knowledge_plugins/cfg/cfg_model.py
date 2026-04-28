@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
         def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
         def bisect_left(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
+        def bisect_right(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
 
     class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
@@ -477,6 +478,40 @@ class CFGModel(Serializable):
         """
         end_addr = addr + size
         return {n for n in self.nodes() if not (addr >= (n.addr + n.size) or n.addr >= end_addr)}
+
+    def floor_addr(self, addr: int) -> int | None:
+        """
+        Get the largest address that is less than or equal to the given address and has a CFGNode.
+
+        :param addr: The address to floor.
+        :return: The largest address that is less than or equal to the given address and has a CFGNode, or None if
+                 no such address exists.
+        """
+        if self._node_addrs is None:
+            self._build_node_addr_index()
+            assert self._node_addrs is not None
+
+        pos = self._node_addrs.bisect_right(addr)
+        if pos == 0:
+            return None
+        return self._node_addrs[pos - 1]
+
+    def ceil_addr(self, addr: int) -> int | None:
+        """
+        Get the smallest address that is greater than or equal to the given address and has a CFGNode.
+
+        :param addr: The address to ceil.
+        :return: The smallest address that is greater than or equal to the given address and has a CFGNode, or None if
+                 no such address exists.
+        """
+        if self._node_addrs is None:
+            self._build_node_addr_index()
+            assert self._node_addrs is not None
+
+        pos = self._node_addrs.bisect_left(addr)
+        if pos == len(self._node_addrs):
+            return None
+        return self._node_addrs[pos]
 
     def nodes(self):
         """
@@ -1159,6 +1194,7 @@ class CFGModel(Serializable):
         self.graph.remove_node(node)
         self.remove_node(node.block_id, node)
         self._block_addrs_with_return.discard(node.addr)
+        self._node_addrs = None
 
     def get_intersecting_functions(
         self,
