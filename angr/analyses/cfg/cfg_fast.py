@@ -58,7 +58,17 @@ from angr.rustylib import SegmentList
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
-from .meta_structs import get_data_regions_from_meta_regions
+from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
+from .pe_msvc_eh_structs import (
+    parse_funcinfo,
+    parse_unwind_map,
+    parse_try_block_map,
+    parse_eh4_scopetable,
+    FUNCINFO_SIZE,
+    UNWINDMAPENTRY_SIZE,
+    TRYBLOCKMAPENTRY_SIZE,
+    HANDLERTYPE_SIZE,
+)
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -636,6 +646,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         indirect_calls_always_return: bool | None = None,
         jumptable_resolver_resolves_calls: bool | None = None,
         retedges: bool = False,
+        drop_bad_funcs: bool = True,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -867,6 +878,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._remaining_eh_frame_addrs: list[int] | None = None
         self._remaining_function_prologue_addrs: list[int] | None = None
+        self._used_function_prologue_addrs: set[int] | None = None
+        self._ptr_hints: SortedDict | None = None
+        self._processed_eh_prolog3_callsites: set[int] = set()
+        self._processed_cxx_frame_handler3_callsites: set[int] = set()
 
         # exception handling
         self._exception_handling_by_endaddr = SortedDict()
@@ -876,6 +891,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # always clear them after returning from _process_unresolved_indirect_jumps()
         self._transitory_resolved_indirect_jumps = 0
         self._transitory_unresolved_indirect_jumps = 0
+
+        self._drop_bad_funcs = drop_bad_funcs
 
         self.stage: str = ""
 
@@ -981,7 +998,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             percentage = min(
                 self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size, max_percentage_stage_1
             )
-            self._last_percentage = percentage
         else:
             percentage = self._last_percentage
         ram_usage = self.ram_usage / (1024 * 1024)
@@ -1005,6 +1021,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             + f"{ram_usage:0.2f} MB RAM"
         )
         self._update_progress(percentage, text=text, cfg=self)
+
+    def _update_progress(self, percentage, text=None, **kwargs):
+        self._last_percentage = percentage
+        super()._update_progress(percentage, text=text, **kwargs)
 
     # Methods for scanning the entire image
 
@@ -1114,7 +1134,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # no string is found
         return 0
 
-    def _scan_for_printable_widestrings(self, start_addr: int):
+    def _scan_for_printable_widestrings(self, start_addr: int, min_length: int = 3) -> int:
         addr = start_addr
         sz = []
         is_sz = True
@@ -1129,7 +1149,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if val1 is None:
                 break
             if val0 == 0 and val1 == 0:
-                if len(sz) <= 10:
+                if len(sz) < min_length * 2:
                     is_sz = False
                 break
             if val0 != 0 and val1 == 0 and val0 in self.PRINTABLES:
@@ -1483,13 +1503,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         for n in self.model.nodes():
             self._seg_list.occupy(n.addr, n.size, "code")
         for d in self.model.memory_data.values():
-            self._seg_list.occupy(d.addr, d.size, d.sort)
+            if d.size is not None and d.size > 0:
+                self._seg_list.occupy(d.addr, d.size, d.sort)
 
-        # Mark metadata regions (PE import/export tables, IAT, etc.) as data
-        for addr, size, sort in get_data_regions_from_meta_regions(self.project.loader):
-            if not self._seg_list.is_occupied(addr):
-                self._seg_list.occupy(addr, size, sort)
-                self.model.memory_data[addr] = MemoryData(addr, size, sort)
+        # process metadata regions (PE import/export tables, IAT, etc.) and mark them as data
+        self._ptr_hints: SortedDict | None = None
+        self._process_metadata_regions()
+        self._processed_eh_prolog3_callsites = set()
+        self._processed_cxx_frame_handler3_callsites = set()
 
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -1526,7 +1547,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
 
-        # Sort it
+        # Sort it; we reverse the list so that popping from the end is faster
         sorted_starting_points: list[int] = sorted(starting_points, reverse=False)
 
         if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry):
@@ -1548,10 +1569,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._updated_nonreturning_functions = set()
 
         if self._use_eh_frame:
-            self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame)
+            self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame, reverse=True)
 
         if self._use_function_prologues and self.project.concrete_target is None:
-            self._remaining_function_prologue_addrs = sorted(self._func_addrs_from_prologues())
+            func_addrs_from_prologs = self._func_addrs_from_prologues()
+            if self._ptr_hints:
+                # ensure function addresses from prologs do not overlap with pointer hints
+                filtered_func_addrs_from_prologs = []
+                for fa in func_addrs_from_prologs:
+                    closest_ptr = next(self._ptr_hints.irange(maximum=fa, reverse=True), None)
+                    if closest_ptr is not None and closest_ptr <= fa < closest_ptr + self._ptr_hints[closest_ptr]:
+                        continue
+                    filtered_func_addrs_from_prologs.append(fa)
+                func_addrs_from_prologs = filtered_func_addrs_from_prologs
+            self._remaining_function_prologue_addrs = sorted(func_addrs_from_prologs, reverse=True)
+        self._used_function_prologue_addrs = set()
 
         # assumption management
         self._decoding_assumptions: dict[int, DecodingAssumption] = {}
@@ -1678,6 +1710,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     b"L)\xdcH\x85d$\x08H\x01\xc4\xc9\xc3",
                 }:
                     func.info["is_rust_probestack"] = True
+                    self.kb.functions.add_key_func_addr("rust_probestack", func_addr)
 
             # determine if the function is __alloca_probe
             if func_block_count == 4:
@@ -1690,6 +1723,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     b"L\x8b\x14$L\x8b\\$\x08H\x83\xc4\x10\xc3",
                 }:
                     func.info["is_alloca_probe"] = True
+                    self.kb.functions.add_key_func_addr("alloca_probe", func_addr)
 
             # determine if the function is _guard_xfg_dispatch_icall_nop or _guard_xfg_dispatch_icall_fptr
             if func_block_count in {1, 2}:
@@ -1751,6 +1785,54 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     b"\x8b\xc1Y\x94\x8b\x00\x89\x04$\xc3",
                 }:
                     func.info["is_alloca_probe"] = True
+                    self.kb.functions.add_key_func_addr("alloca_probe", func_addr)
+
+            # determine if the function is __EH_prolog3 family or __SEH_prolog4 family
+            if self.kb.functions.contains_addr(func_addr):
+                func = self.kb.functions.get_by_addr(func_addr)
+                try:
+                    block = func.get_block(func.addr)
+                except (SimMemoryError, SimTranslationError, SimEngineError):
+                    block = None
+                if block is not None:
+                    b = block.bytes
+
+                    # __EH_prolog3 family identification (common 23-byte prefix)
+                    if len(b) >= 34 and b[:23] == (
+                        b"\x50\x64\xff\x35\x00\x00\x00\x00\x8d\x44\x24\x0c\x2b\x64\x24\x0c\x53\x56\x57\x89\x28\x8b\xe8"
+                    ):
+                        if b[31:33] == b"\x89\x65":
+                            func.info["is_EH_prolog3_catch"] = True
+                            self.kb.functions.add_key_func_addr("EH_prolog3_catch", func_addr)
+                        elif b[31:33] == b"\x89\x45":
+                            func.info["is_EH_prolog3_GS"] = True
+                            self.kb.functions.add_key_func_addr("EH_prolog3_GS", func_addr)
+                        else:
+                            func.info["is_EH_prolog3"] = True
+                            self.kb.functions.add_key_func_addr("EH_prolog3", func_addr)
+
+                    # __SEH_prolog4 family identification
+                    # starts with push <handler> (68 xx xx xx xx) then 24-byte common prefix
+
+                    elif (
+                        len(b) >= 40
+                        and b[0] == 0x68
+                        and b[5:29]
+                        == (
+                            b"\x64\xff\x35\x00\x00\x00\x00"
+                            b"\x8b\x44\x24\x10"
+                            b"\x89\x6c\x24\x10"
+                            b"\x8d\x6c\x24\x10"
+                            b"\x2b\xe0"
+                            b"\x53\x56\x57"
+                        )
+                    ):
+                        if b[39] == 0x89:
+                            func.info["is_SEH_prolog4_GS"] = True
+                            self.kb.functions.add_key_func_addr("SEH_prolog4_GS", func_addr)
+                        else:
+                            func.info["is_SEH_prolog4"] = True
+                            self.kb.functions.add_key_func_addr("SEH_prolog4", func_addr)
 
         if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
             # this is a pcode arch - use Clinic to recover data references
@@ -1767,11 +1849,262 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if not (9 <= len(func.block_addrs_set) < 12):
                 return
 
-            from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=wrong-import-position
+            from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=import-outside-toplevel
 
             clinic = self.project.analyses.Clinic(func, mode=ClinicMode.COLLECT_DATA_REFS)
             for irsb_addr, refs in clinic.data_refs.items():
                 self._process_irsb_data_refs(irsb_addr, refs)
+
+    @staticmethod
+    def _block_is_cxx_frame_handler3(node: CFGNode) -> bool:
+        # ___CxxFrameHandler3 identification
+        return node.size >= 13 and node.byte_string[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc"
+
+    def _parse_eh_prolog3_arg(self) -> list[CFGJob]:
+        """
+        For each call to EH_prolog3, find the argument and make it a block of the current function.
+        """
+
+        if self.project.arch.name != "X86":
+            return []
+
+        eh_prolog3_addrs = self.kb.functions.get_key_func_addrs("EH_prolog3")
+        if not eh_prolog3_addrs:
+            # Not found yet; try later
+            return []
+
+        eax_offset = self.project.arch.registers["eax"][0]
+        jobs = []
+
+        for eh_prolog3_addr in eh_prolog3_addrs:
+            node = self.model.get_any_node(eh_prolog3_addr)
+            if node is None:
+                continue
+
+            for pred in self.graph.predecessors(node):
+                if pred.addr in self._processed_eh_prolog3_callsites:
+                    continue
+                if not self.kb.functions.contains_addr(pred.addr):
+                    continue
+                func_addr = pred.addr
+
+                # Lift the predecessor block to VEX IR
+                try:
+                    block = self.project.factory.block(pred.addr, size=pred.size)
+                    irsb = block.vex
+                except (SimMemoryError, SimTranslationError, SimEngineError):
+                    continue
+
+                # Walk statements in reverse to find the last Put to eax
+                exc_block_addr = None
+                for stmt in reversed(irsb.statements):
+                    if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == eax_offset:
+                        if isinstance(stmt.data, pyvex.IRExpr.Const):
+                            exc_block_addr = stmt.data.con.value
+                        break
+
+                if exc_block_addr is None:
+                    continue
+
+                the_func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
+                if exc_block_addr in the_func.block_addrs_set:
+                    continue
+                jobs += self._create_jobs(
+                    exc_block_addr, "Ijk_Exception", func_addr, None, exc_block_addr, pred, None, None, None
+                )
+                self._processed_eh_prolog3_callsites.add(pred.addr)
+
+        return jobs
+
+    def _parse_cxx_frame_handler3_data(self) -> list[CFGJob]:
+        """
+        Find all ___CxxFrameHandler3 functions, look up their predecessor blocks in the CFG model, lift each
+        predecessor to VEX IR to extract the constant value assigned to eax, and parse the referenced FuncInfo (and
+        UnwindMapEntry) structs, create MemoryData items for them, and occupy memory accordingly.
+        """
+        if self.project.arch.name != "X86":
+            return []
+
+        # Collect all identified ___CxxFrameHandler3 addresses
+        cxx_handler_addrs = self.kb.functions.get_key_func_addrs("CxxFrameHandler3")
+        if not cxx_handler_addrs:
+            # Not found yet; try later
+            return []
+
+        eax_offset = self.project.arch.registers["eax"][0]
+        loader = self.project.loader
+        jobs = []
+
+        for cxx_handler_addr in cxx_handler_addrs:
+            node = self.model.get_any_node(cxx_handler_addr)
+            if node is None:
+                continue
+
+            for pred in self.graph.predecessors(node):
+                if pred.addr in self._processed_cxx_frame_handler3_callsites:
+                    continue
+
+                func_addr = pred.function_address
+                if func_addr is None:
+                    continue
+
+                # Lift the predecessor block to VEX IR
+                try:
+                    block = self.project.factory.block(pred.addr, size=pred.size)
+                    irsb = block.vex
+                except (SimMemoryError, SimTranslationError, SimEngineError):
+                    continue
+
+                # Walk statements in reverse to find the last Put to eax
+                funcinfo_addr = None
+                for stmt in reversed(irsb.statements):
+                    if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == eax_offset:
+                        if isinstance(stmt.data, pyvex.IRExpr.Const):
+                            funcinfo_addr = stmt.data.con.value
+                        break
+
+                if funcinfo_addr is None:
+                    continue
+                if (
+                    funcinfo_addr in self.model.memory_data
+                    and self.model.memory_data[funcinfo_addr].sort == MemoryDataSort.EHFuncInfo
+                ):
+                    continue
+
+                # Parse the FuncInfo struct
+                fi = parse_funcinfo(loader.memory, funcinfo_addr)
+                if fi is None:
+                    continue
+                self._seg_list.occupy(funcinfo_addr, FUNCINFO_SIZE, MemoryDataSort.EHFuncInfo)
+
+                # Create MemoryData for FuncInfo
+                self.model.memory_data[funcinfo_addr] = MemoryData(
+                    funcinfo_addr, FUNCINFO_SIZE, MemoryDataSort.EHFuncInfo
+                )
+
+                # Parse UnwindMapEntry array
+                if fi.max_state > 0 and fi.p_unwind_map != 0:
+                    entries = parse_unwind_map(loader.memory, fi.p_unwind_map, fi.max_state)
+                    if entries:
+                        total_size = len(entries) * UNWINDMAPENTRY_SIZE
+                        self.model.memory_data[fi.p_unwind_map] = MemoryData(
+                            fi.p_unwind_map, total_size, MemoryDataSort.EHUnwindMapEntry
+                        )
+                        self._seg_list.occupy(fi.p_unwind_map, total_size, MemoryDataSort.EHUnwindMapEntry)
+
+                        for entry in entries:
+                            if entry.action != 0 and loader.find_section_containing(entry.action) is not None:
+                                # Register non-null action pointers as code references
+                                self.model.memory_data[entry.addr + 4] = MemoryData(
+                                    entry.addr + 4, 4, MemoryDataSort.CodeReference
+                                )
+                                # add blocks to the corresponding functions
+                                jobs += self._create_jobs(
+                                    entry.action,
+                                    "Ijk_Exception",
+                                    func_addr,
+                                    None,
+                                    entry.action,
+                                    pred,
+                                    None,
+                                    None,
+                                    None,
+                                )
+
+                # Parse TryBlockMapEntry array and nested HandlerType arrays
+                if fi.n_try_blocks > 0 and fi.p_try_block_map != 0:
+                    try_blocks = parse_try_block_map(loader.memory, fi.p_try_block_map, fi.n_try_blocks)
+                    if try_blocks:
+                        tbm_size = len(try_blocks) * TRYBLOCKMAPENTRY_SIZE
+                        self.model.memory_data[fi.p_try_block_map] = MemoryData(
+                            fi.p_try_block_map, tbm_size, MemoryDataSort.EHTryBlockMap
+                        )
+                        self._seg_list.occupy(fi.p_try_block_map, tbm_size, MemoryDataSort.EHTryBlockMap)
+
+                        for tb in try_blocks:
+                            if tb.handlers and tb.p_handler_array != 0:
+                                ha_size = len(tb.handlers) * HANDLERTYPE_SIZE
+                                self.model.memory_data[tb.p_handler_array] = MemoryData(
+                                    tb.p_handler_array, ha_size, MemoryDataSort.EHHandlerType
+                                )
+                                self._seg_list.occupy(tb.p_handler_array, ha_size, MemoryDataSort.EHHandlerType)
+
+                self._processed_cxx_frame_handler3_callsites.add(pred.addr)
+
+        return jobs
+
+    def _parse_seh_prolog4_scopetables(self) -> None:
+        """
+        Find all __SEH_prolog4 / __SEH_prolog4_GS functions, look up their
+        predecessor blocks in the CFG model, extract the scope-table pointer
+        (the second ``push <imm32>`` in the predecessor block), and parse the
+        referenced _EH4_SCOPETABLE structs, creating MemoryData items and
+        occupying the corresponding memory.
+        """
+        if self.project.arch.name != "X86":
+            return
+
+        seh_addrs = self.kb.functions.get_key_func_addrs("SEH_prolog4") | self.kb.functions.get_key_func_addrs(
+            "SEH_prolog4_GS"
+        )
+        if not seh_addrs:
+            return
+
+        loader = self.project.loader
+
+        # Determine executable memory range for pointer validation
+        code_min = code_max = None
+        for section in loader.main_object.sections:
+            if section.is_executable:
+                if code_min is None or section.vaddr < code_min:
+                    code_min = section.vaddr
+                end = section.vaddr + section.memsize
+                if code_max is None or end > code_max:
+                    code_max = end
+        code_range = (code_min, code_max) if code_min is not None else None
+
+        for seh_addr in seh_addrs:
+            node = self.model.get_any_node(seh_addr)
+            if node is None:
+                continue
+
+            for pred in self.graph.predecessors(node):
+                # Predecessor pattern:  push <stack_size>; push <scopetable>; call __SEH_prolog4
+                # The scope table is the operand of the second push (i.e. the one just before the call).
+                try:
+                    block = self.project.factory.block(pred.addr, size=pred.size)
+                except (SimMemoryError, SimTranslationError, SimEngineError):
+                    continue
+
+                insns = list(block.capstone.insns)
+                if len(insns) < 3:
+                    continue
+                if insns[-1].mnemonic != "call":
+                    continue
+
+                # The push right before the call carries the scope table address
+                scope_push = insns[-2]
+                if scope_push.mnemonic != "push":
+                    continue
+                op = scope_push.operands[0]
+                if op.type != capstone.x86.X86_OP_IMM:
+                    continue
+
+                scopetable_addr = op.imm & 0xFFFFFFFF
+                if (
+                    scopetable_addr in self.model.memory_data
+                    and self.model.memory_data[scopetable_addr].sort == MemoryDataSort.EH4ScopeTable
+                ):
+                    continue
+
+                st = parse_eh4_scopetable(loader.memory, scopetable_addr, code_range=code_range)
+                if st is None:
+                    continue
+
+                self.model.memory_data[scopetable_addr] = MemoryData(
+                    scopetable_addr, st.total_size, MemoryDataSort.EH4ScopeTable
+                )
+                self._seg_list.occupy(scopetable_addr, st.total_size, MemoryDataSort.EH4ScopeTable)
 
     def _job_queue_empty(self):
         if self._pending_jobs:
@@ -1827,10 +2160,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._insert_job(job)
                 return
 
+        if self._use_eh_frame:
+            jobs = self._parse_eh_prolog3_arg()
+            if jobs:
+                for job in jobs:
+                    self._insert_job(job)
+                    self._register_analysis_job(job.func_addr, job)
+                return
+
+            jobs = self._parse_cxx_frame_handler3_data()
+            if jobs:
+                for job in jobs:
+                    self._insert_job(job)
+                    self._register_analysis_job(job.func_addr, job)
+                return
+
+            self._parse_seh_prolog4_scopetables()
+
         if self._use_eh_frame and self._remaining_eh_frame_addrs:
             while self._remaining_eh_frame_addrs:
-                eh_addr = self._remaining_eh_frame_addrs[0]
-                self._remaining_eh_frame_addrs = self._remaining_eh_frame_addrs[1:]
+                eh_addr = self._remaining_eh_frame_addrs.pop()
                 if self._seg_list.is_occupied(eh_addr):
                     continue
 
@@ -1841,22 +2190,27 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
             while self._remaining_function_prologue_addrs:
-                prolog_addr = self._remaining_function_prologue_addrs[0]
-                self._remaining_function_prologue_addrs = self._remaining_function_prologue_addrs[1:]
+                prolog_addr = self._remaining_function_prologue_addrs.pop()
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
                 job = CFGJob(prolog_addr, prolog_addr, "Ijk_Boring", job_type=CFGJobType.FUNCTION_PROLOGUE)
+                self._used_function_prologue_addrs.add(prolog_addr)
                 self._insert_job(job)
                 self._register_analysis_job(prolog_addr, job)
                 return
 
         if self._force_complete_scan or self._force_smart_scan:
             if self._new_memory_data_addrs:
+                new_mem_data_addrs = set()
                 self.model.tidy_data_references(
-                    memory_data_addrs=list(self._new_memory_data_addrs), seg_list=self._seg_list, fill_gaps=False
+                    memory_data_addrs=list(self._new_memory_data_addrs),
+                    seg_list=self._seg_list,
+                    fill_gaps=False,
+                    new_mem_data_addrs=new_mem_data_addrs,
                 )
                 self.reset_memory_data_addrs()
+                self._new_memory_data_addrs |= new_mem_data_addrs
 
             addr = self._next_code_addr_smart() if self._force_smart_scan else self._next_code_addr()
 
@@ -1926,9 +2280,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def _post_analysis(self):
         self.stage = "Analysis (Stage 2)"
 
+        self._calculate_progress_and_notify(skip_percentage=True)
+        if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs:
+            self.drop_bad_functions()
+        self._calculate_progress_and_notify(skip_percentage=True)
+
         self._repair_edges()
 
         self._make_completed_functions()
+        self._calculate_progress_and_notify(skip_percentage=True)
 
         if self._normalize:
             # Normalize the control flow graph first before rediscovering all functions
@@ -1942,6 +2302,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._updated_nonreturning_functions = set()
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
+        self._calculate_progress_and_notify(skip_percentage=True)
 
         self._analyze_all_function_features(all_funcs_completed=True)
 
@@ -2445,6 +2806,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :rtype: list
         """
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
+
+        # special handling for __CxxFrameHandler3 in x86
+        if cfg_node is not None and self.project.arch.name == "X86" and self._block_is_cxx_frame_handler3(cfg_node):
+            function_addr = addr
+            func = self.kb.functions.function(function_addr, create=True)
+            func.info["is_CxxFrameHandler3"] = True
+            self.kb.functions.add_key_func_addr("CxxFrameHandler3", function_addr)
 
         # function_addr and current_function_addr can be different. e.g. when tracing an optimized tail-call that jumps
         # into another function that has been identified before.
@@ -3394,6 +3762,29 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return
         self.insn_addr_to_memory_data[insn_addr] = self.model.memory_data[data_addr]
 
+    def _process_metadata_regions(self):
+        # Mark metadata regions (PE import/export tables, IAT, etc.) as data
+        for addr, size, sort in get_data_regions_from_meta_regions(self.project.loader):
+            if not self._seg_list.is_occupied(addr):
+                self._seg_list.occupy(addr, size, sort)
+                self.model.memory_data[addr] = MemoryData(addr, size, sort)
+                self.record_memory_data_addr(addr)
+
+        ptr_array_hints = get_pointer_array_hints(self.project.loader)
+        ptr_size = self.project.arch.bytes
+        remaining_ptr_hints: list[tuple[int, int]] = []  # the pointers that may appear in the middle of an instruction
+        for addr, size in ptr_array_hints:
+            if not self._seg_list.is_occupied(addr):
+                if size > ptr_size:
+                    # `mov [off_0], off_1` involves two consecutive pointers in x86, but we have filtered them out
+                    self._seg_list.occupy(addr, size, "pointer-array")
+                    self.model.memory_data[addr] = MemoryData(addr, size, MemoryDataSort.PointerArray)
+                    self.record_memory_data_addr(addr)
+                else:
+                    remaining_ptr_hints.append((addr, size))
+
+        self._ptr_hints = SortedDict(remaining_ptr_hints)
+
     # Indirect jumps processing
 
     def _resolve_plt(self, addr, irsb, indir_jump: IndirectJump):
@@ -3713,33 +4104,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         node_keys_to_append[next_node_addr] = get_block_key(next_node)
 
                         # make sure there is a function begins there
-                        try:
-                            snippet = self._to_snippet(
-                                addr=next_node_addr, size=next_node_size, base_state=self._base_state
-                            )
-                            self.functions._add_node(next_node_addr, snippet)
-                            # if there are outside transitions, copy them as well
-                            for src, dst, data in self.functions[a.addr].transition_graph.edges(data=True):
-                                if (
-                                    src.addr == a.addr
-                                    and data.get("type", None) == "transition"
-                                    and data.get("outside", False) is True
-                                ):
-                                    stmt_idx = data.get("stmt_idx", None)
-                                    if stmt_idx != DEFAULT_STATEMENT:
-                                        # since we are relifting the block from a new starting address, we should only
-                                        # keep stmt_idx if it is the default exit.
-                                        stmt_idx = None
+                        if not self.functions.contains_addr(next_node_addr):
+                            try:
+                                snippet = self._to_snippet(
+                                    addr=next_node_addr, size=next_node_size, base_state=self._base_state
+                                )
+                                self.functions._add_node(next_node_addr, snippet)
+                                # create function edges going to the next node as outside transitions
+                                for _, dst, _ in all_out_edges:
                                     self.functions._add_outside_transition_to(
                                         next_node_addr,
                                         snippet,
-                                        dst,
-                                        to_function_addr=dst.addr,
-                                        ins_addr=data.get("ins_addr", None),
-                                        stmt_idx=stmt_idx,
+                                        dst.addr,
+                                        to_function_addr=dst.function_address,
+                                        ins_addr=next_node.instruction_addrs[-1]
+                                        if next_node.instruction_addrs
+                                        else next_node.addr,
+                                        stmt_idx=DEFAULT_STATEMENT,
                                     )
-                        except (SimEngineError, SimMemoryError):
-                            continue
+                            except (SimEngineError, SimMemoryError):
+                                continue
 
         # append all new nodes to sorted nodes
         if node_keys_to_append:
@@ -3963,6 +4347,86 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # if node.addr in self.kb.functions.callgraph:
         #    self.kb.functions.callgraph.remove_node(node.addr)
+
+    def drop_bad_functions(self):
+        # remove all functions that are bad, i.e., likely the result of decoding data as code
+        # - if a function jumps to data, then it's likely bad
+        # - if a function starts in the middle of an instruction, then it's likely bad
+
+        BAD_FUNC_MAX_BLOCKS = 4
+
+        nodes_to_remove: list[int] = []
+        full_funcs_to_remove: list[int] = []
+
+        for func_addr in self.kb.functions:
+            # is this function starting in the middle of an instruction?
+            if func_addr in self._used_function_prologue_addrs:
+                floor_node_addr = self.model.floor_addr(func_addr - 1)
+                if floor_node_addr is not None:
+                    floor_node = self.model.get_any_node(floor_node_addr)
+                    if (
+                        floor_node is not None
+                        and floor_node.addr <= func_addr < floor_node.addr + floor_node.size
+                        and func_addr not in floor_node.instruction_addrs
+                    ):
+                        nodes_to_remove.append(func_addr)
+                        continue
+
+            if not (
+                self.kb.functions.is_func_nonreturning(func_addr)
+                or self.kb.functions.is_func_returning_unknown(func_addr)
+            ):
+                continue
+
+            if self.kb.functions.get_func_block_count(func_addr) >= BAD_FUNC_MAX_BLOCKS:
+                continue
+
+            func = self.kb.functions.get_by_addr(func_addr)
+            for block_addr in sorted(func.block_addrs, reverse=True):
+                cfg_node = self.model.get_any_node(block_addr)
+                if cfg_node is not None and cfg_node.size > 0:
+                    out_degree = self.model.graph.out_degree[cfg_node]
+                    # is it jumping to data?
+                    if out_degree == 0:
+                        # might be size-limited during CFGNode generation; check the location after the end of the block
+                        block_end = cfg_node.addr + cfg_node.size
+                        if block_end in self.memory_data:
+                            md = self.memory_data[block_end]
+                            if md.size and md.sort not in {MemoryDataSort.Unknown, MemoryDataSort.Unspecified, None}:
+                                full_funcs_to_remove.append(func_addr)
+                                break
+                        if self._seg_list.occupied_by_sort(block_end) == "nodecode":
+                            full_funcs_to_remove.append(func_addr)
+                            break
+
+                    if out_degree < 2:
+                        block = self._lift(block_addr)
+                        if block.vex.jumpkind == "Ijk_NoDecode":
+                            l.debug(
+                                "Removing function at %#x because of block at #%x jumps to data", func_addr, block.addr
+                            )
+                            full_funcs_to_remove.append(func_addr)
+                            break
+                # TODO: Handle Ijk_Privileged in user-space binaries
+                # TODO: Include conditional jumps that jump to data
+
+        for func_addr in full_funcs_to_remove:
+            func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
+            for block in func.blocks:
+                # mark all blocks as data
+                self._seg_list.occupy(block.addr, block.size, "unknown")
+                # remove all CFG nodes
+                cfg_node = self.model.get_any_node(block.addr)
+                if cfg_node is not None:
+                    self.model.remove_node_and_graph_node(cfg_node)
+            del self.kb.functions[func_addr]
+
+        for node_addr in nodes_to_remove:
+            cfg_node = self.model.get_any_node(node_addr)
+            if cfg_node is not None:
+                self.model.remove_node_and_graph_node(cfg_node)
+            if self.kb.functions.contains_addr(node_addr):
+                del self.kb.functions[func_addr]
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
         """
@@ -4685,6 +5149,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 section = obj.find_section_containing(addr)
                 # If section is None, is there a segment?
                 segment = None
+                has_executable_segment = None
                 if section is None:
                     has_executable_segment = self._object_has_executable_segments(obj)
                     segment = obj.find_segment_containing(addr)
@@ -4710,11 +5175,23 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             # also check the distance between `addr` and the closest function.
             # we don't want to have a basic block that spans across function boundaries
+            next_func_addr_adjustment = None
             next_func_addr = self.functions.ceiling_addr(addr + 1)
             if next_func_addr is not None:
+                next_func_addr_adjustment = 0
+                if (
+                    self.project.arch.instruction_alignment == 1
+                    and next_func_addr in self._used_function_prologue_addrs
+                ):
+                    # the next function might be a false positive function created by function prolog scanning and may
+                    # begin in the middle of an instruction
+                    # so we leave enough room for a full instruction
+                    next_func_addr_adjustment = 15
                 distance_to_func = (
-                    next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr
-                ) - real_addr
+                    (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr)
+                    + next_func_addr_adjustment
+                    - real_addr
+                )
                 if distance_to_func != 0:
                     distance = distance_to_func if distance is None else min(distance, distance_to_func)
 
@@ -4993,6 +5470,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._seg_list.occupy(real_addr, irsb_size, "code")
                 if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
+
+            if (
+                irsb is not None
+                and next_func_addr is not None
+                and next_func_addr_adjustment > 0
+                and irsb.addr + irsb.size >= next_func_addr
+                and next_func_addr in irsb.instruction_addresses
+            ):
+                # the next function address is not in the middle of an instruction of this block; we gotta shrink it
+                irsb._size = (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr) - real_addr
+                irsb._instruction_addresses = tuple(
+                    ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
+                )
+                irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
+                irsb._exit_statements = tuple(x for x in irsb.exit_statements if x[0] < next_func_addr)
+                irsb.next = pyvex.expr.Const(
+                    pyvex.const.U32(next_func_addr) if self.project.arch.bits == 32 else pyvex.const.U64(next_func_addr)
+                )
+                irsb_string = irsb_string[: irsb.size]
 
             # Occupy the block in segment list
             if irsb is not None and irsb.size > 0:

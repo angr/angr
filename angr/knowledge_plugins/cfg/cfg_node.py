@@ -184,7 +184,7 @@ class CFGNode(Serializable):
         return self._thumb
 
     @property
-    def size(self) -> bool:
+    def size(self) -> int:
         return self._size
 
     @property

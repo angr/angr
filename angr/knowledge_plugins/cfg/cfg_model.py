@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
         def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
         def bisect_left(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
+        def bisect_right(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
 
     class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
@@ -98,7 +99,7 @@ class CFGModel(Serializable):
         self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = edge_db_batch_size
         self.graph = None  # type:ignore
-        self.addr_type = addr_type
+        self._addr_type: CFG_ADDR_TYPES = addr_type
 
         # Necessary settings
         self._iropt_level = None
@@ -478,6 +479,40 @@ class CFGModel(Serializable):
         end_addr = addr + size
         return {n for n in self.nodes() if not (addr >= (n.addr + n.size) or n.addr >= end_addr)}
 
+    def floor_addr(self, addr: int) -> int | None:
+        """
+        Get the largest address that is less than or equal to the given address and has a CFGNode.
+
+        :param addr: The address to floor.
+        :return: The largest address that is less than or equal to the given address and has a CFGNode, or None if
+                 no such address exists.
+        """
+        if self._node_addrs is None:
+            self._build_node_addr_index()
+            assert self._node_addrs is not None
+
+        pos = self._node_addrs.bisect_right(addr)
+        if pos == 0:
+            return None
+        return self._node_addrs[pos - 1]
+
+    def ceil_addr(self, addr: int) -> int | None:
+        """
+        Get the smallest address that is greater than or equal to the given address and has a CFGNode.
+
+        :param addr: The address to ceil.
+        :return: The smallest address that is greater than or equal to the given address and has a CFGNode, or None if
+                 no such address exists.
+        """
+        if self._node_addrs is None:
+            self._build_node_addr_index()
+            assert self._node_addrs is not None
+
+        pos = self._node_addrs.bisect_left(addr)
+        if pos == len(self._node_addrs):
+            return None
+        return self._node_addrs[pos]
+
     def nodes(self):
         """
         An iterator of all nodes in the graph.
@@ -684,6 +719,7 @@ class CFGModel(Serializable):
         seg_list: SegmentList | None = None,
         data_type_guessing_handlers: list[Callable] | None = None,
         fill_gaps: bool = True,
+        new_mem_data_addrs: set[int] | None = None,
     ) -> bool:
         """
         Go through all data references (or the ones as specified by memory_data_addrs) and determine their sizes and
@@ -828,16 +864,37 @@ class CFGModel(Serializable):
                             # the pointer does not come from current binary. skip.
                             continue
 
-                        if seg_list is not None and seg_list.is_occupied(ptr):
-                            sort = seg_list.occupied_by_sort(ptr)
-                            if sort == "code":
-                                continue
-                            if sort == "pointer-array":
-                                continue
-                            # TODO: other types
+                        ptr_data_sort, ptr_data_size = MemoryDataSort.Unknown, 0
+                        ptr_content_holder = []
+                        if seg_list is not None:
+                            if seg_list.is_occupied(ptr):
+                                sort = seg_list.occupied_by_sort(ptr)
+                                if sort == "code":
+                                    continue
+                                if sort == "pointer-array":
+                                    continue
+                                # TODO: other types
+                            else:
+                                # what's stored there? let's take a look
+                                next_data_addr = next(self.memory_data.irange(ptr + 1), None)
+                                max_data_size = 100 if next_data_addr is None else next_data_addr - ptr
+                                ptr_data_sort, ptr_data_size = self._guess_data_type(
+                                    ptr,
+                                    max_data_size,
+                                    content_holder=ptr_content_holder,
+                                    xrefs=xrefs,
+                                    seg_list=seg_list,
+                                )
+
                         if ptr not in self.memory_data:
-                            new_md = MemoryData(ptr, 0, MemoryDataSort.Unknown, pointer_addr=data_addr + j)
+                            new_md = MemoryData(ptr, ptr_data_size, ptr_data_sort, pointer_addr=data_addr + j)
+                            if ptr_content_holder:
+                                new_md.content = ptr_content_holder[0]
                             self.memory_data[ptr] = new_md
+                            if ptr_data_sort is not None and ptr_data_size > 0 and seg_list is not None:
+                                seg_list.occupy(ptr, ptr_data_size, ptr_data_sort)
+                            if new_mem_data_addrs is not None:
+                                new_mem_data_addrs.add(ptr)
                             if xrefs is not None:
                                 # Make a copy of the old reference
                                 crs = []
@@ -849,10 +906,23 @@ class CFGModel(Serializable):
                             new_data_found = True
 
             else:
-                if fill_gaps and memory_data.max_size is not None:
-                    memory_data.size = memory_data.max_size
+                if (
+                    fill_gaps
+                    and memory_data.max_size is not None
+                    and (
+                        not exec_mem_regions
+                        or (exec_mem_regions and not self._addr_in_exec_memory_regions(data_addr, exec_mem_regions))
+                    )
+                ):
+                    # do not attempt to fill gaps in executable memory regions
+                    max_data_size = memory_data.max_size
+                    if seg_list is not None:
+                        next_occupied_addr = seg_list.next_pos_with_sort_not_in(data_addr, set())
+                        if next_occupied_addr is not None and next_occupied_addr > data_addr:
+                            max_data_size = min(next_occupied_addr - data_addr, max_data_size)
+                    memory_data.size = max_data_size
 
-            if seg_list is not None and memory_data.size is not None:
+            if seg_list is not None and memory_data.size is not None and memory_data.size > 0:
                 seg_list.occupy(data_addr, memory_data.size, memory_data.sort)
 
         return new_data_found
@@ -864,6 +934,7 @@ class CFGModel(Serializable):
 
         next_free_pos = seg_list.next_free_pos(new_addr)
 
+        assert memory_data.max_size is not None
         max_size = memory_data.max_size - memory_data.size
 
         # find the immediate next memory data entry to see if max_size needs to be reduced
@@ -1121,8 +1192,9 @@ class CFGModel(Serializable):
         :param node: The node to remove.
         """
         self.graph.remove_node(node)
-        self.remove_node(node.addr, node)  # FIXME: block_id param
+        self.remove_node(node.block_id, node)
         self._block_addrs_with_return.discard(node.addr)
+        self._node_addrs = None
 
     def get_intersecting_functions(
         self,
@@ -1141,6 +1213,7 @@ class CFGModel(Serializable):
             if self.project is None:
                 raise AngrCFGError("Please provide knowledge base")
             kb = self.project.kb
+            assert kb is not None
 
         functions = set()
         for func_addr in {n.function_address for n in self.get_all_nodes_intersecting_region(addr, size)}:

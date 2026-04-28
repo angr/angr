@@ -117,6 +117,9 @@ class FunctionParser:
             block.ea = b.addr
             block.size = b.size
             if isinstance(b, BlockNode):
+                assert b.bytestr is not None, (
+                    f"Block bytes cannot be None when serializing a function. Is this function meta-only ({function.meta_only})?"
+                )
                 block.bytes = b.bytestr
             blocks_list.append(block)
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
@@ -235,7 +238,7 @@ class FunctionParser:
             obj.startpoint = (
                 HookNode(startpoint_addr, 0, project.hooked_by(startpoint_addr))
                 if project and project.is_hooked(startpoint_addr)
-                else BlockNode(startpoint_addr, 1)
+                else BlockNode(startpoint_addr, 1, bytestr=None)
             )  # the size is incorrect, but it should probably be fine?
 
             block_addrs_set = set()
@@ -244,7 +247,7 @@ class FunctionParser:
             obj._local_block_addrs = block_addrs_set
 
             for endpoint in cmsg.endpoints:
-                block = BlockNode(endpoint.ea, endpoint.size)
+                block = BlockNode(endpoint.ea, endpoint.size, bytestr=None)
                 match endpoint.type:
                     case primitives_pb2.EndpointType.CALL:
                         obj._callout_sites.add(block)

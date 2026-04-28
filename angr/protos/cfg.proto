@@ -78,6 +78,11 @@ message MemoryData {
         PEImportDirectory = 12;
         PEExportDirectory = 13;
         PEDelayImportDirectory = 14;
+        EHFuncInfo = 15;
+        EHUnwindMapEntry = 16;
+        EH4ScopeTable = 17;
+        EHTryBlockMap = 18;
+        EHHandlerType = 19;
     }
 
     uint64          ea = 1; // Address of the data
