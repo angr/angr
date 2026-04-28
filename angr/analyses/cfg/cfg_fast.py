@@ -4104,33 +4104,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         node_keys_to_append[next_node_addr] = get_block_key(next_node)
 
                         # make sure there is a function begins there
-                        try:
-                            snippet = self._to_snippet(
-                                addr=next_node_addr, size=next_node_size, base_state=self._base_state
-                            )
-                            self.functions._add_node(next_node_addr, snippet)
-                            # if there are outside transitions, copy them as well
-                            for src, dst, data in self.functions[a.addr].transition_graph.edges(data=True):
-                                if (
-                                    src.addr == a.addr
-                                    and data.get("type", None) == "transition"
-                                    and data.get("outside", False) is True
-                                ):
-                                    stmt_idx = data.get("stmt_idx", None)
-                                    if stmt_idx != DEFAULT_STATEMENT:
-                                        # since we are relifting the block from a new starting address, we should only
-                                        # keep stmt_idx if it is the default exit.
-                                        stmt_idx = None
+                        if not self.functions.contains_addr(next_node_addr):
+                            try:
+                                snippet = self._to_snippet(
+                                    addr=next_node_addr, size=next_node_size, base_state=self._base_state
+                                )
+                                self.functions._add_node(next_node_addr, snippet)
+                                # create function edges going to the next node as outside transitions
+                                for _, dst, _ in all_out_edges:
                                     self.functions._add_outside_transition_to(
                                         next_node_addr,
                                         snippet,
-                                        dst,
-                                        to_function_addr=dst.addr,
-                                        ins_addr=data.get("ins_addr", None),
-                                        stmt_idx=stmt_idx,
+                                        dst.addr,
+                                        to_function_addr=dst.function_address,
+                                        ins_addr=next_node.instruction_addrs[-1]
+                                        if next_node.instruction_addrs
+                                        else next_node.addr,
+                                        stmt_idx=DEFAULT_STATEMENT,
                                     )
-                        except (SimEngineError, SimMemoryError):
-                            continue
+                            except (SimEngineError, SimMemoryError):
+                                continue
 
         # append all new nodes to sorted nodes
         if node_keys_to_append:
