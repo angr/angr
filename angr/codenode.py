@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TypeVar, TYPE_CHECKING
+
 import logging
 import weakref
+from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootMethodDescriptor
+
+from .block import Block
 
 if TYPE_CHECKING:
     from . import SimProcedure
 
 l = logging.getLogger(name=__name__)
-
-K = TypeVar("K", int, SootMethodDescriptor)
 
 
 def repr_addr[K: (int, SootMethodDescriptor)](addr: K) -> str:
@@ -19,7 +20,7 @@ def repr_addr[K: (int, SootMethodDescriptor)](addr: K) -> str:
     return repr(addr)
 
 
-class CodeNode:
+class CodeNode[K: (int, SootMethodDescriptor)]:
     """
     The base class of nodes in a function graph.
     """
@@ -81,7 +82,7 @@ class CodeNode:
     is_hook = None
 
 
-class BlockNode(CodeNode):
+class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     """
     Represents a block of code in a function graph.
     """
@@ -104,7 +105,7 @@ class BlockNode(CodeNode):
         self.__init__(*dat[:-1], thumb=dat[-1])
 
 
-class SootBlockNode(BlockNode):
+class SootBlockNode(BlockNode[SootMethodDescriptor]):
     """
     Represents a Soot block of code in a function graph.
     """
@@ -127,7 +128,7 @@ class SootBlockNode(BlockNode):
         self.__init__(*data)
 
 
-class FuncNode(CodeNode):
+class FuncNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     """
     Represents a function callee in a function graph.
     """
@@ -164,7 +165,7 @@ class FuncNode(CodeNode):
         self.__init__(*state)
 
 
-class HookNode(CodeNode):
+class HookNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     """
     Represents a hook in a function graph.
     """
@@ -208,7 +209,7 @@ class HookNode(CodeNode):
         self.__init__(*dat)
 
 
-class SyscallNode(HookNode):
+class SyscallNode[K: (int, SootMethodDescriptor)](HookNode[K]):
     """
     Represents a syscall in a function graph.
     """
@@ -217,6 +218,3 @@ class SyscallNode(HookNode):
 
     def __repr__(self):
         return f"<SyscallNode {self.sim_procedure!r} at {self.addr:#x} (size {self.size})>"
-
-
-from .block import Block

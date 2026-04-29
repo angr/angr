@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-# pylint: disable=arguments-differ,arguments-renamed
-
-from typing import Any
-from collections.abc import Callable, MutableMapping
 from collections import defaultdict
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass, field
-from typing import Self
+from typing import Any, Self
 
 import angr
-from angr.engines.light import SimEngineLightAIL
 from angr import ailment
+from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
+
+# pylint: disable=arguments-differ,arguments-renamed
 
 
 @dataclass

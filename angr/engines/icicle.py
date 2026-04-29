@@ -7,18 +7,17 @@ import os
 import typing
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import cast
+from typing import cast, override
 
 import claripy
 import pypcode
 from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
-from typing import override
 
-from angr.errors import SimMemoryError
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.successors import SimSuccessors, SuccessorsEngine
 from angr.engines.syscall import SimEngineSyscall
+from angr.errors import SimMemoryError
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
 from angr.sim_state import SimState
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap

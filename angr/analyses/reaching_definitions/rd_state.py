@@ -1,25 +1,26 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, overload
-from collections.abc import Iterable, Iterator
+
 import logging
-from typing import Self
+from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING, Any, Self, overload
 
 import archinfo
 import claripy
 
-from angr.knowledge_plugins.key_definitions.environment import Environment
-from angr.knowledge_plugins.key_definitions.tag import Tag
-from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.knowledge_plugins.key_definitions.definition import A
-from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, MultiValues
+from angr.engines.light import SpOffset
+from angr.knowledge_plugins.key_definitions import Definition, DerefSize, LiveDefinitions
+from angr.knowledge_plugins.key_definitions.atoms import Atom, ConstantSrc, GuardUse, MemoryLocation, Register
+from angr.knowledge_plugins.key_definitions.definition import A
+from angr.knowledge_plugins.key_definitions.environment import Environment
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
+from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.knowledge_plugins.key_definitions import LiveDefinitions, DerefSize, Definition
-from angr.knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, ConstantSrc
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, MVType
+
 from .heap_allocator import HeapAllocator
-from .subject import Subject, SubjectType
 from .rd_initializer import RDAStateInitializer
+from .subject import Subject, SubjectType
 
 if TYPE_CHECKING:
     from .reaching_definitions import ReachingDefinitionsAnalysis

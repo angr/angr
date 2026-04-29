@@ -2,29 +2,29 @@ from __future__ import annotations
 
 # pylint: disable=import-outside-toplevel
 from collections import defaultdict, deque
-from typing import Any, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import networkx
 
 from angr.analyses.forward_analysis.visitors.function_graph import FunctionGraphVisitor
-from angr.knowledge_plugins.functions.function import Function
-
-from .visitors.graph import NodeType
 from angr.errors import (
-    AngrSkipJobNotice,
     AngrDelayJobNotice,
+    AngrForwardAnalysisError,
     AngrJobMergingFailureNotice,
     AngrJobWideningFailureNotice,
-    AngrForwardAnalysisError,
+    AngrSkipJobNotice,
 )
+from angr.knowledge_plugins.functions.function import Function
 from angr.utils.algo import binary_insert
-from .job_info import JobInfo, JobType, JobKey
+
+from .job_info import JobInfo
 
 if TYPE_CHECKING:
-    from .visitors.graph import GraphVisitor
     from angr import ailment
     from angr.analyses.decompiler import Clinic
+
+    from .visitors.graph import GraphVisitor
 
 AnalysisState = TypeVar("AnalysisState")
 SuccessorType = TypeVar("SuccessorType")

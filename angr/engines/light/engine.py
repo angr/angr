@@ -1,21 +1,22 @@
 # pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
-from typing import Any, Protocol, cast, TypeVar, TYPE_CHECKING
-from collections.abc import Callable
-from abc import abstractmethod
-import re
-import logging
 
-import pyvex
+import logging
+import re
+from abc import abstractmethod
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
+
 import claripy
+import pyvex
 from pyvex.expr import IRExpr
 
-import angr.ailment as ailment
-from angr.misc.ux import once
-from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
-from angr.code_location import CodeLocation
-from angr.engines.engine import DataType_co, SimEngine, StateType
+from angr import ailment
 from angr.block import Block
+from angr.code_location import CodeLocation
+from angr.engines.engine import SimEngine
+from angr.engines.vex.claripy.irop import SimOperationError, UnsupportedIROpError, vexop_to_simop
+from angr.misc.ux import once
 
 if TYPE_CHECKING:
     from angr.project import Project

@@ -1,15 +1,16 @@
 # pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
-from collections.abc import Iterable
+
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
+from typing import Self
 
 import claripy
-from typing import Self
 
 from angr import ailment
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
-from .tagged_object import TaggedObject
 from .expression import Atom, Expression, DirtyExpression
+from .tagged_object import TaggedObject
 
 
 class Statement(TaggedObject, ABC):
