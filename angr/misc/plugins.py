@@ -10,7 +10,7 @@ l = logging.getLogger(name=__name__)
 P = TypeVar("P")
 
 
-class PluginHub(Generic[P]):
+class PluginHub[P]:
     """
     A plugin hub is an object which contains many plugins, as well as the notion of a "preset", or a
     backer that can provide default implementations of plugins which cater to a certain
@@ -204,7 +204,7 @@ class PluginHub(Generic[P]):
         delattr(self, name)
 
 
-class PluginPreset(Generic[P]):
+class PluginPreset[P]:
     """
     A plugin preset object contains a mapping from name to a plugin class.
     A preset can be active on a hub, which will cause it to handle requests for plugins which are not already present

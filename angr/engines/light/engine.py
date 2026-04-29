@@ -131,7 +131,7 @@ class SimEngineLight(Generic[StateType, DataType_co, BlockType, ResultType], Sim
 T = TypeVar("T")
 
 
-def longest_prefix_lookup(haystack: str, mapping: dict[str, T]) -> T | None:
+def longest_prefix_lookup[T](haystack: str, mapping: dict[str, T]) -> T | None:
     for l in reversed(range(len(haystack))):
         handler = mapping.get(haystack[:l])
         if handler is not None:

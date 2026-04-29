@@ -10,7 +10,7 @@ import networkx.algorithms
 T = TypeVar("T")
 
 
-def shallow_reverse(g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
+def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
     """
     Make a shallow copy of a directional graph and reverse the edges. This is a workaround to solve the issue that one
     cannot easily make a shallow reversed copy of a graph in NetworkX 2, since networkx.reverse(copy=False) now returns
@@ -30,7 +30,7 @@ def shallow_reverse(g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
     return new_g
 
 
-def inverted_idoms(
+def inverted_idoms[T](
     graph: networkx.DiGraph[T], end_node: T | None = None
 ) -> tuple[networkx.DiGraph[T], dict[T, T] | None]:
     """
@@ -60,7 +60,7 @@ def inverted_idoms(
     return inverted_graph, idoms
 
 
-def to_acyclic_graph(
+def to_acyclic_graph[T](
     graph: networkx.DiGraph[T], node_order: dict[T, int] | None = None, loop_heads: list[T] | None = None
 ) -> networkx.DiGraph[T]:
     """
@@ -91,7 +91,7 @@ def to_acyclic_graph(
     return acyclic_graph
 
 
-def dfs_back_edges(
+def dfs_back_edges[T](
     graph: networkx.DiGraph[T], start_node: T, *, visit_all_nodes: bool = False, visited: set[T] | None = None
 ) -> Iterator[tuple[T, T]]:
     """
@@ -130,7 +130,7 @@ def dfs_back_edges(
             yield from dfs_back_edges(graph, node, visited=visited)
 
 
-def subgraph_between_nodes(
+def subgraph_between_nodes[T](
     graph: networkx.DiGraph[T], source: T, frontier: Iterable[T], include_frontier: bool = False
 ) -> networkx.DiGraph[T]:
     """
@@ -197,7 +197,7 @@ def subgraph_between_nodes(
     return g0
 
 
-def dominates(idom: dict[T, T], dominator_node: T, node: T) -> bool:
+def dominates[T](idom: dict[T, T], dominator_node: T, node: T) -> bool:
     n = node
     while n:
         if n == dominator_node:
@@ -211,7 +211,7 @@ def dominates(idom: dict[T, T], dominator_node: T, node: T) -> bool:
 #
 
 
-def compute_dominance_frontier(graph: networkx.DiGraph[T], domtree: networkx.DiGraph[T]) -> dict[T, set[T]]:
+def compute_dominance_frontier[T](graph: networkx.DiGraph[T], domtree: networkx.DiGraph[T]) -> dict[T, set[T]]:
     """
     Compute a dominance frontier based on the given post-dominator tree.
 
@@ -281,7 +281,7 @@ class TemporaryNode:
         return hash(("TemporaryNode", self._label))
 
 
-class ContainerNode(Generic[T]):
+class ContainerNode[T]:
     """
     A container node.
 
@@ -311,7 +311,7 @@ class ContainerNode(Generic[T]):
         return f"CN[{self._obj!r}]"
 
 
-class Dominators(Generic[T]):
+class Dominators[T]:
     """
     Describes dominators in a graph.
     """

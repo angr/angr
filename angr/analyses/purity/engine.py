@@ -2,11 +2,11 @@ from __future__ import annotations
 
 # pylint: disable=arguments-differ,arguments-renamed
 
-from typing import Any, TypeAlias
+from typing import Any
 from collections.abc import Callable, MutableMapping
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing_extensions import Self
+from typing import Self
 
 import angr
 from angr.engines.light import SimEngineLightAIL
@@ -126,8 +126,8 @@ class ResultType:
         return True
 
 
-DataType_co: TypeAlias = frozenset[DataSource]
-StmtDataType: TypeAlias = None
+type DataType_co = frozenset[DataSource]
+type StmtDataType = None
 
 
 class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType]):

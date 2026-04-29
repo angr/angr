@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from abc import ABC, abstractmethod
 
 import claripy
-from typing_extensions import Self
+from typing import Self
 
 from angr import ailment
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable

@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
-from enum import Enum
+from enum import StrEnum
 import logging
 
 import networkx
@@ -63,7 +63,7 @@ class GraphChangedNotification(Exception):
     """
 
 
-class MultiStmtExprMode(str, Enum):
+class MultiStmtExprMode(StrEnum):
     """
     Mode of multi-statement expression creation during structuring.
     """

@@ -26,7 +26,7 @@ l = logging.getLogger(name=__name__)
 RichRT_co = TypeVar("RichRT_co", bound=claripy.ast.Bits, covariant=True)
 
 
-class RichR(Generic[RichRT_co]):
+class RichR[RichRT_co: claripy.ast.Bits]:
     """
     A rich representation of calculation results. The variable recovery data domain.
     """

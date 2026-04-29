@@ -12,7 +12,7 @@ from typing import cast
 import claripy
 import pypcode
 from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
-from typing_extensions import override
+from typing import override
 
 from angr.errors import SimMemoryError
 from angr.engines.failure import SimEngineFailure

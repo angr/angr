@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Literal, TypeAlias
+from typing import Literal
 from collections import defaultdict
 from itertools import count
 
@@ -22,9 +22,9 @@ from .rewriting import RewritingAnalysis
 l = logging.getLogger(name=__name__)
 
 
-Kind: TypeAlias = Literal["stack", "reg"]
-UDef: TypeAlias = tuple[Kind, int, int]
-Def: TypeAlias = StackBaseOffset | Register
+type Kind = Literal["stack", "reg"]
+type UDef = tuple[Kind, int, int]
+type Def = StackBaseOffset | Register
 
 
 class Ssailification(Analysis):  # pylint:disable=abstract-method

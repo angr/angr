@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Generic, TypeVar
-from typing_extensions import Self
+from typing import TypeVar
+from typing import Self
 
 from collections.abc import Callable
 from collections import ChainMap
@@ -12,7 +12,7 @@ V = TypeVar("V")
 TD = TypeVar("TD")
 
 
-class ChainMapCOW(ChainMap, Generic[K, V]):
+class ChainMapCOW[K, V](ChainMap):
     """
     Implements a copy-on-write version of ChainMap that supports auto-collapsing.
 
@@ -106,7 +106,7 @@ class ChainMapCOW(ChainMap, Generic[K, V]):
         return self
 
 
-class DefaultChainMapCOW(ChainMapCOW, Generic[K, V]):
+class DefaultChainMapCOW[K, V](ChainMapCOW):
     """
     Implements a copy-on-write version of ChainMap with default values that supports auto-collapsing.
     """

@@ -4,7 +4,7 @@ import collections
 import logging
 from collections.abc import Iterator
 from typing import Any
-from typing_extensions import Self
+from typing import Self
 
 import claripy
 

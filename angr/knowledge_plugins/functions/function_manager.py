@@ -47,7 +47,7 @@ _missing = object()
 USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
 
 
-class FunctionDictBase(Generic[K]):
+class FunctionDictBase[K: (int, SootMethodDescriptor)]:
     """
     Base class for FunctionDict and SpillingFunctionDict.
     """

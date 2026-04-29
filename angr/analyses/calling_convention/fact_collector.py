@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 from collections import defaultdict
 
 import pyvex
@@ -35,7 +35,7 @@ SUBKIND_BP = 1
 # for KIND_STACKVAL subkind is source stack offset
 # offset is const offset from original value, or value for KIND_CONST
 
-FactData: TypeAlias = tuple[int, int, int] | None
+type FactData = tuple[int, int, int] | None
 
 
 class FactCollectorState:

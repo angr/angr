@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 from collections import defaultdict
 from collections.abc import MutableMapping
 
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def
 
 # (stack offset | None, const value or offset from orig stack offset)
-Value: TypeAlias = "set[tuple[int | None, int]]"
+type Value = "set[tuple[int | None, int]]"
 
 
 def has_conflicting_value_types(vs: Value) -> bool:

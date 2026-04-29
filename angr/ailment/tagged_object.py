@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from typing import Any, TypedDict, TYPE_CHECKING
-from typing_extensions import Self
+from typing import Self
 
 from angr.ailment.manager import Manager
 
 if TYPE_CHECKING:
-    from typing_extensions import Unpack
+    from typing import Unpack
 
     from angr.sim_type import SimType
     from angr.sim_variable import SimVariable

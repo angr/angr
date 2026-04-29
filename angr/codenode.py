@@ -13,7 +13,7 @@ l = logging.getLogger(name=__name__)
 K = TypeVar("K", int, SootMethodDescriptor)
 
 
-def repr_addr(addr: K) -> str:
+def repr_addr[K: (int, SootMethodDescriptor)](addr: K) -> str:
     if isinstance(addr, int):
         return hex(addr)
     return repr(addr)

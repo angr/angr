@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 
 import angr
@@ -11,7 +11,7 @@ ResultType = TypeVar("ResultType")
 DataType_co = TypeVar("DataType_co", covariant=True)
 
 
-class SimEngine(Generic[StateType, ResultType], metaclass=abc.ABCMeta):
+class SimEngine[StateType, ResultType](metaclass=abc.ABCMeta):
     """
     A SimEngine is a type which understands how to perform execution on a state.
     """

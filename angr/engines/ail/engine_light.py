@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 import itertools
 import logging
 
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-StateType: TypeAlias = SimState[ailment.Address, ailment.Address]
-DataType: TypeAlias = claripy.ast.Bits | claripy.ast.Bool
+type StateType = SimState[ailment.Address, ailment.Address]
+type DataType = claripy.ast.Bits | claripy.ast.Bool
 
 
 class CallReached(Exception):

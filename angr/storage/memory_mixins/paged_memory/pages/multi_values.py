@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections.abc import Iterator
-from typing import Any, Generic, TypeGuard, TypeVar, cast
+from typing import Any, TypeGuard, TypeVar, cast
 import archinfo
 
 import claripy
@@ -10,7 +10,7 @@ from angr.storage.memory_object import bv_slice
 MVType = TypeVar("MVType", bound=claripy.ast.BV | claripy.ast.FP)
 
 
-class MultiValues(Generic[MVType]):
+class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
     """
     Represents a byte vector where each byte can have one or multiple values.
 

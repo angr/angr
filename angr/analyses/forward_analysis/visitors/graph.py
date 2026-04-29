@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TypeVar, Generic
+from typing import TypeVar
 from collections.abc import Collection, Iterator
 from collections import defaultdict
 
@@ -8,7 +8,7 @@ from angr.utils.algo import binary_insert
 NodeType = TypeVar("NodeType")
 
 
-class GraphVisitor(Generic[NodeType]):
+class GraphVisitor[NodeType]:
     """
     A graph visitor takes a node in the graph and returns its successors. Typically, it visits a control flow graph,
     and returns successors of a CFGNode each time. This is the base class of all graph visitors.

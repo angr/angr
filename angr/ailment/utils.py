@@ -1,19 +1,18 @@
 # pylint:disable=ungrouped-imports,wrong-import-position
 from __future__ import annotations
-from typing import TypeAlias
 import struct
 
 try:
     from claripy.ast import Bits
 except ImportError:
-    from typing_extensions import Never as Bits
+    from typing import Never as Bits
 
 try:
     import _md5 as md5lib
 except ImportError:
     import hashlib as md5lib
 
-GetBitsTypeParams: TypeAlias = "Expression"
+type GetBitsTypeParams = "Expression"
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:

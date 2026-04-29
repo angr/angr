@@ -19,7 +19,7 @@ Stmt = statement
 
 available_converters: set[str] = set()
 
-Address: TypeAlias = tuple[int, int | None]
+type Address = tuple[int, int | None]
 
 try:
     from .converter_vex import VEXIRSBConverter

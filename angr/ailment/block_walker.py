@@ -1,7 +1,7 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, TypeVar, cast
 from collections.abc import Callable
 
 from . import Block
@@ -44,7 +44,7 @@ StmtType = TypeVar("StmtType")
 BlockType = TypeVar("BlockType")
 
 
-class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
+class AILBlockWalker[ExprType, StmtType, BlockType]:
     """
     Walks all statements and expressions of an AIL node and construct arbitrary values based on them.
     """

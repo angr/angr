@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, cast
 from collections.abc import Sequence
 from enum import Enum, IntEnum
 from abc import ABC, abstractmethod
-from typing_extensions import Self
+from typing import Self
 
 import archinfo
 import claripy

@@ -5,7 +5,7 @@ from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import weakref
 
-from typing_extensions import Self
+from typing import Self
 
 import angr.ailment as ailment
 import claripy
