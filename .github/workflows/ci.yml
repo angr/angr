@@ -29,7 +29,7 @@ jobs:
         if: startsWith(runner.os, 'windows')
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
       - name: Sync dependencies
-        run: uv sync -p 3.10
+        run: uv sync -p 3.12
       - name: Collect tests
         run: uv run pytest --collect-only tests
 
@@ -54,5 +54,5 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
       - run: cargo test --release
