@@ -95,6 +95,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 isinstance(stmt.src, Insert)
                 and isinstance(stmt.src.base, (Const, VirtualVariable))
                 and isinstance(stmt.src.value, Const)
+                and stmt.src.value.is_int
                 and isinstance(stmt.src.offset, Const)
             ):
                 inlined_strcpy_candidate = True
