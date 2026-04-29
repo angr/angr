@@ -2349,8 +2349,12 @@ class CConstant(CExpression):
                     return
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                     refval = self.reference_values[self._type]
-                    if isinstance(refval, MemoryData) and refval.content is not None:
-                        v = refval.content.decode("utf-8")
+                    if isinstance(refval, MemoryData):
+                        if refval.content is not None:  # noqa: SIM108
+                            v = refval.content.decode("utf-8")
+                        else:
+                            # this is bad (e.g., MemoryData.size == 0), but we should handle it here somehow
+                            v = ""
                     elif isinstance(refval, bytes):
                         v = refval.decode("latin1")
                     else:

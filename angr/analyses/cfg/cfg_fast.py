@@ -3732,11 +3732,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             return
 
-        if data_type in {
-            MemoryDataSort.Integer,
-            MemoryDataSort.Unknown,
-            MemoryDataSort.Unspecified,
-        } and self._seg_list.is_occupied(data_addr):
+        if (
+            data_type
+            in {
+                MemoryDataSort.Integer,
+                MemoryDataSort.Unknown,
+                MemoryDataSort.Unspecified,
+            }
+            and data_size is not None
+            and data_size > 0
+            and self._seg_list.is_occupied(data_addr)
+        ):
             existing_data_type = self._seg_list.occupied_by_sort(data_addr)
             if (
                 existing_data_type not in {None, MemoryDataSort.Unknown, MemoryDataSort.Unspecified}
