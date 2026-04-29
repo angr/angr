@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # pylint: disable=import-outside-toplevel
 from collections import defaultdict, deque
-from typing import Any, Generic, TypeVar, TYPE_CHECKING
+from typing import Any, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
 import networkx
@@ -30,7 +30,7 @@ AnalysisState = TypeVar("AnalysisState")
 SuccessorType = TypeVar("SuccessorType")
 
 
-class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, SuccessorType]):
+class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.
@@ -545,8 +545,8 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, Successo
                 del self._job_map[key]
 
 
-class ForwardAnalysisForDummies(
-    Generic[AnalysisState, NodeType, JobKey], ForwardAnalysis[AnalysisState, NodeType, NodeType, JobKey, NodeType]
+class ForwardAnalysisForDummies[AnalysisState, NodeType, JobKey](
+    ForwardAnalysis[AnalysisState, NodeType, NodeType, JobKey, NodeType]
 ):
     def __init__(self, *args, function: Function, graph: networkx.DiGraph[NodeType], **kwargs):
         self._graph_for_dummies = graph
@@ -577,8 +577,8 @@ class ForwardAnalysisForDummies(
         pass
 
 
-class ForwardAnalysisForClinic(
-    Generic[AnalysisState], ForwardAnalysisForDummies[AnalysisState, "ailment.Block", tuple[int, int | None]]
+class ForwardAnalysisForClinic[AnalysisState](
+    ForwardAnalysisForDummies[AnalysisState, "ailment.Block", tuple[int, int | None]]
 ):
     def __init__(self, *args, clinic: Clinic, **kwargs):
         assert clinic.graph is not None

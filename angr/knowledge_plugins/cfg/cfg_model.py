@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from angr.rustylib import SegmentList
     from .types import CFG_ADDR_TYPES
 
-
 l = logging.getLogger(name=__name__)
 
 _PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()

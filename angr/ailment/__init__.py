@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-from typing import TypeAlias
 
 from .block import Block
 from . import statement

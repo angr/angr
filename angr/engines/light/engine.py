@@ -1,6 +1,6 @@
 # pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
-from typing import Any, Protocol, cast, TypeVar, Generic, TYPE_CHECKING
+from typing import Any, Protocol, cast, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 from abc import abstractmethod
 import re
@@ -48,7 +48,7 @@ class IRTop(pyvex.expr.IRExpr):
         return self.ty
 
 
-class SimEngineLight(Generic[StateType, DataType_co, BlockType, ResultType], SimEngine[StateType, ResultType]):
+class SimEngineLight[StateType, DataType_co, BlockType: BlockProtocol, ResultType](SimEngine[StateType, ResultType]):
     """
     A full-featured engine base class, suitable for static analysis
     """
@@ -140,8 +140,8 @@ def longest_prefix_lookup[T](haystack: str, mapping: dict[str, T]) -> T | None:
 
 
 # noinspection PyPep8Naming
-class SimEngineLightVEX(
-    Generic[StateType, DataType_co, ResultType, StmtDataType], SimEngineLight[StateType, DataType_co, Block, ResultType]
+class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
+    SimEngineLight[StateType, DataType_co, Block, ResultType]
 ):
     """
     A mixin for doing static analysis on VEX
@@ -475,8 +475,8 @@ class SimEngineLightVEX(
     def _handle_expr_Const(self, expr: pyvex.expr.Const) -> DataType_co: ...
 
 
-class SimEngineNostmtVEX(
-    Generic[StateType, DataType_co, ResultType], SimEngineLightVEX[StateType, DataType_co, ResultType, None]
+class SimEngineNostmtVEX[StateType, DataType_co, ResultType](
+    SimEngineLightVEX[StateType, DataType_co, ResultType, None]
 ):
     """
     A base class of SimEngineLightVEX that has default handlers for statements if they just need to return None, so you
@@ -524,8 +524,7 @@ class SimEngineNostmtVEX(
 
 
 # noinspection PyPep8Naming
-class SimEngineLightAIL(
-    Generic[StateType, DataType_co, StmtDataType, ResultType],
+class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLight[StateType, DataType_co, ailment.Block, ResultType],
 ):
     """
@@ -1022,8 +1021,7 @@ class SimEngineLightAIL(
     def _handle_binop_Set(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
 
-class SimEngineNostmtAIL(
-    Generic[StateType, DataType_co, StmtDataType, ResultType],
+class SimEngineNostmtAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLightAIL[StateType, DataType_co, StmtDataType | None, ResultType],
 ):
     """
@@ -1062,8 +1060,7 @@ class SimEngineNostmtAIL(
         pass
 
 
-class SimEngineNoexprAIL(
-    Generic[StateType, DataType_co, StmtDataType, ResultType],
+class SimEngineNoexprAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLightAIL[StateType, DataType_co | None, StmtDataType, ResultType],
 ):
     """

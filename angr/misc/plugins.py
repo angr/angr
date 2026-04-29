@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from angr.errors import AngrNoPluginError
 
@@ -260,7 +260,7 @@ class PluginPreset[P]:
         return result
 
 
-class PluginVendor(Generic[P], PluginHub[P]):
+class PluginVendor[P](PluginHub[P]):
     """
     A specialized hub which serves only as a plugin vendor, never having any "active" plugins.
     It will directly return the plugins provided by the preset instead of instantiating them.

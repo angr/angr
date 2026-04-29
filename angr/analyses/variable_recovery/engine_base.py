@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, TypeVar, cast
 import contextlib
 import logging
 
@@ -7,7 +7,7 @@ import angr.ailment as ailment
 import claripy
 
 from angr.analyses.variable_recovery.variable_recovery_base import VariableRecoveryStateBase
-from angr.engines.light.engine import BlockType
+from angr.engines.light.engine import BlockProtocol
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
@@ -61,8 +61,7 @@ class RichR[RichRT_co: claripy.ast.Bits]:
 VRStateType = TypeVar("VRStateType", bound=VariableRecoveryStateBase)
 
 
-class SimEngineVRBase(
-    Generic[VRStateType, BlockType],
+class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockProtocol](
     SimEngineLight[VRStateType, RichR[claripy.ast.BV | claripy.ast.FP], BlockType, None],
 ):
     """

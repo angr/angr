@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generic, TypeVar
+from typing import TypeVar
 from collections.abc import Callable
 import claripy
 from pyvex.expr import IRExpr, Unop, get_op_retty, Binop
@@ -8,15 +8,14 @@ from pyvex.const import get_type_size
 from angr.utils.bits import zeroextend_on_demand
 from angr.block import Block
 from angr.engines.engine import DataType_co
-from angr.engines.light.engine import SimEngineLight, SimEngineLightVEX, StateType, BlockType, ResultType, StmtDataType
+from angr.engines.light.engine import SimEngineLight, SimEngineLightVEX
 
 TOPS: dict[int, claripy.ast.BV] = {}
 
 T = TypeVar("T")
 
 
-class ClaripyDataEngineMixin(
-    Generic[StateType, DataType_co, BlockType, ResultType],
+class ClaripyDataEngineMixin[StateType, DataType_co, BlockType, ResultType](
     SimEngineLight[StateType, DataType_co | claripy.ast.BV, BlockType, ResultType],
 ):
     def _is_top(self, expr) -> bool:
@@ -110,8 +109,7 @@ def _vex_make_vec_operation(
     return inner
 
 
-class ClaripyDataVEXEngineMixin(
-    Generic[StateType, DataType_co, ResultType, StmtDataType],
+class ClaripyDataVEXEngineMixin[StateType, DataType_co, ResultType, StmtDataType](
     ClaripyDataEngineMixin[StateType, DataType_co, Block, ResultType],
     SimEngineLightVEX[StateType, DataType_co | claripy.ast.BV, ResultType, StmtDataType],
 ):

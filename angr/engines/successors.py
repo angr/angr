@@ -502,9 +502,7 @@ class SimSuccessors:
         return [(ip == addr, addr) for addr in addrs]
 
 
-type HeavyState = (
-    "SimState[int | AILAddr | SootAddressDescriptor, claripy.ast.BV | AILAddr | SootAddressDescriptor]"
-)
+type HeavyState = "SimState[int | AILAddr | SootAddressDescriptor, claripy.ast.BV | AILAddr | SootAddressDescriptor]"
 
 
 class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):

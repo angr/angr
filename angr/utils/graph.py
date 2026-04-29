@@ -1,13 +1,11 @@
 from __future__ import annotations
-from typing import Any, TypeVar, Generic
+from typing import Any
 from collections.abc import Iterable, Iterator
 from collections import defaultdict, OrderedDict
 import logging
 
 import networkx
 import networkx.algorithms
-
-T = TypeVar("T")
 
 
 def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
@@ -592,7 +590,7 @@ class Dominators[T]:
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
 
 
-class PostDominators(Generic[T], Dominators[T]):
+class PostDominators[T](Dominators[T]):
     """
     Describe post-dominators in a graph.
     """
@@ -697,7 +695,7 @@ class GraphUtils:
         return list(widening_addrs)
 
     @staticmethod
-    def dfs_postorder_nodes_deterministic(graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
+    def dfs_postorder_nodes_deterministic[T](graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
         visited = set()
         stack: list[tuple[Any, bool]] = [(source, True)]  # NodeType, is_pre_visit
         while stack:
