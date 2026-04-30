@@ -37,6 +37,11 @@ jobs:
           path: binaries
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
+      - name: Setup Java for pysoot
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest
