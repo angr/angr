@@ -658,7 +658,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._evict_n(self.cached_count)
 
 
-class FunctionManager[K: K](KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
+class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
     """
     When cache_limit is set, the FunctionManager uses a SpillingFunctionDict
     that implements an LRU cache keeping only the most recently accessed N functions
