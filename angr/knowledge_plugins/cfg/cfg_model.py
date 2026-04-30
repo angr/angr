@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Generic, TypeVar, TYPE_CHECKING
-
-from collections.abc import Iterator, Callable
 import string
-
-import networkx
+from collections.abc import Iterator, Callable
+from typing import TYPE_CHECKING
 
 import cle
-from archinfo.arch_soot import SootMethodDescriptor
+import networkx
+from sortedcontainers import SortedDict, SortedList
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.protos import cfg_pb2, primitives_pb2
@@ -30,22 +28,6 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
     from angr.rustylib import SegmentList
     from .types import CFG_ADDR_TYPES
-
-    K = TypeVar("K", int, SootMethodDescriptor)
-    T = TypeVar("T")
-
-    class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring
-        def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
-        def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
-        def bisect_left(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
-        def bisect_right(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
-
-    class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
-        def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
-        def copy(self) -> SortedDict[K, T]: ...  # pylint:disable=no-self-use
-
-else:
-    from sortedcontainers import SortedList, SortedDict
 
 
 l = logging.getLogger(name=__name__)
