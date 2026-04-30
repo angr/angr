@@ -7,7 +7,7 @@ StmtIdx = TypeVar("StmtIdx", bound="int | None")
 Context = TypeVar("Context")
 
 
-class CodeLocation[BlockAddr: "int | None", StmtIdx: "int | None", Context]:
+class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
     """
     Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
     name (for SimProcedures).

@@ -409,7 +409,7 @@ class SimStackArg(SimFunctionArgument):
         return SimStackArg(self.stack_offset + offset, size, is_fp)
 
 
-class SimComboArg[T: "SimFunctionArgument"](SimFunctionArgument):
+class SimComboArg[T: SimFunctionArgument](SimFunctionArgument):
     """
     An argument which spans multiple storage locations. Locations should be given least-significant first.
     """

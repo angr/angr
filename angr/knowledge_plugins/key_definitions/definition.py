@@ -139,7 +139,7 @@ class DefinitionMatchPredicate:
         return True
 
 
-class Definition[A: Atom, CodeLoc: "CodeLocation | AILCodeLocation"]:
+class Definition[A: Atom, CodeLoc: CodeLocation | AILCodeLocation]:
     """
     An atom definition.
 

@@ -178,7 +178,7 @@ class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
     """
 
 
-class AnalysisFactory[A: "Analysis"]:
+class AnalysisFactory[A: Analysis]:
     def __init__(self, project: Project, analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
