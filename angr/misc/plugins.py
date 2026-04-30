@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from angr.errors import AngrNoPluginError
 
@@ -10,7 +10,7 @@ l = logging.getLogger(name=__name__)
 P = TypeVar("P")
 
 
-class PluginHub(Generic[P]):
+class PluginHub[P]:
     """
     A plugin hub is an object which contains many plugins, as well as the notion of a "preset", or a
     backer that can provide default implementations of plugins which cater to a certain
@@ -204,7 +204,7 @@ class PluginHub(Generic[P]):
         delattr(self, name)
 
 
-class PluginPreset(Generic[P]):
+class PluginPreset[P]:
     """
     A plugin preset object contains a mapping from name to a plugin class.
     A preset can be active on a hub, which will cause it to handle requests for plugins which are not already present
@@ -260,7 +260,7 @@ class PluginPreset(Generic[P]):
         return result
 
 
-class PluginVendor(Generic[P], PluginHub[P]):
+class PluginVendor[P](PluginHub[P]):
     """
     A specialized hub which serves only as a plugin vendor, never having any "active" plugins.
     It will directly return the plugins provided by the preset instead of instantiating them.

@@ -5,7 +5,7 @@ import functools
 import itertools
 import logging
 import weakref
-from typing import Any, TypeVar, TYPE_CHECKING, Generic
+from typing import Any, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
 import archinfo
@@ -57,7 +57,7 @@ IPTypeSym = TypeVar("IPTypeSym")
 
 
 # pylint: disable=not-callable
-class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
+class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 

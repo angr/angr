@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import claripy
 from archinfo.arch_soot import SootAddressDescriptor
@@ -502,9 +502,7 @@ class SimSuccessors:
         return [(ip == addr, addr) for addr in addrs]
 
 
-HeavyState: TypeAlias = (
-    "SimState[int | AILAddr | SootAddressDescriptor, claripy.ast.BV | AILAddr | SootAddressDescriptor]"
-)
+type HeavyState = "SimState[int | AILAddr | SootAddressDescriptor, claripy.ast.BV | AILAddr | SootAddressDescriptor]"
 
 
 class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):

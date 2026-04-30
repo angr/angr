@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Literal, TypeVar, Generic
+from typing import TYPE_CHECKING, Literal, TypeVar
 from dataclasses import dataclass
 import logging
 
@@ -139,7 +139,7 @@ class DefinitionMatchPredicate:
         return True
 
 
-class Definition(Generic[A, CodeLoc]):
+class Definition[A: Atom, CodeLoc: CodeLocation | AILCodeLocation]:
     """
     An atom definition.
 

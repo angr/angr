@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 from dataclasses import dataclass, field
 
 BlockAddr = TypeVar("BlockAddr", bound="int | None")
@@ -7,7 +7,7 @@ StmtIdx = TypeVar("StmtIdx", bound="int | None")
 Context = TypeVar("Context")
 
 
-class CodeLocation(Generic[BlockAddr, StmtIdx, Context]):
+class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
     """
     Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
     name (for SimProcedures).

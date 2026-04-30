@@ -1,7 +1,7 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 from __future__ import annotations
 import logging
-from typing import Generic, cast, TypeVar
+from typing import cast, TypeVar
 
 from collections.abc import Iterable
 from collections import defaultdict
@@ -409,7 +409,7 @@ class SimStackArg(SimFunctionArgument):
         return SimStackArg(self.stack_offset + offset, size, is_fp)
 
 
-class SimComboArg(SimFunctionArgument, Generic[T]):
+class SimComboArg[T: SimFunctionArgument](SimFunctionArgument):
     """
     An argument which spans multiple storage locations. Locations should be given least-significant first.
     """

@@ -1,20 +1,21 @@
 # pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast
+
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from enum import Enum, IntEnum
-from abc import ABC, abstractmethod
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Self, cast
 
 import archinfo
 import claripy
 
 from .tagged_object import TaggedObject
-from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
+from .utils import get_bits, is_none_or_likeable, is_none_or_matchable, stable_hash
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
+
     from .statement import Statement
 
 

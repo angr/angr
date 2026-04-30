@@ -26,8 +26,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
-        with:
-          python-version: "3.10"
       - name: Restore test durations cache
         uses: actions/cache/restore@v5
         with:
@@ -35,7 +33,7 @@ jobs:
           key: cov-test-durations-${{ github.sha }}
           restore-keys: cov-test-durations-
       - name: Build
-        run: uv sync -v -p 3.10 --all-groups
+        run: uv sync --managed-python -v -p 3.12 --all-groups
       - name: Archive environment
         run: tar -cpf /tmp/env.tzst --absolute-names --zstd $PWD $UV_CACHE_DIR $UV_PYTHON_INSTALL_DIR
       - name: Upload environment artifact
@@ -106,7 +104,7 @@ jobs:
           tool: cargo-llvm-cov
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
       - name: Run tests
         run: |
           cargo test --release

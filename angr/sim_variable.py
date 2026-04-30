@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Self
 
 import claripy
 

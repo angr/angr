@@ -7,7 +7,7 @@ import contextlib
 from collections import defaultdict
 from collections.abc import Callable
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Generic, cast, Any
+from typing import TYPE_CHECKING, TypeVar, cast, Any
 from types import NoneType
 from itertools import chain
 from traceback import format_exception
@@ -178,7 +178,7 @@ class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
     """
 
 
-class AnalysisFactory(Generic[A]):
+class AnalysisFactory[A: Analysis]:
     def __init__(self, project: Project, analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls

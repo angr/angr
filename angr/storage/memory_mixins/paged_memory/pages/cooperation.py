@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 from collections.abc import Generator
 
 import claripy
@@ -11,7 +11,7 @@ from .multi_values import MultiValues
 T = TypeVar("T")
 
 
-class CooperationBase(Generic[T]):
+class CooperationBase[T]:
     """
     Any given subclass of this class which is not a subclass of MemoryMixin should have the property that any subclass
     it which *is* a subclass of MemoryMixin should all work with the same datatypes

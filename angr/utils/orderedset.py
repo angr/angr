@@ -1,11 +1,8 @@
 from __future__ import annotations
-from typing import Generic, TypeVar
 import collections.abc
 
-T = TypeVar("T")
 
-
-class OrderedSet(Generic[T], collections.abc.MutableSet[T]):
+class OrderedSet[T](collections.abc.MutableSet[T]):
     """
     Adapted from http://code.activestate.com/recipes/576694/
     Originally created by Raymond Hettinger and licensed under MIT.

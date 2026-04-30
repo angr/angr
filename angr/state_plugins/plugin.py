@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
 
 from angr.misc.ux import once
 
@@ -18,7 +18,7 @@ l = logging.getLogger(name=__name__)
 S_co = TypeVar("S_co", covariant=True)
 
 
-class _CopyFunc(Protocol, Generic[S_co]):
+class _CopyFunc[S_co](Protocol):
     """
     Function wrapping copy method for memo tracking.
     """

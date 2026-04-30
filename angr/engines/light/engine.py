@@ -1,21 +1,22 @@
 # pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
-from typing import Any, Protocol, cast, TypeVar, Generic, TYPE_CHECKING
-from collections.abc import Callable
-from abc import abstractmethod
-import re
-import logging
 
-import pyvex
+import logging
+import re
+from abc import abstractmethod
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
+
 import claripy
+import pyvex
 from pyvex.expr import IRExpr
 
-import angr.ailment as ailment
-from angr.misc.ux import once
-from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
-from angr.code_location import CodeLocation
-from angr.engines.engine import DataType_co, SimEngine, StateType
+from angr import ailment
 from angr.block import Block
+from angr.code_location import CodeLocation
+from angr.engines.engine import SimEngine
+from angr.engines.vex.claripy.irop import SimOperationError, UnsupportedIROpError, vexop_to_simop
+from angr.misc.ux import once
 
 if TYPE_CHECKING:
     from angr.project import Project
@@ -48,7 +49,7 @@ class IRTop(pyvex.expr.IRExpr):
         return self.ty
 
 
-class SimEngineLight(Generic[StateType, DataType_co, BlockType, ResultType], SimEngine[StateType, ResultType]):
+class SimEngineLight[StateType, DataType_co, BlockType: BlockProtocol, ResultType](SimEngine[StateType, ResultType]):
     """
     A full-featured engine base class, suitable for static analysis
     """
@@ -131,7 +132,7 @@ class SimEngineLight(Generic[StateType, DataType_co, BlockType, ResultType], Sim
 T = TypeVar("T")
 
 
-def longest_prefix_lookup(haystack: str, mapping: dict[str, T]) -> T | None:
+def longest_prefix_lookup[T](haystack: str, mapping: dict[str, T]) -> T | None:
     for l in reversed(range(len(haystack))):
         handler = mapping.get(haystack[:l])
         if handler is not None:
@@ -140,8 +141,8 @@ def longest_prefix_lookup(haystack: str, mapping: dict[str, T]) -> T | None:
 
 
 # noinspection PyPep8Naming
-class SimEngineLightVEX(
-    Generic[StateType, DataType_co, ResultType, StmtDataType], SimEngineLight[StateType, DataType_co, Block, ResultType]
+class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
+    SimEngineLight[StateType, DataType_co, Block, ResultType]
 ):
     """
     A mixin for doing static analysis on VEX
@@ -475,8 +476,8 @@ class SimEngineLightVEX(
     def _handle_expr_Const(self, expr: pyvex.expr.Const) -> DataType_co: ...
 
 
-class SimEngineNostmtVEX(
-    Generic[StateType, DataType_co, ResultType], SimEngineLightVEX[StateType, DataType_co, ResultType, None]
+class SimEngineNostmtVEX[StateType, DataType_co, ResultType](
+    SimEngineLightVEX[StateType, DataType_co, ResultType, None]
 ):
     """
     A base class of SimEngineLightVEX that has default handlers for statements if they just need to return None, so you
@@ -524,8 +525,7 @@ class SimEngineNostmtVEX(
 
 
 # noinspection PyPep8Naming
-class SimEngineLightAIL(
-    Generic[StateType, DataType_co, StmtDataType, ResultType],
+class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLight[StateType, DataType_co, ailment.Block, ResultType],
 ):
     """
@@ -1022,8 +1022,7 @@ class SimEngineLightAIL(
     def _handle_binop_Set(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
 
-class SimEngineNostmtAIL(
-    Generic[StateType, DataType_co, StmtDataType, ResultType],
+class SimEngineNostmtAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLightAIL[StateType, DataType_co, StmtDataType | None, ResultType],
 ):
     """
@@ -1062,8 +1061,7 @@ class SimEngineNostmtAIL(
         pass
 
 
-class SimEngineNoexprAIL(
-    Generic[StateType, DataType_co, StmtDataType, ResultType],
+class SimEngineNoexprAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLightAIL[StateType, DataType_co | None, StmtDataType, ResultType],
 ):
     """

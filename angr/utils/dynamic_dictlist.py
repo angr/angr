@@ -1,6 +1,6 @@
 from __future__ import annotations
 import platform
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
 LIST2DICT_THRESHOLD = 96 if platform.python_implementation() == "PyPy" else 2048
@@ -9,7 +9,7 @@ LIST2DICT_THRESHOLD = 96 if platform.python_implementation() == "PyPy" else 2048
 VT = TypeVar("VT")
 
 
-class DynamicDictList(Generic[VT]):
+class DynamicDictList[VT]:
     """
     A list-like container class that internally uses dicts to store values when the number of values is less than the
     threshold `LIST2DICT_THRESHOLD`. Keys must be ints.

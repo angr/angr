@@ -1,7 +1,7 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
-from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
+from typing import TypeVar, cast, TYPE_CHECKING, overload
 from collections.abc import Generator
 from collections import OrderedDict, UserDict
 import logging
@@ -47,7 +47,7 @@ _missing = object()
 USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
 
 
-class FunctionDictBase(Generic[K]):
+class FunctionDictBase[K: (int, SootMethodDescriptor)]:
     """
     Base class for FunctionDict and SpillingFunctionDict.
     """
@@ -658,7 +658,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._evict_n(self.cached_count)
 
 
-class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
+class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
     """
     When cache_limit is set, the FunctionManager uses a SpillingFunctionDict
     that implements an LRU cache keeping only the most recently accessed N functions
