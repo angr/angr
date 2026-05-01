@@ -4,7 +4,6 @@ from collections import OrderedDict
 from collections.abc import Callable
 from abc import abstractmethod
 from typing import Any, TypeVar, cast
-from collections.abc import Callable
 
 from . import Block
 from .statement import (

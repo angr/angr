@@ -111,9 +111,9 @@ class RustDecompilationTarget(unittest.TestCase):
                 func = proj.kb.functions[func_addr]
                 dec = proj.analyses.Decompiler(func=func, flavor="rust")
                 assert dec.codegen is not None, f"Decompiler produced no codegen for {cls.BINARY}::{label} [{config}]"
-                assert (
-                    dec.codegen.text is not None
-                ), f"Decompiler produced no codegen text for {cls.BINARY}::{label} [{config}]"
+                assert dec.codegen.text is not None, (
+                    f"Decompiler produced no codegen text for {cls.BINARY}::{label} [{config}]"
+                )
                 cls.decompilations[label][config] = dec.codegen.text
 
         if not any(cls.decompilations.values()):
