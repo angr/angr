@@ -193,6 +193,9 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
             case _:
                 raise NotImplementedError
 
+    def _handle_stmt_NoOp(self, stmt: ailment.statement.NoOp) -> StmtDataType:
+        pass
+
     def _handle_stmt_Assignment(self, stmt: ailment.statement.Assignment) -> StmtDataType:
         if isinstance(stmt.src, ailment.expression.Phi):
             # handled by the analysis layer

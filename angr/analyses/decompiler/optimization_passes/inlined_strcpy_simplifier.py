@@ -25,6 +25,60 @@ ASCII_PRINTABLES = set(string.printable)
 ASCII_DIGITS = set(string.digits)
 
 
+def collect_constant_stores(statements, starting_stmt_idx, mem_endness) -> dict[int, tuple[int, Const | None]]:
+    r = {}
+    for idx, stmt in enumerate(statements):
+        if idx < starting_stmt_idx:
+            continue
+        if stmt is None:
+            continue
+        if (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and isinstance(stmt.dst.stack_offset, int)
+        ):
+            if isinstance(stmt.src, Const):
+                r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, mem_endness)
+            elif (
+                isinstance(stmt.src, Insert)
+                and (
+                    isinstance(stmt.src.base, Const)
+                    or (
+                        isinstance(stmt.src.base, VirtualVariable)
+                        and stmt.src.base.was_stack
+                        and stmt.src.base.stack_offset == stmt.dst.stack_offset
+                    )
+                )
+                and isinstance(stmt.src.offset, Const)
+                and isinstance(stmt.src.value, Const)
+            ):
+                r[stmt.dst.stack_offset + stmt.src.offset.value] = (
+                    idx,
+                    ail_const_to_be(stmt.src.value, mem_endness),
+                )
+            else:
+                r[stmt.dst.stack_offset] = idx, None
+        elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
+            if isinstance(stmt.data, Const):
+                r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, mem_endness)
+            else:
+                r[stmt.addr.offset] = idx, None
+    return r
+
+
+def stride_to_int(stride: list[tuple[int, int | tuple[int, int], Const]]) -> tuple[int, int]:
+    stride = sorted(stride, key=lambda x: x[0])
+    n = 0
+    size = 0
+    for _, _, v in stride:
+        size += v.size
+        n <<= v.bits
+        assert isinstance(v.value, int)
+        n |= v.value
+    return n, size
+
+
 class InlinedStrcpySimplifier(OptimizationPass):
     """
     Simplifies inlined string copying logic into calls to strcpy/strncpy, and consolidates multiple consecutive
@@ -150,7 +204,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 )
 
             # scan forward to find all consecutive constant stores
-            all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
+            all_constant_stores = collect_constant_stores(statements, stmt_idx, self.project.arch.memory_endness)
             if all_constant_stores:
                 offsets = sorted(all_constant_stores.keys())
                 next_offset = min(offsets)
@@ -173,7 +227,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 if min_stride_stmt_idx > stmt_idx:
                     return None
 
-                integer, size = self._stride_to_int(stride)
+                integer, size = stride_to_int(stride)
                 prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
                 min_str_length = 1 if prev_stmt is not None and self.is_inlined_strcpy(prev_stmt) else 4
                 r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_str_length)
@@ -288,59 +342,6 @@ class InlinedStrcpySimplifier(OptimizationPass):
             ]
 
         return None
-
-    def _collect_constant_stores(self, statements, starting_stmt_idx):
-        r = {}
-        for idx, stmt in enumerate(statements):
-            if idx < starting_stmt_idx:
-                continue
-            if stmt is None:
-                continue
-            if (
-                isinstance(stmt, Assignment)
-                and isinstance(stmt.dst, VirtualVariable)
-                and stmt.dst.was_stack
-                and isinstance(stmt.dst.stack_offset, int)
-            ):
-                if isinstance(stmt.src, Const):
-                    r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
-                if (
-                    isinstance(stmt.src, Insert)
-                    and (
-                        isinstance(stmt.src.base, Const)
-                        or (
-                            isinstance(stmt.src.base, VirtualVariable)
-                            and stmt.src.base.was_stack
-                            and stmt.src.base.stack_offset == stmt.dst.stack_offset
-                        )
-                    )
-                    and isinstance(stmt.src.offset, Const)
-                    and isinstance(stmt.src.value, Const)
-                ):
-                    r[stmt.dst.stack_offset + stmt.src.offset.value] = (
-                        idx,
-                        ail_const_to_be(stmt.src.value, self.project.arch.memory_endness),
-                    )
-                else:
-                    r[stmt.dst.stack_offset] = idx, None
-            elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
-                if isinstance(stmt.data, Const):
-                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, self.project.arch.memory_endness)
-                else:
-                    r[stmt.addr.offset] = idx, None
-        return r
-
-    @staticmethod
-    def _stride_to_int(stride):
-        stride = sorted(stride, key=lambda x: x[0])
-        n = 0
-        size = 0
-        for _, _, v in stride:
-            size += v.size
-            n <<= v.bits
-            assert isinstance(v.value, int)
-            n |= v.value
-        return n, size
 
     @staticmethod
     def is_integer_likely_a_string(v, size, endness, min_length=4):
