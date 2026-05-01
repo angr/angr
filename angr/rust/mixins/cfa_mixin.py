@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from angr.ailment import Block, Const
-from angr.ailment.statement import Statement, Label, Call, ConditionalJump
+from angr.ailment.expression import Call
+from angr.ailment.statement import Statement, Label, ConditionalJump
 from angr.rust.utils.ail import CallFinder
 
 from angr.rust.utils.demangler import normalize

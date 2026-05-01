@@ -10,11 +10,12 @@ from networkx import NetworkXError
 
 from angr.ailment import Block, Const
 from angr.ailment.expression import (
+    Call,
     Convert,
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
+from angr.ailment.statement import Statement, Jump, ConditionalJump, Return, Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from angr.rust.utils.demangler import normalize
 

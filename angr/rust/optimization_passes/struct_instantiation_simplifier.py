@@ -6,8 +6,8 @@ from archinfo import Endness
 
 from angr.rust.optimization_passes.utils import CallRewriter
 from angr.ailment import UnaryOp
-from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load, BinaryOp
-from angr.ailment.statement import Assignment, Call
+from angr.ailment.expression import Call, Const, VirtualVariable, Struct, Array, Load, BinaryOp
+from angr.ailment.statement import Assignment
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
 from angr.rust.sim_type import (
     RustSimStruct,

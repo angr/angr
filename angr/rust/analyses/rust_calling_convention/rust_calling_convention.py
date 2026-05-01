@@ -8,8 +8,7 @@ from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import default_cc
 from angr.ailment import Const
 from angr.ailment.block import Block
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Call
+from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeFunction

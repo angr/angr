@@ -1,7 +1,7 @@
 from __future__ import annotations
 from angr.ailment import Block, Assignment, Const, AILBlockViewer
-from angr.ailment.expression import VirtualVariable, RustEnum
-from angr.ailment.statement import Label, Return, Jump, Call
+from angr.ailment.expression import Call, VirtualVariable, RustEnum
+from angr.ailment.statement import Label, Return, Jump
 from angr.analyses.decompiler.utils import _flatten_structured_node
 from angr.rust.sim_type import RustSimTypeResult
 from angr.analyses.decompiler.optimization_passes import OptimizationPassStage

@@ -3,8 +3,8 @@ from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, VirtualVariable, Tmp
-from angr.ailment.statement import Call, Return, Statement, Store
+from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, Tmp
+from angr.ailment.statement import Return, Statement, Store
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin
 from angr.rust.utils.ail import CallVisitor, unwrap_stack_vvar_reference
 

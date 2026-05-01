@@ -4,8 +4,8 @@ from typing import Any
 
 
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Load, Const, VirtualVariable, RustEnum
-from angr.ailment.statement import ConditionalJump, Return, Call
+from angr.ailment.expression import Call, Load, Const, VirtualVariable, RustEnum
+from angr.ailment.statement import ConditionalJump, Return
 from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.mixins import DFAMixin
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult

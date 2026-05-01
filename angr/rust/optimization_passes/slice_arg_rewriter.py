@@ -1,7 +1,6 @@
 from __future__ import annotations
 from angr.ailment import Const
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Call
+from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory
 from angr.rust.sim_type import RustSimTypeSlice
 from angr.calling_conventions import SimStructArg, SimFunctionArgument, SimRegArg
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage

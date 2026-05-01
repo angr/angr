@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment import Statement, Block
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp
-from angr.ailment.statement import Call
+from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory, UnaryOp
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import SRDAMixin
 

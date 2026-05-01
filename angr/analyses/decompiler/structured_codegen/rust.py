@@ -3422,7 +3422,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         handler: Callable | None = self._handlers.get(node.__class__, None)
         if handler is not None:
-            if isinstance(node, (Stmt.Call, FunctionLikeMacro)):
+            if isinstance(node, (Expr.Call, FunctionLikeMacro)):
                 # special case for Call
                 converted = handler(node, is_expr=is_expr)
             else:
