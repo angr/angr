@@ -4,6 +4,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 from functools import wraps
 
@@ -144,6 +145,22 @@ class TestFmt(RustDecompilationTarget):
             with self.subTest(configuration=config):
                 self.assertIn('format!("invalid width: {}"', text, f"Expected to see the format! macro [{config}]")
 
+    def test_uumain_recovers_option_and_result_types(self):
+        for config, text in self.decompilations["uumain"].items():
+            with self.subTest(configuration=config):
+                self.assertRegex(text, r"Option<struct\d+>", f"Expected an Option<T> type annotation [{config}]")
+                self.assertRegex(
+                    text,
+                    r"Result<struct\d+, struct\d+>",
+                    f"Expected a Result<T, E> type annotation [{config}]",
+                )
+
+    def test_uumain_recovers_if_let_result_pattern(self):
+        text = self.decompilations["uumain"].get("nightly-2025-05-22-O3")
+        if text is None:
+            self.skipTest("nightly-2025-05-22-O3/uumain not found")
+        self.assertRegex(text, r"if let Ok\([^)]*\) = v\d+ \{", "Expected to see an if let Ok(...) pattern")
+
     def test_parse_arguments_codegen_nonempty(self):
         for config, text in self.decompilations["parse_arguments"].items():
             with self.subTest(configuration=config):
@@ -153,11 +170,34 @@ class TestFmt(RustDecompilationTarget):
         expected = (
             'format!("Invalid WIDTH specification: {}: {}"',
             "format!(\"invalid width: '{}': Numerical result out of range\"",
+            'format!("Invalid GOAL specification: {}: {}"',
+            'format!("Invalid TABWIDTH specification: {}: {}"',
         )
         for config, text in self.decompilations["parse_arguments"].items():
             for needle in expected:
                 with self.subTest(configuration=config, needle=needle):
                     self.assertIn(needle, text, f"Expected to see {needle!r} [{config}]")
+
+    def test_parse_arguments_recovers_result_return_type(self):
+        for config, text in self.decompilations["parse_arguments"].items():
+            with self.subTest(configuration=config):
+                self.assertRegex(
+                    text,
+                    r"fn sub_[0-9a-f]+\(.*\) -> Result<struct\d+, struct\d+>",
+                    f"Expected Result<T, E> function return type [{config}]",
+                )
+
+    def test_parse_arguments_recovers_ok_struct_return(self):
+        for config, text in self.decompilations["parse_arguments"].items():
+            with self.subTest(configuration=config):
+                self.assertIn("return Ok(struct112 {", text, f"Expected Ok(struct112 {{ ... }}) return [{config}]")
+
+    def test_codegen_recovers_struct_literals(self):
+        struct_literal = re.compile(r"=\s*struct\d+ \{\n\s+field_")
+        for label, per_config_decompilations in self.decompilations.items():
+            for config, text in per_config_decompilations.items():
+                with self.subTest(function=label, configuration=config):
+                    self.assertRegex(text, struct_literal, f"Expected a recovered struct literal [{label} {config}]")
 
 
 if __name__ == "__main__":
