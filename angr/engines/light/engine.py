@@ -1034,6 +1034,9 @@ class SimEngineNostmtAIL[StateType, DataType_co, StmtDataType, ResultType](
     don't have to implement every single statement handler as ``return None``.
     """
 
+    def _handle_stmt_NoOp(self, stmt) -> StmtDataType | None:
+        pass
+
     def _handle_stmt_Assignment(self, stmt) -> StmtDataType | None:
         pass
 
