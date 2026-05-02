@@ -31,10 +31,10 @@ class RustTypeHintsAnalysis(Analysis):
                         elif isinstance(call, FunctionLikeMacro) and is_composite_type(call.returnty):
                             returnty = call.returnty
                         if returnty:
-                            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
+                            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty, self._func.addr)
                     elif isinstance(stmt.src, StringLiteral):
                         self.project.kb.type_hints.add_type_hint(
-                            stmt.dst, RustSimTypeStrRef().with_arch(self.project.arch)
+                            stmt.dst, RustSimTypeStrRef().with_arch(self.project.arch), self._func.addr
                         )
 
 

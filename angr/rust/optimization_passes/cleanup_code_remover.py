@@ -64,7 +64,7 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
                 type_str = name[len("core::ops::drop::Drop::drop<") : -1].replace(",", ", ")
                 struct_ty = self.project.kb.known_structs[type_str]
             if struct_ty and call.args and isinstance(call.args[0], VirtualVariable):
-                self.project.kb.type_hints.add_type_hint(call.args[0], struct_ty)
+                self.project.kb.type_hints.add_type_hint(call.args[0], struct_ty, self._func.addr)
 
     def _remove_cleanup_calls(self):
         blocks_to_remove = set()

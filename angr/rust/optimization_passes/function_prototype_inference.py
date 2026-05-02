@@ -124,7 +124,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         call.prototype = prototype
         dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
         dst_vvar.tags["type"] = returnty  # pyright: ignore[reportGeneralTypeIssues]
-        self.project.kb.type_hints.add_type_hint(dst_vvar, returnty)
+        self.project.kb.type_hints.add_type_hint(dst_vvar, returnty, self._func.addr)
         return Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
 
     def _apply_return_type_hint(self, call_expr: Call, stmt):
@@ -141,7 +141,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             and stmt.dst.was_reg
         ):
             stmt.dst.tags["type"] = returnty  # pyright: ignore[reportGeneralTypeIssues]
-            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
+            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty, self._func.addr)
 
     def _detect_callsite_discriminant_hint(self, post_callsite_path):
         """

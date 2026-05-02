@@ -255,7 +255,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
 
                 # Collect type hints
-                self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
+                self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty, self._func.addr)
 
                 for expr, pending_ty in builder.pending_potential_structs:
                     self._simplify_callsite_struct_instantiation(callsite_block, expr, pending_ty)
@@ -265,7 +265,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
             else:
                 # Collect type hints
-                self.project.kb.type_hints.add_type_hint(vvar, struct_ty)
+                self.project.kb.type_hints.add_type_hint(vvar, struct_ty, self._func.addr)
 
     def _build_struct_ty(self, fields):
         if not fields:
@@ -339,7 +339,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     new_stmt = Assignment(None, new_vvar, src, **sorted_stmts[0].tags)
 
                     # Collect type hints
-                    self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
+                    self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty, self._func.addr)
 
                     self._stmts_to_replace[block].append((block.statements.index(sorted_stmts[0]), new_stmt))
                     for stmt in sorted_stmts[1:]:

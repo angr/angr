@@ -695,7 +695,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
     def _collect_rust_type_hints(self, graph):
         self.project.analyses.RustTypeHints(self.function, graph)
-        self.vvar_type_hints.update(self.project.kb.type_hints.vvar_type_hints)
+        self.vvar_type_hints.update(self.project.kb.type_hints.get_type_hints(self.function.addr))
 
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)

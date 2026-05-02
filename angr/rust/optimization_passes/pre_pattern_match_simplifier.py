@@ -170,7 +170,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
             elif len(move_stmts) == 1:
                 move_stmt = move_stmts[0]
             if move_stmt:
-                self.project.kb.type_hints.add_type_hint(move_stmt.dst, variant.fields[0][0])
+                self.project.kb.type_hints.add_type_hint(move_stmt.dst, variant.fields[0][0], self._func.addr)
 
     def _group_move_stmts(self):
         for block in self._graph.nodes:
