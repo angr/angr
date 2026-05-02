@@ -12,12 +12,12 @@ def test_rust_type_hints_are_function_scoped():
     project = angr.load_shellcode(b"\xc3", arch="amd64")
     vvar = VirtualVariable(0, 7, 64, VirtualVariableCategory.REGISTER, 0)
 
-    ty_a = RustSimStruct(
-        OrderedDict({"field_0": RustSimTypeInt(64, signed=False)}), name="TypeA", pack=True
-    ).with_arch(project.arch)
-    ty_b = RustSimStruct(
-        OrderedDict({"field_0": RustSimTypeInt(32, signed=False)}), name="TypeB", pack=True
-    ).with_arch(project.arch)
+    ty_a = RustSimStruct(OrderedDict({"field_0": RustSimTypeInt(64, signed=False)}), name="TypeA", pack=True).with_arch(
+        project.arch
+    )
+    ty_b = RustSimStruct(OrderedDict({"field_0": RustSimTypeInt(32, signed=False)}), name="TypeB", pack=True).with_arch(
+        project.arch
+    )
 
     project.kb.type_hints.add_type_hint(vvar, ty_a, 0x1000)
     project.kb.type_hints.add_type_hint(vvar, ty_b, 0x2000)
