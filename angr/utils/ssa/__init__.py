@@ -139,8 +139,8 @@ def get_vvar_deflocs(
     return vvar_to_loc
 
 
-def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
-    collector = VVarUsesCollector()
+def get_vvar_uselocs(blocks, allow_phi_loops=False) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
+    collector = VVarUsesCollector(allow_phi_loops=allow_phi_loops)
     for block in blocks:
         collector.walk(block)
     return collector.vvar_and_uselocs

@@ -193,6 +193,7 @@ class ClinicStage(enum.IntEnum):
     RECOVER_VARIABLES = 13
     SEMANTIC_VARIABLE_NAMING = 14
     COLLECT_EXTERNS = 15
+    LAST = 16
 
 
 class ComboRegReferenceWalker(AILBlockRewriter):

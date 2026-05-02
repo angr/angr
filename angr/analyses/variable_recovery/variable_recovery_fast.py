@@ -31,14 +31,16 @@ from angr.errors import AngrMissingTypeError, AngrVariableRecoveryError, SimEngi
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.procedures import SIM_TYPE_COLLECTIONS
-from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.sim_variable import (
-    SimComboRegisterVariable,
-    SimMemoryVariable,
-    SimRegisterVariable,
     SimStackVariable,
+    SimRegisterVariable,
+    SimTemporaryVariable,
     SimVariable,
+    SimMemoryVariable,
+    SimComboRegisterVariable,
 )
+from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .engine_ail import SimEngineVRAIL
@@ -473,6 +475,14 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                         arg_vvar_id = self.vvar_to_vvar.get(arg_vvar_id, arg_vvar_id)
                     self._ail_engine.vvar_region[arg_vvar_id] = v
                     internal_manager.add_variable("register", arg.reg_offsets[0], arg)
+                elif isinstance(arg, SimTemporaryVariable):
+                    v = claripy.BVS("tmp_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    arg_vvar_id = arg_vvar.varid
+                    if self.vvar_to_vvar:
+                        arg_vvar_id = self.vvar_to_vvar.get(arg_vvar_id, arg_vvar_id)
+                    self._ail_engine.vvar_region[arg_vvar_id] = v
+                    internal_manager.add_variable("tmp", arg.tmp_id, arg)
                 else:
                     raise TypeError(f"Unsupported function argument type {type(arg)}")
         elif self._func_args:

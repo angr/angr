@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, Literal, TYPE_CHECKING, cast, overload
 from collections import defaultdict
 from collections.abc import Iterator
 from itertools import chain, count
@@ -16,25 +17,26 @@ from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from angr.protos import variables_pb2
-from angr.serializable import Serializable
-from angr.sim_type import (
-    SimStruct,
-    SimType,
-    SimTypeBottom,
-    SimTypeChar,
-    SimTypeInt,
-    SimTypeLong,
-    SimTypeShort,
-    TypeRef,
-)
 from angr.sim_variable import (
-    SimComboRegisterVariable,
-    SimConstantVariable,
+    SimTemporaryVariable,
+    SimVariable,
+    SimStackVariable,
     SimMemoryVariable,
     SimRegisterVariable,
-    SimStackVariable,
-    SimVariable,
+    SimConstantVariable,
+    SimComboRegisterVariable,
 )
+from angr.sim_type import (
+    TypeRef,
+    SimType,
+    SimStruct,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+)
+from angr.serializable import Serializable
 from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.types import replace_pointer_pts_to, unpack_pointer
@@ -100,6 +102,7 @@ class VariableManagerInternal(Serializable):
         self._global_region = KeyedRegion()
         self._stack_region = KeyedRegion()
         self._register_region = KeyedRegion()
+        self._tmp_region = KeyedRegion()
         self._live_variables = {}  # a mapping between addresses of program points and live variable collections
 
         self._variable_accesses: dict[SimVariable, set[VariableAccess]] = defaultdict(set)
@@ -120,6 +123,7 @@ class VariableManagerInternal(Serializable):
             "argument": 0,
             "phi": 0,
             "global": 0,
+            "tmp": 0,
             "constant": 0,
         }
 
@@ -153,6 +157,7 @@ class VariableManagerInternal(Serializable):
             "_global_region",
             "_stack_region",
             "_register_region",
+            "_tmp_region",
             "_live_variables",
             "_variable_accesses",
             "_insn_to_variable",
@@ -197,6 +202,7 @@ class VariableManagerInternal(Serializable):
         register_variables = []
         stack_variables = []
         memory_variables = []
+        tmp_variables = []
         const_variables = []
 
         for variable in self._variables:
@@ -207,6 +213,8 @@ class VariableManagerInternal(Serializable):
                 stack_variables.append(vc)
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
+            elif isinstance(variable, SimTemporaryVariable):
+                tmp_variables.append(vc)
             elif isinstance(variable, SimConstantVariable):
                 const_variables.append(vc)
             else:
@@ -226,6 +234,7 @@ class VariableManagerInternal(Serializable):
         cmsg.regvars.extend(register_variables)
         cmsg.stackvars.extend(stack_variables)
         cmsg.memvars.extend(memory_variables)
+        cmsg.tmpvars.extend(tmp_variables)
         cmsg.constvars.extend(const_variables)
 
         # accesses
@@ -239,6 +248,7 @@ class VariableManagerInternal(Serializable):
         unified_register_variables = []
         unified_stack_variables = []
         unified_memory_variables = []
+        unified_tmp_variables = []
 
         unified_variable_idents: set[str] = set()
         for variable in self._unified_variables:
@@ -250,12 +260,15 @@ class VariableManagerInternal(Serializable):
                 unified_stack_variables.append(variable.serialize_to_cmessage())
             elif isinstance(variable, SimMemoryVariable):
                 unified_memory_variables.append(variable.serialize_to_cmessage())
+            elif isinstance(variable, SimTemporaryVariable):
+                unified_tmp_variables.append(variable.serialize_to_cmessage())
             else:
                 raise NotImplementedError
 
         cmsg.unified_regvars.extend(unified_register_variables)
         cmsg.unified_stackvars.extend(unified_stack_variables)
         cmsg.unified_memvars.extend(unified_memory_variables)
+        cmsg.unified_tmpvars.extend(unified_tmp_variables)
 
         relations = []
         for variable, unified in self._variables_to_unified_variables.items():
@@ -322,6 +335,13 @@ class VariableManagerInternal(Serializable):
                     SimMemoryVariable.parse_from_cmessage(memvar_pb2),
                 )
             )
+        for memvar_pb2 in cmsg.tmpvars:
+            all_vars.append(
+                (
+                    memvar_pb2.base.is_phi,  # type: ignore[reportAttributeAccessIssue]
+                    SimTemporaryVariable.parse_from_cmessage(memvar_pb2),
+                )
+            )
         for constvar_pb2 in cmsg.constvars:
             all_vars.append(
                 (
@@ -378,6 +398,10 @@ class VariableManagerInternal(Serializable):
             memvar = SimMemoryVariable.parse_from_cmessage(memvar_pb2)
             unified_variable_by_ident[memvar.ident] = memvar
             model._unified_variables.add(memvar)
+        for memvar_pb2 in cmsg.unified_tmpvars:
+            tmpvar = SimTemporaryVariable.parse_from_cmessage(memvar_pb2)
+            unified_variable_by_ident[tmpvar.ident] = tmpvar
+            model._unified_variables.add(tmpvar)
 
         for var2unified in cmsg.var2unified:
             variable = variable_by_ident[var2unified.var_ident]
@@ -415,6 +439,9 @@ class VariableManagerInternal(Serializable):
             elif isinstance(var, SimMemoryVariable):
                 region = model._global_region
                 offset = var.addr
+            elif isinstance(var, SimTemporaryVariable):
+                region = model._tmp_region
+                offset = var.tmp_id
             elif isinstance(var, SimConstantVariable):
                 continue
             else:
@@ -444,6 +471,8 @@ class VariableManagerInternal(Serializable):
             prefix = "g"
         elif sort == "constant":
             prefix = "c"
+        elif sort == "tmp":
+            prefix = "t"
         else:
             prefix = "m"
 
@@ -458,6 +487,8 @@ class VariableManagerInternal(Serializable):
             region = self._register_region
         elif sort == "global":
             region = self._global_region
+        elif sort == "tmp":
+            region = self._tmp_region
         elif sort == "constant":
             region = None
         else:
@@ -482,6 +513,8 @@ class VariableManagerInternal(Serializable):
             region = self._stack_region
         elif sort == "register":
             region = self._register_region
+        elif sort == "tmp":
+            region = self._tmp_region
         elif sort == "global":
             region = self._global_region
         else:
@@ -642,6 +675,9 @@ class VariableManagerInternal(Serializable):
         elif repre_type is SimStackVariable:
             ident_sort = "stack"
             a = SimStackVariable(repre.offset, repre_size, ident=self.next_variable_ident(ident_sort))
+        elif repre_type is SimTemporaryVariable:
+            ident_sort = "tmp"
+            a = SimTemporaryVariable(repre.tmp_id, repre_size)
         else:
             raise TypeError(f'make_phi_node(): Unsupported variable type "{type(repre)}".')
 
@@ -784,9 +820,11 @@ class VariableManagerInternal(Serializable):
     @overload
     def get_variables(self, sort: Literal["reg"], collapse_same_ident: bool = False) -> list[SimRegisterVariable]: ...
     @overload
+    def get_variables(self, sort: Literal["tmp"], collapse_same_ident: bool = False) -> list[SimTemporaryVariable]: ...
+    @overload
     def get_variables(
         self, sort: None = None, collapse_same_ident: bool = False
-    ) -> list[SimRegisterVariable | SimRegisterVariable]: ...
+    ) -> list[SimRegisterVariable | SimRegisterVariable | SimTemporaryVariable]: ...
 
     def get_variables(self, sort=None, collapse_same_ident=False):
         """
@@ -807,6 +845,8 @@ class VariableManagerInternal(Serializable):
                 continue
             if sort == "reg" and not isinstance(var, SimRegisterVariable):
                 continue
+            if sort == "tmp" and not isinstance(var, SimTemporaryVariable):
+                continue
             variables.append(var)
 
         return variables
@@ -816,7 +856,11 @@ class VariableManagerInternal(Serializable):
     @overload
     def get_unified_variables(self, sort: Literal["reg"]) -> list[SimRegisterVariable]: ...
     @overload
-    def get_unified_variables(self, sort: None) -> list[SimRegisterVariable | SimRegisterVariable]: ...
+    def get_unified_variables(self, sort: Literal["tmp"]) -> list[SimTemporaryVariable]: ...
+    @overload
+    def get_unified_variables(
+        self, sort: None
+    ) -> list[SimRegisterVariable | SimRegisterVariable | SimTemporaryVariable]: ...
 
     def get_unified_variables(self, sort=None):
         """
@@ -832,6 +876,8 @@ class VariableManagerInternal(Serializable):
             if sort == "stack" and not isinstance(var, SimStackVariable):
                 continue
             if sort == "reg" and not isinstance(var, SimRegisterVariable):
+                continue
+            if sort == "tmp" and not isinstance(var, SimTemporaryVariable):
                 continue
             variables.append(var)
 
@@ -951,6 +997,10 @@ class VariableManagerInternal(Serializable):
                 if var.name is not None:
                     continue
                 var.name = var.ident
+            elif (types is None or SimTemporaryVariable in types) and isinstance(var, SimTemporaryVariable):
+                if var.name is not None:
+                    continue
+                var.name = f"t{var.tmp_id}"
             elif (types is None or SimMemoryVariable in types) and isinstance(var, SimMemoryVariable):
                 if var.name is not None:
                     continue
@@ -997,6 +1047,7 @@ class VariableManagerInternal(Serializable):
         sorted_stack_variables = []
         sorted_reg_variables = []
         sorted_combo_reg_variables = []
+        sorted_tmp_variables = []
         arg_vars = []
 
         for var in self._unified_variables:
@@ -1018,6 +1069,12 @@ class VariableManagerInternal(Serializable):
                 else:
                     sorted_combo_reg_variables.append(var)
 
+            elif isinstance(var, SimTemporaryVariable):
+                if var.ident and var.ident.startswith("arg_"):
+                    arg_vars.append(var)
+                else:
+                    sorted_tmp_variables.append(var)
+
             elif isinstance(var, SimMemoryVariable):
                 if not reset and var.name is not None:
                     continue
@@ -1036,6 +1093,7 @@ class VariableManagerInternal(Serializable):
 
         sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: (v.offset, v.ident))
         sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: _id_from_varident(v.ident))
+        sorted_tmp_variables = sorted(sorted_tmp_variables, key=lambda v: v.tmp_id)
 
         # find variables that are likely only used by phi assignments
         phi_only_vars = []
@@ -1049,12 +1107,16 @@ class VariableManagerInternal(Serializable):
                 if self._is_variable_only_used_by_phi_stmt(var, func_block_by_addr):
                     sorted_reg_variables.remove(var)
                     phi_only_vars.append(var)
+            for var in list(sorted_tmp_variables):
+                if self._is_variable_only_used_by_phi_stmt(var, func_block_by_addr):
+                    sorted_tmp_variables.remove(var)
+                    phi_only_vars.append(var)
 
-        for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_combo_reg_variables, phi_only_vars):
+        for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_tmp_variables, sorted_combo_reg_variables, phi_only_vars):
             idx = next(var_ctr)
             if var.name is not None and var.name != var.ident and not reset:
                 continue
-            if isinstance(var, (SimStackVariable, SimRegisterVariable, SimComboRegisterVariable)):
+            if isinstance(var, (SimStackVariable, SimRegisterVariable, SimTemporaryVariable, SimComboRegisterVariable)):
                 var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None
@@ -1142,12 +1204,14 @@ class VariableManagerInternal(Serializable):
         return False
 
     @staticmethod
-    def _unify_variables_varkey(v_: SimVariable) -> tuple[str, int, str]:
+    def _unify_variables_varkey(v_: SimVariable) -> tuple[Any, ...]:
         """Get a unique key for variable unification."""
         if isinstance(v_, SimRegisterVariable):
             return "reg", v_.reg, v_.ident
         if isinstance(v_, SimStackVariable):
             return "stack", v_.offset, v_.ident
+        if isinstance(v_, SimTemporaryVariable):
+            return "tmp", v_.tmp_id
         return "none", 0, ""
 
     def unify_variables(self, interference: networkx.Graph[int] | None = None) -> None:
@@ -1171,7 +1235,7 @@ class VariableManagerInternal(Serializable):
         if interference is not None:
             # unify variables based on phi nodes
             for v, subvs in self._phi_variables.items():
-                if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
+                if not isinstance(v, (SimRegisterVariable, SimStackVariable, SimTemporaryVariable)):
                     continue
                 for subv in subvs:
                     unify(subv, v)
