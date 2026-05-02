@@ -40,6 +40,7 @@ class SReachingDefinitions:
         use_callee_saved_regs_at_return: bool = False,
         track_tmps: bool = False,
         variable_map=None,
+        allow_phi_loops: bool = False,
     ):
         self.project = project
         self.kb = project.kb
@@ -60,6 +61,7 @@ class SReachingDefinitions:
         self.func_args = func_args
         self._track_tmps = track_tmps
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._allow_phi_loops = allow_phi_loops
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -94,6 +96,7 @@ class SReachingDefinitions:
             self.func_args,
             fix_undefined_vvars=self.mode == "function",
             track_tmps=self._track_tmps,
+            allow_phi_loops=self._allow_phi_loops,
         )
 
         if self.mode == "function":
