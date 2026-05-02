@@ -423,7 +423,7 @@ class Function(Serializable):
         self.evicted: bool = False
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @name.setter
