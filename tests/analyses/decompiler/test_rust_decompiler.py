@@ -79,8 +79,9 @@ class RustDecompilationTarget(unittest.TestCase):
     Each feature test iterates the configs for the label it cares about under
     ``subTest`` so a failure in one configuration doesn't hide failures in others.
 
-    Adding a feature assertion = a new method. Adding a function to an existing
-    binary = a new ``FUNC_ADDRS`` entry. Adding a binary = a new subclass.
+    Adding a feature assertion = a new ``check_*`` method. Adding a function to
+    an existing binary = a new ``FUNC_ADDRS`` entry. Adding a binary = a new
+    subclass.
     """
 
     BINARY: str = ""
@@ -103,6 +104,7 @@ class RustDecompilationTarget(unittest.TestCase):
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
             proj.analyses.CFGFast(normalize=True)
             proj.analyses.CompleteCallingConventions(recover_variables=False)
+            proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS[config]
             proj.analyses.RustSymbolRecovery()
             proj.analyses.TypeDBLoader()
             for label, per_config_addrs in cls.FUNC_ADDRS.items():
@@ -120,6 +122,12 @@ class RustDecompilationTarget(unittest.TestCase):
         if not any(cls.decompilations.values()):
             raise unittest.SkipTest(f"no rust binaries found for {cls.BINARY} in any target configuration")
 
+    def test_rust_decompilation_features(self):
+        for name in sorted(dir(self)):
+            if name.startswith("check_"):
+                with self.subTest(check=name):
+                    getattr(self, name)()
+
 
 class TestFmt(RustDecompilationTarget):
     """Feature tests for functions in the ``fmt`` coreutils binary."""
@@ -135,17 +143,17 @@ class TestFmt(RustDecompilationTarget):
         },
     }
 
-    def test_uumain_codegen_nonempty(self):
+    def check_uumain_codegen_nonempty(self):
         for config, text in self.decompilations["uumain"].items():
             with self.subTest(configuration=config):
                 self.assertTrue(text.strip(), f"decompilation output was empty [{config}]")
 
-    def test_uumain_macro_recovery_format(self):
+    def check_uumain_macro_recovery_format(self):
         for config, text in self.decompilations["uumain"].items():
             with self.subTest(configuration=config):
                 self.assertIn('format!("invalid width: {}"', text, f"Expected to see the format! macro [{config}]")
 
-    def test_uumain_recovers_option_and_result_types(self):
+    def check_uumain_recovers_option_and_result_types(self):
         for config, text in self.decompilations["uumain"].items():
             with self.subTest(configuration=config):
                 self.assertRegex(text, r"Option<struct\d+>", f"Expected an Option<T> type annotation [{config}]")
@@ -155,18 +163,18 @@ class TestFmt(RustDecompilationTarget):
                     f"Expected a Result<T, E> type annotation [{config}]",
                 )
 
-    def test_uumain_recovers_if_let_result_pattern(self):
+    def check_uumain_recovers_if_let_result_pattern(self):
         text = self.decompilations["uumain"].get("nightly-2025-05-22-O3")
         if text is None:
             self.skipTest("nightly-2025-05-22-O3/uumain not found")
         self.assertRegex(text, r"if let Ok\([^)]*\) = v\d+ \{", "Expected to see an if let Ok(...) pattern")
 
-    def test_parse_arguments_codegen_nonempty(self):
+    def check_parse_arguments_codegen_nonempty(self):
         for config, text in self.decompilations["parse_arguments"].items():
             with self.subTest(configuration=config):
                 self.assertTrue(text.strip(), f"decompilation output was empty [{config}]")
 
-    def test_parse_arguments_macro_recovery_format(self):
+    def check_parse_arguments_macro_recovery_format(self):
         expected = (
             'format!("Invalid WIDTH specification: {}: {}"',
             "format!(\"invalid width: '{}': Numerical result out of range\"",
@@ -178,7 +186,7 @@ class TestFmt(RustDecompilationTarget):
                 with self.subTest(configuration=config, needle=needle):
                     self.assertIn(needle, text, f"Expected to see {needle!r} [{config}]")
 
-    def test_parse_arguments_recovers_result_return_type(self):
+    def check_parse_arguments_recovers_result_return_type(self):
         for config, text in self.decompilations["parse_arguments"].items():
             with self.subTest(configuration=config):
                 self.assertRegex(
@@ -187,12 +195,12 @@ class TestFmt(RustDecompilationTarget):
                     f"Expected Result<T, E> function return type [{config}]",
                 )
 
-    def test_parse_arguments_recovers_ok_struct_return(self):
+    def check_parse_arguments_recovers_ok_struct_return(self):
         for config, text in self.decompilations["parse_arguments"].items():
             with self.subTest(configuration=config):
                 self.assertIn("return Ok(struct112 {", text, f"Expected Ok(struct112 {{ ... }}) return [{config}]")
 
-    def test_codegen_recovers_struct_literals(self):
+    def check_codegen_recovers_struct_literals(self):
         struct_literal = re.compile(r"=\s*struct\d+ \{\n\s+field_")
         for label, per_config_decompilations in self.decompilations.items():
             for config, text in per_config_decompilations.items():
