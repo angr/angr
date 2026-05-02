@@ -90,7 +90,9 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         if inferred_prototype is None:
             call_expr.prototype = existing_prototype
             return
-        if existing_prototype is not None and not self._is_more_precise_prototype(inferred_prototype, existing_prototype):
+        if existing_prototype is not None and not self._is_more_precise_prototype(
+            inferred_prototype, existing_prototype
+        ):
             inferred_prototype = existing_prototype
 
         call_expr.prototype = inferred_prototype
