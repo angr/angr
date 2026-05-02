@@ -126,7 +126,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         )
         return PatternMatchNode(scrutinee, arms, None, addr)  # pyright: ignore[reportArgumentType]
 
-    def _build_if_let(self, true_node, true_variant, scrutinee, addr, leftover):
+    def _build_if_let(self, true_node, true_variant, scrutinee, addr, leftover, false_node=None):
         true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
         for stmt in true_move_stmts:
             if stmt:
@@ -134,7 +134,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         pattern = (true_variant, true_move_stmts)
         if leftover:
             true_node = ConditionNode(addr, None, leftover, true_node, None)
-        return IfLetNode(pattern, scrutinee, true_node, None, addr)
+        return IfLetNode(pattern, scrutinee, true_node, false_node, addr)
 
     def _is_simple_return(self, node):
         if isinstance(node, ailment.Block):
@@ -143,9 +143,9 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                 return True
         return False
 
-    def _try_build_if_let(self, body_node, variant, scrutinee, addr, leftover, **kwargs):
+    def _try_build_if_let(self, body_node, variant, scrutinee, addr, leftover, false_node=None, **kwargs):
         """Helper to build an IfLetNode and handle it. Returns the new node or None."""
-        if_let = self._build_if_let(body_node, variant, scrutinee, addr, leftover)
+        if_let = self._build_if_let(body_node, variant, scrutinee, addr, leftover, false_node=false_node)
         if if_let:
             new_node = super()._handle_IfLet(if_let, **kwargs)
             return new_node or if_let
@@ -209,6 +209,16 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
 
         # Case 1: Both variants exist and we have a false node - can build PatternMatch or IfLet
         if true_variant and false_variant and false_node:
+            # Prefer idiomatic if-let/else for the data-carrying success branch of Option/Result.
+            if leftover is None:
+                if true_variant.name in {"Ok", "Some"}:
+                    return self._try_build_if_let(
+                        true_node, true_variant, scrutinee, node.addr, leftover, false_node=false_node, **kwargs
+                    )
+                if false_variant.name in {"Ok", "Some"}:
+                    return self._try_build_if_let(
+                        false_node, false_variant, scrutinee, node.addr, None, false_node=true_node, **kwargs
+                    )
             # If false branch is a simple return, build IfLet for the true branch
             if self._is_simple_return(false_node):
                 return self._try_build_if_let(true_node, true_variant, scrutinee, node.addr, leftover, **kwargs)

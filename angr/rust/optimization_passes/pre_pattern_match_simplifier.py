@@ -4,7 +4,7 @@ from typing import Any
 
 
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Call, Load, Const, VirtualVariable, RustEnum
+from angr.ailment.expression import Call, Load, Const, Convert, UnaryOp, VirtualVariable, RustEnum
 from angr.ailment.statement import ConditionalJump, Return
 from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.mixins import DFAMixin
@@ -98,11 +98,106 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         # return dst_is_const_ret
 
     @staticmethod
+    def _strip_conversions(expr):
+        while isinstance(expr, Convert):
+            expr = expr.operand
+        return expr
+
+    @staticmethod
+    def _const_value(expr):
+        expr = PrePatternMatchSimplifier._strip_conversions(expr)
+        if isinstance(expr, Const):
+            return expr.value
+        return None
+
+    @staticmethod
+    def _is_zero(expr):
+        return PrePatternMatchSimplifier._const_value(expr) == 0
+
+    @staticmethod
+    def _same_expr(expr0, expr1):
+        try:
+            return expr0.likes(expr1)
+        except AttributeError:
+            return expr0 == expr1
+
+    @staticmethod
+    def _unwrap_zero_xor(expr):
+        expr = PrePatternMatchSimplifier._strip_conversions(expr)
+        if isinstance(expr, BinaryOp) and expr.op == "Xor":
+            op0, op1 = expr.operands
+            if PrePatternMatchSimplifier._is_zero(op0):
+                return PrePatternMatchSimplifier._strip_conversions(op1)
+            if PrePatternMatchSimplifier._is_zero(op1):
+                return PrePatternMatchSimplifier._strip_conversions(op0)
+        return expr
+
+    @staticmethod
+    def _unwrap_neg(expr):
+        expr = PrePatternMatchSimplifier._unwrap_zero_xor(expr)
+        if isinstance(expr, UnaryOp) and expr.op == "Neg":
+            return PrePatternMatchSimplifier._strip_conversions(expr.operand)
+        if isinstance(expr, BinaryOp) and expr.op == "Sub" and PrePatternMatchSimplifier._is_zero(expr.operands[0]):
+            return PrePatternMatchSimplifier._strip_conversions(expr.operands[1])
+        return None
+
+    @staticmethod
+    def _match_scrutinee(expr):
+        expr = PrePatternMatchSimplifier._strip_conversions(expr)
+        if isinstance(expr, Load):
+            return unwrap_stack_vvar_reference(expr.addr) or unwrap_combo_reg_vvar_reference(expr.addr)
+        if isinstance(expr, (VirtualVariable, Call)):
+            return expr
+        return None
+
+    @staticmethod
+    def _extract_sign_bit_discriminant(condition):
+        condition = PrePatternMatchSimplifier._strip_conversions(condition)
+        if not isinstance(condition, BinaryOp) or condition.op not in {"Shr", "Sar"}:
+            return None, None
+
+        value, shift = condition.operands
+        shift_value = PrePatternMatchSimplifier._const_value(shift)
+        if not isinstance(shift_value, int) or shift_value < 0:
+            return None, None
+
+        value = PrePatternMatchSimplifier._strip_conversions(value)
+        if not isinstance(value, BinaryOp) or value.op != "And":
+            return None, None
+
+        lhs = PrePatternMatchSimplifier._unwrap_zero_xor(value.operands[0])
+        rhs = PrePatternMatchSimplifier._unwrap_zero_xor(value.operands[1])
+        lhs_neg_base = PrePatternMatchSimplifier._unwrap_neg(lhs)
+        rhs_neg_base = PrePatternMatchSimplifier._unwrap_neg(rhs)
+        if lhs_neg_base is not None and PrePatternMatchSimplifier._same_expr(lhs_neg_base, rhs):
+            scrutinee_expr = rhs
+        elif rhs_neg_base is not None and PrePatternMatchSimplifier._same_expr(lhs, rhs_neg_base):
+            scrutinee_expr = lhs
+        else:
+            return None, None
+
+        bits = getattr(scrutinee_expr, "bits", None) or shift_value + 1
+        if shift_value != bits - 1:
+            return None, None
+
+        scrutinee = PrePatternMatchSimplifier._match_scrutinee(scrutinee_expr)
+        if scrutinee is None:
+            return None, None
+
+        discriminant = -(1 << shift_value)
+        return scrutinee, discriminant
+
+    @staticmethod
     def extract_scrutinee_and_discriminant(condition):
         leftover = None
         if isinstance(condition, BinaryOp) and condition.op == "LogicalAnd":
             leftover = condition.operands[1]
             condition = condition.operands[0]
+
+        scrutinee, discriminant = PrePatternMatchSimplifier._extract_sign_bit_discriminant(condition)
+        if scrutinee is not None and discriminant is not None:
+            return scrutinee, discriminant, "CmpEQ", leftover
+
         scrutinee, discriminant, cmp_op = None, None, None
         if isinstance(condition, BinaryOp) and condition.op in ("CmpEQ", "CmpNE"):
             op0, op1 = condition.operands
@@ -119,12 +214,8 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
                 op1.value = op0.operands[1].value
                 op0 = op0.operands[0]
                 cmp_op = "CmpNE" if cmp_op == "CmpEQ" else "CmpEQ"
-            if isinstance(op0, Load):
-                scrutinee = unwrap_stack_vvar_reference(op0.addr) or unwrap_combo_reg_vvar_reference(op0.addr)
-            if isinstance(op0, (VirtualVariable, Call)):
-                scrutinee = op0
-            if isinstance(op1, Const):
-                discriminant = op1.value
+            scrutinee = PrePatternMatchSimplifier._match_scrutinee(op0)
+            discriminant = PrePatternMatchSimplifier._const_value(op1)
         if scrutinee is not None and discriminant is not None and cmp_op:
             return scrutinee, discriminant, cmp_op, leftover
         return None, None, None, None

@@ -23,6 +23,11 @@ class RustcVersionIdentification(Analysis):
     def __init__(self, sig_dirs=None):
         super().__init__()
 
+        self.sig_dirs = []
+        self._cache = {}
+        self.matched_count = 0
+        self.best_sig_dir = None
+
         base_dir = get_default_sig_dir()
         if base_dir is None or not os.path.isdir(base_dir):
             l.warning("No valid signature directory found, skipping rustc version identification")
@@ -30,8 +35,6 @@ class RustcVersionIdentification(Analysis):
 
         base = Path(base_dir)
         self.sig_dirs = sig_dirs or [base / "inline", base / "no-inline"]
-        self._cache = {}
-        self.matched_count = 0
         self.best_sig_dir = self.sig_dirs[0]
 
         if self.project.rustc_version is None:
@@ -45,6 +48,8 @@ class RustcVersionIdentification(Analysis):
                 self.project.rustc_version,
                 self.matched_count,
             )
+        else:
+            self._select_best_sig_dir_for_version(self.project.rustc_version)
 
     @staticmethod
     def _parse_version(filename):
@@ -141,18 +146,25 @@ class RustcVersionIdentification(Analysis):
             len(sig_files),
         )
 
-        # Phase 3: Compare sig dirs and select the best one
+        self._select_best_sig_dir(probe_sigs[best_idx])
+
+    def _select_best_sig_dir_for_version(self, version):
+        best_sig_file = f"{version}-O3.sig"
+        self._select_best_sig_dir(best_sig_file)
+
+    def _select_best_sig_dir(self, best_sig_file):
+        # Compare sig dirs and select the best one
         best_sig_dir = self.sig_dirs[0]
         best_dir_count = 0
-        best_sig_file = probe_sigs[best_idx]
         for sig_dir in self.sig_dirs:
             sig_path = os.path.join(sig_dir, best_sig_file)
             if os.path.exists(sig_path):
                 count = self._match_signature(sig_path)
-                l.info("Phase 3: %s count=%d for %s", sig_dir, count, best_sig_file)
+                l.info("Signature directory check: %s count=%d for %s", sig_dir, count, best_sig_file)
                 if count > best_dir_count:
                     best_dir_count = count
                     best_sig_dir = sig_dir
+        self.matched_count = best_dir_count
         self.best_sig_dir = best_sig_dir
         l.info("Selected sig dir: %s", self.best_sig_dir)
 

@@ -750,6 +750,16 @@ class RustSimEnum(RustSimType, SimType):
         for variant in self.variants:
             if variant.discriminant == discriminant:
                 return variant
+            if (
+                variant.discriminant is not None
+                and discriminant is not None
+                and variant.discriminant_size
+                and isinstance(variant.discriminant, int)
+                and isinstance(discriminant, int)
+            ):
+                mask = (1 << (variant.discriminant_size * 8)) - 1
+                if (variant.discriminant & mask) == (discriminant & mask):
+                    return variant
         return None
 
     def get_variant_by_name(self, name):

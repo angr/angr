@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 from angr.analyses import Analysis, AnalysesHub
 from angr.rust.utils.demangler import demangle
-from angr.rust.utils.rust_sigs import get_default_sig_dir
 
 l = logging.getLogger(name=__name__)
 
@@ -24,21 +23,18 @@ class RustSymbolRecovery(Analysis):
 
         self.rust_symbols = {}
 
-        if self.project.rustc_version is None:
-            version_id = self.project.analyses.RustcVersionIdentification(sig_dirs=sig_dirs)
-            self.matched_count = version_id.matched_count
-            self.best_sig_dir = version_id.best_sig_dir
-        else:
-            self.matched_count = 0
-            base_dir = get_default_sig_dir()
-            base = Path(base_dir) if base_dir else Path(__file__).parent
-            self.best_sig_dir = (sig_dirs or [base / "inline"])[0]
+        version_id = self.project.analyses.RustcVersionIdentification(sig_dirs=sig_dirs)
+        self.matched_count = version_id.matched_count
+        self.best_sig_dir = version_id.best_sig_dir
 
         self._analyze()
 
     def _analyze(self):
         version = self.project.rustc_version
         sig_dir = self.best_sig_dir
+        if version is None or sig_dir is None:
+            l.info("No rustc version or signature directory found, skipping rust symbol recovery")
+            return
         applied = 0
         for opt in self.OPT_LEVELS:
             sig_path = Path(sig_dir) / f"{version}-O{opt}.sig"
