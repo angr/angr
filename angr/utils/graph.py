@@ -154,7 +154,14 @@ def subgraph_between_nodes[T](
     :rtype:                         networkx.DiGraph
     """
 
-    frontier = set(frontier)
+    graph = networkx.DiGraph(graph)  # make a copy
+    potential_back_edges = []
+    for pred in list(graph.predecessors(source)):
+        # make sure we cannot go from any other node to the source node
+        graph.remove_edge(pred, source)
+        potential_back_edges.append(pred)
+
+    g0 = networkx.DiGraph()
 
     if source not in graph or any(node not in graph for node in frontier):
         raise KeyError("Source node or frontier nodes are not in the source graph.")
@@ -215,6 +222,10 @@ def subgraph_between_nodes[T](
     if not include_frontier:
         # remove the frontier nodes
         g0.remove_nodes_from(frontier)
+
+    for pred in potential_back_edges:
+        if pred in g0:
+            g0.add_edge(pred, source)
 
     return g0
 
