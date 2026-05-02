@@ -26,6 +26,7 @@ from angr.rust.sim_type import (
     RustSimTypeFunction,
     RustSimTypeStrRef,
     EnumVariant,
+    is_composite_type,
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.utils.ail import CallVisitor
@@ -76,14 +77,17 @@ class RustCallingConventionAnalysis(Analysis):
         self.calling_convention = func.calling_convention or (cc_cls(self.project.arch) if cc_cls else None)
 
         self._fact_collector: FactCollector
+        self._cached_model = self.kb.rust_calling_conventions.get(self.func.addr, None)
 
-        if self.func.addr in self.kb.rust_calling_conventions:
-            self.model = self.kb.rust_calling_conventions[self.func.addr]
+        if self._cached_model is not None and not self._should_refine_cached_model():
+            self.model = self._cached_model
             return
 
         self.model = RustCallingConventionModel()
 
         if self.depth > self.max_depth:
+            if self._cached_model is not None:
+                self.model = self._cached_model
             return
 
         if self.func.normalized and self.func.size:
@@ -106,6 +110,8 @@ class RustCallingConventionAnalysis(Analysis):
             except Exception as e:  # pylint:disable=broad-exception-caught
                 l.error("Rust calling convention analysis failed for %s", normalize(self.func.name))
                 l.error("".join(traceback.format_exception(e)))
+        elif self._cached_model is not None:
+            self.model = self._cached_model
 
     # -- properties ----------------------------------------------------------
 
@@ -117,13 +123,45 @@ class RustCallingConventionAnalysis(Analysis):
 
     def _analyze(self):
         if self.func.prototype is None:
+            if self._cached_model is not None:
+                self.model = self._cached_model
             return
         self._fact_collector.collect()
-        self.model.inferred_prototype = self._infer_prototype(self.func.prototype)
+        inferred_prototype = self._infer_prototype(self.func.prototype)
+        if self._cached_model is not None and not self._is_more_precise_prototype(
+            inferred_prototype, self._cached_model.inferred_prototype
+        ):
+            self.model = self._cached_model
+            return
+        self.model.inferred_prototype = inferred_prototype
         self.kb.rust_calling_conventions[self.func.addr] = self.model
         l.debug("Analysis result for %s (addr: %s): %s", demangle(self.func.name), hex(self.func.addr), self.model)
 
     # -- prototype inference -------------------------------------------------
+
+    @staticmethod
+    def _return_type(prototype):
+        if not isinstance(prototype, RustSimTypeFunction):
+            return None
+        return prototype.normalize().returnty
+
+    def _should_refine_cached_model(self):
+        returnty = self._return_type(self._cached_model.inferred_prototype)
+        return (
+            self.callsite_discriminant_hint is not None
+            and is_composite_type(returnty)
+            and not isinstance(returnty, RustSimEnum)
+        )
+
+    @classmethod
+    def _is_more_precise_prototype(cls, candidate, current):
+        if current is None:
+            return candidate is not None
+        if candidate is None:
+            return False
+        candidate_returnty = cls._return_type(candidate)
+        current_returnty = cls._return_type(current)
+        return isinstance(candidate_returnty, RustSimEnum) and not isinstance(current_returnty, RustSimEnum)
 
     def _infer_prototype(self, prototype: SimTypeFunction):
         returnty, is_arg0_ret_buf = self._infer_return_type(prototype)

@@ -4,7 +4,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, La
 from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
+from angr.rust.sim_type import RustSimEnum, RustSimTypeFunction, is_composite_type
 from angr.knowledge_plugins.functions.function import PrototypeSource
 
 
@@ -27,31 +27,75 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
     def _check(self):
         return self.project.is_rust_binary, None
 
+    @staticmethod
+    def _return_type(prototype):
+        if not isinstance(prototype, RustSimTypeFunction):
+            return None
+        return prototype.normalize().returnty
+
+    @classmethod
+    def _can_refine_call_prototype(cls, prototype):
+        returnty = cls._return_type(prototype)
+        return is_composite_type(returnty) and not isinstance(returnty, RustSimEnum)
+
+    @classmethod
+    def _should_refine_call_prototype(cls, prototype, callsite_discriminant_hint):
+        return callsite_discriminant_hint is not None and cls._can_refine_call_prototype(prototype)
+
+    @classmethod
+    def _is_more_precise_prototype(cls, candidate, current):
+        if current is None:
+            return candidate is not None
+        if candidate is None:
+            return False
+        candidate_returnty = cls._return_type(candidate)
+        current_returnty = cls._return_type(current)
+        return isinstance(candidate_returnty, RustSimEnum) and not isinstance(current_returnty, RustSimEnum)
+
     def _infer_call_prototype(self, call_expr: Call, block):
-        """Perform calling convention analysis on target function if it's never analyzed."""
-        if (
-            not isinstance(call_expr.prototype, RustSimTypeFunction)
-            and isinstance(call_expr.target, Const)
-            and call_expr.target.value in self.kb.functions
+        """Perform calling convention analysis on the target function when needed."""
+        if not (isinstance(call_expr.target, Const) and call_expr.target.value in self.kb.functions):
+            return
+
+        func = self.kb.functions[call_expr.target.value]
+        existing_prototype = None
+        if isinstance(call_expr.prototype, RustSimTypeFunction):
+            existing_prototype = call_expr.prototype
+        elif isinstance(func.prototype, RustSimTypeFunction):
+            existing_prototype = func.prototype
+
+        if existing_prototype is not None and not self._can_refine_call_prototype(existing_prototype):
+            call_expr.prototype = existing_prototype
+            return
+
+        pathfinder = Pathfinder(self._graph)
+        post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
+        post_callsite_path = pathfinder.find_forward_path(post_callsite_block) if post_callsite_block else None
+        callsite_discriminant_hint = self._detect_callsite_discriminant_hint(post_callsite_path)
+
+        if existing_prototype is not None and not self._should_refine_call_prototype(
+            existing_prototype, callsite_discriminant_hint
         ):
-            func = self.kb.functions[call_expr.target.value]
-            if isinstance(func.prototype, RustSimTypeFunction):
-                call_expr.prototype = func.prototype
-            else:
-                post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
-                post_callsite_path = (
-                    Pathfinder(self._graph).find_forward_path(post_callsite_block) if post_callsite_block else None
-                )
-                rcc = self.project.analyses.RustCallingConvention(
-                    func,
-                    callsite_path=Pathfinder(self._graph).find_backward_path(block),
-                    post_callsite_path=post_callsite_path,
-                    is_call_expr=False,
-                    callsite_discriminant_hint=self._detect_callsite_discriminant_hint(post_callsite_path),
-                )
-                call_expr.prototype = rcc.model.inferred_prototype
-                func.prototype = call_expr.prototype
-                func.prototype_source = PrototypeSource.CCA_DECOMPILER
+            call_expr.prototype = existing_prototype
+            return
+
+        rcc = self.project.analyses.RustCallingConvention(
+            func,
+            callsite_path=pathfinder.find_backward_path(block),
+            post_callsite_path=post_callsite_path,
+            is_call_expr=False,
+            callsite_discriminant_hint=callsite_discriminant_hint,
+        )
+        inferred_prototype = rcc.model.inferred_prototype
+        if inferred_prototype is None:
+            call_expr.prototype = existing_prototype
+            return
+        if existing_prototype is not None and not self._is_more_precise_prototype(inferred_prototype, existing_prototype):
+            inferred_prototype = existing_prototype
+
+        call_expr.prototype = inferred_prototype
+        func.prototype = inferred_prototype
+        func.prototype_source = PrototypeSource.CCA_DECOMPILER
 
     def _rewrite_retbuf_call(self, call_expr: Call):
         """If the call has a retbuf arg0, rewrite it into Assignment(dst_stack_vvar, call)."""
