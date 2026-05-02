@@ -487,9 +487,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_block_end(self, stmt_results: list[Statement], block: Block) -> Block:
-        if all(new is None or new is old for new, old in zip(stmt_results, block.statements)):
-            return block
-        statements = [new or old for new, old in zip(stmt_results, block.statements)]
+        if len(stmt_results) == len(block.statements):
+            if all(new is None or new is old for new, old in zip(stmt_results, block.statements)):
+                return block
+            statements = [new or old for new, old in zip(stmt_results, block.statements)]
+        else:
+            statements = stmt_results
         if not self._update_block:
             return block.copy(statements=statements)
         block.statements = statements

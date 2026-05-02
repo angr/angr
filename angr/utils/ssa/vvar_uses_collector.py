@@ -14,9 +14,10 @@ class VVarUsesCollector(AILBlockViewer):
     block is not specified.
     """
 
-    def __init__(self):
+    def __init__(self, allow_phi_loops: bool = False):
         super().__init__()
 
+        self.allow_phi_loops = allow_phi_loops
         self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
         self.vvars: set[int] = set()
 
@@ -31,7 +32,12 @@ class VVarUsesCollector(AILBlockViewer):
         if isinstance(stmt, Assignment):
             if expr is stmt.dst:
                 return
-            if isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi) and expr.varid == stmt.dst.varid:
+            if (
+                isinstance(stmt.dst, VirtualVariable)
+                and isinstance(stmt.src, Phi)
+                and expr.varid == stmt.dst.varid
+                and not self.allow_phi_loops
+            ):
                 # avoid phi loops
                 return
         if block is not None and stmt is not None:

@@ -29,6 +29,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
         track_tmps: bool = False,
+        allow_phi_loops: bool = False,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -46,6 +47,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.func_args = func_args
         self._track_tmps = track_tmps
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._allow_phi_loops = allow_phi_loops
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -70,7 +72,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         # find all vvar definitions
         vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
         # find all explicit vvar uses
-        vvar_uselocs = get_vvar_uselocs(blocks.values())
+        vvar_uselocs = get_vvar_uselocs(blocks.values(), allow_phi_loops=self._allow_phi_loops)
 
         # update vvar definitions using function arguments
         if self.func_args:

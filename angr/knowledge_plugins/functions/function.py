@@ -343,7 +343,7 @@ class Function(Serializable):
         self._init_prototype_and_calling_convention()
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @name.setter
