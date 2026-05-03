@@ -3339,7 +3339,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             if isinstance(kernel_type, SimTypeBottom):
                 return bail_out()
-            kernel_stride = kernel_type.size // self.project.arch.byte_width
+            size = kernel_type.size or 0
+            kernel_stride = size // self.project.arch.byte_width if size else 1
 
             # if the constant offset is larger than the current fucker, uh, do something about that first
             if constant >= kernel_stride:
