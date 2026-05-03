@@ -305,6 +305,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
                 min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
+                min_size = min(min_size, max(0, len(self.symbolic_bitmap) - b))
                 for um, _ in unconstrained_in:
                     for i in range(min_size):
                         if um._contains(b + i, page_addr):
@@ -368,6 +369,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
             changed_candidates = self._ultra_changed_candidates(other)
 
         changes: set[int] = set()
+
+        addr_limit_len = min(len(self.symbolic_bitmap), len(other.symbolic_bitmap))
+        changed_candidates.intersection_update(range(addr_limit_len))
 
         for addr in changed_candidates:
             if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
