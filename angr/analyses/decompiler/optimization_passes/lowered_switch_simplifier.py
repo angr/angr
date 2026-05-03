@@ -487,7 +487,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             break
                         continue
 
-                    successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
+                    successors = [
+                        succ for succ in self._graph.successors(comp) if succ is not comp and succ not in used_nodes
+                    ]
                     succ_addrs = {(succ.addr, succ.idx) for succ in successors}
                     if (target, target_idx) in succ_addrs:
                         next_comp_addr, next_comp_idx = next(
