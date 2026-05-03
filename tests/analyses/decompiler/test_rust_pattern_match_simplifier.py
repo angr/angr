@@ -9,6 +9,8 @@ from angr.rust.sim_type import RustSimTypeInt, RustSimTypeResult
 
 
 class TestRustPatternMatchSimplifier(unittest.TestCase):
+    """Tests for Rust pattern match simplification."""
+
     def test_extracts_sign_bit_niche_discriminant(self):
         vvar = VirtualVariable(None, 0, 64, VirtualVariableCategory.STACK, -0x20)
         cast = Convert(None, 64, 64, True, vvar)
@@ -56,7 +58,10 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             8,
         )
 
-        self.assertEqual(enum_ty.get_variant(1 << 63).name, "Err")
+        variant = enum_ty.get_variant(1 << 63)
+        self.assertIsNotNone(variant)
+        assert variant is not None
+        self.assertEqual(variant.name, "Err")
 
 
 if __name__ == "__main__":

@@ -38,7 +38,9 @@ class TestExpression(unittest.TestCase):
 
         copied = ret_stmt.deep_copy(ailment.Manager())
         copied_enum = copied.ret_exprs[0]
+        assert isinstance(copied_enum, ailment.expression.RustEnum)
         copied_struct = copied_enum.fields[0]
+        assert isinstance(copied_struct, ailment.expression.Struct)
 
         assert copied is not ret_stmt
         assert copied_enum is not enum_expr

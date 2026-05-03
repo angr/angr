@@ -1255,9 +1255,9 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r, typevar=expr.typevar)
 
-    def _handle_unop_Default(self, expr):
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         self._expr(expr.operands[0])
-        return RichR(self.state.top(expr.bits))
+        return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
 
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Clz = _handle_unop_Default
