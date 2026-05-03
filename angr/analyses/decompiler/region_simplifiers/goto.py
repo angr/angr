@@ -128,9 +128,6 @@ class GotoSimplifier(SequenceWalker):
                 goto_target = last_stmt.target.value
                 if successor and goto_target == successor.addr:
                     can_remove = True
-                elif goto_target not in self._node_addrs:
-                    # the target block has been removed and is no longer exist. we assume this goto is useless
-                    can_remove = True
                 else:
                     can_remove = False
                     self._handle_irreducible_goto(block, last_stmt)

@@ -110,34 +110,6 @@ class StructurerBase(Analysis):
         return not networkx.is_directed_acyclic_graph(self._region.graph)
 
     @staticmethod
-    def _remove_conditional_jumps_from_block(block, parent=None, index=0, label=None):
-        block.statements = [stmt for stmt in block.statements if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
-
-    @staticmethod
-    def _remove_conditional_jumps(seq, follow_seq=True):
-        """
-        Remove all conditional jumps.
-
-        :param SequenceNode seq:    The SequenceNode instance to handle.
-        :return:                    A processed SequenceNode.
-        """
-
-        def _handle_Sequence(node, **kwargs):
-            if not follow_seq and node is not seq:
-                return None
-            return walker._handle_Sequence(node, **kwargs)
-
-        handlers = {
-            SequenceNode: _handle_Sequence,
-            ailment.Block: StructurerBase._remove_conditional_jumps_from_block,
-        }
-
-        walker = SequenceWalker(handlers=handlers)
-        walker.walk(seq)
-
-        return seq
-
-    @staticmethod
     def _switch_find_switch_end_addr(
         cases: dict[int, BaseNode], default: BaseNode | ailment.Block | None, region_node_addrs: set[int]
     ) -> int | None:
@@ -246,35 +218,6 @@ class StructurerBase(Analysis):
 
         if default is not None:
             walker.walk(default)
-
-    @staticmethod
-    def _remove_all_jumps(seq):
-        """
-        Remove all constant jumps.
-
-        :param SequenceNode seq:    The SequenceNode instance to handle.
-        :return:                    A processed SequenceNode.
-        """
-
-        def _handle_Block(node: ailment.Block, **kwargs):
-            if (
-                node.statements
-                and isinstance(node.statements[-1], ailment.Stmt.Jump)
-                and isinstance(node.statements[-1].target, ailment.Expr.Const)
-            ):
-                # remove the jump
-                node.statements = node.statements[:-1]
-
-            return node
-
-        handlers = {
-            ailment.Block: _handle_Block,
-        }
-
-        walker = SequenceWalker(handlers=handlers)
-        walker.walk(seq)
-
-        return seq
 
     @staticmethod
     def _remove_redundant_jumps(seq):
