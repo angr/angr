@@ -4,7 +4,7 @@ import logging
 from angr import ailment
 from angr.utils.types import dereference_simtype_by_lib
 from angr.sim_type import SimTypeBottom
-from angr.calling_conventions import SimRegArg
+from angr.calling_conventions import SimRegArg, SimComboArg
 from .ailgraph_walker import AILGraphWalker
 
 l = logging.getLogger(__name__)
@@ -50,9 +50,38 @@ class ReturnMaker(AILGraphWalker):
                         reg[0],
                         ret_val.size * self.arch.byte_width,
                         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
-                        ins_addr=stmt.tags["ins_addr"],
+                        ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
                     )
                 )
+            elif isinstance(ret_val, SimComboArg):
+                # TODO: we currently only support the first register in the combo, but we should support all of them
+                # ret_val = ret_val.locations[0]
+                # reg = self.arch.registers[ret_val.reg_name]
+                # new_stmt.ret_exprs.append(
+                #     ailment.Expr.Register(
+                #         self._next_atom(),
+                #         None,
+                #         reg[0],
+                #         ret_val.size * self.arch.byte_width,
+                #         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
+                #         ins_addr=stmt.tags["ins_addr"],
+                #     )
+                # )
+                for ret_val_loc in ret_val.locations:
+                    if isinstance(ret_val_loc, SimRegArg):
+                        reg = self.arch.registers[ret_val_loc.reg_name]
+                        new_stmt.ret_exprs.append(
+                            ailment.Expr.Register(
+                                self._next_atom(),
+                                None,
+                                reg[0],
+                                ret_val_loc.size * self.arch.byte_width,
+                                reg_name=self.arch.translate_register_name(reg[0], ret_val_loc.size),
+                                ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
+                            )
+                        )
+                    else:
+                        l.warning("Unsupported type of return expression %s.", type(ret_val_loc))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
             return new_stmt

@@ -62,6 +62,7 @@ from .typeconsts import (
     Float64,
     Enum,
     Fd,
+    RustEnum,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -96,6 +97,7 @@ SInt32_ = SInt32()
 UInt32_ = UInt32()
 SInt64_ = SInt64()
 UInt64_ = UInt64()
+RustEnum_ = RustEnum()
 
 
 PRIMITIVE_TYPES = {
@@ -126,6 +128,7 @@ PRIMITIVE_TYPES = {
     Float64_,
     Enum_,
     Fd_,
+    RustEnum_,
 }
 
 
@@ -876,8 +879,9 @@ class SimpleSolver:
         non_primitive_endpoints: set[TypeVariable | DerivedTypeVariable],
         constraint_graph,
     ) -> set[TypeConstraint]:
-        constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
-        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
+        endpoints: set[TypeConstant | TypeVariable | DerivedTypeVariable] = set(non_primitive_endpoints)
+        constraints_0 = self._solve_constraints_between(constraint_graph, endpoints, PRIMITIVE_TYPES)
+        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, endpoints)
         return constraints_0 | constraints_1
 
     @staticmethod
@@ -982,6 +986,7 @@ class SimpleSolver:
                     base_typevar,
                     labels=labels,
                 )
+                assert not isinstance(succ_derived_typevar, TypeConstant)
                 succ_node = SketchNode(succ_derived_typevar)
                 sketch.add_edge(curr_node, succ_node, label)
                 visited[succ] = succ_node
@@ -1012,7 +1017,7 @@ class SimpleSolver:
         if isinstance(t, DerivedTypeVariable):
             base = t.type_var
             level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
-            return base, level
+            return base, level  # pyright: ignore[reportReturnType]
         return t, 0
 
     @staticmethod
@@ -1590,11 +1595,10 @@ class SimpleSolver:
         """
 
         graph = networkx.DiGraph()
+        interesting: set[TypeVariable | DerivedTypeVariable | TypeConstant] = set(interesting_variables)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
-                self._constraint_graph_add_edges(
-                    graph, constraint.sub_type, constraint.super_type, interesting_variables
-                )
+                self._constraint_graph_add_edges(graph, constraint.sub_type, constraint.super_type, interesting)
         self._constraint_graph_saturate(graph)
         self._constraint_graph_remove_self_loops(graph)
         self._constraint_graph_recall_forget_split(graph)
@@ -1741,6 +1745,8 @@ class SimpleSolver:
         if typevar in typevar_set:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
+            return True
+        if isinstance(typevar, RustEnum) and RustEnum_ in typevar_set:
             return True
         if isinstance(typevar, Enum) and Enum_ in typevar_set:
             return True
@@ -2094,7 +2100,7 @@ class SimpleSolver:
                             # missing field at this offset
                             fields[off] = Int8_  # not sure how it's accessed
 
-            if not fields:
+            if not fields or any(field is None for field in fields.values()):
                 result = Top_
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)

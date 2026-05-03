@@ -315,12 +315,12 @@ class TypeVariable:
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("labels", "type_var")
 
-    type_var: TypeVariable
+    type_var: TypeVariable | TypeConstant
     labels: tuple[BaseLabel, ...]
 
     def __init__(
         self,
-        type_var: TypeVariable | DerivedTypeVariable,
+        type_var: TypeVariable | DerivedTypeVariable | TypeConstant,
         label: BaseLabel | None,
         labels: Iterable[BaseLabel] | None = None,
         idx=None,
@@ -592,11 +592,11 @@ class IsArray(BaseLabel):
 
 
 def new_dtv(
-    type_var: TypeVariable,
+    type_var: TypeVariable | TypeConstant,
     *,
     label: BaseLabel | None = None,
     labels: Sequence[BaseLabel] | None = None,
-) -> TypeVariable | DerivedTypeVariable:
+) -> TypeVariable | DerivedTypeVariable | TypeConstant:
     """
     Create a new DerivedTypeVariable with the given type variable (or DerivedTypeVariable) and labels.
     """

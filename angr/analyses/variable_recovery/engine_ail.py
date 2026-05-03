@@ -9,6 +9,7 @@ from angr.errors import SimMemoryMissingError
 from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
 
+from angr.ailment.expression import StringLiteral, Struct, Array, RustEnum, Let, FunctionLikeMacro
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction, SimTypePointer
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
@@ -240,8 +241,8 @@ class SimEngineVRAIL(
             if (
                 isinstance(expr.target, (ailment.Expr.Const, str))
                 or expr.tags.get("is_prototype_guessed", True) is False
-            ):
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, expr.args)
+            ) and expr.args is not None:
+                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
@@ -590,6 +591,34 @@ class SimEngineVRAIL(
             self.state.add_type_constraint(typevars.Subtype(tv, tv_))
         return RichR(self.state.top(expr.bits), typevar=tv)
 
+    def _handle_expr_StringLiteral(self, expr: StringLiteral):
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+
+    def _handle_expr_Struct(self, expr: Struct):
+        for field in expr.fields.values():
+            self._expr(field)
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+
+    def _handle_expr_RustEnum(self, expr: RustEnum):
+        for field in expr.fields:
+            self._expr(field)
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+
+    def _handle_expr_Array(self, expr: Array):
+        for ele in expr.elements:
+            self._expr(ele)
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+
+    def _handle_expr_Let(self, expr: Let):
+        self._expr(expr.src)
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+
+    def _handle_expr_FunctionLikeMacro(self, expr: FunctionLikeMacro):
+        for arg in expr.args:
+            self._expr(arg)
+        ret_ty = typevars.TypeVariable()
+        return RichR(self.state.top(expr.bits), typevar=ret_ty)
+
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
         return self._get_const(expr.value, expr.bits, expr=expr)
 
@@ -901,11 +930,15 @@ class SimEngineVRAIL(
 
         # xor does not transfer type variables; instead, it forces both operands to be unsigned integers
         if isinstance(r0.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(r0.data.size()))
-            self.state.add_type_constraint(tc)
+            int_type_0 = typeconsts.unsigned_int_type(r0.data.size())
+            if int_type_0 is not None:
+                tc = typevars.Subtype(r0.typevar, int_type_0)
+                self.state.add_type_constraint(tc)
         if isinstance(r1.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r1.typevar, typeconsts.unsigned_int_type(r1.data.size()))
-            self.state.add_type_constraint(tc)
+            int_type_1 = typeconsts.unsigned_int_type(r1.data.size())
+            if int_type_1 is not None:
+                tc = typevars.Subtype(r1.typevar, int_type_1)
+                self.state.add_type_constraint(tc)
 
         r = self.state.top(expr.bits)
         return RichR(r)
@@ -1222,9 +1255,9 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r, typevar=expr.typevar)
 
-    def _handle_unop_Default(self, expr):
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         self._expr(expr.operands[0])
-        return RichR(self.state.top(expr.bits))
+        return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
 
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Clz = _handle_unop_Default

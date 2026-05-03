@@ -59,11 +59,15 @@ class TypeConstant:
 
 
 class TopType(TypeConstant):
+    SIZE = 1
+
     def __repr__(self, memo=None):
         return "TOP"
 
 
 class BottomType(TypeConstant):
+    SIZE = 1
+
     def __repr__(self, memo=None):
         return "BOT"
 
@@ -357,7 +361,68 @@ class Struct(TypeConstant):
         )
 
     def __eq__(self, other):
-        return type(other) is type(self) and self.idx == other.idx and hash(self) == hash(other)
+        return type(other) is type(self) and hash(self) == hash(other) and self.idx == other.idx
+
+    def __hash__(self):
+        return self._hash(set())
+
+
+class EnumVariant:
+    def __init__(self, name, fields, discriminant, discriminant_size, size):
+        self.name = name
+        self.fields: list[tuple[TypeConstant, str | None]] = fields
+        self.discriminant = discriminant
+        self.discriminant_size = discriminant_size
+        self.size = size
+
+    def __eq__(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.fields == other.fields
+            and self.discriminant == other.discriminant
+            and self.discriminant_size == other.discriminant
+            and self.size == other.size
+        )
+
+    def __hash__(self):
+        return hash((type(self), self.name, tuple(self.fields), self.discriminant, self.discriminant_size, self.size))
+
+
+class RustEnum(TypeConstant):
+    def __init__(self, name=None, variants=None):
+        super().__init__(name)
+        self.variants = variants if variants is not None else []
+
+    def _hash(self, visited: set[int]):
+        if id(self) in visited:
+            return 0
+        visited.add(id(self))
+        return hash((type(self), self._hash_fields(visited)))
+
+    def _hash_fields(self, visited: set[int]):  # pylint:disable=unused-argument
+        tpl = tuple(hash(variant) for variant in self.variants)
+        return hash(tpl)
+
+    def get_variant(self, name) -> EnumVariant | None:
+        for variant in self.variants:
+            if name == variant.name:
+                return variant
+        return None
+
+    @property
+    def size(self) -> int:
+        return max(variant.size for variant in self.variants)
+
+    @memoize
+    def __repr__(self, memo=None):
+        prefix = "enum"
+        if self.name:
+            prefix = f"{prefix} {self.name}"
+        return prefix + "{" + ", ".join(variant.name for variant in self.variants) + "}"
+
+    def __eq__(self, other):
+        return type(other) is type(self) and hash(self) == hash(other)
 
     def __hash__(self):
         return self._hash(set())
@@ -371,22 +436,7 @@ class Struct(TypeConstant):
             if self in memo:
                 return self
         memo.add(self)
-        new_fields = {}
-        changed = False
-        for off, typ in self.fields.items():
-            new_typ = typ.replace(mapping, memo=memo) if typ else None
-            new_fields[off] = new_typ
-            if new_typ is not typ:
-                changed = True
-        if not changed:
-            return self
-        return Struct(
-            fields=new_fields,
-            name=self.name,
-            field_names=self.field_names,
-            is_cppclass=self.is_cppclass,
-            idx=self.idx,
-        )
+        return self
 
 
 _ENUM_ID = itertools.count()

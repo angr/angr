@@ -79,18 +79,27 @@ def load_signature(sig_path: str, meta_path: str | None = None) -> tuple[str, Fl
     return arch, signature
 
 
-def load_signatures(path: str) -> None:
+def load_signatures(path: str, ignore: list[str] | None = None) -> None:
     """
     Recursively load all FLIRT signatures under a specific path.
 
     :param path:    Location of FLIRT signatures.
+    :param ignore:  A list of signature directory path prefixes to ignore. If None, a default list of signatures will
+                    be loaded.
     """
 
     FLIRT_SIGNATURES_BY_ARCH.clear()
     LIBRARY_TO_SIGNATURES.clear()
     STRING_TO_LIBRARIES.clear()
 
+    if ignore is None:
+        ignore = ["x86_64/linux/rust"]
+
     for root, _, filenames in os.walk(path):
+        if ignore:
+            normalized_root = root.replace("\\", "/")[len(path) :].lstrip("/")
+            if any(normalized_root.startswith(i) for i in ignore):
+                continue
         for filename in filenames:
             if filename.endswith(".sig"):
                 sig_path = os.path.join(root, filename)
