@@ -190,7 +190,6 @@ class TestUnicorn(unittest.TestCase):
     def test_longinit_x86_64(self):
         self._run_longinit("x86_64")
 
-    @broken
     def test_fauxware_arm(self):
         p = angr.Project(os.path.join(test_location, "armel", "fauxware"), auto_load_libs=False)
         s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
