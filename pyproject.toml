@@ -69,7 +69,6 @@ dev = [
     "pytest>=8.3.5",
     "pytest-cov>=7.0.0",
     "pytest-durations>=1.4.0",
-    "pytest-forked>=1.6.0",
     "pytest-profiling>=1.8.1",
     "pytest-split>=0.10.0",
     "pytest-timeout>=2.3.1",
