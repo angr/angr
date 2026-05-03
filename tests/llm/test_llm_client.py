@@ -4,9 +4,18 @@ from __future__ import annotations
 __package__ = __package__ or "tests.llm"  # pylint:disable=redefined-builtin
 
 import os
+import asyncio
 import unittest
 from unittest import mock
 
+from mcp.types import (
+    CreateMessageResult,
+    CreateMessageRequestParams,
+    SamplingMessage,
+    TextContent,
+    ErrorData,
+    ImageContent,
+)
 from pydantic import BaseModel
 
 from angr.llm_client import LLMClient
@@ -180,6 +189,162 @@ class TestLLMClientCompletion(unittest.TestCase):
             mock_provider.assert_called_once_with(base_url="http://localhost:1234", api_key="sk-test")
             mock_chat_model.assert_called_once_with("my-model", provider=mock_provider.return_value)
             assert client._pydantic_model == mock_chat_model.return_value
+
+
+class TestLLMClientMCPSampling(unittest.TestCase):
+    """Tests for LLMClient.create_message (MCP sampling callback)."""
+
+    def _make_client(self, **kwargs):
+        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
+            return LLMClient(model="test-model", **kwargs)
+
+    def _make_params(self, text="Hello", system_prompt=None, temperature=None, max_tokens=100, stop_sequences=None):
+        return CreateMessageRequestParams(
+            messages=[SamplingMessage(role="user", content=TextContent(type="text", text=text))],
+            systemPrompt=system_prompt,
+            temperature=temperature,
+            maxTokens=max_tokens,
+            stopSequences=stop_sequences,
+        )
+
+    def _run_async(self, coro):
+        return asyncio.run(coro)
+
+    def test_create_message_returns_text_result(self):
+        """create_message returns a CreateMessageResult with the LLM output."""
+        client = self._make_client()
+
+        mock_result = mock.MagicMock()
+        mock_result.output = "The capital of France is Paris."
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        ctx = mock.MagicMock()
+        params = self._make_params(text="What is the capital of France?")
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            result = self._run_async(client.create_message(ctx, params))
+
+        assert isinstance(result, CreateMessageResult)
+        assert result.role == "assistant"
+        assert isinstance(result.content, TextContent)
+        assert result.content.text == "The capital of France is Paris."
+        assert result.model == "test-model"
+        assert result.stopReason == "endTurn"
+
+    def test_create_message_includes_system_prompt(self):
+        """create_message prepends the system prompt to the prompt text."""
+        client = self._make_client()
+
+        mock_result = mock.MagicMock()
+        mock_result.output = "ok"
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        ctx = mock.MagicMock()
+        params = self._make_params(text="Hi", system_prompt="You are helpful.")
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            self._run_async(client.create_message(ctx, params))
+
+        call_args = mock_agent_instance.run_sync.call_args
+        prompt = call_args[0][0]
+        assert "[system]\nYou are helpful." in prompt
+        assert "[user]\nHi" in prompt
+
+    def test_create_message_uses_request_temperature(self):
+        """create_message honours temperature from the request params over client default."""
+        client = self._make_client(temperature=0.0)
+
+        mock_result = mock.MagicMock()
+        mock_result.output = "ok"
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        ctx = mock.MagicMock()
+        params = self._make_params(text="Hi", temperature=0.7)
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            self._run_async(client.create_message(ctx, params))
+
+        call_args = mock_agent_instance.run_sync.call_args
+        model_settings = call_args[1]["model_settings"]
+        assert model_settings["temperature"] == 0.7
+
+    def test_create_message_falls_back_to_client_temperature(self):
+        """create_message uses client temperature when request doesn't specify one."""
+        client = self._make_client(temperature=0.5)
+
+        mock_result = mock.MagicMock()
+        mock_result.output = "ok"
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        ctx = mock.MagicMock()
+        params = self._make_params(text="Hi", temperature=None)
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            self._run_async(client.create_message(ctx, params))
+
+        call_args = mock_agent_instance.run_sync.call_args
+        model_settings = call_args[1]["model_settings"]
+        assert model_settings["temperature"] == 0.5
+
+    def test_create_message_passes_stop_sequences(self):
+        """create_message forwards stop sequences to model settings."""
+        client = self._make_client()
+
+        mock_result = mock.MagicMock()
+        mock_result.output = "ok"
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        ctx = mock.MagicMock()
+        params = self._make_params(text="Hi", stop_sequences=["STOP", "END"])
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            self._run_async(client.create_message(ctx, params))
+
+        call_args = mock_agent_instance.run_sync.call_args
+        model_settings = call_args[1]["model_settings"]
+        assert model_settings["stop_sequences"] == ["STOP", "END"]
+
+    def test_create_message_returns_error_on_exception(self):
+        """create_message returns ErrorData when the LLM call fails."""
+        client = self._make_client()
+
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.side_effect = RuntimeError("LLM exploded")
+
+        ctx = mock.MagicMock()
+        params = self._make_params(text="Hi")
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            result = self._run_async(client.create_message(ctx, params))
+
+        assert isinstance(result, ErrorData)
+        assert "LLM exploded" in result.message
+
+    def test_create_message_returns_error_on_empty_content(self):
+        """create_message returns ErrorData when no text content is present."""
+        client = self._make_client()
+
+        params = CreateMessageRequestParams(
+            messages=[
+                SamplingMessage(
+                    role="user",
+                    content=ImageContent(type="image", data="abc", mimeType="image/png"),
+                )
+            ],
+            maxTokens=100,
+        )
+        ctx = mock.MagicMock()
+
+        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
+            result = self._run_async(client.create_message(ctx, params))
+
+        assert isinstance(result, ErrorData)
+        assert "No text content" in result.message
 
 
 if __name__ == "__main__":
