@@ -18,6 +18,7 @@ from angr.rust.optimization_passes.utils import (
     extract_str_from_addr,
     replace_argument_pairs,
 )
+from angr.rust.utils.demangler import _is_rust_hash, demangle, normalize
 from angr.rust.utils.ail import (
     deref_vvar_and_offset,
     extract_vvar_and_offset,
@@ -129,7 +130,8 @@ def test_find_call_returns_none_when_no_call():
 
 def test_get_terminal_call_returns_call_at_block_end():
     final_call = Call(1, "terminal_callee", args=[])
-    block = Block(0x4020, 0, statements=[final_call])
+    # get_terminal_call defensively handles raw Call expressions sitting at the end of a block.
+    block = Block(0x4020, 0, statements=[final_call])  # pyright: ignore[reportArgumentType]
     assert get_terminal_call(block) is final_call
 
 
@@ -159,15 +161,20 @@ def test_replace_argument_pairs_collapses_consecutive_int_pairs():
 
     def merge_pair(a, b):
         if isinstance(a, Const) and isinstance(b, Const):
-            return True, [_const(a.value + b.value)]
+            return True, [_const(int(a.value) + int(b.value))]
         return False, ()
 
     new_call = replace_argument_pairs(call, merge_pair)
     assert new_call is not call
+    assert new_call.args is not None
     new_args = list(new_call.args)
     # Pairs are consumed left-to-right without reusing replacements:
     # (1,2)→3, (3,4)→7, leaving 5 unpaired ⇒ [3, 7, 5].
-    assert [a.value for a in new_args] == [3, 7, 5]
+    values = []
+    for a in new_args:
+        assert isinstance(a, Const)
+        values.append(a.value)
+    assert values == [3, 7, 5]
 
 
 def test_replace_argument_pairs_returns_original_when_no_replacement_happens():
@@ -197,7 +204,7 @@ def test_extract_callee_returns_function_for_call_with_const_target():
 def test_extract_callee_walks_block_to_terminal_call():
     project = _project_with_synthetic_function(0x0, "callee")
     call = Call(0, Const(0, None, 0x0, 64), args=[])
-    block = Block(0x100, 0, statements=[call])
+    block = Block(0x100, 0, statements=[call])  # pyright: ignore[reportArgumentType]
     assert extract_callee(block, project.kb) is project.kb.functions[0x0]
 
 
@@ -237,3 +244,39 @@ def test_extract_str_from_addr_rejects_negative_address():
 def test_extract_str_from_addr_returns_none_when_no_section_covers_address():
     project = angr.load_shellcode(b"\x90", arch="amd64")
     assert extract_str_from_addr(project, addr=0x0) is None
+
+
+def test_is_rust_hash_accepts_only_17_char_hex_with_h_prefix():
+    assert _is_rust_hash("h0123456789abcdef") is True
+    assert _is_rust_hash("h12") is False  # too short
+    assert _is_rust_hash("x0123456789abcdef") is False  # wrong prefix
+    assert _is_rust_hash("h0123456789abcdez") is False  # non-hex digit
+
+
+def test_demangle_strips_trailing_rust_hash_segment():
+    mangled = "_ZN4core3fmt9Formatter9write_str17h0123456789abcdefE"
+    assert demangle(mangled) == "core::fmt::Formatter::write_str"
+
+
+def test_demangle_falls_back_to_original_string_when_unrecognized():
+    raw = "not_a_rust_symbol"
+    assert demangle(raw) == raw
+
+
+def test_normalize_strips_generic_type_arguments_when_monopolizing():
+    assert normalize("alloc::vec::Vec<u8>::push") == "alloc::vec::Vec::push"
+
+
+def test_normalize_keeps_concrete_type_or_trait_name_per_flag():
+    name = "<core::option::Option<T> as core::fmt::Debug>::fmt"
+    assert normalize(name) == "core::option::Option::fmt"
+    assert normalize(name, use_trait_name=True) == "core::fmt::Debug::fmt"
+
+
+def test_normalize_handles_impl_as_pattern_using_trait_name():
+    name = "<impl alloc::vec::Vec<u8> as core::iter::Iterator>::next"
+    assert normalize(name) == "core::iter::Iterator::next"
+
+
+def test_normalize_concise_returns_only_last_path_segment():
+    assert normalize("foo::bar::baz", concise=True) == "baz"
