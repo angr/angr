@@ -168,7 +168,9 @@ class TestExpression(unittest.TestCase):
         assert isinstance(tuple_array.deep_copy(manager).elements, tuple)
 
         variant = SimpleNamespace(name="Some")
-        let_expr = Let(13, variant, [Assignment(14, VirtualVariable(15, 1, 32, VirtualVariableCategory.REGISTER, 16), old)], old)
+        let_expr = Let(
+            13, variant, [Assignment(14, VirtualVariable(15, 1, 32, VirtualVariableCategory.REGISTER, 16), old)], old
+        )
         assert "Some" in str(let_expr)
         assert let_expr.likes(let_expr.copy())
         assert let_expr.deep_copy(manager).src is not old

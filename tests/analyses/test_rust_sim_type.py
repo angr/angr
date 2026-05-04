@@ -79,9 +79,9 @@ def test_rust_scalar_reference_and_array_repr_json_roundtrip():
 
 def test_rust_struct_nested_field_lookup_and_json_roundtrip():
     arch = archinfo.ArchAMD64()
-    inner = RustSimStruct(
-        OrderedDict({"value": RustSimTypeInt(16, signed=False)}), name="Inner", pack=True
-    ).with_arch(arch)
+    inner = RustSimStruct(OrderedDict({"value": RustSimTypeInt(16, signed=False)}), name="Inner", pack=True).with_arch(
+        arch
+    )
     outer = RustSimStruct(
         OrderedDict({"inner": inner, "tail": RustSimTypeInt(32, signed=False)}), name="Outer", pack=True
     ).with_arch(arch)
