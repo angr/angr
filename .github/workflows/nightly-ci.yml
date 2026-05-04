@@ -15,54 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
-    uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
-    with:
-      nightly: true
-    secrets: inherit
-  windows:
-    name: Test Windows
-    runs-on: windows-2022
+  test:
+    name: Test on ${{ matrix.os }}
     strategy:
       matrix:
-        runner_id: [1, 2, 3, 4, 5]
+        os: [ubuntu-latest, windows-latest, macos-latest]
       fail-fast: false
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - name: Checkout angr
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
         with:
           path: angr
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - name: Checkout binaries
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
         with:
           repository: angr/binaries
           path: binaries
-      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
+      - name: Setup MSVC for Windows
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
       - name: Setup Java for pysoot
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '21'
-      - name: Sync dependencies
-        run: uv --directory angr sync -p 3.12
-      - name: Run pytest
-        run: uv --directory angr run pytest -n auto --splits 5 --group ${{ matrix.runner_id }} tests
-  macos:
-    name: Test macOS
-    runs-on: macos-15
-    strategy:
-      matrix:
-        runner_id: [1, 2, 3]
-      fail-fast: false
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
         with:
-          path: angr
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
-        with:
-          repository: angr/binaries
-          path: binaries
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v6
-      - name: Sync dependencies
-        run: uv --directory angr sync -p 3.12
+          python-version: 3.12
+          working-directory: angr
       - name: Run pytest
-        run: uv --directory angr run pytest -n auto --splits 3 --group ${{ matrix.runner_id }} tests
+        run: uv run pytest -n auto
+        working-directory: angr
