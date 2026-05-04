@@ -645,6 +645,10 @@ class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass
 
 
+class AngrDecompilerMultiEntranceError(AngrError):
+    pass
+
+
 #
 # LLM / AI errors
 #
