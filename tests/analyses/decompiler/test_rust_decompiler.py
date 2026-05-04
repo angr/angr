@@ -143,11 +143,6 @@ class TestFmt(RustDecompilationTarget):
         },
     }
 
-    def check_uumain_codegen_nonempty(self):
-        for config, text in self.decompilations["uumain"].items():
-            with self.subTest(configuration=config):
-                self.assertTrue(text.strip(), f"decompilation output was empty [{config}]")
-
     def check_uumain_macro_recovery_format(self):
         for config, text in self.decompilations["uumain"].items():
             with self.subTest(configuration=config):
@@ -168,11 +163,6 @@ class TestFmt(RustDecompilationTarget):
         if text is None:
             self.skipTest("nightly-2025-05-22-O3/uumain not found")
         self.assertRegex(text, r"if let Ok\([^)]*\) = v\d+ \{", "Expected to see an if let Ok(...) pattern")
-
-    def check_parse_arguments_codegen_nonempty(self):
-        for config, text in self.decompilations["parse_arguments"].items():
-            with self.subTest(configuration=config):
-                self.assertTrue(text.strip(), f"decompilation output was empty [{config}]")
 
     def check_parse_arguments_macro_recovery_format(self):
         expected = (

@@ -280,3 +280,58 @@ def test_normalize_handles_impl_as_pattern_using_trait_name():
 
 def test_normalize_concise_returns_only_last_path_segment():
     assert normalize("foo::bar::baz", concise=True) == "baz"
+
+
+def test_is_rust_hash_rejects_empty_and_short_inputs():
+    assert _is_rust_hash("") is False
+    assert _is_rust_hash("h") is False
+
+
+def test_is_rust_hash_rejects_uppercase_hex_digits():
+    # Cargo's hash suffix is always lowercase hex; uppercase must not match.
+    assert _is_rust_hash("hABCDEF0123456789") is False
+
+
+def test_demangle_handles_empty_string_without_raising():
+    assert demangle("") == ""
+
+
+def test_demangle_returns_input_for_legacy_symbol_with_no_hash_suffix():
+    # A well-formed legacy symbol whose final segment isn't a 17-char h-hex hash:
+    # the demangler still parses it, but our hash-stripping branch must not fire.
+    mangled = "_ZN4core3fmt9Formatter9write_strE"
+    out = demangle(mangled)
+    # Whatever rust_demangler returns, our wrapper must not silently truncate the tail.
+    assert out.endswith("write_str")
+
+
+def test_demangle_passes_through_non_rust_input():
+    # Inputs that aren't recognized as Rust mangled names fall through unchanged.
+    for raw in ("plain_c_symbol", "main", "?something@msvc@@", "_Z3fooi"):
+        # _Z3fooi is itanium C++ mangling; rust_demangler may or may not raise,
+        # but the wrapper must always return a non-None string for non-Rust input.
+        result = demangle(raw)
+        assert isinstance(result, str)
+        assert result  # non-empty
+
+
+def test_normalize_strips_nested_generic_brackets():
+    # Multi-level generics must collapse fully under monopolize.
+    assert normalize("alloc::vec::Vec<Box<u8>>::push") == "alloc::vec::Vec::push"
+
+
+def test_normalize_monopolize_false_preserves_generic_arguments():
+    name = "alloc::vec::Vec<u8>::push"
+    assert normalize(name, monopolize=False) == name
+
+
+def test_normalize_concise_with_trait_uses_last_segment_after_trait_substitution():
+    name = "<core::option::Option<T> as core::fmt::Debug>::fmt"
+    assert normalize(name, use_trait_name=True, concise=True) == "fmt"
+
+
+def test_normalize_idempotent_under_repeated_calls():
+    name = "<impl alloc::vec::Vec<u8> as core::iter::Iterator>::next"
+    once = normalize(name)
+    twice = normalize(once)
+    assert once == twice
