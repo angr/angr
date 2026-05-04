@@ -159,6 +159,7 @@ def subgraph_between_nodes(
     # BFS on graph and add new nodes to g0
     queue = [source]
     traversed = set()
+    g0.add_node(source)
 
     frontier = set(frontier)
 
@@ -179,18 +180,15 @@ def subgraph_between_nodes(
                     break
 
     # recursively remove all nodes that have less than two neighbors
-    to_remove = [
-        n
-        for n in g0.nodes()
-        if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
-    ]
-    while to_remove:
-        g0.remove_nodes_from(to_remove)
+    while True:
         to_remove = [
             n
             for n in g0.nodes()
             if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
         ]
+        if not to_remove:
+            break
+        g0.remove_nodes_from(to_remove)
 
     if not include_frontier:
         # remove the frontier nodes
