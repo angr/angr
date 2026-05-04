@@ -39,14 +39,12 @@ def get_rust_optimization_passes():
         StringLiteralOutliner,
         UnwrapOutliner,
         FormatMacroSimplifier,
-        # ShowMacroSimplifier,
         DerefCoercionSimplifier,
         StructReturnSimplifier,
         PrePatternMatchSimplifier,
         # AFTER_VARIABLE_RECOVERY
         StrArgumentSimplifier,
         DerefCoercionSimplifierUninlined,
-        # TypeCorrector,
         # BEFORE_REGION_IDENTIFICATION
         RedundantBlockRemover,
         # AFTER_STRUCTURING

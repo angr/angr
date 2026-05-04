@@ -276,7 +276,7 @@ class RustSimTypeReference(RustSimType, SimTypePointer):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = RustSimTypeReference(self.pts_to.with_arch(arch), self.label)
+        out = RustSimTypeReference(self.pts_to.with_arch(arch), self.label, offset=self.offset)
         out._arch = arch
         return out
 
