@@ -157,9 +157,6 @@ required-imports = ["from __future__ import annotations"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-markers = [
-    "slow: mark test as too slow to run in every CI run",
-]
 testpaths = [
     "tests",
 ]
