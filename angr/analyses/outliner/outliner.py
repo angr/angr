@@ -26,6 +26,7 @@ from angr.analyses import Analysis, AnalysesHub
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
+from angr.errors import AngrDecompilerMultiEntranceError
 
 _l = logging.getLogger(__name__)
 
@@ -323,6 +324,12 @@ class Outliner(Analysis):
 
         # generate a subgraph
         subgraph = subgraph_between_nodes(self.parent_graph, src_node, frontier, include_frontier=True)
+        for node in list(frontier):
+            if node not in subgraph:
+                _l.warning("Requested an frontier of %s but it was not reached", node)
+                frontier.remove(node)
+                exclusive_frontier.discard(node)
+
         subgraph.remove_nodes_from(exclusive_frontier)
 
         # normalize the frontier, making it so that we only use an inclusive node if we reach the end of the function
@@ -355,6 +362,20 @@ class Outliner(Analysis):
             else:
                 inclusive_frontier_noreturns.add(blk)
 
+        # identify return vars
+        for node in exclusive_frontier:
+            for pred in self.parent_graph.pred[node]:
+                if pred not in subgraph:
+                    continue
+                self.frontier_vars.update(self.parent_liveness.model.live_outs[(pred.addr, pred.idx)])
+        for node in inclusive_frontier:
+            self.frontier_vars.update(self.parent_liveness.model.live_outs[node.addr, node.idx])
+        self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
+
+        for u, v in self.parent_graph.edges:
+            if v in subgraph and u not in subgraph and (v.addr, v.idx) != self.src_loc:
+                raise AngrDecompilerMultiEntranceError("Request for outlining function with multiple entrances")
+
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
         self.novel_child_addrs.update((b.addr, b.idx) for b in subgraph)
@@ -370,17 +391,6 @@ class Outliner(Analysis):
         self.cleanup_callee_graph(subgraph, callee_func)
         for stmt in new_assignments:
             stmt.tags["ins_addr"] = src_node.addr
-
-        # identify return vars
-        for node, incl in self.frontier_locs:
-            if incl:
-                self.frontier_vars.update(self.parent_liveness.model.live_outs[node])
-                continue
-            for pred in self.parent_graph.pred[node_dict[node]]:
-                if pred not in subgraph:
-                    continue
-                self.frontier_vars.update(self.parent_liveness.model.live_outs[(pred.addr, pred.idx)])
-        self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
         self.frontier_vars -= {cast(VirtualVariable, stmt.dst).varid for stmt in new_assignments}
 
         # generate return vvar expressions
@@ -398,12 +408,13 @@ class Outliner(Analysis):
 
         # rewrite the callsite
         callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
+        switch_varid = self._next_vvar_id()
         switch_vvar = VirtualVariable(
             None,
-            self._next_vvar_id(),
+            switch_varid,
             self.project.arch.bits,
-            VirtualVariableCategory.REGISTER,
-            oident=self.project.arch.ret_offset,
+            VirtualVariableCategory.TMP,
+            oident=switch_varid,
         )
 
         # if there are multiple successors; this means the function must return to different locations. let's build
@@ -418,12 +429,13 @@ class Outliner(Analysis):
                 target_to_retval[node.addr, node.idx] = ctr
                 ctr += 1
 
+        tuple_varid = self._next_vvar_id()
         tuple_vvar = VirtualVariable(
             None,
-            self._next_vvar_id(),
+            tuple_varid,
             sum(v.bits for v in ret_vars),
-            VirtualVariableCategory.REGISTER,
-            oident=self.project.arch.ret_offset,
+            VirtualVariableCategory.TMP,
+            oident=tuple_varid,
         )
         callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         # create the callsite in the caller
