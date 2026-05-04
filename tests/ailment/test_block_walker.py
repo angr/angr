@@ -19,21 +19,28 @@ from angr.ailment.statement import Assignment, Statement
 
 
 class RecordingWalker(AILBlockWalker[None, None, list[str]]):
+    """Record visited expression and statement class names."""
+
     def __init__(self):
         super().__init__()
         self.seen = []
 
-    def _top(self, _expr_idx: int, expr: Expression, _stmt_idx: int, _stmt: Statement | None, _block: Block | None):
+    def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        del expr_idx, stmt_idx, stmt, block
         self.seen.append(type(expr).__name__)
 
-    def _stmt_top(self, _stmt_idx: int, stmt: Statement, _block: Block | None):
+    def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
+        del stmt_idx, block
         self.seen.append(type(stmt).__name__)
 
-    def _handle_block_end(self, _stmt_results: list[None], _block: Block):
+    def _handle_block_end(self, stmt_results: list[None], block: Block):
+        del stmt_results, block
         return self.seen
 
 
 class ConstIncrementingRewriter(AILBlockRewriter):
+    """Rewrite integer constants with value 1 to value 2."""
+
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.value == 1:
             return Const(expr.idx, expr.variable, 2, expr.bits, **expr.tags)
@@ -71,12 +78,21 @@ def test_block_rewriter_rebuilds_rust_ail_expression_containers():
     block = Block(0x400010, 0, statements=[Assignment(6, dst, macro)])
 
     new_block = ConstIncrementingRewriter(update_block=False).walk(block)
-    new_macro = new_block.statements[0].src
-    new_array = new_macro.args[0]
-    new_enum = new_array.elements[0]
-    new_struct = new_enum.fields[0]
+    old_stmt = block.statements[0]
+    new_stmt = new_block.statements[0]
+    assert isinstance(old_stmt, Assignment)
+    assert isinstance(new_stmt, Assignment)
 
-    assert block.statements[0].src is macro
+    new_macro = new_stmt.src
+    assert isinstance(new_macro, FunctionLikeMacro)
+    new_array = new_macro.args[0]
+    assert isinstance(new_array, Array)
+    new_enum = new_array.elements[0]
+    assert isinstance(new_enum, RustEnum)
+    new_struct = new_enum.fields[0]
+    assert isinstance(new_struct, Struct)
+
+    assert old_stmt.src is macro
     assert new_macro is not macro
     assert new_array is not array
     assert new_enum is not enum
