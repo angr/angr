@@ -95,6 +95,7 @@ class Decompiler(Analysis):
         clinic_graph=None,
         clinic_entry_node_addr=None,
         clinic_arg_vvars=None,
+        clinic_vvar_id_start=None,
         clinic_start_stage=None,
         clinic_end_stage=None,
         clinic_skip_stages=(),
@@ -181,6 +182,7 @@ class Decompiler(Analysis):
         self._clinic_graph = clinic_graph
         self._clinic_entry_node_addr = clinic_entry_node_addr
         self._clinic_arg_vvars = clinic_arg_vvars
+        self._clinic_vvar_id_start = clinic_vvar_id_start
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
@@ -373,6 +375,7 @@ class Decompiler(Analysis):
                 start_stage=self._clinic_start_stage,
                 end_stage=self._clinic_end_stage,
                 skip_stages=self._clinic_skip_stages,
+                vvar_id_start=self._clinic_vvar_id_start,
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,

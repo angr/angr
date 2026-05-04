@@ -91,7 +91,7 @@ class Outliner(Analysis):
             self.frontier_locs = frontier
         else:
             self.frontier_locs = self._determine_frontier_locs()
-        self.frontier_vars = set()
+        self.frontier_vars: set[int] = set()
 
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
 
@@ -115,7 +115,7 @@ class Outliner(Analysis):
                     simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
                 elif arg_vvar.parameter_category == VirtualVariableCategory.TMP:
                     assert arg_vvar.tmp_idx is not None
-                    simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size)
+                    simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size, ident=f"arg_{arg_idx}")
                 else:
                     raise NotImplementedError
             elif arg_vvar.was_reg:
@@ -124,7 +124,7 @@ class Outliner(Analysis):
                 simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
             elif arg_vvar.was_tmp:
                 assert arg_vvar.tmp_idx is not None
-                simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size)
+                simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size, ident=f"arg_{arg_idx}")
             else:
                 raise NotImplementedError
             out_funcargs[arg_idx] = arg_vvar, simvar
@@ -231,6 +231,11 @@ class Outliner(Analysis):
                 phi_assignment.src.src_and_vvars = [
                     (src, vvar) for src, vvar in phi_assignment.src.src_and_vvars if src not in blocks
                 ]
+                if len(phi_assignment.src.src_and_vvars) == 1:
+                    src = phi_assignment.src.src_and_vvars[0][1]
+                    assert src is not None
+                    phi_assignment = Assignment(phi_assignment.idx, phi_assignment.dst, src, **phi_assignment.tags)
+                    new_callsite_phis[-1] = phi_assignment
                 continue
 
             new_varid = self._next_vvar_id()
@@ -288,6 +293,11 @@ class Outliner(Analysis):
                     if src in blocks and vvar not in external_vvars
                 ]
                 phi_assignment.src.src_and_vvars.append((new_src, new_vvar))
+                if len(phi_assignment.src.src_and_vvars) == 1:
+                    src = phi_assignment.src.src_and_vvars[0][1]
+                    assert src is not None
+                    phi_assignment = Assignment(phi_assignment.idx, phi_assignment.dst, src, **phi_assignment.tags)
+                phi_block.statements[loc.stmt_idx] = phi_assignment
         return [srda.varid_to_vvar[varid] for varid in undef_vvars] + new_vvars, new_callsite_phis
 
     def _analyze(self):
@@ -344,6 +354,22 @@ class Outliner(Analysis):
             else:
                 inclusive_frontier_noreturns.add(blk)
 
+        # begin mutation!
+        self.parent_graph.remove_nodes_from(subgraph)
+        self.novel_child_addrs.update((b.addr, b.idx) for b in subgraph)
+
+        if self.duplicate:
+            callee_func = self.duplicate.child_func
+        else:
+            callee_func = Function(self.kb.functions, src_node.addr, name=self.child_name)
+            callee_func.normalized = True
+        # figure out the interface of the new callee
+        callee_arg_vvars, new_assignments = self.cleanup_interface(subgraph, callee_func)
+        # clean up the subgraph
+        self.cleanup_callee_graph(subgraph, callee_func)
+        for stmt in new_assignments:
+            stmt.tags["ins_addr"] = src_node.addr
+
         # identify return vars
         for node, incl in self.frontier_locs:
             if incl:
@@ -354,6 +380,7 @@ class Outliner(Analysis):
                     continue
                 self.frontier_vars.update(self.parent_liveness.model.live_outs[(pred.addr, pred.idx)])
         self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
+        self.frontier_vars -= {cast(VirtualVariable, stmt.dst).varid for stmt in new_assignments}
 
         # generate return vvar expressions
         if self.frontier_vars:
@@ -367,22 +394,6 @@ class Outliner(Analysis):
             ret_vars = []
         self.child_retvars = set(ret_vars)
         ret_exprs = list(ret_vars)
-
-        # begin mutation!
-        self.parent_graph.remove_nodes_from(subgraph)
-        self.novel_child_addrs.update((b.addr, b.idx) for b in subgraph)
-
-        if self.duplicate:
-            callee_func = self.duplicate.child_func
-        else:
-            callee_func = Function(self.kb.functions, src_node.addr, name=self.child_name)
-            callee_func.normalized = True
-        # clean up the subgraph
-        self.cleanup_callee_graph(subgraph, callee_func)
-        # figure out the interface of the new callee
-        callee_arg_vvars, new_assignments = self.cleanup_interface(subgraph, callee_func)
-        for stmt in new_assignments:
-            stmt.tags["ins_addr"] = src_node.addr
 
         # rewrite the callsite
         callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
@@ -454,7 +465,7 @@ class Outliner(Analysis):
 
         # create the callee return statement(s)
         for ret_node, frontier_node in out_edges:
-            if len(frontier) > 1:
+            if len(exclusive_frontier) > 1:
                 novel_ret_value = (
                     0 if frontier_node is None else target_to_retval[frontier_node.addr, frontier_node.idx]
                 )
@@ -513,7 +524,7 @@ class Outliner(Analysis):
                 ret_node.statements.append(ret_stmt)
 
         # create the caller return site
-        if len(frontier) > 1:
+        if len(exclusive_frontier) > 1:
             # build the dispatcher structure in the caller
             parent = new_src_node
             next_dispatcher_node_addr = self._next_block_addr(), None
@@ -560,7 +571,7 @@ class Outliner(Analysis):
             else:
                 final_node.statements.append(Return(self._next_atom(), [switch_vvar], ins_addr=final_node.addr))
 
-        elif frontier:
+        elif exclusive_frontier:
             # simple return value. just stitch the callsite to the return site.
             (frontier_node,) = frontier
             self.parent_graph.add_edge(new_src_node, frontier_node)

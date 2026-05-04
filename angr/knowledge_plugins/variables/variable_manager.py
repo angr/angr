@@ -677,7 +677,7 @@ class VariableManagerInternal(Serializable):
             a = SimStackVariable(repre.offset, repre_size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimTemporaryVariable:
             ident_sort = "tmp"
-            a = SimTemporaryVariable(repre.tmp_id, repre_size)
+            a = SimTemporaryVariable(repre.tmp_id, repre_size, ident=self.next_variable_ident(ident_sort))
         else:
             raise TypeError(f'make_phi_node(): Unsupported variable type "{type(repre)}".')
 
