@@ -23,6 +23,7 @@ from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.code_location import AILCodeLocation
+from angr.errors import AngrDecompilerMultiEntranceError
 from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimTemporaryVariable, SimVariable
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
@@ -91,7 +92,7 @@ class Outliner(Analysis):
             self.frontier_locs = frontier
         else:
             self.frontier_locs = self._determine_frontier_locs()
-        self.frontier_vars = set()
+        self.frontier_vars: set[int] = set()
 
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
 
@@ -115,7 +116,7 @@ class Outliner(Analysis):
                     simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
                 elif arg_vvar.parameter_category == VirtualVariableCategory.TMP:
                     assert arg_vvar.tmp_idx is not None
-                    simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size)
+                    simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size, ident=f"arg_{arg_idx}")
                 else:
                     raise NotImplementedError
             elif arg_vvar.was_reg:
@@ -124,7 +125,7 @@ class Outliner(Analysis):
                 simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
             elif arg_vvar.was_tmp:
                 assert arg_vvar.tmp_idx is not None
-                simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size)
+                simvar = SimTemporaryVariable(arg_vvar.tmp_idx, arg_vvar.size, ident=f"arg_{arg_idx}")
             else:
                 raise NotImplementedError
             out_funcargs[arg_idx] = arg_vvar, simvar
@@ -231,6 +232,11 @@ class Outliner(Analysis):
                 phi_assignment.src.src_and_vvars = [
                     (src, vvar) for src, vvar in phi_assignment.src.src_and_vvars if src not in blocks
                 ]
+                if len(phi_assignment.src.src_and_vvars) == 1:
+                    src = phi_assignment.src.src_and_vvars[0][1]
+                    assert src is not None
+                    phi_assignment = Assignment(phi_assignment.idx, phi_assignment.dst, src, **phi_assignment.tags)
+                    new_callsite_phis[-1] = phi_assignment
                 continue
 
             new_varid = self._next_vvar_id()
@@ -269,7 +275,7 @@ class Outliner(Analysis):
                     new_head = Block(
                         new_src[0],
                         0,
-                        cast(
+                        statements=cast(
                             list[Statement],
                             [
                                 Jump(
@@ -280,7 +286,7 @@ class Outliner(Analysis):
                                 )
                             ],
                         ),
-                        new_src[1],
+                        idx=new_src[1],
                     )
                     g.add_edge(new_head, blocks[self.src_loc])
                     self.novel_child_addrs.add(new_src)
@@ -291,6 +297,11 @@ class Outliner(Analysis):
                     if src in blocks and vvar not in external_vvars
                 ]
                 phi_assignment.src.src_and_vvars.append((new_src, new_vvar))
+                if len(phi_assignment.src.src_and_vvars) == 1:
+                    src = phi_assignment.src.src_and_vvars[0][1]
+                    assert src is not None
+                    phi_assignment = Assignment(phi_assignment.idx, phi_assignment.dst, src, **phi_assignment.tags)
+                phi_block.statements[loc.stmt_idx] = phi_assignment
         return [srda.varid_to_vvar[varid] for varid in undef_vvars] + new_vvars, new_callsite_phis
 
     def _analyze(self):
@@ -315,6 +326,12 @@ class Outliner(Analysis):
 
         # generate a subgraph
         subgraph = subgraph_between_nodes(self.parent_graph, src_node, frontier, include_frontier=True)
+        for node in list(frontier):
+            if node not in subgraph:
+                _l.warning("Requested an frontier of %s but it was not reached", node)
+                frontier.remove(node)
+                exclusive_frontier.discard(node)
+
         subgraph.remove_nodes_from(exclusive_frontier)
 
         # normalize the frontier, making it so that we only use an inclusive node if we reach the end of the function
@@ -348,24 +365,18 @@ class Outliner(Analysis):
                 inclusive_frontier_noreturns.add(blk)
 
         # identify return vars
-        for node, incl in self.frontier_locs:
-            if incl:
-                self.frontier_vars.update(self.parent_liveness.model.live_outs[node])
-                continue
-            for pred in self.parent_graph.pred[node_dict[node]]:
+        for node in exclusive_frontier:
+            for pred in self.parent_graph.pred[node]:
                 if pred not in subgraph:
                     continue
                 self.frontier_vars.update(self.parent_liveness.model.live_outs[(pred.addr, pred.idx)])
+        for node in inclusive_frontier:
+            self.frontier_vars.update(self.parent_liveness.model.live_outs[node.addr, node.idx])
         self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
 
-        # generate return vvar expressions
-        if self.frontier_vars:
-            srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
-            ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
-        else:
-            ret_vars = []
-        self.child_retvars = set(ret_vars)
-        ret_exprs = list(ret_vars)
+        for u, v in self.parent_graph.edges:
+            if v in subgraph and u not in subgraph and (v.addr, v.idx) != self.src_loc:
+                raise AngrDecompilerMultiEntranceError("Request for outlining function with multiple entrances")
 
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
@@ -376,21 +387,32 @@ class Outliner(Analysis):
         else:
             callee_func = Function(self.kb.functions, src_node.addr, name=self.child_name)
             callee_func.normalized = True
-        # clean up the subgraph
-        self.cleanup_callee_graph(subgraph, callee_func)
         # figure out the interface of the new callee
         callee_arg_vvars, new_assignments = self.cleanup_interface(subgraph, callee_func)
+        # clean up the subgraph
+        self.cleanup_callee_graph(subgraph, callee_func)
         for stmt in new_assignments:
             stmt.tags["ins_addr"] = src_node.addr
+        self.frontier_vars -= {cast(VirtualVariable, stmt.dst).varid for stmt in new_assignments}
+
+        # generate return vvar expressions
+        if self.frontier_vars:
+            srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
+            ret_vars = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
+        else:
+            ret_vars = []
+        self.child_retvars = set(ret_vars)
+        ret_exprs = list(ret_vars)
 
         # rewrite the callsite
         callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
+        switch_varid = self._next_vvar_id()
         switch_vvar = VirtualVariable(
             None,
-            self._next_vvar_id(),
+            switch_varid,
             self.project.arch.bits,
-            VirtualVariableCategory.REGISTER,
-            oident=self.project.arch.ret_offset,
+            VirtualVariableCategory.TMP,
+            oident=switch_varid,
         )
 
         # if there are multiple successors; this means the function must return to different locations. let's build
@@ -405,12 +427,13 @@ class Outliner(Analysis):
                 target_to_retval[node.addr, node.idx] = ctr
                 ctr += 1
 
+        tuple_varid = self._next_vvar_id()
         tuple_vvar = VirtualVariable(
             None,
-            self._next_vvar_id(),
+            tuple_varid,
             sum(v.bits for v in ret_vars),
-            VirtualVariableCategory.REGISTER,
-            oident=self.project.arch.ret_offset,
+            VirtualVariableCategory.TMP,
+            oident=tuple_varid,
         )
         callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         # create the callsite in the caller
@@ -453,7 +476,7 @@ class Outliner(Analysis):
 
         # create the callee return statement(s)
         for ret_node, frontier_node in out_edges:
-            if len(frontier) > 1:
+            if len(exclusive_frontier) > 1:
                 novel_ret_value = (
                     0 if frontier_node is None else target_to_retval[frontier_node.addr, frontier_node.idx]
                 )
@@ -523,7 +546,7 @@ class Outliner(Analysis):
                 ret_node.statements.append(ret_stmt)
 
         # create the caller return site
-        if len(frontier) > 1:
+        if len(exclusive_frontier) > 1:
             # build the dispatcher structure in the caller
             parent = new_src_node
             next_dispatcher_node_addr = self._next_block_addr(), None
@@ -570,7 +593,7 @@ class Outliner(Analysis):
             else:
                 final_node.statements.append(Return(self._next_atom(), [switch_vvar], ins_addr=final_node.addr))
 
-        elif frontier:
+        elif exclusive_frontier:
             # simple return value. just stitch the callsite to the return site.
             (frontier_node,) = frontier
             self.parent_graph.add_edge(new_src_node, frontier_node)
