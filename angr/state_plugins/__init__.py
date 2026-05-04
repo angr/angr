@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .plugin import SimStatePlugin
 from .libc import SimStateLibc
-from .inspect import SimInspector, NO_OVERRIDE, BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPYTHON
+from .inspect import InspectAttrs, SimInspector, NO_OVERRIDE, BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPYTHON
 from .posix import PosixDevFS, PosixProcFS, SimSystemPosix
 from .solver import SimSolver
 from .light_registers import SimLightRegisters
@@ -39,6 +39,7 @@ __all__ = (
     "GDB",
     "NO_OVERRIDE",
     "CallStack",
+    "InspectAttrs",
     "PTChunk",
     "PTChunkIterator",
     "PosixDevFS",

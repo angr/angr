@@ -59,44 +59,46 @@ class SimSymbolizer(SimStatePlugin):  # pylint:disable=abstract-method
 
     def _page_map_callback(self):
         if self._symbolize_all:
-            page_id, _ = self.state.memory._divide_addr(self.state.inspect.mapped_address)
+            page_id, _ = self.state.memory._divide_addr(self.state.inspect.attrs.mapped_address)
             self.symbolization_target_pages.add(page_id)
 
     def _mem_write_callback(self):
-        if not isinstance(self.state.inspect.mem_write_expr, int) and self.state.inspect.mem_write_expr.symbolic:
+        attrs = self.state.inspect.attrs
+        if not isinstance(attrs.mem_write_expr, int) and attrs.mem_write_expr.symbolic:
             return
-        mem_write_length = self.state.inspect.mem_write_length
+        mem_write_length = attrs.mem_write_length
         if mem_write_length is not None and not isinstance(mem_write_length, int) and mem_write_length.symbolic:
             return
 
-        # length = self.state.solver.eval_one(self.state.inspect.mem_write_length)
+        # length = self.state.solver.eval_one(attrs.mem_write_length)
         # if length != self.state.arch.bytes:
         #   return
 
-        write_expr = self.state.inspect.mem_write_expr
+        write_expr = attrs.mem_write_expr
         byte_expr = self.state.solver.eval_one(write_expr, cast_to=bytes).rjust(
             write_expr.length // self.state.arch.byte_width
         )
         replacement_expr = self._resymbolize_data(byte_expr)
         if replacement_expr is not None:
             assert replacement_expr.length == write_expr.length
-            self.state.inspect.mem_write_expr = replacement_expr
+            attrs.mem_write_expr = replacement_expr
 
     def _reg_write_callback(self):
-        if not isinstance(self.state.inspect.reg_write_expr, int) and self.state.inspect.reg_write_expr.symbolic:
+        attrs = self.state.inspect.attrs
+        if not isinstance(attrs.reg_write_expr, int) and attrs.reg_write_expr.symbolic:
             return
-        if not isinstance(self.state.inspect.reg_write_length, int) and self.state.inspect.reg_write_length.symbolic:
+        if not isinstance(attrs.reg_write_length, int) and attrs.reg_write_length.symbolic:
             return
-        if self.state.inspect.reg_write_offset == self.state.arch.ip_offset:
+        if attrs.reg_write_offset == self.state.arch.ip_offset:
             return
 
-        length = self.state.solver.eval_one(self.state.inspect.reg_write_length)
+        length = self.state.solver.eval_one(attrs.reg_write_length)
         if length != self.state.arch.bytes:
             return
 
-        expr = self.state.solver.eval_one(self.state.inspect.reg_write_expr)
+        expr = self.state.solver.eval_one(attrs.reg_write_expr)
         if self._should_symbolize(expr):
-            self.state.inspect.reg_write_expr = self._preconstrain(expr)
+            attrs.reg_write_expr = self._preconstrain(expr)
 
     def init_state(self):
         super().init_state()

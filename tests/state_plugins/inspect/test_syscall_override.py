@@ -50,13 +50,13 @@ class TestSyscallOverride(unittest.TestCase):
         queued_syscall_returns.append(0)  # password \n input
 
         def syscall_hook(state):
-            if not state.inspect.simprocedure.is_syscall:
+            if not state.inspect.attrs.simprocedure.is_syscall:
                 return
             try:
                 f = queued_syscall_returns.pop(0)
                 if f is None:
                     return
-                state.inspect.simprocedure_result = f(state) if callable(f) else f
+                state.inspect.attrs.simprocedure_result = f(state) if callable(f) else f
             except IndexError:
                 return
 

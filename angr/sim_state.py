@@ -426,12 +426,9 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
-    T = TypeVar("T")
-
-    def _inspect_getattr(self, attr: str, default_value: T):
-        if self.supports_inspect and hasattr(self.inspect, attr):
-            return getattr(self.inspect, attr)
-
+    def _inspect_getattr[T](self, attr: str, default_value: T):
+        if self.supports_inspect:
+            return getattr(self.inspect.attrs, attr)
         return default_value
 
     #

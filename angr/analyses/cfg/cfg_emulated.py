@@ -2662,12 +2662,12 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
                 :param SimSuccessors state_: state to update registers for
                 """
-                if state_.inspect.address is None:
-                    l.error("state.inspect.address is None. It will be fixed by Yan later.")
+                if state_.inspect.attrs.address is None:
+                    l.error("state.inspect.attrs.address is None. It will be fixed by Yan later.")
                     return
 
                 if state_.registers.load(self._reg_offset).symbolic:
-                    current_run = state_.inspect.address
+                    current_run = state_.inspect.attrs.address
                     if current_run in self._info_collection and not state_.solver.symbolic(
                         self._info_collection[current_run][self._reg_offset]
                     ):

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass, fields
 from typing import Any
 
 from angr.sim_state import SimState
@@ -39,89 +40,101 @@ event_types = {
     "memory_page_map",
 }
 
-inspect_attributes = {
+
+@dataclass
+class InspectAttrs:
+    """
+    Per-event attributes published by the inspect machinery while a breakpoint is firing.
+
+    Each field is set on the active state before any matching breakpoint is checked, then
+    cleared (back to ``None``) after the event completes. Breakpoint actions read and write
+    these fields through ``state.inspect.attrs`` to observe or override the in-flight event.
+    """
+
     # vex_lift
-    "vex_lift_addr",
-    "vex_lift_size",
-    "vex_lift_buff",
+    vex_lift_addr: Any = None
+    vex_lift_size: Any = None
+    vex_lift_buff: Any = None
     # mem_read
-    "mem_read_address",
-    "mem_read_expr",
-    "mem_read_length",
-    "mem_read_condition",
-    "mem_read_endness",
+    mem_read_address: Any = None
+    mem_read_expr: Any = None
+    mem_read_length: Any = None
+    mem_read_condition: Any = None
+    mem_read_endness: Any = None
     # mem_write
-    "mem_write_address",
-    "mem_write_expr",
-    "mem_write_length",
-    "mem_write_condition",
-    "mem_write_endness",
+    mem_write_address: Any = None
+    mem_write_expr: Any = None
+    mem_write_length: Any = None
+    mem_write_condition: Any = None
+    mem_write_endness: Any = None
     # reg_read
-    "reg_read_offset",
-    "reg_read_expr",
-    "reg_read_length",
-    "reg_read_condition",
-    "reg_read_endness",
+    reg_read_offset: Any = None
+    reg_read_expr: Any = None
+    reg_read_length: Any = None
+    reg_read_condition: Any = None
+    reg_read_endness: Any = None
     # reg_write
-    "reg_write_offset",
-    "reg_write_expr",
-    "reg_write_length",
-    "reg_write_condition",
-    "reg_write_endness",
+    reg_write_offset: Any = None
+    reg_write_expr: Any = None
+    reg_write_length: Any = None
+    reg_write_condition: Any = None
+    reg_write_endness: Any = None
     # tmp_read
-    "tmp_read_num",
-    "tmp_read_expr",
+    tmp_read_num: Any = None
+    tmp_read_expr: Any = None
     # tmp_write
-    "tmp_write_num",
-    "tmp_write_expr",
+    tmp_write_num: Any = None
+    tmp_write_expr: Any = None
     # expr
-    "expr",
-    "expr_result",
+    expr: Any = None
+    expr_result: Any = None
     # statement
-    "statement",
+    statement: Any = None
     # instruction
-    "instruction",
+    instruction: Any = None
     # irsb
-    "address",
+    address: Any = None
     # constraints
-    "added_constraints",
+    added_constraints: Any = None
     # call
-    "function_address",
+    function_address: Any = None
     # exit
-    "exit_target",
-    "exit_guard",
-    "exit_jumpkind",
-    "backtrace",  # unused?
+    exit_target: Any = None
+    exit_guard: Any = None
+    exit_jumpkind: Any = None
+    backtrace: Any = None  # unused?
     # symbolic_variable
-    "symbolic_name",
-    "symbolic_size",
-    "symbolic_expr",
+    symbolic_name: Any = None
+    symbolic_size: Any = None
+    symbolic_expr: Any = None
     # address_concretization
-    "address_concretization_strategy",
-    "address_concretization_action",
-    "address_concretization_memory",
-    "address_concretization_expr",
-    "address_concretization_result",
-    "address_concretization_add_constraints",
+    address_concretization_strategy: Any = None
+    address_concretization_action: Any = None
+    address_concretization_memory: Any = None
+    address_concretization_expr: Any = None
+    address_concretization_result: Any = None
+    address_concretization_add_constraints: Any = None
     # syscall
-    "syscall_name",
+    syscall_name: Any = None
     # simprocedure
-    "simprocedure_name",
-    "simprocedure_addr",
-    "simprocedure_result",
-    "simprocedure",
+    simprocedure_name: Any = None
+    simprocedure_addr: Any = None
+    simprocedure_result: Any = None
+    simprocedure: Any = None
     # dirty
-    "dirty_name",
-    "dirty_handler",
-    "dirty_args",
-    "dirty_result",
+    dirty_name: Any = None
+    dirty_handler: Any = None
+    dirty_args: Any = None
+    dirty_result: Any = None
     # engine_process
-    "sim_engine",
-    "sim_successors",
+    sim_engine: Any = None
+    sim_successors: Any = None
     # memory mapping
-    "mapped_page",
-    "mapped_address",
-}
+    mapped_page: Any = None
+    mapped_address: Any = None
+
+
+inspect_attributes: frozenset[str] = frozenset(f.name for f in fields(InspectAttrs))
 
 NO_OVERRIDE = object()
 
@@ -172,7 +185,7 @@ class BP:
         l.debug("... after enabled and when: %s", ok)
 
         for a in [_ for _ in self.kwargs if not _.endswith("_unique")]:
-            current_expr = getattr(state.inspect, a)
+            current_expr = getattr(state.inspect.attrs, a)
             needed = self.kwargs.get(a, None)
 
             l.debug("... checking condition %s", a)
@@ -254,17 +267,13 @@ class SimInspector(SimStatePlugin):
         self.action_attrs_set = False  # action() will set it to True if the kwargs passed in have been set as
         # attributes to self.
 
-        for i in inspect_attributes:
-            setattr(self, i, None)
-
-    def __dir__(self):
-        return sorted(set(dir(super()) + dir(inspect_attributes) + dir(self.__class__)))
+        self.attrs = InspectAttrs()
 
     def _set_inspect_attrs(self, **kwargs: dict[str, Any]) -> None:
         for k, v in kwargs.items():
             if k not in inspect_attributes:
                 raise ValueError(f"Invalid inspect attribute {k} passed in. Should be one of: {inspect_attributes}")
-            setattr(self, k, v)
+            setattr(self.attrs, k, v)
 
     def action(self, event_type: str, when: str, **kwargs: dict[str, Any]) -> None:
         """
@@ -345,7 +354,7 @@ class SimInspector(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         c = SimInspector()
         for i in inspect_attributes:
-            setattr(c, i, getattr(self, i))
+            setattr(c.attrs, i, getattr(self.attrs, i))
 
         for t, a in self._breakpoints.items():
             c._breakpoints[t].extend(a)
@@ -353,20 +362,18 @@ class SimInspector(SimStatePlugin):
 
     def downsize(self):
         """
-        Remove previously stored attributes from this plugin instance to save memory.
-        This method is supposed to be called by breakpoint implementors. A typical workflow looks like the following :
+        Reset event-specific attributes on this plugin instance to save memory.
+        This method is supposed to be called by breakpoint implementors. A typical workflow looks like the following:
 
-        >>> # Add `attr0` and `attr1` to `self.state.inspect`
+        >>> # Add `attr0` and `attr1` via the inspect machinery
         >>> self.state.inspect(xxxxxx, attr0=yyyy, attr1=zzzz)
         >>> # Get new attributes out of SimInspect in case they are modified by the user
-        >>> new_attr0 = self.state._inspect.attr0
-        >>> new_attr1 = self.state._inspect.attr1
-        >>> # Remove them from SimInspect
-        >>> self.state._inspect.downsize()
+        >>> new_attr0 = self.state.inspect.attrs.attr0
+        >>> new_attr1 = self.state.inspect.attrs.attr1
+        >>> # Reset them
+        >>> self.state.inspect.downsize()
         """
-        for k in inspect_attributes:
-            if hasattr(self, k):
-                setattr(self, k, None)
+        self.attrs = InspectAttrs()
 
     def _combine(self, others):
         for t in event_types:

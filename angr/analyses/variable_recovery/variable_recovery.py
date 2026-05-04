@@ -172,15 +172,15 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     #
 
     def _hook_register_read(self, state):
-        reg_read_offset = state.inspect.reg_read_offset
+        reg_read_offset = state.inspect.attrs.reg_read_offset
         if isinstance(reg_read_offset, claripy.ast.BV):
             if reg_read_offset.multivalued:
                 # Multi-valued register offsets are not supported
                 l.warning("Multi-valued register offsets are not supported.")
                 return
             reg_read_offset = state.solver.eval(reg_read_offset)
-        reg_read_length = state.inspect.reg_read_length
-        reg_read_expr = state.inspect.reg_read_expr
+        reg_read_length = state.inspect.attrs.reg_read_length
+        reg_read_expr = state.inspect.attrs.reg_read_expr
 
         if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bytes:
             # TODO: make sure the sp is not overwritten by something that we are not tracking
@@ -204,7 +204,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             self.variable_manager[self.func_addr].add_variable("register", var_offset, variable)
 
     def _hook_register_write(self, state):
-        reg_write_offset = state.inspect.reg_write_offset
+        reg_write_offset = state.inspect.attrs.reg_write_offset
         if isinstance(reg_write_offset, claripy.ast.BV):
             if reg_write_offset.multivalued:
                 # Multi-valued register offsets are not supported
@@ -216,13 +216,13 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             # it's updating stack pointer. skip
             return
 
-        reg_write_expr = state.inspect.reg_write_expr
+        reg_write_expr = state.inspect.attrs.reg_write_expr
         reg_write_length = len(reg_write_expr) // 8
 
         # annotate it
         # reg_write_expr = reg_write_expr.annotate(VariableSourceAnnotation.from_state(state))
 
-        state.inspect.reg_write_expr = reg_write_expr
+        state.inspect.attrs.reg_write_expr = reg_write_expr
 
         existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(
             state.scratch.bbl_addr, state.scratch.stmt_idx, "register"
@@ -282,10 +282,10 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.variable_manager[self.func_addr].reference_at(var, offset, self._codeloc_from_state(state))
 
     def _hook_memory_read(self, state):
-        mem_read_address = state.inspect.mem_read_address
-        mem_read_expr = state.inspect.mem_read_expr
-        mem_read_length = state.inspect.mem_read_length
-        endness = state.inspect.mem_read_endness
+        mem_read_address = state.inspect.attrs.mem_read_address
+        mem_read_expr = state.inspect.attrs.mem_read_expr
+        mem_read_length = state.inspect.attrs.mem_read_length
+        endness = state.inspect.attrs.mem_read_endness
 
         stack_offset = self._addr_to_stack_offset(mem_read_address)
 
@@ -336,10 +336,10 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.variable_manager[self.func_addr].read_from(variable, offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
-        mem_write_address = state.inspect.mem_write_address
-        mem_write_expr = state.inspect.mem_write_expr
+        mem_write_address = state.inspect.attrs.mem_write_address
+        mem_write_expr = state.inspect.attrs.mem_write_expr
         mem_write_length = len(mem_write_expr) // 8
-        endness = state.inspect.mem_write_endness
+        endness = state.inspect.attrs.mem_write_endness
 
         stack_offset = self._addr_to_stack_offset(mem_write_address)
 
