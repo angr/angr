@@ -185,6 +185,7 @@ def subgraph_between_nodes[T](
     # BFS on graph and add new nodes to g0
     queue = deque([source])
     traversed = set()
+    g0.add_node(source)
 
     while queue:
         node = queue.popleft()
