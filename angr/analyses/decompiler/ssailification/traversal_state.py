@@ -5,7 +5,7 @@ from collections.abc import MutableMapping
 
 from angr.ailment.expression import StackBaseOffset
 from angr.code_location import AILCodeLocation
-from angr.utils.cowdict import DefaultChainMapCOW
+from angr.utils.cowdict import ChainMapCOW, DefaultChainMapCOW
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def
@@ -42,10 +42,10 @@ class TraversalState:
         arch,
         func,
         live_registers: MutableMapping[int, Value] | None = None,
-        live_stackvars: MutableMapping[int, Value] | None = None,
+        live_stackvars: DefaultChainMapCOW[int, Value] | None = None,
         register_blackout: set[int] | None = None,
-        live_vvars: MutableMapping[int, Value] | None = None,
-        stackvar_bases: MutableMapping[int, tuple[int, int]] | None = None,
+        live_vvars: DefaultChainMapCOW[int, Value] | None = None,
+        stackvar_bases: ChainMapCOW[int, tuple[int, int]] | None = None,
         register_bases: MutableMapping[int, tuple[int, int]] | None = None,
         stackvar_defs: DefaultChainMapCOW[int, set[Def]] | None = None,
         register_defs: MutableMapping[int, set[Def]] | None = None,
@@ -56,13 +56,21 @@ class TraversalState:
 
         self.register_blackout = set(register_blackout or ())
         self.live_registers = defaultdict(set, {} if live_registers is None else live_registers)
-        self.live_stackvars = defaultdict(set, {} if live_stackvars is None else live_stackvars)
-        self.live_vvars = defaultdict(set, {} if live_vvars is None else live_vvars)
+        self.live_stackvars: DefaultChainMapCOW[int, Value] = (
+            DefaultChainMapCOW(default_factory=set, collapse_threshold=50)
+            if live_stackvars is None
+            else live_stackvars.copy()
+        )
+        self.live_vvars = (
+            DefaultChainMapCOW(default_factory=set, collapse_threshold=50) if live_vvars is None else live_vvars.copy()
+        )
         self.live_tmps: MutableMapping[int, Value] = defaultdict(
             set
         )  # tmps are internal to a block only and never propagated from another state
 
-        self.stackvar_bases: MutableMapping[int, tuple[int, int]] = stackvar_bases if stackvar_bases is not None else {}
+        self.stackvar_bases: ChainMapCOW[int, tuple[int, int]] = (
+            stackvar_bases.copy() if stackvar_bases is not None else ChainMapCOW(collapse_threshold=50)
+        )
         self.register_bases: MutableMapping[int, tuple[int, int]] = register_bases if register_bases is not None else {}
         self.pending_ptr_defines: dict[int, list[tuple[AILCodeLocation, StackBaseOffset]]] = {}
         self.pending_ptr_defines_nonlocal_live = pending_ptr_defines_nonlocal_live or set()
@@ -92,6 +100,7 @@ class TraversalState:
                     popped.add(noffset)
 
         final_offset, final_size = (seen[0], seen[1] - seen[0])
+        self.stackvar_bases = self.stackvar_bases.clean()
         for suboffset in range(*seen):
             self.stackvar_bases[suboffset] = (final_offset, final_size)
 
@@ -131,7 +140,7 @@ class TraversalState:
             register_blackout=self.register_blackout,
             live_vvars=self.live_vvars,
             pending_ptr_defines_nonlocal_live=set(self.pending_ptr_defines_nonlocal_live),
-            stackvar_bases=dict(self.stackvar_bases),
+            stackvar_bases=self.stackvar_bases,
             stackvar_defs=self.stackvar_defs,
             register_bases=dict(self.register_bases),
             register_defs={k: set(v) for k, v in self.register_defs.items()},
@@ -146,16 +155,19 @@ class TraversalState:
                 self.live_registers[k].update(v)
                 merge_occurred |= len(self.live_registers[k]) > old_len
 
+            self.live_stackvars = self.live_stackvars.clean()
             for k, v in o.live_stackvars.items():
                 old_len = len(self.live_stackvars[k])
                 self.live_stackvars[k].update(v)
                 merge_occurred |= len(self.live_stackvars[k]) > old_len
 
+            self.live_vvars = self.live_vvars.clean()
             for k, v in o.live_vvars.items():
                 old_len = len(self.live_vvars[k])
                 self.live_vvars[k].update(v)
                 merge_occurred |= len(self.live_vvars[k]) > old_len
 
+            self.stackvar_bases = self.stackvar_bases.clean()
             for k0, (k1, s1) in o.stackvar_bases.items():
                 k2, s2 = self.stackvar_bases.get(k0, (k0, 0))
                 k3 = min(k1, k2)
