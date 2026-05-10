@@ -69,9 +69,7 @@ def _is_windows_appcontainer() -> bool:
     kernel32.CloseHandle.restype = wintypes.BOOL
 
     token = wintypes.HANDLE()
-    if not advapi32.OpenProcessToken(
-        kernel32.GetCurrentProcess(), TOKEN_QUERY, ctypes.byref(token)
-    ):
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), TOKEN_QUERY, ctypes.byref(token)):
         return False
     try:
         is_app_container = wintypes.DWORD(0)
