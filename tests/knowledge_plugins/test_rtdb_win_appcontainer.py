@@ -165,6 +165,30 @@ class TestRtdbAppContainer(unittest.TestCase):
                         capture_output=True,
                     )
 
+            # Each granted path must also be reachable: every ancestor directory
+            # needs traverse rights for the AppContainer, otherwise CreateProcessW
+            # cannot resolve sys.executable and fails with ACCESS_DENIED. Grant
+            # (RX) without OI/CI so it applies to that directory only (no
+            # recursion into siblings/contents).
+            ancestors: set[str] = set()
+            for path in grant_paths:
+                if not path:
+                    continue
+                cur = os.path.abspath(path)
+                while True:
+                    parent = os.path.dirname(cur)
+                    if not parent or parent == cur:
+                        break
+                    ancestors.add(parent)
+                    cur = parent
+            for ancestor in ancestors - grant_paths:
+                if os.path.exists(ancestor):
+                    subprocess.run(
+                        ["icacls", ancestor, "/grant", "*S-1-15-2-1:(RX)", "/Q"],
+                        check=False,
+                        capture_output=True,
+                    )
+
             # ---- 3) Scratch dir the child can write to (LMDB output, temp). ---- #
             scratch = tempfile.mkdtemp(prefix="angr_rtdb_ac_")
             self.addCleanup(_safe_rmtree, scratch)
@@ -212,7 +236,12 @@ class TestRtdbAppContainer(unittest.TestCase):
                 env_buf = ctypes.create_unicode_buffer(env_str, len(env_str))
 
                 # ---- 7) CreateProcessW into the AppContainer. ---- #
-                argv = [sys.executable, "-m", "tests.knowledge_plugins.test_rtdb", "--core"]
+                argv = [
+                    sys.executable,
+                    "-m",
+                    "tests.knowledge_plugins.test_rtdb_win_appcontainer",
+                    "--core",
+                ]
                 cmdline = subprocess.list2cmdline(argv)
                 cmd_buf = ctypes.create_unicode_buffer(cmdline)
 
