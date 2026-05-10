@@ -3,18 +3,15 @@
 """
 Test case for angr/angr#6391: LMDB fails inside Windows AppContainers.
 
-The outer test (Windows-only) launches a child Python process inside a freshly
-created AppContainer and runs the *core* test in that child. The core test
-itself fails (raises ``AssertionError``) when not on Windows or not running
-inside an AppContainer, so it is meaningful only when invoked the way the
-outer test invokes it.
+The outer test (Windows-only) launches a child Python process inside a freshly created AppContainer and runs the core
+test in that child. The core test itself fails (raises ``AssertionError``) when not on Windows or not running inside an
+AppContainer, so it is meaningful only when invoked the way the outer test invokes it.
 
-Without the fix the core test raises ``lmdb.Error: ...: Input/output error``
-when ``RuntimeDb`` initializes its LMDB environment, because LMDB's
-``CreateMutexA("Global\\MDB...r")`` is denied in AppContainers. With the fix,
-``RuntimeDb`` detects the AppContainer and passes ``lock=False``
-(``MDB_NOLOCK``) to ``lmdb.open``, so the open succeeds.
+Without the fix the core test raises ``lmdb.Error: ...: Input/output error`` when ``RuntimeDb`` initializes its LMDB
+environment, because LMDB's ``CreateMutexA("Global\\MDB...r")`` is denied in AppContainers. With the fix, ``RuntimeDb``
+detects the AppContainer and passes ``lock=False`` (``MDB_NOLOCK``) to ``lmdb.open``, so the open succeeds.
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins"  # pylint: disable=redefined-builtin
@@ -25,9 +22,14 @@ import sys
 import tempfile
 import unittest
 import ctypes
+import shutil
 from ctypes import wintypes
 
- 
+import angr
+from angr.knowledge_plugins.rtdb.rtdb import _is_windows_appcontainer
+
+from tests.common import bin_location
+
 
 _AC_PROFILE_NAME = "angr.RtdbAppContainerTest.6391"
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,13 +43,7 @@ def _core_test() -> None:
     invocation in a normal environment is reported as a failure.
     """
     assert sys.platform == "win32", "core test must be invoked on Windows"
-
-    from angr.knowledge_plugins.rtdb.rtdb import _is_windows_appcontainer  # noqa: PLC0415
-
     assert _is_windows_appcontainer(), "core test must be invoked inside a Windows AppContainer"
-
-    import angr  # noqa: PLC0415
-    from tests.common import bin_location  # noqa: PLC0415
 
     bin_path = os.path.join(bin_location, "tests", "x86_64", "fauxware")
     project = angr.Project(bin_path, auto_load_libs=False)
@@ -65,9 +61,6 @@ def _core_test() -> None:
 @unittest.skipUnless(sys.platform == "win32", "AppContainer is a Windows-only sandbox")
 class TestRtdbAppContainer(unittest.TestCase):
     def test_lmdb_in_appcontainer(self):
-        import ctypes  # noqa: PLC0415
-        from ctypes import wintypes  # noqa: PLC0415
-
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         userenv = ctypes.WinDLL("userenv", use_last_error=True)
 
@@ -153,8 +146,6 @@ class TestRtdbAppContainer(unittest.TestCase):
                 if getattr(mod, "__file__", None):
                     grant_paths.add(os.path.dirname(mod.__file__))
             grant_paths.add(_REPO_ROOT)
-            from tests.common import bin_location  # noqa: PLC0415
-
             grant_paths.add(bin_location)
 
             for path in grant_paths:
@@ -205,9 +196,7 @@ class TestRtdbAppContainer(unittest.TestCase):
             stderr_h = _open_inheritable_for_writing(kernel32, stderr_path, HANDLE_FLAG_INHERIT)
 
             # ---- 5) Build proc-thread attribute list with security capabilities. ---- #
-            capabilities = SECURITY_CAPABILITIES(
-                AppContainerSid=sid, Capabilities=None, CapabilityCount=0, Reserved=0
-            )
+            capabilities = SECURITY_CAPABILITIES(AppContainerSid=sid, Capabilities=None, CapabilityCount=0, Reserved=0)
 
             size = ctypes.c_size_t(0)
             kernel32.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(size))
@@ -259,7 +248,7 @@ class TestRtdbAppContainer(unittest.TestCase):
                     cmd_buf,
                     None,
                     None,
-                    True,  # bInheritHandles — needed for the stdout/stderr handles
+                    True,  # bInheritHandles; needed for the stdout/stderr handles
                     EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
                     ctypes.cast(env_buf, ctypes.c_void_p),
                     ctypes.c_wchar_p(_REPO_ROOT),
@@ -346,8 +335,6 @@ def _read_text(path: str) -> str:
 
 
 def _safe_rmtree(path: str) -> None:
-    import shutil  # noqa: PLC0415
-
     shutil.rmtree(path, ignore_errors=True)
 
 
