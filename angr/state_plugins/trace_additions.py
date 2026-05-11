@@ -259,7 +259,7 @@ def exit_hook(state):
     if not state.has_plugin("chall_resp_info"):
         return
 
-    guard = state.inspect.exit_guard
+    guard = state.inspect.attrs.exit_guard
 
     # track the amount of stdout we had when a constraint was first added to a byte of stdin
     chall_resp_plugin = state.get_plugin("chall_resp_info")
@@ -277,7 +277,7 @@ def syscall_hook(state):
         return
 
     # here we detect how much stdout we have when a byte is first read in
-    syscall_name = state.inspect.syscall_name
+    syscall_name = state.inspect.attrs.syscall_name
     if syscall_name == "receive":
         # track the amount of stdout we had when we first read the byte
         stdin_min_stdout_reads = state.get_plugin("chall_resp_info").stdin_min_stdout_reads
@@ -305,7 +305,7 @@ def constraint_hook(state):
     # here we prevent adding constraints if there's a pending thing
     chall_resp_plugin = state.get_plugin("chall_resp_info")
     if chall_resp_plugin.pending_info is not None and angr.options.REPLACEMENT_SOLVER in state.options:
-        state.inspect.added_constraints = []
+        state.inspect.attrs.added_constraints = []
 
 
 class ChallRespInfo(angr.state_plugins.SimStatePlugin):
@@ -609,17 +609,17 @@ def zen_hook(state, expr):
 
 
 def zen_memory_write(state):
-    mem_write_expr = state.inspect.mem_write_expr
+    mem_write_expr = state.inspect.attrs.mem_write_expr
     new_expr = zen_hook(state, mem_write_expr)
     if new_expr is not None:
-        state.inspect.mem_write_expr = new_expr
+        state.inspect.attrs.mem_write_expr = new_expr
 
 
 def zen_register_write(state):
-    reg_write_expr = state.inspect.reg_write_expr
+    reg_write_expr = state.inspect.attrs.reg_write_expr
     new_expr = zen_hook(state, reg_write_expr)
     if new_expr is not None:
-        state.inspect.reg_write_expr = new_expr
+        state.inspect.attrs.reg_write_expr = new_expr
 
 
 class ZenPlugin(angr.state_plugins.SimStatePlugin):

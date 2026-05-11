@@ -45,15 +45,15 @@ class ConstantValueManager:
 
         codeloc = CodeLocation(state.scratch.bbl_addr, state.scratch.stmt_idx, ins_addr=state.scratch.ins_addr)
         if codeloc in self.mapping:
-            reg_read_offset = state.inspect.reg_read_offset
+            reg_read_offset = state.inspect.attrs.reg_read_offset
             if isinstance(reg_read_offset, claripy.ast.BV) and reg_read_offset.op == "BVV":
                 reg_read_offset = reg_read_offset.args[0]
-            variable = VEXReg(reg_read_offset, state.inspect.reg_read_length)
+            variable = VEXReg(reg_read_offset, state.inspect.attrs.reg_read_length)
             if variable in self.mapping[codeloc]:
                 v = self.mapping[codeloc][variable]
                 if isinstance(v, int):
-                    v = claripy.BVV(v, state.inspect.reg_read_length * state.arch.byte_width)
-                state.inspect.reg_read_expr = v
+                    v = claripy.BVV(v, state.inspect.attrs.reg_read_length * state.arch.byte_width)
+                state.inspect.attrs.reg_read_expr = v
 
     def _build_mapping(self):
         # constant propagation

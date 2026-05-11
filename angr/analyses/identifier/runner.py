@@ -147,7 +147,7 @@ class Runner:
     def syscall_hook(state):
         # FIXME maybe we need to fix transmit/receive to handle huge vals properly
         # kill path that try to read/write large amounts
-        syscall_name = state.inspect.syscall_name
+        syscall_name = state.inspect.attrs.syscall_name
         if syscall_name == "transmit":
             count = state.solver.eval(state.regs.edx)
             if count > 0x10000:
@@ -168,7 +168,7 @@ class Runner:
     def syscall_hook_concrete_rand(state):
         # FIXME maybe we need to fix transmit/receive to handle huge vals properly
         # kill path that try to read/write large amounts
-        syscall_name = state.inspect.syscall_name
+        syscall_name = state.inspect.attrs.syscall_name
         if syscall_name == "random":
             count = state.solver.eval(state.regs.ecx)
             if count > 100:

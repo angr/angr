@@ -426,16 +426,16 @@ class IcicleEngine(SuccessorsEngine):
             if not isinstance(plugin, SimStateIcicle):
                 return
             solver = state.solver
-            addr = state.inspect.mem_write_address
+            addr = state.inspect.attrs.mem_write_address
             if addr is None or solver.symbolic(addr):
                 return
             addr = solver.eval(addr, cast_to=int)
             # length is often None because `state.memory.store(addr, bvv)`
             # is called without an explicit size — fall back to the value's
             # bit width.
-            length = state.inspect.mem_write_length
+            length = state.inspect.attrs.mem_write_length
             if length is None:
-                expr = state.inspect.mem_write_expr
+                expr = state.inspect.attrs.mem_write_expr
                 if expr is None:
                     return
                 length = expr.size() // 8

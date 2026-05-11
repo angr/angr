@@ -39,10 +39,10 @@ class TraceClassifier:
         """
         SimInspect callback for memory writes.
         """
-        addr = state.solver.eval(state.inspect.mem_write_address)
-        length = state.inspect.mem_write_length
+        addr = state.solver.eval(state.inspect.attrs.mem_write_address)
+        length = state.inspect.attrs.mem_write_length
         if length is None:
-            length = len(state.inspect.mem_write_expr) // state.arch.byte_width
+            length = len(state.inspect.attrs.mem_write_expr) // state.arch.byte_width
         if not isinstance(length, int):
             length = state.solver.eval(length)
         self.map.add(addr, length, TraceActions.WRITE)
@@ -51,7 +51,7 @@ class TraceClassifier:
         """
         SimInspect callback for instruction execution.
         """
-        addr = state.inspect.instruction
+        addr = state.inspect.attrs.instruction
         if addr is None:
             log.warning("Symbolic addr")
             return
