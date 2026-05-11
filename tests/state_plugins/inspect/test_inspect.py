@@ -237,7 +237,9 @@ class TestInspect(unittest.TestCase):
                 self.state = state
 
         def abort_unconstrained(state):
-            print(state.inspect.attrs.address_concretization_strategy, state.inspect.attrs.address_concretization_result)
+            print(
+                state.inspect.attrs.address_concretization_strategy, state.inspect.attrs.address_concretization_result
+            )
             if (
                 isinstance(
                     state.inspect.attrs.address_concretization_strategy,

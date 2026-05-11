@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import Any
@@ -394,6 +395,30 @@ class SimInspector(SimStatePlugin):
     def set_state(self, state):
         super().set_state(state)
         state.supports_inspect = True
+
+    # Backwards compatibility: allow access to inspect attributes directly on SimInspector, but warn about it.
+
+    def __getattr__(self, item):
+        if item in inspect_attributes:
+            warnings.warn(
+                f"Accessing inspect attribute '{item}' via SimInspector is deprecated. Use state.inspect.attrs.{item} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return getattr(self.attrs, item)
+        return super().__getattr__(item)
+
+    def __setattr__(self, key, value):
+        if key in inspect_attributes:
+            warnings.warn(
+                f"Setting inspect attribute '{key}' via SimInspector is deprecated. Use state.inspect.attrs.{key} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            setattr(self.attrs, key, value)
+            self.action_attrs_set = True
+        else:
+            super().__setattr__(key, value)
 
 
 SimState.register_default("inspect", SimInspector)

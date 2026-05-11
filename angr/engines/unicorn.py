@@ -321,7 +321,9 @@ class SimEngineUnicorn(SuccessorsEngine):
             mem_read_val += next_val["value"]
 
         assert state.inspect.attrs.mem_read_length == mem_read_size
-        state.inspect.attrs.mem_read_address = claripy.BVV(mem_read_address, state.inspect.attrs.mem_read_address.size())
+        state.inspect.attrs.mem_read_address = claripy.BVV(
+            mem_read_address, state.inspect.attrs.mem_read_address.size()
+        )
         if mem_read_taint_map.count(-1) != mem_read_size:
             # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
             self.state.inspect.b(
