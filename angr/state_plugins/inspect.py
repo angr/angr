@@ -180,7 +180,7 @@ class BP:
         :param when:    Whether the check is happening before or after the event.
         :return:        A boolean representing whether the checkpoint should fire.
         """
-        ok = self.enabled and (when == self.when or self.when == BP_BOTH)
+        ok = self.enabled and self.when in (when, BP_BOTH)
         if not ok:
             return ok
         l.debug("... after enabled and when: %s", ok)
@@ -401,17 +401,19 @@ class SimInspector(SimStatePlugin):
     def __getattr__(self, item):
         if item in inspect_attributes:
             warnings.warn(
-                f"Accessing inspect attribute '{item}' via SimInspector is deprecated. Use state.inspect.attrs.{item} instead.",
+                f"Accessing inspect attribute '{item}' via SimInspector is deprecated. "
+                f"Use state.inspect.attrs.{item} instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
             return getattr(self.attrs, item)
-        return super().__getattr__(item)
+        return super().__getattribute__(item)
 
     def __setattr__(self, key, value):
         if key in inspect_attributes:
             warnings.warn(
-                f"Setting inspect attribute '{key}' via SimInspector is deprecated. Use state.inspect.attrs.{key} instead.",
+                f"Setting inspect attribute '{key}' via SimInspector is deprecated. "
+                f"Use state.inspect.attrs.{key} instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
