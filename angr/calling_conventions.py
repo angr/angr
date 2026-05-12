@@ -1183,7 +1183,7 @@ class SimCC:
             return False
         if sp_delta != cls.STACKARG_SP_DIFF:
             return False
-        if extra_pop > 0 and not cls.CALLEE_CLEANUP:
+        if extra_pop is not None and extra_pop > 0 and not cls.CALLEE_CLEANUP:
             return False
 
         def _arg_ident(a: SimRegArg | SimStackArg) -> int | str:
