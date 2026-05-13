@@ -8,8 +8,23 @@ from angr.sim_state import SimState
 from .plugin import SimStatePlugin
 
 if TYPE_CHECKING:
-    from angr.engines.icicle import IcicleStateTranslationData
     from angr.rustylib.icicle import Icicle
+
+
+@dataclass
+class IcicleStateTranslationData:
+    """
+    Represents the saved information needed to convert an Icicle state back
+    to an angr state.
+    """
+
+    base_state: SimState[int, int]
+    registers: set[str]
+    mapped_pages: set[int]
+    writable_pages: set[int]
+    explicit_page_metadata: dict[int, int | None]
+    initial_cpu_icount: int
+    icicle_arch: str
 
 
 @dataclass

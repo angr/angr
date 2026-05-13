@@ -22,9 +22,9 @@ import cle
 import angr
 from angr import sim_options as o
 from angr.emulator import Emulator, EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, IcicleStateTranslationData, UberIcicleEngine
+from angr.engines.icicle import IcicleEngine, UberIcicleEngine
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
-from angr.state_plugins.icicle import SimStateIcicle
+from angr.state_plugins.icicle import IcicleStateTranslationData, SimStateIcicle
 from tests.common import bin_location
 
 
