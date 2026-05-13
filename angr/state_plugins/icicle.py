@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from angr.sim_state import SimState
@@ -8,28 +9,49 @@ from .plugin import SimStatePlugin
 
 if TYPE_CHECKING:
     from angr.engines.icicle import IcicleStateTranslationData
+    from angr.rustylib.icicle import Icicle
+
+
+@dataclass
+class IcicleVMRef:
+    """Holder shared by reference across plugin copies.
+
+    Lets multiple SimStateIcicle plugins point at the same VM and observe each
+    other's advancements via `generation`: each successful engine run bumps
+    `generation`, invalidating any plugin still holding the prior value.
+    """
+
+    vm: Icicle
+    generation: int = 0
 
 
 class SimStateIcicle(SimStatePlugin):
     """Engine-internal plugin for IcicleEngine continuation detection.
 
-    Attached to states produced by ``IcicleEngine.process()``.
-    Carries the metadata the engine needs to decide whether the next call
-    is a lightweight continuation or requires a full snapshot restore.
+    Attached to states produced by ``IcicleEngine.process()``. Owns the VM and
+    the metadata the engine needs to decide whether the next call is a
+    lightweight continuation or requires a full snapshot restore.
     """
 
     def __init__(
         self,
-        engine_id: int | None = None,
-        run_id: int | None = None,
+        vm_ref: IcicleVMRef | None = None,
+        generation: int | None = None,
+        base_translation_data: IcicleStateTranslationData | None = None,
         translation_data: IcicleStateTranslationData | None = None,
         dirty_pages: set[int] | None = None,
     ):
         super().__init__()
-        self.engine_id = engine_id
-        self.run_id = run_id
+        self.vm_ref = vm_ref
+        self.generation = generation
+        self.base_translation_data = base_translation_data
         self.translation_data = translation_data
         self.dirty_pages = dirty_pages if dirty_pages is not None else set()
+
+    @property
+    def is_live(self) -> bool:
+        """True when the VM is still positioned where this state last left it."""
+        return self.vm_ref is not None and self.generation == self.vm_ref.generation
 
     def set_state(self, state):
         pass  # no weak ref needed
@@ -37,8 +59,9 @@ class SimStateIcicle(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, _memo):
         return SimStateIcicle(
-            engine_id=self.engine_id,
-            run_id=self.run_id,
+            vm_ref=self.vm_ref,
+            generation=self.generation,
+            base_translation_data=self.base_translation_data,
             translation_data=self.translation_data,
             dirty_pages=set(self.dirty_pages),
         )

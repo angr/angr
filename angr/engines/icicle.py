@@ -21,7 +21,7 @@ from angr.errors import SimMemoryError
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
 from angr.sim_state import SimState
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
-from angr.state_plugins.icicle import SimStateIcicle
+from angr.state_plugins.icicle import IcicleVMRef, SimStateIcicle
 from angr.state_plugins.inspect import BP_AFTER
 
 log = logging.getLogger(__name__)
@@ -85,12 +85,6 @@ class IcicleEngine(SuccessorsEngine):
     intends to provide a more complete set of features, such as hooks and syscalls.
 
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._cached_emu: Icicle | None = None
-        self._base_translation_data: IcicleStateTranslationData | None = None
-        self._run_counter: int = 0
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -410,10 +404,6 @@ class IcicleEngine(SuccessorsEngine):
             icicle_arch=icicle_arch,
         )
 
-    def has_snapshot(self) -> bool:
-        """Check if a snapshot is available for fast restore."""
-        return self._cached_emu is not None and self._cached_emu.has_snapshot()
-
     @staticmethod
     def _install_dirty_page_tracking(state: HeavyConcreteState) -> None:
         """Register a SimInspect callback on memory writes to record which
@@ -526,44 +516,38 @@ class IcicleEngine(SuccessorsEngine):
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
     ) -> HeavyConcreteState:
-        # Check for continuation via state plugin (registered as a default).
         icicle_plugin = state.get_plugin("icicle")
         if not isinstance(icicle_plugin, SimStateIcicle):
             raise TypeError("SimStateIcicle plugin missing — is it registered as a default?")
 
-        if (
-            icicle_plugin.engine_id == id(self)
-            and icicle_plugin.run_id == self._run_counter
-            and self._cached_emu is not None
-            and icicle_plugin.translation_data is not None
-        ):
+        if icicle_plugin.vm_ref is None:
+            # First run: build the VM and snapshot it for future branches.
+            emu, translation_data = self.__build_emu_for(state)
+            emu.save_snapshot()
+            icicle_plugin.vm_ref = IcicleVMRef(vm=emu)
+            icicle_plugin.base_translation_data = translation_data
+            icicle_plugin.translation_data = translation_data
+            icicle_plugin.generation = icicle_plugin.vm_ref.generation
+        elif icicle_plugin.is_live and icicle_plugin.translation_data is not None:
             # Continuation: sync registers + dirty pages (no snapshot restore).
             # dirty_pages includes both icicle-written pages (from emu.modified_pages)
             # and angr-written pages (from the store tracking hook).
+            emu = icicle_plugin.vm_ref.vm
             pages_to_sync = set(icicle_plugin.dirty_pages)
             # Pick up pages newly mapped by syscall handlers (e.g. mmap).
             for page_num, page in state.memory._pages.items():
                 if page is not None and page_num not in icicle_plugin.translation_data.mapped_pages:
                     pages_to_sync.add(page_num)
-            translation_data = self.__sync_continuation(
-                self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
-            )
+            translation_data = self.__sync_continuation(emu, state, icicle_plugin.translation_data, list(pages_to_sync))
             # Reset the path tracer so `emu.recent_blocks` reflects only
             # blocks executed during this run, not cumulative history.
-            self._cached_emu.clear_path_tracer()
-            emu = self._cached_emu
-        elif self._cached_emu is not None:
-            # Branched from an earlier run: restore and delta-sync.
-            assert self._base_translation_data is not None
-            self._cached_emu.restore_snapshot()
-            translation_data = self.__sync_state_to_emu(self._cached_emu, state, self._base_translation_data)
-            emu = self._cached_emu
+            emu.clear_path_tracer()
         else:
-            # First run: build the VM and snapshot it for future branches.
-            emu, translation_data = self.__build_emu_for(state)
-            emu.save_snapshot()
-            self._cached_emu = emu
-            self._base_translation_data = translation_data
+            # Branched from an earlier run: restore and delta-sync.
+            assert icicle_plugin.base_translation_data is not None
+            emu = icicle_plugin.vm_ref.vm
+            emu.restore_snapshot()
+            translation_data = self.__sync_state_to_emu(emu, state, icicle_plugin.base_translation_data)
 
         # Sync simprocedure breakpoints. Simprocs can be registered
         # dynamically between runs (e.g. SimProcedure.call() makes a new
@@ -607,15 +591,18 @@ class IcicleEngine(SuccessorsEngine):
 
         result = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
-        # Update the plugin for continuation detection on the next call.
+        # Advance the VM's generation so any other plugin copies still pointing
+        # at the prior generation falls into the snapshot-restore path on its
+        # next run.
+        # The result plugin (copied from the input) inherits vm_ref/base_translation_data;
+        # we set its generation to the new value so it alone is "live."
         # Seed dirty_pages with pages icicle wrote; the SimInspect callback
         # will add any pages that angr hooks/syscalls modify before the next
         # engine call.
         page_size = state.memory.page_size
-        self._run_counter += 1
+        icicle_plugin.vm_ref.generation += 1
         result_plugin = cast(SimStateIcicle, result.get_plugin("icicle"))
-        result_plugin.engine_id = id(self)
-        result_plugin.run_id = self._run_counter
+        result_plugin.generation = icicle_plugin.vm_ref.generation
         result_plugin.translation_data = translation_data
         result_plugin.dirty_pages = {addr // page_size for addr in emu.modified_pages}
         self._install_dirty_page_tracking(result)

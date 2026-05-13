@@ -912,21 +912,19 @@ class TestSimStateIciclePlugin(TestCase):
         assert state.has_plugin("icicle")
         plugin = state.get_plugin("icicle")
         assert isinstance(plugin, SimStateIcicle)
-        assert plugin.engine_id == id(engine)
-        assert plugin.run_id > 0
+        assert plugin.vm_ref is not None
+        assert plugin.is_live
 
     def test_plugin_copy(self):
         """Test that the plugin is correctly copied when the state is copied."""
         dummy_td = cast(IcicleStateTranslationData, None)
         plugin = SimStateIcicle(
-            engine_id=12345,
-            run_id=42,
+            generation=42,
             translation_data=dummy_td,
             dirty_pages={3, 4},
         )
         copied = plugin.copy({})
-        assert copied.engine_id == 12345
-        assert copied.run_id == 42
+        assert copied.generation == 42
         assert copied.dirty_pages == {3, 4}
         # Ensure copies are independent
         copied.dirty_pages.add(6)
@@ -936,8 +934,7 @@ class TestSimStateIciclePlugin(TestCase):
         """Test that merge and widen return False (not mergeable)."""
         dummy_td = cast(IcicleStateTranslationData, None)
         plugin = SimStateIcicle(
-            engine_id=1,
-            run_id=1,
+            generation=1,
             translation_data=dummy_td,
             dirty_pages=set(),
         )
