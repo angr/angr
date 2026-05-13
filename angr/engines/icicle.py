@@ -6,7 +6,6 @@ import logging
 import os
 import typing
 from collections.abc import Iterable
-from dataclasses import dataclass
 from typing import cast, override
 
 import claripy
@@ -21,13 +20,10 @@ from angr.errors import SimMemoryError
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
 from angr.sim_state import SimState
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
-from angr.state_plugins.icicle import SimStateIcicle
+from angr.state_plugins.icicle import IcicleStateTranslationData, IcicleVMRef, SimStateIcicle
 from angr.state_plugins.inspect import BP_AFTER
 
 log = logging.getLogger(__name__)
-
-
-HeavyConcreteState = SimState[int, int]
 
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
@@ -45,22 +41,6 @@ def _syscall_jumpkind(arch_name: str, emu) -> str:
         if insn == b"\x0f\x05":
             return "Ijk_Sys_syscall"
     return "Ijk_Sys_syscall"
-
-
-@dataclass
-class IcicleStateTranslationData:
-    """
-    Represents the saved information needed to convert an Icicle state back
-    to an angr state.
-    """
-
-    base_state: HeavyConcreteState
-    registers: set[str]
-    mapped_pages: set[int]
-    writable_pages: set[int]
-    explicit_page_metadata: dict[int, int | None]
-    initial_cpu_icount: int
-    icicle_arch: str
 
 
 class IcicleEngine(SuccessorsEngine):
@@ -85,12 +65,6 @@ class IcicleEngine(SuccessorsEngine):
     intends to provide a more complete set of features, such as hooks and syscalls.
 
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._cached_emu: Icicle | None = None
-        self._base_translation_data: IcicleStateTranslationData | None = None
-        self._run_counter: int = 0
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -129,7 +103,7 @@ class IcicleEngine(SuccessorsEngine):
         )
 
     @staticmethod
-    def __get_pages(state: HeavyConcreteState) -> set[int]:
+    def __get_pages(state: SimState[int, int]) -> set[int]:
         """
         Unfortunately, the memory model doesn't have a way to get all pages.
         Instead, we can get all of the backers from the loader, then all of the
@@ -158,7 +132,7 @@ class IcicleEngine(SuccessorsEngine):
         return pages
 
     @staticmethod
-    def __get_explicit_page_metadata(state: HeavyConcreteState) -> dict[int, int | None]:
+    def __get_explicit_page_metadata(state: SimState[int, int]) -> dict[int, int | None]:
         """
         Return explicit page overrides from the paged memory model.
         The key is page number. Value is permission bits, or None when the page
@@ -174,7 +148,7 @@ class IcicleEngine(SuccessorsEngine):
         return metadata
 
     @staticmethod
-    def __sync_registers(emu: Icicle, state: HeavyConcreteState, register_names: Iterable[str]) -> set[str]:
+    def __sync_registers(emu: Icicle, state: SimState[int, int], register_names: Iterable[str]) -> set[str]:
         """Copy each named register from `state` into `emu`, plus the x86/AMD64 TLS
         segment base (which icicle exposes under a different name than angr).
         Returns the subset of `register_names` that succeeded — registers icicle
@@ -197,7 +171,7 @@ class IcicleEngine(SuccessorsEngine):
         return copied
 
     @staticmethod
-    def __write_page(emu: Icicle, state: HeavyConcreteState, page_num: int) -> None:
+    def __write_page(emu: Icicle, state: SimState[int, int], page_num: int) -> None:
         """Copy `state`'s content at `page_num` into `emu`, resolving any symbolic
         bytes through the solver.
         """
@@ -209,7 +183,7 @@ class IcicleEngine(SuccessorsEngine):
         emu.mem_write(addr, memory)
 
     @staticmethod
-    def __sync_edge_hitmap(emu: Icicle, state: HeavyConcreteState) -> None:
+    def __sync_edge_hitmap(emu: Icicle, state: SimState[int, int]) -> None:
         """Copy state's edge_hitmap into emu, if the plugin is present."""
         if state.has_plugin("edge_hitmap"):
             hitmap_plugin = cast(SimStateEdgeHitmap, state.get_plugin("edge_hitmap"))
@@ -217,7 +191,7 @@ class IcicleEngine(SuccessorsEngine):
                 emu.edge_hitmap = hitmap_plugin.edge_hitmap
 
     @staticmethod
-    def __build_emu_for(state: HeavyConcreteState) -> tuple[Icicle, IcicleStateTranslationData]:
+    def __build_emu_for(state: SimState[int, int]) -> tuple[Icicle, IcicleStateTranslationData]:
         """Construct a fresh `Icicle` VM and sync `state` onto it from scratch."""
         icicle_arch = IcicleEngine.__make_icicle_arch(state.arch)
         if icicle_arch is None:
@@ -232,7 +206,7 @@ class IcicleEngine(SuccessorsEngine):
     @staticmethod
     def __convert_icicle_state_to_angr(
         emu: Icicle, translation_data: IcicleStateTranslationData, status: VmExit
-    ) -> HeavyConcreteState:
+    ) -> SimState[int, int]:
         state = translation_data.base_state.copy()
 
         # 1. Copy the register values
@@ -305,7 +279,7 @@ class IcicleEngine(SuccessorsEngine):
     @staticmethod
     def __sync_state_to_emu(
         emu: Icicle,
-        state: HeavyConcreteState,
+        state: SimState[int, int],
         base: IcicleStateTranslationData | None,
         icicle_arch: str | None = None,
     ) -> IcicleStateTranslationData:
@@ -410,12 +384,8 @@ class IcicleEngine(SuccessorsEngine):
             icicle_arch=icicle_arch,
         )
 
-    def has_snapshot(self) -> bool:
-        """Check if a snapshot is available for fast restore."""
-        return self._cached_emu is not None and self._cached_emu.has_snapshot()
-
     @staticmethod
-    def _install_dirty_page_tracking(state: HeavyConcreteState) -> None:
+    def _install_dirty_page_tracking(state: SimState[int, int]) -> None:
         """Register a SimInspect callback on memory writes to record which
         pages are dirtied by hooks or syscall handlers between icicle runs.
         """
@@ -455,7 +425,7 @@ class IcicleEngine(SuccessorsEngine):
     @staticmethod
     def __sync_continuation(
         emu: Icicle,
-        state: HeavyConcreteState,
+        state: SimState[int, int],
         translation_data: IcicleStateTranslationData,
         changed_pages: list[int],
     ) -> IcicleStateTranslationData:
@@ -508,7 +478,7 @@ class IcicleEngine(SuccessorsEngine):
         if len(kwargs) > 0:
             log.warning("IcicleEngine.process_successors received unknown kwargs: %s", kwargs)
 
-        state = typing.cast(HeavyConcreteState, self.state)
+        state = typing.cast(SimState[int, int], self.state)
 
         result = self._run_icicle(state, num_inst=num_inst, extra_stop_points=extra_stop_points)
         successors.add_successor(
@@ -522,48 +492,42 @@ class IcicleEngine(SuccessorsEngine):
 
     def _run_icicle(
         self,
-        state: HeavyConcreteState,
+        state: SimState[int, int],
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
-    ) -> HeavyConcreteState:
-        # Check for continuation via state plugin (registered as a default).
+    ) -> SimState[int, int]:
         icicle_plugin = state.get_plugin("icicle")
         if not isinstance(icicle_plugin, SimStateIcicle):
             raise TypeError("SimStateIcicle plugin missing — is it registered as a default?")
 
-        if (
-            icicle_plugin.engine_id == id(self)
-            and icicle_plugin.run_id == self._run_counter
-            and self._cached_emu is not None
-            and icicle_plugin.translation_data is not None
-        ):
+        if icicle_plugin.vm_ref is None:
+            # First run: build the VM and snapshot it for future branches.
+            emu, translation_data = self.__build_emu_for(state)
+            emu.save_snapshot()
+            icicle_plugin.vm_ref = IcicleVMRef(vm=emu)
+            icicle_plugin.base_translation_data = translation_data
+            icicle_plugin.translation_data = translation_data
+            icicle_plugin.generation = icicle_plugin.vm_ref.generation
+        elif icicle_plugin.is_live and icicle_plugin.translation_data is not None:
             # Continuation: sync registers + dirty pages (no snapshot restore).
             # dirty_pages includes both icicle-written pages (from emu.modified_pages)
             # and angr-written pages (from the store tracking hook).
+            emu = icicle_plugin.vm_ref.vm
             pages_to_sync = set(icicle_plugin.dirty_pages)
             # Pick up pages newly mapped by syscall handlers (e.g. mmap).
             for page_num, page in state.memory._pages.items():
                 if page is not None and page_num not in icicle_plugin.translation_data.mapped_pages:
                     pages_to_sync.add(page_num)
-            translation_data = self.__sync_continuation(
-                self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
-            )
+            translation_data = self.__sync_continuation(emu, state, icicle_plugin.translation_data, list(pages_to_sync))
             # Reset the path tracer so `emu.recent_blocks` reflects only
             # blocks executed during this run, not cumulative history.
-            self._cached_emu.clear_path_tracer()
-            emu = self._cached_emu
-        elif self._cached_emu is not None:
-            # Branched from an earlier run: restore and delta-sync.
-            assert self._base_translation_data is not None
-            self._cached_emu.restore_snapshot()
-            translation_data = self.__sync_state_to_emu(self._cached_emu, state, self._base_translation_data)
-            emu = self._cached_emu
+            emu.clear_path_tracer()
         else:
-            # First run: build the VM and snapshot it for future branches.
-            emu, translation_data = self.__build_emu_for(state)
-            emu.save_snapshot()
-            self._cached_emu = emu
-            self._base_translation_data = translation_data
+            # Branched from an earlier run: restore and delta-sync.
+            assert icicle_plugin.base_translation_data is not None
+            emu = icicle_plugin.vm_ref.vm
+            emu.restore_snapshot()
+            translation_data = self.__sync_state_to_emu(emu, state, icicle_plugin.base_translation_data)
 
         # Sync simprocedure breakpoints. Simprocs can be registered
         # dynamically between runs (e.g. SimProcedure.call() makes a new
@@ -607,15 +571,18 @@ class IcicleEngine(SuccessorsEngine):
 
         result = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
-        # Update the plugin for continuation detection on the next call.
+        # Advance the VM's generation so any other plugin copies still pointing
+        # at the prior generation falls into the snapshot-restore path on its
+        # next run.
+        # The result plugin (copied from the input) inherits vm_ref/base_translation_data;
+        # we set its generation to the new value so it alone is "live."
         # Seed dirty_pages with pages icicle wrote; the SimInspect callback
         # will add any pages that angr hooks/syscalls modify before the next
         # engine call.
         page_size = state.memory.page_size
-        self._run_counter += 1
+        icicle_plugin.vm_ref.generation += 1
         result_plugin = cast(SimStateIcicle, result.get_plugin("icicle"))
-        result_plugin.engine_id = id(self)
-        result_plugin.run_id = self._run_counter
+        result_plugin.generation = icicle_plugin.vm_ref.generation
         result_plugin.translation_data = translation_data
         result_plugin.dirty_pages = {addr // page_size for addr in emu.modified_pages}
         self._install_dirty_page_tracking(result)
