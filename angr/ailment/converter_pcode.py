@@ -77,7 +77,8 @@ opcode_to_generic_name = {
     # OpCode.CPOOLREF          : '',
     # OpCode.NEW               : '',
     # OpCode.INSERT            : '',
-    # OpCode.EXTRACT           : '',
+    # OpCode.ZPULL             : '',
+    # OpCode.SPULL             : '',
     # OpCode.POPCOUNT          : '',
 }
 

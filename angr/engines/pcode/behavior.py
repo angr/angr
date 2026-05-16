@@ -990,7 +990,8 @@ class BehaviorFactory:
                 OpCode.CPOOLREF: OpBehavior(OpCode.CPOOLREF, False, True),
                 OpCode.NEW: OpBehavior(OpCode.NEW, False, True),
                 OpCode.INSERT: OpBehavior(OpCode.INSERT, False, True),
-                OpCode.EXTRACT: OpBehavior(OpCode.EXTRACT, False, True),
+                OpCode.ZPULL: OpBehavior(OpCode.ZPULL, False, True),
+                OpCode.SPULL: OpBehavior(OpCode.SPULL, False, True),
                 OpCode.POPCOUNT: OpBehaviorPopcount(),
                 OpCode.LZCOUNT: OpBehaviorLzcount(),
             }
