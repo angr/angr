@@ -1858,7 +1858,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     @staticmethod
     def _block_is_cxx_frame_handler3(node: CFGNode) -> bool:
         # ___CxxFrameHandler3 identification
-        return node.size >= 13 and node.byte_string[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc"
+        return (
+            node.size >= 13
+            and node.byte_string is not None
+            and node.byte_string[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc"
+        )
 
     def _parse_eh_prolog3_arg(self) -> list[CFGJob]:
         """
