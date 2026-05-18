@@ -28,6 +28,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         func_graph: networkx.DiGraph[Block] | None = None,
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
+        track_implicit_call_uses: bool = True,
         track_tmps: bool = False,
         allow_phi_loops: bool = False,
     ):
@@ -48,6 +49,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         self._track_tmps = track_tmps
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._allow_phi_loops = allow_phi_loops
+        self._track_implicit_call_uses = track_implicit_call_uses
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -97,7 +99,7 @@ class SReachingDefinitionsAnalysis(Analysis):
                 {vvar_id for vvar_id in src_vvars if vvar_id is not None} if None in src_vvars else src_vvars
             )
 
-        if self.mode == "function":
+        if self.mode == "function" and self._track_implicit_call_uses:
             assert self.func is not None
 
             # fix register definitions for arguments
