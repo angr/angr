@@ -83,7 +83,7 @@ class TestPcodeEngine(TestCase):
         byte_code = 0x00060663_01F2DF9B.to_bytes(8, "little")
         # abi names: t0 = x5, t6 = x31
 
-        arch = archinfo.ArchPcode("RISCV:LE:64:RV64G")
+        arch = archinfo.ArchPcode("RISCV:LE:64:default")
         p = angr.load_shellcode(byte_code, arch=arch, load_address=0, engine=angr.engines.UberEnginePcode)
 
         entry_state = p.factory.entry_state()
