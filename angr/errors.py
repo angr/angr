@@ -620,7 +620,18 @@ class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass
 
 
-class AngrDecompilerMultiEntranceError(AngrError):
+# outliner specifically
+
+
+class AngrOutlinerError(AngrError):
+    pass
+
+
+class AngrOutlinerEmptySubgraphError(AngrOutlinerError):
+    pass
+
+
+class AngrOutlinerMultiEntranceError(AngrOutlinerError):
     pass
 
 
