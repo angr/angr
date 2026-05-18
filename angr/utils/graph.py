@@ -163,6 +163,7 @@ def subgraph_between_nodes[T](
 
     g0 = networkx.DiGraph()
 
+    frontier = set(frontier)
     if source not in graph or any(node not in graph for node in frontier):
         raise KeyError("Source node or frontier nodes are not in the source graph.")
 
