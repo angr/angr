@@ -139,10 +139,7 @@ def get_vvar_uselocs(blocks, allow_phi_loops=False) -> dict[int, list[tuple[Virt
         collector = VVarUsesCollector(allow_phi_loops=allow_phi_loops)
         collector.walk(block)
         for vvar_idx, vvar_and_uselocs in collector.vvar_and_uselocs.items():
-            if vvar_idx not in vvar_to_loc:
-                vvar_to_loc[vvar_idx] = list(vvar_and_uselocs)
-            else:
-                vvar_to_loc[vvar_idx] += vvar_and_uselocs
+            vvar_to_loc[vvar_idx].extend(vvar_and_uselocs)
     return vvar_to_loc
 
 
