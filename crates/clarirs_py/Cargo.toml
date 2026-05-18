@@ -18,7 +18,7 @@ clarirs_z3 = { path = "../clarirs_z3" }
 thiserror = { workspace = true }
 num-bigint = "0.4.6"
 log = "0.4.29"
-dashmap = "6.1.0"
+dashmap = "6.2.1"
 
 [lib]
 name = "claripy"
