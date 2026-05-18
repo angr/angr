@@ -38,6 +38,7 @@ class SReachingDefinitions:
         func_graph: networkx.DiGraph[Block] | None = None,
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
+        track_implicit_call_uses: bool = True,
         track_tmps: bool = False,
         variable_map=None,
         allow_phi_loops: bool = False,
@@ -62,6 +63,7 @@ class SReachingDefinitions:
         self._track_tmps = track_tmps
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._allow_phi_loops = allow_phi_loops
+        self._track_implicit_call_uses = track_implicit_call_uses
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -99,7 +101,7 @@ class SReachingDefinitions:
             allow_phi_loops=self._allow_phi_loops,
         )
 
-        if self.mode == "function":
+        if self.mode == "function" and self._track_implicit_call_uses:
             assert self.func is not None
 
             srda_view = SRDAView(self.model)
