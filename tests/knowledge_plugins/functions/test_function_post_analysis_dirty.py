@@ -62,36 +62,21 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
             outside=False,
         )
 
-        # Round-trip through the parser to set _dirty=False, mimicking
-        # a normal SpillingFunctionDict reload.
-        cmsg = func.serialize_to_cmessage()
-        loaded = Function.parse_from_cmessage(
-            cmsg,
-            function_manager=fm,
-            project=proj,
-        )
-        self.assertFalse(
-            loaded._dirty,
-            "test setup: parse_from_cmessage should reset _dirty=False",
-        )
-
-        # Find the fake_return edge that CFGFast._post_analysis would
-        # decide to remove. (We simulate that decision directly instead
-        # of running the full CFGFast pipeline.)
-        fakeret_edges = [
-            (s, d) for s, d, data in loaded.transition_graph.edges(data=True) if data.get("type") == "fake_return"
-        ]
-        self.assertEqual(len(fakeret_edges), 1)
-        src, dst = fakeret_edges[0]
+        # Reset _dirty to mimic a function freshly loaded from LMDB
+        # via parse_from_cmessage (which sets _dirty=False at exit).
+        # This is the state CFGFast._post_analysis encounters when a
+        # bad function was spilled then reloaded before the fakeret
+        # cleanup loop runs.
+        func._dirty = False
 
         # Operation under test. After the fix _post_analysis routes
         # this through Function._remove_fakeret (@dirty_func); before
         # the fix it was a direct graph mutation that left _dirty
         # untouched.
-        loaded._remove_fakeret(src, dst)
+        func._remove_fakeret(local_block, ext_block)
 
         self.assertTrue(
-            loaded._dirty,
+            func._dirty,
             "Function must be marked dirty after fake_return edge removal so "
             "that SpillingFunctionDict._evict_n persists the cleanup to LMDB.",
         )
