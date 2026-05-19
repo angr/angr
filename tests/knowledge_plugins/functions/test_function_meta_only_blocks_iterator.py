@@ -26,6 +26,7 @@ the CFG node for a function whose `_local_blocks` is empty -- which
 is the post-fix shape of the cleanup logic in
 `CFGFast.drop_bad_functions`.
 """
+
 from __future__ import annotations
 
 import tempfile
@@ -66,7 +67,10 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
 
         cmsg = func.serialize_to_cmessage()
         meta = Function.parse_from_cmessage(
-            cmsg, function_manager=fm, project=proj, meta_only=True,
+            cmsg,
+            function_manager=fm,
+            project=proj,
+            meta_only=True,
         )
 
         # block_addrs is populated for spilled funcs; this is what the
@@ -77,7 +81,8 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         # empty in meta-only mode. The pre-fix cleanup loop iterated
         # this and was silently a no-op for spilled bad functions.
         self.assertEqual(
-            sum(1 for _ in meta.blocks), 0,
+            sum(1 for _ in meta.blocks),
+            0,
             "Function.blocks must be empty in meta-only mode -- any "
             "code that needs to iterate a spilled function's blocks "
             "must use block_addrs and look up sizes via the CFG model.",
@@ -114,8 +119,11 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         # a node at `addr`. The simplest way is to actually run
         # CFGFast on the blob and then synthesize the drop case.
         cfg = proj.analyses.CFGFast(
-            normalize=True, cross_references=False, data_references=False,
-            force_smart_scan=False, force_complete_scan=False,
+            normalize=True,
+            cross_references=False,
+            data_references=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
         )
         cfg_node = cfg.model.get_any_node(addr)
         assert cfg_node is not None, "CFGFast should have lifted a node at the entrypoint"
@@ -130,7 +138,10 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         # SpillingFunctionDict before the removal loop runs.
         cmsg = func.serialize_to_cmessage()
         meta = Function.parse_from_cmessage(
-            cmsg, function_manager=fm, project=proj, meta_only=True,
+            cmsg,
+            function_manager=fm,
+            project=proj,
+            meta_only=True,
         )
 
         # Pre-condition: the CFG node is in the model.
@@ -154,9 +165,9 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
             "loaded function -- this is the regression #6418 guards.",
         )
         self.assertEqual(
-            cfg._seg_list.occupied_by_sort(addr), "unknown",
-            "cleanup must reclassify the bytes from 'code' to 'unknown' "
-            "for a meta-only-loaded function.",
+            cfg._seg_list.occupied_by_sort(addr),
+            "unknown",
+            "cleanup must reclassify the bytes from 'code' to 'unknown' for a meta-only-loaded function.",
         )
         _ = block_size  # suppress unused-var if linting is picky
 
