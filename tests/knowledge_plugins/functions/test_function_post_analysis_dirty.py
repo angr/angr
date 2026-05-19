@@ -17,7 +17,6 @@ import unittest
 
 import angr
 from angr.codenode import BlockNode
-from angr.knowledge_plugins.functions.function import Function
 
 
 class TestFunctionPostAnalysisDirty(unittest.TestCase):
