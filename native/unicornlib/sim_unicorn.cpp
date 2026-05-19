@@ -1691,17 +1691,41 @@ VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
 	// corresponding instruction is executed as dependency of a symbolic instruction to set some VEX temps. Thus, we use
 	// the unoptimized VEX block.
 	VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
-	std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
 	address_t lift_address;
+	uint8_t *insn_start;
+
 
 	if ((arch == UC_ARCH_ARM) && is_thumb_mode()) {
+		// vex_lift's Thumb decoder uses the bytes_offset/lookback convention: insn_start points to the byte at
+		// (block_address + 1) (the byte at insn_addr with the Thumb bit set), and the byte at the physical block start
+		// is reached via the lookback region. Allocate pre/post slack so the Thumb lifter can safely peek beyond the
+		// block (e.g., when checking for surrounding IT instructions or 32-bit Thumb-2 second halfwords), and so that
+		// vex_lift can consume up to block_size bytes from insn_start.
+		const int pre_slack = 8;
+		const int post_slack = 8;
+		std::unique_ptr<uint8_t[]> instructions(new uint8_t[pre_slack + block_size + post_slack]);
+		std::memset(instructions.get(), 0, pre_slack + block_size + post_slack);
+		uc_mem_read(this->uc, block_address, instructions.get() + pre_slack, block_size);
 		lift_address = block_address | 1;
+		insn_start = instructions.get() + pre_slack + 1;
+		return vex_lift(vex_guest, vex_archinfo, insn_start, lift_address, 99, block_size,
+		    1 /* opt_level */,
+		    0 /* traceflags */,
+		    1 /* allow_arch_optimizations */,
+		    1 /* strict_block_end */,
+		    0 /* collect_data_refs */,
+		    0 /* load_from_ro_regions */,
+		    0 /* const_prop */,
+		    pxControl,
+			pre_slack + 1 /* lookback */
+		);
 	}
-	else {
-		lift_address = block_address;
-	}
-	uc_mem_read(this->uc, lift_address, instructions.get(), block_size);
-	return vex_lift(vex_guest, vex_archinfo, instructions.get(), lift_address, 99, block_size,
+
+	std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
+	lift_address = block_address;
+	uc_mem_read(this->uc, block_address, instructions.get(), block_size);
+	insn_start = instructions.get();
+	return vex_lift(vex_guest, vex_archinfo, insn_start, lift_address, 99, block_size,
 	    1 /* opt_level */,
 	    0 /* traceflags */,
 	    1 /* allow_arch_optimizations */,
@@ -1709,7 +1733,9 @@ VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
 	    0 /* collect_data_refs */,
 	    0 /* load_from_ro_regions */,
 	    0 /* const_prop */,
-	    pxControl, 0);
+	    pxControl,
+		0 /* lookback */
+	);
 }
 
 void State::mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size) {
