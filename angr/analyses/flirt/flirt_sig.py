@@ -257,9 +257,13 @@ class FlirtSignatureParsed:
         return pattern
 
     @classmethod
-    def parse(cls, file_obj) -> FlirtSignatureParsed:
+    def parse_header(cls, file_obj) -> FlirtSignatureParsed:
         """
-        Parse a FLIRT signature file.
+        Parse only the FLIRT signature header (no function tree).
+
+        The returned object has ``root`` set to None. Use :meth:`parse` if you also
+        need the function tree, or call :meth:`parse_tree_from` later on a separately
+        opened file to populate ``root`` on demand.
 
         The following struct definitions come from radare2
 
@@ -328,7 +332,7 @@ class FlirtSignatureParsed:
         libname_len = unpacked[10]
         libname = file_obj.read(libname_len).decode("utf-8")
 
-        obj = cls(
+        return cls(
             version=version,
             arch=unpacked[2],
             file_types=unpacked[3],
@@ -344,6 +348,14 @@ class FlirtSignatureParsed:
             root=None,
         )
 
+    @classmethod
+    def parse(cls, file_obj) -> FlirtSignatureParsed:
+        """
+        Parse a FLIRT signature file, including the function tree.
+        """
+
+        obj = cls.parse_header(file_obj)
+
         # is it compressed?
         if obj.features & FlirtFeatureFlag.FEATURE_COMPRESSED:
             data = file_obj.read()
@@ -353,7 +365,5 @@ class FlirtSignatureParsed:
                 raise FlirtSignatureError(f"Failed to decompress FLIRT signature: {ex}") from ex
             file_obj = decompressed
 
-        root = obj.parse_tree(file_obj, root=True)
-
-        obj.root = root
+        obj.root = obj.parse_tree(file_obj, root=True)
         return obj
