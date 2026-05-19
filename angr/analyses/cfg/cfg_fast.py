@@ -4416,7 +4416,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         for func_addr in full_funcs_to_remove:
             func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
-            for block_addr in list(func.block_addrs):
+            for block_addr in list(func.block_addrs_set):
                 cfg_node = self.model.get_any_node(block_addr)
                 if cfg_node is not None:
                     # mark all blocks as data

@@ -73,19 +73,27 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
             meta_only=True,
         )
 
-        # block_addrs is populated for spilled funcs; this is what the
-        # post-fix cleanup loop in CFGFast.drop_bad_functions iterates.
-        self.assertEqual(set(meta.block_addrs), {addr})
+        # block_addrs_set is populated for spilled funcs; this is what
+        # the post-fix cleanup loop in CFGFast.drop_bad_functions iterates.
+        self.assertEqual(set(meta.block_addrs_set), {addr})
 
-        # `Function.blocks` (which iterates `_local_blocks.items()`) is
-        # empty in meta-only mode. The pre-fix cleanup loop iterated
-        # this and was silently a no-op for spilled bad functions.
+        # `Function.blocks` (which iterates `_local_blocks.items()`)
+        # AND `Function.block_addrs` (which reads `_local_blocks.keys()`)
+        # are both empty in meta-only mode. The pre-fix cleanup loop
+        # iterated `func.blocks` and was silently a no-op for spilled
+        # bad functions.
         self.assertEqual(
             sum(1 for _ in meta.blocks),
             0,
             "Function.blocks must be empty in meta-only mode -- any "
             "code that needs to iterate a spilled function's blocks "
-            "must use block_addrs and look up sizes via the CFG model.",
+            "must use block_addrs_set and look up sizes via the CFG model.",
+        )
+        self.assertEqual(
+            set(meta.block_addrs), set(),
+            "Function.block_addrs (which reads _local_blocks.keys()) "
+            "is also empty in meta-only mode -- callers must use "
+            "block_addrs_set (which reads _local_block_addrs) instead.",
         )
 
     def test_drop_bad_functions_cleanup_runs_on_spilled_function(self):
@@ -151,7 +159,7 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         )
 
         # Run the post-fix cleanup logic.
-        for block_addr in list(meta.block_addrs):
+        for block_addr in list(meta.block_addrs_set):
             cn = cfg.model.get_any_node(block_addr)
             if cn is not None:
                 assert isinstance(cn.addr, int)
