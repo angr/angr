@@ -9,6 +9,7 @@ just loaded from LMDB (so f._dirty was False) the mutation didn't
 flip the dirty flag, and the cleanup was silently lost on the next
 eviction/reload cycle through SpillingFunctionDict.
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins.functions"
@@ -56,14 +57,19 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         # belong to a non-returning function. Build that exact shape.
         func.transition_graph.add_node(ext_block)
         func.transition_graph.add_edge(
-            local_block, ext_block, type="fake_return", outside=False,
+            local_block,
+            ext_block,
+            type="fake_return",
+            outside=False,
         )
 
         # Round-trip through the parser to set _dirty=False, mimicking
         # a normal SpillingFunctionDict reload.
         cmsg = func.serialize_to_cmessage()
         loaded = Function.parse_from_cmessage(
-            cmsg, function_manager=fm, project=proj,
+            cmsg,
+            function_manager=fm,
+            project=proj,
         )
         self.assertFalse(
             loaded._dirty,
@@ -74,9 +80,7 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         # decide to remove. (We simulate that decision directly instead
         # of running the full CFGFast pipeline.)
         fakeret_edges = [
-            (s, d)
-            for s, d, data in loaded.transition_graph.edges(data=True)
-            if data.get("type") == "fake_return"
+            (s, d) for s, d, data in loaded.transition_graph.edges(data=True) if data.get("type") == "fake_return"
         ]
         self.assertEqual(len(fakeret_edges), 1)
         src, dst = fakeret_edges[0]
