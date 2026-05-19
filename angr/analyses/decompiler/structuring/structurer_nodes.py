@@ -240,6 +240,21 @@ class CascadingConditionNode(BaseNode):
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
 
+    def dbg_repr(self, indent=0):
+        indent_str = indent * " "
+        s = ""
+        keyword = "if"
+        for condition, node in self.condition_and_nodes:
+            s += (
+                indent_str + f"{keyword} (<block-missing>; {condition})\n{indent_str}{{\n"
+                f"{node.dbg_repr(indent + INDENT_DELTA) if node is not None else ''}{indent_str}}}\n"
+            )
+            keyword = "else if"
+        if self.else_node is not None:
+            s += f"{indent_str}else\n{indent_str}{{\n{self.else_node.dbg_repr(indent + INDENT_DELTA)}{indent_str}}}\n"
+
+        return s
+
 
 class LoopNode(BaseNode):
     __slots__ = (

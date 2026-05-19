@@ -72,9 +72,10 @@ class TestStructurer(unittest.TestCase):
             ]
         )
 
-        ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
+        ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)  # pyright: ignore[reportArgumentType]
         region = ri.region
-        assert len(region.graph.nodes()) == 2
+        assert region is not None
+        assert len(region.graph.nodes()) == 2  # pyright: ignore[reportOptionalMemberAccess]
 
     def test_region_identifier_1(self):
         g = networkx.DiGraph()
@@ -110,9 +111,10 @@ class TestStructurer(unittest.TestCase):
             ]
         )
 
-        ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
+        ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)  # pyright: ignore[reportArgumentType]
         region = ri.region
-        assert len(region.graph.nodes()) == 2
+        assert region is not None
+        assert len(region.graph.nodes()) == 2  # pyright: ignore[reportOptionalMemberAccess]
 
     def test_smoketest(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "all"), auto_load_libs=False, load_debug_info=True)
@@ -169,7 +171,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(main_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
 
     def test_simple_loop(self):
@@ -192,7 +194,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
 
         assert len(codegen.map_pos_to_node._posmap) > 1
@@ -218,7 +220,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
 
     def test_while_true_break(self):
@@ -243,7 +245,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
         print(codegen.text)
 
@@ -269,7 +271,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
         print(codegen.text)
 
@@ -282,28 +284,31 @@ class TestStructurer(unittest.TestCase):
         # to test against
         dec = p.analyses[Decompiler](f, cfg=cfg.model)
         top_sequence = dec.seq_node
-        full_text = dec.codegen.text.replace("\n", "")
+        assert dec.codegen is not None
+        full_text = dec.codegen.text.replace("\n", "")  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
         codegen = dec.codegen
 
         # full code, without the header and variable definitions
         # the outputted code will be missing corrected variable names, which can be corrected by passing
         # private properties from the original codegen object
-        func_no_header = p.analyses.StructuredCodeGenerator(f, top_sequence, cfg=cfg, omit_func_header=True).text
-        assert "int main(" not in func_no_header
+        func_no_header = p.analyses.CStructuredCodeGenerator(f, top_sequence, cfg=cfg, omit_func_header=True).text  # pyright: ignore[reportOptionalMemberAccess]
+        assert "int main(" not in func_no_header  # pyright: ignore[reportOptionalMemberAccess]
 
         # generate only code under and in the first if-stmt
-        if_seq = top_sequence.nodes[1]
-        if_code = p.analyses.StructuredCodeGenerator(f, if_seq, cfg=cfg, omit_func_header=True).text
-        assert "if" in if_code
-        assert "accepted()" in if_code
-        assert "read" not in if_code  # should only be found in the code above the if
+        if_seq = top_sequence.nodes[1]  # pyright: ignore[reportOptionalMemberAccess]
+        if_code = p.analyses.CStructuredCodeGenerator(f, if_seq, cfg=cfg, omit_func_header=True).text  # pyright: ignore[reportOptionalMemberAccess]
+        assert "if" in if_code  # pyright: ignore[reportOptionalMemberAccess]
+        assert "accepted()" in if_code  # pyright: ignore[reportOptionalMemberAccess]
+        assert (
+            "read" not in if_code
+        )  # should only be found in the code above the if  # pyright: ignore[reportOptionalMemberAccess]
 
         # generate only code under first if-stmt with correct variables by modifying the original codegen object
-        codegen._sequence = if_seq
-        codegen._indent = 4
-        codegen.omit_func_header = True
-        codegen._analyze()
-        if_code_corrected = codegen.text.replace("\n", "")
+        codegen._sequence = if_seq  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        codegen._indent = 4  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        codegen.omit_func_header = True  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        codegen._analyze()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        if_code_corrected = codegen.text.replace("\n", "")  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
         assert "if" in if_code_corrected
         assert if_code_corrected in full_text
         assert if_code_corrected != full_text

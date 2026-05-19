@@ -17,7 +17,14 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.types import unpack_pointer, replace_pointer_pts_to
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
-from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimConstantVariable
+from angr.sim_variable import (
+    SimVariable,
+    SimStackVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimConstantVariable,
+    SimComboRegisterVariable,
+)
 from angr.sim_type import (
     TypeRef,
     SimType,
@@ -988,6 +995,7 @@ class VariableManagerInternal(Serializable):
 
         sorted_stack_variables = []
         sorted_reg_variables = []
+        sorted_combo_reg_variables = []
         arg_vars = []
 
         for var in self._unified_variables:
@@ -1002,6 +1010,12 @@ class VariableManagerInternal(Serializable):
                     arg_vars.append(var)
                 else:
                     sorted_reg_variables.append(var)
+
+            elif isinstance(var, SimComboRegisterVariable):
+                if var.ident and var.ident.startswith("arg_"):
+                    arg_vars.append(var)
+                else:
+                    sorted_combo_reg_variables.append(var)
 
             elif isinstance(var, SimMemoryVariable):
                 if not reset and var.name is not None:
@@ -1035,11 +1049,11 @@ class VariableManagerInternal(Serializable):
                     sorted_reg_variables.remove(var)
                     phi_only_vars.append(var)
 
-        for var in chain(sorted_stack_variables, sorted_reg_variables, phi_only_vars):
+        for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_combo_reg_variables, phi_only_vars):
             idx = next(var_ctr)
             if var.name is not None and var.name != var.ident and not reset:
                 continue
-            if isinstance(var, (SimStackVariable, SimRegisterVariable)):
+            if isinstance(var, (SimStackVariable, SimRegisterVariable, SimComboRegisterVariable)):
                 var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None

@@ -133,8 +133,12 @@ class Project:
         concrete_target=None,
         eager_ifunc_resolution=None,
         cache_limits: dict[str, int | None] | None = None,
+        rustc_version=None,
+        rustc_optimization_level=None,
         **kwargs,
     ):
+        self.rustc_version = rustc_version
+        self.rustc_optimization_level = rustc_optimization_level
         # Step 1: Load the binary
 
         if load_options is None:
@@ -257,11 +261,11 @@ class Project:
         if not set(self.cache_limits.keys()).issubset(CACHE_CONFIG_KEYS):
             raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
 
+        self._languages: list[str] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
         )
-        self._language: str | None = None
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and getattr(self.simos, "is_javavm_with_jni_support", False):
@@ -884,6 +888,29 @@ class Project:
 
     def __repr__(self):
         return "<Project %s>" % (self.filename if self.filename is not None else "loaded from stream")
+
+    #
+    # Binary languages
+    #
+
+    def languages(self) -> list[str]:
+        if self._languages is not None:
+            return self._languages
+        self._languages = []
+        if self.is_java_project:
+            self._languages.append("java")
+        if self.is_java_jni_project:
+            self._languages.append("c")
+        if not self._languages:
+            detector = self.analyses.LanguageDetector()
+            self._languages = [detector.language]
+        if not self._languages:
+            self._languages.append("unknown")
+        return self._languages
+
+    @property
+    def is_rust_binary(self) -> bool:
+        return "rust" in self.languages()
 
     #
     # Cache limit settings

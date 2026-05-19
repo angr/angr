@@ -145,7 +145,7 @@ class FlirtSignatureParsed:
 
         name_lst = []
         name_end = False  # in case the function name is too long...
-        for _ in range(8192):  # max length of a function name
+        for _ in range(4096):  # max length of a function name
             if next_byte < 0x20 or next_byte >= 0x80:
                 name_end = True
                 break
@@ -165,7 +165,7 @@ class FlirtSignatureParsed:
             name_len = file_obj.read(1)[0]
             if name_len == 0:
                 name_len = read_multiple_bytes(file_obj)
-            if name_len > 1024:
+            if name_len > 4096:
                 raise FlirtSignatureError(f"Function name too long: {name_len}")
             name_bytes = file_obj.read(name_len)
             if len(name_bytes) < name_len:

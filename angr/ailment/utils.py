@@ -48,7 +48,7 @@ def _dump_tuple(t: tuple) -> bytes:
 
 
 def _dump_str(t: str) -> bytes:
-    return t.encode("ascii")
+    return t.encode("utf-8")
 
 
 def _dump_int(t: int) -> bytes:

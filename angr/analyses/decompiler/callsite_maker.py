@@ -240,12 +240,19 @@ class CallSiteMaker(Analysis):
                     stack_arg_locs.append(arg_loc)
                     _, the_arg = self._resolve_stack_argument(call_expr, arg_loc)
                     arg_expr = the_arg if the_arg is not None else None
+                elif isinstance(arg_loc, SimStructArg):
+                    arg_expr = None
+                    l.warning("SimStructArg is not yet supported")
+                elif isinstance(arg_loc, SimComboArg):
+                    arg_expr = None
+                    l.warning("SimComboArg is not yet supported")
                 else:
                     assert False, "Unreachable"
 
                 if arg_expr is not None and dereference_size is not None:
                     arg_expr = Expr.Load(self._atom_idx(), arg_expr, dereference_size, endness=archinfo.Endness.BE)
-                args.append(arg_expr)
+                if arg_expr is not None:
+                    args.append(arg_expr)
 
         # Remove the old call statement
         new_stmts = self.block.statements[:-1]

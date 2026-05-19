@@ -1,0 +1,11 @@
+.git
+**/__pycache__
+**/*.pyc
+**/*.o
+**/*.so
+**/*.dylib
+**/*.dll
+**/*.egg-info
+build/
+dist/
+.eggs/

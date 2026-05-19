@@ -152,7 +152,7 @@ class SimConstantVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.ConstantVariable()  # type: ignore, pylint:disable=no-member
+        return pb2.ConstantVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -214,7 +214,7 @@ class SimTemporaryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.TemporaryVariable()  # type: ignore, pylint:disable=no-member
+        return pb2.TemporaryVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -281,7 +281,7 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.RegisterVariable()  # type: ignore, pylint:disable=no-member
+        return pb2.RegisterVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -292,6 +292,78 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(
+            cmsg.reg,
+            cmsg.size,
+        )
+        obj._from_base(cmsg)
+        return obj
+
+
+class SimComboRegisterVariable(SimVariable):
+    """A variable that spans multiple registers combined into a single value."""
+
+    __slots__ = ["reg_offsets"]
+
+    def __init__(self, reg_offsets: tuple, size: int, ident=None, name=None, region=None, category=None):
+        SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
+
+        self.reg_offsets = reg_offsets
+        self._hash: int | None = None
+
+    @property
+    def bits(self):
+        return self.size * 8
+
+    def __repr__(self):
+        ident_str = f"[{self.ident}]" if self.ident else ""
+        region_str = hex(self.region) if isinstance(self.region, int) else self.region
+
+        reg_str = ":".join(str(reg_offset) for reg_offset in self.reg_offsets)
+        return f"<{region_str}{ident_str}|Reg {reg_str}, {self.size}B>"
+
+    def loc_repr(self, arch):
+        return ":".join(arch.translate_register_name(reg_offset, self.size) for reg_offset in self.reg_offsets)
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(("combo_reg", self.region, tuple(self.reg_offsets), self.size, self.ident))
+        return self._hash
+
+    def __eq__(self, other):
+        if isinstance(other, SimComboRegisterVariable):
+            return (
+                self.ident == other.ident
+                and self.reg_offsets == other.reg_offsets
+                and self.size == other.size
+                and self.region == other.region
+            )
+
+        return False
+
+    def copy(self) -> SimComboRegisterVariable:
+        s = SimComboRegisterVariable(
+            self.reg_offsets, self.size, ident=self.ident, name=self.name, region=self.region, category=self.category
+        )
+        s._hash = self._hash
+        return s
+
+    @classmethod
+    def _get_cmsg(cls):
+        # TODO: Support serialization for SimComboRegisterVariable
+        return pb2.RegisterVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        # TODO: Support serialization for SimComboRegisterVariable
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.reg = self.reg_offsets[0]
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        # TODO: Support serialization for SimComboRegisterVariable
         obj = cls(
             cmsg.reg,
             cmsg.size,
@@ -356,7 +428,7 @@ class SimMemoryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.MemoryVariable()  # type: ignore, pylint:disable=no-member
+        return pb2.MemoryVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -468,7 +540,7 @@ class SimStackVariable(SimMemoryVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.StackVariable()  # type: ignore, pylint:disable=no-member
+        return pb2.StackVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()

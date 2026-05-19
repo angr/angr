@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+from angr.ailment import Block, Const
+from angr.ailment.expression import Call
+from angr.ailment.statement import Statement, Label, ConditionalJump
+from angr.rust.utils.ail import CallFinder
+
+from angr.rust.utils.demangler import normalize
+
+
+class CFAMixin:
+    """
+    Control Flow Analysis Mixin
+    """
+
+    def __init__(self, graph, project):
+        self._graph = graph
+        self._project = project
+
+    def num_predecessors(self, block):
+        return len(list(self._graph.predecessors(block)))
+
+    def get_one_predecessor(self, block) -> Block:
+        return next(self._graph.predecessors(block))
+
+    def num_successors(self, block):
+        return len(list(self._graph.successors(block)))
+
+    def get_one_successor(self, block) -> Block:
+        return next(self._graph.successors(block))
+
+    @staticmethod
+    def first_non_label_stmt(block) -> Statement | None:
+        for stmt in block.statements:
+            if not isinstance(stmt, Label):
+                return stmt
+        return None
+
+    @staticmethod
+    def last_stmt(block) -> Statement | None:
+        if block.statements:
+            return block.statements[-1]
+        return None
+
+    @staticmethod
+    def replace_stmt(block, stmts, replacement):
+        idx = max(block.statements.index(stmt) for stmt in stmts)
+        block.statements.insert(idx, replacement)
+        for stmt in stmts:
+            block.statements.remove(stmt)
+
+    def terminal_call(self, block) -> Call | None:
+        stmt = self.last_stmt(block)
+        if stmt is None:
+            return None
+        finder = CallFinder()
+        finder.walk_statement(stmt, block)
+        if not finder.call and isinstance(stmt, ConditionalJump) and len(block.statements) > 1:
+            stmt = block.statements[-2]
+            finder = CallFinder()
+            finder.walk_statement(stmt, block)
+        return finder.call
+
+    def get_call_target(self, call: Call) -> str | None:
+        if isinstance(call.target, str):
+            return call.target
+        if isinstance(call.target, Const) and call.target.value in self._project.kb.functions:
+            func = self._project.kb.functions[call.target.value]
+            return func.name
+        return None
+
+    def match_call(self, block_or_stmt, expected, monopolize=True, use_trait_name=True):
+        stmt = self.terminal_call(block_or_stmt) if isinstance(block_or_stmt, Block) else block_or_stmt
+        if isinstance(expected, str):
+            expected = [expected]
+        if isinstance(stmt, Call):
+            name = None
+            if isinstance(stmt.target, str):
+                name = normalize(stmt.target, monopolize=monopolize, use_trait_name=use_trait_name)
+            elif isinstance(stmt.target, Const) and stmt.target.value in self._project.kb.functions:
+                func = self._project.kb.functions[stmt.target.value]
+                name = normalize(func.name, monopolize=monopolize, use_trait_name=use_trait_name)
+            if name in expected:
+                return name
+        return None

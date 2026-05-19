@@ -1,0 +1,211 @@
+from __future__ import annotations
+from angr.ailment import Block, Assignment, Const, AILBlockViewer
+from angr.ailment.expression import Call, VirtualVariable, RustEnum
+from angr.ailment.statement import Label, Return, Jump
+from angr.analyses.decompiler.utils import _flatten_structured_node
+from angr.rust.sim_type import RustSimTypeResult
+from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
+from angr.analyses.decompiler.optimization_passes.optimization_pass import SequenceOptimizationPass
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, MultiNode
+from angr.rust.structuring.structurer_nodes import PatternMatchNode
+from angr.utils.ssa import VVarUsesCollector
+
+
+class ErrorPropagationWalker(SequenceWalker):
+    """Walk sequence nodes to detect and simplify error propagation patterns."""
+
+    def __init__(self, context: ErrorPropagationSimplifier):
+        super().__init__()
+        self.context = context
+        self.dead_assignments = set()
+
+    @staticmethod
+    def _is_safe_block(block: Block):
+        for stmt in block.statements:
+            if not (
+                isinstance(stmt, (Label, Jump))
+                or (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg)
+            ):
+                return False
+        return True
+
+    def _is_early_return_block(self, block, visited=None):
+        if visited and block in visited:
+            return False
+        if visited is None:
+            visited = set()
+        visited.add(block)
+        for stmt in block.statements:
+            if isinstance(stmt, Jump) and isinstance(stmt.target, Const):
+                key = (stmt.target.value, stmt.target_idx)
+                if key in self.context.block_by_addr_and_idx:
+                    next_block = self.context.block_by_addr_and_idx[key]
+                    return self._is_early_return_block(next_block, visited)
+            if not (
+                isinstance(stmt, (Label, Return))
+                or (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg)
+            ):
+                return False
+        return True
+
+    def _is_early_return(self, node):
+        if isinstance(node, Block):
+            return self._is_early_return_block(node)
+        if isinstance(node, SequenceNode):
+            nodes = node.nodes
+            if nodes and isinstance(nodes[-1], Block) and self._is_early_return(nodes[-1]):
+                return all(isinstance(block, Block) and self._is_safe_block(block) for block in nodes[:-1])
+        return False
+
+    @staticmethod
+    def _structured_node_is_simple_return_err_enum_strict(node) -> bool:
+        """
+        Returns True iff the node exclusively contains a return statement.
+        """
+        if isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+            flat_blocks = _flatten_structured_node(node)
+            if len(flat_blocks) != 1:
+                return False
+            node = flat_blocks[-1]
+
+        if isinstance(node, Block) and len(node.statements) == 1 and isinstance(node.statements[0], Return):
+            ret_exprs = node.statements[0].ret_exprs
+            ret_expr = ret_exprs[0] if ret_exprs else None
+            return isinstance(ret_expr, RustEnum) and ret_expr.name == "Err"
+        return False
+
+    @staticmethod
+    def _contains_addr(node, block_addr, block_idx):
+        """Check whether a structured node contains a block with the given address and index."""
+
+        class Temp:
+            """Mutable flag container for closure."""
+
+            found = False
+
+        def callback(node, **_kwargs):
+            if node.addr == block_addr and node.idx == block_idx:
+                Temp.found = True
+
+        SequenceWalker(handlers={Block: callback}).walk(node)
+
+        return Temp.found
+
+    def _is_dead_assignment(self, new_dst_vvar, pattern_match_node, err_node):
+        collector = VVarUsesCollector()
+        for block in self.context._graph.nodes:
+            collector.walk(block)
+        uses = collector.vvar_and_uselocs[new_dst_vvar.varid]
+        return all(
+            self._contains_addr(err_node, use.block_addr, use.block_idx) or use.ins_addr == pattern_match_node.addr
+            for vvar, use in uses
+        )
+
+    def _handle_PatternMatch(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, node: PatternMatchNode, **kwargs
+    ):
+        err_node, ok_node = None, None
+        new_dst_vvar = None
+        for (variant, move_stmts), arm in node.arms.items():
+            if variant.name == "Err":
+                err_node = arm
+            elif variant.name == "Ok":
+                ok_node = arm
+                if (
+                    move_stmts
+                    and isinstance(move_stmts[0], Assignment)
+                    and isinstance(move_stmts[0].dst, VirtualVariable)
+                ):
+                    new_dst_vvar = move_stmts[0].dst
+
+        if isinstance(node.scrutinee, VirtualVariable):
+            if node.scrutinee.was_combo_reg:
+                new_dst_vvar = node.scrutinee.reg_vvars[1] if len(node.scrutinee.reg_vvars) > 1 else None
+            elif node.scrutinee.was_reg:
+                new_dst_vvar = node.scrutinee
+
+        if err_node and ok_node and self._structured_node_is_simple_return_err_enum_strict(err_node):
+            if isinstance(node.scrutinee, VirtualVariable) and node.scrutinee.varid in self.context.varid_to_assignment:
+                assignment = self.context.varid_to_assignment[node.scrutinee.varid]
+                assignment.src.tags["propagates_error"] = True
+
+                if new_dst_vvar and self._is_dead_assignment(new_dst_vvar, node, err_node):
+                    self.dead_assignments.add(assignment)
+                    new_dst_vvar = None
+
+                if new_dst_vvar:
+                    assignment.dst = new_dst_vvar
+                new_ok_node = super()._handle(ok_node)
+                return new_ok_node or ok_node
+            if isinstance(node.scrutinee, Call):
+                node.scrutinee.tags["propagates_error"] = True  # pyright: ignore[reportGeneralTypeIssues]
+                new_ok_node = super()._handle(ok_node)
+                return new_ok_node or ok_node
+
+        return super()._handle_PatternMatch(node, **kwargs)
+
+
+class ErrorPropagationSimplifier(SequenceOptimizationPass):
+    """Recover the Rust error propagation '?' operator in decompiled output."""
+
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.AFTER_STRUCTURING
+    NAME = 'Recover error propagation "?" operator'
+
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
+        self._graph = kwargs["graph"]
+        self.block_by_addr_and_idx = {(block.addr, block.idx): block for block in self._graph.nodes}
+        self.varid_to_assignment = self._collect_varid_to_assignment_mappings()
+
+        self.analyze()
+
+    def _check(self):
+        return bool(self.seq is not None and self.seq.nodes), None
+
+    def _collect_varid_to_assignment_mappings(self):
+        varid_to_assignment = {}
+
+        def callback(_stmt_idx, stmt: Assignment, _block):
+            if (
+                isinstance(stmt.dst, VirtualVariable)
+                and isinstance(stmt.src, Call)
+                and stmt.src.prototype
+                and isinstance(stmt.src.prototype.returnty, RustSimTypeResult)
+            ):
+                varid_to_assignment[stmt.dst.varid] = stmt
+
+        walker = AILBlockViewer(stmt_handlers={Assignment: callback})
+
+        for block in self._graph.nodes:
+            walker.walk(block)
+
+        return varid_to_assignment
+
+    def _remove_dead_assignments(self, stmts):
+        def callback(block, **_kwargs):
+            changed = False
+            new_stmts = []
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt in stmts:
+                    stmt = stmt.src
+                    changed = True
+                new_stmts.append(stmt)
+            if changed:
+                block.statements = new_stmts
+
+        walker = SequenceWalker(handlers={Block: callback})
+        walker.walk(self.seq)
+
+        for block in self._graph.nodes:
+            callback(block)
+
+    def _analyze(self, cache=None):
+        walker = ErrorPropagationWalker(self)
+        walker.walk(self.seq)
+
+        self._remove_dead_assignments(walker.dead_assignments)
+
+        self.out_seq = self.seq

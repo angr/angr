@@ -17,9 +17,13 @@ from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import parse_type
 from angr.errors import AngrAIError
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.rust.typehoon.typehoon import RustTypehoon
+from angr.rust.optimization_passes import get_rust_optimization_passes
 from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
+from .structuring.phoenix import MultiStmtExprMode
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .ailgraph_walker import AILGraphWalker
@@ -31,11 +35,13 @@ from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
+from .structured_codegen.rust import RustStructuredCodeGenerator
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
+    from .structured_codegen.base import BaseStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
 
@@ -85,6 +91,7 @@ class Decompiler(Analysis):
         clinic_skip_stages=(),
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        codegen_cls=CStructuredCodeGenerator,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -96,6 +103,8 @@ class Decompiler(Analysis):
                 "data.",
                 func,
             )
+
+        self._flavor = flavor
 
         if cfg is None:
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
@@ -115,11 +124,14 @@ class Decompiler(Analysis):
             if not isinstance(preset, DecompilationPreset):
                 raise TypeError('"preset" must be a DecompilationPreset instance')
             self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
+
+        if self._flavor == "rust":
+            self._optimization_passes.extend(get_rust_optimization_passes())
+
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
-        self._flavor = flavor
         self._variable_kb = variable_kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
@@ -162,7 +174,9 @@ class Decompiler(Analysis):
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
-        self.codegen: CStructuredCodeGenerator | None = None
+        self.codegen: BaseStructuredCodeGenerator | None = None
+        self.codegen_cls = codegen_cls
+        self.cache: DecompilationCache | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
         self.seq_node: SequenceNode | None = None
@@ -176,6 +190,12 @@ class Decompiler(Analysis):
         self.region_identifier = None
         self.use_cache = use_cache
         self.update_cache = update_cache
+
+        self._codegen_cls = CStructuredCodeGenerator
+        self._typehoon_cls = Typehoon
+        if self._flavor == "rust":
+            self._codegen_cls = RustStructuredCodeGenerator
+            self._typehoon_cls = RustTypehoon
 
         if decompile:
             with self._resilience():
@@ -274,6 +294,9 @@ class Decompiler(Analysis):
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
+        # The Rust flavor disables multi-statement-expression generation regardless of user options.
+        if self._flavor == "rust":
+            self._recursive_structurer_params["use_multistmtexprs"] = MultiStmtExprMode.NEVER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
@@ -312,6 +335,7 @@ class Decompiler(Analysis):
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
+                typehoon_cls=self._typehoon_cls,
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
@@ -320,6 +344,7 @@ class Decompiler(Analysis):
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                flavor=self._flavor,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -366,7 +391,7 @@ class Decompiler(Analysis):
             self.region_identifier,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
-            arg_vvars=set(clinic.arg_vvars),
+            arg_vvars=set(clinic.arg_vvars) if clinic.arg_vvars is not None else set(),
             edges_to_remove=clinic.edges_to_remove,
         )
 
@@ -402,18 +427,28 @@ class Decompiler(Analysis):
             variable_manager = None
             if clinic.variable_kb is not None and self.func.addr in clinic.variable_kb.variables:
                 variable_manager = clinic.variable_kb.variables[self.func.addr]
+            region_simplifier_params = self.options_to_params(self.options_by_class["region_simplifier"])
+            # The Rust flavor forces if-else simplification off regardless of user options.
+            region_simplifier_params.pop("simplify_ifelse", None)
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
-                arg_vvars=set(self.clinic.arg_vvars),
+                arg_vvars=set(self.clinic.arg_vvars)
+                if self.clinic is not None and self.clinic.arg_vvars is not None
+                else set(),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
-                **self.options_to_params(self.options_by_class["region_simplifier"]),
+                simplify_ifelse=self._flavor != "rust",
+                **region_simplifier_params,
             )
             seq_node = s.result
             seq_node = self._run_post_structuring_simplification_passes(
-                seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
+                seq_node,
+                binop_operators=cache.binop_operators,
+                goto_manager=s.goto_manager,
+                graph=clinic.graph,
+                variable_kb=self._variable_kb,
             )
 
             # rewrite the sequence node to remove phi expressions
@@ -425,15 +460,13 @@ class Decompiler(Analysis):
 
             if self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES:
                 self._update_progress(85.0, text="Generating code")
-                codegen = self.project.analyses.StructuredCodeGenerator(
+                codegen = self.project.analyses[self._codegen_cls].prep(kb=self.kb, fail_fast=self._fail_fast)(
                     self.func,
                     seq_node,
                     cfg=self._cfg,
                     ail_graph=clinic.graph,
                     flavor=self._flavor,
                     func_args=clinic.arg_list,
-                    kb=self.kb,
-                    fail_fast=self._fail_fast,
                     variable_kb=clinic.variable_kb,
                     expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
@@ -657,7 +690,7 @@ class Decompiler(Analysis):
         """
 
         # extract everything from the cache
-        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints
+        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints or {}
         func_typevar = cache.func_typevar
         var_to_typevar = cache.var_to_typevar
         arg_vvars = cache.arg_vvars
@@ -756,7 +789,8 @@ class Decompiler(Analysis):
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
-            const_values.add(expr.value)
+            if isinstance(expr.value, int):
+                const_values.add(expr.value)
 
         def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
             block_walker = ailment.AILBlockViewer(

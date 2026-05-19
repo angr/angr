@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+import contextlib
+import logging
+
+import networkx
+from networkx import NetworkXError
+
+from angr.ailment import Const, Block
+from angr.ailment.expression import VirtualVariable, Phi
+from angr.ailment.statement import Jump, ConditionalJump, Assignment
+
+l = logging.getLogger(name=__name__)
+
+
+class CFGTransformationMixin:
+    """Mixin providing CFG graph transformation operations (block removal, splitting, etc.)."""
+
+    def __init__(self, graph):
+        self._graph: networkx.DiGraph = graph
+        self._block_by_addr_and_idx: dict[tuple[int, int | None], Block] = {}
+
+        self.update_block_indexes()
+
+    def update_block_indexes(self):
+        self._block_by_addr_and_idx = {}
+        for block in self._graph.nodes:
+            self._block_by_addr_and_idx[(block.addr, block.idx)] = block
+
+    def remove_jump_target(self, block: Block, jump_target: Const | int, jump_target_idx: int | None):
+        removed = False
+        last_stmt = block.statements[-1] if block.statements else None
+        if isinstance(jump_target, Const):
+            jump_target = jump_target.value_int
+        if isinstance(last_stmt, Jump):
+            if (
+                isinstance(last_stmt.target, Const)
+                and last_stmt.target.value_int == jump_target
+                and last_stmt.target_idx == jump_target_idx
+            ):
+                block.statements = block.statements[:-1]
+                removed = True
+        elif isinstance(last_stmt, ConditionalJump):
+            new_target, new_target_idx = None, None
+            if (
+                isinstance(last_stmt.true_target, Const)
+                and last_stmt.true_target.value_int == jump_target
+                and last_stmt.true_target_idx == jump_target_idx
+            ):
+                new_target = last_stmt.false_target
+                new_target_idx = last_stmt.false_target_idx
+            elif (
+                isinstance(last_stmt.false_target, Const)
+                and last_stmt.false_target.value_int == jump_target
+                and last_stmt.false_target_idx == jump_target_idx
+            ):
+                new_target = last_stmt.true_target
+                new_target_idx = last_stmt.true_target_idx
+            if new_target:
+                new_stmt = Jump(
+                    last_stmt.idx,
+                    new_target,
+                    new_target_idx,
+                    **last_stmt.tags,
+                )
+                block.statements[-1] = new_stmt
+                removed = True
+        if removed:
+            target_block = self._block_by_addr_and_idx.get((jump_target, jump_target_idx), None)
+            if target_block:
+                with contextlib.suppress(NetworkXError):
+                    self._graph.remove_edge(block, target_block)
+        return removed
+
+    def remove_false_branch(self, block: Block):
+        if block.statements and isinstance(block.statements[-1], ConditionalJump):
+            jump = block.statements[-1]
+            false_target = jump.false_target
+            if isinstance(false_target, Const):
+                self.remove_jump_target(block, false_target, jump.false_target_idx)
+
+    @staticmethod
+    def _update_phi_variables_after_removing_block(graph, preds, removed_block: Block) -> None:
+        rblock_phi_to_src: dict[int, dict[tuple[int, int | None], VirtualVariable | None]] = {}
+        for stmt in removed_block.statements:
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
+                rblock_phi_to_src[stmt.dst.varid] = dict(stmt.src.src_and_vvars)
+
+        for block in graph.nodes:
+            for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
+                stmt = block.statements[idx]
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
+                    # remove the variable from the specified source
+                    new_src_and_vvars = {}
+                    for src, vvar in stmt.src.src_and_vvars:
+                        if src != (removed_block.addr, removed_block.idx):
+                            new_src_and_vvars[src] = vvar
+                        else:
+                            # we need to handle two cases:
+                            # - vvar might be defined in the removed block
+                            # - pred is already a predecessor of the current block
+                            if vvar and vvar.varid in rblock_phi_to_src:
+                                # vvar is defined in the removed block
+                                replacements = rblock_phi_to_src[vvar.varid]
+                            else:
+                                replacements = {(pred.addr, pred.idx): vvar for pred in preds}
+                            for repl_src, repl_vvar in replacements.items():
+                                if repl_src not in new_src_and_vvars:
+                                    new_src_and_vvars[repl_src] = repl_vvar
+                    # make it a list
+                    new_src_and_vvars_lst = list(new_src_and_vvars.items())
+                    new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars_lst, **stmt.src.tags)
+                    block.statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+
+    def replace_jump_target(
+        self,
+        block,
+        old_target: Const | int | None,
+        old_target_idx: int | None,
+        new_target: Const | int,
+        new_target_idx: int | None,
+    ):
+        if isinstance(old_target, Const):
+            old_target = old_target.value_int
+        if isinstance(new_target, Const):
+            new_target = new_target.value_int
+        last_stmt = block.statements[-1] if block.statements else None
+        if isinstance(last_stmt, Jump):
+            if old_target is None or (
+                isinstance(last_stmt.target, Const)
+                and last_stmt.target.value_int == old_target
+                and last_stmt.target_idx == old_target_idx
+            ):
+                new_stmt = last_stmt.copy()
+                new_stmt.target = Const(0, None, new_target, last_stmt.target.bits)
+                new_stmt.target_idx = new_target_idx
+                block.statements[-1] = new_stmt
+        elif isinstance(last_stmt, ConditionalJump):
+            true_tgt = last_stmt.true_target
+            false_tgt = last_stmt.false_target
+            if old_target is None or (
+                isinstance(true_tgt, Const)
+                and isinstance(false_tgt, Const)
+                and (
+                    (true_tgt.value_int == old_target and false_tgt.value_int == new_target)
+                    or (false_tgt.value_int == old_target and true_tgt.value_int == new_target)
+                )
+            ):
+                if isinstance(true_tgt, Const) and isinstance(false_tgt, Const):
+                    target = Const(0, None, new_target, true_tgt.bits)
+                    if true_tgt.value_int == old_target and false_tgt.value_int == new_target:
+                        new_target_idx = last_stmt.false_target_idx
+                    else:
+                        new_target_idx = last_stmt.true_target_idx
+                    block.statements[-1] = Jump(
+                        last_stmt.idx,
+                        target,
+                        new_target_idx,
+                        **last_stmt.tags,
+                    )
+            elif (
+                isinstance(last_stmt.true_target, Const)
+                and last_stmt.true_target.value_int == old_target
+                and last_stmt.true_target_idx == old_target_idx
+            ):
+                last_stmt.true_target.value = new_target
+                last_stmt.true_target_idx = new_target_idx
+            elif (
+                isinstance(last_stmt.false_target, Const)
+                and last_stmt.false_target.value_int == old_target
+                and last_stmt.false_target_idx == old_target_idx
+            ):
+                last_stmt.false_target.value = new_target
+                last_stmt.false_target_idx = new_target_idx
+
+        if old_target:
+            try:
+                old_target_block = self._block_by_addr_and_idx.get((old_target, old_target_idx), None)
+                if old_target_block:
+                    self._graph.remove_edge(block, old_target_block)
+            except NetworkXError:
+                pass
+        else:
+            for succ in list(self._graph.successors(block)):
+                with contextlib.suppress(NetworkXError):
+                    self._graph.remove_edge(block, succ)
+        new_target_block = self._block_by_addr_and_idx.get((new_target, new_target_idx), None)
+        assert new_target_block is not None
+        self._graph.add_edge(block, new_target_block)
+
+    def remove_block(self, block: Block):
+        graph = self._graph
+
+        if block not in graph:
+            l.warning("%s not in graph", block)
+            return False
+
+        succs = list(graph.successors(block))
+        num_successors = len(succs)
+        preds = list(graph.predecessors(block))
+
+        if num_successors == 2:
+            # We only handle a special case here, where one of the successors is the removed block itself
+            self.remove_jump_target(block, block.addr, block.idx)
+            num_successors = len(list(graph.successors(block)))
+            if num_successors != 1:
+                # l.warning("Failed to remove block with more two successor")
+                return False
+
+        if num_successors == 1:
+            new_target_block = next(iter(graph.successors(block)))
+            for pred in list(graph.predecessors(block)):
+                self.replace_jump_target(pred, block.addr, block.idx, new_target_block.addr, new_target_block.idx)
+        elif num_successors == 0:
+            for pred in list(graph.predecessors(block)):
+                self.remove_jump_target(pred, block.addr, block.idx)
+        else:
+            l.warning("Can not remove block with more than two successors")
+            return False
+
+        # Remove block from graph
+        graph.remove_node(block)
+        self._update_phi_variables_after_removing_block(graph, preds, block)
+        if (block.addr, block.idx) in self._block_by_addr_and_idx:
+            del self._block_by_addr_and_idx[(block.addr, block.idx)]
+        l.debug("Block:\n%sremoved by %s.%s", block, self.__class__.__module__, self.__class__.__name__)
+
+        # Remove old successors (and their successors recursively) with no predecessor
+        # Notice that old successors may not be connected to the predecessors of original block
+        while succs:
+            succ = succs.pop(0)
+            if succ in graph and graph.in_degree(succ) == 0:
+                succs += list(self._graph.successors(succ))
+                graph.remove_node(succ)
+                if (succ.addr, succ.idx) in self._block_by_addr_and_idx:
+                    del self._block_by_addr_and_idx[(succ.addr, succ.idx)]
+                l.debug(
+                    "Successor:\n%sremoved by %s.%s because of zero in-degree",
+                    block,
+                    self.__class__.__module__,
+                    self.__class__.__name__,
+                )
+
+        return True
+
+    def split_block(self, block: Block, new_head_stmt):
+        if new_head_stmt not in block.statements:
+            return None, None
+        preds = list(self._graph.predecessors(block))
+        succs = list(self._graph.successors(block))
+
+        stmt_idx = block.statements.index(new_head_stmt)
+        first_stmts = block.statements[:stmt_idx]
+        second_stmts = block.statements[stmt_idx:]
+        first_block = block.copy()
+        first_block.statements = first_stmts
+        second_block = block.copy()
+        second_block.addr = new_head_stmt.tags["ins_addr"]
+        second_block.statements = second_stmts
+
+        for pred in preds:
+            self._graph.add_edge(pred, first_block)
+
+        for succ in succs:
+            self._graph.add_edge(second_block, succ)
+
+        self._graph.add_edge(first_block, second_block)
+
+        self._graph.remove_node(block)
+
+        self._block_by_addr_and_idx[(first_block.addr, first_block.idx)] = first_block
+        self._block_by_addr_and_idx[(second_block.addr, second_block.idx)] = second_block
+
+        self._update_phi_variables_after_removing_block(self._graph, [second_block], block)
+
+        return first_block, second_block

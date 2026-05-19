@@ -38,6 +38,7 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeDouble,
     parse_cpp_file,
+    SimTypeInt128,
 )
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
@@ -1134,6 +1135,8 @@ class CallingConventionAnalysis(Analysis):
                 return SimTypeInt()
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
+            if self.project.is_rust_binary and 9 <= ret_val_size <= 16:
+                return SimTypeInt128()
 
         return SimTypeBottom(label="void")
 

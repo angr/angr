@@ -1,0 +1,36 @@
+from __future__ import annotations
+import traceback
+import logging
+
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
+l = logging.getLogger(name=__name__)
+
+
+class ClinicFactory(KnowledgeBasePlugin):
+    """Cache and provide Clinic analysis results for Rust functions."""
+
+    def __init__(self, kb):
+        super().__init__(kb)
+        self.cache = {}
+
+    def get(self, func, optimization_passes=None, end_stage=None):
+        if optimization_passes is None:
+            optimization_passes = ()
+        key = (func.addr, tuple(optimization_passes), end_stage)
+        if key in self.cache:
+            return self.cache[key]
+        cfg = self._kb.cfgs.get_most_accurate()
+        try:
+            clinic = self._kb._project.analyses.Clinic(
+                func, cfg=cfg, optimization_passes=optimization_passes, flatten_args=True, end_stage=end_stage
+            )
+            self.cache[key] = clinic
+            return self.cache[key]
+        except Exception as e:  # pylint:disable=broad-exception-caught
+            l.error("Failed to recover AIL graph for %s", func.demangled_name)
+            l.error("".join(traceback.format_exception(e)))
+            return None
+
+
+KnowledgeBasePlugin.register_default("clinic_factory", ClinicFactory)
