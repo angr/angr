@@ -146,7 +146,7 @@ uc_err State::start(address_t pc, uint64_t step) {
 	return out;
 }
 
-void State::stop(stop_t reason, bool do_commit, uint64_t commit_addr) {
+void State::stop(stop_t reason, bool do_commit) {
 	if (stopped) {
 		// Do not stop if already stopped. Sometimes, python lands initiates a stop even though native interface has
 		// already stopped leading to multiple issues.
@@ -157,7 +157,7 @@ void State::stop(stop_t reason, bool do_commit, uint64_t commit_addr) {
 	stop_details.block_addr = curr_block_details.block_addr;
 	stop_details.block_size = curr_block_details.block_size;
 	if ((reason == STOP_SYSCALL) || do_commit) {
-		commit(commit_addr);
+		commit();
 	}
 	else if ((reason != STOP_NORMAL) && (reason != STOP_STOPPOINT)) {
 		// Stop reason is not NORMAL, STOPPOINT or SYSCALL. Rollback.
@@ -214,7 +214,7 @@ bool State::step(address_t current_address, int32_t size, bool check_stop_points
 	} else if (uc_procedures.count(current_address) != 0) {
   	        uc_procedures[current_address](this);
   	        result = true;
-  	        commit(current_address);
+  	        commit();
 	} else if (check_stop_points) {
 		// If size is zero, that means that the current basic block was too large for qemu
 		// and it got split into multiple parts. unicorn will only call this hook for the
@@ -247,7 +247,7 @@ bool State::step(address_t current_address, int32_t size, bool check_stop_points
 	return result;
 }
 
-void State::commit(uint64_t addr) {
+void State::commit() {
 	// mark memory sync status
 	// we might miss some dirty bits, this happens if hitting the memory
 	// write before mapping
@@ -378,40 +378,7 @@ void State::commit(uint64_t addr) {
 	}
 	// save registers
 	uc_context_save(uc, saved_regs);
-	switch (arch) {
-		case UC_ARCH_X86: {
-			switch (unicorn_mode) {
-				case UC_MODE_32: {
-					uint32_t val = addr;
-					uc_context_reg_write(saved_regs, UC_X86_REG_EIP, &val);
-					break;
-				}
-				case UC_MODE_64: {
-					uc_context_reg_write(saved_regs, UC_X86_REG_RIP, &addr);
-					break;
-				}
-				default: {
-					puts("unsupported");
-					abort();
-				}
-			}
-			break;
-		}
-		case UC_ARCH_ARM: {
-			uint32_t val = addr;
-			uc_context_reg_write(saved_regs, UC_ARM_REG_PC, &val);
-			break;
-		}
-		case UC_ARCH_MIPS: {
-			uint32_t val = addr;
-			uc_context_reg_write(saved_regs, UC_MIPS_REG_PC, &val);
-			break;
-		}
-		default: {
-			puts("unsupported");
-			abort();
-		}
-	}
+
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
@@ -2552,7 +2519,7 @@ void State::perform_cgc_random() {
 	next_write_offset = 0;
 	uc_reg_write(uc, UC_X86_REG_EAX, &next_write_offset);
 	step(cgc_random_bbl, 0, false);
-	commit(cgc_random_bbl);
+	commit();
 	if (actual_count > 0) {
 		// Save a block with an instruction to track that the random syscall needs to be re-executed. The instruction
 		// data is used only to work with existing mechanism to return data to python.
@@ -2686,7 +2653,7 @@ void State::perform_cgc_receive() {
 	count = 0;
 	uc_reg_write(uc, UC_X86_REG_EAX, &count);
 	step(cgc_receive_bbl, 0, false);
-	commit(cgc_receive_bbl);
+	commit();
 	if (actual_count > 0) {
 		// Save a block with an instruction to track that the receive syscall needs to be re-executed. The instruction
 		// data is used only to work with existing mechanism to return data to python.
@@ -2767,7 +2734,7 @@ void State::perform_cgc_transmit() {
 		}
 
 		step(cgc_transmit_bbl, 0, false);
-		commit(cgc_transmit_bbl);
+		commit();
 		if (stopped) {
 			//printf("... stopped after step()\n");
 			free(dup_buf);
@@ -2843,7 +2810,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	state->commit(address);
+	state->commit();
 	state->set_curr_block_details(address, size);
 	bool hooked = state->step(address, size);
 
