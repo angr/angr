@@ -424,6 +424,14 @@ class TestTypes(unittest.TestCase):
         deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
         assert deref_t == deref_new_t
 
+    def test_simstruct_cmp_recursion_error(self):
+        t0 = SimStruct(fields={"a": SimTypeBottom()})
+        t0.fields["a"] = t0
+        t1 = SimStruct(fields={"a": SimTypeBottom()})
+        t1.fields["a"] = t0
+
+        assert t0 == t1  # should not raise RecursionError
+
 
 if __name__ == "__main__":
     unittest.main()
