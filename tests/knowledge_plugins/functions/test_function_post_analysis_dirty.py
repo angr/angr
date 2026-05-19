@@ -12,8 +12,6 @@ eviction/reload cycle through SpillingFunctionDict.
 
 from __future__ import annotations
 
-__package__ = __package__ or "tests.knowledge_plugins.functions"
-
 import tempfile
 import unittest
 
