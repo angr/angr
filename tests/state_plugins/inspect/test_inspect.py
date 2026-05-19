@@ -68,7 +68,7 @@ class TestInspect(unittest.TestCase):
             counts.instruction += 1
 
         def act_variables(state):  # pylint:disable=unused-argument
-            # print "CREATING:", state.inspect.symbolic_name
+            # print "CREATING:", state.inspect.attrs.symbolic_name
             counts.variables += 1
 
         #   def act_constraints(state): #pylint:disable=unused-argument
@@ -136,12 +136,12 @@ class TestInspect(unittest.TestCase):
 
         def handle_exit_before(state):
             counts.exit_before += 1
-            exit_target = state.inspect.exit_target
+            exit_target = state.inspect.attrs.exit_target
             assert state.solver.eval(exit_target) == 0x3F8
             # change exit target
-            state.inspect.exit_target = 0x41414141
-            assert state.inspect.exit_jumpkind == "Ijk_Boring"
-            assert state.inspect.exit_guard.is_true()
+            state.inspect.attrs.exit_target = 0x41414141
+            assert state.inspect.attrs.exit_jumpkind == "Ijk_Boring"
+            assert state.inspect.attrs.exit_guard.is_true()
 
         def handle_exit_after(state):  # pylint:disable=unused-argument
             counts.exit_after += 1
@@ -169,12 +169,12 @@ class TestInspect(unittest.TestCase):
 
         def handle_syscall_before(state):
             counts.exit_before += 1
-            syscall_name = state.inspect.syscall_name
+            syscall_name = state.inspect.attrs.syscall_name
             assert syscall_name == "close"
 
         def handle_syscall_after(state):
             counts.exit_after += 1
-            syscall_name = state.inspect.syscall_name
+            syscall_name = state.inspect.attrs.syscall_name
             assert syscall_name == "close"
 
         p = load_shellcode(b"\xc3", arch="AMD64")
@@ -205,8 +205,8 @@ class TestInspect(unittest.TestCase):
         #
 
         def change_symbolic_target(state):
-            if state.inspect.address_concretization_action == "store":
-                state.inspect.address_concretization_expr = claripy.BVV(0x1000, state.arch.bits)
+            if state.inspect.attrs.address_concretization_action == "store":
+                state.inspect.attrs.address_concretization_expr = claripy.BVV(0x1000, state.arch.bits)
 
         s = SimState(arch="AMD64")
         s.inspect.b("address_concretization", BP_BEFORE, action=change_symbolic_target)
@@ -219,7 +219,7 @@ class TestInspect(unittest.TestCase):
         #
 
         def dont_add_constraints(state):
-            state.inspect.address_concretization_add_constraints = False
+            state.inspect.attrs.address_concretization_add_constraints = False
 
         s = SimState(arch="AMD64")
         s.inspect.b("address_concretization", BP_BEFORE, action=dont_add_constraints)
@@ -237,13 +237,15 @@ class TestInspect(unittest.TestCase):
                 self.state = state
 
         def abort_unconstrained(state):
-            print(state.inspect.address_concretization_strategy, state.inspect.address_concretization_result)
+            print(
+                state.inspect.attrs.address_concretization_strategy, state.inspect.attrs.address_concretization_result
+            )
             if (
                 isinstance(
-                    state.inspect.address_concretization_strategy,
+                    state.inspect.attrs.address_concretization_strategy,
                     concretization_strategies.SimConcretizationStrategyRange,
                 )
-                and state.inspect.address_concretization_result is None
+                and state.inspect.attrs.address_concretization_result is None
             ):
                 raise UnconstrainedAbort("uh oh", state)
 
@@ -267,7 +269,7 @@ class TestInspect(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
 
         def check_first_symbolic_fork(state):
-            succs = state.inspect.sim_successors.successors
+            succs = state.inspect.attrs.sim_successors.successors
             succ_addr = [hex(s.addr) for s in succs]
             assert len(succ_addr) == 2
             assert "0x400692L" in succ_addr
@@ -276,7 +278,7 @@ class TestInspect(unittest.TestCase):
             print("Successors:", succ_addr)
 
         def check_second_symbolic_fork(state):
-            succs = state.inspect.sim_successors.successors
+            succs = state.inspect.attrs.sim_successors.successors
             succ_addr = [hex(s.addr) for s in succs]
             assert len(succ_addr) == 2
             assert "0x4006dfL" in succ_addr
@@ -285,14 +287,14 @@ class TestInspect(unittest.TestCase):
             print("Successors:", succ_addr)
 
         def first_symbolic_fork(state):
-            return hex(state.addr) == "0x40068eL" and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
+            return hex(state.addr) == "0x40068eL" and isinstance(state.inspect.attrs.sim_engine, HeavyVEXMixin)
             # TODO: I think this latter check is meaningless with the eleventh hour refactor
 
         def second_symbolic_fork(state):
-            return hex(state.addr) == "0x4006dbL" and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
+            return hex(state.addr) == "0x4006dbL" and isinstance(state.inspect.attrs.sim_engine, HeavyVEXMixin)
 
         def check_state(state):
-            assert hex(state.inspect.sim_successors.addr) in ("0x40068eL", "0x4006dbL")
+            assert hex(state.inspect.attrs.sim_successors.addr) in ("0x40068eL", "0x4006dbL")
 
         state = p.factory.entry_state(addr=p.loader.find_symbol("main").rebased_addr)
         pg = p.factory.simulation_manager(state)

@@ -33,10 +33,10 @@ def load_signature(sig_path: str, meta_path: str | None = None) -> tuple[str, Fl
     :return:            A FlirtSignature object if loading was successful, None otherwise.
     """
 
-    # parse it
+    # parse the header only; the function tree is parsed lazily at match time
     try:
         with open(sig_path, "rb") as f:
-            sig_parsed = FlirtSignatureParsed.parse(f)
+            sig_parsed = FlirtSignatureParsed.parse_header(f)
     except FlirtSignatureError:
         return None
 

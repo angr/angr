@@ -1054,8 +1054,8 @@ class Tracer(ExplorationTechnique):
         """
         # only grab ones that match the constrained addrs
         if cls._should_add_constraints(state):
-            addr = state.inspect.address_concretization_expr
-            result = state.inspect.address_concretization_result
+            addr = state.inspect.attrs.address_concretization_expr
+            result = state.inspect.attrs.address_concretization_result
             if result is None:
                 l.warning("addr concretization result is None")
                 return
@@ -1068,7 +1068,7 @@ class Tracer(ExplorationTechnique):
         """
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
-        state.inspect.address_concretization_add_constraints = cls._should_add_constraints(state)
+        state.inspect.attrs.address_concretization_add_constraints = cls._should_add_constraints(state)
 
     @classmethod
     def _should_add_constraints(cls, state):
@@ -1076,7 +1076,7 @@ class Tracer(ExplorationTechnique):
         Check to see if the current address concretization variable is any of the registered
         constrained_addrs we want to allow concretization for
         """
-        expr = state.inspect.address_concretization_expr
+        expr = state.inspect.attrs.address_concretization_expr
         hit_indices = cls._to_indices(state, expr)
 
         for action in state.preconstrainer._constrained_addrs:

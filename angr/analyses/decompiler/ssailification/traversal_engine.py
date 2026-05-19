@@ -319,6 +319,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if base_offset in self.pending_ptr_defines_nonlocal:
             self.pending_ptr_defines_nonlocal[base_offset][2].add((offset, size))
 
+        self.state.live_stackvars = self.state.live_stackvars.clean()
         self.state.live_stackvars[offset] = value
         stackvar_defs_cleaned = False
 
@@ -330,6 +331,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             reached_fixedpoint = True
             if not stackvar_defs_cleaned:
                 self.state.stackvar_defs = self.state.stackvar_defs.clean()
+                self.state.stackvar_bases = self.state.stackvar_bases.clean()
                 stackvar_defs_cleaned = True
             for suboff in range(offset, end_offset):
                 secret_stash[suboff].update(self.state.stackvar_defs.pop(suboff, set()))
@@ -447,6 +449,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if isinstance(stmt.dst, Register):
             self.register_set(stmt.dst.reg_offset, stmt.dst.size, src, stmt.dst)
         elif isinstance(stmt.dst, VirtualVariable):
+            self.state.live_vvars = self.state.live_vvars.clean()
             self.state.live_vvars[stmt.dst.varid] = src
         elif isinstance(stmt.dst, Tmp):
             self.state.live_tmps[stmt.dst.tmp_idx] = src

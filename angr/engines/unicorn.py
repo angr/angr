@@ -303,7 +303,7 @@ class SimEngineUnicorn(SuccessorsEngine):
         mem_read_size = 0
         mem_read_address = None
         mem_read_taint_map = []
-        while mem_read_size != state.inspect.mem_read_length and self._instr_mem_reads:
+        while mem_read_size != state.inspect.attrs.mem_read_length and self._instr_mem_reads:
             next_val = self._instr_mem_reads.pop(0)
             if not mem_read_address:
                 mem_read_address = next_val["address"]
@@ -320,8 +320,10 @@ class SimEngineUnicorn(SuccessorsEngine):
             mem_read_size += 1
             mem_read_val += next_val["value"]
 
-        assert state.inspect.mem_read_length == mem_read_size
-        state.inspect.mem_read_address = claripy.BVV(mem_read_address, state.inspect.mem_read_address.size())
+        assert state.inspect.attrs.mem_read_length == mem_read_size
+        state.inspect.attrs.mem_read_address = claripy.BVV(
+            mem_read_address, state.inspect.attrs.mem_read_address.size()
+        )
         if mem_read_taint_map.count(-1) != mem_read_size:
             # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
             self.state.inspect.b(
@@ -334,16 +336,16 @@ class SimEngineUnicorn(SuccessorsEngine):
 
     def _set_correct_mem_read_val(self, state, value, taint_map):  # pylint: disable=no-self-use
         state.inspect._breakpoints["mem_read"].pop()
-        if taint_map.count(0) == state.inspect.mem_read_length:
+        if taint_map.count(0) == state.inspect.attrs.mem_read_length:
             # The value is completely concrete
             if state.arch.memory_endness == archinfo.Endness.LE:
-                state.inspect.mem_read_expr = claripy.BVV(value[::-1])
+                state.inspect.attrs.mem_read_expr = claripy.BVV(value[::-1])
             else:
-                state.inspect.mem_read_expr = claripy.BVV(value)
+                state.inspect.attrs.mem_read_expr = claripy.BVV(value)
         else:
             # The value may be partially concrete. Set the symbolic bitmap to read correct value and restore it
-            mem_read_addr = state.solver.eval(state.inspect.mem_read_address)
-            mem_read_len = state.inspect.mem_read_length
+            mem_read_addr = state.solver.eval(state.inspect.attrs.mem_read_address)
+            mem_read_len = state.inspect.attrs.mem_read_length
             saved_taints = []
             for offset in range(mem_read_len):
                 page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
@@ -384,11 +386,11 @@ class SimEngineUnicorn(SuccessorsEngine):
 
                 curr_value = claripy.Concat(*curr_value_bytes)
 
-            state.inspect.mem_read_expr = curr_value
+            state.inspect.attrs.mem_read_expr = curr_value
 
     def _save_mem_write_addrs(self, state):
-        mem_write_addr = state.solver.eval(state.inspect.mem_write_address)
-        self._instr_mem_write_addrs.update(range(mem_write_addr, mem_write_addr + state.inspect.mem_write_length))
+        mem_write_addr = state.solver.eval(state.inspect.attrs.mem_write_address)
+        self._instr_mem_write_addrs.update(range(mem_write_addr, mem_write_addr + state.inspect.attrs.mem_write_length))
 
     def process_successors(self, successors, **kwargs):
         state = self.state

@@ -617,12 +617,12 @@ class StoreHook:
 
     @staticmethod
     def hook(state):
-        write_length = state.inspect.mem_write_length
+        write_length = state.inspect.attrs.mem_write_length
         if write_length is None:
-            write_length = len(state.inspect.mem_write_expr)
+            write_length = len(state.inspect.attrs.mem_write_expr)
         else:
             write_length = write_length * state.arch.byte_width
-        state.inspect.mem_write_expr = claripy.BVS("instrumented_store", write_length)
+        state.inspect.attrs.mem_write_expr = claripy.BVS("instrumented_store", write_length)
 
 
 class LoadHook:
@@ -634,13 +634,13 @@ class LoadHook:
         self._var = None
 
     def hook_before(self, state):
-        addr = state.inspect.mem_read_address
-        size = state.solver.eval(state.inspect.mem_read_length)
+        addr = state.inspect.attrs.mem_read_address
+        size = state.solver.eval(state.inspect.attrs.mem_read_length)
         self._var = claripy.BVS("instrumented_load", size * 8)
         state.memory.store(addr, self._var, endness=state.arch.memory_endness)
 
     def hook_after(self, state):
-        state.inspect.mem_read_expr = self._var
+        state.inspect.attrs.mem_read_expr = self._var
 
 
 class PutHook:
@@ -650,8 +650,8 @@ class PutHook:
 
     @staticmethod
     def hook(state):
-        state.inspect.reg_write_expr = claripy.BVS(
-            "instrumented_put", state.solver.eval(state.inspect.reg_write_length) * 8
+        state.inspect.attrs.reg_write_expr = claripy.BVS(
+            "instrumented_put", state.solver.eval(state.inspect.attrs.reg_write_length) * 8
         )
 
 
@@ -683,8 +683,8 @@ class BSSHook:
         if not self._bss_regions:
             return
 
-        read_addr = state.inspect.mem_read_address
-        read_length = state.inspect.mem_read_length
+        read_addr = state.inspect.attrs.mem_read_address
+        read_length = state.inspect.attrs.mem_read_length
 
         if not isinstance(read_addr, int) and read_addr.symbolic:
             # don't touch it
@@ -715,16 +715,16 @@ class BSSHook:
         if not self._bss_regions:
             return
 
-        write_addr = state.inspect.mem_write_address
+        write_addr = state.inspect.attrs.mem_write_address
 
         if not isinstance(write_addr, int) and write_addr.symbolic:
             return
 
         concrete_write_addr = state.solver.eval(write_addr)
         concrete_write_length = (
-            state.solver.eval(state.inspect.mem_write_length)
-            if state.inspect.mem_write_length is not None
-            else len(state.inspect.mem_write_expr) // state.arch.byte_width
+            state.solver.eval(state.inspect.attrs.mem_write_length)
+            if state.inspect.attrs.mem_write_length is not None
+            else len(state.inspect.attrs.mem_write_expr) // state.arch.byte_width
         )
 
         for start, size in self._bss_regions:
@@ -752,16 +752,16 @@ class MIPSGPHook:
         self.gp = gp
 
     def gp_register_read_hook(self, state):
-        read_offset = state.inspect.reg_read_offset
-        read_length = state.inspect.reg_read_length
+        read_offset = state.inspect.attrs.reg_read_offset
+        read_length = state.inspect.attrs.reg_read_length
         if state.solver.eval(read_offset) == self.gp_offset and read_length == 4:
-            state.inspect.reg_read_expr = claripy.BVV(self.gp, size=32)
+            state.inspect.attrs.reg_read_expr = claripy.BVV(self.gp, size=32)
 
     def gp_register_write_hook(self, state):
-        write_offset = state.inspect.reg_write_offset
-        write_length = state.inspect.reg_write_length
+        write_offset = state.inspect.attrs.reg_write_offset
+        write_length = state.inspect.attrs.reg_write_length
         if state.solver.eval(write_offset) == self.gp_offset and write_length == 4:
-            state.inspect.reg_write_expr = claripy.BVV(self.gp, size=32)
+            state.inspect.attrs.reg_write_expr = claripy.BVV(self.gp, size=32)
 
 
 #
@@ -2155,7 +2155,7 @@ class JumpTableResolver(IndirectJumpResolver):
         reg_val = 0x13370000
 
         def bp_condition(block_addr, stmt_idx, _s):
-            return _s.scratch.bbl_addr == block_addr and _s.inspect.statement == stmt_idx
+            return _s.scratch.bbl_addr == block_addr and _s.inspect.attrs.statement == stmt_idx
 
         for block_addr, stmt_idx, reg_offset, reg_bits in regs_to_initialize:
             l.debug(
@@ -2185,17 +2185,17 @@ class JumpTableResolver(IndirectJumpResolver):
 
     def _init_registers_on_demand(self, state):
         # for uninitialized read using a register as the source address, we replace them in memory on demand
-        read_addr = state.inspect.mem_read_address
-        cond = state.inspect.mem_read_condition
+        read_addr = state.inspect.attrs.mem_read_address
+        cond = state.inspect.attrs.mem_read_condition
 
         if not isinstance(read_addr, int) and read_addr.has_annotation_type(UninitializedAnnotation) and cond is None:
             # if this AST has been initialized before, just use the cached addr
             cached_addr = self._cached_memread_addrs.get(read_addr, None)
             if cached_addr is not None:
-                state.inspect.mem_read_address = cached_addr
+                state.inspect.attrs.mem_read_address = cached_addr
                 return
 
-            read_length = state.inspect.mem_read_length
+            read_length = state.inspect.attrs.mem_read_length
             if not isinstance(read_length, int):
                 read_length = read_length.args[3]  # max
             if read_length > 16:
@@ -2210,7 +2210,7 @@ class JumpTableResolver(IndirectJumpResolver):
             # address again.
             self._cached_memread_addrs[read_addr] = new_read_addr
 
-            state.inspect.mem_read_address = new_read_addr
+            state.inspect.attrs.mem_read_address = new_read_addr
 
             # job done :-)
 

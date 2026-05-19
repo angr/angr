@@ -268,7 +268,7 @@ Set Breakpoint at every Memory read/write:
 
    new_state.inspect.b('mem_read', when=angr.BP_AFTER, action=debug_funcRead)
    def debug_funcRead(state):
-       print 'Read', state.inspect.mem_read_expr, 'from', state.inspect.mem_read_address
+       print 'Read', state.inspect.attrs.mem_read_expr, 'from', state.inspect.attrs.mem_read_address
 
 Set Breakpoint at specific Memory location:
 
