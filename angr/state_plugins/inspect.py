@@ -166,8 +166,24 @@ class BP:
                 f"Should be one of {inspect_attributes}, or their _unique option."
             )
 
+        if condition is not None:
+            warnings.warn(
+                "The `condition` argument is deprecated. Integrate condition functions into the `action` function "
+                "instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            orig_condition = condition
+            orig_action = action
+
+            def _gated_action(state: SimState) -> None:
+                if orig_condition(state):
+                    orig_action(state)
+
+            action = _gated_action
+
         self.enabled = enabled
-        self.condition = condition
         self.action = action
         self.when = when
         self.kwargs = kwargs
@@ -216,8 +232,6 @@ class BP:
                 return ok
             l.debug("... after condition %s: %s", a, ok)
 
-        ok = ok and (self.condition is None or self.condition(state))
-        l.debug("... after condition func: %s", ok)
         return ok
 
     def fire(self, state: SimState):
@@ -241,10 +255,9 @@ class BP:
             self.action(state)
 
     def __repr__(self):
-        return "<BP {}-action with conditions {!r}, {} condition func, {} action func>".format(
+        return "<BP {}-action with conditions {!r}, {} action func>".format(
             self.when,
             self.kwargs,
-            "no" if self.condition is None else "with",
             "no" if self.action is None else "with",
         )
 
