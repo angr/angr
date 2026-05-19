@@ -19,6 +19,7 @@ outside=False but does NOT call _register_node for the to_node
 cmsg.external_blocks; the edge keeps is_outside=False; the loader
 then disagrees.
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins.functions"
@@ -36,7 +37,7 @@ class TestFunctionParserFakeret(unittest.TestCase):
         blob = bytes.fromhex("ffc86b060000000000e86b060001")
         addr = 0x100077547
         fakeret_dst_addr = addr + 14
-        call_dst_addr = 0x101077bc0
+        call_dst_addr = 0x101077BC0
 
         with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
             f.write(blob)
@@ -65,14 +66,22 @@ class TestFunctionParserFakeret(unittest.TestCase):
         call_target = FuncNode(call_dst_addr)
         func.transition_graph.add_node(call_target)
         func.transition_graph.add_edge(
-            local_block, call_target,
-            type="call", outside=False, ins_addr=addr + 9, stmt_idx=None,
+            local_block,
+            call_target,
+            type="call",
+            outside=False,
+            ins_addr=addr + 9,
+            stmt_idx=None,
         )
         func.transition_graph.add_node(ext_block)
         func.transition_graph.add_edge(
-            local_block, ext_block,
-            type="fake_return", outside=False, confirmed=True,
-            ins_addr=addr + 9, stmt_idx=None,
+            local_block,
+            ext_block,
+            type="fake_return",
+            outside=False,
+            confirmed=True,
+            ins_addr=addr + 9,
+            stmt_idx=None,
         )
 
         pre = set(func._local_block_addrs)
@@ -80,10 +89,7 @@ class TestFunctionParserFakeret(unittest.TestCase):
 
         # Sanity: cmsg shape that exposes the bug.
         self.assertEqual([b.ea for b in cmsg.blocks], [addr])
-        fakeret_edges = [
-            e for e in cmsg.graph.edges
-            if e.dst_ea == fakeret_dst_addr
-        ]
+        fakeret_edges = [e for e in cmsg.graph.edges if e.dst_ea == fakeret_dst_addr]
         self.assertEqual(len(fakeret_edges), 1)
         self.assertFalse(
             bool(fakeret_edges[0].is_outside),
@@ -91,13 +97,15 @@ class TestFunctionParserFakeret(unittest.TestCase):
         )
 
         loaded = Function.parse_from_cmessage(
-            cmsg, function_manager=fm, project=proj,
+            cmsg,
+            function_manager=fm,
+            project=proj,
         )
         post = set(loaded._local_block_addrs)
         self.assertEqual(
-            pre, post,
-            f"round-trip is not idempotent: pre={sorted(hex(a) for a in pre)} "
-            f"post={sorted(hex(a) for a in post)}",
+            pre,
+            post,
+            f"round-trip is not idempotent: pre={sorted(hex(a) for a in pre)} post={sorted(hex(a) for a in post)}",
         )
 
 
