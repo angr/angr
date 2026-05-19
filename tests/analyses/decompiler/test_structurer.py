@@ -133,7 +133,7 @@ class TestStructurer(unittest.TestCase):
         st = p.analyses[DreamStructurer].prep()(ri.region)
 
         # simplify it
-        _ = p.analyses.RegionSimplifier(main_func, st.result)
+        _ = p.analyses.RegionSimplifier(main_func, st.result, clinic._ail_manager)
 
     def test_smoketest_cm3_firmware(self):
         p = angr.Project(
@@ -170,7 +170,7 @@ class TestStructurer(unittest.TestCase):
         rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(main_func, rs.result)
+        s = p.analyses.RegionSimplifier(main_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
@@ -193,7 +193,7 @@ class TestStructurer(unittest.TestCase):
         rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
@@ -219,7 +219,7 @@ class TestStructurer(unittest.TestCase):
         rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
@@ -244,7 +244,7 @@ class TestStructurer(unittest.TestCase):
         rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
@@ -270,7 +270,7 @@ class TestStructurer(unittest.TestCase):
         rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 

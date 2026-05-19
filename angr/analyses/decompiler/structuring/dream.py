@@ -112,6 +112,7 @@ class DreamStructurer(StructurerBase):
         loop_subgraph = self._region.graph
         successors = self._region.successors
         assert successors is not None
+        assert self._region.graph is not None
 
         assert len(successors) <= 1
 
@@ -152,6 +153,8 @@ class DreamStructurer(StructurerBase):
     def _find_loop_nodes_and_successors(self):
         graph = self._region.graph
         head = self._region.head
+
+        assert graph is not None
 
         # find initial loop nodes
         loop_nodes = None
@@ -338,6 +341,8 @@ class DreamStructurer(StructurerBase):
         return EmptyNodeRemover(seq, self.ail_manager).result
 
     def _make_sequence(self):
+        assert self._region.graph is not None
+
         seq = SequenceNode(None)
 
         for node in GraphUtils.quasi_topological_sort_nodes(self._region.graph):

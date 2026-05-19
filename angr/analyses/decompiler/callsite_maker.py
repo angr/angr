@@ -43,14 +43,12 @@ class CallSiteMaker(Analysis):
     Add calling convention, declaration, and args to a call site.
     """
 
-    def __init__(
-        self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager: Manager | None = None
-    ):
+    def __init__(self, block, *, ail_manager: Manager, reaching_definitions=None, stack_pointer_tracker=None):
         self.block = block
 
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
-        self._ail_manager: Manager | None = ail_manager
+        self._ail_manager: Manager = ail_manager
 
         self.result_block = None
         self.stack_arg_offsets: set[tuple[int, int]] | None = None  # call ins addr, stack_offset
@@ -202,12 +200,12 @@ class CallSiteMaker(Analysis):
                         if vvar_def_reg_offset is not None and offset > vvar_def_reg_offset:
                             # we need to shift the value
                             vvar_use = Expr.BinaryOp(
-                                self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                                self._ail_manager.next_atom(),
                                 "Shr",
                                 [
                                     vvar_use,
                                     Expr.Const(
-                                        self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                                        self._ail_manager.next_atom(),
                                         None,
                                         (offset - vvar_def_reg_offset) * 8,
                                         8,
@@ -218,7 +216,7 @@ class CallSiteMaker(Analysis):
                         if vvar_def.size > arg_loc.size:
                             # we need to narrow the value
                             vvar_use = Expr.Convert(
-                                self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                                self._ail_manager.next_atom(),
                                 vvar_use.bits,
                                 arg_loc.size * self.project.arch.byte_width,
                                 False,
@@ -448,7 +446,7 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
+    def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
@@ -545,12 +543,12 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_stmt) -> list[SimType]:
+    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
         if "printf" in func.name or "scanf" in func.name:
-            return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
+            return self._determine_variadic_arguments_for_format_strings(func, cc, call_expr)
         return []
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> list[SimType]:
+    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
         proto = func.prototype
         if proto is None:
             # TODO: Support cases where prototypes are not available
@@ -585,14 +583,14 @@ class CallSiteMaker(Analysis):
                     value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_stmt, arg_loc)
+                value, _ = self._resolve_stack_argument(call_expr, arg_loc)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
                 continue
 
-            if not isinstance(value, Const) and call_stmt.args is not None and len(call_stmt.args) > fmt_arg_idx:
-                value = call_stmt.args[fmt_arg_idx]
+            if not isinstance(value, Const) and call_expr.args is not None and len(call_expr.args) > fmt_arg_idx:
+                value = call_expr.args[fmt_arg_idx]
             if isinstance(value, Const) and isinstance(value.value, int):
                 value = value.value
             if isinstance(value, int):
@@ -639,8 +637,8 @@ class CallSiteMaker(Analysis):
 
         return expanded_arg_locs
 
-    def _atom_idx(self) -> int | None:
-        return self._ail_manager.next_atom() if self._ail_manager is not None else None
+    def _atom_idx(self) -> int:
+        return self._ail_manager.next_atom()
 
 
 register_analysis(CallSiteMaker, "AILCallSiteMaker")

@@ -502,6 +502,9 @@ class Decompiler(Analysis):
         self._finish_progress()
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
+        assert self.clinic is not None
+        assert self.options_by_class is not None
+
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(
             self.func,
             graph=graph,
@@ -587,6 +590,8 @@ class Decompiler(Analysis):
         :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
+        assert self.clinic is not None
+
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
@@ -703,6 +708,10 @@ class Decompiler(Analysis):
         stackvar_max_sizes = cache.stackvar_max_sizes
         codegen = cache.codegen
 
+        if codegen is None:
+            # nothing to reflow; but this should not happen
+            return None
+
         var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
 
         if self.func.addr not in var_kb.variables:
@@ -766,7 +775,13 @@ class Decompiler(Analysis):
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
             )
             # update the function prototype if needed
-            if self.func.is_prototype_guessed and self.func.prototype is not None and self.func.prototype.args:
+            if (
+                self.func.is_prototype_guessed
+                and self.func.prototype is not None
+                and self.func.prototype.args
+                and isinstance(codegen, CStructuredCodeGenerator)
+                and codegen.cfunc is not None
+            ):
                 var_manager = var_kb.variables[self.func.addr]
                 for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):
@@ -791,6 +806,8 @@ class Decompiler(Analysis):
         return codegen
 
     def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
+        assert self._cfg is not None
+
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
@@ -906,7 +923,12 @@ class Decompiler(Analysis):
 
         # also collect argument variables
         arg_vars = []
-        if self.codegen and self.codegen.cfunc and self.codegen.cfunc.arg_list:
+        if (
+            self.codegen
+            and isinstance(self.codegen, CStructuredCodeGenerator)
+            and self.codegen.cfunc
+            and self.codegen.cfunc.arg_list
+        ):
             for cvar in self.codegen.cfunc.arg_list:
                 v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
                 if v not in unified_vars:
@@ -999,7 +1021,7 @@ class Decompiler(Analysis):
         l.info("LLM renamed function %s -> %s", current_name, new_name)
         self.func.name = new_name
         self.func.is_default_name = False
-        if self.codegen and self.codegen.cfunc:
+        if self.codegen and isinstance(self.codegen, CStructuredCodeGenerator) and self.codegen.cfunc:
             self.codegen.cfunc.name = new_name
 
         return True

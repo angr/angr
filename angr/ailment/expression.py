@@ -75,12 +75,6 @@ class Expression(TaggedObject, ABC):
 
         return r, replaced
 
-    def __add__(self, other):
-        return BinaryOp(None, "Add", [self, other], signed=False, **self.tags)
-
-    def __sub__(self, other):
-        return BinaryOp(None, "Sub", [self, other], signed=False, **self.tags)
-
 
 class Atom(Expression):
     __slots__ = (

@@ -1252,7 +1252,7 @@ class AILSimplifier(Analysis):
                     # create the replacement expression
                     if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter:
                         # replacing atom0
-                        new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                        new_idx = self._ail_manager.next_atom()
                         replace_with = VirtualVariable(
                             new_idx,
                             eq.atom1.varid,
@@ -1263,7 +1263,7 @@ class AILSimplifier(Analysis):
                         )
                     else:
                         # replacing atom1
-                        new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                        new_idx = self._ail_manager.next_atom()
                         replace_with = VirtualVariable(
                             new_idx,
                             eq.atom0.varid,
@@ -1274,11 +1274,11 @@ class AILSimplifier(Analysis):
                         )
                 elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
                     # create the memory loading expression
-                    new_idx = None if self._ail_manager is None else self._ail_manager.next_atom()
+                    new_idx = self._ail_manager.next_atom()
                     replace_with = Load(
                         new_idx,
                         Const(
-                            self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                            self._ail_manager.next_atom(),
                             None,
                             eq.atom0.addr,
                             self.project.arch.bits,
@@ -1461,7 +1461,7 @@ class AILSimplifier(Analysis):
 
                 replace_with_copy = replace_with.copy()
                 if used_expr.size != replace_with_copy.size:
-                    new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                    new_idx = self._ail_manager.next_atom()
                     replace_with_copy = Convert(
                         new_idx,
                         replace_with_copy.bits,
@@ -1702,7 +1702,7 @@ class AILSimplifier(Analysis):
 
                     if src.bits != dst.bits and not eq.is_weakassignment:
                         dst = Convert(
-                            self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                            self._ail_manager.next_atom(),
                             dst.bits,
                             src.bits,
                             False,

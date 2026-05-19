@@ -52,7 +52,7 @@ class TestPropagatorLoops(unittest.TestCase):
         # print(cond_proc.claripy_ast_from_ail_condition(cond_stmt.condition))
         cond_proc = ConditionProcessor(p.arch, am)
         ri = p.analyses.RegionIdentifier(f, graph=a.graph, cond_proc=cond_proc, kb=p.kb)
-        rs = p.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=p.kb, func=f)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=am, cond_proc=cond_proc, kb=p.kb, func=f)
         snodes = rs.result.nodes
         assert len(snodes) == 3
         assert isinstance(snodes[1], LoopNode)

@@ -73,28 +73,33 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
                 ):
                     expr0_operand = expr0.operands[0]
                     expr1_operand = expr1.operands[0]
+                    C: int | None = None
                     if (
                         isinstance(expr0_operand, BinaryOp)
                         and expr0_operand.op in {"Mull", "Mul"}
                         and expr0_operand.signed
                         and isinstance(expr0_operand.operands[1], Const)
+                        and isinstance(expr1_operand, BinaryOp)
                     ):
                         a0 = expr0_operand.operands[0]
                         a1 = expr1_operand.operands[0]
+                        C = expr0_operand.operands[1].value_int
                     elif (
                         isinstance(expr1_operand, BinaryOp)
                         and expr1_operand.op in {"Mull", "Mul"}
                         and expr1_operand.signed
                         and isinstance(expr1_operand.operands[1], Const)
+                        and isinstance(expr0_operand, BinaryOp)
                     ):
                         a0 = expr1_operand.operands[0]
                         a1 = expr0_operand.operands[0]
+                        C = expr1_operand.operands[1].value_int
                     else:
                         a0, a1 = None, None
 
-                    if a0 is not None and a1 is not None and a0.likes(a1):
+                    if a0 is not None and a1 is not None and a0.likes(a1) and C is not None:
                         # (a * x >> 0x3f) +/- (a * x >> 0x20)  ==>  a / N
-                        C = expr0_operand.operands[1].value
+                        assert isinstance(expr0_operand, BinaryOp)
                         X = a0
                         V = 32
                         ndigits = 5 if V == 32 else 6
@@ -149,6 +154,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             and expr1_op.op in {"Shr", "Sar"}
             and isinstance(expr1_op.operands[1], Const)
         ):
+            C: int | None = None
             if (
                 isinstance(expr0.operands[0], BinaryOp)
                 and expr0.operands[0].op in {"Mull", "Mul"}
@@ -156,13 +162,16 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             ):
                 a0 = expr0.operands[0].operands[0]
                 a1 = expr1_op.operands[0]
+                C = expr0.operands[0].operands[1].value_int
             elif (
                 isinstance(expr1_op.operands[0], BinaryOp)
                 and expr1_op.operands[0].op in {"Mull", "Mul"}
                 and isinstance(expr1_op.operands[0].operands[1], Const)
+                and isinstance(expr0.operands[0], BinaryOp)
             ):
-                a1 = expr0.operands[0].operands[0]
                 a0 = expr1_op.operands[0]
+                a1 = expr0.operands[0].operands[0]
+                C = expr1_op.operands[0].operands[1].value_int
             else:
                 a0, a1 = None, None
 
@@ -171,9 +180,9 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             if isinstance(a0, Convert) and a1 is not None and a0.from_bits == a1.bits:
                 a0 = a0.operand
 
-            if a0 is not None and a1 is not None and a0.likes(a1):
+            if a0 is not None and a1 is not None and a0.likes(a1) and C is not None:
                 # (a * x >> M1) +/- (a >> M2)  ==>  a / N
-                C = expr0.operands[0].operands[1].value
+                assert isinstance(expr0.operands[0], BinaryOp)
                 X = a0
                 V = expr0.operands[1].value
                 ndigits = 5 if V == 32 else 6
