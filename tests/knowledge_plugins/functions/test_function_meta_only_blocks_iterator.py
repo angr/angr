@@ -154,7 +154,7 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         for block_addr in list(meta.block_addrs):
             cn = cfg.model.get_any_node(block_addr)
             if cn is not None:
-                cfg._seg_list.occupy(cn.addr, cn.size, "unknown")
+                cfg._seg_list.occupy(int(cn.addr), int(cn.size), "unknown")
                 cfg.model.remove_node_and_graph_node(cn)
 
         # Post-condition: the CFG node has been removed and the bytes
