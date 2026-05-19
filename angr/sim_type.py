@@ -58,10 +58,10 @@ class SimType:
         self.qualifier = qualifier
 
     @staticmethod
-    def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
+    def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[int]] | None) -> bool:
         if self_type is other:
             return True
-        if avoid is not None and self_type in avoid["self"] and other in avoid["other"]:
+        if avoid is not None and id(self_type) in avoid["self"] and id(other) in avoid["other"]:
             return True
         return self_type.__eq__(other, avoid=avoid)  # pylint:disable=unnecessary-dunder-call
 
@@ -1828,7 +1828,7 @@ class SimStruct(NamedTypeMixin, SimType):
     def copy(self):
         return SimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
 
-    def __eq__(self, other, avoid: dict[str, set[SimType]] | None = None):
+    def __eq__(self, other, avoid: dict[str, set[int]] | None = None):
         if not isinstance(other, SimStruct):
             return False
         if not (
@@ -1847,14 +1847,14 @@ class SimStruct(NamedTypeMixin, SimType):
         if keys_self != keys_other:
             return False
         if avoid is None:
-            avoid = {"self": {self}, "other": {other}}
+            avoid = {"self": {id(self)}, "other": {id(other)}}
         for key in keys_self:
             field_self = self.fields[key]
             field_other = other.fields[key]
-            if field_self in avoid["self"] and field_other in avoid["other"]:
+            if id(field_self) in avoid["self"] and id(field_other) in avoid["other"]:
                 continue
-            avoid["self"].add(field_self)
-            avoid["other"].add(field_other)
+            avoid["self"].add(id(field_self))
+            avoid["other"].add(id(field_other))
             if not field_self.__eq__(field_other, avoid=avoid):
                 return False
         return True
