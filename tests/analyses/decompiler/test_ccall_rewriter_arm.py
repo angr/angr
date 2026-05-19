@@ -417,8 +417,8 @@ class TestARMCCallRewriterRenamedCCall(unittest.TestCase):
 
     def test_renamed_ccall_wrong_operand_count_not_rewritten(self):
         # A _ccall with != 4 operands should not be rewritten
-        cond_n_op = Expr.Const(None, None, _cond_n_op(ARMCondEQ, ARMG_CC_OP_SUB), 32)
-        dep1 = Expr.Register(None, None, 0, 32)
+        cond_n_op = Expr.Const(0, None, _cond_n_op(ARMCondEQ, ARMG_CC_OP_SUB), 32)
+        dep1 = Expr.Register(1, None, 0, 32)
         ccall = Expr.VEXCCallExpression(idx=0, callee="_ccall", operands=(cond_n_op, dep1), bits=32)
         result = _rewrite(ccall)
         assert result is None
