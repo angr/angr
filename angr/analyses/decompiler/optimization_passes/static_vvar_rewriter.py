@@ -22,6 +22,8 @@ _l = logging.getLogger(__name__)
 
 
 class FixedBuffer:
+    """A fixed-size buffer with known content."""
+
     def __init__(self, ident: str | None, size: int, content: bytes):
         self.ident = ident or "<unnamed>"
         self.size = size
@@ -32,6 +34,8 @@ class FixedBuffer:
 
 
 class FixedBufferPtr:
+    """A pointer to a fixed-size buffer."""
+
     def __init__(self, buffer_ident: str, offset: int = 0):
         self.buffer_ident = buffer_ident
         self.offset = offset
@@ -41,6 +45,8 @@ class FixedBufferPtr:
 
 
 class Offset:
+    """Describes an offset value."""
+
     def __init__(self, value: int, bits: int):
         self.value = value
         self.bits = bits
@@ -100,7 +106,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     return expr
                 data = buffer.content[v.offset : v.offset + expr.size]
                 value = int.from_bytes(data, byteorder="little" if expr.endness == "Iend_LE" else "big")
-                return Const(self.ai, None, value, expr.bits, **expr.tags)
+                return Const(self.manager.next_atom(), None, value, expr.bits, **expr.tags)
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 

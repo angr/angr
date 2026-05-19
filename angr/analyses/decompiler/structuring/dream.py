@@ -142,7 +142,7 @@ class DreamStructurer(StructurerBase):
                 continue
             self._structure_sequence(seq_)
 
-        seq = EmptyNodeRemover(seq).result
+        seq = EmptyNodeRemover(seq, self.ail_manager).result
 
         # unpack nodes and remove CodeNode wrappers
         seq = self._unpack_sequence(seq)
@@ -324,7 +324,7 @@ class DreamStructurer(StructurerBase):
 
         seq = self.remove_redundant_jumps(seq, self.ail_manager)
         seq = self._remove_conditional_jumps(seq)
-        seq = EmptyNodeRemover(seq).result
+        seq = EmptyNodeRemover(seq, self.ail_manager).result
 
         while True:
             r, seq = self._merge_conditional_breaks(seq)
@@ -335,7 +335,7 @@ class DreamStructurer(StructurerBase):
                 continue
             break
 
-        return EmptyNodeRemover(seq).result
+        return EmptyNodeRemover(seq, self.ail_manager).result
 
     def _make_sequence(self):
         seq = SequenceNode(None)
@@ -417,7 +417,7 @@ class DreamStructurer(StructurerBase):
         self._make_ites(seq)
         self.remove_redundant_jumps(seq, self.ail_manager)
 
-        empty_node_remover = EmptyNodeRemover(seq)
+        empty_node_remover = EmptyNodeRemover(seq, self.ail_manager)
         new_seq = empty_node_remover.result
         # update self._new_sequences
         self._update_new_sequences(set(empty_node_remover.removed_sequences), empty_node_remover.replaced_sequences)

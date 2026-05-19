@@ -7,7 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import unittest
 
 import angr
-from angr.ailment import Expr
+from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.arm_ccalls import ARMCCallRewriter
 from angr.engines.vex.claripy.ccall import (
     ARMCondAL,
@@ -34,13 +34,13 @@ from angr.engines.vex.claripy.ccall import (
 
 def _make_ccall(callee, cond_n_op_val, dep1=None, dep2=None, dep3=None, bits=32):
     """Helper to build a VEXCCallExpression for armg_calculate_condition."""
-    cond_n_op = Expr.Const(None, None, cond_n_op_val, 32)
+    cond_n_op = Expr.Const(0, None, cond_n_op_val, 32)
     if dep1 is None:
-        dep1 = Expr.Register(None, None, 0, 32)  # r0
+        dep1 = Expr.Register(1, None, 0, 32)  # r0
     if dep2 is None:
-        dep2 = Expr.Register(None, None, 4, 32)  # r1
+        dep2 = Expr.Register(2, None, 4, 32)  # r1
     if dep3 is None:
-        dep3 = Expr.Const(None, None, 0, 32)
+        dep3 = Expr.Const(3, None, 0, 32)
     return Expr.VEXCCallExpression(
         idx=0,
         callee=callee,
@@ -51,13 +51,13 @@ def _make_ccall(callee, cond_n_op_val, dep1=None, dep2=None, dep3=None, bits=32)
 
 def _make_flag_ccall(callee, cc_op_val, dep1=None, dep2=None, dep3=None, bits=32):
     """Helper to build a VEXCCallExpression for armg_calculate_flag_*."""
-    cc_op = Expr.Const(None, None, cc_op_val, 32)
+    cc_op = Expr.Const(0, None, cc_op_val, 32)
     if dep1 is None:
-        dep1 = Expr.Register(None, None, 0, 32)
+        dep1 = Expr.Register(1, None, 0, 32)
     if dep2 is None:
-        dep2 = Expr.Register(None, None, 4, 32)
+        dep2 = Expr.Register(2, None, 4, 32)
     if dep3 is None:
-        dep3 = Expr.Const(None, None, 0, 32)
+        dep3 = Expr.Const(3, None, 0, 32)
     return Expr.VEXCCallExpression(
         idx=0,
         callee=callee,
@@ -72,7 +72,7 @@ def _cond_n_op(cond, op):
 
 def _rewrite(ccall):
     p = angr.load_shellcode(b"\x00", arch="ARMEL")
-    rw = ARMCCallRewriter(ccall, p)
+    rw = ARMCCallRewriter(ccall, p, Manager())
     return rw.result
 
 

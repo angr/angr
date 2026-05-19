@@ -137,7 +137,7 @@ class RecursiveStructurer(Analysis):
         self.result = RedundantLabelRemover(self.result, jtc.jump_targets).result
 
         # remove empty nodes (if any)
-        self.result = EmptyNodeRemover(self.result).result
+        self.result = EmptyNodeRemover(self.result, self.ail_manager).result
 
         if self.structurer_cls is DreamStructurer:
             # remove conditional jumps

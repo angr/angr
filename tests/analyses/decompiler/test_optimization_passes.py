@@ -23,12 +23,12 @@ log = logging.getLogger(__name__)
 
 def c(v):
     """Simple AIL Const shorthand"""
-    return Const(None, None, v, 32)
+    return Const(0, None, v, 32)
 
 
 def r(o):
     """Simple AIL Register shorthand"""
-    return Register(None, None, o, 32)
+    return Register(0, None, o, 32)
 
 
 class TestFlipBooleanCmp(unittest.TestCase):
@@ -83,7 +83,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         func = None
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
         ri = proj.analyses.RegionIdentifier(func, graph=graph)
-        rs = proj.analyses.RecursiveStructurer(ri.region)
+        rs = proj.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
         seq = rs.result
 
         assert isinstance(seq, SequenceNode)
@@ -152,7 +152,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         func = None
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
         ri = proj.analyses.RegionIdentifier(func, graph=graph)
-        rs = proj.analyses.RecursiveStructurer(ri.region)
+        rs = proj.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
         seq = rs.result
 
         assert isinstance(seq, SequenceNode)
@@ -173,3 +173,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         log.debug("After:\n%s", post_transform_seq_repr)
 
         assert pre_transform_seq_repr == post_transform_seq_repr
+
+
+if __name__ == "__main__":
+    unittest.main()

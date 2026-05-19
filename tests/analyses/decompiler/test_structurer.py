@@ -11,6 +11,7 @@ import networkx
 
 import angr
 import angr.analyses.decompiler
+from angr.ailment import Manager
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.structuring import DreamStructurer
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
@@ -166,7 +167,7 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
         s = p.analyses.RegionSimplifier(main_func, rs.result)
@@ -189,7 +190,7 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
@@ -215,7 +216,7 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
@@ -240,7 +241,7 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
@@ -266,7 +267,7 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)

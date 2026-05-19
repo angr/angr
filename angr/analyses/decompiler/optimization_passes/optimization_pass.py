@@ -8,8 +8,7 @@ from enum import Enum
 
 import networkx
 
-import angr.ailment as ailment
-
+from angr import ailment
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
@@ -626,7 +625,6 @@ class StructuringOptimizationPass(OptimizationPass):
             )
         # pylint:disable=broad-except
         except Exception:
-            raise
             _l.warning("Internal structuring failed for OptimizationPass on %s", self._func.name)
             rs = None
 

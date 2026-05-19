@@ -224,9 +224,8 @@ class RegionSimplifier(Analysis):
         )
         return region
 
-    @staticmethod
-    def _remove_empty_nodes(region):
-        return EmptyNodeRemover(region, claripy_ast_conditions=False).result
+    def _remove_empty_nodes(self, region):
+        return EmptyNodeRemover(region, self.ail_manager, claripy_ast_conditions=False).result
 
     def _transform_to_cascading_ifs(self, region):
         CascadingConditionTransformer(region, self.ail_manager)
