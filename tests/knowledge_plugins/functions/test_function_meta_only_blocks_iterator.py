@@ -90,7 +90,8 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
             "must use block_addrs_set and look up sizes via the CFG model.",
         )
         self.assertEqual(
-            set(meta.block_addrs), set(),
+            set(meta.block_addrs),
+            set(),
             "Function.block_addrs (which reads _local_blocks.keys()) "
             "is also empty in meta-only mode -- callers must use "
             "block_addrs_set (which reads _local_block_addrs) instead.",
