@@ -45,7 +45,7 @@ class ReturnDeduplicator(OptimizationPass):
             graph_updated |= self._fix_if_ret_region(region_head, true_child, false_child, super_true, super_false)
 
         if graph_updated:
-            self.out_graph = update_labels(self._graph)
+            self.out_graph = update_labels(self._graph, self.manager)
 
     def _fix_if_ret_region(self, region_head, true_child, false_child, super_true, super_false):
         """

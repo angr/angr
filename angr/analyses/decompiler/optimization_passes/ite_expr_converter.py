@@ -199,7 +199,7 @@ class ITEExprConverter(OptimizationPass):
             return None
 
         new_expr = ITE(
-            None,
+            self.manager.next_atom(),
             cond,
             expr_1,
             expr_0,

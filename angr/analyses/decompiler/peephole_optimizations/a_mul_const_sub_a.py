@@ -26,7 +26,7 @@ class AMulConstSubA(PeepholeOptimizationExprBase):
                 return BinaryOp(
                     expr.idx,
                     "Mul",
-                    [a, Const(None, None, N - 1, expr.bits, **expr.operands[0].operands[1].tags)],
+                    [a, Const(self.manager.next_atom(), None, N - 1, expr.bits, **expr.operands[0].operands[1].tags)],
                     expr.signed,
                     **expr.tags,
                 )

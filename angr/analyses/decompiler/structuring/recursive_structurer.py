@@ -17,6 +17,7 @@ from .dream import DreamStructurer
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+    from angr.ailment.manager import Manager
 
 
 _l = logging.getLogger(__name__)
@@ -33,13 +34,16 @@ class RecursiveStructurer(Analysis):
         cond_proc=None,
         func: Function | None = None,
         structurer_cls: type | None = None,
+        *,
+        ail_manager: Manager,
         **kwargs,
     ):
         self._region = region
-        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.structurer_options = kwargs
+        self.ail_manager = ail_manager
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch, self.ail_manager)
 
         self.result: BaseNode | None = None
         self.result_incomplete: bool = False
@@ -91,6 +95,7 @@ class RecursiveStructurer(Analysis):
                     func=self.function,
                     parent_region=parent_region,
                     jump_tables=self.kb.cfgs["CFGFast"].jump_tables,
+                    ail_manager=self.ail_manager,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
@@ -125,7 +130,7 @@ class RecursiveStructurer(Analysis):
             StructurerBase._remove_all_jumps(self.result)
 
         else:
-            StructurerBase._remove_redundant_jumps(self.result)
+            StructurerBase.remove_redundant_jumps(self.result, self.ail_manager)
 
         # remove redundant labels
         jtc = JumpTargetCollector(self.result)

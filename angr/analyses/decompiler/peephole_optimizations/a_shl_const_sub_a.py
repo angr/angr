@@ -26,7 +26,10 @@ class AShlConstSubA(PeepholeOptimizationExprBase):
                 return BinaryOp(
                     expr.idx,
                     "Mul",
-                    [a, Const(None, None, 2**N - 1, expr.bits, **expr.operands[0].operands[1].tags)],
+                    [
+                        a,
+                        Const(self.manager.next_atom(), None, 2**N - 1, expr.bits, **expr.operands[0].operands[1].tags),
+                    ],
                     expr.signed,
                     **expr.tags,
                 )

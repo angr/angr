@@ -141,6 +141,40 @@ class ClinicStage(enum.IntEnum):
     COLLECT_EXTERNS = 15
 
 
+class ComboRegReferenceWalker(AILBlockRewriter):
+    """Rewrite references to combo registers to load from the combo register."""
+
+    def __init__(self, project, ail_manager):
+        super().__init__()
+        self.project = project
+        self._ail_manager = ail_manager
+        self.varid_to_combo_reg = {}
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        if expr.was_combo_reg:
+            for reg_vvar in expr.reg_vvars:
+                self.varid_to_combo_reg[reg_vvar.varid] = expr
+        elif expr.was_reg and expr.varid in self.varid_to_combo_reg:
+            combo_reg = self.varid_to_combo_reg[expr.varid]
+            offset = 0
+            for reg_vvar in combo_reg.reg_vvars:
+                if reg_vvar.reg_offset == expr.reg_offset:
+                    break
+                offset += reg_vvar.size
+            addr = ailment.Expr.UnaryOp(self._ail_manager.next_atom(), "Reference", combo_reg)
+            if offset != 0:
+                addr += ailment.Expr.Const(self._ail_manager.next_atom(), None, offset, self.project.arch.bits)
+            return ailment.Expr.Load(
+                self._ail_manager.next_atom(),
+                addr,
+                expr.size,
+                self.project.arch.memory_endness,
+            )
+        return expr
+
+
 class Clinic(Analysis):
     """
     A Clinic deals with AILments.
@@ -621,39 +655,7 @@ class Clinic(Analysis):
         Fix references to combo registers to load from the combo register.
         """
 
-        class ComboRegReferenceWalker(AILBlockRewriter):
-            """Rewrite references to combo registers to load from the combo register."""
-
-            def __init__(self, project):
-                super().__init__()
-                self.project = project
-                self.varid_to_combo_reg = {}
-
-            def _handle_VirtualVariable(
-                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
-            ):
-                if expr.was_combo_reg:
-                    for reg_vvar in expr.reg_vvars:
-                        self.varid_to_combo_reg[reg_vvar.varid] = expr
-                elif expr.was_reg and expr.varid in self.varid_to_combo_reg:
-                    combo_reg = self.varid_to_combo_reg[expr.varid]
-                    offset = 0
-                    for reg_vvar in combo_reg.reg_vvars:
-                        if reg_vvar.reg_offset == expr.reg_offset:
-                            break
-                        offset += reg_vvar.size
-                    addr = ailment.Expr.UnaryOp(None, "Reference", combo_reg)
-                    if offset != 0:
-                        addr += ailment.Expr.Const(None, None, offset, self.project.arch.bits)
-                    return ailment.Expr.Load(
-                        None,
-                        addr,
-                        expr.size,
-                        self.project.arch.memory_endness,
-                    )
-                return expr
-
-        walker = ComboRegReferenceWalker(self.project)
+        walker = ComboRegReferenceWalker(self.project, self._ail_manager)
         for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
             walker.walk(block)
         return ail_graph
@@ -1230,7 +1232,7 @@ class Clinic(Analysis):
                             ):
                                 reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
                                 last_stmt.ret_expr = ailment.Expr.Register(
-                                    None,
+                                    self._ail_manager.next_atom(),
                                     None,
                                     reg_offset,
                                     reg_size * 8,
@@ -1423,7 +1425,7 @@ class Clinic(Analysis):
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
                         new_last_stmt.expr.target = ailment.Expr.Const(
-                            None, None, successors[0].addr, last_stmt.expr.target.bits
+                            self._ail_manager.next_atom(), None, successors[0].addr, last_stmt.expr.target.bits
                         )
                         block.statements[-1] = new_last_stmt
 
@@ -1440,7 +1442,9 @@ class Clinic(Analysis):
                     # found a single successor - replace the last statement
                     new_last_stmt = last_stmt.copy()
                     assert isinstance(successors[0].addr, int)
-                    new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
+                    new_last_stmt.target = ailment.Expr.Const(
+                        self._ail_manager.next_atom(), None, successors[0].addr, last_stmt.target.bits
+                    )
                     block.statements[-1] = new_last_stmt
 
         return ail_graph
@@ -1486,9 +1490,9 @@ class Clinic(Analysis):
                     ret_expr = None
 
                 call_stmt = ailment.Stmt.SideEffectStatement(
-                    None,
+                    self._ail_manager.next_atom(),
                     ailment.Expr.Call(
-                        None,
+                        self._ail_manager.next_atom(),
                         target.copy(),
                         calling_convention=None,  # target_func.calling_convention,
                         prototype=None,  # target_func.prototype,
@@ -1507,7 +1511,7 @@ class Clinic(Analysis):
                     target.value = call_block.addr
 
                 if target_func.returning:
-                    ret_stmt = ailment.Stmt.Return(None, [], **last_stmt.tags)
+                    ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **last_stmt.tags)
                     ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
                     ail_graph.add_edge(call_block, ret_block, type="fake_return")
 
@@ -1543,9 +1547,9 @@ class Clinic(Analysis):
                 IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
                 call_tags = {**last_stmt.tags, "is_prototype_guessed": False}
                 call_stmt = ailment.Stmt.SideEffectStatement(
-                    None,
+                    self._ail_manager.next_atom(),
                     ailment.Expr.Call(
-                        None,
+                        self._ail_manager.next_atom(),
                         last_stmt.expr.target.copy(),
                         calling_convention=SimCCUsercall(self.project.arch, [arg], []),
                         prototype=SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(
@@ -2008,6 +2012,7 @@ class Clinic(Analysis):
         dephication = self.project.analyses.GraphDephicationVVarMapping(
             self.function,
             ail_graph,
+            self._ail_manager,
             fail_fast=self._fail_fast,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             vvar_id_start=self.vvar_id_start,
@@ -2848,8 +2853,12 @@ class Clinic(Analysis):
         cond_jump_stmt = ailment.Stmt.ConditionalJump(
             ite_expr_stmt.idx,
             ite_expr.cond,
-            ailment.Expr.Const(None, None, true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags),
-            ailment.Expr.Const(None, None, false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags),
+            ailment.Expr.Const(
+                self._ail_manager.next_atom(), None, true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
+            ),
+            ailment.Expr.Const(
+                self._ail_manager.next_atom(), None, false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
+            ),
             **ite_expr_stmt.tags,
         )
         new_head_ail.statements.append(cond_jump_stmt)
@@ -3252,8 +3261,10 @@ class Clinic(Analysis):
             if new_head is None:
                 # the head is removed - let's replace it with a jump to the target
                 jump_stmt = ailment.Stmt.Jump(
-                    None,
-                    ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
+                    self._ail_manager.next_atom(),
+                    ailment.Expr.Const(
+                        self._ail_manager.next_atom(), None, intended_head_1.addr, self.project.arch.bits
+                    ),
                     target_idx=intended_head_1.idx,
                     ins_addr=o.addr,
                 )
@@ -3267,7 +3278,9 @@ class Clinic(Analysis):
                     # update the jump target
                     new_head.statements[-1] = ailment.Stmt.Jump(
                         new_head.statements[-1].idx,
-                        ailment.Expr.Const(None, None, intended_head_1.addr, self.project.arch.bits),
+                        ailment.Expr.Const(
+                            self._ail_manager.next_atom(), None, intended_head_1.addr, self.project.arch.bits
+                        ),
                         target_idx=intended_head_1.idx,
                         **new_head.statements[-1].tags,
                     )
@@ -3396,11 +3409,12 @@ class Clinic(Analysis):
             new_block.statements[-1].true_target = patched_block.statements[-1].true_target
             new_block.statements[-1].false_target = patched_block.statements[-1].false_target
 
-    @staticmethod
-    def _insert_block_labels(ail_graph):
+    def _insert_block_labels(self, ail_graph):
         for node in ail_graph.nodes:
             node: ailment.Block
-            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
+            lbl = ailment.Stmt.Label(
+                self._ail_manager.next_atom(), f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx
+            )
             node.statements.insert(0, lbl)
 
     @staticmethod
@@ -3792,10 +3806,15 @@ class Clinic(Analysis):
                         assert self.project.arch.sp_offset is not None
                         alloca_node = node
                         sp_equal_to = ailment.Expr.BinaryOp(
-                            None,
+                            self._ail_manager.next_atom(),
                             "Sub",
                             [
-                                ailment.Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits),
+                                ailment.Expr.Register(
+                                    self._ail_manager.next_atom(),
+                                    None,
+                                    self.project.arch.sp_offset,
+                                    self.project.arch.bits,
+                                ),
                                 last_stmt.condition.operands[1],
                             ],
                             False,

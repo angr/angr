@@ -19,8 +19,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             return self._optimize_Convert(expr)
         return None
 
-    @staticmethod
-    def _optimize_BinaryOp(expr: BinaryOp):
+    def _optimize_BinaryOp(self, expr: BinaryOp):
         # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):  # noqa: SIM102
             # check: is the lhs convert an up-cast and is rhs a const?
@@ -31,7 +30,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or expr.operands[1].value >= (
                         1 << to_bits
                     ) - (1 << (from_bits - 1)):
-                        con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
+                        con = Const(
+                            self.manager.next_atom(), None, expr.operands[1].value, from_bits, **expr.operands[1].tags
+                        )
                         new_expr = BinaryOp(
                             expr.idx, "And", (expr.operands[0].operand, con), expr.signed, bits=from_bits, **expr.tags
                         )
@@ -59,7 +60,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or (
                         expr.operands[0].is_signed and expr.operands[1].value >= (1 << to_bits) - (1 << (from_bits - 1))
                     ):
-                        con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
+                        con = Const(
+                            self.manager.next_atom(), None, expr.operands[1].value, from_bits, **expr.operands[1].tags
+                        )
                         return BinaryOp(
                             expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=1, **expr.tags
                         )

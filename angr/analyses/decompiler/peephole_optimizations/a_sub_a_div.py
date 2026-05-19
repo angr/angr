@@ -17,9 +17,19 @@ class ASubADiv(PeepholeOptimizationExprBase):
                 a = expr0
                 if expr1.operands[0].likes(a):
                     N = expr1.operands[1].value
-                    mul = BinaryOp(expr.idx, "Mul", [a, Const(None, None, N - 1, expr.bits)], False, **expr.tags)
+                    mul = BinaryOp(
+                        expr.idx,
+                        "Mul",
+                        [a, Const(self.manager.next_atom(), None, N - 1, expr.bits)],
+                        False,
+                        **expr.tags,
+                    )
                     return BinaryOp(
-                        expr1.idx, "Div", [mul, Const(None, None, N, expr.bits, **expr1.tags)], False, **expr1.tags
+                        expr1.idx,
+                        "Div",
+                        [mul, Const(self.manager.next_atom(), None, N, expr.bits, **expr1.tags)],
+                        False,
+                        **expr1.tags,
                     )
 
         return None

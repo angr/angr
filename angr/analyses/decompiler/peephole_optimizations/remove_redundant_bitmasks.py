@@ -47,7 +47,14 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
         ):
             # Insert(v0 & mask, offset, v1) where mask/offset guarantee
             # that the only bits we get from v0 will just be replaced with v1
-            return Insert(expr.idx, Const(None, None, 0, expr.bits), expr.offset, expr.value, expr.endness, **expr.tags)
+            return Insert(
+                expr.idx,
+                Const(self.manager.next_atom(), None, 0, expr.bits),
+                expr.offset,
+                expr.value,
+                expr.endness,
+                **expr.tags,
+            )
         return None
 
     def _optimize_Extract(self, expr: Extract):

@@ -484,7 +484,9 @@ class AILSimplifier(Analysis):
 
         # let's narrow them (finally)
 
-        narrower = ExpressionNarrower(self.project, rd, narrowables, addr_and_idx_to_block, self.blocks)
+        narrower = ExpressionNarrower(
+            self.project, rd, self._ail_manager, narrowables, addr_and_idx_to_block, self.blocks
+        )
         for old_block in addr_and_idx_to_block.values():
             new_block = self.blocks.get(old_block, old_block)
             new_block = narrower.walk(new_block)
@@ -1024,7 +1026,7 @@ class AILSimplifier(Analysis):
                     continue
                 if use_loc not in replacements[key]:
                     replacements[key][use_loc] = {}
-                replacements[key][use_loc][expr] = Const(None, None, value, bits, **expr.tags)
+                replacements[key][use_loc][expr] = Const(self._ail_manager.next_atom(), None, value, bits, **expr.tags)
 
         return self._replace_exprs_in_blocks(replacements) if replacements else False
 
@@ -1272,10 +1274,15 @@ class AILSimplifier(Analysis):
                         )
                 elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
                     # create the memory loading expression
-                    new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
+                    new_idx = None if self._ail_manager is None else self._ail_manager.next_atom()
                     replace_with = Load(
                         new_idx,
-                        Const(None, None, eq.atom0.addr, self.project.arch.bits),
+                        Const(
+                            self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                            None,
+                            eq.atom0.addr,
+                            self.project.arch.bits,
+                        ),
                         eq.atom0.size,
                         endness=self.project.arch.memory_endness,
                         **eq.atom1.tags,
@@ -1694,7 +1701,13 @@ class AILSimplifier(Analysis):
                         dst.bits = dst_bits
 
                     if src.bits != dst.bits and not eq.is_weakassignment:
-                        dst = Convert(None, dst.bits, src.bits, False, dst)
+                        dst = Convert(
+                            self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                            dst.bits,
+                            src.bits,
+                            False,
+                            dst,
+                        )
                 else:
                     continue
 
@@ -2150,7 +2163,7 @@ class AILSimplifier(Analysis):
             expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ) -> Expression:
             r_expr = AILBlockRewriter._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
-            rewriter = rewriter_cls(r_expr, self.project, rename_ccalls=self._should_rename_ccalls)
+            rewriter = rewriter_cls(r_expr, self.project, self._ail_manager, rename_ccalls=self._should_rename_ccalls)
             if rewriter.result is not None:
                 _any_update.v = True
                 return rewriter.result

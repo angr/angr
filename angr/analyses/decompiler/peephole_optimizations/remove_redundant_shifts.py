@@ -26,7 +26,7 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                 if n0 == n1:
                     inner_expr = expr_a.operands[0]
                     conv_inner_expr = Convert(
-                        None,
+                        self.manager.next_atom(),
                         expr_a.bits,
                         expr_a.bits - n0,
                         expr.op == "Sar",  # is_signed
@@ -34,7 +34,7 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                         **expr.tags,
                     )
                     return Convert(
-                        None,
+                        self.manager.next_atom(),
                         expr_a.bits - n0,
                         expr.bits,
                         False,

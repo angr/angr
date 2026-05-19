@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+from typing import TYPE_CHECKING
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
 from angr.ailment.expression import Call, Const, VirtualVariable, Load
@@ -8,6 +9,9 @@ from angr.ailment.statement import SideEffectStatement
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 _l = logging.getLogger(__name__)
 
@@ -55,11 +59,18 @@ class VVarRewritingVisitor(AILBlockRewriter):
     The visitor that rewrites vvars and their reads.
     """
 
-    def __init__(self, static_buffers: dict[str, FixedBuffer], static_vvars: dict[int, FixedBufferPtr | Const], kb):
+    def __init__(
+        self,
+        static_buffers: dict[str, FixedBuffer],
+        static_vvars: dict[int, FixedBufferPtr | Const],
+        kb,
+        manager: Manager,
+    ):
         super().__init__(update_block=False)
         self._static_buffers = static_buffers
         self._static_vvars = static_vvars
         self.kb = kb
+        self.manager = manager
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
@@ -89,7 +100,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     return expr
                 data = buffer.content[v.offset : v.offset + expr.size]
                 value = int.from_bytes(data, byteorder="little" if expr.endness == "Iend_LE" else "big")
-                return Const(None, None, value, expr.bits, **expr.tags)
+                return Const(self.ai, None, value, expr.bits, **expr.tags)
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -112,7 +123,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                         and data[str_len * word_size : str_len * word_size + word_size] != b"\x00" * word_size
                     ):
                         str_len += 1
-                    return Const(None, None, str_len, expr.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), None, str_len, expr.bits, **expr.tags)
 
         elif expr.args and expr.prototype is not None:
             new_args: list | None = None
@@ -137,7 +148,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                                 idx += 1
                             str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
                             str_id_arg = Const(
-                                None,
+                                self.manager.next_atom(),
                                 None,
                                 str_id,
                                 arg.bits,
@@ -163,7 +174,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                                 idx += 2
                             str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
                             str_id_arg = Const(
-                                None,
+                                self.manager.next_atom(),
                                 None,
                                 str_id,
                                 arg.bits,
@@ -310,7 +321,7 @@ class StaticVVarRewriter(OptimizationPass):
 
         rewritten = False
         while True:
-            rewriter = VVarRewritingVisitor(self._static_buffers, self._static_vvars, self.kb)
+            rewriter = VVarRewritingVisitor(self._static_buffers, self._static_vvars, self.kb, self.manager)
             for block in list(g):
                 new_block = rewriter.walk(block)
                 if new_block is not None:

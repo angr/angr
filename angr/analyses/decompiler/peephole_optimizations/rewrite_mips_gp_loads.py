@@ -44,6 +44,6 @@ class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
             else:
                 addr &= 0xFFFF_FFFF_FFFF_FFFF
             value = self.project.loader.memory.unpack_word(addr, size=expr.size)
-            return Const(None, None, value, expr.size * self.project.arch.byte_width, **expr.tags)
+            return Const(self.manager.next_atom(), None, value, expr.size * self.project.arch.byte_width, **expr.tags)
 
         return None

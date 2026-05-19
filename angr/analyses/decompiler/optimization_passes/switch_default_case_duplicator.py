@@ -89,8 +89,10 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                     # cmov). we may need to traverse down to find the actual node that jumps to the default case
                     switch_head_node = self._get_block(switch_head_addr)
                     goto_stmt = Jump(
-                        None,
-                        Const(None, None, default_addr, self.project.arch.bits, ins_addr=default_addr),
+                        self.manager.next_atom(),
+                        Const(
+                            self.manager.next_atom(), None, default_addr, self.project.arch.bits, ins_addr=default_addr
+                        ),
                         target_idx=None,  # I'm assuming the ID of the default node is None here
                         ins_addr=default_addr,
                     )

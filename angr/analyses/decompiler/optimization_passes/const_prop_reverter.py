@@ -308,7 +308,7 @@ class ConstPropOptReverter(OptimizationPass):
                 const_block = expr_to_blk[const_expr]
 
                 # rax = foo();
-                reg_assign = Assignment(None, symb_expr, const_expr, **const_expr.tags)
+                reg_assign = Assignment(self.manager.next_atom(), symb_expr, const_expr, **const_expr.tags)
 
                 # construct new constant block
                 new_const_block = const_block.copy()

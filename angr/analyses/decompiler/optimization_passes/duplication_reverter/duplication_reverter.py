@@ -395,14 +395,18 @@ class DuplicationReverter(StructuringOptimizationPass):
                     if last_stmt.target.value != successor.addr:
                         new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
                         last_stmt.target_idx = successor.idx
-                        new_last_stmt.target = Const(None, None, successor.addr, self.project.arch.bits)
+                        new_last_stmt.target = Const(
+                            self.manager.next_atom(), None, successor.addr, self.project.arch.bits
+                        )
                         new_node = node.copy()
                         new_node.statements[-1] = new_last_stmt
                 # the last statement is not a jump, but this node should have one, so add it
                 else:
                     new_node = node.copy()
                     new_last_stmt = Jump(
-                        None, Const(None, None, successor.addr, self.project.arch.bits), target_idx=successor.idx
+                        self.manager.next_atom(),
+                        Const(self.manager.next_atom(), None, successor.addr, self.project.arch.bits),
+                        target_idx=successor.idx,
                     )
                     # TODO: improve addressing here
                     new_last_stmt.tags["ins_addr"] = new_node.addr + 1
@@ -465,8 +469,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         cond_jump = ConditionalJump(
             1,
             best_condition.copy() if best_condition is not None else None,
-            Const(None, None, 0, self.project.arch.bits),
-            Const(None, None, 0, self.project.arch.bits),
+            Const(self.manager.next_atom(), None, 0, self.project.arch.bits),
+            Const(self.manager.next_atom(), None, 0, self.project.arch.bits),
             **old_stmt_tags,
         )
         cond_block.statements = [cond_jump]

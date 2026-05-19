@@ -49,6 +49,6 @@ class RemoveRedundantITEComparisons(PeepholeOptimizationExprBase):
 
                 if not negate:
                     return inner_expr.cond
-                return UnaryOp(None, "Not", inner_expr.cond, **expr.tags)
+                return UnaryOp(self.manager.next_atom(), "Not", inner_expr.cond, **expr.tags)
 
         return None

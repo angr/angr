@@ -56,7 +56,9 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
                     ):
                         # fully matched!
                         if inner_bits != inner_expr.bits:
-                            converted_innerexpr = Convert(None, inner_expr.bits, inner_bits, False, inner_expr)
+                            converted_innerexpr = Convert(
+                                self.manager.next_atom(), inner_expr.bits, inner_bits, False, inner_expr
+                            )
                         else:
                             converted_innerexpr = inner_expr
                         r = BinaryOp(
@@ -64,7 +66,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
                             "Div",
                             [
                                 converted_innerexpr,
-                                Const(None, None, 2**const_value, converted_innerexpr.bits),
+                                Const(self.manager.next_atom(), None, 2**const_value, converted_innerexpr.bits),
                             ],
                             True,
                             **inner_expr.tags,

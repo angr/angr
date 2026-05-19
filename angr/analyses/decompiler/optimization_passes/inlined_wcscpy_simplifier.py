@@ -141,8 +141,15 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 "wcsncpy",
                 args=[
                     dst,
-                    Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
-                    Const(None, None, len(s) // 2, self.project.arch.bits),
+                    Const(
+                        self.manager.next_atom(),
+                        None,
+                        str_id,
+                        self.project.arch.bits,
+                        custom_string=True,
+                        type=wstr_type,
+                    ),
+                    Const(self.manager.next_atom(), None, len(s) // 2, self.project.arch.bits),
                 ],
                 prototype=SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
                     self.project.arch
@@ -366,15 +373,29 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
                     args = [
                         last_stmt.expr.args[0],
-                        Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True, type=wstr_type),
+                        Const(
+                            self.manager.next_atom(),
+                            None,
+                            new_str_idx,
+                            last_stmt.expr.args[0].bits,
+                            custom_string=True,
+                            type=wstr_type,
+                        ),
                     ]
                 else:
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
                     args = [
                         last_stmt.expr.args[0],
-                        Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True, type=wstr_type),
-                        Const(None, None, len(new_str) // 2, self.project.arch.bits),
+                        Const(
+                            self.manager.next_atom(),
+                            None,
+                            new_str_idx,
+                            last_stmt.expr.args[0].bits,
+                            custom_string=True,
+                            type=wstr_type,
+                        ),
+                        Const(self.manager.next_atom(), None, len(new_str) // 2, self.project.arch.bits),
                     ]
 
                 tags = TagDict(stmt.tags)

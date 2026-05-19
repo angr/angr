@@ -9,6 +9,7 @@ import networkx
 import claripy
 
 from angr import ailment
+from angr.ailment.manager import Manager
 from angr.analyses import Analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
@@ -64,6 +65,7 @@ class StructurerBase(Analysis):
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
         jump_tables: dict[int, IndirectJump] | None = None,
+        ail_manager: Manager | None = None,
         **kwargs,
     ):
         self._region: GraphRegion = region
@@ -72,9 +74,12 @@ class StructurerBase(Analysis):
         self._case_entry_to_switch_head = case_entry_to_switch_head
         self._parent_region = parent_region
         self.jump_tables = jump_tables or {}
+        self.ail_manager = ail_manager if ail_manager is not None else Manager()
 
         self.cond_proc = (
-            condition_processor if condition_processor is not None else ConditionProcessor(self.project.arch)
+            condition_processor
+            if condition_processor is not None
+            else ConditionProcessor(self.project.arch, self.ail_manager)
         )
 
         # intermediate states
@@ -196,8 +201,8 @@ class StructurerBase(Analysis):
                     # the last node is a condition node and only has one branch - we need a goto statement to ensure it
                     # does not fall through to the next branch
                     goto_stmt = ailment.Stmt.Jump(
-                        None,
-                        ailment.Expr.Const(None, None, switch_end_addr, self.project.arch.bits),
+                        self.ail_manager.next_atom(),
+                        ailment.Expr.Const(self.ail_manager.next_atom(), None, switch_end_addr, self.project.arch.bits),
                         target_idx=None,
                         ins_addr=cond_node.addr,
                     )
@@ -277,11 +282,12 @@ class StructurerBase(Analysis):
         return seq
 
     @staticmethod
-    def _remove_redundant_jumps(seq):
+    def remove_redundant_jumps(seq, ail_manager: Manager):
         """
         Remove all redundant jumps.
 
         :param SequenceNode seq:    The SequenceNode instance to handle.
+        :param Manager ail_manager: The AIL manager to create new atoms if needed.
         :return:                    A processed SequenceNode.
         """
 
@@ -327,7 +333,7 @@ class StructurerBase(Analysis):
                             # remove the true target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
-                                ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
+                                ailment.Expr.UnaryOp(ail_manager.next_atom(), "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
                                 true_target_idx=jump_stmt.false_target_idx,
@@ -391,7 +397,7 @@ class StructurerBase(Analysis):
                             # remove the true target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
-                                ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
+                                ailment.Expr.UnaryOp(ail_manager.next_atom(), "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
                                 true_target_idx=jump_stmt.false_target_idx,
@@ -985,8 +991,7 @@ class StructurerBase(Analysis):
             stmts = node.statements[::]
         return ailment.Block(node.addr, node.original_size, statements=stmts, idx=node.idx)
 
-    @staticmethod
-    def _merge_nodes(node_0, node_1):
+    def _merge_nodes(self, node_0, node_1):
         addr = node_0.addr if node_0.addr is not None else node_1.addr
 
         # fix the last block of node_0 and remove useless goto statements
@@ -1004,7 +1009,7 @@ class StructurerBase(Analysis):
                 if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == node_1.addr:
                     new_stmt = ailment.Stmt.ConditionalJump(
                         last_stmt.idx,
-                        ailment.Expr.UnaryOp(None, "Not", last_stmt.condition),
+                        ailment.Expr.UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition),
                         last_stmt.false_target,
                         None,
                         true_target_idx=last_stmt.false_target_idx,

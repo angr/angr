@@ -183,7 +183,7 @@ class CallSiteMaker(Analysis):
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
                         vvar_use = Expr.VirtualVariable(
-                            None,
+                            self._ail_manager.next_atom(),
                             vvar_def.varid,
                             vvar_def.bits,
                             vvar_def.category,

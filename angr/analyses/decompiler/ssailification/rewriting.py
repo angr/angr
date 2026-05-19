@@ -24,6 +24,7 @@ from .rewriting_state import RewritingState
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
     from angr.project import Project
+    from angr.ailment import Manager
 
 l = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -44,7 +45,7 @@ class RewritingAnalysis:
         phiid_to_udef: dict[int, UDef],
         block_to_phiids: dict[Block, list[int]],
         rewrite_tmps: bool,
-        ail_manager,
+        ail_manager: Manager,
         func_args: set[VirtualVariable],
         def_to_udef: MutableMapping[Def, UDef],
         extern_defs: set[UDef],
@@ -174,7 +175,7 @@ class RewritingAnalysis:
                     raise NotImplementedError
 
             phi_stmt = Assignment(
-                None,
+                self._ail_manager.next_atom(),
                 phi_dst,
                 phi_var,
                 ins_addr=node.addr,

@@ -100,7 +100,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
                         ndigits = 5 if V == 32 else 6
                         divisor = self._check_divisor(pow(2, V), C, ndigits)
                         if divisor is not None:
-                            new_const = Const(None, None, divisor, X.bits)
+                            new_const = Const(self.manager.next_atom(), None, divisor, X.bits)
                             r = BinaryOp(
                                 expr0_operand.idx,
                                 "Div",
@@ -179,7 +179,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
                 ndigits = 5 if V == 32 else 6
                 divisor = self._check_divisor(pow(2, V), C, ndigits)
                 if divisor is not None:
-                    new_const = Const(None, None, divisor, X.bits)
+                    new_const = Const(self.manager.next_atom(), None, divisor, X.bits)
                     # we cannot drop the convert in this case
                     return BinaryOp(
                         expr0.operands[0].idx,
@@ -191,8 +191,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
         return None
 
-    @staticmethod
-    def _match_case_b(expr: BinaryOp) -> BinaryOp | Convert | None:
+    def _match_case_b(self, expr: BinaryOp) -> BinaryOp | Convert | None:
         """
         A more complex (but general) case for unsigned 32-bit division by a constant integer.
 
@@ -287,7 +286,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
         divisor = math.ceil((2 ** (32 + p)) / (m + 0x1_0000_0000))
         if divisor == 0:
             return None
-        divisor_expr = Const(None, None, divisor, n.bits)
+        divisor_expr = Const(self.manager.next_atom(), None, divisor, n.bits)
         div = BinaryOp(expr.idx, "Div", [n, divisor_expr], signed=False, **expr.tags)
         if expr.bits != div.bits:
             div = Convert(expr.idx, div.bits, expr.bits, False, div, **expr.tags)
@@ -310,7 +309,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
                 ndigits = 5 if V == 32 else 6
                 divisor = self._check_divisor(pow(2, V), C, ndigits)
                 if divisor is not None:
-                    new_const = Const(None, None, divisor, X.bits)
+                    new_const = Const(self.manager.next_atom(), None, divisor, X.bits)
                     return BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
         return None
 

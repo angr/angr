@@ -137,8 +137,8 @@ class InlinedStrcpySimplifier(OptimizationPass):
                         calling_convention=None,
                         args=[
                             strcpy_dst,
-                            Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                            Const(None, None, len(s), self.project.arch.bits),
+                            Const(self.manager.next_atom(), None, str_id, self.project.arch.bits, custom_string=True),
+                            Const(self.manager.next_atom(), None, len(s), self.project.arch.bits),
                         ],
                         prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
                         bits=None,
@@ -194,8 +194,10 @@ class InlinedStrcpySimplifier(OptimizationPass):
                             calling_convention=None,
                             args=[
                                 strcpy_dst,
-                                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                                Const(None, None, len(s), self.project.arch.bits),
+                                Const(
+                                    self.manager.next_atom(), None, str_id, self.project.arch.bits, custom_string=True
+                                ),
+                                Const(self.manager.next_atom(), None, len(s), self.project.arch.bits),
                             ],
                             prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
                             bits=None,
@@ -261,7 +263,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
                 args = [
                     last_stmt.expr.args[0],
-                    Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
+                    Const(self.manager.next_atom(), None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
                 ]
                 prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strcpy")
             else:
@@ -269,8 +271,8 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 new_str_idx = self.kb.custom_strings.allocate(new_str)
                 args = [
                     last_stmt.expr.args[0],
-                    Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
-                    Const(None, None, len(new_str), self.project.arch.bits),
+                    Const(self.manager.next_atom(), None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
+                    Const(self.manager.next_atom(), None, len(new_str), self.project.arch.bits),
                 ]
                 prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
 
