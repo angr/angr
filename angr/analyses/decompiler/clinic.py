@@ -165,7 +165,13 @@ class ComboRegReferenceWalker(AILBlockRewriter):
                 offset += reg_vvar.size
             addr = ailment.Expr.UnaryOp(self._ail_manager.next_atom(), "Reference", combo_reg)
             if offset != 0:
-                addr += ailment.Expr.Const(self._ail_manager.next_atom(), None, offset, self.project.arch.bits)
+                offset_expr = ailment.Expr.Const(self._ail_manager.next_atom(), None, offset, self.project.arch.bits)
+                addr = ailment.Expr.BinaryOp(
+                    self._ail_manager.next_atom(),
+                    "Add",
+                    (addr, offset_expr),
+                    bits=addr.bits,
+                )
             return ailment.Expr.Load(
                 self._ail_manager.next_atom(),
                 addr,
