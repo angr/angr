@@ -1,17 +1,18 @@
 # pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports,import-outside-toplevel
 from __future__ import annotations
 import contextlib
-import pathlib
 import copy
-from types import FunctionType
-from typing import Any, TYPE_CHECKING
-from collections.abc import Iterable
 import logging
+import pathlib
+from collections.abc import Iterable
+from types import FunctionType
+from typing import Any, cast
 
 import networkx
 
 import angr
 from angr import ailment
+from angr.ailment import Address
 from angr.ailment.block import Block
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
 from angr.analyses.decompiler.peephole_optimizations.base import (
@@ -21,8 +22,6 @@ from angr.analyses.decompiler.peephole_optimizations.base import (
 from angr.utils.ail import is_phi_assignment
 from .seq_to_blocks import SequenceToBlocks
 
-if TYPE_CHECKING:
-    from angr.ailment import Address
 
 pdb = __import__("pdb")
 with contextlib.suppress(ImportError):
@@ -1157,21 +1156,18 @@ def calls_in_graph(graph: networkx.DiGraph, consider_conditions: bool = False) -
     return counter.calls
 
 
-def call_stmts_in_graph(
+def call_exprs_in_graph(
     graph: networkx.DiGraph, consider_conditions: bool = False
-) -> tuple[
-    list[tuple[tuple[Address, int], ailment.Stmt.SideEffectStatement]],
-    list[tuple[tuple[Address, int], ailment.Expr.Call]],
-]:
+) -> list[tuple[tuple[Address, int], ailment.expression.Call]]:
     """
-    Return lists of call statements and call expressions in a given AIL graph.
+    Return a list of all call expressions in a given AIL graph.
     """
     counter = AILBlockCallCounter(consider_conditions=consider_conditions)
     for node in graph.nodes:
         counter.walk(node)
     # the above has an interface which includes nullable addresses because block can be none
     # but we always specify block here so we can ignore the Nones
-    return counter.call_stmts, counter.call_exprs  # type: ignore
+    return cast(list[tuple[tuple[Address, int], ailment.expression.Call]], counter.call_exprs)
 
 
 def has_addr_dups(graph: networkx.DiGraph[Block]) -> bool:
