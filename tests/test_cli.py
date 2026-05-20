@@ -228,8 +228,6 @@ class TestCommandLineInterface(unittest.TestCase):
 
     def test_decompile_rust(self):
         bin_path = os.path.join(test_location, "x86_64", "rust", "FakeCrypt-stripped")
-        if not os.path.isfile(bin_path):
-            self.skipTest(f"{bin_path} not found")
         output = run_cli("decompile", bin_path, "--functions", "0x455300", "--rust", "--no-colors")
 
         assert "fn sub_455300(" in output, "expected a Rust `fn` header for sub_455300"
