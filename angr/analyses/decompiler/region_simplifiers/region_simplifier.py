@@ -221,6 +221,7 @@ class RegionSimplifier(Analysis):
             region,
             {var: v for var, v in finder.var2condnodes.items() if var not in finder.var2switches},
             self.kb.functions,
+            self.ail_manager,
         )
         return region
 
