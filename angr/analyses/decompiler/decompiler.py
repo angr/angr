@@ -369,7 +369,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph = (
             clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
         )
-        cond_proc = ConditionProcessor(self.project.arch)
+        cond_proc = ConditionProcessor(self.project.arch, clinic._ail_manager)
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,
@@ -418,6 +418,7 @@ class Decompiler(Analysis):
                 self.region_identifier.region,
                 cond_proc=cond_proc,
                 func=self.func,
+                ail_manager=clinic._ail_manager,
                 **self._recursive_structurer_params,
             )
             self._update_progress(80.0, text="Simplifying regions")
@@ -433,6 +434,7 @@ class Decompiler(Analysis):
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
+                self.clinic._ail_manager,
                 arg_vvars=set(self.clinic.arg_vvars)
                 if self.clinic is not None and self.clinic.arg_vvars is not None
                 else set(),
@@ -500,10 +502,14 @@ class Decompiler(Analysis):
         self._finish_progress()
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
+        assert self.clinic is not None
+        assert self.options_by_class is not None
+
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(
             self.func,
             graph=graph,
             cond_proc=condition_processor,
+            ail_manager=self.clinic._ail_manager,
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
@@ -584,6 +590,8 @@ class Decompiler(Analysis):
         :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
+        assert self.clinic is not None
+
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
@@ -640,13 +648,15 @@ class Decompiler(Analysis):
                 addr_to_blocks = defaultdict(set)
                 AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
-                cond_proc = ConditionProcessor(self.project.arch)
+                cond_proc = ConditionProcessor(self.project.arch, self.clinic._ail_manager)
                 # always update RI on graph change
                 ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
 
                 self.vvar_id_start = a.vvar_id_start
 
-        return ail_graph, self._recover_regions(ail_graph, ConditionProcessor(self.project.arch), update_graph=True)
+        return ail_graph, self._recover_regions(
+            ail_graph, ConditionProcessor(self.project.arch, self.clinic._ail_manager), update_graph=True
+        )
 
     @timethis
     def _run_post_structuring_simplification_passes(self, seq_node, **kwargs):
@@ -697,6 +707,10 @@ class Decompiler(Analysis):
         stack_offset_typevars = cache.stack_offset_typevars
         stackvar_max_sizes = cache.stackvar_max_sizes
         codegen = cache.codegen
+
+        if codegen is None:
+            # nothing to reflow; but this should not happen
+            return None
 
         var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
 
@@ -761,7 +775,13 @@ class Decompiler(Analysis):
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
             )
             # update the function prototype if needed
-            if self.func.is_prototype_guessed and self.func.prototype is not None and self.func.prototype.args:
+            if (
+                self.func.is_prototype_guessed
+                and self.func.prototype is not None
+                and self.func.prototype.args
+                and isinstance(codegen, CStructuredCodeGenerator)
+                and codegen.cfunc is not None
+            ):
                 var_manager = var_kb.variables[self.func.addr]
                 for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):
@@ -786,6 +806,8 @@ class Decompiler(Analysis):
         return codegen
 
     def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
+        assert self._cfg is not None
+
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
@@ -901,7 +923,12 @@ class Decompiler(Analysis):
 
         # also collect argument variables
         arg_vars = []
-        if self.codegen and self.codegen.cfunc and self.codegen.cfunc.arg_list:
+        if (
+            self.codegen
+            and isinstance(self.codegen, CStructuredCodeGenerator)
+            and self.codegen.cfunc
+            and self.codegen.cfunc.arg_list
+        ):
             for cvar in self.codegen.cfunc.arg_list:
                 v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
                 if v not in unified_vars:
@@ -994,7 +1021,7 @@ class Decompiler(Analysis):
         l.info("LLM renamed function %s -> %s", current_name, new_name)
         self.func.name = new_name
         self.func.is_default_name = False
-        if self.codegen and self.codegen.cfunc:
+        if self.codegen and isinstance(self.codegen, CStructuredCodeGenerator) and self.codegen.cfunc:
             self.codegen.cfunc.name = new_name
 
         return True

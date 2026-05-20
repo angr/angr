@@ -334,9 +334,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                             returnty = returnty.with_arch(  # pyright: ignore[reportAttributeAccessIssue]
                                 self.project.arch
                             )
-                        macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
+                        macro_args.insert(
+                            0, StringLiteral(self.manager.next_atom(), fmt_str, self.project.arch.bits * 2)
+                        )
                         return FunctionLikeMacro(
-                            None,
+                            self.manager.next_atom(),
                             macro_name,
                             macro_args,
                             bits=call.bits,

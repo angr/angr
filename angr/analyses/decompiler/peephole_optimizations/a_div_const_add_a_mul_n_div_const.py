@@ -33,7 +33,16 @@ class ADivConstAddAMulNDivConst(PeepholeOptimizationExprBase):
                         mul = BinaryOp(
                             op0.idx,
                             "Mul",
-                            [a0, Const(None, None, N1 + 1, expr.bits, **expr.operands[0].operands[1].tags)],
+                            [
+                                a0,
+                                Const(
+                                    self.manager.next_atom(),
+                                    None,
+                                    N1 + 1,
+                                    expr.bits,
+                                    **expr.operands[0].operands[1].tags,
+                                ),
+                            ],
                             False,
                             **op0.tags,
                         )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import angr.ailment as ailment
 
+from angr import ailment
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses import AnalysesHub
 from angr.analyses.analysis import Analysis
@@ -10,6 +10,7 @@ from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
 from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
+from angr.ailment import Manager
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
@@ -40,6 +41,7 @@ class RegionSimplifier(Analysis):
         self,
         func,
         region,
+        ail_manager: Manager,
         arg_vvars: set[int] | None = None,
         simplify_switches: bool = True,
         simplify_ifelse: bool = True,
@@ -49,6 +51,7 @@ class RegionSimplifier(Analysis):
         self.func = func
         self.region = region
         self.arg_vvars = arg_vvars
+        self.ail_manager = ail_manager
         self._simplify_switches = simplify_switches
         self._should_simplify_ifelses = simplify_ifelse
         self._variable_manager = variable_manager
@@ -185,7 +188,7 @@ class RegionSimplifier(Analysis):
                 definition = definition.copy()
                 if definition.ret_expr is not None:
                     definition.ret_expr = definition.ret_expr.copy()
-                    definition.ret_expr.variable = None
+                    definition.ret_expr.variable = None  # type: ignore
             variable_assignments[var] = definition, loc
             variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps
@@ -207,9 +210,8 @@ class RegionSimplifier(Analysis):
         ExpressionFolder(variable_assignments, variable_uses, region)
         return region
 
-    @staticmethod
-    def _simplify_switch_expressions(region):
-        SwitchExpressionSimplifier(region)
+    def _simplify_switch_expressions(self, region):
+        SwitchExpressionSimplifier(region, self.ail_manager)
         return region
 
     def _simplify_switch_clusters(self, region):
@@ -222,13 +224,11 @@ class RegionSimplifier(Analysis):
         )
         return region
 
-    @staticmethod
-    def _remove_empty_nodes(region):
-        return EmptyNodeRemover(region, claripy_ast_conditions=False).result
+    def _remove_empty_nodes(self, region):
+        return EmptyNodeRemover(region, self.ail_manager, claripy_ast_conditions=False).result
 
-    @staticmethod
-    def _transform_to_cascading_ifs(region):
-        CascadingConditionTransformer(region)
+    def _transform_to_cascading_ifs(self, region):
+        CascadingConditionTransformer(region, self.ail_manager)
         return region
 
     def _simplify_gotos(self, region):
@@ -251,9 +251,8 @@ class RegionSimplifier(Analysis):
         IfElseFlattener(region, self.kb.functions)
         return region
 
-    @staticmethod
-    def _simplify_cascading_ifs(region):
-        CascadingIfsRemover(region)
+    def _simplify_cascading_ifs(self, region):
+        CascadingIfsRemover(region, self.ail_manager)
         return region
 
     def _simplify_loops(self, region):

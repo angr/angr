@@ -1,20 +1,23 @@
 from __future__ import annotations
 from collections import OrderedDict
+from typing import TYPE_CHECKING
 
 import claripy
 from archinfo import Endness
 
 from angr.analyses import Analysis, AnalysesHub
-from angr.ailment import UnaryOp
-from angr.ailment.expression import Const, Struct, Array, Load
+from angr.ailment.expression import UnaryOp, BinaryOp, Const, Struct, Array, Load
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeSlice
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 
 
 class StructBuilder(Analysis):
     """Build Rust struct types from memory write patterns."""
 
-    def __init__(self, context, strict=False):
+    def __init__(self, context: OptimizationPass, strict=False):
         self.context = context
         self.pending_potential_structs = []
         self.strict = strict
@@ -47,9 +50,19 @@ class StructBuilder(Analysis):
             if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.project.arch.byte_width
-                leftover_addr = data.addr + Const(None, None, size, data.addr.bits)
-                leftover = Load(None, leftover_addr, leftover_size, data.endness, **data.tags)
-                new_data = Load(None, data.addr, size, data.endness, **data.tags)
+                size_expr = Const(self.context.manager.next_atom(), None, size, data.addr.bits)
+                leftover_addr = BinaryOp(
+                    self.context.manager.next_atom(),
+                    "Add",
+                    (data.addr, size_expr),
+                    signed=False,
+                    bits=data.addr.bits,
+                    **data.tags,
+                )
+                leftover = Load(
+                    self.context.manager.next_atom(), leftover_addr, leftover_size, data.endness, **data.tags
+                )
+                new_data = Load(self.context.manager.next_atom(), data.addr, size, data.endness, **data.tags)
                 return new_data, leftover
         return None, None
 
@@ -98,7 +111,7 @@ class StructBuilder(Analysis):
                     elements.append(ele_expr)
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
                 for i in range(len_expr.value_int):
-                    ele_expr = self.context.new_stack_vvar(
+                    ele_expr = self.context.new_stack_vvar(  # type:ignore
                         vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags, record=False
                     )
                     # Looking for nested structs or struct references

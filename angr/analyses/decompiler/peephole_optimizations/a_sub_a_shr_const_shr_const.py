@@ -33,5 +33,7 @@ class ASubAShrConstShrConst(PeepholeOptimizationExprBase):
                 and a0.likes(a1.operands[0])
             ):
                 dividend = 2 ** expr.operands[1].value
-                return BinaryOp(a0.idx, "Div", [a0, Const(None, None, dividend, expr.bits)], True, **expr.tags)
+                return BinaryOp(
+                    a0.idx, "Div", [a0, Const(self.manager.next_atom(), None, dividend, expr.bits)], True, **expr.tags
+                )
         return None

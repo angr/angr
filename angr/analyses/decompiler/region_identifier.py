@@ -8,7 +8,7 @@ import logging
 import networkx
 
 from angr import ailment
-from angr.ailment import Block
+from angr.ailment import Block, Manager
 from angr.ailment.statement import ConditionalJump, Jump
 from angr.ailment.expression import Const
 from angr.knowledge_plugins.functions.function import Function
@@ -48,6 +48,7 @@ class RegionIdentifier(Analysis):
         func: Function,
         cond_proc: ConditionProcessor | None = None,
         graph: networkx.DiGraph[Block] | None = None,
+        ail_manager: Manager | None = None,
         update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
@@ -59,13 +60,15 @@ class RegionIdentifier(Analysis):
         self.entry_node_addr: tuple[int, int | None] | None = (
             entry_node_addr if entry_node_addr is not None else (func.addr, None) if func is not None else None
         )
+        self.ail_manager = ail_manager if ail_manager is not None else Manager()
         self.cond_proc = (
             cond_proc
             if cond_proc is not None
             else ConditionProcessor(
                 self.project.arch
                 if getattr(self, "project", None) is not None
-                else None  # it's only None in test cases
+                else None,  # it's only None in test cases
+                self.ail_manager,
             )
         )
 
@@ -651,7 +654,9 @@ class RegionIdentifier(Analysis):
                             new_last_stmt = ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(
+                                    self.ail_manager.next_atom(), None, condnode_addr, self.project.arch.bits
+                                ),
                                 last_stmt.false_target,
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
@@ -663,7 +668,9 @@ class RegionIdentifier(Analysis):
                                 last_stmt.idx,
                                 last_stmt.condition,
                                 last_stmt.true_target,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(
+                                    self.ail_manager.next_atom(), None, condnode_addr, self.project.arch.bits
+                                ),
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
@@ -673,7 +680,9 @@ class RegionIdentifier(Analysis):
                         if isinstance(last_stmt.target, ailment.Expr.Const):
                             new_last_stmt = Jump(
                                 last_stmt.idx,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(
+                                    self.ail_manager.next_atom(), None, condnode_addr, self.project.arch.bits
+                                ),
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
@@ -1189,8 +1198,10 @@ class RegionIdentifier(Analysis):
             if not node.statements:
                 node.statements.append(
                     Jump(
-                        None,
-                        Const(None, None, node.addr + node.original_size, self.project.arch.bits),
+                        self.ail_manager.next_atom(),
+                        Const(
+                            self.ail_manager.next_atom(), None, node.addr + node.original_size, self.project.arch.bits
+                        ),
                         ins_addr=node.addr,
                     )
                 )
@@ -1205,8 +1216,13 @@ class RegionIdentifier(Analysis):
                 ):
                     node.statements.append(
                         Jump(
-                            None,
-                            Const(None, None, node.addr + node.original_size, self.project.arch.bits),
+                            self.ail_manager.next_atom(),
+                            Const(
+                                self.ail_manager.next_atom(),
+                                None,
+                                node.addr + node.original_size,
+                                self.project.arch.bits,
+                            ),
                             ins_addr=node.addr,
                         )
                     )

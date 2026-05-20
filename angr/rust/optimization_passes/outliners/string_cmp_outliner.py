@@ -95,8 +95,8 @@ class StringCmpOutliner(OptimizationPass):
                     if not expr.likes(str_var):
                         return None
                     combined_str += decoded_str
-                str_literal = StringLiteral(None, combined_str, str_var.bits)
-                new_cond = BinaryOp(None, "CmpEQ", [str_var, str_literal], **stmt.condition.tags)
+                str_literal = StringLiteral(self.manager.next_atom(), combined_str, str_var.bits)
+                new_cond = BinaryOp(self.manager.next_atom(), "CmpEQ", [str_var, str_literal], **stmt.condition.tags)
                 # name = "<alloc::string::String as core::cmp::PartialEq>::eq"
                 # call = Call(
                 #     idx=None,

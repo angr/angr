@@ -53,7 +53,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         )
 
                         r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), True, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if (
                         op_v
                         in {
@@ -91,7 +91,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             True,
                             **ccall.tags,
                         )
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondNLE"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -118,7 +118,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         )
 
                         r = Expr.BinaryOp(ccall.idx, "CmpGT", (dep_1, dep_2), True, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if (
                         op_v
                         in {
@@ -156,7 +156,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             True,
                             **ccall.tags,
                         )
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v in {AMD64_CondTypes["CondZ"], AMD64_CondTypes["CondNZ"]}:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -185,7 +185,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, dep_2), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_LOGICB"],
                         AMD64_OpTypes["G_CC_OP_LOGICW"],
@@ -205,9 +205,13 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
                         r = Expr.BinaryOp(
-                            ccall.idx, expr_op, (dep_1, Expr.Const(None, None, 0, dep_1.bits)), False, **ccall.tags
+                            ccall.idx,
+                            expr_op,
+                            (dep_1, Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits)),
+                            False,
+                            **ccall.tags,
                         )
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SHRB"],
                         AMD64_OpTypes["G_CC_OP_SHRW"],
@@ -226,21 +230,23 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         )
                         expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
-                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
                         # dep_1 & G_CC_MASK_Z == 0 or dep_1 & G_CC_MASK_Z != 0
 
                         bitmask = AMD64_CondBitMasks["G_CC_MASK_Z"]
                         assert isinstance(bitmask, int)
-                        flag = Expr.Const(None, None, bitmask, dep_1.bits)
-                        masked_dep = Expr.BinaryOp(None, "And", [dep_1, flag], False, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        flag = Expr.Const(self.ail_manager.next_atom(), None, bitmask, dep_1.bits)
+                        masked_dep = Expr.BinaryOp(
+                            self.ail_manager.next_atom(), "And", [dep_1, flag], False, **ccall.tags
+                        )
+                        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits)
                         expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
                         r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_DECB"],
                         AMD64_OpTypes["G_CC_OP_DECW"],
@@ -258,9 +264,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         )
                         expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
 
-                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondL"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -288,7 +294,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         )
 
                         r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, dep_2), True, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_LOGICB"],
@@ -307,9 +313,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             AMD64_OpTypes["G_CC_OP_LOGICL"],
                             ccall.tags,
                         )
-                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, zero), True, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
                 elif cond_v == AMD64_CondTypes["CondNBE"]:
                     if op_v in {
@@ -338,7 +344,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         )
 
                         r = Expr.BinaryOp(ccall.idx, "CmpGT", (dep_1, dep_2), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondB"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_ADDB"],
@@ -405,7 +411,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             False,
                             **ccall.tags,
                         )
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                 elif (
                     cond_v == AMD64_CondTypes["CondS"]
                     and op_v
@@ -444,7 +450,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         True,
                         **ccall.tags,
                     )
-                    return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
                 elif (
                     cond_v == AMD64_CondTypes["CondNS"]
@@ -483,7 +489,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         True,
                         **ccall.tags,
                     )
-                    return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
         elif ccall.callee == "amd64g_calculate_rflags_c":
             # calculate the carry flag
@@ -519,18 +525,18 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
 
                     return Expr.ITE(
-                        None,
+                        self.ail_manager.next_atom(),
                         Expr.BinaryOp(
-                            None,
+                            self.ail_manager.next_atom(),
                             "CmpLE",
                             [
-                                Expr.BinaryOp(None, "Add", [dep_1, dep_2], False),
+                                Expr.BinaryOp(self.ail_manager.next_atom(), "Add", [dep_1, dep_2], False),
                                 dep_1,
                             ],
                             False,
                         ),
-                        Expr.Const(None, None, 0, ccall.bits),
-                        Expr.Const(None, None, 1, ccall.bits),
+                        Expr.Const(self.ail_manager.next_atom(), None, 0, ccall.bits),
+                        Expr.Const(self.ail_manager.next_atom(), None, 1, ccall.bits),
                         **ccall.tags,
                     )
 
@@ -560,7 +566,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
 
                     cf = Expr.BinaryOp(
-                        None,
+                        self.ail_manager.next_atom(),
                         "CmpLT",
                         [
                             dep_1,
@@ -570,7 +576,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
                     if cf.bits == ccall.bits:
                         return cf
-                    return Expr.Convert(None, cf.bits, ccall.bits, False, cf, **ccall.tags)
+                    return Expr.Convert(self.ail_manager.next_atom(), cf.bits, ccall.bits, False, cf, **ccall.tags)
 
                 if op_v in {
                     AMD64_OpTypes["G_CC_OP_DECB"],
@@ -583,16 +589,16 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     bitmask_1 = AMD64_CondBitOffsets["G_CC_SHIFT_C"]
                     assert isinstance(bitmask, int) and isinstance(bitmask_1, int)
                     return Expr.BinaryOp(
-                        None,
+                        self.ail_manager.next_atom(),
                         "Shr",
                         [
                             Expr.BinaryOp(
-                                None,
+                                self.ail_manager.next_atom(),
                                 "And",
-                                [ndep, Expr.Const(None, None, bitmask, 64)],
+                                [ndep, Expr.Const(self.ail_manager.next_atom(), None, bitmask, 64)],
                                 False,
                             ),
-                            Expr.Const(None, None, bitmask_1, 64),
+                            Expr.Const(self.ail_manager.next_atom(), None, bitmask_1, 64),
                         ],
                         False,
                         **ccall.tags,
@@ -600,8 +606,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
 
         return None
 
-    @staticmethod
-    def _fix_size(expr, op_v: int, type_8bit, type_16bit, type_32bit, tags):
+    def _fix_size(self, expr, op_v: int, type_8bit, type_16bit, type_32bit, tags):
         if op_v == type_8bit:
             bits = 8
         elif op_v == type_16bit:
@@ -613,5 +618,5 @@ class AMD64CCallRewriter(CCallRewriterBase):
         if bits < 64:
             if isinstance(expr, Expr.Const):
                 return Expr.Const(expr.idx, None, expr.value_int & ((1 << bits) - 1), bits, **tags)
-            return Expr.Convert(None, 64, bits, False, expr, **tags)
+            return Expr.Convert(self.ail_manager.next_atom(), 64, bits, False, expr, **tags)
         return expr

@@ -6,9 +6,9 @@ from collections import OrderedDict
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import default_cc
-from angr.ailment import Const
+from angr.ailment import Manager
 from angr.ailment.block import Block
-from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Const, Call, VirtualVariable, VirtualVariableCategory
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeFunction
@@ -57,6 +57,8 @@ class RustCallingConventionAnalysis(Analysis):
     def __init__(
         self,
         func,
+        *,
+        ail_manager: Manager,
         callsite_path=None,
         post_callsite_path=None,
         is_call_expr=None,
@@ -65,6 +67,7 @@ class RustCallingConventionAnalysis(Analysis):
         callsite_discriminant_hint=None,
     ):
         self.func: Function = func
+        self.ail_manager = ail_manager
         self.callsite_path = callsite_path
         self.post_callsite_path = post_callsite_path
         self.is_call_expr = is_call_expr

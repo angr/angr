@@ -29,8 +29,8 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
                 return ITE(
                     expr.idx,
                     bitoffset2exprs[bit_offset],
-                    Const(None, None, 0, expr.bits),
-                    Const(None, None, 1, expr.bits),
+                    Const(self.manager.next_atom(), None, 0, expr.bits),
+                    Const(self.manager.next_atom(), None, 1, expr.bits),
                     **expr.tags,
                 )
 

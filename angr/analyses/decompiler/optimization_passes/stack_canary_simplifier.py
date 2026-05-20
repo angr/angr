@@ -149,7 +149,7 @@ class StackCanarySimplifier(OptimizationPass):
                 pred_copy = pred.copy()
                 pred_copy.statements[-1] = ailment.Stmt.Jump(
                     len(pred_copy.statements) - 1,
-                    ailment.Expr.Const(None, None, ret_node.addr, self.project.arch.bits),
+                    ailment.Expr.Const(self.manager.next_atom(), None, ret_node.addr, self.project.arch.bits),
                     ins_addr=pred_copy.statements[-1].tags["ins_addr"],
                 )
 

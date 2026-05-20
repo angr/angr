@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         DirtyExpression,
         VEXCCallExpression,
     )
+    from angr.ailment.manager import Manager
     from angr.ailment.statement import Statement
     from angr.ailment.block import Block
 
@@ -232,12 +233,19 @@ class ExpressionNarrower(AILBlockRewriter):
     """
 
     def __init__(
-        self, project, rd, narrowables, addr2blocks: dict[tuple[int, int | None], Block], new_blocks: dict[Block, Block]
+        self,
+        project,
+        rd,
+        manager: Manager,
+        narrowables,
+        addr2blocks: dict[tuple[int, int | None], Block],
+        new_blocks: dict[Block, Block],
     ):
         super().__init__(update_block=False)
 
         self.project = project
         self._rd = rd
+        self.manager = manager
         self._addr2blocks = addr2blocks
         self._new_blocks = new_blocks
 
@@ -302,7 +310,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 new_src.bits = self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width
             else:
                 new_src = Convert(
-                    None,
+                    self.manager.next_atom(),
                     stmt.src.bits,
                     self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
                     False,
@@ -337,7 +345,7 @@ class ExpressionNarrower(AILBlockRewriter):
             self.replacement_core_vvars[expr.varid].append(new_expr)
 
             return Convert(
-                None,
+                self.manager.next_atom(),
                 new_expr.bits,
                 expr.bits,
                 False,

@@ -29,7 +29,9 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
                 atom = conv.operand
                 if conv.from_bits <= to_bits:
                     # this masking is useless
-                    return Convert(None, conv.from_bits, expr.bits, conv.is_signed, atom, **conv.tags)
+                    return Convert(
+                        self.manager.next_atom(), conv.from_bits, expr.bits, conv.is_signed, atom, **conv.tags
+                    )
 
             elif (
                 isinstance(expr.operands[0], BinaryOp)
@@ -43,7 +45,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
                     # this masking is useless
                     # apply the binary operation
                     atom = BinaryOp(
-                        None,
+                        self.manager.next_atom(),
                         binop_expr.op,
                         (atom, binop_expr.operands[1]),
                         binop_expr.signed,
@@ -51,6 +53,8 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
                         variable_offset=binop_expr.variable_offset,
                         **binop_expr.tags,
                     )
-                    return Convert(None, conv.from_bits, expr.bits, conv.is_signed, atom, **conv.tags)
+                    return Convert(
+                        self.manager.next_atom(), conv.from_bits, expr.bits, conv.is_signed, atom, **conv.tags
+                    )
 
         return None

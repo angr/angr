@@ -1,17 +1,20 @@
 from __future__ import annotations
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockRewriter
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
-
 from angr.analyses import Analysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
 from angr.utils.ssa import is_phi_assignment
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 l = logging.getLogger(name=__name__)
 
@@ -29,6 +32,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self,
         func: Function | str,
         ail_graph,
+        ail_manager: Manager,
         entry=None,
         vvar_id_start: int = 0,
         arg_vvars: list[VirtualVariable] | None = None,
@@ -50,6 +54,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         )
         self._vvar_defloc = {}
         self.vvar_id_start = vvar_id_start
+        self.ail_manager = ail_manager
         self._stmts_to_prepend = defaultdict(list)
         self._arg_vvars = arg_vvars or []
 
@@ -235,9 +240,16 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         new_category = phi_stmt.dst.category
                         new_oident = phi_stmt.dst.oident
                         new_vvar = VirtualVariable(
-                            None, new_vvar_id, vvar.bits, new_category, oident=new_oident, ins_addr=ins_addr
+                            self.ail_manager.next_atom(),
+                            new_vvar_id,
+                            vvar.bits,
+                            new_category,
+                            oident=new_oident,
+                            ins_addr=ins_addr,
                         )
-                        assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr, dephi=True)
+                        assignment = Assignment(
+                            self.ail_manager.next_atom(), new_vvar, vvar, ins_addr=ins_addr, dephi=True
+                        )
 
                         self._append_stmt(the_block, assignment, old_vvarid=varid, new_vvarid=new_vvar_id)
 
@@ -266,9 +278,14 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             the_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             ins_addr = the_block.addr
             new_vvar = VirtualVariable(
-                None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
+                self.ail_manager.next_atom(),
+                new_vvar_id,
+                phi_vvar.bits,
+                phi_vvar.category,
+                oident=phi_vvar.oident,
+                ins_addr=ins_addr,
             )
-            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr, dephi=True)
+            assignment = Assignment(self.ail_manager.next_atom(), phi_vvar, new_vvar, ins_addr=ins_addr, dephi=True)
 
             phi_stmt = the_block.statements[phidef_stmt_idx]
             replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
@@ -280,8 +297,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         return 1, new_vvar_info
 
-    @staticmethod
-    def _append_stmt(block, stmt, old_vvarid: int | None = None, new_vvarid: int | None = None):
+    def _append_stmt(self, block, stmt, old_vvarid: int | None = None, new_vvarid: int | None = None):
         def _handle_VirtualVariable(  # pylint:disable=unused-argument
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
         ):
@@ -289,7 +305,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             return (
                 expr
                 if expr.varid != old_vvarid
-                else VirtualVariable(None, new_vvarid, expr.bits, expr.category, oident=expr.oident, **expr.tags)
+                else VirtualVariable(
+                    self.ail_manager.next_atom(), new_vvarid, expr.bits, expr.category, oident=expr.oident, **expr.tags
+                )
             )
 
         if block.statements and isinstance(block.statements[-1], (Jump, ConditionalJump)):

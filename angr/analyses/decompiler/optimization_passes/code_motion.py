@@ -76,7 +76,7 @@ class CodeMotionOptimization(OptimizationPass):
                 graph_changed = True
 
         if graph_changed:
-            self.out_graph = add_labels(graph_copy)
+            self.out_graph = add_labels(graph_copy, self.manager)
 
     @staticmethod
     def update_graph_with_super_edits(

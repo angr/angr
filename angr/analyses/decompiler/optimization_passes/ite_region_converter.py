@@ -215,7 +215,7 @@ class ITERegionConverter(OptimizationPass):
 
         addr_obj = true_stmt_src if "ins_addr" in true_stmt_src.tags else true_stmt
         ternary_expr = ITE(
-            None,
+            self.manager.next_atom(),
             conditional_jump.condition,
             false_stmt_src,
             true_stmt_src,
@@ -237,7 +237,10 @@ class ITERegionConverter(OptimizationPass):
         # add a goto statement to the region tail so it can be transformed into a break or other types of control-flow
         # transitioning statement in the future
         goto_stmt = Jump(
-            None, Const(None, None, region_tail.addr, self.project.arch.bits), region_tail.idx, **conditional_jump.tags
+            self.manager.next_atom(),
+            Const(self.manager.next_atom(), None, region_tail.addr, self.project.arch.bits),
+            region_tail.idx,
+            **conditional_jump.tags,
         )
         new_region_head.statements.append(goto_stmt)
 

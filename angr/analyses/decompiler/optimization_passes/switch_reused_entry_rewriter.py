@@ -78,8 +78,14 @@ class SwitchReusedEntryRewriter(OptimizationPass):
             for head_node in sorted_pred_nodes[1:]:
                 # create the new goto node
                 goto_stmt = Jump(
-                    None,
-                    Const(None, None, entry_node.addr, self.project.arch.bits, ins_addr=entry_node.addr),
+                    self.manager.next_atom(),
+                    Const(
+                        self.manager.next_atom(),
+                        None,
+                        entry_node.addr,
+                        self.project.arch.bits,
+                        ins_addr=entry_node.addr,
+                    ),
                     target_idx=entry_node.idx,
                     ins_addr=entry_node.addr,
                 )

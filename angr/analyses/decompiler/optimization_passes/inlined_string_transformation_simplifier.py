@@ -565,7 +565,9 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             for off, stack_accesses in enumerate(desc.stack_accesses):
                 # the last element is the final storing statement
                 new_value_ast = stack_accesses[-1][2]
-                new_value = Const(None, None, new_value_ast.concrete_value, self.project.arch.byte_width)
+                new_value = Const(
+                    self.manager.next_atom(), None, new_value_ast.concrete_value, self.project.arch.byte_width
+                )
                 stmt = Store(
                     self.manager.next_atom(),
                     StackBaseOffset(
@@ -596,8 +598,8 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
 
             if pred.statements and isinstance(pred.statements[-1], ConditionalJump):
                 pred.statements[-1] = Jump(
-                    None,
-                    Const(None, None, succ.addr, self.project.arch.bits),
+                    self.manager.next_atom(),
+                    Const(self.manager.next_atom(), None, succ.addr, self.project.arch.bits),
                     succ.idx,
                     **pred.statements[-1].tags,
                 )

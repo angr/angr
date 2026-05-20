@@ -49,7 +49,7 @@ class TaggedObject:
         "tags",
     )
 
-    def __init__(self, idx: int | None, **kwargs: Unpack[TagDict]):
+    def __init__(self, idx: int, **kwargs: Unpack[TagDict]):
         self.tags: TagDict = kwargs
         self.idx = idx
         self._hash = None

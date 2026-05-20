@@ -134,7 +134,7 @@ class ARMCCallRewriter(CCallRewriterBase):
             return self._wrap(ccall, r)
         if op_v == ARMG_CC_OP_ADD:
             # C = unsigned carry: (dep_1 + dep_2) <u dep_1
-            add_expr = Expr.BinaryOp(None, "Add", (dep_1, dep_2), signed=False, **ccall.tags)
+            add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
             r = Expr.BinaryOp(ccall.idx, "CmpLT", (add_expr, dep_1), signed=False, **ccall.tags)
             return self._wrap(ccall, r)
         if op_v == ARMG_CC_OP_SBB:
@@ -158,7 +158,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         op_v = cc_op.value_int
         dep_1 = ccall.operands[1]
         dep_2 = ccall.operands[2]
-        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
 
         if op_v == ARMG_CC_OP_SUB:
             # N = sign(dep_1 - dep_2) → (dep_1 - dep_2) <s 0 → dep_1 <s dep_2
@@ -166,7 +166,7 @@ class ARMCCallRewriter(CCallRewriterBase):
             return self._wrap(ccall, r)
         if op_v == ARMG_CC_OP_ADD:
             # N = sign(dep_1 + dep_2) → (dep_1 + dep_2) <s 0
-            add_expr = Expr.BinaryOp(None, "Add", (dep_1, dep_2), signed=False, **ccall.tags)
+            add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
             r = Expr.BinaryOp(ccall.idx, "CmpLT", (add_expr, zero), signed=True, **ccall.tags)
             return self._wrap(ccall, r)
         if op_v in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
@@ -184,7 +184,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         op_v = cc_op.value_int
         dep_1 = ccall.operands[1]
         dep_2 = ccall.operands[2]
-        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
 
         if op_v == ARMG_CC_OP_SUB:
             # Z = (dep_1 == dep_2)
@@ -192,7 +192,7 @@ class ARMCCallRewriter(CCallRewriterBase):
             return self._wrap(ccall, r)
         if op_v == ARMG_CC_OP_ADD:
             # Z = (dep_1 + dep_2) == 0
-            add_expr = Expr.BinaryOp(None, "Add", (dep_1, dep_2), signed=False, **ccall.tags)
+            add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
             r = Expr.BinaryOp(ccall.idx, "CmpEQ", (add_expr, zero), signed=False, **ccall.tags)
             return self._wrap(ccall, r)
         if op_v in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
@@ -204,12 +204,11 @@ class ARMCCallRewriter(CCallRewriterBase):
 
     # ---- helpers ----
 
-    @staticmethod
-    def _wrap(ccall: Expr.VEXCCallExpression, r: Expr.BinaryOp) -> Expr.Expression:
+    def _wrap(self, ccall: Expr.VEXCCallExpression, r: Expr.BinaryOp) -> Expr.Expression:
         """Wrap a 1-bit comparison result to match the ccall's output width."""
         if r.bits == ccall.bits:
             return r
-        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
     # ---- SUB (CMP instruction) ----
 
@@ -285,8 +284,8 @@ class ARMCCallRewriter(CCallRewriterBase):
         """
         ADD: flags from ``dep_1 + dep_2``.
         """
-        add_expr = Expr.BinaryOp(None, "Add", (dep_1, dep_2), signed=False, **ccall.tags)
-        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
+        add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
 
         # EQ/NE — Z flag: (dep_1 + dep_2) == 0
         if cond_v in {ARMCondEQ, ARMCondNE}:
@@ -315,7 +314,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         LOGIC: flags from AND/OR/XOR result (dep_1 = result).
         MUL:   flags from multiply result (dep_1 = result).
         """
-        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
 
         # EQ/NE — Z flag: dep_1 == 0
         if cond_v in {ARMCondEQ, ARMCondNE}:

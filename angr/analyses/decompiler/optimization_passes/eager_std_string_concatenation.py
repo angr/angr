@@ -149,8 +149,8 @@ class EagerStdStringConcatenationPass(OptimizationPass):
                 old_stmt.idx,
                 old_stmt.dst,
                 Load(
-                    None,
-                    Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                    self.manager.next_atom(),
+                    Const(self.manager.next_atom(), None, str_id, self.project.arch.bits, custom_string=True),
                     len(final_str),
                     Endness.BE,
                 ),

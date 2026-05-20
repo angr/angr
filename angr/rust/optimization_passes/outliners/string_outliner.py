@@ -27,8 +27,8 @@ class StringOutliner(OptimizationPass):
                 _len = stmt.src.get_field("vec.len")
                 if isinstance(cap, Const) and cap.value == 0 and isinstance(_len, Const) and _len.value == 0:
                     call = Call(
-                        idx=None,
-                        target=StringLiteral(None, "String::new", self.project.arch.bits),
+                        self.manager.next_atom(),
+                        StringLiteral(self.manager.next_atom(), "String::new", self.project.arch.bits),
                         prototype=self.kb.librust.get_prototype("alloc::string::String::new")
                         .with_arch(self.project.arch)
                         .normalize(),

@@ -11,6 +11,7 @@ import networkx
 
 import angr
 import angr.analyses.decompiler
+from angr.ailment import Manager
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.structuring import DreamStructurer
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
@@ -132,7 +133,7 @@ class TestStructurer(unittest.TestCase):
         st = p.analyses[DreamStructurer].prep()(ri.region)
 
         # simplify it
-        _ = p.analyses.RegionSimplifier(main_func, st.result)
+        _ = p.analyses.RegionSimplifier(main_func, st.result, clinic._ail_manager)
 
     def test_smoketest_cm3_firmware(self):
         p = angr.Project(
@@ -166,10 +167,10 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(main_func, rs.result)
+        s = p.analyses.RegionSimplifier(main_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
@@ -189,10 +190,10 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
@@ -215,10 +216,10 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
@@ -240,10 +241,10 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
@@ -266,10 +267,10 @@ class TestStructurer(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
 
         # structure it
-        rs = p.analyses.RecursiveStructurer(ri.region)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
 
         # simplify it
-        s = p.analyses.RegionSimplifier(test_func, rs.result)
+        s = p.analyses.RegionSimplifier(test_func, rs.result, clinic._ail_manager)
 
         codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 

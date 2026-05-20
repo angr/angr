@@ -16,7 +16,7 @@ from .utils import get_bits, is_none_or_likeable, is_none_or_matchable, stable_h
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
-
+    from .manager import Manager
     from .statement import Statement
 
 
@@ -32,7 +32,7 @@ class Expression(TaggedObject, ABC):
         "depth",
     )
 
-    def __init__(self, idx, depth, **kwargs):
+    def __init__(self, idx: int, depth, **kwargs):
         super().__init__(idx, **kwargs)
         self.depth = depth
 
@@ -75,12 +75,6 @@ class Expression(TaggedObject, ABC):
 
         return r, replaced
 
-    def __add__(self, other):
-        return BinaryOp(None, "Add", [self, other], signed=False, **self.tags)
-
-    def __sub__(self, other):
-        return BinaryOp(None, "Sub", [self, other], signed=False, **self.tags)
-
 
 class Atom(Expression):
     __slots__ = (
@@ -88,7 +82,7 @@ class Atom(Expression):
         "variable_offset",
     )
 
-    def __init__(self, idx: int | None, variable=None, variable_offset=0, **kwargs):
+    def __init__(self, idx: int, variable=None, variable_offset=0, **kwargs):
         super().__init__(idx, 0, **kwargs)
         self.variable = variable
         self.variable_offset = variable_offset
@@ -100,7 +94,7 @@ class Atom(Expression):
 class Const(Atom):
     __slots__ = ("value",)
 
-    def __init__(self, idx: int | None, variable, value: int | float, bits: int, **kwargs):
+    def __init__(self, idx: int, variable, value: int | float, bits: int, **kwargs):
         super().__init__(idx, variable, **kwargs)
 
         self.value = value
@@ -162,7 +156,7 @@ class Const(Atom):
 class Tmp(Atom):
     __slots__ = ("tmp_idx",)
 
-    def __init__(self, idx: int | None, variable, tmp_idx: int, bits, **kwargs):
+    def __init__(self, idx: int, variable, tmp_idx: int, bits, **kwargs):
         super().__init__(idx, variable, **kwargs)
 
         self.tmp_idx = tmp_idx
@@ -192,7 +186,7 @@ class Tmp(Atom):
 class Register(Atom):
     __slots__ = ("reg_offset",)
 
-    def __init__(self, idx: int | None, variable, reg_offset: int, bits: int, **kwargs):
+    def __init__(self, idx: int, variable, reg_offset: int, bits: int, **kwargs):
         super().__init__(idx, variable, **kwargs)
 
         self.reg_offset = reg_offset
@@ -557,7 +551,7 @@ class UnaryOp(Op):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         op: str,
         operand: Expression,
         variable=None,
@@ -660,7 +654,7 @@ class Convert(UnaryOp):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         from_bits: int,
         to_bits: int,
         is_signed: bool,
@@ -938,7 +932,7 @@ class BinaryOp(Op):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         op: str,
         operands: Sequence[Expression],
         signed: bool = False,
@@ -1140,7 +1134,7 @@ class Load(Expression):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         addr: Expression,
         size: int,
         endness: str,
@@ -1259,7 +1253,7 @@ class ITE(Expression):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         cond: Expression,
         iffalse: Expression,
         iftrue: Expression,
@@ -1509,7 +1503,7 @@ class VEXCCallExpression(Expression):
         "operands",
     )
 
-    def __init__(self, idx: int | None, callee: str, operands: tuple[Expression, ...], bits: int, **kwargs):
+    def __init__(self, idx: int, callee: str, operands: tuple[Expression, ...], bits: int, **kwargs):
         super().__init__(idx, max(operand.depth for operand in operands), **kwargs)
         self.callee = callee
         self.operands = operands
@@ -1593,7 +1587,7 @@ class MultiStatementExpression(Expression):
         "stmts",
     )
 
-    def __init__(self, idx: int | None, stmts: list[Statement], expr: Expression, **kwargs):
+    def __init__(self, idx: int, stmts: list[Statement], expr: Expression, **kwargs):
         super().__init__(idx, expr.depth + 1, **kwargs)
         self.stmts = stmts
         self.expr = expr
@@ -1676,7 +1670,7 @@ class BasePointerOffset(Expression):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         bits: int,
         base: Expression | str,
         offset: int,
@@ -1740,7 +1734,7 @@ class BasePointerOffset(Expression):
 class StackBaseOffset(BasePointerOffset):
     __slots__ = ()
 
-    def __init__(self, idx: int | None, bits: int, offset: int, **kwargs):
+    def __init__(self, idx: int, bits: int, offset: int, **kwargs):
         # stack base offset is always signed
         if offset >= (1 << (bits - 1)):
             offset -= 1 << bits
@@ -1753,7 +1747,7 @@ class StackBaseOffset(BasePointerOffset):
         return StackBaseOffset(manager.next_atom(), self.bits, self.offset, **self.tags)
 
 
-def negate(expr: Expression) -> Expression:
+def negate(expr: Expression, manager: Manager) -> Expression:
     if isinstance(expr, UnaryOp) and expr.op == "Not":
         # unpack
         return expr.operand
@@ -1768,13 +1762,13 @@ def negate(expr: Expression) -> Expression:
             rounding_mode=expr.rounding_mode,
             **expr.tags,
         )
-    return UnaryOp(None, "Not", expr, **expr.tags)
+    return UnaryOp(manager.next_atom(), "Not", expr, **expr.tags)
 
 
 class Extract(Expression):
     __slots__ = ("base", "endness", "offset")
 
-    def __init__(self, idx: int | None, bits: int, base: Expression, offset: Expression, endness: str, **kwargs):
+    def __init__(self, idx: int, bits: int, base: Expression, offset: Expression, endness: str, **kwargs):
         super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
 
         self.bits = bits
@@ -1842,9 +1836,7 @@ class Extract(Expression):
 class Insert(Expression):
     __slots__ = ("base", "endness", "offset", "value")
 
-    def __init__(
-        self, idx: int | None, base: Expression, offset: Expression, value: Expression, endness: str, **kwargs
-    ):
+    def __init__(self, idx: int, base: Expression, offset: Expression, value: Expression, endness: str, **kwargs):
         super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
 
         assert value.bits <= base.bits
@@ -1932,7 +1924,7 @@ class Call(Expression):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         target: Expression | str,
         calling_convention: SimCC | None = None,
         prototype: SimTypeFunction | None = None,

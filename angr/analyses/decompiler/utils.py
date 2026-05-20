@@ -691,11 +691,13 @@ def remove_labels(graph: networkx.DiGraph):
     return new_graph
 
 
-def add_labels(graph: networkx.DiGraph):
+def add_labels(graph: networkx.DiGraph, ail_manager: ailment.Manager):
     new_graph = networkx.DiGraph()
     nodes_map = {}
     for node in graph:
-        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
+        lbl = ailment.Stmt.Label(
+            ail_manager.next_atom(), f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx
+        )
         node_copy = node.copy()
         node_copy.statements = [lbl, *node_copy.statements]
         nodes_map[node] = node_copy
@@ -709,12 +711,12 @@ def add_labels(graph: networkx.DiGraph):
     return new_graph
 
 
-def update_labels(graph: networkx.DiGraph):
+def update_labels(graph: networkx.DiGraph, ail_manager: ailment.Manager):
     """
     A utility function to recreate the labels for every node in an AIL graph. This useful when you are working with
     a graph where only _some_ of the nodes have labels.
     """
-    return add_labels(remove_labels(graph))
+    return add_labels(remove_labels(graph), ail_manager)
 
 
 def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:

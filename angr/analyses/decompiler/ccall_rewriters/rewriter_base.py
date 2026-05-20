@@ -1,5 +1,10 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import angr.ailment as ailment
+
+if TYPE_CHECKING:
+    from angr.ailment.manager import Manager
 
 
 class CCallRewriterBase:
@@ -8,12 +13,16 @@ class CCallRewriterBase:
     """
 
     __slots__ = (
+        "ail_manager",
         "project",
         "result",
     )
 
-    def __init__(self, ccall: ailment.Expr.VEXCCallExpression, project, rename_ccalls: bool = False):
+    def __init__(
+        self, ccall: ailment.Expr.VEXCCallExpression, project, ail_manager: Manager, rename_ccalls: bool = False
+    ):
         self.project = project
+        self.ail_manager = ail_manager
         self.result: ailment.Expr.Expression | None = self._rewrite(ccall)
         if rename_ccalls and self.result is None and ccall.callee != "_ccall":
             renamed = ccall.copy()
