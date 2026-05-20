@@ -46,6 +46,9 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __delitem__(self, key):
         del self.cached[self._normalize_key(key)]
 
+    def get(self, key, default=None):
+        return self.cached.get(self._normalize_key(key), default)
+
     def discard(self, key):
         normalized_key = self._normalize_key(key)
         if normalized_key in self.cached:
