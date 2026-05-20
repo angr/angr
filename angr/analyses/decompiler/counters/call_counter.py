@@ -9,7 +9,7 @@ from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
     from angr.ailment import Address
-    from angr.ailment.statement import Call, SideEffectStatement
+    from angr.ailment.expression import Call
 
 
 class AILBlockCallCounter(AILBlockViewer):
@@ -22,7 +22,6 @@ class AILBlockCallCounter(AILBlockViewer):
         super().__init__()
         self.calls: int = 0
         self.consider_conditions = consider_conditions
-        self.call_stmts: list[tuple[tuple[Address | None, int], SideEffectStatement]] = []
         self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None):
@@ -34,10 +33,6 @@ class AILBlockCallCounter(AILBlockViewer):
         self.calls += 1
         self.call_exprs.append((((block.addr, block.idx) if block is not None else None, stmt_idx), expr))
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
-        self.call_stmts.append((((block.addr, block.idx) if block is not None else None, stmt_idx), stmt))
-        super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
 
 class AILCallCounter(SequenceWalker):
@@ -54,7 +49,6 @@ class AILCallCounter(SequenceWalker):
         self.calls = 0
         self.non_label_stmts = 0
         self.consider_conditions = consider_conditions
-        self.call_stmts: list[tuple[tuple[Address | None, int], Call]] = []
         self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
 
     def _handle_Condition(self, node, **kwargs):
@@ -71,6 +65,5 @@ class AILCallCounter(SequenceWalker):
         ctr = AILBlockCallCounter(consider_conditions=self.consider_conditions)
         ctr.walk(node)
         self.calls += ctr.calls
-        self.call_stmts += ctr.call_stmts
         self.call_exprs += ctr.call_exprs
         self.non_label_stmts += sum(1 for stmt in node.statements if not isinstance(stmt, Label))

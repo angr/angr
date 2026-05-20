@@ -15,7 +15,7 @@ from angr.analyses import Analysis
 from angr.analyses.purity import AILPurityAnalysis, AILPurityResultType
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.ail_callable import AILCallable
-from angr.analyses.decompiler.utils import call_stmts_in_graph
+from angr.analyses.decompiler.utils import call_exprs_in_graph
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.calling_conventions import PointerWrapper
 from .scope_ops_analyzer import ScopeOpsAnalyzer
@@ -100,11 +100,11 @@ class DataTransformationEmbedder(Analysis):
 
         # we use .graph instead of .cc_graph for better constant propagation results
         # TODO: it really shouldn't have been the case; debug it later
-        call_stmts, call_exprs = call_stmts_in_graph(self.clinic.graph)
+        call_exprs = call_exprs_in_graph(self.clinic.graph)
 
         str_trans = []
 
-        for loc, call in call_stmts + call_exprs:
+        for loc, call in call_exprs:
             if not isinstance(call.target, Const):
                 continue
             callee = self.project.kb.functions.get_by_addr(call.target.value_int)
