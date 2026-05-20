@@ -126,6 +126,28 @@ class RuntimeDb(KnowledgeBasePlugin):
     def __del__(self):
         self.cleanup()
 
+    def __getstate__(self):
+        # We drop the following items:
+        # - _lmdb_env, which is an unpicklable lmdb.Environment
+        # - _dbs, which holds LMDB DB handles
+        # - _condom, which holds a weakref.proxy and a registered fork callback
+        # - _lmdb_path, which is the path for the currently opened LMDB
+        #
+        # Spilling dicts flush their data to memory before pickling, so dropping the
+        # live LMDB state is safe: a fresh environment will be created lazily on next use.
+        state = self.__dict__.copy()
+        for key in ("_lmdb_env", "_dbs", "_dbnames", "_condom", "_lmdb_path"):
+            state.pop(key, None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._lmdb_path = None
+        self._lmdb_env = None
+        self._dbs = {}
+        self._dbnames = defaultdict(int)
+        self._condom = RuntimeDbForkCondom(self)
+
     def _init_lmdb(self):
         if self._lmdb_env is not None:
             return
