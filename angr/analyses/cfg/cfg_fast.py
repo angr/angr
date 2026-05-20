@@ -2345,8 +2345,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             # Mark this edge as confirmed
                             f._confirm_fakeret(src, dst)
 
-                for edge in edges_to_remove:
-                    f.transition_graph.remove_edge(*edge)
+                for src, dst in edges_to_remove:
+                    f._remove_fakeret(src, dst)
 
                 # Clear the cache
                 f._local_transition_graph = None
