@@ -13,6 +13,9 @@ import unittest
 from claripy import BVS
 
 import angr
+from angr.knowledge_plugins.cfg.spilling_cfg import USE_SPILLING_CFGNODE_DICT, SpillingCFG
+from angr.knowledge_plugins.cfg.spilling_digraph import SpillingDiGraph
+from angr.knowledge_plugins.functions.function_manager import USE_SPILLING_FUNCTION_DICT, SpillingFunctionDict
 from angr.storage import SimFile
 
 from tests.common import bin_location
@@ -88,6 +91,57 @@ class TestPickle(unittest.TestCase):
 
         p1 = pickle.loads(s)
         assert len(p1.analyses._active_preset._default_plugins) > 0
+
+    @unittest.skipUnless(
+        USE_SPILLING_FUNCTION_DICT and USE_SPILLING_CFGNODE_DICT,
+        "Requires LMDB-backed spilling dicts to be enabled (USE_SPILLING_FUNCTION_DICT / USE_SPILLING_CFGNODE_DICT)",
+    )
+    def test_cfg_pickling_with_rtdb(self):
+        # Regression test for angr/angr#6408: pickling a Project after CFGFast must
+        # succeed even when the RuntimeDb LMDB environment has been initialized by
+        # SpillingFunctionDict / SpillingCFGNodeDict. The fauxware binary is too small
+        # to trigger automatic spilling, so we force small cache limits.
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"),
+            auto_load_libs=False,
+            cache_limits={"functions": 10, "cfg_nodes": 10, "cfg_edges": 10},
+        )
+        # Force the LMDB environment to actually be opened so the unpicklable handle
+        # would be present in RuntimeDb at pickle time.
+        p.kb.rtdb._init_lmdb()
+        assert p.kb.rtdb._lmdb_env is not None
+
+        cfg = p.analyses.CFGFast()
+
+        # Confirm the spilling LMDB-backed containers are actually in use; without them
+        # this test wouldn't exercise the original bug.
+        assert isinstance(p.kb.functions._function_map, SpillingFunctionDict)
+        assert isinstance(cfg.model.graph, SpillingCFG)
+        assert isinstance(cfg.model.graph._graph, SpillingDiGraph)
+        original_func_count = len(p.kb.functions)
+        original_main_addr = p.kb.functions["main"].addr
+        original_node_count = len(list(cfg.model.nodes()))
+
+        data = pickle.dumps(p, -1)
+        p2 = pickle.loads(data)
+
+        # RuntimeDb on the unpickled side should start with a fresh (uninitialized) LMDB.
+        assert p2.kb.rtdb._lmdb_env is None
+        assert p2.kb.rtdb._lmdb_path is None
+
+        # Functions survive the round-trip.
+        assert len(p2.kb.functions) == original_func_count
+        assert p2.kb.functions["main"].addr == original_main_addr
+        # SpillingFunctionDict.rtdb is re-wired by FunctionManager.set_kb during unpickle.
+        assert p2.kb.functions._function_map.rtdb is p2.kb.rtdb
+
+        # CFG nodes survive the round-trip.
+        cfg2_model = next(iter(p2.kb.cfgs.cfgs.values()))
+        assert len(list(cfg2_model.nodes())) == original_node_count
+
+        # Lazy re-initialization of LMDB on the unpickled side must work for future use.
+        p2.kb.rtdb._init_lmdb()
+        assert p2.kb.rtdb._lmdb_env is not None
 
     def test_multi_kb_serialization(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
