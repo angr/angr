@@ -354,6 +354,7 @@ class FunctionParser:
                         dst_addr,
                     )
                 else:
+                    fakeret_is_outside = fake_ret_edge is None or fake_ret_edge[1].addr not in blocks
                     if isinstance(dst, (FuncNode, HookNode)):
                         obj._call_to(
                             src,
@@ -361,7 +362,7 @@ class FunctionParser:
                             None if fake_ret_edge is None else fake_ret_edge[1],
                             stmt_idx=stmt_idx,
                             ins_addr=ins_addr,
-                            return_to_outside=fake_ret_edge is None,
+                            return_to_outside=fakeret_is_outside,
                             syscall=edge_type == "syscall",
                             update_func_block_count=False,  # we will update the block count at the end of this function
                         )
@@ -372,7 +373,7 @@ class FunctionParser:
                             fakeret_src,
                             fakeret_dst,
                             confirmed=fakeret_data.get("confirmed"),
-                            to_outside=fakeret_data.get("outside", None),
+                            to_outside=(fakeret_data.get("outside", None) or fakeret_is_outside),
                             update_func_block_count=False,  # we will update the block count at the end of this function
                         )
             elif edge_type == "return":
