@@ -81,6 +81,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
 
         rcc = self.project.analyses.RustCallingConvention(
             func,
+            ail_manager=self.manager,
             callsite_path=pathfinder.find_backward_path(block),
             post_callsite_path=post_callsite_path,
             is_call_expr=False,

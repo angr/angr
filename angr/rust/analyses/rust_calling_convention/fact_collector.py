@@ -89,7 +89,7 @@ class CalleeWriteCollector:
             return
         func = self._fc.project.kb.functions[call.target.value]
         if func.name == "memcpy" and args is not None and len(args) == 3 and isinstance(args[2], Const):
-            tmp = Tmp(None, None, 0, args[2].value * self._fc.project.arch.byte_width)
+            tmp = Tmp(self._fc.ail_manager.next_atom(), None, 0, args[2].value * self._fc.project.arch.byte_width)
             self._fc.has_write_to_arg0 = True
             # Use a single-block path as the key, consistent with memory_writes keying.
             path = (block,)
@@ -251,6 +251,7 @@ class FactCollector(CFAMixin, SRDAMixin, DFAMixin):
         self.project = analysis.project
         self.graph = analysis.graph
         self.func = analysis.func
+        self.ail_manager = analysis.ail_manager
 
         CFAMixin.__init__(self, self.graph, self.project)
         SRDAMixin.__init__(self, self.func, self.graph, self.project)

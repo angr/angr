@@ -48,7 +48,9 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
                 ):
                     string_literal = extract_str(self.project, field.value, next_field.value)
                     if string_literal is not None:
-                        new_fields[offset] = StringLiteral(None, string_literal, self.project.arch.bits * 2)
+                        new_fields[offset] = StringLiteral(
+                            self.manager.next_atom(), string_literal, self.project.arch.bits * 2
+                        )
                         new_field_offsets[field_name] = offset
                         changed = True
                         continue
@@ -102,7 +104,7 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
                         new_stmt = Assignment(
                             stmt.idx,
                             self.new_stack_vvar(offset, self.project.arch.bits * 2, {}),
-                            StringLiteral(None, decoded_str, self.project.arch.bits * 2),
+                            StringLiteral(self.manager.next_atom(), decoded_str, self.project.arch.bits * 2),
                             **stmt.tags,
                         )
                         new_stmts.append(new_stmt)

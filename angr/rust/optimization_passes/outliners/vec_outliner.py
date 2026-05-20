@@ -34,8 +34,8 @@ class VecOutliner(OptimizationPass):
                     and "type" in stmt.src.tags
                 ):
                     call = Call(
-                        idx=None,
-                        target=StringLiteral(None, "Vec::new", self.project.arch.bits),
+                        self.manager.next_atom(),
+                        StringLiteral(self.manager.next_atom(), "Vec::new", self.project.arch.bits),
                         prototype=RustSimTypeFunction(
                             args=[RustSimTypeReference(stmt.src.tags["type"])], returnty=None, is_arg0_retbuf=True
                         )

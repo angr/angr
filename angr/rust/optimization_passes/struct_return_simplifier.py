@@ -92,7 +92,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             if new_offset >= 0:
                 new_fields[new_offset] = v
         struct_ty = self._build_struct_ty(new_fields)
-        return Struct(None, struct_ty.name, new_fields, struct_ty.offsets, struct_ty.size)
+        return Struct(self.manager.next_atom(), struct_ty.name, new_fields, struct_ty.offsets, struct_ty.size)
 
     def try_convert_to_enum(self, struct: Struct):
         prototype = self._func.prototype
@@ -111,7 +111,9 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                     new_expr = self._remove_discriminant_from_struct(struct, variant)
                     if len(new_expr.fields) == 1 and 0 in new_expr.fields:
                         new_expr = new_expr.fields[0]
-                    return RustEnum(None, variant.name, [new_expr], returnty.with_arch(self.project.arch).size)
+                    return RustEnum(
+                        self.manager.next_atom(), variant.name, [new_expr], returnty.with_arch(self.project.arch).size
+                    )
         return struct
 
     def collect_ret_expr(self, path):
@@ -129,7 +131,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             return existing_vvar, stmts_to_remove
         if 0 in fields:
             struct_ty = self._build_struct_ty(fields)
-            result = Struct(None, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
+            result = Struct(self.manager.next_atom(), struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
             return self.try_convert_to_enum(result), stmts_to_remove
         return None, None
 
@@ -147,7 +149,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 for block in path[1:]:
                     blocks_to_remove.add(block)
                 head_block = path[0]
-                ret = Return(None, [ret_expr], **head_block.statements[-1].tags)
+                ret = Return(self.manager.next_atom(), [ret_expr], **head_block.statements[-1].tags)
                 head_block.statements[-1] = ret
                 for block, stmts in stmts_to_remove.items():
                     for stmt in stmts:

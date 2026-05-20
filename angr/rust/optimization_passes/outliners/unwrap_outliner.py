@@ -137,7 +137,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                         self.remove_block(unwrap_failed_block)
                         replacement = Call(
                             idx=last_stmt.idx,
-                            target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
+                            target=StringLiteral(self.manager.next_atom(), unwrap_func_name, self.project.arch.bits),
                             prototype=RustSimTypeFunction(
                                 args=[RustSimTypeInt(cmp_vvar.bits)], returnty=variant.type
                             ).with_arch(self.project.arch),
@@ -149,7 +149,9 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                             replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
                         replacement.bits = dst_vvar.bits
                         if second_block is not None:
-                            second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
+                            second_block.statements[-1] = Assignment(
+                                self.manager.next_atom(), dst_vvar, replacement, **last_stmt.tags
+                            )
                         return
                 # Outline unwrap without knowing the enum type
                 unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
@@ -157,7 +159,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 assert self.remove_block(unwrap_failed_block)
                 replacement = Call(
                     idx=last_stmt.idx,
-                    target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
+                    target=StringLiteral(self.manager.next_atom(), unwrap_func_name, self.project.arch.bits),
                     prototype=RustSimTypeFunction(args=[RustSimTypeInt(cmp_vvar.bits)], returnty=None).with_arch(
                         self.project.arch
                     ),

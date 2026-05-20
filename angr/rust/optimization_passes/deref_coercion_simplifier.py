@@ -44,9 +44,9 @@ class StrCmpSimplifierWalker(AILBlockRewriter):
                 )
                 operands = list(expr.operands[0].args)
                 if len(operands) == 1:
-                    operands.append(StringLiteral(None, "", operands[0].bits))
+                    operands.append(StringLiteral(self.context.manager.next_atom(), "", operands[0].bits))
                 if len(operands) == 2:
-                    return BinaryOp(None, op, operands, **expr.tags)
+                    return BinaryOp(self.context.manager.next_atom(), op, operands, **expr.tags)
         return expr
 
 

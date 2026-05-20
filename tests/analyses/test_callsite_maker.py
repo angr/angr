@@ -49,7 +49,7 @@ class TestCallsiteMaker(unittest.TestCase):
             ail_block = ailment.IRSBConverter.convert(block.vex, manager)
             simp = project.analyses.AILBlockSimplifier(ail_block, manager, main_func.addr)
 
-            csm = project.analyses.AILCallSiteMaker(simp.result_block)
+            csm = project.analyses.AILCallSiteMaker(simp.result_block, ail_manager=manager)
             if csm.result_block:
                 ail_block = csm.result_block
                 simp = project.analyses.AILBlockSimplifier(ail_block, manager, main_func.addr)

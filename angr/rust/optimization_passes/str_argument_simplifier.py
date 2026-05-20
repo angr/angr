@@ -39,7 +39,7 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
             and isinstance(arg1, Const)
             and (decoded_str := extract_str(self.project, arg0.value, arg1.value))
         ):
-            return StringLiteral(None, decoded_str, self.project.arch.bits)
+            return StringLiteral(self.manager.next_atom(), decoded_str, self.project.arch.bits)
         return None
 
     def try_str_reference(self, arg0, arg1):

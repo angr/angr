@@ -60,9 +60,19 @@ class StructBuilder:
             if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.context.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.context.project.arch.byte_width
-                leftover_addr = data.addr + Const(None, None, size, data.addr.bits)
-                leftover = Load(None, leftover_addr, leftover_size, data.endness, **data.tags)
-                new_data = Load(None, data.addr, size, data.endness, **data.tags)
+                size_expr = Const(self.context.manager.next_atom(), None, size, data.addr.bits)
+                leftover_addr = BinaryOp(
+                    self.context.manager.next_atom(),
+                    "Add",
+                    (data.addr, size_expr),
+                    signed=False,
+                    bits=data.addr.bits,
+                    **data.tags,
+                )
+                leftover = Load(
+                    self.context.manager.next_atom(), leftover_addr, leftover_size, data.endness, **data.tags
+                )
+                new_data = Load(self.context.manager.next_atom(), data.addr, size, data.endness, **data.tags)
                 return new_data, leftover
         return None, None
 
@@ -252,7 +262,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
                 src = self._convert_to_stack_vvar(struct) or struct
                 src.tags["type"] = struct_ty  # pyright: ignore[reportGeneralTypeIssues]
-                new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
+                new_stmt = Assignment(self.manager.next_atom(), new_vvar, src, **first_stack_def.stmt.tags)
 
                 # Collect type hints
                 self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty, self._func.addr)
@@ -298,7 +308,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 else:
                     return None, None
             struct_ty = self._build_struct_ty(fields)
-            struct = Struct(None, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
+            struct = Struct(self.manager.next_atom(), struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
             return struct_ty, struct
         return None, None
 
@@ -336,7 +346,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     vvar = sorted_stmts[0].dst
                     new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
                     src = self._convert_to_stack_vvar(struct) or struct
-                    new_stmt = Assignment(None, new_vvar, src, **sorted_stmts[0].tags)
+                    new_stmt = Assignment(self.manager.next_atom(), new_vvar, src, **sorted_stmts[0].tags)
 
                     # Collect type hints
                     self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty, self._func.addr)
