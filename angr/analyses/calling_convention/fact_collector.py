@@ -772,6 +772,9 @@ class FactCollector(Analysis):
         before returning.
         """
 
+        if not self.project.arch.call_pushes_ret:
+            return 0
+
         sp_offset = self.project.arch.sp_offset
         sp_diffs = set()  # should all be positive
 
