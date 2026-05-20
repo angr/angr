@@ -226,6 +226,26 @@ class TestCommandLineInterface(unittest.TestCase):
         output = run_cli("decompile", bin_path, "--functions", "main", "--cca", "--no-colors")
         assert "main" in output
 
+    def test_decompile_rust(self):
+        bin_path = os.path.join(test_location, "x86_64", "rust", "FakeCrypt-stripped")
+        if not os.path.isfile(bin_path):
+            self.skipTest(f"{bin_path} not found")
+        output = run_cli("decompile", bin_path, "--functions", "0x455300", "--rust", "--no-colors")
+
+        assert "fn sub_455300(" in output, "expected a Rust `fn` header for sub_455300"
+        assert re.search(r"let v\d+: ", output), "expected Rust-style `let v#: <type>` declarations"
+        assert re.search(r"Result<struct\d+, struct\d+>", output), "expected a Result<T, E> type annotation"
+
+        bindings = re.findall(r"if let Ok\(v\d+\)", output)
+        assert len(bindings) == 2, f"expected 2 if-let-Ok bindings, found {len(bindings)}: {bindings}"
+
+        assert re.search(r"struct\d+ \{\n\s+field_", output), "expected a struct literal with field_<n> entries"
+        assert re.search(r" as u64\b", output), "expected a Rust-style `as u64` cast"
+        assert re.search(r"&v\d+\b", output), "expected Rust reference syntax `&v<n>`"
+        assert re.search(r"\b(?:eprintln|println|format|print|write|writeln)!\(", output), (
+            "expected a Rust format-macro call"
+        )
+
     def test_decompile_syntax_highlighting(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
         # Force ansi_color_enabled=True to exercise the Syntax highlighting path.
