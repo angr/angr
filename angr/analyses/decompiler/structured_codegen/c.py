@@ -3696,7 +3696,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
-        if expr.bits and call_expr.type.size != expr.size * self.project.arch.byte_width:
+        if expr.bits and call_expr.type is not None and call_expr.type.size != expr.size * self.project.arch.byte_width:
             call_expr = CTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(
