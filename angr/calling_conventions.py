@@ -1171,10 +1171,19 @@ class SimCC:
         return isinstance(other, self.__class__)
 
     @classmethod
-    def _match(cls, arch, args: list[SimRegArg | SimStackArg], sp_delta, unused_hint: list[SimRegArg] | None = None):
+    def _match(
+        cls,
+        arch,
+        args: list[SimRegArg | SimStackArg],
+        sp_delta,
+        unused_hint: list[SimRegArg] | None = None,
+        extra_pop: int | None = None,
+    ) -> bool:
         if cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches()):  # pylint:disable=isinstance-second-argument-not-valid-type
             return False
         if sp_delta != cls.STACKARG_SP_DIFF:
+            return False
+        if extra_pop is not None and extra_pop > 0 and not cls.CALLEE_CLEANUP:
             return False
 
         def _arg_ident(a: SimRegArg | SimStackArg) -> int | str:
@@ -1190,6 +1199,7 @@ class SimCC:
         some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(max_args)}
 
         new_args = []
+        has_stackargs = False
         for arg in args:
             arg_ident = _arg_ident(arg)
             if arg_ident not in all_fp_args and arg_ident not in all_int_args and arg_ident not in some_both_args:
@@ -1201,7 +1211,13 @@ class SimCC:
                     # if we see an undefined use of a caller-saved register, this must not be right
                     return False
                 continue
+            if isinstance(arg, SimStackArg):
+                has_stackargs = True
             new_args.append(arg)
+
+        if has_stackargs and cls.CALLEE_CLEANUP and not extra_pop:
+            # the callee-cleanup convention should have a nonzero extra_pop if there are stack arguments
+            return False
 
         # update args (e.g., drop caller-saved register arguments)
         args.clear()
@@ -1229,6 +1245,7 @@ class SimCC:
         sp_delta: int,
         platform: str | None = "Linux",
         unused_hint: list[SimRegArg] | None = None,
+        extra_pop: int | None = None,
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
@@ -1238,6 +1255,8 @@ class SimCC:
         :param args:        A list of arguments. It may be updated by the first matched calling convention to
                             remove non-argument arguments.
         :param sp_delta:    The change of stack pointer before and after the call is made.
+        :param extra_pop:   The number of bytes that are popped by the callee. This is used to distinguish between
+                            callee-cleanup and caller-cleanup conventions.
         :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the
                             arguments provided.
         """
@@ -1248,7 +1267,7 @@ class SimCC:
             platform = "default"
         possible_cc_classes = CC[arch.name][platform]
         for cc_cls in possible_cc_classes:
-            if cc_cls._match(arch, args, sp_delta, unused_hint):
+            if cc_cls._match(arch, args, sp_delta, unused_hint, extra_pop):
                 return cc_cls(arch)
         return None
 
@@ -1536,7 +1555,7 @@ class SimCCX86LinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchX86
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -1554,7 +1573,7 @@ class SimCCX86WindowsSyscall(SimCCSyscall):
     ARCH = archinfo.ArchX86
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -1587,7 +1606,7 @@ class SimCCSystemVAMD64(SimCC):
     STACK_ALIGNMENT = 16
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):
         if cls.ARCH is not None and ":" not in arch.name and not isinstance(arch, cls.ARCH):
             return False
         # if sp_delta != cls.STACKARG_SP_DIFF:
@@ -1795,7 +1814,7 @@ class SimCCAMD64LinuxSyscall(SimCCSyscall):
     CALLER_SAVED_REGS = ["rax", "rcx", "r11"]
 
     @staticmethod
-    def _match(arch, args, sp_delta, unused_hint=None):  # type: ignore # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta, unused_hint=None, extra_pop=None):  # type: ignore # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
         return False
 
@@ -1813,7 +1832,7 @@ class SimCCAMD64WindowsSyscall(SimCCSyscall):
     ARCH = archinfo.ArchAMD64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2023,7 +2042,7 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchARM
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2063,7 +2082,7 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchAArch64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2250,7 +2269,7 @@ class SimCCRISCV64LinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchRISCV64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2410,7 +2429,7 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -1133
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2443,7 +2462,7 @@ class SimCCN64LinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -1133
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2474,7 +2493,7 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -515
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2504,7 +2523,7 @@ class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -515
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2532,7 +2551,7 @@ class SimCCUnknown(SimCC):
     """
 
     @staticmethod
-    def _match(arch, args, sp_delta, unused_hint=None):  # type: ignore  # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta, unused_hint=None, extra_pop=None):  # type: ignore  # pylint: disable=unused-argument
         # It always returns True
         return True
 
@@ -2557,7 +2576,7 @@ class SimCCS390XLinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchS390X
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2576,7 +2595,7 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
         "default": [SimCCCdecl],
         "Linux": [SimCCCdecl],
         "CGC": [SimCCCdecl],
-        "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall, SimCCMicrosoftThiscall],
+        "Win32": [SimCCStdcall, SimCCMicrosoftCdecl, SimCCMicrosoftFastcall, SimCCMicrosoftThiscall],
     },
     "ARMEL": {
         "default": [SimCCARM],

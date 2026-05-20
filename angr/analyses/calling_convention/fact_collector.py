@@ -317,6 +317,7 @@ class FactCollector(Analysis):
         self.unused_args: list[SimRegArg] = []
         self.retval_size: int | None = None
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
+        self.extra_pop: int | None = None
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
         self._analyze()
@@ -329,6 +330,7 @@ class FactCollector(Analysis):
         self._analyze_endpoints_for_retval_size(end_states)
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
+        self.extra_pop = self._analyze_endpoints_for_extrapop()
 
     def _analyze_startpoint(self) -> list[FactCollectorState]:
         func_graph = self.function.transition_graph
@@ -762,6 +764,40 @@ class FactCollector(Analysis):
                     caller_saved_offsets.add(self.project.arch.registers[reg_name][0])
 
         return callee_restored_regs.difference(caller_saved_offsets)
+
+    def _analyze_endpoints_for_extrapop(self) -> int:
+        """
+        Analyze all endpoints to determine the number of bytes that are popped after popping the return address at the
+        end of the function. This information is useful for determining if the function cleans up stack arguments
+        before returning.
+        """
+
+        if not self.project.arch.call_pushes_ret:
+            return 0
+
+        sp_offset = self.project.arch.sp_offset
+        sp_diffs = set()  # should all be positive
+
+        for endpoint in self.function.endpoints:
+            block = self.project.factory.block(endpoint.addr, size=endpoint.size)
+            if not block.instruction_addrs:
+                continue
+            # ret is the only instruction that can load the return address, and it must be the last instruction of the
+            # block. so we simply take a look at sp value diff before and after the last instruction. hopefully this
+            # applies for all architectures :)
+            last_ins_addr = block.instruction_addrs[-1]
+            last_ins_block = self.project.factory.block(last_ins_addr, size=block.addr + block.size - last_ins_addr)
+            spt = self.project.analyses.StackPointerTracker(
+                None, reg_offsets={self.project.arch.sp_offset}, block=last_ins_block, track_memory=False
+            )
+            sp_off_after = spt.offset_after(last_ins_addr, sp_offset)
+            sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
+            if sp_off_after is None or sp_off_before is None:
+                continue
+            sp_diff = sp_off_after - sp_off_before
+            sp_diffs.add(sp_diff - self.project.arch.bytes)
+
+        return 0 if not sp_diffs else max(sp_diffs)
 
     def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []

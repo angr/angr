@@ -116,6 +116,7 @@ class CallingConventionAnalysis(Analysis):
         func_graph: networkx.DiGraph | None = None,
         input_args: list[SimRegArg | SimStackArg] | None = None,
         retval_size: int | None = None,
+        extra_pop: int | None = None,
         collect_facts: bool = False,
         collect_facts_arg_uses: bool = False,
         collect_facts_arg_passthru: bool = False,
@@ -133,6 +134,7 @@ class CallingConventionAnalysis(Analysis):
         self._input_args = input_args
         self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
+        self._extra_pop: int | None = extra_pop
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
         self._collect_facts_arg_passthru = collect_facts_arg_passthru
@@ -275,6 +277,7 @@ class CallingConventionAnalysis(Analysis):
             self._callsites = facts.callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._unused_args = facts.unused_args
+            self._extra_pop = facts.extra_pop
 
         r = self._analyze_function()
         if r is None:
@@ -464,6 +467,7 @@ class CallingConventionAnalysis(Analysis):
             sp_delta,
             platform=self.project.simos.name,
             unused_hint=self._unused_args,
+            extra_pop=self._extra_pop,
         )
 
         # update input_args according to the difference between full_input_args and full_input_args_copy
