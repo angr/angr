@@ -111,7 +111,7 @@ class StructBuilder(Analysis):
                     elements.append(ele_expr)
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
                 for i in range(len_expr.value_int):
-                    ele_expr = self.context.new_stack_vvar(
+                    ele_expr = self.context.new_stack_vvar(  # type:ignore
                         vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags, record=False
                     )
                     # Looking for nested structs or struct references

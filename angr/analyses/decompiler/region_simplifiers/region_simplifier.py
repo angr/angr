@@ -188,7 +188,7 @@ class RegionSimplifier(Analysis):
                 definition = definition.copy()
                 if definition.ret_expr is not None:
                     definition.ret_expr = definition.ret_expr.copy()
-                    definition.ret_expr.variable = None
+                    definition.ret_expr.variable = None  # type: ignore
             variable_assignments[var] = definition, loc
             variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps

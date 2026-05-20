@@ -99,6 +99,7 @@ class CalleeWriteCollector:
         elif func.normalized and func.size and self._fc.analysis.depth < self._fc.analysis.max_depth:
             result = self._fc.project.analyses.RustCallingConvention(
                 func,
+                ail_manager=self._fc.ail_manager,
                 callsite_path=Pathfinder(self._fc.graph).find_backward_path(block),
                 depth=self._fc.analysis.depth + 1,
                 max_depth=self._fc.analysis.max_depth,
@@ -178,6 +179,7 @@ class ConstRetValueCollector:
             def_block = ret_block
         result = self._fc.project.analyses.RustCallingConvention(
             func,
+            ail_manager=self._fc.ail_manager,
             callsite_path=Pathfinder(self._fc.graph).find_backward_path(def_block),
             depth=self._fc.analysis.depth + 1,
             max_depth=self._fc.analysis.max_depth,

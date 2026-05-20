@@ -126,7 +126,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
         dst_vvar.tags["type"] = returnty  # pyright: ignore[reportGeneralTypeIssues]
         self.project.kb.type_hints.add_type_hint(dst_vvar, returnty, self._func.addr)
-        return Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
+        return Assignment(self.manager.next_atom(), dst_vvar, call, **call.tags)
 
     def _apply_return_type_hint(self, call_expr: Call, stmt):
         """For non-retbuf calls with composite return type in Assignment(dst, Call), add type hint to dst."""
