@@ -50,8 +50,6 @@ def arch_overridable(f):
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-_complained_se = False
-
 IPTypeConc = TypeVar("IPTypeConc")
 IPTypeSym = TypeVar("IPTypeSym")
 
