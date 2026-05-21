@@ -234,8 +234,10 @@ def type_to_rust_repr_chunks(ty: SimType | RustSimType, name=None, name_type=Non
         # yield ty.name, ty
         yield "\n\n", None
     elif isinstance(ty, RustSimType):
-        assert name
-        assert name_type
+        if not name:
+            name = "<unknown_name>"
+        if not name_type:
+            name_type = "<unknown_rust_type>"
 
         yield indent_str, None
         yield name, name_type
@@ -243,8 +245,10 @@ def type_to_rust_repr_chunks(ty: SimType | RustSimType, name=None, name_type=Non
         yield ty.repr(), ty
     # This case was used when generating externs, apparently there can be cases where the name is not known
     elif ty is None:
-        assert name
-        assert name_type
+        if not name:
+            name = "<unknown_name>"
+        if not name_type:
+            name_type = "<unknown_rust_type>"
         yield "<missing-type> ", None
         yield name, name_type
     else:
