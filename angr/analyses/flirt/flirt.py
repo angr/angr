@@ -152,7 +152,7 @@ class FlirtAnalysis(Analysis):
 
                     for func in funcs:
                         func: Function
-                        if not func._local_block_addrs:
+                        if not func.block_addrs_set:
                             # empty function
                             continue
                         if func.is_simprocedure or func.is_plt:
