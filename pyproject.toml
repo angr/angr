@@ -67,6 +67,7 @@ angr-mcp = "angr.mcp.__main__:main"
 dev = [
     "coverage>=7.10.7",
     "gcovr>=8.4",
+    "pylint>=4.0.5",
     "pyright>=1.1.408",
     "pytest>=8.3.5",
     "pytest-cov>=7.0.0",
@@ -157,6 +158,26 @@ ignore = [
 
 [tool.ruff.lint.isort]
 required-imports = ["from __future__ import annotations"]
+
+[tool.pylint.main]
+load-plugins = ["pylint.extensions.no_self_use", "pylint.extensions.bad_builtin"]
+
+[tool.pylint."messages control"]
+disable = [
+    # Categories
+    "design",
+    "format",  # Ruff handles formatting
+
+    # Individual rules
+    "abstract-method",
+    "fixme",
+    "invalid-name",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "unidiomatic-typecheck",
+    "arguments-differ",
+    "signature-differs",
+]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
