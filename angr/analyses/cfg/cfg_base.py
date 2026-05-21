@@ -779,17 +779,18 @@ class CFGBase(Analysis):
                         max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
                         tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
-                if force_segment:
+                if (not b.sections and segments) or force_segment:
+                    # Use segments directly when force_segment is True or when the ELF has no section headers
+                    # at all.
                     memory_regions += segments
-                else:
-                    if sections and segments:
-                        # are there executable segments with no sections inside?
-                        for segment in segments:
-                            for section in sections:
-                                if segment[0] <= section[0] < segment[1]:
-                                    break
-                            else:
-                                memory_regions.append(segment)
+                elif sections and segments:
+                    # are there executable segments with no sections inside?
+                    for segment in segments:
+                        for section in sections:
+                            if segment[0] <= section[0] < segment[1]:
+                                break
+                        else:
+                            memory_regions.append(segment)
 
             elif isinstance(b, (Coff, PE)):
                 has_executable = True
