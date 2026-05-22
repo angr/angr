@@ -174,10 +174,10 @@ def longest_ail_subseq(
     The common List[Statement] most all be in the same order and adjacent to each other. If no common subsequence is
     found, it returns None.
 
-    @param stmts_list:
-    @param graph:
-    @return: Tuple[List[Statement], List[int]], where the first element is the longest common subsequence, and the
-             second element is a list of integers indicating the index of the longest common subsequence in each
+    :param stmts_list:
+    :param graph:
+    :return: ``Tuple[List[Statement], List[int]]``, where the first element is the longest common subsequence, and
+             the second element is a list of integers indicating the index of the longest common subsequence in each
              list of statements.
     """
 

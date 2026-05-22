@@ -1,5 +1,5 @@
 Core Concepts
-============
+=============
 
 .. toctree::
    :maxdepth: 1

@@ -5,7 +5,7 @@ from __future__ import annotations
 from itertools import count
 import logging
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from angr.knowledge_plugins.obfuscations import Obfuscations
 
@@ -123,9 +123,7 @@ class KnowledgeBase:
         if name in self._plugins:
             del self._plugins[name]
 
-    K = TypeVar("K", bound=KnowledgeBasePlugin)
-
-    def get_knowledge(self, requested_plugin_cls: type[K]) -> K | None:
+    def get_knowledge[K: KnowledgeBasePlugin](self, requested_plugin_cls: type[K]) -> K | None:
         """
         Type inference safe method to request a knowledge base plugin
         Explicitly passing the type of the requested plugin achieves two things:
@@ -141,7 +139,7 @@ class KnowledgeBase:
         # Get first plugin of this type already registered, or default to None
         return next((plugin for plugin in self._plugins.values() if isinstance(plugin, requested_plugin_cls)), None)
 
-    def request_knowledge(self, requested_plugin_cls: type[K]) -> K:
+    def request_knowledge[K: KnowledgeBasePlugin](self, requested_plugin_cls: type[K]) -> K:
         existing = self.get_knowledge(requested_plugin_cls)
         if existing is not None:
             return existing

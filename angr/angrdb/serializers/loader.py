@@ -59,6 +59,7 @@ class LoaderSerializer:
     Serialize/unserialize a CLE Loader object into/from an angr DB.
 
     Corner cases:
+
     - For certain backends (e.g., CART), we do not store the data of the main object. angr will unpack the CART file
       again after loading the database.
     """

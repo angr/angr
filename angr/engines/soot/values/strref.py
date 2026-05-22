@@ -27,11 +27,10 @@ class SimSootValue_StringRef(SimSootValue):
         The method returns the reference to the newly allocated string
 
         :param state: angr state where we want to allocate the string
-        :type SimState
+        :type state: SimState
         :param value: value of the string to initialize
-        :type claripy.String
-
-        :return SimSootValue_StringRef
+        :type value: claripy.String
+        :return: SimSootValue_StringRef
         """
         str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
         state.memory.store(str_ref, value)

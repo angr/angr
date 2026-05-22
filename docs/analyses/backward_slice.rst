@@ -132,31 +132,27 @@ following:
 Export an Annotated Control Flow Graph
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. todo::
+.. todo:: Document this.
 
 User-friendly Representation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Take a look at ``BackwardSlice.dbg_repr()``!
 
-.. todo::
-
 Implementation Choices
 ----------------------
 
-.. todo::
+.. todo:: Document this.
 
 Limitations
 -----------
 
-.. todo::
-
 Completeness
 ^^^^^^^^^^^^
 
-.. todo::
+.. todo:: Document this.
 
 Soundness
 ^^^^^^^^^
 
-.. todo::
+.. todo:: Document this.

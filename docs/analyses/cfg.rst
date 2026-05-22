@@ -195,10 +195,10 @@ whether the function returns, can be recovered and propagated directly.
 Indirect Jump Resolution
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. todo::
+.. todo:: Document this.
 
-Options
-^^^^^^^
+CFGFast Options
+^^^^^^^^^^^^^^^
 
 These are the most useful options when working with CFGFast:
 
@@ -227,8 +227,8 @@ These are the most useful options when working with CFGFast:
 CFGEmulated details
 -------------------
 
-Options
-^^^^^^^
+CFGEmulated Options
+^^^^^^^^^^^^^^^^^^^
 
 The most common options for CFGEmulated include:
 

@@ -299,19 +299,19 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
     Check the last statement of the switch-case header node (whose address is loaded from a jump table and computed
     using an index) and extract necessary information for rebuilding the switch-case construct.
 
-    An example of the statement:
+    An example of the statement::
 
-    Goto(Conv(32->s64, (
-        Load(addr=(0x4530e4<64> + (Conv(32->64, (Conv(64->32, vvar_287{reg 32}) & 0x3<32>)) * 0x4<64>)),
-             size=4, endness=Iend_LE) + 0x4530e4<32>))
-    )
+        Goto(Conv(32->s64, (
+            Load(addr=(0x4530e4<64> + (Conv(32->64, (Conv(64->32, vvar_287{reg 32}) & 0x3<32>)) * 0x4<64>)),
+                 size=4, endness=Iend_LE) + 0x4530e4<32>))
+        )
 
-    Another example:
+    Another example::
 
-    Load(addr=(((vvar_9{reg 36} & 0x3<32>) * 0x4<32>) + 0x42cd28<32>), size=4, endness=Iend_LE)
+        Load(addr=(((vvar_9{reg 36} & 0x3<32>) * 0x4<32>) + 0x42cd28<32>), size=4, endness=Iend_LE)
 
     :param last_stmt:   The last statement of the switch-case header node.
-    :return:            A tuple of (index expression, lower bound, upper bound), or None
+    :return:            A tuple of ``(index expression, lower bound, upper bound)``, or None.
     """
 
     if not isinstance(last_stmt, ailment.Stmt.Jump):
@@ -766,13 +766,14 @@ def structured_node_is_simple_return(
     node: SequenceNode | MultiNode, graph: networkx.DiGraph, use_packed_successors=False
 ) -> bool:
     """
-    Will check if a "simple return" is contained within the node a simple returns looks like this:
-    if (cond) {
-      // simple return
-      ...
-      return 0;
-    }
-    ...
+    Check if a "simple return" is contained within the node. A simple return looks like this::
+
+        if (cond) {
+          // simple return
+          ...
+          return 0;
+        }
+        ...
 
     Returns true on any block ending in linear statements and a return.
     """

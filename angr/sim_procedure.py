@@ -42,9 +42,6 @@ class SimProcedure:
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/extending-angr/simprocedures
 
     :param arch:            The architecture to use for this procedure
-
-    The following parameters are optional:
-
     :param symbolic_return: Whether the procedure's return value should be stubbed into a
                             single symbolic variable constratined to the real return value
     :param returns:         Whether the procedure should return to its caller afterwards

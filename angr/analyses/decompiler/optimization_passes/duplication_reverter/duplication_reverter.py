@@ -481,29 +481,33 @@ class DuplicationReverter(StructuringOptimizationPass):
     def boolean_operators_in_condition(condition: Expression):
         """
         TODO: this entire boolean checking semantic we use needs to be removed, see how it is used for other dels needed
-        we need to replace it with a boolean variable insertion on both branches that lead to the new block
-        say we have:
-        if (A()) {
-            do_thing();
-        }
-        if (B()) {
-            do_thing():
-        }
+        we need to replace it with a boolean variable insertion on both branches that lead to the new block.
 
-        We want to translate it to:
-        int should_do_thing = 0;
-        if (A())
-            should_do_thing = 1;
-        if (B())
-            should_do_thing = 1;
+        Say we have::
 
-        if (should_do_thing):
-            do_thing();
+            if (A()) {
+                do_thing();
+            }
+            if (B()) {
+                do_thing():
+            }
 
-        Although longer, this code can be optimized to look like:
-        int should_do_thing = A() || B();
-        if (should_do_thing)
-            do_thing();
+        We want to translate it to::
+
+            int should_do_thing = 0;
+            if (A())
+                should_do_thing = 1;
+            if (B())
+                should_do_thing = 1;
+
+            if (should_do_thing):
+                do_thing();
+
+        Although longer, this code can be optimized to look like::
+
+            int should_do_thing = A() || B();
+            if (should_do_thing)
+                do_thing();
         """
         walker = BooleanCounter()
         walker.walk_expression(condition)

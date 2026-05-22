@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 
 class RemoveRedundantDerefs(PeepholeOptimizationExprBase):
     """
-    Remove redundant dereferences (e.g. *(&v))
+    Remove redundant dereferences (e.g. ``*(&v)``).
     """
 
     __slots__ = ()

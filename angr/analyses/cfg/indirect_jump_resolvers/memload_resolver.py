@@ -12,11 +12,11 @@ class MemoryLoadResolver(IndirectJumpResolver):
     """
     Resolve an indirect jump that looks like the following::
 
-    .text:
-                    call    off_3314A8
+        .text:
+                        call    off_3314A8
 
-    .data:
-    off_3314A8      dd offset sub_1E426F
+        .data:
+        off_3314A8      dd offset sub_1E426F
 
     This indirect jump resolver may not be the best solution for all cases (e.g., when the .data section can be
     intentionally altered by the binary itself).

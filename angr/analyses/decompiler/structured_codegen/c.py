@@ -89,6 +89,9 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapping, dict[Any, set[Any]]]
+
+
 INDENT_DELTA = 4
 
 
@@ -2824,9 +2827,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.map_ast_to_pos,
         ) = self.render_text(self.cfunc)
 
-    RENDER_TYPE = tuple[str, PositionMapping, PositionMapping, InstructionMapping, dict[Any, set[Any]]]
-
-    def render_text(self, cfunc: CFunction) -> RENDER_TYPE:
+    def render_text(self, cfunc: CFunction) -> RenderResult:
         pos_to_node = PositionMapping()
         pos_to_addr = PositionMapping()
         addr_to_pos = InstructionMapping()

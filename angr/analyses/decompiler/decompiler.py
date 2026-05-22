@@ -981,7 +981,7 @@ class Decompiler(Analysis):
     def llm_suggest_function_name(self, llm_client=None, code_text: str | None = None, raise_exc: bool = False) -> bool:
         """
         Ask the LLM to suggest a better function name.
-        Only suggests rename for auto-generated names (starting with 'sub_' or 'fcn.').
+        Only suggests rename for auto-generated names (starting with ``sub_`` or ``fcn.``).
         Returns True if the function was renamed.
 
         :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.

@@ -72,9 +72,6 @@ class Project:
     them, and perform analyses on them.
 
     :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
-
-    The following parameters are optional.
-
     :param default_analysis_mode:       The mode of analysis to use by default. Defaults to 'symbolic'.
     :param ignore_functions:            A list of function names that, when imported from shared libraries, should
                                         never be stepped into in analysis (calls will return an unconstrained value).

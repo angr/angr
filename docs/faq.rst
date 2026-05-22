@@ -6,7 +6,7 @@ general questions about angr, for those too lazy to read this whole document.
 
 If your question is of the form "how do I fix X issue after installing", see
 also the Troubleshooting section of the :ref:`install instructions <Installing
-angr>`_.
+angr>`.
 
 Why is it named angr?
 ---------------------
