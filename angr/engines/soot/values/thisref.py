@@ -117,7 +117,7 @@ class SimSootValue_ThisRef(SimSootValue):
 
     @classmethod
     def new_object(cls, state, type_, symbolic=False, init_object=False, init_class=False):
-        """
+        r"""
         Creates a new object reference.
 
         :param state: State associated to the object.
