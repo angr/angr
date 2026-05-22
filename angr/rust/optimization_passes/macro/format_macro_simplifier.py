@@ -119,7 +119,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     return "eprintln", fmt_str[:-1], None
                 return "eprint", fmt_str, None
             case "format_inner" | "format" | "map_or_else":
-                return "format", fmt_str, self.project.kb.known_structs["alloc::string::String"]
+                return "format", fmt_str, self.project.kb.known_structs.get("alloc::string::String")
             case "panic_fmt":
                 return "panic", fmt_str, None
             case "write_fmt" | "write":
@@ -141,6 +141,10 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         return False
 
     def _try_find_arguments_struct(self, call: Call):
+        arguments_ty = self.project.kb.known_structs.get("core::fmt::Arguments")
+        if arguments_ty is None:
+            return None, None, None
+
         for i in range(len(call.args or [])):
             if call.args and (arg_vvar := unwrap_stack_vvar_reference(call.args[i])):
                 arg_value = self.get_terminal_vvar_value(arg_vvar)
@@ -152,7 +156,6 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     and isinstance(arg_value.target, Const)
                     and arg_value.target.value in self.project.kb.functions
                 ):
-                    arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"]
                     func = self.project.kb.functions[arg_value.target.value]
                     clinic = self.project.kb.clinic_factory.get(func)
                     srda_mixin = SRDAMixin(func, clinic.graph, self.project)
@@ -184,10 +187,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         args = arguments_struct.get_field("args")
         if args is None or not isinstance(args, Array) or args.length == 0:
             return [], {}
-        argument_ty = (
-            self.project.kb.known_structs["core::fmt::rt::Argument"]
-            or self.project.kb.known_structs["core::fmt::ArgumentV1"]
+        argument_ty = self.project.kb.known_structs.get("core::fmt::rt::Argument") or self.project.kb.known_structs.get(
+            "core::fmt::ArgumentV1"
         )
+        if argument_ty is None:
+            return [], {}
         argument_structs = []
         stmts_to_remove = defaultdict(list)
         arg_vvars = []
