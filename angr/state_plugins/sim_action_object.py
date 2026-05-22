@@ -13,7 +13,7 @@ from angr.sim_state import SimState
 
 if typing.TYPE_CHECKING:
     from claripy.annotation import Annotation
-    from claripy.ast.base import ArgType
+    from claripy.ast.base import ArgType, Base  # noqa: F401  (Base referenced via ArgType forward ref)
 
 
 def _raw_ast(a):

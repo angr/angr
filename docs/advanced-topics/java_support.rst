@@ -40,6 +40,7 @@ Java support requires the ``pysoot`` package, which is not included in the
 default angr installation. You can install it from GitHub using pip:
 
 .. code-block:: bash
+
    git clone https://github.com/angr/pysoot.git
    cd pysoot
    pip install -e .
@@ -47,6 +48,7 @@ default angr installation. You can install it from GitHub using pip:
 Alternatively, pysoot can be installed with the setup script in angr-dev:
 
 .. code-block:: bash
+
    ./setup.sh pysoot
 
 Analyzing Android apps.

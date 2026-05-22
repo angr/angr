@@ -20,24 +20,27 @@ class CodeMotionOptimization(OptimizationPass):
     successors. This is done to reduce the number of statements in a block and to make the
     blocks more similar to each other.
 
-    As an example:
-    if (x) {
-        b = 2;
-        a = 1;
-        c = 3;
-    } else {
-        b = 2;
-        c = 3;
-    }
+    As an example::
 
-    Will be turned into:
-    if (x) {
-        a = 1;
-    }
-    b = 2;
-    c = 3;
+        if (x) {
+            b = 2;
+            a = 1;
+            c = 3;
+        } else {
+            b = 2;
+            c = 3;
+        }
+
+    Will be turned into::
+
+        if (x) {
+            a = 1;
+        }
+        b = 2;
+        c = 3;
 
     Current limitations (for very conservative operations):
+
     - moving statements above conditional jumps is not supported
     - only immediate children and parents are considered for moving statements
     - when moving statements down, a block is only considered if already has a matching statement at the end

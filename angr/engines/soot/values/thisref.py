@@ -117,10 +117,11 @@ class SimSootValue_ThisRef(SimSootValue):
 
     @classmethod
     def new_object(cls, state, type_, symbolic=False, init_object=False, init_class=False):
-        """
+        r"""
         Creates a new object reference.
+
         :param state: State associated to the object.
-        :param type_: Class of the object.
+        :param type\_: Class of the object.
         :param init_object: Whether the objects initializer method should be run.
         :param init_class: Whether the class initializer method should be run.
         :return: Reference to the new object.

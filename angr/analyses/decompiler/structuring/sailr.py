@@ -15,10 +15,11 @@ class SAILRStructurer(PhoenixStructurer):
     To find each optimization class, simply search for optimizations which reference this class.NAME.
 
     At a high-level, SAILR does three things different from the traditional Phoenix schema-based algorithm:
+
     1. It recursively structures the graph, rather than doing it in a single pass. This allows decisions to be made
-        based on the current state of what the decompilation would look like.
+       based on the current state of what the decompilation would look like.
     2. It performs deoptimizations targeting specific optimizations that introduces gotos and mis-structured code.
-        It can only do this because of the recursive nature of the algorithm.
+       It can only do this because of the recursive nature of the algorithm.
     3. It uses a more advanced heuristic for virtualizing edges, which is implemented in this class.
 
     Additionally, some changes in Phoenix are only activated when SAILR is used.

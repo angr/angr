@@ -183,7 +183,7 @@ class WeakAssignment(Statement):
 
 class Store(Statement):
     """
-    Store statement: *addr = data
+    Store statement: ``*addr = data``
     """
 
     __slots__ = (
@@ -739,8 +739,8 @@ class CAS(Statement):
     """
     Atomic compare-and-swap.
 
-    *_lo and *_hi are used to represent the low and high parts of a 128-bit CAS operation; *_hi is None if the CAS
-    operation works on values that are less than or equal to 64 bits.
+    ``*_lo`` and ``*_hi`` are used to represent the low and high parts of a 128-bit CAS operation; ``*_hi`` is None if
+    the CAS operation works on values that are less than or equal to 64 bits.
 
     addr: The address to be compared and swapped.
     data: The value to be written if the comparison is successful.

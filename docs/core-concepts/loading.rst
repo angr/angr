@@ -232,7 +232,7 @@ everything that could possibly be passed in as an option, but we will go over
 some important and frequently used options here.
 
 Basic Options
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 We've discussed ``auto_load_libs`` already - it enables or disables CLE's
 attempt to automatically resolve shared library dependencies, and is on by
@@ -249,7 +249,7 @@ search path for shared libraries, before any of the defaults: the same directory
 as the loaded program, the current working directory, and your system libraries.
 
 Per-Binary Options
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 If you want to specify some options that only apply to a specific binary object,
 CLE will let you do that too. The parameters ``main_opts`` and ``lib_opts`` do
@@ -358,7 +358,7 @@ When no such summary is available for a given function:
   algorithm.
 
 Hooking
-~~~~~~~
+^^^^^^^
 
 The mechanism by which angr replaces library code with a Python summary is
 called hooking, and you can do it too! When performing simulation, at every step

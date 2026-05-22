@@ -40,10 +40,7 @@ class Callable:
         """
         :param project:         The project to operate on
         :param addr:            The address of the function to use
-
-        The following parameters are optional:
-
-        :param prototype:         The signature of the calls you would like to make. This really shouldn't be optional.
+        :param prototype:       The signature of the calls you would like to make. This really shouldn't be optional.
         :param concrete_only:   Throw an exception if the execution splits into multiple paths
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
@@ -77,7 +74,8 @@ class Callable:
 
     def set_base_state(self, state):
         """
-        Swap out the state you'd like to use to perform the call
+        Swap out the state you'd like to use to perform the call.
+
         :param state: The state to use to perform the call
         """
         self._base_state = state

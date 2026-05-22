@@ -705,7 +705,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         table resolver and must be resolved using their specific resolvers. By default,
                                         we will only disable JumpTableResolver from resolving indirect calls for large
                                         binaries (region > 50 KB).
-        :param check_funcret_max_job    When popping return-site jobs out of the job queue, angr will prioritize jobs
+        :param check_funcret_max_job:   When popping return-site jobs out of the job queue, angr will prioritize jobs
                                         for which the callee is known to return. This check may be slow when there are
                                         a large amount of jobs in different caller functions, and this situation often
                                         occurs in obfuscated binaries where many functions never return. This parameter
@@ -721,11 +721,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         useful during analysis; You can set retedges to True or call
                                         make_return_edges() after CFG recovery to create return edges. Note that this
                                         option does not impact function graphs.
-
-        Extra parameters that angr.Analysis takes:
-
-        :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
-        :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
+        :param progress_callback:       (Inherited from angr.Analysis.) Callback for CFG recovery progress.
+        :param bool show_progressbar:   (Inherited from angr.Analysis.) Show a progressbar during CFG recovery.
         :return: None
         """
 

@@ -22,22 +22,19 @@ class X86CCallRewriter(CCallRewriterBase):
     """
     Implements VEX ccall rewriter for X86.
 
-    From libVEX:
+    From libVEX, a summary of the field usages is::
 
-    A summary of the field usages is:
-
-    Operation          DEP1               DEP2               NDEP
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    add/sub/mul        first arg          second arg         unused
-    adc/sbb            first arg          (second arg)
-                                          XOR old_carry      old_carry
-    and/or/xor         result             zero               unused
-    inc/dec            result             zero               old_carry
-    shl/shr/sar        result             subshifted-        unused
-                                          result
-    rol/ror            result             zero               old_flags
-    copy               old_flags          zero               unused.
+        Operation          DEP1               DEP2               NDEP
+        -----------------------------------------------------------------
+        add/sub/mul        first arg          second arg         unused
+        adc/sbb            first arg          (second arg)
+                                              XOR old_carry      old_carry
+        and/or/xor         result             zero               unused
+        inc/dec            result             zero               old_carry
+        shl/shr/sar        result             subshifted-        unused
+                                              result
+        rol/ror            result             zero               old_flags
+        copy               old_flags          zero               unused.
     """
 
     __slots__ = ()

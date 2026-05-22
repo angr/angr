@@ -763,9 +763,6 @@ class FunctionDiff:
         """
         :param attributes_a:    A dict of blocks to their attributes
         :param attributes_b:    A dict of blocks to their attributes
-
-        The following parameters are optional.
-
         :param filter_set_a:    A set to limit attributes_a to the blocks in this set.
         :param filter_set_b:    A set to limit attributes_b to the blocks in this set.
         :param delta:           An offset to add to each vector in attributes_a.
@@ -1475,9 +1472,6 @@ class BinDiff(Analysis):
         """
         :param attributes_a:    A dict of functions to their attributes
         :param attributes_b:    A dict of functions to their attributes
-
-        The following parameters are optional.
-
         :param filter_set_a:    A set to limit attributes_a to the functions in this set.
         :param filter_set_b:    A set to limit attributes_b to the functions in this set.
         :returns:               A list of tuples of matching objects.

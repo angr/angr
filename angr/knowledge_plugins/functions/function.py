@@ -188,9 +188,6 @@ class Function(Serializable):
         the creation of a Function object.
 
         :param addr:            The address of the function.
-
-        The following parameters are optional.
-
         :param str name:        The name of the function.
         :param bool syscall:    Whether this function is a syscall or not.
         :param bool is_simprocedure:    Whether this function is a SimProcedure or not.
@@ -2029,11 +2026,12 @@ class Function(Serializable):
         Get a disambiguated function name.
 
         :param display_name: Name to display, otherwise the function name.
-        :return: The function name in the form:
-            ::<name>           when the function binary is the main object.
-            ::<obj>::<name>    when the function binary is not the main object.
-            ::<addr>::<name>   when the function binary is an unnamed non-main object, or when multiple functions with
-                               the same name are defined in the function binary.
+        :return: The function name in one of the following forms:
+
+            - ``::<name>`` when the function binary is the main object.
+            - ``::<obj>::<name>`` when the function binary is not the main object.
+            - ``::<addr>::<name>`` when the function binary is an unnamed non-main object, or when multiple functions
+              with the same name are defined in the function binary.
         """
         assert self.project is not None
         must_disambiguate_by_addr = self.binary is not self.project.loader.main_object and self.binary_name is None
