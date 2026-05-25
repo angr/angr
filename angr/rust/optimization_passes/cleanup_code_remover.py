@@ -59,11 +59,11 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
             struct_ty = None
             if name.startswith("core::ptr::drop_in_place<") and name.endswith(">"):
                 type_str = name[len("core::ptr::drop_in_place<") : -1].replace(",", ", ")
-                struct_ty = self.project.kb.known_structs[type_str]
+                struct_ty = self.project.kb.known_structs.get(type_str)
             elif name.startswith("core::ops::drop::Drop::drop<") and name.endswith(">"):
                 type_str = name[len("core::ops::drop::Drop::drop<") : -1].replace(",", ", ")
-                struct_ty = self.project.kb.known_structs[type_str]
-            if struct_ty and call.args and isinstance(call.args[0], VirtualVariable):
+                struct_ty = self.project.kb.known_structs.get(type_str)
+            if struct_ty is not None and call.args and isinstance(call.args[0], VirtualVariable):
                 self.project.kb.type_hints.add_type_hint(call.args[0], struct_ty, self._func.addr)
 
     def _remove_cleanup_calls(self):

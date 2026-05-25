@@ -60,7 +60,7 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
         if isinstance(arg0, Load) and isinstance(arg1, Load):
             vvar0, offset0 = deref_vvar_and_offset(arg0.addr)
             vvar1, offset1 = deref_vvar_and_offset(arg1.addr)
-            str_ty = self.project.kb.known_structs["&str"]
+            str_ty = self.project.kb.known_structs.get("&str")
             if str_ty is not None:
                 ptr_offset = str_ty.get_field_offset("data_ptr")
                 len_offset = str_ty.get_field_offset("length")

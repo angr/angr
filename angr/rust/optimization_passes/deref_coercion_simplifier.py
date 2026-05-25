@@ -66,7 +66,9 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
         self.analyze()
 
     def _simplify_str_arguments(self, call: Call, block, stmt):
-        string_ty = self.project.kb.known_structs["alloc::string::String"]
+        string_ty = self.project.kb.known_structs.get("alloc::string::String")
+        if string_ty is None:
+            return call
         ptr_offset = (
             string_ty.get_field_offset("vec.buf.ptr.pointer")
             or string_ty.get_field_offset("vec.buf.inner.ptr.pointer")
