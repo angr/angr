@@ -258,7 +258,7 @@ class SpillingAdjDict(MutableMapping):
             match self.addr_type:
                 case "int":
                     key_bytes = struct.pack("<Q", dst_key[0]) + struct.pack("<H", dst_key[1])
-
+                
                 case "block_id":
                     # dst_key: CFGENODE_K
                     assert isinstance(dst_key, tuple) and len(dst_key) == 3 and isinstance(dst_key[0], BlockID)
@@ -272,7 +272,7 @@ class SpillingAdjDict(MutableMapping):
                                 entry.has_value = True
                                 entry.value = val
                     key_bytes = (
-                        struct.pack("<I", dst_key[1]) + struct.pack("<H", dst_key[2]) + block_id.SerializeToString()
+                        struct.pack("<i", dst_key[1]) + struct.pack("<H", dst_key[2]) + block_id.SerializeToString()
                     )
 
                 case "soot":
@@ -320,11 +320,11 @@ class SpillingAdjDict(MutableMapping):
                 case "block_id":
                     if key_len <= 6:
                         raise ValueError(f"Invalid key length for block_id addr_type: {key_len}")
-                    size = struct.unpack_from("<I", key_bytes, 0)[0]
+                    size = struct.unpack_from("<i", key_bytes, 0)[0]
                     looping_times = struct.unpack_from("<H", key_bytes, 4)[0]
                     block_id = cfg_pb2.BlockIDProto()  # type:ignore
                     block_id.ParseFromString(key_bytes[6:])
-                    if block_id.HasField("callsite_tuples"):
+                    if block_id.callsite_tuples:
                         callsite_tuples = tuple(
                             entry.value if entry.has_value else None for entry in block_id.callsite_tuples
                         )
@@ -542,7 +542,11 @@ class SpillingDiGraph(networkx.DiGraph):
         # you shouldn't change addr_type once the first adjlist_outer_dict has been created.
         if value not in ("int", "block_id", "soot"):
             raise ValueError(f"Invalid addr_type {value}, must be 'int', 'block_id', or 'soot'")
+        if self._adj or self._pred:
+            raise ValueError("You shouldn't change addr_type once the first adjlist_outer_dict has been created.")
         self._addr_type = value
+        self._adj = self.adjlist_outer_dict_factory() # There should be a better way to do this instead
+        self._pred = self.adjlist_outer_dict_factory()
 
     #
     #  Spilling helpers
