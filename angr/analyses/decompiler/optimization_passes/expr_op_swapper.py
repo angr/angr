@@ -9,6 +9,8 @@ from angr.ailment.expression import BinaryOp, Expression
 from angr.ailment.statement import Statement
 from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.protos import decompilation_cache_pb2
+from angr.serializable import Serializable
 
 from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
 
@@ -88,7 +90,7 @@ class ExpressionReplacer(AILBlockRewriter):
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class OpDescriptor:
+class OpDescriptor(Serializable):
     """
     Describes a specific operator.
     """
@@ -110,6 +112,22 @@ class OpDescriptor:
             and self.ins_addr == other.ins_addr
             and self.op == other.op
         )
+
+    @classmethod
+    def _get_cmsg(cls):
+        return decompilation_cache_pb2.OpDescriptor()
+
+    def serialize_to_cmessage(self):
+        return decompilation_cache_pb2.OpDescriptor(
+            block_addr=self.block_addr,
+            stmt_idx=self.stmt_idx,
+            ins_addr=self.ins_addr,
+            op=self.op,
+        )
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        return cls(cmsg.block_addr, cmsg.stmt_idx, cmsg.ins_addr, cmsg.op)
 
 
 class ExprOpSwapper(SequenceOptimizationPass):

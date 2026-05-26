@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Any
+
+from angr.protos import decompilation_cache_pb2
+from angr.serializable import Serializable
 
 
 class DecompilationNoteLevel(Enum):
@@ -15,7 +19,7 @@ class DecompilationNoteLevel(Enum):
     CRITICAL = 3
 
 
-class DecompilationNote:
+class DecompilationNote(Serializable):
     """
     Describes a note that is generated during decompilation.
 
@@ -46,3 +50,29 @@ class DecompilationNote:
 
     def __str__(self):
         return f"{self.name}: {self.content}"
+
+    @classmethod
+    def _get_cmsg(cls):
+        return decompilation_cache_pb2.DecompilationNote()
+
+    def serialize_to_cmessage(self):
+        # content is constrained at serialize time to values that round-trip through json.dumps / json.loads.
+        try:
+            content_json = json.dumps(self.content)
+        except (TypeError, ValueError):
+            content_json = json.dumps(None)
+        return decompilation_cache_pb2.DecompilationNote(
+            key=self.key,
+            name=self.name,
+            content_json=content_json,
+            level=int(self.level.value),
+        )
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        return cls(
+            key=cmsg.key,
+            name=cmsg.name,
+            content=json.loads(cmsg.content_json) if cmsg.content_json else None,
+            level=DecompilationNoteLevel(cmsg.level),
+        )

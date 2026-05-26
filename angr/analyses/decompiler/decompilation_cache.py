@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from angr.protos import decompilation_cache_pb2
+from angr.serializable import Serializable
 from .clinic import Clinic
 
 if TYPE_CHECKING:
@@ -16,7 +18,7 @@ if TYPE_CHECKING:
     from .variable_map import VariableMap
 
 
-class DecompilationCache:
+class DecompilationCache(Serializable):
     """
     Caches key data structures that can be used later for refining decompilation results, such as retyping variables.
     """
@@ -72,3 +74,26 @@ class DecompilationCache:
         if self.clinic is None or self.clinic.variable_kb is None:
             return None
         return self.clinic.variable_kb.variables[self.addr].types
+
+    # -----------------------------------------------------------------------------------------------------------------
+    # Protobuf serialization. Heavy sub-objects (clinic, codegen) are embedded as already-serialized bytes from their
+    # own Serializable interfaces; AIL-typed top-level fields (arg_vvars, ite_exprs) use the pickle bridge.
+    #
+    # The 4 typehoon-typed slots (type_constraints, func_typevar, var_to_typevar, stack_offset_typevars) and the
+    # ``cfg`` / ``variable_kb`` runtime inputs are intentionally NOT serialized and come back as None.
+    # -----------------------------------------------------------------------------------------------------------------
+
+    @classmethod
+    def _get_cmsg(cls):
+        return decompilation_cache_pb2.DecompilationCache()
+
+    def serialize_to_cmessage(self):
+        from .decompilation_cache_serialize import serialize_cache
+
+        return serialize_cache(self)
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        from .decompilation_cache_serialize import parse_cache
+
+        return parse_cache(cmsg, **kwargs)

@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+import "angr/protos/ailment_blob.proto";
+
+package angr.protos;
+
+// =====================================================================================================================
+// Small value types
+// =====================================================================================================================
+
+message OpDescriptor {
+    uint64 block_addr = 1;
+    int32 stmt_idx = 2;
+    uint64 ins_addr = 3;
+    string op = 4;
+}
+
+message BinopOperatorEntry {
+    OpDescriptor key = 1;
+    string value = 2;
+}
+
+message DecompilationNote {
+    string key = 1;
+    string name = 2;
+    // ``content`` is typed Any on the Python side. We constrain it to JSON-serializable values and encode here.
+    string content_json = 3;
+    int32 level = 4;                          // DecompilationNoteLevel value
+}
+
+message DecompilationNoteEntry {
+    string key = 1;
+    DecompilationNote note = 2;
+}
+
+message StackvarMaxSizeEntry {
+    // SimStackVariable is polymorphic; we use the same "<ClassName>\0<proto bytes>" wrapping as elsewhere.
+    bytes simvar = 1;
+    int32 max_size = 2;
+}
+
+// =====================================================================================================================
+// DecompilationParameters: closed schema for the 14-key ``parameters`` dict.
+// =====================================================================================================================
+
+message OptionEntry {
+    // Identified by DecompilationOption.param (a unique key in PARAM_TO_OPTION).
+    string param = 1;
+    // JSON-encoded value. The original tuples (option_obj, value) are reconstructed by looking up the option from
+    // PARAM_TO_OPTION at parse time.
+    string value_json = 2;
+}
+
+message DecompilationParameters {
+    optional string flavor = 1;
+    optional bool sp_tracker_track_memory = 2;
+
+    repeated string vars_must_struct = 3;
+    bool _vars_must_struct_set = 4;           // distinguish [] from None
+
+    repeated string desired_variables = 5;    // frozenset[str]
+    repeated uint64 inline_functions = 6;     // frozenset[int]
+
+    repeated OptionEntry options = 7;
+
+    repeated string optimization_passes = 8;  // FQN strings
+    bool _optimization_passes_set = 9;
+
+    repeated string peephole_optimizations = 10;
+    bool _peephole_optimizations_set = 11;
+
+    map<int64, string> expr_comments = 12;
+    bool _expr_comments_set = 13;
+
+    map<int64, string> stmt_comments = 14;
+    bool _stmt_comments_set = 15;
+
+    repeated BinopOperatorEntry binop_operators = 16;
+    bool _binop_operators_set = 17;
+
+    optional AilmentBlob ite_exprs = 18;      // set[tuple[int, ailment.Expression]] | None
+    optional AilmentBlob static_vvars = 19;
+    optional AilmentBlob static_buffers = 20;
+}
+
+// =====================================================================================================================
+// DecompilationCache
+// =====================================================================================================================
+// cfg and variable_kb are intentionally NOT serialized: they are decompilation inputs supplied by the parent Project
+// at decompile time and are not part of the result. After parse, ``cache.cfg`` and ``cache.variable_kb`` come back as
+// None; the caller is expected to re-attach them.
+
+message DecompilationCache {
+    uint64 addr = 1;
+
+    // Heavy sub-objects, embedded as already-serialized bytes from their own Serializable interfaces.
+    optional bytes clinic = 2;                // Clinic.serialize()
+    optional bytes codegen = 3;               // CStructuredCodeGenerator.serialize()
+
+    // Top-level cache state.
+    repeated string errors = 4;
+    optional string function_summary = 5;
+    optional AilmentBlob arg_vvars = 6;       // dict[int, (VirtualVariable, SimVariable)]
+    optional AilmentBlob ite_exprs = 7;       // set[tuple[int, ailment.Expression]]
+    repeated BinopOperatorEntry binop_operators = 8;
+    bool _binop_operators_set = 9;
+    repeated StackvarMaxSizeEntry stackvar_max_sizes = 10;
+    bool _stackvar_max_sizes_set = 11;
+
+    DecompilationParameters parameters = 20;
+    bool parameters_set = 21;                 // distinguish empty parameters dict from None
+
+    repeated DecompilationNoteEntry notes = 30;
+}
