@@ -151,10 +151,11 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
+        # ``cfg`` and ``variable_kb`` are deliberately NOT in this dict: they are inputs supplied by the parent
+        # Project and are not part of the decompilation result, so they are not part of the serialized cache.
+        # Their identity is still checked for cache validity via :meth:`_can_use_decompilation_cache`.
         self._cache_parameters = (
             {
-                "cfg": self._cfg,
-                "variable_kb": self._variable_kb,
                 "options": {(o, v) for o, v in self._options if o.category != "Display" and v != o.default_value},
                 "optimization_passes": self._optimization_passes,
                 "sp_tracker_track_memory": self._sp_tracker_track_memory,
@@ -238,9 +239,12 @@ class Decompiler(Analysis):
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         if self._cache_parameters is None or cache.parameters is None:
             return False
+        # cfg and variable_kb are identity-checked off the cache directly; they are not part of the parameters dict
+        # because they are not part of the decompilation result.
+        if cache.cfg is not self._cfg or cache.variable_kb is not self._variable_kb:
+            return False
         a, b = self._cache_parameters, cache.parameters
-        id_checks = {"cfg", "variable_kb"}
-        return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
+        return all(a[k] == b[k] for k in self._cache_parameters)
 
     @staticmethod
     def _parse_options(options: list[tuple[DecompilationOption | str, Any]]) -> list[tuple[DecompilationOption, Any]]:
@@ -327,6 +331,8 @@ class Decompiler(Analysis):
             fold_callexprs_into_conditions = True
 
         cache = DecompilationCache(self.func.addr)
+        cache.cfg = self._cfg
+        cache.variable_kb = self._variable_kb
         if self._cache_parameters is not None:
             cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
