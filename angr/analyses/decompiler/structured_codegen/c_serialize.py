@@ -212,6 +212,284 @@ def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
     return ctx.resolve(msg.root_id)
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Position mapping serialization
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+def _serialize_position_mapping(pm, ctx: SerializeContext, out_msg) -> None:
+    """Serialize the PositionMapping. PositionMappingElement.obj can be a CConstruct (the common case) but also a
+    SimType, CClosingObject, CArrayTypeLength, or CStructFieldNameDef from the renderer's chunk yields. We only round-
+    trip the CConstruct entries; the rest are dropped (the post-parse position map has fewer entries but the GUI's
+    highlighting for AST nodes still works)."""
+    if pm is None:
+        return
+    for _, elem in pm.items():
+        obj = elem.obj
+        if obj is None or type(obj) not in _SERIALIZE_KIND_BY_CLASS:
+            continue
+        entry = out_msg.entries.add()
+        entry.start = elem.start
+        entry.length = elem.length
+        entry.node_id = ctx.serialize(obj)
+
+
+def _parse_position_mapping(pm_msg, ctx: ParseContext):
+    from .base import PositionMapping
+
+    pm = PositionMapping()
+    for entry in pm_msg.entries:
+        obj = ctx.resolve(entry.node_id) if entry.node_id != 0 else None
+        pm.add_mapping(entry.start, entry.length, obj)
+    return pm
+
+
+def _serialize_instruction_mapping(im, out_msg) -> None:
+    if im is None:
+        return
+    for _, elem in im.items():
+        entry = out_msg.entries.add()
+        entry.ins_addr = elem.ins_addr
+        entry.posmap_pos = elem.posmap_pos
+
+
+def _parse_instruction_mapping(im_msg):
+    from .base import InstructionMapping
+
+    im = InstructionMapping()
+    for entry in im_msg.entries:
+        im.add_mapping(entry.ins_addr, entry.posmap_pos)
+    return im
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Top-level codegen serialization
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+def _serialize_notes(notes: dict | None, out_msg) -> None:
+    """notes: dict[str, DecompilationNote]. Each DecompilationNote is serialized as a small JSON dict."""
+    if not notes:
+        return
+    for k, note in notes.items():
+        try:
+            content_json = json.dumps(note.content)
+        except (TypeError, ValueError):
+            content_json = json.dumps(None)
+        out_msg[k] = json.dumps(
+            {
+                "key": note.key,
+                "name": note.name,
+                "content_json": content_json,
+                "level": int(note.level.value),
+            }
+        )
+
+
+def _parse_notes(notes_msg):
+    from angr.analyses.decompiler.notes import DecompilationNote
+    from angr.analyses.decompiler.notes.decompilation_note import DecompilationNoteLevel
+
+    result: dict[str, DecompilationNote] = {}
+    for k, blob in notes_msg.items():
+        payload = json.loads(blob)
+        content = json.loads(payload["content_json"])
+        result[k] = DecompilationNote(
+            key=payload["key"],
+            name=payload["name"],
+            content=content,
+            level=DecompilationNoteLevel(payload["level"]),
+        )
+    return result
+
+
+def _serialize_const_formats(const_formats: dict | None, out_repeated) -> None:
+    """const_formats: dict[IdentType, dict[str, bool]]; IdentType = tuple[int, int, str]."""
+    if not const_formats:
+        return
+    for ident, fmt in const_formats.items():
+        entry = out_repeated.add()
+        entry.ident_ins_addr = ident[0]
+        entry.ident_kind = ident[1]
+        entry.ident_value = ident[2]
+        for k, v in fmt.items():
+            entry.fmt[k] = bool(v)
+
+
+def _parse_const_formats(entries):
+    result = {}
+    for entry in entries:
+        key = (entry.ident_ins_addr, entry.ident_kind, entry.ident_value)
+        result[key] = dict(entry.fmt)
+    return result
+
+
+# Display-option attribute names round-tripped on Codegen. Mirrors the codegen_pb2.Codegen field names where the
+# Python attribute and the proto field share the same identifier.
+_DISPLAY_OPTION_ATTRS = (
+    "indent",
+    "show_casts",
+    "comment_gotos",
+    "braces_on_own_lines",
+    "use_compound_assignments",
+    "show_local_types",
+    "cstyle_null_cmp",
+    "show_externs",
+    "show_demangled_name",
+    "show_disambiguated_name",
+    "simplify_else_scope",
+    "cstyle_ifs",
+    "omit_func_header",
+    "display_block_addrs",
+    "display_vvar_ids",
+    "display_notes",
+    "prettify_thiscall",
+    "cstyle_void_param",
+    "binop_depth_cutoff",
+    "min_data_addr",
+    "max_str_len",
+)
+
+
+def serialize_codegen(codegen) -> codegen_pb2.Codegen:
+    """Build a Codegen cmessage from a live CStructuredCodeGenerator instance."""
+    msg = codegen_pb2.Codegen()
+    ctx = SerializeContext()
+
+    if codegen.cfunc is not None:
+        msg.root_id = ctx.serialize(codegen.cfunc)
+
+    if codegen.text is not None:
+        msg.text = codegen.text
+    if getattr(codegen, "flavor", None) is not None:
+        msg.flavor = codegen.flavor
+
+    _serialize_position_mapping(codegen.map_pos_to_node, ctx, msg.map_pos_to_node)
+    _serialize_position_mapping(codegen.map_pos_to_addr, ctx, msg.map_pos_to_addr)
+    _serialize_instruction_mapping(codegen.map_addr_to_pos, msg.map_addr_to_pos)
+    # map_ast_to_pos is intentionally NOT serialized: its declared type is dict[SimVariable, set[PositionMappingElement]]
+    # but in practice the keys are heterogeneous (SimVariable, SimType, Function, tuples, ints, ...) and the values
+    # are sets of int positions, not PositionMappingElements. The map is fully derivable from map_pos_to_node so we
+    # rebuild it after parse rather than wrestling with a schema for the union.
+    for (addr, idx), label in (codegen.map_addr_to_label or {}).items():
+        entry = msg.map_addr_to_label.add()
+        entry.addr = addr
+        if idx is not None:
+            entry.idx = idx
+        entry.label_id = ctx.serialize(label)
+    if codegen.cexterns:
+        for v in codegen.cexterns:
+            msg.cexterns_ids.append(ctx.serialize(v))
+
+    if codegen.expr_comments:
+        for k, v in codegen.expr_comments.items():
+            msg.expr_comments[k] = v
+    if codegen.stmt_comments:
+        for k, v in codegen.stmt_comments.items():
+            msg.stmt_comments[k] = v
+    _serialize_notes(codegen.notes, msg.notes_json)
+    _serialize_const_formats(codegen.const_formats, msg.const_formats)
+
+    for attr in _DISPLAY_OPTION_ATTRS:
+        if not hasattr(codegen, attr):
+            continue
+        value = getattr(codegen, attr)
+        if value is None:
+            continue
+        setattr(msg, attr, value)
+
+    # The flat AST node table is filled in by ctx.serialize during the recursive calls above.
+    msg.nodes.extend(ctx.nodes)
+    return msg
+
+
+def _rebuild_ast_to_pos(pos_to_node):
+    """Mirror of the logic in :meth:`CStructuredCodeGenerator.render_text` that builds ``map_ast_to_pos`` from
+    ``pos_to_node``. Used after parse to restore the cross-reference map without serializing the heterogeneous keys."""
+    from collections import defaultdict
+    from .c import CConstant, CFunctionCall, CStructField, CVariable
+
+    ast_to_pos = defaultdict(set)
+    if pos_to_node is None:
+        return ast_to_pos
+    for elem, node in pos_to_node.items():
+        obj = node.obj
+        if isinstance(obj, CConstant):
+            ast_to_pos[obj.value].add(elem)
+        elif isinstance(obj, CVariable):
+            ast_to_pos[obj.unified_variable if obj.unified_variable is not None else obj.variable].add(elem)
+        elif isinstance(obj, CFunctionCall):
+            key = obj.callee_func if obj.callee_func is not None else obj.callee_target
+            ast_to_pos[key].add(elem)
+        elif isinstance(obj, CStructField):
+            ast_to_pos[(obj.struct_type, obj.offset)].add(elem)
+        else:
+            ast_to_pos[obj].add(elem)
+    return ast_to_pos
+
+
+def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
+    """Materialize a CStructuredCodeGenerator from a Codegen cmessage. Bypasses __init__ since the constructor runs
+    the full decompilation pipeline; instead we populate the attributes directly. The parsed instance is suitable for
+    display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
+    require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
+    from .c import CStructuredCodeGenerator
+
+    cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
+    ctx = ParseContext(msg.nodes, project=project, kb=kb)
+
+    # Materialize the AST.
+    cg.cfunc = ctx.resolve(msg.root_id) if msg.root_id != 0 else None
+
+    # Base / display state.
+    cg.text = msg.text if msg.HasField("text") else None
+    cg.flavor = msg.flavor if msg.HasField("flavor") else None
+    cg.notes = _parse_notes(msg.notes_json)
+    cg.expr_comments = dict(msg.expr_comments)
+    cg.stmt_comments = dict(msg.stmt_comments)
+    cg.const_formats = _parse_const_formats(msg.const_formats)
+    cg.idx_counters = {}
+
+    cg.map_pos_to_node = _parse_position_mapping(msg.map_pos_to_node, ctx)
+    cg.map_pos_to_addr = _parse_position_mapping(msg.map_pos_to_addr, ctx)
+    cg.map_addr_to_pos = _parse_instruction_mapping(msg.map_addr_to_pos)
+    # map_ast_to_pos is rebuilt below from map_pos_to_node (see serialize_codegen for why we don't store it directly).
+    cg.map_ast_to_pos = _rebuild_ast_to_pos(cg.map_pos_to_node)
+
+    cg.map_addr_to_label = {}
+    for entry in msg.map_addr_to_label:
+        idx = entry.idx if entry.HasField("idx") else None
+        cg.map_addr_to_label[(entry.addr, idx)] = ctx.resolve(entry.label_id)
+
+    cg.cexterns = {ctx.resolve(i) for i in msg.cexterns_ids} if msg.cexterns_ids else None
+
+    # Display options: only set those present in the cmessage.
+    for attr in _DISPLAY_OPTION_ATTRS:
+        if msg.HasField(attr):
+            setattr(cg, "_indent" if attr == "indent" else attr, getattr(msg, attr))
+
+    # Runtime / back-reference state — caller-provided.
+    cg._func = func
+    cg._func_args = None
+    cg._cfg = None
+    cg._sequence = None
+    cg._variable_kb = variable_kb
+    cg.externs = set()
+    cg._variables_in_use = None
+    cg._inlined_strings = set()
+    cg._function_pointers = set()
+    cg.ailexpr2cnode = None
+    cg.cnode2ailexpr = None
+    cg._handlers = None  # callers that want to re-render should construct a fresh CStructuredCodeGenerator
+    # The CFunction holds a back-reference to its variable_manager. variable_kb is the source.
+    if cg.cfunc is not None:
+        cg.cfunc.variable_manager = variable_kb.variables if variable_kb is not None else None
+
+    # Re-attach codegen back-references on every AST node.
+    ctx.set_codegen(cg)
+    return cg
+
+
 def register_all() -> None:
     """Registers serializer/parser pairs for every concrete CConstruct subclass. Called from c.py at import time."""
     # Imports are deferred to avoid circular import at module load.
