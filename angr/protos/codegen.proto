@@ -74,7 +74,7 @@ enum CConstructKind {
 
 // CFunction
 message CFunctionMsg {
-    uint64 addr = 1;
+    optional uint64 addr = 1;
     string name = 2;
     string functy_json = 3;                       // SimTypeFunction.to_json
     repeated uint32 arg_list_ids = 4;             // CVariable node_ids
