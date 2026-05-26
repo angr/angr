@@ -3632,7 +3632,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             try:
                 cstmt = self._handle(stmt, is_expr=False)
             except UnsupportedNodeTypeError:
-                l.warning("Unsupported AIL statement or expression %s.", type(stmt), exc_info=True)
+                l.warning(
+                    "Unsupported AIL statement or expression %s.",
+                    getattr(stmt, "kind", None) or type(stmt).__name__,
+                    exc_info=True,
+                )
                 cstmt = RustUnsupportedStatement(stmt, codegen=self)
             cstmts.append(cstmt)
 

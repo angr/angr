@@ -147,16 +147,22 @@ class TestExpression(unittest.TestCase):
         assert outer.likes(outer.copy())
         replaced, new_outer = outer.replace(old, new)
         assert replaced
-        assert new_outer.get_field("inner.value") is new
+        # Phase D: getters materialize a fresh ``Expression`` wrapper, so
+        # ``is new`` identity through replace doesn't survive into nested
+        # containers. Use structural equality (``likes``) instead.
+        assert new_outer.get_field("inner.value").likes(new)
         assert not outer.replace(Const(8, 99, 32), new)[0]
 
         enum_expr = RustEnum(9, "Ok", [old], 32)
         assert enum_expr.size == 4
         assert str(enum_expr).startswith("Ok")
         assert enum_expr.likes(enum_expr.copy())
-        assert enum_expr.deep_copy(manager).fields[0] is not old
+        # ``deep_copy`` should give the child a fresh ``idx``; Phase D
+        # materializes a fresh wrapper on every accessor so ``is not`` no
+        # longer applies. Check ``idx`` differs instead.
+        assert enum_expr.deep_copy(manager).fields[0].idx != old.idx
         replaced, new_enum = enum_expr.replace(old, new)
-        assert replaced and new_enum.fields[0] is new
+        assert replaced and new_enum.fields[0].likes(new)
         tuple_enum = RustEnum(10, "Tuple", (old,), 32)
         assert isinstance(tuple_enum.deep_copy(manager).fields, tuple)
 
@@ -164,9 +170,9 @@ class TestExpression(unittest.TestCase):
         assert array_expr.length == 1
         assert array_expr.size == 4
         assert array_expr.likes(array_expr.copy())
-        assert array_expr.deep_copy(manager).elements[0] is not old
+        assert array_expr.deep_copy(manager).elements[0].idx != old.idx
         replaced, new_array = array_expr.replace(old, new)
-        assert replaced and new_array.elements[0] is new
+        assert replaced and new_array.elements[0].likes(new)
         tuple_array = Array(12, (old,), 32)
         assert isinstance(tuple_array.deep_copy(manager).elements, tuple)
 

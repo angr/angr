@@ -4,7 +4,7 @@ from collections import defaultdict
 from typing import Any
 
 from angr.ailment import Block
-from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.block_walker import AILBlockViewer, _dispatch_key
 from angr.ailment.expression import (
     ITE,
     BinaryOp,
@@ -184,11 +184,11 @@ class BlockIOFinder(AILBlockViewer):
         block: Block | None,
         is_memory=False,
     ) -> Any:
-        try:
-            handler = self.expr_handlers[type(expr)]
-        except KeyError:
-            handler = None
-
+        # Phase D: ``type(expr)`` returns the universal ``Expression``
+        # pyclass for every variant. ``_dispatch_key`` resolves the
+        # registered marker class via ``expr.kind`` (with a ``type()``
+        # fallback for any legacy class still in flight).
+        handler = self.expr_handlers.get(_dispatch_key(expr))
         if handler:
             return handler(expr_idx, expr, stmt_idx, stmt, block, is_memory=is_memory)
         return None

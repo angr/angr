@@ -2471,9 +2471,11 @@ class Clinic(Analysis):
         variable_manager = kb.variables[self.function.addr]
         global_variables = kb.variables["global"]
 
+        # Phase D: ``type(stmt) is …`` identity checks no longer
+        # discriminate (every variant shares one pyclass). ``isinstance``
+        # dispatches through the marker metaclass on ``stmt.kind``.
         for stmt_idx, stmt in enumerate(block.statements):
-            stmt_type = type(stmt)
-            if stmt_type is ailment.Stmt.Store:
+            if isinstance(stmt, ailment.Stmt.Store):
                 # find a memory variable
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
                 if len(mem_vars) == 1:
@@ -2495,11 +2497,11 @@ class Clinic(Analysis):
                         )
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.data)
 
-            elif stmt_type is ailment.Stmt.Assignment or stmt_type is ailment.Stmt.WeakAssignment:
+            elif isinstance(stmt, (ailment.Stmt.Assignment, ailment.Stmt.WeakAssignment)):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.src)
 
-            elif stmt_type is ailment.Stmt.CAS:
+            elif isinstance(stmt, ailment.Stmt.CAS):
                 for expr in [
                     stmt.addr,
                     stmt.data_lo,
@@ -2512,20 +2514,20 @@ class Clinic(Analysis):
                     if expr is not None:
                         self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr)
 
-            elif stmt_type is ailment.Stmt.ConditionalJump:
+            elif isinstance(stmt, ailment.Stmt.ConditionalJump):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.condition)
 
-            elif stmt_type is ailment.Stmt.Jump and not isinstance(stmt.target, ailment.Expr.Const):
+            elif isinstance(stmt, ailment.Stmt.Jump) and not isinstance(stmt.target, ailment.Expr.Const):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
 
-            elif stmt_type is ailment.Stmt.SideEffectStatement:
+            elif isinstance(stmt, ailment.Stmt.SideEffectStatement):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.expr)
                 if stmt.ret_expr:
                     self._link_variables_on_expr(
                         variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr
                     )
 
-            elif stmt_type is ailment.Stmt.Return:
+            elif isinstance(stmt, ailment.Stmt.Return):
                 assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
 
@@ -2565,7 +2567,7 @@ class Clinic(Analysis):
         :return:                    None
         """
 
-        if type(expr) is ailment.Expr.Register:
+        if isinstance(expr, ailment.Expr.Register):
             # find a register variable
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             final_reg_vars = set()
@@ -2580,7 +2582,7 @@ class Clinic(Analysis):
                 reg_var, offset = next(iter(final_reg_vars))
                 self._set_expr_variable(expr, reg_var, offset)
 
-        elif type(expr) is ailment.Expr.VirtualVariable:
+        elif isinstance(expr, ailment.Expr.VirtualVariable):
             vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(vars_) >= 1:
                 var, offset = next(iter(vars_))
@@ -2590,7 +2592,7 @@ class Clinic(Analysis):
                 for reg_vvar in expr.reg_vvars:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, reg_vvar)
 
-        elif type(expr) is ailment.Expr.Load:
+        elif isinstance(expr, ailment.Expr.Load):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
@@ -2629,7 +2631,7 @@ class Clinic(Analysis):
                 var, offset = next(iter(variables))
                 self._set_expr_variable(expr, var, offset)
 
-        elif type(expr) is ailment.Expr.BinaryOp:
+        elif isinstance(expr, ailment.Expr.BinaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
@@ -2642,7 +2644,7 @@ class Clinic(Analysis):
                     variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[1]
                 )
 
-        elif type(expr) is ailment.Expr.UnaryOp:
+        elif isinstance(expr, ailment.Expr.UnaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
@@ -2650,18 +2652,18 @@ class Clinic(Analysis):
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
-        elif type(expr) in {ailment.Expr.Convert, ailment.Expr.Reinterpret}:
+        elif isinstance(expr, (ailment.Expr.Convert, ailment.Expr.Reinterpret)):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
-        elif type(expr) is ailment.Expr.Extract:
+        elif isinstance(expr, ailment.Expr.Extract):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
-        elif type(expr) is ailment.Expr.Insert:
+        elif isinstance(expr, ailment.Expr.Insert):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.value)
 
-        elif type(expr) is ailment.Expr.ITE:
+        elif isinstance(expr, ailment.Expr.ITE):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))

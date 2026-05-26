@@ -1,3 +1,4 @@
+pub mod ailment;
 pub mod automaton;
 pub mod fuzzer;
 pub mod icicle;
@@ -41,6 +42,7 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "automaton",
         automaton::automaton,
     )?;
+    import_submodule(m.py(), m, "angr.rustylib", "ailment", ailment::ailment)?;
 
     m.add_class::<segmentlist::Segment>()?;
     m.add_class::<segmentlist::SegmentList>()?;

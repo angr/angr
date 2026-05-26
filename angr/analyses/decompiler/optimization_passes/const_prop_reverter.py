@@ -219,7 +219,7 @@ class ConstPropOptReverter(OptimizationPass):
                 _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
                 const_call = calls[const_arg]
                 const_arg_i = const_call.args.index(const_arg)
-                const_call.args[const_arg_i] = sym_arg
+                const_call.args = (*const_call.args[:const_arg_i], sym_arg, *const_call.args[const_arg_i + 1 :])
                 self.resolution = True
 
     #
