@@ -1,0 +1,71 @@
+"""Helpers used by the Rust ailment classes' ``__reduce__`` /
+``__deepcopy__`` implementations.
+
+PyO3 classes don't have a clean way to round-trip through ``pickle`` when
+their constructors take keyword-only ``**kwargs`` (used for tags). So the
+classes serialize themselves as ``(reconstruct_with_kwargs, (cls, args,
+kwargs_dict))`` and pickle restores them by calling the helper.
+
+``copy.deepcopy`` on an AIL tree is satisfied by routing every class
+through its existing ``deep_copy(manager)`` method, with a private
+``_DeepcopyManager`` standing in for ``ailment.Manager``.
+"""
+
+from __future__ import annotations
+
+import itertools
+from typing import Any
+
+
+def reconstruct_with_kwargs(cls: type, args: tuple, kwargs: dict[str, Any]):
+    """Construct ``cls(*args, **kwargs)`` -- used by ailment ``__reduce__``."""
+    return cls(*args, **(kwargs or {}))
+
+
+class _DeepcopyManager:
+    """Minimal stand-in for ``ailment.Manager`` -- supplies fresh atom ids."""
+
+    __slots__ = ("atom_ctr",)
+
+    def __init__(self):
+        self.atom_ctr = itertools.count(start=10**9)
+
+    def next_atom(self):
+        return next(self.atom_ctr)
+
+
+def deepcopy_via_deep_copy(self, memo):
+    """Use ``self.deep_copy(manager)`` to satisfy ``copy.deepcopy``."""
+    _ = memo  # we don't share substructures during deep_copy; ailment trees are
+    # acyclic by construction, so the memo dict is unused.
+    manager = _DeepcopyManager()
+    return self.deep_copy(manager)
+
+
+def reconstruct_phase_d_expression(data: bytes):
+    """Reconstruct a Phase D ``Expression`` from its ``to_bytes`` output.
+
+    Used by the Phase D ``Expression.__reduce__`` to satisfy pickle.
+    The spike's ``Wire`` format is lossy for polymorphic Python-typed
+    fields (Phi.src_and_vvars, VirtualVariable.oident, Call.target, ...)
+    -- pickled trees that exercise those fields will round-trip as
+    strings until the bulk serialization upgrade.
+    """
+    from angr.rustylib.ailment import Expression
+
+    return Expression.from_bytes(data)
+
+
+def reconstruct_phase_d_statement(data: bytes):
+    """Reconstruct a Phase D ``Statement`` from its ``to_bytes`` output."""
+    from angr.rustylib.ailment import Statement
+
+    return Statement.from_bytes(data)
+
+
+__all__ = [
+    "deepcopy_via_deep_copy",
+    "reconstruct_phase_d_expression",
+    "reconstruct_phase_d_statement",
+    "reconstruct_with_kwargs",
+]

@@ -1,0 +1,5872 @@
+//! Phase D spike: ``AilExpression`` fat-enum + single ``Expression`` pyclass.
+//!
+//! Design:
+//!
+//! * [`AilExpression`] is a pure Rust struct holding the shared header
+//!   (idx, tags, bits, depth, cached hash) plus an [`ExprInner`] variant
+//!   carrying all variant-specific fields **inline**, with operand
+//!   subtrees stored as ``Box<AilExpression>`` -- no ``Py<T>`` for
+//!   operand fields.
+//!
+//! * [`Expression`] is the single ``#[pyclass]`` exposed to Python. It
+//!   wraps an [`AilExpression`] and provides Rust-side getters/setters
+//!   that dispatch on the variant. Python-side marker classes
+//!   (``Const``, ``BinaryOp``, ``Load``, ...) override ``__new__`` to
+//!   call one of the per-variant ``_new_*`` factories below, and use a
+//!   metaclass to make ``isinstance(load, Load)`` work.
+//!
+//! Spike scope: ``Const``, ``BinaryOp``, ``Load`` only. The remaining
+//! ~24 Expression subclasses are added in a follow-up bulk commit.
+
+use pyo3::IntoPyObjectExt;
+use pyo3::exceptions::{PyAttributeError, PyTypeError};
+use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
+
+use crate::ailment::const_value::ConstValue;
+use crate::ailment::base::CachedHash;
+use crate::ailment::enums::ConvertType;
+use crate::ailment::hash::{HashItem, stable_hash};
+use crate::ailment::tags::{Tags, TagsView};
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+
+/// Shared header on every concrete AIL Expression variant. Not exposed
+/// to Python directly; lives inside [`AilExpression`].
+#[derive(Clone, Debug)]
+pub struct ExprHeader {
+    pub idx: i64,
+    pub tags: Tags,
+    pub bits: u32,
+    pub depth: u32,
+    pub cached_hash: CachedHash,
+}
+
+impl ExprHeader {
+    pub fn new(idx: i64, depth: u32, bits: u32, tags: Tags) -> Self {
+        Self {
+            idx,
+            tags,
+            bits,
+            depth,
+            cached_hash: CachedHash::new(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Variant payload
+// ---------------------------------------------------------------------------
+
+/// Concrete Expression variants. New variants are added here in the
+/// bulk Phase D migration commit.
+///
+/// Layout note: operand subtrees are owned via ``Box<AilExpression>``
+/// (one heap allocation per subtree). Variable information used to live
+/// on each variant (``variable`` / ``variable_offset``); it now lives in
+/// a side ``VariableMap`` keyed on ``ExprHeader::idx``.
+#[derive(Clone, Debug)]
+pub enum ExprInner {
+    Const {
+        value: ConstValue,
+    },
+    Tmp {
+        tmp_idx: i64,
+    },
+    Register {
+        reg_offset: i64,
+    },
+    ComboRegister {
+        /// Each element must be an AIL ``Register``. The variant invariant
+        /// is enforced by ``_new_combo_register`` at construction time.
+        registers: Vec<AilExpression>,
+    },
+    /// SSA phi node. ``src_and_vvars`` is a list of
+    /// ``((block_addr, block_idx), vvar | None)`` tuples; the vvar is an
+    /// AIL ``VirtualVariable``. Kept opaque as ``Py<PyList>`` until the
+    /// VirtualVariable variant lands and a typed (src, Option<AilExpression>)
+    /// shape can be used.
+    Phi {
+        src_and_vvars: Py<PyList>,
+    },
+    VirtualVariable {
+        varid: i64,
+        category: crate::ailment::enums::VirtualVariableCategory,
+        /// May be int, str, or tuple. Kept opaque for round-trip fidelity.
+        oident: Py<PyAny>,
+        reg_vvars: Py<PyDict>,
+    },
+    UnaryOp {
+        op: String,
+        operand: Box<AilExpression>,
+    },
+    Convert {
+        operand: Box<AilExpression>,
+        from_bits: u32,
+        to_bits: u32,
+        is_signed: bool,
+        from_type: ConvertType,
+        to_type: ConvertType,
+        rounding_mode: Option<Py<PyAny>>,
+    },
+    Reinterpret {
+        operand: Box<AilExpression>,
+        from_bits: u32,
+        from_type: String,
+        to_bits: u32,
+        to_type: String,
+    },
+    BinaryOp {
+        op: String,
+        operands: [Box<AilExpression>; 2],
+        signed: bool,
+        floating_point: bool,
+        rounding_mode: Option<Py<PyAny>>,
+        vector_count: Option<i64>,
+        vector_size: Option<i64>,
+    },
+    Load {
+        addr: Box<AilExpression>,
+        size: i32,
+        endness: String,
+        guard: Option<Box<AilExpression>>,
+        alt: Option<Box<AilExpression>>,
+    },
+    Call {
+        /// Expression (typically Const for direct calls) or str (for
+        /// symbolic targets). Kept opaque since the slot is
+        /// intentionally polymorphic.
+        target: Py<PyAny>,
+        calling_convention: Option<Py<PyAny>>,
+        prototype: Option<Py<PyAny>>,
+        args: Option<Vec<AilExpression>>,
+        arg_vvars: Option<Vec<AilExpression>>,
+    },
+    DirtyExpression {
+        callee: String,
+        operands: Vec<AilExpression>,
+        guard: Option<Box<AilExpression>>,
+        mfx: Option<String>,
+        maddr: Option<Box<AilExpression>>,
+        msize: Option<i64>,
+    },
+    VEXCCallExpression {
+        callee: String,
+        operands: Vec<AilExpression>,
+    },
+    MultiStatementExpression {
+        stmts: Vec<crate::ailment::ail_stmt::AilStatement>,
+        expr: Box<AilExpression>,
+    },
+    Struct {
+        name: String,
+        /// Polymorphic key/value Python dict; spike-level holds it as
+        /// ``Py<PyDict>``. Bulk migration revisits once Struct's field
+        /// shape is nailed down.
+        fields: Py<PyDict>,
+        field_offsets: Py<PyDict>,
+        field_names: Py<PyDict>,
+    },
+    RustEnum {
+        name: String,
+        /// list or tuple of Expression
+        fields: Py<PyAny>,
+    },
+    Array {
+        elements: Py<PyAny>,
+    },
+    Let {
+        variant: Py<PyAny>,
+        defs: Py<PyList>,
+        src: Box<AilExpression>,
+    },
+    Macro {
+        name: String,
+        delimiter: String,
+        returnty: Option<Py<PyAny>>,
+    },
+    FunctionLikeMacro {
+        name: String,
+        delimiter: String,
+        returnty: Option<Py<PyAny>>,
+        args: Option<Py<PyList>>,
+    },
+    ITE {
+        cond: Box<AilExpression>,
+        iffalse: Box<AilExpression>,
+        iftrue: Box<AilExpression>,
+    },
+    Extract {
+        base: Box<AilExpression>,
+        offset: Box<AilExpression>,
+        endness: String,
+    },
+    Insert {
+        base: Box<AilExpression>,
+        offset: Box<AilExpression>,
+        value: Box<AilExpression>,
+        endness: String,
+    },
+    StringLiteral {
+        /// ``str`` or ``bytes`` -- kept as a Python object to preserve
+        /// the original encoding for round-trip fidelity.
+        data: Py<PyAny>,
+    },
+    BasePointerOffset {
+        /// ``base`` and ``offset`` accept either a Python ``int`` or
+        /// an ``Expression``; kept as Py<PyAny> until a typed BPOValue
+        /// sum lands.
+        base: Py<PyAny>,
+        offset: Py<PyAny>,
+    },
+    /// A ``BasePointerOffset`` specialized to the stack pointer. The
+    /// ``offset`` lives in the variant; the base is implicit (sp).
+    StackBaseOffset {
+        offset: i128,
+    },
+}
+
+impl ExprInner {
+    /// Tag string used for ``isinstance`` dispatch on the Python side.
+    /// Keep in sync with the marker classes' ``_kind`` attribute.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            ExprInner::Const { .. } => "Const",
+            ExprInner::Tmp { .. } => "Tmp",
+            ExprInner::Register { .. } => "Register",
+            ExprInner::ComboRegister { .. } => "ComboRegister",
+            ExprInner::Phi { .. } => "Phi",
+            ExprInner::VirtualVariable { .. } => "VirtualVariable",
+            ExprInner::UnaryOp { .. } => "UnaryOp",
+            ExprInner::Convert { .. } => "Convert",
+            ExprInner::Reinterpret { .. } => "Reinterpret",
+            ExprInner::BinaryOp { .. } => "BinaryOp",
+            ExprInner::Load { .. } => "Load",
+            ExprInner::Call { .. } => "Call",
+            ExprInner::DirtyExpression { .. } => "DirtyExpression",
+            ExprInner::VEXCCallExpression { .. } => "VEXCCallExpression",
+            ExprInner::MultiStatementExpression { .. } => "MultiStatementExpression",
+            ExprInner::Struct { .. } => "Struct",
+            ExprInner::RustEnum { .. } => "RustEnum",
+            ExprInner::Array { .. } => "Array",
+            ExprInner::Let { .. } => "Let",
+            ExprInner::Macro { .. } => "Macro",
+            ExprInner::FunctionLikeMacro { .. } => "FunctionLikeMacro",
+            ExprInner::ITE { .. } => "ITE",
+            ExprInner::Extract { .. } => "Extract",
+            ExprInner::Insert { .. } => "Insert",
+            ExprInner::StringLiteral { .. } => "StringLiteral",
+            ExprInner::BasePointerOffset { .. } => "BasePointerOffset",
+            ExprInner::StackBaseOffset { .. } => "StackBaseOffset",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AilExpression -- pure Rust, not exposed
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+pub struct AilExpression {
+    pub header: ExprHeader,
+    pub inner: ExprInner,
+}
+
+impl AilExpression {
+    pub fn kind(&self) -> &'static str {
+        self.inner.kind()
+    }
+
+    /// Compute the structural hash. Cached on [`ExprHeader::cached_hash`].
+    pub fn _hash_core(&self) -> i64 {
+        match &self.inner {
+            ExprInner::Const { value, .. } => stable_hash(&[
+                HashItem::TypeName("Const"),
+                value.hash_item(),
+                HashItem::Int(self.header.bits as i128),
+            ]) as i64,
+            ExprInner::Tmp { tmp_idx, .. } => stable_hash(&[
+                HashItem::Str("tmp"),
+                HashItem::Int(*tmp_idx as i128),
+                HashItem::Int(self.header.bits as i128),
+            ]) as i64,
+            ExprInner::Register { reg_offset, .. } => stable_hash(&[
+                HashItem::Str("reg"),
+                HashItem::Int(*reg_offset as i128),
+                HashItem::Int(self.header.bits as i128),
+            ]) as i64,
+            ExprInner::ComboRegister { registers, .. } => {
+                let mut inner = Vec::with_capacity(registers.len());
+                for r in registers {
+                    inner.push(HashItem::U64Hash(r.cached_hash_or_compute() as u64));
+                }
+                stable_hash(&[
+                    HashItem::Str("combo_reg"),
+                    HashItem::Tuple(inner),
+                    HashItem::Int(self.header.bits as i128),
+                    HashItem::Int(self.header.idx as i128),
+                ]) as i64
+            }
+            ExprInner::Phi { src_and_vvars, .. } => Python::attach(|py| {
+                let h = crate::ailment::utils::py_object_hash_u64(src_and_vvars.bind(py).as_any())
+                    .unwrap_or(0);
+                stable_hash(&[
+                    HashItem::TypeName("Phi"),
+                    HashItem::U64Hash(h),
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }),
+            ExprInner::VirtualVariable {
+                varid,
+                category,
+                oident,
+                ..
+            } => Python::attach(|py| {
+                let h = crate::ailment::utils::py_object_hash_u64(oident.bind(py)).unwrap_or(0);
+                stable_hash(&[
+                    HashItem::Str("var"),
+                    HashItem::Int(*varid as i128),
+                    HashItem::Int(self.header.bits as i128),
+                    HashItem::Int(*category as u8 as i128),
+                    HashItem::U64Hash(h),
+                ]) as i64
+            }),
+            ExprInner::UnaryOp { op, operand, .. } => {
+                let oh = operand.cached_hash_or_compute();
+                stable_hash(&[
+                    HashItem::Str(op.as_str()),
+                    HashItem::U64Hash(oh as u64),
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }
+            ExprInner::Convert {
+                operand,
+                from_bits,
+                to_bits,
+                is_signed,
+                from_type,
+                to_type,
+                rounding_mode,
+                ..
+            } => {
+                let oh = operand.cached_hash_or_compute();
+                let rm = match rounding_mode {
+                    Some(_) => HashItem::Str("rm-present"),
+                    None => HashItem::None,
+                };
+                stable_hash(&[
+                    HashItem::U64Hash(oh as u64),
+                    HashItem::Int(*from_bits as i128),
+                    HashItem::Int(*to_bits as i128),
+                    HashItem::Int(self.header.bits as i128),
+                    HashItem::Bool(*is_signed),
+                    HashItem::Int(*from_type as u8 as i128),
+                    HashItem::Int(*to_type as u8 as i128),
+                    rm,
+                ]) as i64
+            }
+            ExprInner::Reinterpret {
+                operand,
+                from_bits,
+                from_type,
+                to_bits,
+                to_type,
+                ..
+            } => {
+                let oh = operand.cached_hash_or_compute();
+                stable_hash(&[
+                    HashItem::U64Hash(oh as u64),
+                    HashItem::Int(*from_bits as i128),
+                    HashItem::Str(from_type.as_str()),
+                    HashItem::Int(*to_bits as i128),
+                    HashItem::Str(to_type.as_str()),
+                ]) as i64
+            }
+            ExprInner::BinaryOp {
+                op,
+                operands,
+                signed,
+                floating_point,
+                ..
+            } => {
+                let lhs_h = operands[0].cached_hash_or_compute();
+                let rhs_h = operands[1].cached_hash_or_compute();
+                stable_hash(&[
+                    HashItem::Str(op.as_str()),
+                    HashItem::Tuple(vec![HashItem::U64Hash(lhs_h as u64), HashItem::U64Hash(rhs_h as u64)]),
+                    HashItem::Int(self.header.bits as i128),
+                    HashItem::Bool(*signed),
+                    HashItem::Bool(*floating_point),
+                ]) as i64
+            }
+            ExprInner::Load {
+                addr,
+                size,
+                endness,
+                ..
+            } => {
+                let addr_h = addr.cached_hash_or_compute();
+                stable_hash(&[
+                    HashItem::Str("Load"),
+                    HashItem::U64Hash(addr_h as u64),
+                    HashItem::Int(*size as i128),
+                    HashItem::Str(endness.as_str()),
+                ]) as i64
+            }
+            ExprInner::DirtyExpression {
+                callee,
+                operands,
+                guard,
+                mfx,
+                maddr,
+                msize,
+            } => {
+                let op_items: Vec<HashItem> = operands
+                    .iter()
+                    .map(|o| HashItem::U64Hash(o.cached_hash_or_compute() as u64))
+                    .collect();
+                let guard_item = match guard {
+                    Some(g) => HashItem::U64Hash(g.cached_hash_or_compute() as u64),
+                    None => HashItem::None,
+                };
+                let maddr_item = match maddr {
+                    Some(m) => HashItem::U64Hash(m.cached_hash_or_compute() as u64),
+                    None => HashItem::None,
+                };
+                let mfx_item = match mfx {
+                    Some(s) => HashItem::Str(s.as_str()),
+                    None => HashItem::None,
+                };
+                let msize_item = match msize {
+                    Some(v) => HashItem::Int(*v as i128),
+                    None => HashItem::None,
+                };
+                stable_hash(&[
+                    HashItem::TypeName("DirtyExpression"),
+                    HashItem::Str(callee.as_str()),
+                    guard_item,
+                    HashItem::Tuple(op_items),
+                    mfx_item,
+                    maddr_item,
+                    msize_item,
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }
+            ExprInner::VEXCCallExpression { callee, operands } => {
+                let op_items: Vec<HashItem> = operands
+                    .iter()
+                    .map(|o| HashItem::U64Hash(o.cached_hash_or_compute() as u64))
+                    .collect();
+                stable_hash(&[
+                    HashItem::TypeName("VEXCCallExpression"),
+                    HashItem::Str(callee.as_str()),
+                    HashItem::Int(self.header.bits as i128),
+                    HashItem::Tuple(op_items),
+                ]) as i64
+            }
+            ExprInner::Struct {
+                name,
+                fields,
+                field_offsets,
+                ..
+            } => Python::attach(|py| {
+                let mut fi: Vec<HashItem> = Vec::new();
+                let f = fields.bind(py);
+                for (k, v) in f.iter() {
+                    fi.push(HashItem::Tuple(vec![
+                        HashItem::U64Hash(
+                            crate::ailment::utils::py_object_hash_u64(&k).unwrap_or(0),
+                        ),
+                        HashItem::U64Hash(
+                            crate::ailment::utils::py_object_hash_u64(&v).unwrap_or(0),
+                        ),
+                    ]));
+                }
+                let mut oi: Vec<HashItem> = Vec::new();
+                let off = field_offsets.bind(py);
+                for (k, v) in off.iter() {
+                    oi.push(HashItem::Tuple(vec![
+                        HashItem::U64Hash(
+                            crate::ailment::utils::py_object_hash_u64(&k).unwrap_or(0),
+                        ),
+                        HashItem::U64Hash(
+                            crate::ailment::utils::py_object_hash_u64(&v).unwrap_or(0),
+                        ),
+                    ]));
+                }
+                stable_hash(&[
+                    HashItem::Str(name.as_str()),
+                    HashItem::Tuple(fi),
+                    HashItem::Tuple(oi),
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }),
+            ExprInner::RustEnum { name, fields } => Python::attach(|py| {
+                let mut items = vec![HashItem::Str(name.as_str())];
+                let mut inner = Vec::new();
+                if let Ok(it) = fields.bind(py).try_iter() {
+                    for f in it.flatten() {
+                        let h =
+                            crate::ailment::utils::py_object_hash_u64(&f).unwrap_or(0);
+                        inner.push(HashItem::U64Hash(h));
+                    }
+                }
+                items.push(HashItem::Tuple(inner));
+                items.push(HashItem::Int(self.header.bits as i128));
+                stable_hash(&items) as i64
+            }),
+            ExprInner::Array { elements } => Python::attach(|py| {
+                let mut inner = Vec::new();
+                if let Ok(it) = elements.bind(py).try_iter() {
+                    for e in it.flatten() {
+                        let h =
+                            crate::ailment::utils::py_object_hash_u64(&e).unwrap_or(0);
+                        inner.push(HashItem::U64Hash(h));
+                    }
+                }
+                stable_hash(&[
+                    HashItem::Tuple(inner),
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }),
+            ExprInner::Let { variant, src, .. } => Python::attach(|py| {
+                let vh = crate::ailment::utils::py_object_hash_u64(variant.bind(py))
+                    .unwrap_or(0);
+                stable_hash(&[
+                    HashItem::U64Hash(vh),
+                    HashItem::U64Hash(src.cached_hash_or_compute() as u64),
+                ]) as i64
+            }),
+            ExprInner::Macro { name, .. } => stable_hash(&[
+                HashItem::TypeName("Macro"),
+                HashItem::Int(self.header.idx as i128),
+                HashItem::Str(name.as_str()),
+            ]) as i64,
+            ExprInner::FunctionLikeMacro { name, .. } => stable_hash(&[
+                HashItem::TypeName("FunctionLikeMacro"),
+                HashItem::Int(self.header.idx as i128),
+                HashItem::Str(name.as_str()),
+            ]) as i64,
+            ExprInner::MultiStatementExpression { stmts, expr } => {
+                let mut items = vec![HashItem::TypeName("MultiStatementExpression")];
+                for s in stmts {
+                    items.push(HashItem::U64Hash(s.cached_hash_or_compute() as u64));
+                }
+                items.push(HashItem::U64Hash(expr.cached_hash_or_compute() as u64));
+                stable_hash(&items) as i64
+            }
+            ExprInner::Call { target, args, .. } => Python::attach(|py| {
+                let th =
+                    crate::ailment::utils::py_object_hash_u64(target.bind(py)).unwrap_or(0);
+                let args_h = match args {
+                    Some(a) => {
+                        let parts: Vec<HashItem> = a
+                            .iter()
+                            .map(|x| HashItem::U64Hash(x.cached_hash_or_compute() as u64))
+                            .collect();
+                        HashItem::Tuple(parts)
+                    }
+                    None => HashItem::None,
+                };
+                stable_hash(&[
+                    HashItem::TypeName("Call"),
+                    HashItem::Int(self.header.idx as i128),
+                    HashItem::U64Hash(th),
+                    args_h,
+                ]) as i64
+            }),
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+                ..
+            } => stable_hash(&[
+                HashItem::TypeName("ITE"),
+                HashItem::U64Hash(cond.cached_hash_or_compute() as u64),
+                HashItem::U64Hash(iffalse.cached_hash_or_compute() as u64),
+                HashItem::U64Hash(iftrue.cached_hash_or_compute() as u64),
+                HashItem::Int(self.header.bits as i128),
+            ]) as i64,
+            ExprInner::Extract {
+                base,
+                offset,
+                endness,
+            } => stable_hash(&[
+                HashItem::Int(self.header.bits as i128),
+                HashItem::U64Hash(base.cached_hash_or_compute() as u64),
+                HashItem::U64Hash(offset.cached_hash_or_compute() as u64),
+                HashItem::Str(endness.as_str()),
+            ]) as i64,
+            ExprInner::Insert {
+                base,
+                offset,
+                value,
+                endness,
+            } => stable_hash(&[
+                HashItem::Int(self.header.bits as i128),
+                HashItem::U64Hash(base.cached_hash_or_compute() as u64),
+                HashItem::U64Hash(offset.cached_hash_or_compute() as u64),
+                HashItem::U64Hash(value.cached_hash_or_compute() as u64),
+                HashItem::Str(endness.as_str()),
+            ]) as i64,
+            ExprInner::StringLiteral { data } => Python::attach(|py| {
+                let h = crate::ailment::utils::py_object_hash_u64(data.bind(py)).unwrap_or(0);
+                stable_hash(&[
+                    HashItem::TypeName("StringLiteral"),
+                    HashItem::U64Hash(h),
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }),
+            ExprInner::BasePointerOffset { base, offset, .. } => Python::attach(|py| {
+                let bh = crate::ailment::utils::py_object_hash_u64(base.bind(py)).unwrap_or(0);
+                let oh = crate::ailment::utils::py_object_hash_u64(offset.bind(py)).unwrap_or(0);
+                stable_hash(&[
+                    HashItem::Int(self.header.bits as i128),
+                    HashItem::U64Hash(bh),
+                    HashItem::U64Hash(oh),
+                ]) as i64
+            }),
+            ExprInner::StackBaseOffset { offset } => stable_hash(&[
+                HashItem::TypeName("StackBaseOffset"),
+                HashItem::Int(*offset),
+                HashItem::Int(self.header.bits as i128),
+            ]) as i64,
+        }
+    }
+
+    /// Recursive ``replace`` -- walk the operand subtrees, substituting
+    /// any node that ``__eq__``-matches ``old`` (same kind + same idx +
+    /// structural ``likes``). Returns ``(changed, rebuilt)`` -- when
+    /// nothing changed, callers can short-circuit and reuse the original
+    /// Python wrapper instead of allocating a new one.
+    pub fn replace_ail(&self, old: &AilExpression, new: &AilExpression) -> (bool, AilExpression) {
+        // Use ``likes`` (structural equality, idx-agnostic) for the match
+        // check -- legacy ``replace`` semantics treat any node with the
+        // same shape as a hit, regardless of ``idx``.
+        if self.likes(old) {
+            return (true, new.clone());
+        }
+        let walk =
+            |child: &Box<AilExpression>| -> (bool, Box<AilExpression>) {
+                let (c, r) = child.replace_ail(old, new);
+                (c, Box::new(r))
+            };
+        let walk_vec = |v: &Vec<AilExpression>| -> (bool, Vec<AilExpression>) {
+            let mut changed = false;
+            let mut out = Vec::with_capacity(v.len());
+            for x in v {
+                let (c, r) = x.replace_ail(old, new);
+                changed |= c;
+                out.push(r);
+            }
+            (changed, out)
+        };
+        let walk_opt = |o: &Option<Box<AilExpression>>| -> (bool, Option<Box<AilExpression>>) {
+            match o {
+                None => (false, None),
+                Some(c) => {
+                    let (changed, r) = c.replace_ail(old, new);
+                    (changed, Some(Box::new(r)))
+                }
+            }
+        };
+        match &self.inner {
+            ExprInner::UnaryOp { op, operand } => {
+                let (c, r) = walk(operand);
+                if !c {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::UnaryOp {
+                            op: op.clone(),
+                            operand: r,
+                        },
+                    },
+                )
+            }
+            ExprInner::Convert {
+                operand,
+                from_bits,
+                to_bits,
+                is_signed,
+                from_type,
+                to_type,
+                rounding_mode,
+            } => {
+                let (c, r) = walk(operand);
+                if !c {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Convert {
+                            operand: r,
+                            from_bits: *from_bits,
+                            to_bits: *to_bits,
+                            is_signed: *is_signed,
+                            from_type: *from_type,
+                            to_type: *to_type,
+                            rounding_mode: rounding_mode.as_ref().map(|x| {
+                                Python::attach(|py| x.clone_ref(py))
+                            }),
+                        },
+                    },
+                )
+            }
+            ExprInner::Reinterpret {
+                operand,
+                from_bits,
+                from_type,
+                to_bits,
+                to_type,
+            } => {
+                let (c, r) = walk(operand);
+                if !c {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Reinterpret {
+                            operand: r,
+                            from_bits: *from_bits,
+                            from_type: from_type.clone(),
+                            to_bits: *to_bits,
+                            to_type: to_type.clone(),
+                        },
+                    },
+                )
+            }
+            ExprInner::BinaryOp {
+                op,
+                operands,
+                signed,
+                floating_point,
+                rounding_mode,
+                vector_count,
+                vector_size,
+            } => {
+                let (cl, rl) = walk(&operands[0]);
+                let (cr, rr) = walk(&operands[1]);
+                if !cl && !cr {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::BinaryOp {
+                            op: op.clone(),
+                            operands: [rl, rr],
+                            signed: *signed,
+                            floating_point: *floating_point,
+                            rounding_mode: rounding_mode.as_ref().map(|x| {
+                                Python::attach(|py| x.clone_ref(py))
+                            }),
+                            vector_count: *vector_count,
+                            vector_size: *vector_size,
+                        },
+                    },
+                )
+            }
+            ExprInner::Load {
+                addr,
+                size,
+                endness,
+                guard,
+                alt,
+            } => {
+                let (ca, ra) = walk(addr);
+                let (cg, rg) = walk_opt(guard);
+                let (cal, ral) = walk_opt(alt);
+                if !ca && !cg && !cal {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Load {
+                            addr: ra,
+                            size: *size,
+                            endness: endness.clone(),
+                            guard: rg,
+                            alt: ral,
+                        },
+                    },
+                )
+            }
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+            } => {
+                let (cc, rc) = walk(cond);
+                let (cf, rf) = walk(iffalse);
+                let (ct, rt) = walk(iftrue);
+                if !cc && !cf && !ct {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::ITE {
+                            cond: rc,
+                            iffalse: rf,
+                            iftrue: rt,
+                        },
+                    },
+                )
+            }
+            ExprInner::Extract {
+                base,
+                offset,
+                endness,
+            } => {
+                let (cb, rb) = walk(base);
+                let (co, ro) = walk(offset);
+                if !cb && !co {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Extract {
+                            base: rb,
+                            offset: ro,
+                            endness: endness.clone(),
+                        },
+                    },
+                )
+            }
+            ExprInner::Insert {
+                base,
+                offset,
+                value,
+                endness,
+            } => {
+                let (cb, rb) = walk(base);
+                let (co, ro) = walk(offset);
+                let (cv, rv) = walk(value);
+                if !cb && !co && !cv {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Insert {
+                            base: rb,
+                            offset: ro,
+                            value: rv,
+                            endness: endness.clone(),
+                        },
+                    },
+                )
+            }
+            ExprInner::Call {
+                target,
+                calling_convention,
+                prototype,
+                args,
+                arg_vvars,
+            } => {
+                let (ca, ra) = match args {
+                    Some(v) => {
+                        let (c, r) = walk_vec(v);
+                        (c, Some(r))
+                    }
+                    None => (false, None),
+                };
+                let (cav, rav) = match arg_vvars {
+                    Some(v) => {
+                        let (c, r) = walk_vec(v);
+                        (c, Some(r))
+                    }
+                    None => (false, None),
+                };
+                if !ca && !cav {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Call {
+                            target: Python::attach(|py| target.clone_ref(py)),
+                            calling_convention: calling_convention.as_ref().map(|x| {
+                                Python::attach(|py| x.clone_ref(py))
+                            }),
+                            prototype: prototype.as_ref().map(|x| {
+                                Python::attach(|py| x.clone_ref(py))
+                            }),
+                            args: ra,
+                            arg_vvars: rav,
+                        },
+                    },
+                )
+            }
+            ExprInner::DirtyExpression {
+                callee,
+                operands,
+                guard,
+                mfx,
+                maddr,
+                msize,
+            } => {
+                let (co, ro) = walk_vec(operands);
+                let (cg, rg) = walk_opt(guard);
+                let (cm, rm) = walk_opt(maddr);
+                if !co && !cg && !cm {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::DirtyExpression {
+                            callee: callee.clone(),
+                            operands: ro,
+                            guard: rg,
+                            mfx: mfx.clone(),
+                            maddr: rm,
+                            msize: *msize,
+                        },
+                    },
+                )
+            }
+            ExprInner::VEXCCallExpression { callee, operands } => {
+                let (co, ro) = walk_vec(operands);
+                if !co {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::VEXCCallExpression {
+                            callee: callee.clone(),
+                            operands: ro,
+                        },
+                    },
+                )
+            }
+            ExprInner::ComboRegister { registers } => {
+                let (cr, rr) = walk_vec(registers);
+                if !cr {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::ComboRegister { registers: rr },
+                    },
+                )
+            }
+            ExprInner::Struct {
+                name,
+                fields,
+                field_offsets,
+                field_names,
+            } => Python::attach(|py| {
+                // Walk the value-dict; rebuild only if any field needs
+                // replacement. Keep the offsets/names dicts as-is --
+                // they're scalar metadata.
+                let mut changed = false;
+                let new_fields = pyo3::types::PyDict::new(py);
+                for (k, v) in fields.bind(py).iter() {
+                    if let Ok(e) = v.cast::<Expression>() {
+                        let (c, r) = e.borrow().expr.replace_ail(old, new);
+                        if c {
+                            changed = true;
+                            let py_r = Py::new(py, Expression::wrap(r))
+                                .ok()
+                                .map(|p| p.into_any())
+                                .unwrap_or_else(|| py.None());
+                            let _ = new_fields.set_item(k, py_r);
+                        } else {
+                            let _ = new_fields.set_item(k, v);
+                        }
+                    } else {
+                        let _ = new_fields.set_item(k, v);
+                    }
+                }
+                if !changed {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Struct {
+                            name: name.clone(),
+                            fields: new_fields.unbind(),
+                            field_offsets: field_offsets.clone_ref(py),
+                            field_names: field_names.clone_ref(py),
+                        },
+                    },
+                )
+            }),
+            ExprInner::RustEnum { name, fields } => Python::attach(|py| {
+                let bound = fields.bind(py);
+                let mut changed = false;
+                // Preserve tuple-vs-list discriminator.
+                let is_tuple = bound.is_instance_of::<pyo3::types::PyTuple>();
+                let mut items: Vec<Py<PyAny>> = Vec::new();
+                let Ok(it) = bound.try_iter() else {
+                    return (false, self.clone());
+                };
+                for x in it.flatten() {
+                    if let Ok(e) = x.cast::<Expression>() {
+                        let (c, r) = e.borrow().expr.replace_ail(old, new);
+                        if c {
+                            changed = true;
+                            items.push(
+                                Py::new(py, Expression::wrap(r))
+                                    .ok()
+                                    .map(|p| p.into_any())
+                                    .unwrap_or_else(|| py.None()),
+                            );
+                        } else {
+                            items.push(x.unbind());
+                        }
+                    } else {
+                        items.push(x.unbind());
+                    }
+                }
+                if !changed {
+                    return (false, self.clone());
+                }
+                let new_fields: Py<PyAny> = if is_tuple {
+                    pyo3::types::PyTuple::new(py, items)
+                        .map(|t| t.into_any().unbind())
+                        .unwrap_or_else(|_| py.None())
+                } else {
+                    let l = pyo3::types::PyList::empty(py);
+                    for x in items {
+                        let _ = l.append(x);
+                    }
+                    l.into_any().unbind()
+                };
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::RustEnum {
+                            name: name.clone(),
+                            fields: new_fields,
+                        },
+                    },
+                )
+            }),
+            ExprInner::Array { elements } => Python::attach(|py| {
+                let bound = elements.bind(py);
+                let mut changed = false;
+                let is_tuple = bound.is_instance_of::<pyo3::types::PyTuple>();
+                let mut items: Vec<Py<PyAny>> = Vec::new();
+                let Ok(it) = bound.try_iter() else {
+                    return (false, self.clone());
+                };
+                for x in it.flatten() {
+                    if let Ok(e) = x.cast::<Expression>() {
+                        let (c, r) = e.borrow().expr.replace_ail(old, new);
+                        if c {
+                            changed = true;
+                            items.push(
+                                Py::new(py, Expression::wrap(r))
+                                    .ok()
+                                    .map(|p| p.into_any())
+                                    .unwrap_or_else(|| py.None()),
+                            );
+                        } else {
+                            items.push(x.unbind());
+                        }
+                    } else {
+                        items.push(x.unbind());
+                    }
+                }
+                if !changed {
+                    return (false, self.clone());
+                }
+                let new_elements: Py<PyAny> = if is_tuple {
+                    pyo3::types::PyTuple::new(py, items)
+                        .map(|t| t.into_any().unbind())
+                        .unwrap_or_else(|_| py.None())
+                } else {
+                    let l = pyo3::types::PyList::empty(py);
+                    for x in items {
+                        let _ = l.append(x);
+                    }
+                    l.into_any().unbind()
+                };
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Array {
+                            elements: new_elements,
+                        },
+                    },
+                )
+            }),
+            ExprInner::FunctionLikeMacro {
+                name,
+                delimiter,
+                returnty,
+                args,
+            } => Python::attach(|py| {
+                let Some(l) = args else {
+                    return (false, self.clone());
+                };
+                let mut changed = false;
+                let mut items: Vec<Py<PyAny>> = Vec::new();
+                for x in l.bind(py).iter() {
+                    if let Ok(e) = x.cast::<Expression>() {
+                        let (c, r) = e.borrow().expr.replace_ail(old, new);
+                        if c {
+                            changed = true;
+                            items.push(
+                                Py::new(py, Expression::wrap(r))
+                                    .ok()
+                                    .map(|p| p.into_any())
+                                    .unwrap_or_else(|| py.None()),
+                            );
+                        } else {
+                            items.push(x.unbind());
+                        }
+                    } else {
+                        items.push(x.unbind());
+                    }
+                }
+                if !changed {
+                    return (false, self.clone());
+                }
+                let new_list = pyo3::types::PyList::empty(py);
+                for x in items {
+                    let _ = new_list.append(x);
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::FunctionLikeMacro {
+                            name: name.clone(),
+                            delimiter: delimiter.clone(),
+                            returnty: returnty.as_ref().map(|r| r.clone_ref(py)),
+                            args: Some(new_list.unbind()),
+                        },
+                    },
+                )
+            }),
+            ExprInner::Phi { src_and_vvars } => Python::attach(|py| {
+                // ``src_and_vvars`` is a list of ``((src_addr, block_idx),
+                // vvar_or_None)`` tuples. Walk each tuple's second item
+                // (the vvar) and recurse, but only substitute when the
+                // replacement is itself a VirtualVariable -- Phi
+                // semantics require those slots to hold either ``None``
+                // or a VirtualVariable, and callers (notably
+                // block_simplifier's propagator) routinely call
+                // ``stmt.replace(vvar, stack_base_offset_or_const)``
+                // expecting the phi vvar slots to be left alone.
+                if !matches!(new.inner, ExprInner::VirtualVariable { .. }) {
+                    return (false, self.clone());
+                }
+                let bound = src_and_vvars.bind(py);
+                let mut changed = false;
+                let new_list = pyo3::types::PyList::empty(py);
+                for pair_obj in bound.iter() {
+                    let Ok(pair) = pair_obj.cast::<pyo3::types::PyTuple>() else {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    };
+                    if pair.len() != 2 {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    }
+                    let Ok(first) = pair.get_item(0) else {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    };
+                    let Ok(second) = pair.get_item(1) else {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    };
+                    if second.is_none() {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    }
+                    let Ok(e) = second.cast::<Expression>() else {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    };
+                    let (c, r) = e.borrow().expr.replace_ail(old, new);
+                    if !c {
+                        let _ = new_list.append(pair_obj);
+                        continue;
+                    }
+                    changed = true;
+                    let py_r = Py::new(py, Expression::wrap(r))
+                        .ok()
+                        .map(|p| p.into_any())
+                        .unwrap_or_else(|| py.None());
+                    let new_pair =
+                        match pyo3::types::PyTuple::new(py, [first.unbind(), py_r]) {
+                            Ok(t) => t.into_any().unbind(),
+                            Err(_) => pair_obj.unbind(),
+                        };
+                    let _ = new_list.append(new_pair);
+                }
+                if !changed {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    AilExpression {
+                        header: self.header.clone(),
+                        inner: ExprInner::Phi {
+                            src_and_vvars: new_list.unbind(),
+                        },
+                    },
+                )
+            }),
+            // Leaf-like variants (no operand subtrees to recurse into).
+            _ => (false, self.clone()),
+        }
+    }
+
+    /// Recursive ``has_atom`` -- walk operand subtrees looking for a
+    /// node that ``__eq__``-matches ``atom`` (when ``identity`` is True)
+    /// or ``likes``-matches it (when False).
+    pub fn has_atom_ail(&self, atom: &AilExpression, identity: bool) -> bool {
+        let matches_atom = |x: &AilExpression| -> bool {
+            if identity {
+                x.kind() == atom.kind()
+                    && x.header.idx == atom.header.idx
+                    && x.likes(atom)
+            } else {
+                x.likes(atom)
+            }
+        };
+        if matches_atom(self) {
+            return true;
+        }
+        let any =
+            |children: &[&Box<AilExpression>]| children.iter().any(|c| c.has_atom_ail(atom, identity));
+        let any_vec =
+            |v: &[AilExpression]| v.iter().any(|c| c.has_atom_ail(atom, identity));
+        match &self.inner {
+            ExprInner::UnaryOp { operand, .. }
+            | ExprInner::Convert { operand, .. }
+            | ExprInner::Reinterpret { operand, .. } => any(&[operand]),
+            ExprInner::BinaryOp { operands, .. } => {
+                operands[0].has_atom_ail(atom, identity)
+                    || operands[1].has_atom_ail(atom, identity)
+            }
+            ExprInner::Load { addr, guard, alt, .. } => {
+                if addr.has_atom_ail(atom, identity) {
+                    return true;
+                }
+                if let Some(g) = guard {
+                    if g.has_atom_ail(atom, identity) {
+                        return true;
+                    }
+                }
+                if let Some(a) = alt {
+                    if a.has_atom_ail(atom, identity) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprInner::ITE {
+                cond, iffalse, iftrue, ..
+            } => any(&[cond, iffalse, iftrue]),
+            ExprInner::Extract { base, offset, .. } => any(&[base, offset]),
+            ExprInner::Insert {
+                base, offset, value, ..
+            } => any(&[base, offset, value]),
+            ExprInner::Call { args, arg_vvars, .. } => {
+                if let Some(v) = args {
+                    if any_vec(v) {
+                        return true;
+                    }
+                }
+                if let Some(v) = arg_vvars {
+                    if any_vec(v) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprInner::DirtyExpression {
+                operands, guard, maddr, ..
+            } => {
+                if any_vec(operands) {
+                    return true;
+                }
+                if let Some(g) = guard {
+                    if g.has_atom_ail(atom, identity) {
+                        return true;
+                    }
+                }
+                if let Some(m) = maddr {
+                    if m.has_atom_ail(atom, identity) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprInner::VEXCCallExpression { operands, .. } => any_vec(operands),
+            ExprInner::ComboRegister { registers, .. } => any_vec(registers),
+            ExprInner::BasePointerOffset { .. } | ExprInner::StackBaseOffset { .. } => false,
+            _ => false,
+        }
+    }
+
+    /// Recursive ``deep_copy`` -- replace ``idx`` with
+    /// ``manager.next_atom()`` at every node. Used by clinic to
+    /// re-number atoms when cloning blocks. Polymorphic Python-typed
+    /// fields are cloned via Python ``copy.deepcopy``.
+    pub fn deep_copy_ail(
+        &self,
+        py: Python<'_>,
+        manager: &Bound<'_, PyAny>,
+    ) -> PyResult<AilExpression> {
+        let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
+        let new_header = ExprHeader::new(
+            new_idx,
+            self.header.depth,
+            self.header.bits,
+            self.header.tags.clone(),
+        );
+        let recurse = |child: &Box<AilExpression>| -> PyResult<Box<AilExpression>> {
+            Ok(Box::new(child.deep_copy_ail(py, manager)?))
+        };
+        let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
+            v.iter().map(|x| x.deep_copy_ail(py, manager)).collect()
+        };
+        let recurse_opt = |o: &Option<Box<AilExpression>>| -> PyResult<Option<Box<AilExpression>>> {
+            match o {
+                None => Ok(None),
+                Some(c) => Ok(Some(Box::new(c.deep_copy_ail(py, manager)?))),
+            }
+        };
+        let dc_pyany = |obj: &Py<PyAny>| -> PyResult<Py<PyAny>> {
+            let copy_mod = py.import("copy")?;
+            Ok(copy_mod.call_method1("deepcopy", (obj,))?.unbind())
+        };
+        let inner = match &self.inner {
+            ExprInner::Const { value } => ExprInner::Const {
+                value: value.clone(),
+            },
+            ExprInner::Tmp { tmp_idx } => ExprInner::Tmp { tmp_idx: *tmp_idx },
+            ExprInner::Register { reg_offset } => ExprInner::Register {
+                reg_offset: *reg_offset,
+            },
+            ExprInner::ComboRegister { registers } => ExprInner::ComboRegister {
+                registers: recurse_vec(registers)?,
+            },
+            ExprInner::Phi { src_and_vvars } => ExprInner::Phi {
+                src_and_vvars: dc_pyany(src_and_vvars.bind(py).as_any().as_unbound())?
+                    .extract::<Py<PyList>>(py)?,
+            },
+            ExprInner::VirtualVariable {
+                varid,
+                category,
+                oident,
+                reg_vvars,
+            } => ExprInner::VirtualVariable {
+                varid: *varid,
+                category: *category,
+                oident: dc_pyany(oident)?,
+                reg_vvars: dc_pyany(reg_vvars.bind(py).as_any().as_unbound())?
+                    .extract::<Py<PyDict>>(py)?,
+            },
+            ExprInner::UnaryOp { op, operand } => ExprInner::UnaryOp {
+                op: op.clone(),
+                operand: recurse(operand)?,
+            },
+            ExprInner::Convert {
+                operand,
+                from_bits,
+                to_bits,
+                is_signed,
+                from_type,
+                to_type,
+                rounding_mode,
+            } => ExprInner::Convert {
+                operand: recurse(operand)?,
+                from_bits: *from_bits,
+                to_bits: *to_bits,
+                is_signed: *is_signed,
+                from_type: *from_type,
+                to_type: *to_type,
+                rounding_mode: match rounding_mode {
+                    Some(r) => Some(dc_pyany(r)?),
+                    None => None,
+                },
+            },
+            ExprInner::Reinterpret {
+                operand,
+                from_bits,
+                from_type,
+                to_bits,
+                to_type,
+            } => ExprInner::Reinterpret {
+                operand: recurse(operand)?,
+                from_bits: *from_bits,
+                from_type: from_type.clone(),
+                to_bits: *to_bits,
+                to_type: to_type.clone(),
+            },
+            ExprInner::BinaryOp {
+                op,
+                operands,
+                signed,
+                floating_point,
+                rounding_mode,
+                vector_count,
+                vector_size,
+            } => ExprInner::BinaryOp {
+                op: op.clone(),
+                operands: [recurse(&operands[0])?, recurse(&operands[1])?],
+                signed: *signed,
+                floating_point: *floating_point,
+                rounding_mode: match rounding_mode {
+                    Some(r) => Some(dc_pyany(r)?),
+                    None => None,
+                },
+                vector_count: *vector_count,
+                vector_size: *vector_size,
+            },
+            ExprInner::Load {
+                addr,
+                size,
+                endness,
+                guard,
+                alt,
+            } => ExprInner::Load {
+                addr: recurse(addr)?,
+                size: *size,
+                endness: endness.clone(),
+                guard: recurse_opt(guard)?,
+                alt: recurse_opt(alt)?,
+            },
+            ExprInner::Call {
+                target,
+                calling_convention,
+                prototype,
+                args,
+                arg_vvars,
+            } => ExprInner::Call {
+                target: dc_pyany(target)?,
+                calling_convention: match calling_convention {
+                    Some(c) => Some(dc_pyany(c)?),
+                    None => None,
+                },
+                prototype: match prototype {
+                    Some(p) => Some(dc_pyany(p)?),
+                    None => None,
+                },
+                args: match args {
+                    Some(v) => Some(recurse_vec(v)?),
+                    None => None,
+                },
+                arg_vvars: match arg_vvars {
+                    Some(v) => Some(recurse_vec(v)?),
+                    None => None,
+                },
+            },
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+            } => ExprInner::ITE {
+                cond: recurse(cond)?,
+                iffalse: recurse(iffalse)?,
+                iftrue: recurse(iftrue)?,
+            },
+            ExprInner::Extract { base, offset, endness } => ExprInner::Extract {
+                base: recurse(base)?,
+                offset: recurse(offset)?,
+                endness: endness.clone(),
+            },
+            ExprInner::Insert {
+                base,
+                offset,
+                value,
+                endness,
+            } => ExprInner::Insert {
+                base: recurse(base)?,
+                offset: recurse(offset)?,
+                value: recurse(value)?,
+                endness: endness.clone(),
+            },
+            ExprInner::StringLiteral { data } => ExprInner::StringLiteral {
+                data: dc_pyany(data)?,
+            },
+            ExprInner::BasePointerOffset { base, offset } => ExprInner::BasePointerOffset {
+                base: dc_pyany(base)?,
+                offset: dc_pyany(offset)?,
+            },
+            ExprInner::StackBaseOffset { offset } => ExprInner::StackBaseOffset { offset: *offset },
+            ExprInner::DirtyExpression {
+                callee,
+                operands,
+                guard,
+                mfx,
+                maddr,
+                msize,
+            } => ExprInner::DirtyExpression {
+                callee: callee.clone(),
+                operands: recurse_vec(operands)?,
+                guard: recurse_opt(guard)?,
+                mfx: mfx.clone(),
+                maddr: recurse_opt(maddr)?,
+                msize: *msize,
+            },
+            ExprInner::VEXCCallExpression { callee, operands } => ExprInner::VEXCCallExpression {
+                callee: callee.clone(),
+                operands: recurse_vec(operands)?,
+            },
+            ExprInner::MultiStatementExpression { stmts, expr } => {
+                ExprInner::MultiStatementExpression {
+                    stmts: stmts
+                        .iter()
+                        .map(|s| s.deep_copy_ail_stmt(py, manager))
+                        .collect::<PyResult<Vec<_>>>()?,
+                    expr: recurse(expr)?,
+                }
+            }
+            ExprInner::Struct {
+                name,
+                fields,
+                field_offsets,
+                field_names,
+            } => ExprInner::Struct {
+                name: name.clone(),
+                fields: dc_pyany(fields.bind(py).as_any().as_unbound())?
+                    .extract::<Py<PyDict>>(py)?,
+                field_offsets: dc_pyany(field_offsets.bind(py).as_any().as_unbound())?
+                    .extract::<Py<PyDict>>(py)?,
+                field_names: dc_pyany(field_names.bind(py).as_any().as_unbound())?
+                    .extract::<Py<PyDict>>(py)?,
+            },
+            ExprInner::RustEnum { name, fields } => ExprInner::RustEnum {
+                name: name.clone(),
+                fields: dc_pyany(fields)?,
+            },
+            ExprInner::Array { elements } => ExprInner::Array {
+                elements: dc_pyany(elements)?,
+            },
+            ExprInner::Let { variant, defs, src } => ExprInner::Let {
+                variant: dc_pyany(variant)?,
+                defs: dc_pyany(defs.bind(py).as_any().as_unbound())?
+                    .extract::<Py<PyList>>(py)?,
+                src: recurse(src)?,
+            },
+            ExprInner::Macro {
+                name,
+                delimiter,
+                returnty,
+            } => ExprInner::Macro {
+                name: name.clone(),
+                delimiter: delimiter.clone(),
+                returnty: match returnty {
+                    Some(r) => Some(dc_pyany(r)?),
+                    None => None,
+                },
+            },
+            ExprInner::FunctionLikeMacro {
+                name,
+                delimiter,
+                returnty,
+                args,
+            } => ExprInner::FunctionLikeMacro {
+                name: name.clone(),
+                delimiter: delimiter.clone(),
+                returnty: match returnty {
+                    Some(r) => Some(dc_pyany(r)?),
+                    None => None,
+                },
+                args: match args {
+                    Some(l) => Some(
+                        dc_pyany(l.bind(py).as_any().as_unbound())?
+                            .extract::<Py<PyList>>(py)?,
+                    ),
+                    None => None,
+                },
+            },
+        };
+        Ok(AilExpression {
+            header: new_header,
+            inner,
+        })
+    }
+
+    /// Lazy-compute the cached hash and return it.
+    pub fn cached_hash_or_compute(&self) -> i64 {
+        if let Some(h) = self.header.cached_hash.get() {
+            return h;
+        }
+        let h = self._hash_core();
+        self.header.cached_hash.set(h);
+        h
+    }
+
+    /// Structural equality used by the Python ``__eq__`` after a fast
+    /// idx-first short-circuit. Recursively compares operands.
+    pub fn likes(&self, other: &AilExpression) -> bool {
+        if self.kind() != other.kind() {
+            return false;
+        }
+        match (&self.inner, &other.inner) {
+            (
+                ExprInner::Const { value: a, .. },
+                ExprInner::Const { value: b, .. },
+            ) => a == b && self.header.bits == other.header.bits,
+            (
+                ExprInner::Tmp { tmp_idx: a, .. },
+                ExprInner::Tmp { tmp_idx: b, .. },
+            ) => a == b && self.header.bits == other.header.bits,
+            (
+                ExprInner::Register { reg_offset: a, .. },
+                ExprInner::Register { reg_offset: b, .. },
+            ) => a == b && self.header.bits == other.header.bits,
+            (
+                ExprInner::ComboRegister { registers: a, .. },
+                ExprInner::ComboRegister { registers: b, .. },
+            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y)),
+            (
+                ExprInner::Phi { src_and_vvars: a, .. },
+                ExprInner::Phi { src_and_vvars: b, .. },
+            ) => Python::attach(|py| {
+                self.header.bits == other.header.bits
+                    && a.bind(py).eq(b.bind(py)).unwrap_or(false)
+            }),
+            (
+                ExprInner::VirtualVariable {
+                    varid: a_id,
+                    category: a_c,
+                    oident: a_o,
+                    ..
+                },
+                ExprInner::VirtualVariable {
+                    varid: b_id,
+                    category: b_c,
+                    oident: b_o,
+                    ..
+                },
+            ) => Python::attach(|py| {
+                a_id == b_id
+                    && self.header.bits == other.header.bits
+                    && a_c == b_c
+                    && a_o.bind(py).eq(b_o.bind(py)).unwrap_or(false)
+            }),
+            (
+                ExprInner::UnaryOp { op: a_op, operand: a_op_, .. },
+                ExprInner::UnaryOp { op: b_op, operand: b_op_, .. },
+            ) => {
+                a_op == b_op
+                    && self.header.bits == other.header.bits
+                    && a_op_.likes(b_op_)
+            }
+            (
+                ExprInner::Convert {
+                    operand: a_o,
+                    from_bits: a_fb,
+                    to_bits: a_tb,
+                    is_signed: a_s,
+                    from_type: a_ft,
+                    to_type: a_tt,
+                    ..
+                },
+                ExprInner::Convert {
+                    operand: b_o,
+                    from_bits: b_fb,
+                    to_bits: b_tb,
+                    is_signed: b_s,
+                    from_type: b_ft,
+                    to_type: b_tt,
+                    ..
+                },
+            ) => {
+                a_fb == b_fb
+                    && a_tb == b_tb
+                    && a_s == b_s
+                    && a_ft == b_ft
+                    && a_tt == b_tt
+                    && self.header.bits == other.header.bits
+                    && a_o.likes(b_o)
+            }
+            (
+                ExprInner::Reinterpret {
+                    operand: a_o,
+                    from_bits: a_fb,
+                    from_type: a_ft,
+                    to_bits: a_tb,
+                    to_type: a_tt,
+                    ..
+                },
+                ExprInner::Reinterpret {
+                    operand: b_o,
+                    from_bits: b_fb,
+                    from_type: b_ft,
+                    to_bits: b_tb,
+                    to_type: b_tt,
+                    ..
+                },
+            ) => {
+                a_fb == b_fb
+                    && a_tb == b_tb
+                    && a_ft == b_ft
+                    && a_tt == b_tt
+                    && a_o.likes(b_o)
+            }
+            (
+                ExprInner::BinaryOp {
+                    op: op_a,
+                    operands: ops_a,
+                    signed: s_a,
+                    floating_point: fp_a,
+                    ..
+                },
+                ExprInner::BinaryOp {
+                    op: op_b,
+                    operands: ops_b,
+                    signed: s_b,
+                    floating_point: fp_b,
+                    ..
+                },
+            ) => {
+                op_a == op_b
+                    && s_a == s_b
+                    && fp_a == fp_b
+                    && self.header.bits == other.header.bits
+                    && ops_a[0].likes(&ops_b[0])
+                    && ops_a[1].likes(&ops_b[1])
+            }
+            (
+                ExprInner::Load {
+                    addr: a_addr,
+                    size: a_size,
+                    endness: a_end,
+                    ..
+                },
+                ExprInner::Load {
+                    addr: b_addr,
+                    size: b_size,
+                    endness: b_end,
+                    ..
+                },
+            ) => a_size == b_size && a_end == b_end && a_addr.likes(b_addr),
+            (
+                ExprInner::Struct {
+                    name: a_n,
+                    fields: a_f,
+                    field_offsets: a_o,
+                    ..
+                },
+                ExprInner::Struct {
+                    name: b_n,
+                    fields: b_f,
+                    field_offsets: b_o,
+                    ..
+                },
+            ) => Python::attach(|py| {
+                if a_n != b_n {
+                    return false;
+                }
+                let f1 = a_f.bind(py);
+                let f2 = b_f.bind(py);
+                if f1.len() != f2.len() {
+                    return false;
+                }
+                for (k, v) in f1.iter() {
+                    let Ok(Some(v2)) = f2.get_item(&k) else {
+                        return false;
+                    };
+                    let Ok(r) = v.call_method1("likes", (&v2,)) else {
+                        return false;
+                    };
+                    if !r.is_truthy().unwrap_or(false) {
+                        return false;
+                    }
+                }
+                a_o.bind(py).as_any().eq(b_o.bind(py)).unwrap_or(false)
+            }),
+            (
+                ExprInner::RustEnum {
+                    name: a_n,
+                    fields: a_f,
+                },
+                ExprInner::RustEnum {
+                    name: b_n,
+                    fields: b_f,
+                },
+            ) => Python::attach(|py| {
+                a_n == b_n
+                    && a_f.bind(py).eq(b_f.bind(py)).unwrap_or(false)
+                    && self.header.bits == other.header.bits
+            }),
+            (
+                ExprInner::Array { elements: a_e },
+                ExprInner::Array { elements: b_e },
+            ) => Python::attach(|py| {
+                a_e.bind(py).eq(b_e.bind(py)).unwrap_or(false)
+                    && self.header.bits == other.header.bits
+            }),
+            (
+                ExprInner::Let {
+                    variant: a_v,
+                    src: a_s,
+                    ..
+                },
+                ExprInner::Let {
+                    variant: b_v,
+                    src: b_s,
+                    ..
+                },
+            ) => Python::attach(|py| {
+                a_v.bind(py).eq(b_v.bind(py)).unwrap_or(false) && a_s.likes(b_s)
+            }),
+            (
+                ExprInner::Macro {
+                    name: a_n,
+                    delimiter: a_d,
+                    ..
+                },
+                ExprInner::Macro {
+                    name: b_n,
+                    delimiter: b_d,
+                    ..
+                },
+            ) => a_n == b_n && a_d == b_d && self.header.bits == other.header.bits,
+            (
+                ExprInner::FunctionLikeMacro {
+                    name: a_n,
+                    delimiter: a_d,
+                    args: a_a,
+                    ..
+                },
+                ExprInner::FunctionLikeMacro {
+                    name: b_n,
+                    delimiter: b_d,
+                    args: b_a,
+                    ..
+                },
+            ) => {
+                if a_n != b_n
+                    || a_d != b_d
+                    || self.header.bits != other.header.bits
+                {
+                    return false;
+                }
+                Python::attach(|py| match (a_a, b_a) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => {
+                        x.bind(py).eq(y.bind(py)).unwrap_or(false)
+                    }
+                    _ => false,
+                })
+            }
+            (
+                ExprInner::DirtyExpression {
+                    callee: a_c,
+                    operands: a_ops,
+                    guard: a_g,
+                    mfx: a_mfx,
+                    maddr: a_ma,
+                    msize: a_ms,
+                },
+                ExprInner::DirtyExpression {
+                    callee: b_c,
+                    operands: b_ops,
+                    guard: b_g,
+                    mfx: b_mfx,
+                    maddr: b_ma,
+                    msize: b_ms,
+                },
+            ) => {
+                if a_c != b_c
+                    || a_mfx != b_mfx
+                    || a_ms != b_ms
+                    || self.header.bits != other.header.bits
+                {
+                    return false;
+                }
+                let opt_likes = |a: &Option<Box<AilExpression>>,
+                                 b: &Option<Box<AilExpression>>| match (a, b) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => x.likes(y),
+                    _ => false,
+                };
+                opt_likes(a_g, b_g)
+                    && opt_likes(a_ma, b_ma)
+                    && a_ops.len() == b_ops.len()
+                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.likes(y))
+            }
+            (
+                ExprInner::VEXCCallExpression {
+                    callee: a_c,
+                    operands: a_ops,
+                },
+                ExprInner::VEXCCallExpression {
+                    callee: b_c,
+                    operands: b_ops,
+                },
+            ) => {
+                a_c == b_c
+                    && self.header.bits == other.header.bits
+                    && a_ops.len() == b_ops.len()
+                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.likes(y))
+            }
+            (
+                ExprInner::MultiStatementExpression {
+                    stmts: a_s,
+                    expr: a_e,
+                },
+                ExprInner::MultiStatementExpression {
+                    stmts: b_s,
+                    expr: b_e,
+                },
+            ) => {
+                a_s.len() == b_s.len()
+                    && a_s.iter().zip(b_s.iter()).all(|(x, y)| x.likes(y))
+                    && a_e.likes(b_e)
+            }
+            (
+                ExprInner::Call {
+                    target: a_t,
+                    calling_convention: a_cc,
+                    prototype: a_p,
+                    args: a_args,
+                    ..
+                },
+                ExprInner::Call {
+                    target: b_t,
+                    calling_convention: b_cc,
+                    prototype: b_p,
+                    args: b_args,
+                    ..
+                },
+            ) => Python::attach(|py| {
+                if !a_t.bind(py).eq(b_t.bind(py)).unwrap_or(false) {
+                    return false;
+                }
+                let opt_eq = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
+                    match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
+                        _ => false,
+                    }
+                };
+                if !opt_eq(a_cc, b_cc) {
+                    return false;
+                }
+                if !opt_eq(a_p, b_p) {
+                    return false;
+                }
+                match (a_args, b_args) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => {
+                        a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y))
+                    }
+                    _ => false,
+                }
+            }),
+            (
+                ExprInner::ITE {
+                    cond: ac,
+                    iffalse: af,
+                    iftrue: at,
+                    ..
+                },
+                ExprInner::ITE {
+                    cond: bc,
+                    iffalse: bf,
+                    iftrue: bt,
+                    ..
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && ac.likes(bc)
+                    && af.likes(bf)
+                    && at.likes(bt)
+            }
+            (
+                ExprInner::Extract {
+                    base: ab,
+                    offset: ao,
+                    endness: ae,
+                },
+                ExprInner::Extract {
+                    base: bb,
+                    offset: bo,
+                    endness: be,
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && ae == be
+                    && ab.likes(bb)
+                    && ao.likes(bo)
+            }
+            (
+                ExprInner::Insert {
+                    base: ab,
+                    offset: ao,
+                    value: av,
+                    endness: ae,
+                },
+                ExprInner::Insert {
+                    base: bb,
+                    offset: bo,
+                    value: bv,
+                    endness: be,
+                },
+            ) => ae == be && ab.likes(bb) && ao.likes(bo) && av.likes(bv),
+            (
+                ExprInner::StringLiteral { data: a },
+                ExprInner::StringLiteral { data: b },
+            ) => Python::attach(|py| a.bind(py).eq(b.bind(py)).unwrap_or(false)),
+            (
+                ExprInner::BasePointerOffset { base: a_b, offset: a_o, .. },
+                ExprInner::BasePointerOffset { base: b_b, offset: b_o, .. },
+            ) => Python::attach(|py| {
+                self.header.bits == other.header.bits
+                    && a_b.bind(py).eq(b_b.bind(py)).unwrap_or(false)
+                    && a_o.bind(py).eq(b_o.bind(py)).unwrap_or(false)
+            }),
+            (
+                ExprInner::StackBaseOffset { offset: a },
+                ExprInner::StackBaseOffset { offset: b },
+            ) => a == b && self.header.bits == other.header.bits,
+            _ => false,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Expression pyclass -- the only Python-facing class
+// ---------------------------------------------------------------------------
+
+#[pyclass(name = "Expression", module = "angr.rustylib.ailment", skip_from_py_object)]
+#[derive(Clone, Debug)]
+pub struct Expression {
+    pub expr: AilExpression,
+}
+
+impl Expression {
+    pub fn wrap(expr: AilExpression) -> Self {
+        Self { expr }
+    }
+
+    /// Public stringifier used by the Statement-side spike's ``__str__``
+    /// dispatch. Same logic as the ``#[getter]``-exposed ``__str__``.
+    pub fn render(&self, py: Python<'_>) -> PyResult<String> {
+        self.__str__(py)
+    }
+}
+
+#[pymethods]
+impl Expression {
+    // --- Per-variant constructor factories ----------------------------
+    //
+    // Each marker class's ``__new__`` calls one of these. Keeping them
+    // as staticmethods makes the field/type contract explicit per
+    // variant rather than going through a tagged ``__new__`` shape.
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, value, bits, **kwargs))]
+    fn _new_const(
+        py: Python<'_>,
+        idx: i64,
+        value: Bound<'_, PyAny>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let value = ConstValue::extract((&value).into())?;
+        let _ = py;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::Const { value },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, tmp_idx, bits, **kwargs))]
+    fn _new_tmp(
+        idx: i64,
+        tmp_idx: i64,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::Tmp { tmp_idx },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, varid, bits, category, oident=None, reg_vvars=None, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_virtual_variable(
+        py: Python<'_>,
+        idx: i64,
+        varid: i64,
+        bits: u32,
+        category: Bound<'_, PyAny>,
+        oident: Option<Bound<'_, PyAny>>,
+        reg_vvars: Option<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        let tags = Tags::from_kwargs(kwargs)?;
+        let cat = if let Ok(c) = category.extract::<VirtualVariableCategory>() {
+            c
+        } else if let Ok(v) = category.extract::<i64>() {
+            VirtualVariableCategory::from_int(v).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unknown VirtualVariableCategory value: {}",
+                    v
+                ))
+            })?
+        } else {
+            return Err(PyTypeError::new_err(
+                "category must be a VirtualVariableCategory or int",
+            ));
+        };
+        let oident = match oident {
+            Some(o) => o.unbind(),
+            None => py.None(),
+        };
+        let reg_vvars = match reg_vvars {
+            Some(o) if !o.is_none() => o
+                .cast_into::<PyDict>()
+                .map_err(|_| PyTypeError::new_err("reg_vvars must be a dict or None"))?
+                .unbind(),
+            _ => PyDict::new(py).unbind(),
+        };
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::VirtualVariable {
+                varid,
+                category: cat,
+                oident,
+                reg_vvars,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, bits, src_and_vvars, **kwargs))]
+    fn _new_phi(
+        py: Python<'_>,
+        idx: i64,
+        bits: u32,
+        src_and_vvars: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let list = if let Ok(l) = src_and_vvars.cast::<PyList>() {
+            l.to_owned()
+        } else {
+            let l = PyList::empty(py);
+            for x in src_and_vvars.try_iter()? {
+                l.append(x?)?;
+            }
+            l
+        };
+        validate_phi_src_and_vvars(py, &list)?;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::Phi {
+                src_and_vvars: list.unbind(),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, registers, **kwargs))]
+    fn _new_combo_register(
+        idx: i64,
+        registers: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        // Each element must be an AIL Register Expression.
+        let mut regs: Vec<AilExpression> = Vec::new();
+        let mut bits: u32 = 0;
+        for item in registers.try_iter()? {
+            let item = item?;
+            let ail = extract_ail(&item)?;
+            if !matches!(ail.inner, ExprInner::Register { .. }) {
+                return Err(PyTypeError::new_err(
+                    "ComboRegister elements must be Register expressions",
+                ));
+            }
+            bits = bits.saturating_add(ail.header.bits);
+            regs.push(ail);
+        }
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::ComboRegister { registers: regs },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, reg_offset, bits, **kwargs))]
+    fn _new_register(
+        idx: i64,
+        reg_offset: i64,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::Register { reg_offset },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, op, operand, *, bits=None, **kwargs))]
+    fn _new_unary_op(
+        idx: i64,
+        op: String,
+        operand: Bound<'_, PyAny>,
+        bits: Option<u32>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let operand_ail = extract_ail(&operand)?;
+        let depth = operand_ail.header.depth + 1;
+        let final_bits = bits.unwrap_or(operand_ail.header.bits);
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, final_bits, tags),
+            inner: ExprInner::UnaryOp {
+                op,
+                operand: Box::new(operand_ail),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (
+        idx, from_bits, to_bits, is_signed, operand,
+        from_type=None, to_type=None, rounding_mode=None,
+        **kwargs
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_convert(
+        idx: i64,
+        from_bits: u32,
+        to_bits: u32,
+        is_signed: bool,
+        operand: Bound<'_, PyAny>,
+        from_type: Option<ConvertType>,
+        to_type: Option<ConvertType>,
+        rounding_mode: Option<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let operand_ail = extract_ail(&operand)?;
+        let depth = operand_ail.header.depth + 1;
+        let rm = rounding_mode.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, to_bits, tags),
+            inner: ExprInner::Convert {
+                operand: Box::new(operand_ail),
+                from_bits,
+                to_bits,
+                is_signed,
+                from_type: from_type.unwrap_or(ConvertType::TYPE_INT),
+                to_type: to_type.unwrap_or(ConvertType::TYPE_INT),
+                rounding_mode: rm,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, from_bits, from_type, to_bits, to_type, operand, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_reinterpret(
+        idx: i64,
+        from_bits: u32,
+        from_type: String,
+        to_bits: u32,
+        to_type: String,
+        operand: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let operand_ail = extract_ail(&operand)?;
+        let depth = operand_ail.header.depth + 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, to_bits, tags),
+            inner: ExprInner::Reinterpret {
+                operand: Box::new(operand_ail),
+                from_bits,
+                from_type,
+                to_bits,
+                to_type,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (
+        idx, op, operands, signed=false, *,
+        bits=None, floating_point=false,
+        rounding_mode=None,
+        vector_count=None, vector_size=None, **kwargs
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_binary_op(
+        py: Python<'_>,
+        idx: i64,
+        op: String,
+        operands: Bound<'_, PyAny>,
+        signed: bool,
+        bits: Option<u32>,
+        floating_point: bool,
+        rounding_mode: Option<Bound<'_, PyAny>>,
+        vector_count: Option<i64>,
+        vector_size: Option<i64>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+
+        // Accept any 2-iterable.
+        let items: Vec<Bound<'_, PyAny>> = operands.try_iter()?.collect::<PyResult<Vec<_>>>()?;
+        if items.len() != 2 {
+            return Err(PyTypeError::new_err(format!(
+                "BinaryOp requires exactly 2 operands, got {}",
+                items.len()
+            )));
+        }
+        let lhs_ail = extract_ail(&items[0])?;
+        let rhs_ail = extract_ail(&items[1])?;
+
+        let depth = lhs_ail.header.depth.max(rhs_ail.header.depth) + 1;
+        let final_bits = bits.unwrap_or(lhs_ail.header.bits);
+
+        let rm = rounding_mode.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
+
+        let _ = py;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, final_bits, tags),
+            inner: ExprInner::BinaryOp {
+                op,
+                operands: [Box::new(lhs_ail), Box::new(rhs_ail)],
+                signed,
+                floating_point,
+                rounding_mode: rm,
+                vector_count,
+                vector_size,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, cond, iffalse, iftrue, **kwargs))]
+    fn _new_ite(
+        idx: i64,
+        cond: Bound<'_, PyAny>,
+        iffalse: Bound<'_, PyAny>,
+        iftrue: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let c = extract_ail(&cond)?;
+        let f = extract_ail(&iffalse)?;
+        let t = extract_ail(&iftrue)?;
+        let depth = c.header.depth.max(f.header.depth).max(t.header.depth) + 1;
+        let bits = t.header.bits;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::ITE {
+                cond: Box::new(c),
+                iffalse: Box::new(f),
+                iftrue: Box::new(t),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, bits, base, offset, endness, **kwargs))]
+    fn _new_extract(
+        idx: i64,
+        bits: u32,
+        base: Bound<'_, PyAny>,
+        offset: Bound<'_, PyAny>,
+        endness: String,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let b = extract_ail(&base)?;
+        let o = extract_ail(&offset)?;
+        let depth = b.header.depth.max(o.header.depth) + 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Extract {
+                base: Box::new(b),
+                offset: Box::new(o),
+                endness,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, base, offset, value, endness, **kwargs))]
+    fn _new_insert(
+        idx: i64,
+        base: Bound<'_, PyAny>,
+        offset: Bound<'_, PyAny>,
+        value: Bound<'_, PyAny>,
+        endness: String,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let b = extract_ail(&base)?;
+        let o = extract_ail(&offset)?;
+        let v = extract_ail(&value)?;
+        let depth = b.header.depth.max(o.header.depth) + 1;
+        let bits = b.header.bits;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Insert {
+                base: Box::new(b),
+                offset: Box::new(o),
+                value: Box::new(v),
+                endness,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, data, bits, **kwargs))]
+    fn _new_string_literal(
+        idx: i64,
+        data: Bound<'_, PyAny>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::StringLiteral {
+                data: data.unbind(),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, bits, base, offset, **kwargs))]
+    fn _new_base_pointer_offset(
+        idx: i64,
+        bits: u32,
+        base: Bound<'_, PyAny>,
+        offset: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 1, bits, tags),
+            inner: ExprInner::BasePointerOffset {
+                base: base.unbind(),
+                offset: offset.unbind(),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, bits, offset, **kwargs))]
+    fn _new_stack_base_offset(
+        idx: i64,
+        bits: u32,
+        offset: i128,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        // Sign-normalize the offset: when the supplied value has its
+        // top bit set at the Const's declared width (callers regularly
+        // pass ``-8`` as its u64 two's-complement form ``2^64 - 8``),
+        // subtract ``2^bits`` to bring it into the signed range.
+        // ``bits`` is at most 64 in practice so this happens in i128
+        // to avoid overflow.
+        let mut off = offset;
+        if bits < 128 && off >= (1i128 << (bits - 1)) {
+            off -= 1i128 << bits;
+        }
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 1, bits, tags),
+            inner: ExprInner::StackBaseOffset { offset: off },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, addr, size, endness, *, guard=None, alt=None, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_load(
+        py: Python<'_>,
+        idx: i64,
+        addr: Bound<'_, PyAny>,
+        size: i32,
+        endness: String,
+        guard: Option<Bound<'_, PyAny>>,
+        alt: Option<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let addr_ail = extract_ail(&addr)?;
+        let depth = addr_ail.header.depth + 1;
+        let bits = (size.wrapping_mul(8)) as u32;
+
+        let guard_box = match guard {
+            Some(g) if !g.is_none() => Some(Box::new(extract_ail(&g)?)),
+            _ => None,
+        };
+        let alt_box = match alt {
+            Some(a) if !a.is_none() => Some(Box::new(extract_ail(&a)?)),
+            _ => None,
+        };
+        let _ = py;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Load {
+                addr: Box::new(addr_ail),
+                size,
+                endness,
+                guard: guard_box,
+                alt: alt_box,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (
+        idx, target, calling_convention=None, prototype=None,
+        args=None, bits=None, arg_vvars=None, **kwargs
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_call(
+        py: Python<'_>,
+        idx: i64,
+        target: Bound<'_, PyAny>,
+        calling_convention: Option<Bound<'_, PyAny>>,
+        prototype: Option<Bound<'_, PyAny>>,
+        args: Option<Bound<'_, PyAny>>,
+        bits: Option<u32>,
+        arg_vvars: Option<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        // target depth +1 -- if it's an Expression, use its depth; for
+        // non-Expression targets (str), depth = 1.
+        let target_depth = if let Ok(e) = target.cast::<Expression>() {
+            e.borrow().expr.header.depth
+        } else {
+            0
+        };
+        let depth = target_depth + 1;
+        let bits = bits.unwrap_or(0);
+        let args_vec = match args {
+            Some(a) if !a.is_none() => {
+                let mut v = Vec::new();
+                for item in a.try_iter()? {
+                    v.push(extract_ail(&item?)?);
+                }
+                Some(v)
+            }
+            _ => None,
+        };
+        let arg_vvars_vec = match arg_vvars {
+            Some(a) if !a.is_none() => {
+                let mut v = Vec::new();
+                for item in a.try_iter()? {
+                    v.push(extract_ail(&item?)?);
+                }
+                Some(v)
+            }
+            _ => None,
+        };
+        let cc = calling_convention.and_then(|c| if c.is_none() { None } else { Some(c.unbind()) });
+        let proto = prototype.and_then(|p| if p.is_none() { None } else { Some(p.unbind()) });
+        let _ = py;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Call {
+                target: target.unbind(),
+                calling_convention: cc,
+                prototype: proto,
+                args: args_vec,
+                arg_vvars: arg_vvars_vec,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, callee, operands, *, guard=None, mfx=None, maddr=None, msize=None, bits, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_dirty_expression(
+        idx: i64,
+        callee: String,
+        operands: Bound<'_, PyAny>,
+        guard: Option<Bound<'_, PyAny>>,
+        mfx: Option<String>,
+        maddr: Option<Bound<'_, PyAny>>,
+        msize: Option<i64>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let mut ops = Vec::new();
+        for item in operands.try_iter()? {
+            ops.push(extract_ail(&item?)?);
+        }
+        let guard_box = match guard {
+            Some(g) if !g.is_none() => Some(Box::new(extract_ail(&g)?)),
+            _ => None,
+        };
+        let maddr_box = match maddr {
+            Some(m) if !m.is_none() => Some(Box::new(extract_ail(&m)?)),
+            _ => None,
+        };
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 1, bits, tags),
+            inner: ExprInner::DirtyExpression {
+                callee,
+                operands: ops,
+                guard: guard_box,
+                mfx,
+                maddr: maddr_box,
+                msize,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, callee, operands, bits, **kwargs))]
+    fn _new_vex_ccall_expression(
+        idx: i64,
+        callee: String,
+        operands: Bound<'_, PyAny>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let mut ops = Vec::new();
+        let mut depth: u32 = 0;
+        for item in operands.try_iter()? {
+            let ail = extract_ail(&item?)?;
+            depth = depth.max(ail.header.depth);
+            ops.push(ail);
+        }
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::VEXCCallExpression {
+                callee,
+                operands: ops,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, stmts, expr, **kwargs))]
+    fn _new_multi_statement_expression(
+        idx: i64,
+        stmts: Bound<'_, PyAny>,
+        expr: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let mut stmt_vec: Vec<crate::ailment::ail_stmt::AilStatement> = Vec::new();
+        for x in stmts.try_iter()? {
+            stmt_vec.push(crate::ailment::ail_stmt::extract_ail_stmt(&x?)?);
+        }
+        let expr_ail = extract_ail(&expr)?;
+        let depth = expr_ail.header.depth + 1;
+        let bits = expr_ail.header.bits;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::MultiStatementExpression {
+                stmts: stmt_vec,
+                expr: Box::new(expr_ail),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, name, fields, field_offsets, bits, **kwargs))]
+    fn _new_struct(
+        py: Python<'_>,
+        idx: i64,
+        name: String,
+        fields: Bound<'_, PyDict>,
+        field_offsets: Bound<'_, PyDict>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let field_names = PyDict::new(py);
+        for (k, v) in field_offsets.iter() {
+            field_names.set_item(v, k)?;
+        }
+        let mut depth: u32 = 0;
+        for v in fields.values() {
+            if let Ok(e) = v.cast::<Expression>() {
+                depth = depth.max(e.borrow().expr.header.depth);
+            }
+        }
+        depth += 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Struct {
+                name,
+                fields: fields.unbind(),
+                field_offsets: field_offsets.unbind(),
+                field_names: field_names.unbind(),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, name, fields, bits, **kwargs))]
+    fn _new_rust_enum(
+        idx: i64,
+        name: String,
+        fields: Bound<'_, PyAny>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let mut depth: u32 = 0;
+        for f in fields.try_iter()? {
+            let f = f?;
+            if let Ok(e) = f.cast::<Expression>() {
+                depth = depth.max(e.borrow().expr.header.depth);
+            }
+        }
+        depth += 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::RustEnum {
+                name,
+                fields: fields.unbind(),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, elements, bits, **kwargs))]
+    fn _new_array(
+        idx: i64,
+        elements: Bound<'_, PyAny>,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let mut depth: u32 = 0;
+        for e in elements.try_iter()? {
+            let e = e?;
+            if let Ok(ex) = e.cast::<Expression>() {
+                depth = depth.max(ex.borrow().expr.header.depth);
+            }
+        }
+        depth += 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Array {
+                elements: elements.unbind(),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, variant, defs, src, **kwargs))]
+    fn _new_let(
+        py: Python<'_>,
+        idx: i64,
+        variant: Bound<'_, PyAny>,
+        defs: Bound<'_, PyAny>,
+        src: Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let src_ail = extract_ail(&src)?;
+        let depth = src_ail.header.depth + 1;
+        let bits = src_ail.header.bits;
+        let defs_list = if let Ok(l) = defs.cast::<PyList>() {
+            l.to_owned()
+        } else {
+            let l = PyList::empty(py);
+            for x in defs.try_iter()? {
+                l.append(x?)?;
+            }
+            l
+        };
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::Let {
+                variant: variant.unbind(),
+                defs: defs_list.unbind(),
+                src: Box::new(src_ail),
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, name, delimiter=String::from("()"), returnty=None, **kwargs))]
+    fn _new_macro(
+        idx: i64,
+        name: String,
+        delimiter: String,
+        returnty: Option<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let rt = returnty.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 1, 0, tags),
+            inner: ExprInner::Macro {
+                name,
+                delimiter,
+                returnty: rt,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, name, args, bits=None, delimiter=String::from("()"), returnty=None, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    fn _new_function_like_macro(
+        py: Python<'_>,
+        idx: i64,
+        name: String,
+        args: Bound<'_, PyAny>,
+        bits: Option<u32>,
+        delimiter: String,
+        returnty: Option<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        let bits = bits.unwrap_or(0);
+        let rt = returnty.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
+        let args_list = if args.is_none() {
+            None
+        } else if let Ok(l) = args.cast::<PyList>() {
+            Some(l.to_owned().unbind())
+        } else {
+            let l = PyList::empty(py);
+            for x in args.try_iter()? {
+                l.append(x?)?;
+            }
+            Some(l.unbind())
+        };
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, 1, bits, tags),
+            inner: ExprInner::FunctionLikeMacro {
+                name,
+                delimiter,
+                returnty: rt,
+                args: args_list,
+            },
+        }))
+    }
+
+    // --- Universal header accessors -----------------------------------
+
+    #[getter]
+    fn idx(&self) -> i64 {
+        self.expr.header.idx
+    }
+    #[setter]
+    fn set_idx(&mut self, v: i64) {
+        self.expr.header.idx = v;
+        self.expr.header.cached_hash.clear();
+    }
+    #[getter]
+    fn bits(&self) -> u32 {
+        self.expr.header.bits
+    }
+    #[setter]
+    fn set_bits(&mut self, v: u32) {
+        self.expr.header.bits = v;
+        self.expr.header.cached_hash.clear();
+    }
+    #[getter]
+    fn depth(&self) -> u32 {
+        self.expr.header.depth
+    }
+    #[setter]
+    fn set_depth(&mut self, v: u32) {
+        self.expr.header.depth = v;
+        self.expr.header.cached_hash.clear();
+    }
+    #[getter]
+    fn size(&self) -> u32 {
+        self.expr.header.bits / 8
+    }
+    #[getter]
+    fn tags(slf: Bound<'_, Self>) -> TagsView {
+        let inner = slf.borrow().expr.header.tags.clone();
+        TagsView::with_parent(inner, slf.into_any().unbind())
+    }
+    /// Tags writeback hook for the parent-link on TagsView. ``TagsView``
+    /// mutations flush back via ``setattr(parent, "tags", new_view)``.
+    #[setter]
+    fn set_tags(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        if let Ok(tv) = value.cast::<TagsView>() {
+            self.expr.header.tags = tv.borrow().inner().clone();
+        } else {
+            self.expr.header.tags = Tags::from_mapping(Some(&value))?;
+        }
+        self.expr.header.cached_hash.clear();
+        Ok(())
+    }
+    /// Variant discriminator. Python-side metaclass uses this for
+    /// ``isinstance(load, Load)`` dispatch.
+    #[getter]
+    fn kind(&self) -> &'static str {
+        self.expr.kind()
+    }
+
+    fn clear_hash(&self) {
+        self.expr.header.cached_hash.clear();
+    }
+
+    // --- Per-variant accessors ----------------------------------------
+    //
+    // Each returns ``AttributeError`` when called on the wrong variant.
+    // The Python markers don't enforce this (they trust the caller to
+    // only read fields appropriate to the marker), but a stray read on
+    // an unrelated Expression instance gets a clear error.
+
+    /// Const.value (literal) / Insert.value (Expression operand).
+    #[getter]
+    fn value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Const { value, .. } => Ok(value.clone().into_pyobject(py)?),
+            ExprInner::Insert { value, .. } => Ok(Py::new(
+                py,
+                Expression::wrap((**value).clone()),
+            )?
+            .into_bound(py)
+            .into_any()),
+            _ => Err(PyAttributeError::new_err("no 'value' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_value(&mut self, new_value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Const { value, .. } => {
+                let new = ConstValue::extract((&new_value).into())?;
+                self.expr.header.cached_hash.clear();
+                *value = new;
+                Ok(())
+            }
+            ExprInner::Insert { value, .. } => {
+                let new = extract_ail(&new_value)?;
+                self.expr.header.cached_hash.clear();
+                *value = Box::new(new);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'value' on this Expression")),
+        }
+    }
+
+    /// ``Const.is_int`` (only int constants -- not floats).
+    #[getter]
+    fn is_int(&self) -> PyResult<bool> {
+        match &self.expr.inner {
+            ExprInner::Const { value, .. } => Ok(value.is_int()),
+            _ => Err(PyAttributeError::new_err("no 'is_int' on this Expression")),
+        }
+    }
+
+    /// ``Const.value_int`` -- the int value (errors on float constants).
+    #[getter]
+    fn value_int<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Const { value, .. } => {
+                if !value.is_int() {
+                    return Err(PyTypeError::new_err(format!(
+                        "Incorrect value type; expect int, got {:?}",
+                        value
+                    )));
+                }
+                value.clone().into_bound_py_any(py)
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'value_int' on this Expression",
+            )),
+        }
+    }
+
+    /// ``Const.value_float`` -- the float value (errors on int constants).
+    #[getter]
+    fn value_float(&self) -> PyResult<f64> {
+        match &self.expr.inner {
+            ExprInner::Const { value, .. } => match value {
+                ConstValue::Float(v) => Ok(*v),
+                _ => Err(PyTypeError::new_err(format!(
+                    "Incorrect value type; expect float, got {:?}",
+                    value
+                ))),
+            },
+            _ => Err(PyAttributeError::new_err(
+                "no 'value_float' on this Expression",
+            )),
+        }
+    }
+
+    /// ``Const.sign_bit`` -- the top bit of the int value at the
+    /// Const's declared width. Computed as a bit-extract (not an
+    /// arithmetic shift) so values stored as their u64 two's-complement
+    /// form -- e.g. ``-8`` carried as ``2^64 - 8`` from the lifter --
+    /// correctly report ``1``.
+    #[getter]
+    fn sign_bit(&self) -> PyResult<i128> {
+        match &self.expr.inner {
+            ExprInner::Const { value, .. } => {
+                if !value.is_int() {
+                    return Err(PyTypeError::new_err(
+                        "Sign bit is only available for int constants.",
+                    ));
+                }
+                let bits = self.expr.header.bits;
+                let v = match value {
+                    ConstValue::Int(v) => *v,
+                    ConstValue::BigInt(s) => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "sign_bit on Const with BigInt value (hex {s}) is not supported"
+                        )));
+                    }
+                    ConstValue::Float(_) => unreachable!(),
+                };
+                let mask = 1i128 << (bits - 1);
+                Ok(if (v & mask) != 0 { 1 } else { 0 })
+            }
+            _ => Err(PyAttributeError::new_err("no 'sign_bit' on this Expression")),
+        }
+    }
+
+    /// Tmp.tmp_idx (i64) / VirtualVariable.tmp_idx (Option<i64>, present
+    /// when category is TMP).
+    #[getter]
+    fn tmp_idx(&self, py: Python<'_>) -> PyResult<Option<i64>> {
+        match &self.expr.inner {
+            ExprInner::Tmp { tmp_idx, .. } => Ok(Some(*tmp_idx)),
+            ExprInner::VirtualVariable { oident, .. } if self.was_tmp() => {
+                Ok(Some(oident.bind(py).extract::<i64>()?))
+            }
+            ExprInner::VirtualVariable { .. } => Ok(None),
+            _ => Err(PyAttributeError::new_err("no 'tmp_idx' on this Expression")),
+        }
+    }
+
+    /// Register.reg_offset / VirtualVariable.reg_offset (when category is
+    /// REGISTER, or parameter with REGISTER inner category).
+    #[getter]
+    fn reg_offset(&self, py: Python<'_>) -> PyResult<i64> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        match &self.expr.inner {
+            ExprInner::Register { reg_offset, .. } => Ok(*reg_offset),
+            ExprInner::VirtualVariable { oident, .. } if self.was_reg() => {
+                oident.bind(py).extract::<i64>()
+            }
+            ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => {
+                let cat = self.parameter_category(py)?;
+                if cat == Some(VirtualVariableCategory::REGISTER) {
+                    let inner = oident.bind(py).get_item(1)?;
+                    return inner.extract::<i64>();
+                }
+                Err(PyTypeError::new_err("Is not a register"))
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'reg_offset' on this Expression",
+            )),
+        }
+    }
+
+    /// ComboRegister.registers -- list of Register Expression instances.
+    #[getter]
+    fn registers(&self, py: Python<'_>) -> PyResult<Py<PyList>> {
+        match &self.expr.inner {
+            ExprInner::ComboRegister { registers, .. } => {
+                let l = PyList::empty(py);
+                for r in registers {
+                    let py_r = Py::new(py, Expression::wrap(r.clone()))?;
+                    l.append(py_r)?;
+                }
+                Ok(l.unbind())
+            }
+            _ => Err(PyAttributeError::new_err("no 'registers' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_registers(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let mut regs: Vec<AilExpression> = Vec::new();
+        for item in value.try_iter()? {
+            let item = item?;
+            let ail = extract_ail(&item)?;
+            if !matches!(ail.inner, ExprInner::Register { .. }) {
+                return Err(PyTypeError::new_err(
+                    "ComboRegister elements must be Register expressions",
+                ));
+            }
+            regs.push(ail);
+        }
+        match &mut self.expr.inner {
+            ExprInner::ComboRegister { registers, .. } => {
+                self.expr.header.cached_hash.clear();
+                *registers = regs;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'registers' on this Expression")),
+        }
+    }
+
+    /// Phi.src_and_vvars
+    #[getter]
+    fn src_and_vvars(&self, py: Python<'_>) -> PyResult<Py<PyList>> {
+        match &self.expr.inner {
+            ExprInner::Phi { src_and_vvars, .. } => {
+                // Eager validation on read: in-place mutations through
+                // ``phi.src_and_vvars[idx] = ...`` or ``.append()`` bypass
+                // the factory / setter, so this catches the first reader
+                // that sees a non-VirtualVariable. The traceback in the
+                // error message points back to the producer chain.
+                validate_phi_src_and_vvars(py, src_and_vvars.bind(py))?;
+                Ok(src_and_vvars.clone_ref(py))
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'src_and_vvars' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_src_and_vvars(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let py = value.py();
+        let list = if let Ok(l) = value.cast::<PyList>() {
+            l.to_owned()
+        } else {
+            let l = PyList::empty(py);
+            for x in value.try_iter()? {
+                l.append(x?)?;
+            }
+            l
+        };
+        validate_phi_src_and_vvars(py, &list)?;
+        match &mut self.expr.inner {
+            ExprInner::Phi { src_and_vvars, .. } => {
+                self.expr.header.cached_hash.clear();
+                *src_and_vvars = list.unbind();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'src_and_vvars' on this Expression",
+            )),
+        }
+    }
+
+    /// VirtualVariable.varid
+    #[getter]
+    fn varid(&self) -> PyResult<i64> {
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { varid, .. } => Ok(*varid),
+            _ => Err(PyAttributeError::new_err("no 'varid' on this Expression")),
+        }
+    }
+
+    /// VirtualVariable.category
+    #[getter]
+    fn category(&self) -> PyResult<crate::ailment::enums::VirtualVariableCategory> {
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { category, .. } => Ok(*category),
+            _ => Err(PyAttributeError::new_err("no 'category' on this Expression")),
+        }
+    }
+
+    /// VirtualVariable.oident
+    #[getter]
+    fn oident(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { oident, .. } => Ok(oident.clone_ref(py)),
+            _ => Err(PyAttributeError::new_err("no 'oident' on this Expression")),
+        }
+    }
+
+    /// VirtualVariable.reg_vvars
+    #[getter]
+    fn reg_vvars(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { reg_vvars, .. } => Ok(reg_vvars.clone_ref(py)),
+            _ => Err(PyAttributeError::new_err(
+                "no 'reg_vvars' on this Expression",
+            )),
+        }
+    }
+
+    // --- VirtualVariable derived getters ------------------------------
+
+    fn _vv_category(&self) -> Option<crate::ailment::enums::VirtualVariableCategory> {
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { category, .. } => Some(*category),
+            _ => None,
+        }
+    }
+
+    /// VirtualVariable.was_reg
+    #[getter]
+    fn was_reg(&self) -> bool {
+        use crate::ailment::enums::VirtualVariableCategory::*;
+        matches!(self._vv_category(), Some(REGISTER))
+    }
+    /// VirtualVariable.was_stack
+    #[getter]
+    fn was_stack(&self) -> bool {
+        use crate::ailment::enums::VirtualVariableCategory::*;
+        matches!(self._vv_category(), Some(STACK))
+    }
+    /// VirtualVariable.was_parameter
+    #[getter]
+    fn was_parameter(&self) -> bool {
+        use crate::ailment::enums::VirtualVariableCategory::*;
+        matches!(self._vv_category(), Some(PARAMETER))
+    }
+    /// VirtualVariable.was_tmp
+    #[getter]
+    fn was_tmp(&self) -> bool {
+        use crate::ailment::enums::VirtualVariableCategory::*;
+        matches!(self._vv_category(), Some(TMP))
+    }
+    /// VirtualVariable.was_combo_reg
+    #[getter]
+    fn was_combo_reg(&self) -> bool {
+        use crate::ailment::enums::VirtualVariableCategory::*;
+        matches!(self._vv_category(), Some(COMBO_REGISTER))
+    }
+
+    /// VirtualVariable.parameter_category
+    #[getter]
+    fn parameter_category(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<Option<crate::ailment::enums::VirtualVariableCategory>> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        match &self.expr.inner {
+            ExprInner::VirtualVariable {
+                category, oident, ..
+            } if *category == VirtualVariableCategory::PARAMETER => {
+                let bound = oident.bind(py);
+                if !bound.is_instance_of::<PyTuple>() {
+                    return Ok(None);
+                }
+                let t = bound.cast::<PyTuple>()?;
+                if t.len() == 0 {
+                    return Ok(None);
+                }
+                let first = t.get_item(0)?;
+                if let Ok(c) = first.extract::<VirtualVariableCategory>() {
+                    return Ok(Some(c));
+                }
+                if let Ok(v) = first.extract::<i64>() {
+                    return Ok(VirtualVariableCategory::from_int(v));
+                }
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// VirtualVariable.parameter_reg_offset
+    #[getter]
+    fn parameter_reg_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        if !self.was_parameter() {
+            return Ok(None);
+        }
+        if self.parameter_category(py)? != Some(VirtualVariableCategory::REGISTER) {
+            return Ok(None);
+        }
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { oident, .. } => {
+                let inner = oident.bind(py).get_item(1)?;
+                Ok(Some(inner.extract::<i64>()?))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// VirtualVariable.parameter_stack_offset
+    #[getter]
+    fn parameter_stack_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        if !self.was_parameter() {
+            return Ok(None);
+        }
+        if self.parameter_category(py)? != Some(VirtualVariableCategory::STACK) {
+            return Ok(None);
+        }
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { oident, .. } => {
+                let inner = oident.bind(py).get_item(1)?;
+                // Stack offsets are signed; some upstream sites store
+                // negative values as their u64 two's-complement form
+                // (e.g. ``-8`` as ``2^64-8``). Reinterpret-as-i64 round-
+                // trips both shapes to the signed representation.
+                if let Ok(v) = inner.extract::<i64>() {
+                    return Ok(Some(v));
+                }
+                if let Ok(v) = inner.extract::<u64>() {
+                    return Ok(Some(v as i64));
+                }
+                let big: i128 = inner.extract()?;
+                Ok(Some(big as i64))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// VirtualVariable.stack_offset
+    #[getter]
+    fn stack_offset(&self, py: Python<'_>) -> PyResult<i64> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        let extract_signed = |obj: &Bound<'_, PyAny>| -> PyResult<i64> {
+            if let Ok(v) = obj.extract::<i64>() {
+                return Ok(v);
+            }
+            // Python ints can be larger than i64 -- callers downstream
+            // treat stack offsets as signed register-width offsets, so
+            // try extracting via ``int.bit_length`` truncation. Reinterpret
+            // the low-order u64 bits as i64 to preserve negative offsets
+            // encoded as large unsigned values (e.g. -8 stored as 2^64-8).
+            if let Ok(v) = obj.extract::<u64>() {
+                return Ok(v as i64);
+            }
+            // Last-ditch: extract via ``__index__`` and mask to 64 bits.
+            let big: i128 = obj.extract()?;
+            Ok(big as i64)
+        };
+        if self.was_stack() {
+            if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
+                return extract_signed(oident.bind(py));
+            }
+        }
+        if self.was_parameter() {
+            let cat = self.parameter_category(py)?;
+            if cat == Some(VirtualVariableCategory::STACK) {
+                if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
+                    let inner = oident.bind(py).get_item(1)?;
+                    return extract_signed(&inner);
+                }
+            }
+        }
+        Err(PyTypeError::new_err("Is not a stack variable"))
+    }
+
+    /// VirtualVariable.reg_offsets (combo register)
+    #[getter]
+    fn reg_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        if self.was_combo_reg() {
+            if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
+                return Ok(oident.bind(py).cast::<PyTuple>()?.clone());
+            }
+        }
+        if self.was_parameter() {
+            let cat = self.parameter_category(py)?;
+            if cat == Some(VirtualVariableCategory::COMBO_REGISTER) {
+                if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
+                    let outer = oident.bind(py).cast::<PyTuple>()?;
+                    let inner = outer.get_item(1)?.cast_into::<PyTuple>()?;
+                    return Ok(inner);
+                }
+            }
+        }
+        Err(PyTypeError::new_err("Is not a combo register"))
+    }
+
+    /// UnaryOp.op / BinaryOp.op / Call.op (== "call") /
+    /// DirtyExpression.op / VEXCCallExpression.op (== callee) /
+    /// Let.op (== "let") / Macro.op + FunctionLikeMacro.op (== "call")
+    #[getter]
+    fn op(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::UnaryOp { op, .. } | ExprInner::BinaryOp { op, .. } => Ok(op.clone()),
+            ExprInner::Convert { .. } => Ok("Convert".to_string()),
+            ExprInner::Reinterpret { .. } => Ok("Reinterpret".to_string()),
+            ExprInner::Call { .. } => Ok("call".to_string()),
+            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => {
+                Ok("macro_call".to_string())
+            }
+            ExprInner::DirtyExpression { callee, .. }
+            | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
+            ExprInner::Let { .. } => Ok("let".to_string()),
+            _ => Err(PyAttributeError::new_err("no 'op' on this Expression")),
+        }
+    }
+
+    /// ``verbose_op`` -- defaults to ``op`` for the regular operator
+    /// variants (UnaryOp / BinaryOp / Convert / Reinterpret) so
+    /// callers that look up an op-handler via
+    /// ``mapping[expr.verbose_op]`` find a match regardless of variant.
+    /// The legacy per-class pyclasses exposed it on every op-shaped
+    /// expression with the same content as ``op``.
+    #[getter]
+    fn verbose_op(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::Call { .. } => Ok("call".to_string()),
+            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => {
+                Ok("macro_call".to_string())
+            }
+            ExprInner::DirtyExpression { callee, .. }
+            | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
+            ExprInner::Let { .. } => Ok("let".to_string()),
+            ExprInner::UnaryOp { op, .. } | ExprInner::BinaryOp { op, .. } => Ok(op.clone()),
+            ExprInner::Convert { .. } => Ok("Convert".to_string()),
+            ExprInner::Reinterpret { .. } => Ok("Reinterpret".to_string()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'verbose_op' on this Expression",
+            )),
+        }
+    }
+
+    /// DirtyExpression.callee / VEXCCallExpression.callee
+    #[getter]
+    fn callee(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::DirtyExpression { callee, .. }
+            | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
+            _ => Err(PyAttributeError::new_err("no 'callee' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_callee(&mut self, value: String) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::DirtyExpression { callee, .. }
+            | ExprInner::VEXCCallExpression { callee, .. } => {
+                self.expr.header.cached_hash.clear();
+                *callee = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'callee' on this Expression")),
+        }
+    }
+
+    /// DirtyExpression.operands / VEXCCallExpression.operands /
+    /// BinaryOp.operands / UnaryOp.operands (single-element list,
+    /// legacy quirk) / Convert.operands / Reinterpret.operands (same
+    /// single-element wrap for legacy compat). DirtyExpression returns
+    /// a list; VEXCCall returns a tuple; BinaryOp returns a 2-tuple;
+    /// the single-operand variants return a 1-element list mirroring
+    /// the legacy per-class pyclass contract.
+    #[getter]
+    fn operands<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::DirtyExpression { operands, .. } => {
+                let l = PyList::empty(py);
+                for o in operands {
+                    let py_o = Py::new(py, Expression::wrap(o.clone()))?;
+                    l.append(py_o)?;
+                }
+                Ok(l.into_any())
+            }
+            ExprInner::VEXCCallExpression { operands, .. } => {
+                let items: Vec<Py<Expression>> = operands
+                    .iter()
+                    .map(|x| Py::new(py, Expression::wrap(x.clone())))
+                    .collect::<PyResult<Vec<_>>>()?;
+                Ok(PyTuple::new(py, items)?.into_any())
+            }
+            ExprInner::BinaryOp { operands, .. } => {
+                let lhs = Py::new(py, Expression::wrap((*operands[0]).clone()))?;
+                let rhs = Py::new(py, Expression::wrap((*operands[1]).clone()))?;
+                Ok(PyTuple::new(py, [lhs.into_any(), rhs.into_any()])?.into_any())
+            }
+            ExprInner::UnaryOp { operand, .. }
+            | ExprInner::Convert { operand, .. }
+            | ExprInner::Reinterpret { operand, .. } => {
+                // Legacy quirk: per-class pyclass exposed ``operands``
+                // as ``[self.operand]`` so callers doing
+                // ``expr.operands[0]`` could uniformly index.
+                let l = PyList::empty(py);
+                let py_o = Py::new(py, Expression::wrap((**operand).clone()))?;
+                l.append(py_o)?;
+                Ok(l.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'operands' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_operands(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let mut v = Vec::new();
+        for item in value.try_iter()? {
+            v.push(extract_ail(&item?)?);
+        }
+        match &mut self.expr.inner {
+            ExprInner::DirtyExpression { operands, .. }
+            | ExprInner::VEXCCallExpression { operands, .. } => {
+                self.expr.header.cached_hash.clear();
+                *operands = v;
+                Ok(())
+            }
+            ExprInner::BinaryOp { operands, .. } => {
+                if v.len() != 2 {
+                    return Err(PyTypeError::new_err(format!(
+                        "BinaryOp.operands requires exactly 2, got {}",
+                        v.len()
+                    )));
+                }
+                self.expr.header.cached_hash.clear();
+                let rhs = Box::new(v.pop().unwrap());
+                let lhs = Box::new(v.pop().unwrap());
+                *operands = [lhs, rhs];
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'operands' on this Expression")),
+        }
+    }
+
+    /// DirtyExpression.mfx
+    #[getter]
+    fn mfx(&self) -> PyResult<Option<String>> {
+        match &self.expr.inner {
+            ExprInner::DirtyExpression { mfx, .. } => Ok(mfx.clone()),
+            _ => Err(PyAttributeError::new_err("no 'mfx' on this Expression")),
+        }
+    }
+
+    /// DirtyExpression.maddr
+    #[getter]
+    fn maddr(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::DirtyExpression { maddr, .. } => match maddr {
+                Some(m) => Ok(Some(
+                    Py::new(py, Expression::wrap((**m).clone()))?.into_any(),
+                )),
+                None => Ok(None),
+            },
+            _ => Err(PyAttributeError::new_err("no 'maddr' on this Expression")),
+        }
+    }
+
+    /// DirtyExpression.msize
+    #[getter]
+    fn msize(&self) -> PyResult<Option<i64>> {
+        match &self.expr.inner {
+            ExprInner::DirtyExpression { msize, .. } => Ok(*msize),
+            _ => Err(PyAttributeError::new_err("no 'msize' on this Expression")),
+        }
+    }
+
+    /// MultiStatementExpression.stmts -- materializes a fresh
+    /// ``list[Statement]`` on each read; setter accepts any iterable
+    /// of ``Statement`` instances.
+    #[getter]
+    fn stmts<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        match &self.expr.inner {
+            ExprInner::MultiStatementExpression { stmts, .. } => {
+                let l = PyList::empty(py);
+                for s in stmts {
+                    let py_s = Py::new(
+                        py,
+                        crate::ailment::ail_stmt::Statement::wrap(s.clone()),
+                    )?;
+                    l.append(py_s)?;
+                }
+                Ok(l)
+            }
+            _ => Err(PyAttributeError::new_err("no 'stmts' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_stmts(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let mut v = Vec::new();
+        for item in value.try_iter()? {
+            v.push(crate::ailment::ail_stmt::extract_ail_stmt(&item?)?);
+        }
+        match &mut self.expr.inner {
+            ExprInner::MultiStatementExpression { stmts, .. } => {
+                self.expr.header.cached_hash.clear();
+                *stmts = v;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'stmts' on this Expression")),
+        }
+    }
+
+    /// Struct.name / RustEnum.name / Macro.name / FunctionLikeMacro.name
+    #[getter]
+    fn name(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::Struct { name, .. }
+            | ExprInner::RustEnum { name, .. }
+            | ExprInner::Macro { name, .. }
+            | ExprInner::FunctionLikeMacro { name, .. } => Ok(name.clone()),
+            _ => Err(PyAttributeError::new_err("no 'name' on this Expression")),
+        }
+    }
+
+    /// Struct.fields (dict) / RustEnum.fields (list or tuple)
+    #[getter]
+    fn fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Struct { fields, .. } => Ok(fields.bind(py).clone().into_any()),
+            ExprInner::RustEnum { fields, .. } => Ok(fields.bind(py).clone()),
+            _ => Err(PyAttributeError::new_err("no 'fields' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_fields(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Struct { fields, .. } => {
+                self.expr.header.cached_hash.clear();
+                *fields = value
+                    .cast_into::<PyDict>()
+                    .map_err(|_| PyTypeError::new_err("fields must be a dict"))?
+                    .unbind();
+                Ok(())
+            }
+            ExprInner::RustEnum { fields, .. } => {
+                self.expr.header.cached_hash.clear();
+                *fields = value.unbind();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'fields' on this Expression")),
+        }
+    }
+
+    /// Struct.field_offsets
+    #[getter]
+    fn field_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        match &self.expr.inner {
+            ExprInner::Struct { field_offsets, .. } => Ok(field_offsets.bind(py).clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'field_offsets' on this Expression",
+            )),
+        }
+    }
+
+    /// Struct.field_names
+    #[getter]
+    fn field_names<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        match &self.expr.inner {
+            ExprInner::Struct { field_names, .. } => Ok(field_names.bind(py).clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'field_names' on this Expression",
+            )),
+        }
+    }
+
+    /// Struct.get_field(name) -- dotted-path lookup through nested Structs
+    fn get_field(&self, py: Python<'_>, name: String) -> PyResult<Option<Py<PyAny>>> {
+        let ExprInner::Struct {
+            fields,
+            field_offsets,
+            ..
+        } = &self.expr.inner
+        else {
+            return Err(PyAttributeError::new_err(
+                "get_field is only valid on Struct",
+            ));
+        };
+        let parts: Vec<&str> = name.split('.').collect();
+        let off = field_offsets.bind(py).get_item(parts[0])?;
+        let Some(off) = off else { return Ok(None) };
+        let field = fields.bind(py).get_item(off)?;
+        let Some(field) = field else { return Ok(None) };
+        if parts.len() == 1 {
+            return Ok(Some(field.unbind()));
+        }
+        if let Ok(s) = field.cast::<Expression>() {
+            if matches!(s.borrow().expr.inner, ExprInner::Struct { .. }) {
+                return s.borrow().get_field(py, parts[1..].join("."));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Array.elements
+    #[getter]
+    fn elements<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Array { elements } => Ok(elements.bind(py).clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'elements' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_elements(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Array { elements } => {
+                self.expr.header.cached_hash.clear();
+                *elements = value.unbind();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'elements' on this Expression",
+            )),
+        }
+    }
+
+    /// Array.length
+    #[getter]
+    fn length(&self, py: Python<'_>) -> PyResult<usize> {
+        match &self.expr.inner {
+            ExprInner::Array { elements } => elements.bind(py).len(),
+            _ => Err(PyAttributeError::new_err(
+                "no 'length' on this Expression",
+            )),
+        }
+    }
+
+    /// Let.variant
+    #[getter]
+    fn variant<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Let { variant, .. } => Ok(variant.bind(py).clone()),
+            _ => Err(PyAttributeError::new_err("no 'variant' on this Expression")),
+        }
+    }
+
+    /// Let.defs
+    #[getter]
+    fn defs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        match &self.expr.inner {
+            ExprInner::Let { defs, .. } => Ok(defs.bind(py).clone()),
+            _ => Err(PyAttributeError::new_err("no 'defs' on this Expression")),
+        }
+    }
+
+    /// Let.src
+    #[getter]
+    fn src(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Let { src, .. } => {
+                Ok(Py::new(py, Expression::wrap((**src).clone()))?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'src' on this Expression")),
+        }
+    }
+
+    /// Macro.delimiter / FunctionLikeMacro.delimiter
+    #[getter]
+    fn delimiter(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::Macro { delimiter, .. }
+            | ExprInner::FunctionLikeMacro { delimiter, .. } => Ok(delimiter.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'delimiter' on this Expression",
+            )),
+        }
+    }
+
+    /// Macro.returnty / FunctionLikeMacro.returnty
+    #[getter]
+    fn returnty<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::Macro { returnty, .. }
+            | ExprInner::FunctionLikeMacro { returnty, .. } => {
+                Ok(returnty.as_ref().map(|r| r.bind(py).clone()))
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'returnty' on this Expression",
+            )),
+        }
+    }
+
+    /// FunctionLikeMacro.args
+    #[getter]
+    fn args<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::Call { args, .. } => match args {
+                None => Ok(None),
+                Some(v) => {
+                    let items: Vec<Py<Expression>> = v
+                        .iter()
+                        .map(|x| Py::new(py, Expression::wrap(x.clone())))
+                        .collect::<PyResult<Vec<_>>>()?;
+                    Ok(Some(PyTuple::new(py, items)?.into_any()))
+                }
+            },
+            ExprInner::FunctionLikeMacro { args, .. } => match args {
+                None => Ok(None),
+                Some(l) => Ok(Some(l.bind(py).clone().into_any())),
+            },
+            _ => Err(PyAttributeError::new_err("no 'args' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_args(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Call { args, .. } => {
+                let new_vec = match value {
+                    Some(v) if !v.is_none() => {
+                        let mut out = Vec::new();
+                        for item in v.try_iter()? {
+                            out.push(extract_ail(&item?)?);
+                        }
+                        Some(out)
+                    }
+                    _ => None,
+                };
+                self.expr.header.cached_hash.clear();
+                *args = new_vec;
+                Ok(())
+            }
+            ExprInner::FunctionLikeMacro { args, .. } => {
+                self.expr.header.cached_hash.clear();
+                *args = match value {
+                    Some(v) if !v.is_none() => Some(
+                        v.cast_into::<PyList>()
+                            .map_err(|_| PyTypeError::new_err("args must be a list or None"))?
+                            .unbind(),
+                    ),
+                    _ => None,
+                };
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'args' on this Expression")),
+        }
+    }
+
+    /// MultiStatementExpression.expr
+    #[getter]
+    fn expr(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::MultiStatementExpression { expr, .. } => {
+                Ok(Py::new(py, Expression::wrap((**expr).clone()))?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'expr' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_expr(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail(&value)?;
+        match &mut self.expr.inner {
+            ExprInner::MultiStatementExpression { expr, .. } => {
+                self.expr.header.cached_hash.clear();
+                *expr = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'expr' on this Expression")),
+        }
+    }
+
+    /// Call.target / Macro.target (legacy returns name as PyString -- analyses
+    /// that branch on ``isinstance(target, str)`` keep working).
+    #[getter]
+    fn target(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Call { target, .. } => Ok(target.clone_ref(py)),
+            ExprInner::Macro { name, .. } | ExprInner::FunctionLikeMacro { name, .. } => {
+                Ok(pyo3::types::PyString::new(py, name).into_any().unbind())
+            }
+            _ => Err(PyAttributeError::new_err("no 'target' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_target(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Call { target, .. } => {
+                self.expr.header.cached_hash.clear();
+                *target = value.unbind();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'target' on this Expression")),
+        }
+    }
+
+    /// Call.calling_convention / Macro.calling_convention (always None)
+    #[getter]
+    fn calling_convention<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::Call { calling_convention, .. } => {
+                Ok(calling_convention.as_ref().map(|c| c.bind(py).clone()))
+            }
+            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => Ok(None),
+            _ => Err(PyAttributeError::new_err(
+                "no 'calling_convention' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_calling_convention(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Call { calling_convention, .. } => {
+                *calling_convention =
+                    value.and_then(|v| if v.is_none() { None } else { Some(v.unbind()) });
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'calling_convention' on this Expression",
+            )),
+        }
+    }
+
+    /// Call.prototype / Macro.prototype (always None)
+    #[getter]
+    fn prototype<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::Call { prototype, .. } => {
+                Ok(prototype.as_ref().map(|c| c.bind(py).clone()))
+            }
+            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => Ok(None),
+            _ => Err(PyAttributeError::new_err(
+                "no 'prototype' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_prototype(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Call { prototype, .. } => {
+                *prototype = value.and_then(|v| if v.is_none() { None } else { Some(v.unbind()) });
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'prototype' on this Expression",
+            )),
+        }
+    }
+
+    /// Call.arg_vvars / Macro.arg_vvars (always None) -- tuple of
+    /// VirtualVariable Expression instances
+    #[getter]
+    fn arg_vvars<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
+        match &self.expr.inner {
+            ExprInner::Call { arg_vvars, .. } => match arg_vvars {
+                None => Ok(None),
+                Some(v) => {
+                    let items: Vec<Py<Expression>> = v
+                        .iter()
+                        .map(|x| Py::new(py, Expression::wrap(x.clone())))
+                        .collect::<PyResult<Vec<_>>>()?;
+                    Ok(Some(PyTuple::new(py, items)?))
+                }
+            },
+            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => Ok(None),
+            _ => Err(PyAttributeError::new_err(
+                "no 'arg_vvars' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_arg_vvars(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        let new_vec = match value {
+            Some(v) if !v.is_none() => {
+                let mut out = Vec::new();
+                for item in v.try_iter()? {
+                    out.push(extract_ail(&item?)?);
+                }
+                Some(out)
+            }
+            _ => None,
+        };
+        match &mut self.expr.inner {
+            ExprInner::Call { arg_vvars, .. } => {
+                *arg_vvars = new_vec;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'arg_vvars' on this Expression",
+            )),
+        }
+    }
+
+    /// UnaryOp.operand / Convert.operand / Reinterpret.operand
+    #[getter]
+    fn operand(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::UnaryOp { operand, .. }
+            | ExprInner::Convert { operand, .. }
+            | ExprInner::Reinterpret { operand, .. } => {
+                let inner = Expression::wrap((**operand).clone());
+                Ok(Py::new(py, inner)?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'operand' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_operand(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail(&value)?;
+        match &mut self.expr.inner {
+            ExprInner::UnaryOp { operand, .. }
+            | ExprInner::Convert { operand, .. }
+            | ExprInner::Reinterpret { operand, .. } => {
+                self.expr.header.cached_hash.clear();
+                *operand = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'operand' on this Expression")),
+        }
+    }
+
+    /// Convert.from_bits / Reinterpret.from_bits
+    #[getter]
+    fn from_bits(&self) -> PyResult<u32> {
+        match &self.expr.inner {
+            ExprInner::Convert { from_bits, .. } | ExprInner::Reinterpret { from_bits, .. } => {
+                Ok(*from_bits)
+            }
+            _ => Err(PyAttributeError::new_err("no 'from_bits' on this Expression")),
+        }
+    }
+
+    /// Convert.to_bits / Reinterpret.to_bits
+    #[getter]
+    fn to_bits(&self) -> PyResult<u32> {
+        match &self.expr.inner {
+            ExprInner::Convert { to_bits, .. } | ExprInner::Reinterpret { to_bits, .. } => Ok(*to_bits),
+            _ => Err(PyAttributeError::new_err("no 'to_bits' on this Expression")),
+        }
+    }
+
+    /// Convert.is_signed
+    #[getter]
+    fn is_signed(&self) -> PyResult<bool> {
+        match &self.expr.inner {
+            ExprInner::Convert { is_signed, .. } => Ok(*is_signed),
+            _ => Err(PyAttributeError::new_err("no 'is_signed' on this Expression")),
+        }
+    }
+
+    /// Convert.from_type / Reinterpret.from_type (different types -- Reinterpret is a String)
+    #[getter]
+    fn from_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Convert { from_type, .. } => Ok(from_type.into_pyobject(py)?.into_any()),
+            ExprInner::Reinterpret { from_type, .. } => {
+                Ok(from_type.clone().into_bound_py_any(py)?)
+            }
+            _ => Err(PyAttributeError::new_err("no 'from_type' on this Expression")),
+        }
+    }
+
+    /// Convert.to_type / Reinterpret.to_type
+    #[getter]
+    fn to_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Convert { to_type, .. } => Ok(to_type.into_pyobject(py)?.into_any()),
+            ExprInner::Reinterpret { to_type, .. } => Ok(to_type.clone().into_bound_py_any(py)?),
+            _ => Err(PyAttributeError::new_err("no 'to_type' on this Expression")),
+        }
+    }
+
+    /// Convert.rounding_mode / BinaryOp.rounding_mode
+    #[getter]
+    fn rounding_mode<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Convert { rounding_mode, .. }
+            | ExprInner::BinaryOp { rounding_mode, .. } => {
+                rounding_mode.as_ref().map(|r| r.bind(py).clone())
+            }
+            _ => None,
+        }
+    }
+
+    /// BinaryOp.signed
+    #[getter]
+    fn signed(&self) -> PyResult<bool> {
+        match &self.expr.inner {
+            ExprInner::BinaryOp { signed, .. } => Ok(*signed),
+            _ => Err(PyAttributeError::new_err("no 'signed' on this Expression")),
+        }
+    }
+
+    /// BinaryOp.floating_point
+    #[getter]
+    fn floating_point(&self) -> PyResult<bool> {
+        match &self.expr.inner {
+            ExprInner::BinaryOp { floating_point, .. } => Ok(*floating_point),
+            _ => Err(PyAttributeError::new_err(
+                "no 'floating_point' on this Expression",
+            )),
+        }
+    }
+
+    /// Load.addr
+    #[getter]
+    fn addr(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Load { addr, .. } => {
+                let inner = Expression::wrap((**addr).clone());
+                Ok(Py::new(py, inner)?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'addr' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_addr(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail(&value)?;
+        match &mut self.expr.inner {
+            ExprInner::Load { addr, .. } => {
+                self.expr.header.cached_hash.clear();
+                *addr = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'addr' on this Expression")),
+        }
+    }
+
+    /// Load.endness / Extract.endness / Insert.endness
+    #[getter]
+    fn endness(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::Load { endness, .. }
+            | ExprInner::Extract { endness, .. }
+            | ExprInner::Insert { endness, .. } => Ok(endness.clone()),
+            _ => Err(PyAttributeError::new_err("no 'endness' on this Expression")),
+        }
+    }
+
+    /// Load.guard / DirtyExpression.guard
+    #[getter]
+    fn guard(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
+                match guard {
+                    Some(g) => {
+                        let inner = Expression::wrap((**g).clone());
+                        Ok(Some(Py::new(py, inner)?.into_any()))
+                    }
+                    None => Ok(None),
+                }
+            }
+            _ => Err(PyAttributeError::new_err("no 'guard' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_guard(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        let new = match value {
+            Some(v) if !v.is_none() => Some(Box::new(extract_ail(&v)?)),
+            _ => None,
+        };
+        match &mut self.expr.inner {
+            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
+                self.expr.header.cached_hash.clear();
+                *guard = new;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'guard' on this Expression")),
+        }
+    }
+
+    /// ITE.cond
+    #[getter]
+    fn cond(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::ITE { cond, .. } => {
+                Ok(Py::new(py, Expression::wrap((**cond).clone()))?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'cond' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_cond(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail(&value)?;
+        match &mut self.expr.inner {
+            ExprInner::ITE { cond, .. } => {
+                self.expr.header.cached_hash.clear();
+                *cond = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'cond' on this Expression")),
+        }
+    }
+
+    /// ITE.iftrue
+    #[getter]
+    fn iftrue(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::ITE { iftrue, .. } => {
+                Ok(Py::new(py, Expression::wrap((**iftrue).clone()))?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'iftrue' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_iftrue(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail(&value)?;
+        match &mut self.expr.inner {
+            ExprInner::ITE { iftrue, .. } => {
+                self.expr.header.cached_hash.clear();
+                *iftrue = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'iftrue' on this Expression")),
+        }
+    }
+
+    /// ITE.iffalse
+    #[getter]
+    fn iffalse(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::ITE { iffalse, .. } => {
+                Ok(Py::new(py, Expression::wrap((**iffalse).clone()))?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err("no 'iffalse' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_iffalse(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail(&value)?;
+        match &mut self.expr.inner {
+            ExprInner::ITE { iffalse, .. } => {
+                self.expr.header.cached_hash.clear();
+                *iffalse = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'iffalse' on this Expression")),
+        }
+    }
+
+    /// Extract.base (Expression) / Insert.base (Expression) /
+    /// BasePointerOffset.base (int or Expression) /
+    /// StackBaseOffset.base (== ``"stack_base"``, the legacy contract).
+    #[getter]
+    fn base(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Extract { base, .. } | ExprInner::Insert { base, .. } => {
+                Ok(Py::new(py, Expression::wrap((**base).clone()))?.into_any())
+            }
+            ExprInner::BasePointerOffset { base, .. } => Ok(base.clone_ref(py)),
+            ExprInner::StackBaseOffset { .. } => Ok(pyo3::types::PyString::new(py, "stack_base")
+                .into_any()
+                .unbind()),
+            _ => Err(PyAttributeError::new_err("no 'base' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_base(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Extract { base, .. } | ExprInner::Insert { base, .. } => {
+                let ail = extract_ail(&value)?;
+                self.expr.header.cached_hash.clear();
+                *base = Box::new(ail);
+                Ok(())
+            }
+            ExprInner::BasePointerOffset { base, .. } => {
+                self.expr.header.cached_hash.clear();
+                *base = value.unbind();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'base' on this Expression")),
+        }
+    }
+
+    /// Extract.offset (Expression) / Insert.offset (Expression) /
+    /// BasePointerOffset.offset (int or Expression) /
+    /// StackBaseOffset.offset (int).
+    #[getter]
+    fn offset(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
+                Ok(Py::new(py, Expression::wrap((**offset).clone()))?.into_any())
+            }
+            ExprInner::BasePointerOffset { offset, .. } => Ok(offset.clone_ref(py)),
+            ExprInner::StackBaseOffset { offset } => {
+                let i = (*offset).into_bound_py_any(py)?;
+                Ok(i.unbind())
+            }
+            _ => Err(PyAttributeError::new_err("no 'offset' on this Expression")),
+        }
+    }
+    #[setter]
+    fn set_offset(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
+                let ail = extract_ail(&value)?;
+                self.expr.header.cached_hash.clear();
+                *offset = Box::new(ail);
+                Ok(())
+            }
+            ExprInner::BasePointerOffset { offset, .. } => {
+                self.expr.header.cached_hash.clear();
+                *offset = value.unbind();
+                Ok(())
+            }
+            ExprInner::StackBaseOffset { offset } => {
+                self.expr.header.cached_hash.clear();
+                *offset = value.extract::<i128>()?;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'offset' on this Expression")),
+        }
+    }
+
+    /// StringLiteral.data
+    #[getter]
+    fn data(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::StringLiteral { data } => Ok(data.clone_ref(py)),
+            _ => Err(PyAttributeError::new_err("no 'data' on this Expression")),
+        }
+    }
+
+    /// Load.alt
+    #[getter]
+    fn alt(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        match &self.expr.inner {
+            ExprInner::Load { alt, .. } => match alt {
+                Some(a) => {
+                    let inner = Expression::wrap((**a).clone());
+                    Ok(Some(Py::new(py, inner)?.into_any()))
+                }
+                None => Ok(None),
+            },
+            _ => Err(PyAttributeError::new_err("no 'alt' on this Expression")),
+        }
+    }
+
+    // --- Equality / hash ---------------------------------------------
+
+    fn __hash__(&self) -> i64 {
+        self.expr.cached_hash_or_compute()
+    }
+
+    /// Internal hash hook -- callers go through ``__hash__``, but
+    /// ``angr.ailment.tagged_object`` and a handful of analyses reach
+    /// for ``_hash_core`` directly. Recomputes from scratch each call
+    /// (does not consult the cache) to match the legacy contract.
+    fn _hash_core(&self) -> i64 {
+        self.expr._hash_core()
+    }
+
+    /// Structural equality (ignores ``idx``). Same logic as ``__eq__``
+    /// after the kind/idx short-circuit; exposed as a method because
+    /// ~160 callers in angr/analyses use ``a.likes(b)`` rather than
+    /// ``a == b``.
+    fn likes(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(o) = other.cast::<Expression>() else {
+            return Ok(false);
+        };
+        Ok(self.expr.likes(&o.borrow().expr))
+    }
+
+    /// Pattern matching -- for the spike, identical to ``likes``. The
+    /// legacy pyclasses had slightly different ``matches`` semantics
+    /// (e.g. ``Const.matches`` ignored ``idx`` but not ``value``); the
+    /// spike preserves the simpler structural-equality contract until
+    /// a regression demands the per-variant nuance.
+    fn matches(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        self.likes(other)
+    }
+
+    /// ``replace(old, new)`` -- substitute any ``likes``-matching node
+    /// in the operand subtrees. Returns ``(replaced, new_expr)`` to
+    /// match the legacy contract; analyses use ``replaced`` to gate
+    /// further work.
+    fn replace<'py>(
+        slf: PyRef<'py, Self>,
+        old_expr: &Bound<'py, PyAny>,
+        new_expr: &Bound<'py, PyAny>,
+    ) -> PyResult<(bool, Py<PyAny>)> {
+        let py = slf.py();
+        let old_ail = extract_ail(old_expr)?;
+        // Top-level match: return the supplied ``new_expr`` Python
+        // object verbatim so callers that check ``replacement is new``
+        // keep working.
+        if slf.expr.likes(&old_ail) {
+            return Ok((true, new_expr.clone().unbind()));
+        }
+        let new_ail = extract_ail(new_expr)?;
+        let (changed, rebuilt) = slf.expr.replace_ail(&old_ail, &new_ail);
+        if !changed {
+            return Ok((false, slf.into_pyobject(py)?.into_any().unbind()));
+        }
+        Ok((true, Py::new(py, Expression::wrap(rebuilt))?.into_any()))
+    }
+
+    /// ``has_atom(atom, identity=True)`` -- recursive subtree search.
+    #[pyo3(signature = (atom, identity=true))]
+    fn has_atom(&self, atom: &Bound<'_, PyAny>, identity: bool) -> PyResult<bool> {
+        let atom_ail = extract_ail(atom)?;
+        Ok(self.expr.has_atom_ail(&atom_ail, identity))
+    }
+
+    /// ``copy()`` -- shallow clone (same ``idx``). Mirrors the legacy
+    /// per-class ``copy`` contract: produce a new Python wrapper over
+    /// the same AIL tree without re-numbering.
+    fn copy(&self, py: Python<'_>) -> PyResult<Py<Self>> {
+        Py::new(py, self.clone())
+    }
+
+    /// ``deep_copy(manager)`` -- recursive clone with fresh ``idx``
+    /// from ``manager.next_atom()`` at every node. Used by clinic to
+    /// re-number atoms when cloning blocks.
+    fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<Py<Self>> {
+        let new = self.expr.deep_copy_ail(py, manager)?;
+        Py::new(py, Expression::wrap(new))
+    }
+
+    /// Python ``copy.copy`` protocol -- delegates to ``copy()``.
+    fn __copy__(&self, py: Python<'_>) -> PyResult<Py<Self>> {
+        self.copy(py)
+    }
+
+    /// Python ``copy.deepcopy`` protocol -- routes through ``deep_copy``
+    /// with a stand-in ``Manager`` from ``angr.ailment._reconstruct``.
+    fn __deepcopy__<'py>(
+        slf: Bound<'py, Self>,
+        memo: Bound<'py, PyAny>,
+    ) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let helper = py
+            .import("angr.ailment._reconstruct")?
+            .getattr("deepcopy_via_deep_copy")?;
+        Ok(helper.call1((slf, memo))?.unbind())
+    }
+
+    /// Python ``pickle`` protocol. Routes through ``to_bytes`` /
+    /// ``from_bytes`` to preserve the full ``AilExpression`` shape.
+    /// NB: the spike's ``Wire`` format is lossy for polymorphic
+    /// Python-typed fields (Phi.src_and_vvars, VirtualVariable.oident,
+    /// Call.target, ...) -- pickled trees that exercise those fields
+    /// will round-trip as strings until the bulk serialization upgrade.
+    fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let bytes = slf.borrow().to_bytes(py)?;
+        let helper = py
+            .import("angr.ailment._reconstruct")?
+            .getattr("reconstruct_phase_d_expression")?;
+        let args = PyTuple::new(py, [bytes.into_any()])?;
+        let tup = PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
+        Ok(tup.into_any().unbind())
+    }
+
+    fn __eq__(slf: Bound<'_, Self>, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if slf.is(other) {
+            return Ok(true);
+        }
+        let Ok(o) = other.cast::<Expression>() else {
+            return Ok(false);
+        };
+        let s = slf.borrow();
+        let o = o.borrow();
+        if s.expr.kind() != o.expr.kind() {
+            return Ok(false);
+        }
+        if s.expr.header.idx != o.expr.header.idx {
+            return Ok(false);
+        }
+        Ok(s.expr.likes(&o.expr))
+    }
+
+    // --- Repr ---------------------------------------------------------
+
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        // A few variants render differently for repr vs str (matching the
+        // legacy per-class pyclasses). Default to __str__ otherwise.
+        match &self.expr.inner {
+            ExprInner::FunctionLikeMacro { name, args, .. } => {
+                let args_s = match args {
+                    Some(a) => a.bind(py).repr()?.to_string(),
+                    None => "None".into(),
+                };
+                Ok(format!("Macro(name={}, args={})", name, args_s))
+            }
+            ExprInner::Macro { name, .. } => Ok(format!("Macro(name={})", name)),
+            _ => self.__str__(py),
+        }
+    }
+
+    fn __str__(&self, py: Python<'_>) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::Const { value, .. } => {
+                let v = value.clone().into_pyobject(py)?;
+                Ok(format!("{}<{}>", v.str()?, self.expr.header.bits))
+            }
+            ExprInner::Tmp { tmp_idx, .. } => Ok(format!("t{}", tmp_idx)),
+            ExprInner::Register { reg_offset, .. } => {
+                Ok(format!("reg{}<{}>", reg_offset, self.expr.header.bits))
+            }
+            ExprInner::ComboRegister { registers, .. } => {
+                let parts: Vec<String> = registers
+                    .iter()
+                    .map(|r| Expression::wrap(r.clone()).__str__(py).unwrap_or_default())
+                    .collect();
+                Ok(format!("ComboRegister({})", parts.join(", ")))
+            }
+            ExprInner::Phi { src_and_vvars, .. } => {
+                let s = src_and_vvars.bind(py).str()?.to_string();
+                Ok(format!("Phi({})", s))
+            }
+            ExprInner::VirtualVariable { varid, category, oident, .. } => {
+                use crate::ailment::enums::VirtualVariableCategory;
+                let size = self.expr.header.bits / 8;
+                let ori_str = match category {
+                    VirtualVariableCategory::REGISTER => {
+                        let off: i64 = oident.bind(py).extract().unwrap_or(0);
+                        format!("{{r{}|{}b}}", off, size)
+                    }
+                    VirtualVariableCategory::STACK => {
+                        let s = oident.bind(py).repr()?.to_string();
+                        format!("{{s{}|{}b}}", s, size)
+                    }
+                    VirtualVariableCategory::COMBO_REGISTER => {
+                        let s = oident.bind(py).repr()?.to_string();
+                        format!("{{combo_reg {}}}", s)
+                    }
+                    _ => String::new(),
+                };
+                Ok(format!("vvar_{}{}", varid, ori_str))
+            }
+            ExprInner::UnaryOp { op, operand, .. } => {
+                let o = Expression::wrap((**operand).clone()).__str__(py)?;
+                Ok(format!("({} {})", op, o))
+            }
+            ExprInner::Convert {
+                operand,
+                from_bits,
+                to_bits,
+                is_signed,
+                from_type,
+                to_type,
+                ..
+            } => {
+                let o = Expression::wrap((**operand).clone()).__str__(py)?;
+                let ft = if *from_type == ConvertType::TYPE_FP { "F" } else { "" };
+                let tt = if *to_type == ConvertType::TYPE_FP { "F" } else { "" };
+                let s = if *is_signed { "s" } else { "" };
+                Ok(format!(
+                    "Conv({}{}->{}{}{}, {})",
+                    from_bits, ft, s, to_bits, tt, o
+                ))
+            }
+            ExprInner::Reinterpret {
+                operand,
+                from_bits,
+                from_type,
+                to_bits,
+                to_type,
+                ..
+            } => {
+                let o = Expression::wrap((**operand).clone()).__str__(py)?;
+                Ok(format!(
+                    "Reinterpret({}{}->{}{}, {})",
+                    from_type, from_bits, to_type, to_bits, o
+                ))
+            }
+            ExprInner::BinaryOp { op, operands, .. } => {
+                let lhs = Expression::wrap((*operands[0]).clone()).__str__(py)?;
+                let rhs = Expression::wrap((*operands[1]).clone()).__str__(py)?;
+                Ok(format!("({} {} {})", lhs, op, rhs))
+            }
+            ExprInner::Load { addr, size, endness, .. } => {
+                let a = Expression::wrap((**addr).clone()).__str__(py)?;
+                Ok(format!("Load(addr={}, size={}, endness={})", a, size, endness))
+            }
+            ExprInner::Call {
+                target,
+                calling_convention,
+                prototype,
+                args,
+                ..
+            } => {
+                let cc = match calling_convention {
+                    None => "Unknown CC".to_string(),
+                    Some(c) => c.bind(py).str()?.to_string(),
+                };
+                let args_str = match args {
+                    None => match prototype {
+                        None => cc.clone(),
+                        Some(p) => p.bind(py).repr()?.to_string(),
+                    },
+                    Some(v) => {
+                        let parts: Vec<String> = v
+                            .iter()
+                            .map(|x| {
+                                Expression::wrap(x.clone())
+                                    .__str__(py)
+                                    .unwrap_or_default()
+                            })
+                            .collect();
+                        let astr = format!("({})", parts.join(", "));
+                        format!("{}: {}", cc, astr)
+                    }
+                };
+                Ok(format!("Call({}, {})", target.bind(py).str()?, args_str))
+            }
+            ExprInner::ITE { cond, iffalse, iftrue, .. } => {
+                let c = Expression::wrap((**cond).clone()).__str__(py)?;
+                let t = Expression::wrap((**iftrue).clone()).__str__(py)?;
+                let f = Expression::wrap((**iffalse).clone()).__str__(py)?;
+                Ok(format!("(({}) ? ({}) : ({}))", c, t, f))
+            }
+            ExprInner::Extract { base, offset, .. } => {
+                let b = Expression::wrap((**base).clone()).__str__(py)?;
+                let o = Expression::wrap((**offset).clone()).__str__(py)?;
+                Ok(format!("Extract({}, {}bits@{})", b, self.expr.header.bits, o))
+            }
+            ExprInner::Insert { base, offset, value, .. } => {
+                let b = Expression::wrap((**base).clone()).__str__(py)?;
+                let o = Expression::wrap((**offset).clone()).__str__(py)?;
+                let v = Expression::wrap((**value).clone()).__str__(py)?;
+                Ok(format!("Insert({}, {}, {})", b, o, v))
+            }
+            ExprInner::StringLiteral { data } => Ok(format!(
+                "StringLiteral({})",
+                data.bind(py).repr()?
+            )),
+            ExprInner::BasePointerOffset { base, offset, .. } => {
+                let bs = base.bind(py).str()?.to_string();
+                if offset.bind(py).is_none() {
+                    return Ok(bs);
+                }
+                if let Ok(o) = offset.bind(py).extract::<i64>() {
+                    return Ok(format!("{}{:+}", bs, o));
+                }
+                let os = offset.bind(py).str()?.to_string();
+                Ok(format!("{}+{}", bs, os))
+            }
+            ExprInner::StackBaseOffset { offset } => Ok(format!("sp{:+}", offset)),
+            ExprInner::DirtyExpression { callee, operands, .. } => {
+                let parts: Vec<String> = operands
+                    .iter()
+                    .map(|o| {
+                        Expression::wrap(o.clone())
+                            .__str__(py)
+                            .unwrap_or_default()
+                    })
+                    .collect();
+                Ok(format!("[D] {}({})", callee, parts.join(", ")))
+            }
+            ExprInner::VEXCCallExpression { callee, operands } => {
+                let parts: Vec<String> = operands
+                    .iter()
+                    .map(|o| {
+                        Expression::wrap(o.clone())
+                            .__str__(py)
+                            .unwrap_or_default()
+                    })
+                    .collect();
+                Ok(format!("{}({})", callee, parts.join(", ")))
+            }
+            ExprInner::MultiStatementExpression { stmts, expr } => {
+                let mut parts: Vec<String> = Vec::new();
+                for s in stmts {
+                    parts.push(
+                        crate::ailment::ail_stmt::Statement::wrap(s.clone()).render(py)?,
+                    );
+                }
+                parts.push(Expression::wrap((**expr).clone()).__str__(py)?);
+                Ok(format!("({})", parts.join(", ")))
+            }
+            ExprInner::Struct { name, fields, .. } => {
+                Ok(format!("{} {}", name, fields.bind(py).str()?))
+            }
+            ExprInner::RustEnum { name, fields } => {
+                Ok(format!("{}({})", name, fields.bind(py).str()?))
+            }
+            ExprInner::Array { elements } => Ok(elements.bind(py).str()?.to_string()),
+            ExprInner::Let { variant, src, .. } => {
+                let vname = variant.bind(py).getattr("name")?.str()?.to_string();
+                Ok(format!(
+                    "let {}(_) = {}",
+                    vname,
+                    Expression::wrap((**src).clone()).__str__(py)?
+                ))
+            }
+            ExprInner::Macro { name, delimiter, .. } => {
+                let mut chars = delimiter.chars();
+                let open = chars.next().unwrap_or('(');
+                let close = chars.next().unwrap_or(')');
+                Ok(format!("{}!{}{}", name, open, close))
+            }
+            ExprInner::FunctionLikeMacro {
+                name, delimiter, args, ..
+            } => {
+                let mut chars = delimiter.chars();
+                let open = chars.next().unwrap_or('(');
+                let close = chars.next().unwrap_or(')');
+                let args_s = match args {
+                    Some(a) => a.bind(py).repr()?.to_string(),
+                    None => "None".into(),
+                };
+                Ok(format!("{}!{}{}{}", name, open, args_s, close))
+            }
+        }
+    }
+
+    // --- Byte serialization ------------------------------------------
+    //
+    // Stub for the spike: round-trips Const only (the simplest variant)
+    // via a minimal hand-coded format. The full serialization story is
+    // a follow-up commit -- the bulk migration will switch to postcard
+    // deriving on AilExpression directly.
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let bytes = postcard::to_stdvec(&serialize::Wire::from(&self.expr))
+            .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))?;
+        Ok(PyBytes::new(py, &bytes))
+    }
+
+    #[classmethod]
+    fn from_bytes<'py>(
+        _cls: &Bound<'_, pyo3::types::PyType>,
+        py: Python<'py>,
+        data: &[u8],
+    ) -> PyResult<Py<Expression>> {
+        let wire: serialize::Wire = postcard::from_bytes(data)
+            .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
+        Py::new(py, Expression::wrap(wire.into_ail()))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Validate that ``src_and_vvars`` is a list of ``((src_addr, block_idx),
+/// vvar_or_None)`` pairs where each vvar slot is either ``None`` or a
+/// ``VirtualVariable`` ``Expression``. Phi semantics require this; any
+/// other expression type indicates a bug at the producer site. The
+/// error message includes the offending kind/value plus a Python
+/// traceback (via ``traceback.format_stack``) so the upstream call site
+/// is easy to locate.
+fn validate_phi_src_and_vvars(py: Python<'_>, list: &Bound<'_, PyList>) -> PyResult<()> {
+    let type_name = |obj: &Bound<'_, PyAny>| -> String {
+        obj.get_type()
+            .qualname()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| "<unknown>".to_string())
+    };
+    let repr = |obj: &Bound<'_, PyAny>| -> String {
+        obj.repr()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| "<unrepresentable>".to_string())
+    };
+    for (idx, item) in list.iter().enumerate() {
+        let Ok(pair) = item.cast::<PyTuple>() else {
+            return Err(phi_validation_error(
+                py,
+                &format!(
+                    "Phi.src_and_vvars[{}] is not a 2-tuple (got type {})",
+                    idx,
+                    type_name(&item)
+                ),
+            ));
+        };
+        if pair.len() != 2 {
+            return Err(phi_validation_error(
+                py,
+                &format!(
+                    "Phi.src_and_vvars[{}] tuple has {} elements, expected 2",
+                    idx,
+                    pair.len()
+                ),
+            ));
+        }
+        let second = pair.get_item(1)?;
+        if second.is_none() {
+            continue;
+        }
+        let Ok(e) = second.cast::<Expression>() else {
+            return Err(phi_validation_error(
+                py,
+                &format!(
+                    "Phi.src_and_vvars[{}] vvar slot is not an Expression (got type {}, repr {})",
+                    idx,
+                    type_name(&second),
+                    repr(&second),
+                ),
+            ));
+        };
+        let kind = e.borrow().expr.kind();
+        if kind != "VirtualVariable" {
+            return Err(phi_validation_error(
+                py,
+                &format!(
+                    "Phi.src_and_vvars[{}] vvar slot must be a VirtualVariable, got kind={:?} repr={}",
+                    idx,
+                    kind,
+                    repr(&second),
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Build a ``TypeError`` whose message includes a Python ``traceback.
+/// format_stack`` dump so the upstream producer of the bad Phi shape
+/// is easy to spot.
+fn phi_validation_error(py: Python<'_>, msg: &str) -> PyErr {
+    let trace = py
+        .import("traceback")
+        .and_then(|tb| tb.call_method0("format_stack"))
+        .and_then(|frames| {
+            let parts: Vec<String> = frames
+                .try_iter()?
+                .map(|f| f.and_then(|x| x.extract::<String>()))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(parts.join(""))
+        })
+        .unwrap_or_default();
+    PyTypeError::new_err(format!("{}\n  Producer traceback:\n{}", msg, trace))
+}
+
+/// Extract an [`AilExpression`] from a Python object that must be an
+/// ``Expression`` instance. Clones the inner Rust struct (deep copy of
+/// the variant; operand subtrees are heap-cloned).
+pub fn extract_ail(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
+    let e: PyRef<'_, Expression> = obj
+        .cast::<Expression>()
+        .map_err(|_| PyTypeError::new_err("expected an Expression"))?
+        .borrow();
+    Ok(e.expr.clone())
+}
+
+// ---------------------------------------------------------------------------
+// Minimal serialization (spike-only)
+// ---------------------------------------------------------------------------
+
+pub mod serialize {
+    use super::{AilExpression, ConstValue, Expression, ExprHeader, ExprInner};
+    use crate::ailment::enums::ConvertType;
+    use crate::ailment::tags::Tags;
+    use pyo3::prelude::*;
+    use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
+    use pyo3::IntoPyObjectExt;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    pub struct Hdr {
+        pub idx: i64,
+        pub bits: u32,
+        pub depth: u32,
+        pub tags: Tags,
+    }
+
+    /// Typed serialization wrapper for polymorphic Python-typed slots
+    /// (SimVariable, calling-convention, rounding-mode, oident, ...).
+    ///
+    /// AIL Expressions embed losslessly via the recursive ``Expr``
+    /// variant; primitive Python types (int/float/str/bytes/bool) map
+    /// to their direct counterparts; lists/tuples/dicts recurse;
+    /// anything else falls back to ``pickle.dumps`` -- which covers
+    /// SimVariables, calling conventions, prototypes, etc.
+    ///
+    /// Replaces the spike-local ``*_repr: String`` stringification on
+    /// the lossy Wire fields and the ``variable_repr: Option<String>``
+    /// fallbacks. With ``PolyValue`` every polymorphic slot round-trips
+    /// with full fidelity.
+    #[derive(Serialize, Deserialize)]
+    pub enum PolyValue {
+        None,
+        /// Recursive Phase D Expression embedding.
+        Expr(Box<Wire>),
+        /// Pickle bytes for arbitrary Python objects.
+        Pickle(Vec<u8>),
+        Bool(bool),
+        Int(i64),
+        /// Hex (no `0x` prefix, optional `-`) for ints outside i64.
+        BigInt(String),
+        Float(f64),
+        Str(String),
+        Bytes(Vec<u8>),
+        Tuple(Vec<PolyValue>),
+        List(Vec<PolyValue>),
+        Dict(Vec<(PolyValue, PolyValue)>),
+    }
+
+    impl PolyValue {
+        pub fn from_pyany(obj: &Bound<'_, PyAny>) -> PyResult<Self> {
+            let py = obj.py();
+            if obj.is_none() {
+                return Ok(Self::None);
+            }
+            // Phase D Expression -- recursive Wire embedding.
+            if let Ok(e) = obj.cast::<Expression>() {
+                return Ok(Self::Expr(Box::new(Wire::from(&e.borrow().expr))));
+            }
+            // PyBool BEFORE PyInt (bool is a subclass of int).
+            if let Ok(b) = obj.cast::<PyBool>() {
+                return Ok(Self::Bool(b.is_true()));
+            }
+            if let Ok(_i) = obj.cast::<PyInt>() {
+                if let Ok(v) = obj.extract::<i64>() {
+                    return Ok(Self::Int(v));
+                }
+                // Outside i64 range -- preserve as hex.
+                let s: String = obj
+                    .call_method1("__format__", ("x",))
+                    .and_then(|x| x.extract())?;
+                return Ok(Self::BigInt(s));
+            }
+            if let Ok(f) = obj.cast::<PyFloat>() {
+                return Ok(Self::Float(f.value()));
+            }
+            if let Ok(s) = obj.cast::<PyString>() {
+                return Ok(Self::Str(s.extract()?));
+            }
+            if let Ok(b) = obj.cast::<PyBytes>() {
+                return Ok(Self::Bytes(b.as_bytes().to_vec()));
+            }
+            if let Ok(t) = obj.cast::<PyTuple>() {
+                let mut v = Vec::with_capacity(t.len());
+                for x in t.iter() {
+                    v.push(PolyValue::from_pyany(&x)?);
+                }
+                return Ok(Self::Tuple(v));
+            }
+            if let Ok(l) = obj.cast::<PyList>() {
+                let mut v = Vec::with_capacity(l.len());
+                for x in l.iter() {
+                    v.push(PolyValue::from_pyany(&x)?);
+                }
+                return Ok(Self::List(v));
+            }
+            if let Ok(d) = obj.cast::<PyDict>() {
+                let mut v = Vec::with_capacity(d.len());
+                for (k, vv) in d.iter() {
+                    v.push((PolyValue::from_pyany(&k)?, PolyValue::from_pyany(&vv)?));
+                }
+                return Ok(Self::Dict(v));
+            }
+            // Fallback: pickle.
+            let pickle = py.import("pickle")?;
+            let bytes: Vec<u8> = pickle
+                .call_method1("dumps", (obj,))?
+                .cast::<PyBytes>()?
+                .as_bytes()
+                .to_vec();
+            Ok(Self::Pickle(bytes))
+        }
+
+        pub fn into_pyany(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            match self {
+                Self::None => Ok(py.None()),
+                Self::Expr(w) => {
+                    let e = Expression::wrap(w.into_ail());
+                    Ok(Py::new(py, e)?.into_any())
+                }
+                Self::Pickle(bytes) => {
+                    let pickle = py.import("pickle")?;
+                    Ok(pickle
+                        .call_method1("loads", (PyBytes::new(py, &bytes),))?
+                        .unbind())
+                }
+                Self::Bool(b) => Ok(b.into_bound_py_any(py)?.unbind()),
+                Self::Int(i) => Ok(i.into_bound_py_any(py)?.unbind()),
+                Self::BigInt(s) => {
+                    let builtins = py.import("builtins")?;
+                    Ok(builtins
+                        .getattr("int")?
+                        .call1((s.as_str(), 16))?
+                        .unbind())
+                }
+                Self::Float(f) => Ok(f.into_bound_py_any(py)?.unbind()),
+                Self::Str(s) => Ok(PyString::new(py, &s).into_any().unbind()),
+                Self::Bytes(b) => Ok(PyBytes::new(py, &b).into_any().unbind()),
+                Self::Tuple(v) => {
+                    let items: Vec<Py<PyAny>> = v
+                        .into_iter()
+                        .map(|x| x.into_pyany(py))
+                        .collect::<PyResult<Vec<_>>>()?;
+                    Ok(PyTuple::new(py, items)?.into_any().unbind())
+                }
+                Self::List(v) => {
+                    let l = PyList::empty(py);
+                    for x in v {
+                        l.append(x.into_pyany(py)?)?;
+                    }
+                    Ok(l.into_any().unbind())
+                }
+                Self::Dict(v) => {
+                    let d = PyDict::new(py);
+                    for (k, vv) in v {
+                        d.set_item(k.into_pyany(py)?, vv.into_pyany(py)?)?;
+                    }
+                    Ok(d.into_any().unbind())
+                }
+            }
+        }
+
+        /// Convenience: convert ``Option<Py<PyAny>>`` to ``Option<PolyValue>``,
+        /// preserving ``None``.
+        pub fn from_opt(o: &Option<Py<PyAny>>, py: Python<'_>) -> PyResult<Option<Self>> {
+            match o {
+                None => Ok(None),
+                Some(v) => Ok(Some(Self::from_pyany(v.bind(py))?)),
+            }
+        }
+
+        pub fn into_opt(o: Option<Self>, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+            match o {
+                None => Ok(None),
+                Some(v) => Ok(Some(v.into_pyany(py)?)),
+            }
+        }
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub enum Wire {
+        Const {
+            h: Hdr,
+            value: ConstValue,
+        },
+        Tmp {
+            h: Hdr,
+            tmp_idx: i64,
+        },
+        Register {
+            h: Hdr,
+            reg_offset: i64,
+        },
+        ComboRegister {
+            h: Hdr,
+            registers: Vec<Wire>,
+        },
+        Phi {
+            h: Hdr,
+            src_and_vvars: PolyValue,
+        },
+        VirtualVariable {
+            h: Hdr,
+            varid: i64,
+            category: u8,
+            oident: PolyValue,
+            reg_vvars: PolyValue,
+        },
+        UnaryOp {
+            h: Hdr,
+            op: String,
+            operand: Box<Wire>,
+        },
+        Convert {
+            h: Hdr,
+            operand: Box<Wire>,
+            from_bits: u32,
+            to_bits: u32,
+            is_signed: bool,
+            from_type: ConvertType,
+            to_type: ConvertType,
+            rounding_mode: Option<PolyValue>,
+        },
+        Reinterpret {
+            h: Hdr,
+            operand: Box<Wire>,
+            from_bits: u32,
+            from_type: String,
+            to_bits: u32,
+            to_type: String,
+        },
+        BinaryOp {
+            h: Hdr,
+            op: String,
+            lhs: Box<Wire>,
+            rhs: Box<Wire>,
+            signed: bool,
+            floating_point: bool,
+            vector_count: Option<i64>,
+            vector_size: Option<i64>,
+            rounding_mode: Option<PolyValue>,
+        },
+        Load {
+            h: Hdr,
+            addr: Box<Wire>,
+            size: i32,
+            endness: String,
+            guard: Option<Box<Wire>>,
+            alt: Option<Box<Wire>>,
+        },
+        Call {
+            h: Hdr,
+            target: PolyValue,
+            calling_convention: Option<PolyValue>,
+            prototype: Option<PolyValue>,
+            args: Option<Vec<Wire>>,
+            arg_vvars: Option<Vec<Wire>>,
+        },
+        ITE {
+            h: Hdr,
+            cond: Box<Wire>,
+            iffalse: Box<Wire>,
+            iftrue: Box<Wire>,
+        },
+        Extract {
+            h: Hdr,
+            base: Box<Wire>,
+            offset: Box<Wire>,
+            endness: String,
+        },
+        Insert {
+            h: Hdr,
+            base: Box<Wire>,
+            offset: Box<Wire>,
+            value: Box<Wire>,
+            endness: String,
+        },
+        StringLiteral {
+            h: Hdr,
+            data: PolyValue,
+        },
+        BasePointerOffset {
+            h: Hdr,
+            base: PolyValue,
+            offset: PolyValue,
+        },
+        StackBaseOffset {
+            h: Hdr,
+            offset: i128,
+        },
+        DirtyExpression {
+            h: Hdr,
+            callee: String,
+            operands: Vec<Wire>,
+            guard: Option<Box<Wire>>,
+            mfx: Option<String>,
+            maddr: Option<Box<Wire>>,
+            msize: Option<i64>,
+        },
+        VEXCCallExpression {
+            h: Hdr,
+            callee: String,
+            operands: Vec<Wire>,
+        },
+        /// Full-fidelity round-trip via the Statement-side ``StmtWire``
+        /// (Statements joined the fat-enum design in a later commit).
+        MultiStatementExpression {
+            h: Hdr,
+            stmts: Vec<crate::ailment::ail_stmt::StmtWire>,
+            expr: Box<Wire>,
+        },
+        Struct {
+            h: Hdr,
+            name: String,
+            fields: PolyValue,
+            field_offsets: PolyValue,
+        },
+        RustEnum {
+            h: Hdr,
+            name: String,
+            fields: PolyValue,
+        },
+        Array {
+            h: Hdr,
+            elements: PolyValue,
+        },
+        Let {
+            h: Hdr,
+            variant: PolyValue,
+            defs: PolyValue,
+            src: Box<Wire>,
+        },
+        Macro {
+            h: Hdr,
+            name: String,
+            delimiter: String,
+            returnty: Option<PolyValue>,
+        },
+        FunctionLikeMacro {
+            h: Hdr,
+            name: String,
+            delimiter: String,
+            returnty: Option<PolyValue>,
+            args: Option<PolyValue>,
+        },
+    }
+
+    impl Wire {
+        pub fn from(ail: &AilExpression) -> Self {
+            let hdr = Hdr {
+                idx: ail.header.idx,
+                bits: ail.header.bits,
+                depth: ail.header.depth,
+                tags: ail.header.tags.clone(),
+            };
+            match &ail.inner {
+                ExprInner::Const { value } => Wire::Const {
+                    h: hdr,
+                    value: value.clone(),
+                },
+                ExprInner::Tmp { tmp_idx } => Wire::Tmp {
+                    h: hdr,
+                    tmp_idx: *tmp_idx,
+                },
+                ExprInner::Register { reg_offset } => Wire::Register {
+                    h: hdr,
+                    reg_offset: *reg_offset,
+                },
+                ExprInner::ComboRegister { registers } => Wire::ComboRegister {
+                    h: hdr,
+                    registers: registers.iter().map(Wire::from).collect(),
+                },
+                ExprInner::Phi { src_and_vvars } => Python::attach(|py| {
+                    let sv = PolyValue::from_pyany(src_and_vvars.bind(py).as_any())
+                        .unwrap_or(PolyValue::None);
+                    Wire::Phi {
+                        h: hdr,
+                        src_and_vvars: sv,
+                    }
+                }),
+                ExprInner::VirtualVariable {
+                    varid,
+                    category,
+                    oident,
+                    reg_vvars,
+                } => Python::attach(|py| {
+                    let o = PolyValue::from_pyany(oident.bind(py)).unwrap_or(PolyValue::None);
+                    let rv = PolyValue::from_pyany(reg_vvars.bind(py).as_any())
+                        .unwrap_or(PolyValue::None);
+                    Wire::VirtualVariable {
+                        h: hdr,
+                        varid: *varid,
+                        category: *category as u8,
+                        oident: o,
+                        reg_vvars: rv,
+                    }
+                }),
+                ExprInner::UnaryOp { op, operand } => Wire::UnaryOp {
+                    h: hdr,
+                    op: op.clone(),
+                    operand: Box::new(Wire::from(operand)),
+                },
+                ExprInner::Convert {
+                    operand,
+                    from_bits,
+                    to_bits,
+                    is_signed,
+                    from_type,
+                    to_type,
+                    rounding_mode,
+                } => Python::attach(|py| Wire::Convert {
+                    h: hdr,
+                    operand: Box::new(Wire::from(operand)),
+                    from_bits: *from_bits,
+                    to_bits: *to_bits,
+                    is_signed: *is_signed,
+                    from_type: *from_type,
+                    to_type: *to_type,
+                    rounding_mode: PolyValue::from_opt(rounding_mode, py).unwrap_or(None),
+                }),
+                ExprInner::Reinterpret {
+                    operand,
+                    from_bits,
+                    from_type,
+                    to_bits,
+                    to_type,
+                } => Wire::Reinterpret {
+                    h: hdr,
+                    operand: Box::new(Wire::from(operand)),
+                    from_bits: *from_bits,
+                    from_type: from_type.clone(),
+                    to_bits: *to_bits,
+                    to_type: to_type.clone(),
+                },
+                ExprInner::BinaryOp {
+                    op,
+                    operands,
+                    signed,
+                    floating_point,
+                    vector_count,
+                    vector_size,
+                    rounding_mode,
+                } => Python::attach(|py| Wire::BinaryOp {
+                    h: hdr,
+                    op: op.clone(),
+                    lhs: Box::new(Wire::from(&operands[0])),
+                    rhs: Box::new(Wire::from(&operands[1])),
+                    signed: *signed,
+                    floating_point: *floating_point,
+                    vector_count: *vector_count,
+                    vector_size: *vector_size,
+                    rounding_mode: PolyValue::from_opt(rounding_mode, py).unwrap_or(None),
+                }),
+                ExprInner::Load {
+                    addr,
+                    size,
+                    endness,
+                    guard,
+                    alt,
+                } => Wire::Load {
+                    h: hdr,
+                    addr: Box::new(Wire::from(addr)),
+                    size: *size,
+                    endness: endness.clone(),
+                    guard: guard.as_ref().map(|g| Box::new(Wire::from(g))),
+                    alt: alt.as_ref().map(|a| Box::new(Wire::from(a))),
+                },
+                ExprInner::Call {
+                    target,
+                    calling_convention,
+                    prototype,
+                    args,
+                    arg_vvars,
+                } => Python::attach(|py| Wire::Call {
+                    h: hdr,
+                    target: PolyValue::from_pyany(target.bind(py)).unwrap_or(PolyValue::None),
+                    calling_convention: PolyValue::from_opt(calling_convention, py)
+                        .unwrap_or(None),
+                    prototype: PolyValue::from_opt(prototype, py).unwrap_or(None),
+                    args: args.as_ref().map(|v| v.iter().map(Wire::from).collect()),
+                    arg_vvars: arg_vvars
+                        .as_ref()
+                        .map(|v| v.iter().map(Wire::from).collect()),
+                }),
+                ExprInner::ITE {
+                    cond,
+                    iffalse,
+                    iftrue,
+                } => Wire::ITE {
+                    h: hdr,
+                    cond: Box::new(Wire::from(cond)),
+                    iffalse: Box::new(Wire::from(iffalse)),
+                    iftrue: Box::new(Wire::from(iftrue)),
+                },
+                ExprInner::Extract {
+                    base,
+                    offset,
+                    endness,
+                } => Wire::Extract {
+                    h: hdr,
+                    base: Box::new(Wire::from(base)),
+                    offset: Box::new(Wire::from(offset)),
+                    endness: endness.clone(),
+                },
+                ExprInner::Insert {
+                    base,
+                    offset,
+                    value,
+                    endness,
+                } => Wire::Insert {
+                    h: hdr,
+                    base: Box::new(Wire::from(base)),
+                    offset: Box::new(Wire::from(offset)),
+                    value: Box::new(Wire::from(value)),
+                    endness: endness.clone(),
+                },
+                ExprInner::StringLiteral { data } => Python::attach(|py| Wire::StringLiteral {
+                    h: hdr,
+                    data: PolyValue::from_pyany(data.bind(py)).unwrap_or(PolyValue::None),
+                }),
+                ExprInner::BasePointerOffset { base, offset } => {
+                    Python::attach(|py| Wire::BasePointerOffset {
+                        h: hdr,
+                        base: PolyValue::from_pyany(base.bind(py)).unwrap_or(PolyValue::None),
+                        offset: PolyValue::from_pyany(offset.bind(py)).unwrap_or(PolyValue::None),
+                    })
+                }
+                ExprInner::StackBaseOffset { offset } => Wire::StackBaseOffset {
+                    h: hdr,
+                    offset: *offset,
+                },
+                ExprInner::DirtyExpression {
+                    callee,
+                    operands,
+                    guard,
+                    mfx,
+                    maddr,
+                    msize,
+                } => Wire::DirtyExpression {
+                    h: hdr,
+                    callee: callee.clone(),
+                    operands: operands.iter().map(Wire::from).collect(),
+                    guard: guard.as_ref().map(|g| Box::new(Wire::from(g))),
+                    mfx: mfx.clone(),
+                    maddr: maddr.as_ref().map(|m| Box::new(Wire::from(m))),
+                    msize: *msize,
+                },
+                ExprInner::VEXCCallExpression { callee, operands } => Wire::VEXCCallExpression {
+                    h: hdr,
+                    callee: callee.clone(),
+                    operands: operands.iter().map(Wire::from).collect(),
+                },
+                ExprInner::MultiStatementExpression { stmts, expr } => {
+                    Wire::MultiStatementExpression {
+                        h: hdr,
+                        stmts: stmts
+                            .iter()
+                            .map(crate::ailment::ail_stmt::StmtWire::from)
+                            .collect(),
+                        expr: Box::new(Wire::from(expr)),
+                    }
+                }
+                ExprInner::Struct {
+                    name,
+                    fields,
+                    field_offsets,
+                    ..
+                } => Python::attach(|py| Wire::Struct {
+                    h: hdr,
+                    name: name.clone(),
+                    fields: PolyValue::from_pyany(fields.bind(py).as_any())
+                        .unwrap_or(PolyValue::None),
+                    field_offsets: PolyValue::from_pyany(field_offsets.bind(py).as_any())
+                        .unwrap_or(PolyValue::None),
+                }),
+                ExprInner::RustEnum { name, fields } => Python::attach(|py| Wire::RustEnum {
+                    h: hdr,
+                    name: name.clone(),
+                    fields: PolyValue::from_pyany(fields.bind(py)).unwrap_or(PolyValue::None),
+                }),
+                ExprInner::Array { elements } => Python::attach(|py| Wire::Array {
+                    h: hdr,
+                    elements: PolyValue::from_pyany(elements.bind(py)).unwrap_or(PolyValue::None),
+                }),
+                ExprInner::Let { variant, defs, src } => Python::attach(|py| Wire::Let {
+                    h: hdr,
+                    variant: PolyValue::from_pyany(variant.bind(py)).unwrap_or(PolyValue::None),
+                    defs: PolyValue::from_pyany(defs.bind(py).as_any())
+                        .unwrap_or(PolyValue::None),
+                    src: Box::new(Wire::from(src)),
+                }),
+                ExprInner::Macro {
+                    name,
+                    delimiter,
+                    returnty,
+                } => Python::attach(|py| Wire::Macro {
+                    h: hdr,
+                    name: name.clone(),
+                    delimiter: delimiter.clone(),
+                    returnty: PolyValue::from_opt(returnty, py).unwrap_or(None),
+                }),
+                ExprInner::FunctionLikeMacro {
+                    name,
+                    delimiter,
+                    returnty,
+                    args,
+                } => Python::attach(|py| Wire::FunctionLikeMacro {
+                    h: hdr,
+                    name: name.clone(),
+                    delimiter: delimiter.clone(),
+                    returnty: PolyValue::from_opt(returnty, py).unwrap_or(None),
+                    args: args.as_ref().map(|l| {
+                        PolyValue::from_pyany(l.bind(py).as_any()).unwrap_or(PolyValue::None)
+                    }),
+                }),
+            }
+        }
+
+        pub fn into_ail(self) -> AilExpression {
+            fn rebuild_header(h: Hdr) -> ExprHeader {
+                ExprHeader::new(h.idx, h.depth, h.bits, h.tags)
+            }
+            match self {
+                Wire::Const { h, value } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Const { value },
+                },
+                Wire::Tmp { h, tmp_idx } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Tmp { tmp_idx },
+                },
+                Wire::Register { h, reg_offset } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Register { reg_offset },
+                },
+                Wire::ComboRegister { h, registers } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::ComboRegister {
+                        registers: registers.into_iter().map(Wire::into_ail).collect(),
+                    },
+                },
+                Wire::Phi { h, src_and_vvars } => Python::attach(|py| {
+                    let sv = src_and_vvars.into_pyany(py).ok();
+                    // The runtime expects ``src_and_vvars`` to be a list;
+                    // if PolyValue happened to materialize anything else
+                    // (Pickle fallback for example) coerce here.
+                    let list = match sv {
+                        Some(obj) => {
+                            let b = obj.into_bound(py);
+                            if let Ok(l) = b.cast::<pyo3::types::PyList>() {
+                                l.clone().unbind()
+                            } else {
+                                let l = pyo3::types::PyList::empty(py);
+                                if let Ok(it) = b.try_iter() {
+                                    for x in it.flatten() {
+                                        let _ = l.append(x);
+                                    }
+                                }
+                                l.unbind()
+                            }
+                        }
+                        None => pyo3::types::PyList::empty(py).unbind(),
+                    };
+                    AilExpression {
+                        header: rebuild_header(h),
+                        inner: ExprInner::Phi {
+                            src_and_vvars: list,
+                        },
+                    }
+                }),
+                Wire::VirtualVariable {
+                    h,
+                    varid,
+                    category,
+                    oident,
+                    reg_vvars,
+                } => Python::attach(|py| {
+                    use crate::ailment::enums::VirtualVariableCategory;
+                    let cat = VirtualVariableCategory::from_int(category as i64)
+                        .unwrap_or(VirtualVariableCategory::UNKNOWN);
+                    let oident_py = oident.into_pyany(py).unwrap_or_else(|_| py.None());
+                    let reg_vvars_py = match reg_vvars.into_pyany(py) {
+                        Ok(obj) => {
+                            let b = obj.into_bound(py);
+                            b.cast::<pyo3::types::PyDict>()
+                                .map(|d| d.clone().unbind())
+                                .unwrap_or_else(|_| pyo3::types::PyDict::new(py).unbind())
+                        }
+                        Err(_) => pyo3::types::PyDict::new(py).unbind(),
+                    };
+                    AilExpression {
+                        header: rebuild_header(h),
+                        inner: ExprInner::VirtualVariable {
+                            varid,
+                            category: cat,
+                            oident: oident_py,
+                            reg_vvars: reg_vvars_py,
+                        },
+                    }
+                }),
+                Wire::UnaryOp { h, op, operand } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::UnaryOp {
+                        op,
+                        operand: Box::new(operand.into_ail()),
+                    },
+                },
+                Wire::Convert {
+                    h,
+                    operand,
+                    from_bits,
+                    to_bits,
+                    is_signed,
+                    from_type,
+                    to_type,
+                    rounding_mode,
+                } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Convert {
+                        operand: Box::new(operand.into_ail()),
+                        from_bits,
+                        to_bits,
+                        is_signed,
+                        from_type,
+                        to_type,
+                        rounding_mode: PolyValue::into_opt(rounding_mode, py).unwrap_or(None),
+                    },
+                }),
+                Wire::Reinterpret {
+                    h,
+                    operand,
+                    from_bits,
+                    from_type,
+                    to_bits,
+                    to_type,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Reinterpret {
+                        operand: Box::new(operand.into_ail()),
+                        from_bits,
+                        from_type,
+                        to_bits,
+                        to_type,
+                    },
+                },
+                Wire::BinaryOp {
+                    h,
+                    op,
+                    lhs,
+                    rhs,
+                    signed,
+                    floating_point,
+                    vector_count,
+                    vector_size,
+                    rounding_mode,
+                } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::BinaryOp {
+                        op,
+                        operands: [Box::new(lhs.into_ail()), Box::new(rhs.into_ail())],
+                        signed,
+                        floating_point,
+                        rounding_mode: PolyValue::into_opt(rounding_mode, py).unwrap_or(None),
+                        vector_count,
+                        vector_size,
+                    },
+                }),
+                Wire::Load {
+                    h,
+                    addr,
+                    size,
+                    endness,
+                    guard,
+                    alt,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Load {
+                        addr: Box::new(addr.into_ail()),
+                        size,
+                        endness,
+                        guard: guard.map(|g| Box::new(g.into_ail())),
+                        alt: alt.map(|a| Box::new(a.into_ail())),
+                    },
+                },
+                Wire::Call {
+                    h,
+                    target,
+                    calling_convention,
+                    prototype,
+                    args,
+                    arg_vvars,
+                } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Call {
+                        target: target.into_pyany(py).unwrap_or_else(|_| py.None()),
+                        calling_convention: PolyValue::into_opt(calling_convention, py)
+                            .unwrap_or(None),
+                        prototype: PolyValue::into_opt(prototype, py).unwrap_or(None),
+                        args: args.map(|v| v.into_iter().map(Wire::into_ail).collect()),
+                        arg_vvars: arg_vvars.map(|v| v.into_iter().map(Wire::into_ail).collect()),
+                    },
+                }),
+                Wire::ITE {
+                    h,
+                    cond,
+                    iffalse,
+                    iftrue,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::ITE {
+                        cond: Box::new(cond.into_ail()),
+                        iffalse: Box::new(iffalse.into_ail()),
+                        iftrue: Box::new(iftrue.into_ail()),
+                    },
+                },
+                Wire::Extract {
+                    h,
+                    base,
+                    offset,
+                    endness,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Extract {
+                        base: Box::new(base.into_ail()),
+                        offset: Box::new(offset.into_ail()),
+                        endness,
+                    },
+                },
+                Wire::Insert {
+                    h,
+                    base,
+                    offset,
+                    value,
+                    endness,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Insert {
+                        base: Box::new(base.into_ail()),
+                        offset: Box::new(offset.into_ail()),
+                        value: Box::new(value.into_ail()),
+                        endness,
+                    },
+                },
+                Wire::StringLiteral { h, data } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::StringLiteral {
+                        data: data.into_pyany(py).unwrap_or_else(|_| py.None()),
+                    },
+                }),
+                Wire::BasePointerOffset { h, base, offset } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::BasePointerOffset {
+                        base: base.into_pyany(py).unwrap_or_else(|_| py.None()),
+                        offset: offset.into_pyany(py).unwrap_or_else(|_| py.None()),
+                    },
+                }),
+                Wire::StackBaseOffset { h, offset } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::StackBaseOffset { offset },
+                },
+                Wire::DirtyExpression {
+                    h,
+                    callee,
+                    operands,
+                    guard,
+                    mfx,
+                    maddr,
+                    msize,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::DirtyExpression {
+                        callee,
+                        operands: operands.into_iter().map(Wire::into_ail).collect(),
+                        guard: guard.map(|g| Box::new(g.into_ail())),
+                        mfx,
+                        maddr: maddr.map(|m| Box::new(m.into_ail())),
+                        msize,
+                    },
+                },
+                Wire::VEXCCallExpression {
+                    h,
+                    callee,
+                    operands,
+                } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::VEXCCallExpression {
+                        callee,
+                        operands: operands.into_iter().map(Wire::into_ail).collect(),
+                    },
+                },
+                Wire::MultiStatementExpression { h, stmts, expr } => AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::MultiStatementExpression {
+                        stmts: stmts
+                            .into_iter()
+                            .map(crate::ailment::ail_stmt::StmtWire::into_ail)
+                            .collect(),
+                        expr: Box::new(expr.into_ail()),
+                    },
+                },
+                Wire::Struct {
+                    h,
+                    name,
+                    fields,
+                    field_offsets,
+                } => Python::attach(|py| {
+                    // ``fields`` materializes as a PyDict; if the
+                    // PolyValue happens to be something else (Pickle
+                    // fallback), coerce to an empty dict so the variant
+                    // shape stays well-formed.
+                    let to_dict = |pv: PolyValue| -> Py<pyo3::types::PyDict> {
+                        match pv.into_pyany(py) {
+                            Ok(obj) => {
+                                let b = obj.into_bound(py);
+                                b.cast::<pyo3::types::PyDict>()
+                                    .map(|d| d.clone().unbind())
+                                    .unwrap_or_else(|_| pyo3::types::PyDict::new(py).unbind())
+                            }
+                            Err(_) => pyo3::types::PyDict::new(py).unbind(),
+                        }
+                    };
+                    let fields_d = to_dict(fields);
+                    let field_offsets_d = to_dict(field_offsets);
+                    // Rebuild ``field_names`` from ``field_offsets`` so
+                    // the inverse mapping stays consistent.
+                    let field_names = pyo3::types::PyDict::new(py);
+                    if let Ok(items) = field_offsets_d.bind(py).items().try_iter() {
+                        for it in items.flatten() {
+                            if let Ok(t) = it.cast::<pyo3::types::PyTuple>() {
+                                if t.len() == 2 {
+                                    let _ = field_names
+                                        .set_item(t.get_item(1).unwrap(), t.get_item(0).unwrap());
+                                }
+                            }
+                        }
+                    }
+                    AilExpression {
+                        header: rebuild_header(h),
+                        inner: ExprInner::Struct {
+                            name,
+                            fields: fields_d,
+                            field_offsets: field_offsets_d,
+                            field_names: field_names.unbind(),
+                        },
+                    }
+                }),
+                Wire::RustEnum { h, name, fields } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::RustEnum {
+                        name,
+                        fields: fields.into_pyany(py).unwrap_or_else(|_| py.None()),
+                    },
+                }),
+                Wire::Array { h, elements } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Array {
+                        elements: elements.into_pyany(py).unwrap_or_else(|_| py.None()),
+                    },
+                }),
+                Wire::Let {
+                    h,
+                    variant,
+                    defs,
+                    src,
+                } => Python::attach(|py| {
+                    let defs_list = match defs.into_pyany(py) {
+                        Ok(obj) => {
+                            let b = obj.into_bound(py);
+                            b.cast::<pyo3::types::PyList>()
+                                .map(|l| l.clone().unbind())
+                                .unwrap_or_else(|_| pyo3::types::PyList::empty(py).unbind())
+                        }
+                        Err(_) => pyo3::types::PyList::empty(py).unbind(),
+                    };
+                    AilExpression {
+                        header: rebuild_header(h),
+                        inner: ExprInner::Let {
+                            variant: variant.into_pyany(py).unwrap_or_else(|_| py.None()),
+                            defs: defs_list,
+                            src: Box::new(src.into_ail()),
+                        },
+                    }
+                }),
+                Wire::Macro {
+                    h,
+                    name,
+                    delimiter,
+                    returnty,
+                } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Macro {
+                        name,
+                        delimiter,
+                        returnty: PolyValue::into_opt(returnty, py).unwrap_or(None),
+                    },
+                }),
+                Wire::FunctionLikeMacro {
+                    h,
+                    name,
+                    delimiter,
+                    returnty,
+                    args,
+                } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::FunctionLikeMacro {
+                        name,
+                        delimiter,
+                        returnty: PolyValue::into_opt(returnty, py).unwrap_or(None),
+                        args: args.and_then(|pv| match pv.into_pyany(py) {
+                            Ok(obj) => {
+                                let b = obj.into_bound(py);
+                                b.cast::<pyo3::types::PyList>()
+                                    .map(|l| Some(l.clone().unbind()))
+                                    .ok()
+                                    .flatten()
+                            }
+                            Err(_) => None,
+                        }),
+                    },
+                }),
+            }
+        }
+    }
+}
+
+// Silence the unused-imports warning for PyList; will be used in the
+// bulk migration's Vec<AilExpression>-shaped variants.
+#[allow(dead_code)]
+fn _list_placeholder(l: &Bound<'_, PyList>) {
+    let _ = l;
+}

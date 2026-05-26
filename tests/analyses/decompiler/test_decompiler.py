@@ -3752,7 +3752,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         assert d.codegen is not None
-        assert "while (true)" in d.codegen.text
+        assert "while (1)" in d.codegen.text
 
     @structuring_algo("sailr")
     def test_ail_graph_access(self, decompiler_options=None):

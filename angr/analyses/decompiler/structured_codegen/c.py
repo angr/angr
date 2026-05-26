@@ -9,6 +9,7 @@ from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, cast
 
 from angr.ailment import Block, Expr, Stmt, Tmp
+from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 from angr.analyses.analysis import Analysis, register_analysis
@@ -3333,7 +3334,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
-        handler: Callable | None = self._handlers.get(node.__class__, None)
+        # Phase D: AIL Expressions / Statements all share one rustlib
+        # pyclass; ``node.__class__`` no longer discriminates. ``_dispatch_key``
+        # maps the variant tag back to the marker class registered in
+        # ``self._handlers``. Non-AIL nodes (CodeNode/SequenceNode/...)
+        # have no ``kind`` and fall through to ``type(node)`` cleanly.
+        handler: Callable | None = self._handlers.get(_dispatch_key(node), None)
         if handler is not None:
             # special case for Call
             converted = (
@@ -3343,7 +3349,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
-        raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
+        raise UnsupportedNodeTypeError(
+            f"Node type {getattr(node, 'kind', None) or type(node).__name__} is not supported yet."
+        )
 
     def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
@@ -3480,7 +3488,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             try:
                 cstmt = self._handle(stmt, is_expr=False)
             except UnsupportedNodeTypeError:
-                l.warning("Unsupported AIL statement or expression %s.", type(stmt), exc_info=True)
+                l.warning(
+                    "Unsupported AIL statement or expression %s.",
+                    getattr(stmt, "kind", None) or type(stmt).__name__,
+                    exc_info=True,
+                )
                 cstmt = CUnsupportedStatement(stmt, codegen=self)
             cstmts.append(cstmt)
 
