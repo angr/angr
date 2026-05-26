@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from angr.protos import key_defs_pb2
+from angr.serializable import Serializable
+
 
 class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
     """
@@ -187,7 +190,7 @@ class ExternalCodeLocation(CodeLocation):
 
 
 @dataclass(frozen=True)
-class AILCodeLocation:
+class AILCodeLocation(Serializable):
     """
     A code location that refers precisely to a statement of an AIL block, with an optional instruction address.
     """
@@ -200,6 +203,27 @@ class AILCodeLocation:
     @staticmethod
     def make_extern(idx: int):
         return AILCodeLocation(-1, None, idx)
+
+    @classmethod
+    def _get_cmsg(cls):
+        return key_defs_pb2.AILCodeLocation()
+
+    def serialize_to_cmessage(self):
+        msg = key_defs_pb2.AILCodeLocation(addr=self.addr, stmt_idx=self.stmt_idx)
+        if self.block_idx is not None:
+            msg.block_idx = self.block_idx
+        if self.insn_addr is not None:
+            msg.insn_addr = self.insn_addr
+        return msg
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        return cls(
+            addr=cmsg.addr,
+            block_idx=cmsg.block_idx if cmsg.HasField("block_idx") else None,
+            stmt_idx=cmsg.stmt_idx,
+            insn_addr=cmsg.insn_addr if cmsg.HasField("insn_addr") else None,
+        )
 
     @property
     def insn_addr_unwrap(self) -> int:

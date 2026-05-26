@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package angr.protos;
+
+// =============================================================
+// VirtualVariableCategory mirror
+// =============================================================
+// Local mirror of ailment.Expr.VirtualVariableCategory. Numeric values are pinned to match the ailment IntEnum so
+// that round-tripping through the mirror cannot drift; serialization code asserts the values agree at import time.
+enum VirtualVariableCategory {
+    VVC_REGISTER = 0;
+    VVC_STACK = 1;
+    VVC_MEMORY = 2;
+    VVC_PARAMETER = 3;
+    VVC_TMP = 4;
+    VVC_COMBO_REGISTER = 5;
+    VVC_UNKNOWN = 6;
+}
+
+// =============================================================
+// Atoms (angr.knowledge_plugins.key_definitions.atoms)
+// =============================================================
+
+message TmpAtom {
+    uint32 tmp_idx = 1;
+    uint32 size = 2;
+}
+
+message RegisterAtom {
+    // archinfo.Arch is intentionally not serialized; it is reattached from the parent Project at parse time.
+    uint32 reg_offset = 1;
+    uint32 size = 2;
+}
+
+message GuardUseAtom {
+    uint64 target = 1;
+    // size is always 0 for guard uses; not serialized.
+}
+
+message ConstantSrcAtom {
+    uint64 value = 1;
+    uint32 size = 2;
+}
+
+message VirtualVariableAtom {
+    uint32 varid = 1;
+    uint32 size = 2;
+    VirtualVariableCategory category = 3;
+    // oident is heterogeneous (int / tuple of ints / nested tuple for PARAMETER) so it is serialized as JSON.
+    // On parse, JSON arrays are converted back to tuples. Absent string == None.
+    optional string oident_json = 4;
+}
+
+message SpOffsetValue {
+    uint32 bits = 1;
+    int64 offset = 2;
+    bool is_base = 3;
+}
+
+message HeapAddressValue {
+    // HeapAddress.value can be int or the Undefined sentinel.
+    bool is_undefined = 1;
+    int64 value = 2;
+}
+
+message MemoryLocationAddr {
+    oneof kind {
+        uint64 int_addr = 1;
+        SpOffsetValue sp_offset = 2;
+        HeapAddressValue heap_address = 3;
+    }
+}
+
+message MemoryLocationAtom {
+    MemoryLocationAddr addr = 1;
+    uint32 size = 2;
+    // archinfo.Endness is a StrEnum; we round-trip its string value (e.g. "Iend_LE").
+    optional string endness = 3;
+}
+
+// Polymorphic Atom dispatch.
+message Atom {
+    oneof kind {
+        TmpAtom tmp = 1;
+        RegisterAtom register = 2;
+        VirtualVariableAtom virtual_variable = 3;
+        MemoryLocationAtom memory_location = 4;
+        GuardUseAtom guard_use = 5;
+        ConstantSrcAtom constant_src = 6;
+    }
+}
+
+// =============================================================
+// Code locations
+// =============================================================
+// Only AILCodeLocation is supported here; the more general CodeLocation hierarchy is not currently part of the
+// persisted state for any class targeted by this serialization effort.
+
+message AILCodeLocation {
+    int64 addr = 1;  // -1 for extern locations
+    optional int32 block_idx = 2;
+    int32 stmt_idx = 3;
+    optional uint64 insn_addr = 4;
+}
+
+// =============================================================
+// Tag hierarchy (angr.knowledge_plugins.key_definitions.tag)
+// =============================================================
+
+enum TagKind {
+    TAG = 0;
+    FUNCTION_TAG = 1;
+    SIDE_EFFECT_TAG = 2;
+    PARAMETER_TAG = 3;
+    LOCAL_VARIABLE_TAG = 4;
+    RETURN_VALUE_TAG = 5;
+    INITIAL_VALUE_TAG = 6;
+    UNKNOWN_SIZE_TAG = 7;
+}
+
+message Tag {
+    TagKind kind = 1;
+    // Tag.metadata is typed `object`. We constrain serialization to values that round-trip through json.dumps /
+    // json.loads (None, bool, int, float, str, list, dict). Non-JSON metadata is rejected on serialize.
+    optional string metadata_json = 2;
+    // Set iff kind is FUNCTION_TAG or one of its subclasses.
+    optional uint64 function = 3;
+}
+
+// =============================================================
+// Definition (angr.knowledge_plugins.key_definitions.definition)
+// =============================================================
+
+message Definition {
+    Atom atom = 1;
+    AILCodeLocation codeloc = 2;
+    bool dummy = 3;
+    repeated Tag tags = 4;
+}

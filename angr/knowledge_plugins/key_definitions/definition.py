@@ -4,10 +4,12 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypeVar
 
-from angr.code_location import ExternalCodeLocation
+from angr.code_location import AILCodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.misc.ux import once
+from angr.protos import key_defs_pb2
+from angr.serializable import Serializable
 from angr.sim_variable import (
     SimMemoryVariable,
     SimRegisterVariable,
@@ -20,7 +22,7 @@ from .atoms import Atom, AtomKind, MemoryLocation, Register, Tmp, VirtualVariabl
 from .tag import Tag
 
 if TYPE_CHECKING:
-    from angr.code_location import AILCodeLocation, CodeLocation
+    from angr.code_location import CodeLocation
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +145,7 @@ class DefinitionMatchPredicate:
         return True
 
 
-class Definition[A: Atom, CodeLoc: CodeLocation | AILCodeLocation]:
+class Definition[A: Atom, CodeLoc: CodeLocation | AILCodeLocation](Serializable):
     """
     An atom definition.
 
@@ -237,3 +239,33 @@ class Definition[A: Atom, CodeLoc: CodeLocation | AILCodeLocation]:
 
         """
         return DefinitionMatchPredicate.construct(**kwargs).matches(self)
+
+    # Only Definitions whose codeloc is an AILCodeLocation are serialized; the more general CodeLocation hierarchy is
+    # not yet in the proto schema. The audit of SRDAModel confirmed that all persisted Definitions use AILCodeLocation.
+
+    @classmethod
+    def _get_cmsg(cls):
+        return key_defs_pb2.Definition()
+
+    def serialize_to_cmessage(self):
+        if not isinstance(self.codeloc, AILCodeLocation):
+            raise TypeError(
+                f"Definition.serialize_to_cmessage only supports AILCodeLocation, got {type(self.codeloc).__name__}"
+            )
+        msg = key_defs_pb2.Definition(
+            atom=self.atom.serialize_to_cmessage(),
+            codeloc=self.codeloc.serialize_to_cmessage(),
+            dummy=self.dummy,
+        )
+        for tag in self.tags:
+            msg.tags.append(tag.serialize_to_cmessage())
+        return msg
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        return cls(
+            atom=Atom.parse_from_cmessage(cmsg.atom, **kwargs),
+            codeloc=AILCodeLocation.parse_from_cmessage(cmsg.codeloc),
+            dummy=cmsg.dummy,
+            tags={Tag.parse_from_cmessage(t) for t in cmsg.tags},
+        )
