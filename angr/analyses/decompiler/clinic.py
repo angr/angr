@@ -4188,3 +4188,41 @@ class Clinic(Analysis):
 
 
 register_analysis(Clinic, "Clinic")
+
+
+# Attach Serializable methods to Clinic. Imported after the class is defined so that ``clinic_serialize`` can reference
+# Clinic without circular-import gymnastics.
+from . import clinic_serialize as _clinic_serialize
+from angr.protos import clinic_pb2 as _clinic_pb2
+from angr.serializable import Serializable as _Serializable
+
+
+def _clinic_get_cmsg(cls):
+    return _clinic_pb2.Clinic()
+
+
+def _clinic_serialize_to_cmessage(self):
+    return _clinic_serialize.serialize_clinic(self)
+
+
+def _clinic_parse_from_cmessage(
+    cls,
+    cmsg,
+    *,
+    project=None,
+    kb=None,
+    function=None,
+    variable_kb=None,
+    cfg=None,
+    **kwargs,
+):
+    return _clinic_serialize.parse_clinic(
+        cmsg, project=project, kb=kb, function=function, variable_kb=variable_kb, cfg=cfg
+    )
+
+
+Clinic._get_cmsg = classmethod(_clinic_get_cmsg)
+Clinic.serialize_to_cmessage = _clinic_serialize_to_cmessage
+Clinic.parse_from_cmessage = classmethod(_clinic_parse_from_cmessage)
+Clinic.serialize = _Serializable.serialize
+Clinic.parse = classmethod(_Serializable.parse.__func__)

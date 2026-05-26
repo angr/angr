@@ -1,0 +1,150 @@
+syntax = "proto3";
+
+import "angr/protos/ailment_blob.proto";
+
+package angr.protos;
+
+// =====================================================================================================================
+// Mirrored enums
+// =====================================================================================================================
+// ClinicMode and ClinicStage are stored as raw int32 values matching the Python ``.value`` of each enum member, rather
+// than as proto enums, so the schema doesn't have to track the (frequently-evolving) ClinicStage member list. The
+// StackItemType enum is small and stable so we keep it as a proto enum.
+
+enum StackItemType {
+    SI_UNKNOWN = 0;
+    SI_SAVED_BP = 1;
+    SI_SAVED_REGS = 2;
+    SI_ARGUMENT = 3;
+    SI_RET_ADDR = 4;
+    SI_STACK_CANARY = 5;
+}
+
+// =====================================================================================================================
+// Small value types
+// =====================================================================================================================
+
+message DataRefDesc {
+    uint64 data_addr = 1;
+    int32  data_size = 2;
+    uint64 block_addr = 3;
+    int32  stmt_idx = 4;
+    uint64 ins_addr = 5;
+    string data_type_str = 6;
+}
+
+message DataRefList {
+    repeated DataRefDesc refs = 1;
+}
+
+message StackItem {
+    int32 offset = 1;
+    int32 size = 2;
+    string name = 3;
+    StackItemType item_type = 4;
+}
+
+message AddressTuple {
+    // ailment.Address = tuple[int, int | None]
+    int64 addr = 1;
+    optional int32 idx = 2;
+}
+
+message AddressPair {
+    AddressTuple src = 1;
+    AddressTuple dst = 2;
+}
+
+message ExternBytes {
+    // serialized SimMemoryVariable subclass via "<ClassName>\\0<proto bytes>" so polymorphic dispatch works at parse.
+    bytes payload = 1;
+}
+
+// =====================================================================================================================
+// Clinic
+// =====================================================================================================================
+// Many ctor parameters double as instance attributes; we round-trip all of them so the cache-hit path sees the same
+// configuration as the original Clinic. Runtime back-references (project / kb / function / variable_kb / cfg /
+// _handlers / typehoon / _spt / _cache) are reattached at parse time from kwargs and are NOT serialized.
+
+message Clinic {
+    // ---- Function and arch hints (resolved from project at parse time) -----------------------------------------------
+    optional uint64 function_addr = 1;
+    optional string flavor = 2;
+
+    // ---- AIL-typed slots (AilmentBlob pickle bridge) -----------------------------------------------------------------
+    optional AilmentBlob graph = 10;                  // networkx.DiGraph[ailment.Block]
+    optional AilmentBlob cc_graph = 11;
+    optional AilmentBlob unoptimized_graph = 12;
+    optional AilmentBlob _ail_graph = 13;
+    optional AilmentBlob _init_ail_graph = 14;
+    optional AilmentBlob _blocks_by_addr_and_size = 15;  // dict[(addr,size), ailment.Block]
+    optional AilmentBlob arg_vvars = 16;              // dict[int, tuple[VirtualVariable, SimVariable]]
+    optional AilmentBlob _init_arg_vvars = 17;
+    optional AilmentBlob func_args = 18;              // set[VirtualVariable] | None
+    optional AilmentBlob _type_hints = 19;            // list[tuple[VirtualVariable | MemoryLocation, str]]
+
+    // ---- Already-Serializable sub-objects ---------------------------------------------------------------------------
+    // arg_list: list[SimVariable] | None
+    repeated ExternBytes arg_list = 20;
+    optional ExternBytes func_ret_var = 21;           // SimVariable
+    repeated ExternBytes externs = 22;                // set[SimMemoryVariable]
+    optional bytes reaching_definitions = 23;         // SRDAModel.serialize()
+
+    // ---- CLEAN primitive collections --------------------------------------------------------------------------------
+    map<uint64, DataRefList> data_refs = 30;          // dict[int, list[DataRefDesc]]
+    map<int32, int32> vvar_to_vvar = 31;              // dict[int, int]
+    repeated uint32 secondary_stackvars = 32;         // set[int]
+    repeated int32 stackarg_offsets_a = 33;           // first element of tuple
+    repeated int32 stackarg_offsets_b = 34;           // second element; paired by index
+    optional bool _stackarg_offsets_set = 35;         // distinguish [] from None
+    repeated uint32 removed_vvar_ids = 36;            // set[int] | None
+    optional bool _removed_vvar_ids_set = 37;
+    repeated uint32 _preserve_vvar_ids = 38;
+    repeated uint64 _inline_functions = 39;           // function addresses
+    map<uint64, int32> _inlined_counts = 40;          // dict[int, int]
+    repeated uint64 _inlining_parents = 41;           // set[int]
+    repeated string _must_struct = 42;                // set[str] | None
+    optional bool _must_struct_set = 43;
+    repeated string _desired_variables = 44;
+    optional bool _desired_variables_set = 45;
+    map<int32, StackItem> stack_items = 46;           // dict[int, StackItem]
+    repeated AddressPair edges_to_remove = 47;
+    repeated uint32 copied_var_ids = 48;
+    repeated uint32 _new_block_addrs = 49;
+    optional AddressTuple entry_node_addr = 50;
+
+    // ---- CLEAN scalars ----------------------------------------------------------------------------------------------
+    int32 vvar_id_start = 60;
+    int32 _max_stack_depth = 61;
+    int32 _sp_shift = 62;
+    int32 _max_type_constraints = 63;
+    int32 _type_constraint_set_degradation_threshold = 64;
+    bool _fold_callexprs_into_conditions = 65;
+    bool _fold_expressions = 66;
+    bool _insert_labels = 67;
+    bool _remove_dead_memdefs = 68;
+    bool _exception_edges = 69;
+    bool _sp_tracker_track_memory = 70;
+    bool _reset_variable_names = 71;
+    bool _rewrite_ites_to_diamonds = 72;
+    bool _flatten_args = 73;
+    bool _semvar_naming = 74;
+    bool _force_loop_single_exit = 75;
+    bool _refine_loops_with_single_successor = 76;
+    bool _complete_successors = 77;
+    bool _register_save_areas_removed = 78;
+
+    int32 _mode = 80;                                  // ClinicMode.value
+    int32 _start_stage = 81;                           // ClinicStage.value
+    int32 _end_stage = 82;
+    repeated int32 _skip_stages = 83;
+
+    // ---- Pass class references (round-tripped via the optimization-pass registry) -----------------------------------
+    repeated string peephole_optimizations = 90;      // FQNs from optimization_pass_registry; empty -> None
+    optional bool _peephole_optimizations_set = 91;   // distinguish [] from None
+    string _typehoon_cls = 92;                        // FQN; empty -> default Typehoon
+
+    // ---- Notes -----------------------------------------------------------------------------------------------------
+    map<string, string> notes_json = 100;             // serialized DecompilationNote per key
+}
