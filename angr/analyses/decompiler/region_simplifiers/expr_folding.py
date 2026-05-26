@@ -470,7 +470,7 @@ class InterferenceChecker(SequenceWalker):
             elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and not isinstance(stmt.expr.target, str):
                 the_call = stmt.expr
             if the_call is not None:
-                assert isinstance(the_call.target, ailment.Stmt.Expression)
+                assert isinstance(the_call.target, ailment.Expr.Expression)
                 spotter.walk_expression(the_call.target)
                 if the_call.args:
                     for arg in the_call.args:

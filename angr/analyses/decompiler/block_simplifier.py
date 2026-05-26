@@ -309,7 +309,7 @@ class BlockSimplifier(Analysis):
         new_statements = []
 
         for stmt in block.statements:
-            if type(stmt) is Assignment:
+            if isinstance(stmt, Assignment):
                 if stmt.dst.likes(stmt.src):
                     continue
                 if (
@@ -379,16 +379,16 @@ class BlockSimplifier(Analysis):
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
-            if type(stmt) is Assignment:
+            if isinstance(stmt, Assignment):
                 # tmps can't execute new code
-                if (type(stmt.dst) is Tmp and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
+                if (isinstance(stmt.dst, Tmp) and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
                     # is it assigning to an unused tmp or a dead virgin?
 
                     # does .src involve any Call expressions? if so, we cannot remove it
                     if not _expression_has_calls(stmt.src):
                         continue
 
-                    if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
+                    if isinstance(stmt.dst, Tmp) and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
                         stmt = SideEffectStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags)
 

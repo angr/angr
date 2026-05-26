@@ -218,7 +218,7 @@ class VEXExprConverter:
         op_name = op._generic_name
         operands = VEXExprConverter.convert_list(expr.args, manager)
 
-        if op_name == "Add" and type(operands[1]) is Const and operands[1].sign_bit == 1:
+        if op_name == "Add" and isinstance(operands[1], Const) and operands[1].sign_bit == 1:
             # convert it to a sub
             op_name = "Sub"
             op1_val, op1_bits = operands[1].value, operands[1].bits
@@ -743,7 +743,7 @@ class VEXIRSBConverter(Converter):
                 else:
                     # got one statement
                     statements.append(converted)
-                    if type(converted) is ConditionalJump:
+                    if isinstance(converted, ConditionalJump):
                         conditional_jumps.append(converted)
             except SkipConversionNotice:
                 pass

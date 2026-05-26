@@ -328,7 +328,6 @@ class ConditionProcessor:
         edge_cond_left = self.recover_edge_condition(graph, src, dst0)
         edge_cond_right = self.recover_edge_condition(graph, src, dst1)
         cond = claripy.Not(edge_cond_left) == edge_cond_right
-        # call claripy.simplify() just in case there are annotations
         return claripy.is_true(claripy.simplify(cond))  # type: ignore
 
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
@@ -793,13 +792,13 @@ class ConditionProcessor:
 
         if last_stmt is None:
             return claripy.true()
-        if type(last_stmt) is ailment.Stmt.Jump:
+        if isinstance(last_stmt, ailment.Stmt.Jump):
             if isinstance(last_stmt.target, ailment.Expr.Const):
                 return claripy.true()
             # indirect jump
             target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.tags["ins_addr"])
             return target_ast == dst_block.addr
-        if type(last_stmt) is ailment.Stmt.ConditionalJump:
+        if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
             bool_var = self.claripy_ast_from_ail_condition(
                 last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
             )
@@ -1025,14 +1024,11 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.Const):
-            if condition.value is True or condition.value is False:
-                var = claripy.BoolV(condition.value)
-            else:
-                var = claripy.BVV(condition.value, condition.bits)
-                if condition.idx is not None:
-                    # we do not want to lose track of this constant when it has idx
-                    var = var.annotate(AILExprIdAnnotation())
-                    self._condition_mapping[var] = condition
+            var = claripy.BVV(condition.value, condition.bits)
+            if condition.idx is not None:
+                # we do not want to lose track of this constant when it has idx
+                var = var.annotate(AILExprIdAnnotation())
+                self._condition_mapping[var] = condition
             if isinstance(var, claripy.ast.Bits) and var.size() == 1:
                 var = claripy.true() if var.concrete_value == 1 else claripy.false()
             return var

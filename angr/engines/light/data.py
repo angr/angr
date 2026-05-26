@@ -317,7 +317,7 @@ class ArithmeticExpression:
     def _unpack_const(expr):
         if type(expr) is int:
             return expr
-        if type(expr) is ailment.expression.Const:
+        if isinstance(expr, ailment.expression.Const):
             return expr.value
         raise NotImplementedError(f"Unsupported const expression type {type(expr)}.")
 

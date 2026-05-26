@@ -625,12 +625,12 @@ class StructurerBase(Analysis):
         # add a break or a conditional break node
         new_node = None
 
-        if type(last_stmt) is ailment.Stmt.Jump:
+        if isinstance(last_stmt, ailment.Stmt.Jump):
             # shrink the block to remove the last statement
             # self._remove_last_statement(node)
             # add a break
             new_node = BreakNode(last_stmt.tags["ins_addr"], last_stmt.target.value)
-        elif type(last_stmt) is ailment.Stmt.ConditionalJump:
+        elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
             # add a conditional break
             true_target_value = None
             false_target_value = None
