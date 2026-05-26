@@ -1,0 +1,468 @@
+syntax = "proto3";
+
+import "angr/protos/ailment_blob.proto";
+
+package angr.protos;
+
+// =====================================================================================================================
+// Indexed AST node table
+// =====================================================================================================================
+// Every CConstruct instance is assigned a unique non-zero ``uint32 node_id`` at serialize time. Children that are
+// CConstructs are referenced by their node_id rather than embedded inline. This lets PositionMapping / map_addr_to_label
+// / cexterns reference into the AST without duplicating subtrees, and gives us a stable handle for resolving cross-tree
+// references on parse.
+//
+// The codegen-level ``Codegen`` message carries:
+//   - ``root_id``      : node_id of the top-level CFunction.
+//   - ``nodes``        : flat list of every CConstruct in the AST.
+//
+// Reference semantics: a missing ``optional ChildId`` field means "no child" (e.g., CWhileLoop with no body). A 0 in a
+// ``repeated`` child-id field is never produced (we never assign 0 as a node_id), but readers should treat 0 as absent
+// just in case.
+// =====================================================================================================================
+
+// CConstruct.tags is constrained at serialize time to entries with string keys and primitive values (None / bool /
+// int / float / str / list / dict of those, in any nesting). Non-conforming entries are dropped on serialize. The
+// JSON encoding lets us round-trip the same set of values the SimType serialization already standardizes on.
+message CConstructTags {
+    map<string, string> json_values = 1;  // map[key] -> json.dumps(value)
+}
+
+// Identifies which payload (oneof variant) a CConstructNode carries. We use a separate enum rather than relying on
+// oneof field tags so that the polymorphic dispatch table stays explicit in Python code.
+enum CConstructKind {
+    CCK_UNKNOWN = 0;
+    CCK_FUNCTION = 1;
+    CCK_STATEMENTS = 2;
+    CCK_AIL_BLOCK = 3;
+    CCK_WHILE_LOOP = 4;
+    CCK_DO_WHILE_LOOP = 5;
+    CCK_FOR_LOOP = 6;
+    CCK_IF_ELSE = 7;
+    CCK_IF_BREAK = 8;
+    CCK_BREAK = 9;
+    CCK_CONTINUE = 10;
+    CCK_SWITCH_CASE = 11;
+    CCK_INCOMPLETE_SWITCH_CASE = 12;
+    CCK_ASSIGNMENT = 13;
+    CCK_EXPRESSION_STATEMENT = 14;
+    CCK_RETURN = 15;
+    CCK_GOTO = 16;
+    CCK_UNSUPPORTED_STATEMENT = 17;
+    CCK_DIRTY_STATEMENT = 18;
+    CCK_LABEL = 19;
+    CCK_FUNCTION_CALL = 20;
+    CCK_STRUCT_FIELD = 21;
+    CCK_FAKE_VARIABLE = 22;
+    CCK_VARIABLE = 23;
+    CCK_INDEXED_VARIABLE = 24;
+    CCK_VARIABLE_FIELD = 25;
+    CCK_UNARY_OP = 26;
+    CCK_BINARY_OP = 27;
+    CCK_TYPE_CAST = 28;
+    CCK_CONSTANT = 29;
+    CCK_REGISTER = 30;
+    CCK_ITE = 31;
+    CCK_MULTI_STATEMENT_EXPRESSION = 32;
+    CCK_VEX_CCALL_EXPRESSION = 33;
+    CCK_DIRTY_EXPRESSION = 34;
+}
+
+// =====================================================================================================================
+// Per-subclass payload messages
+// =====================================================================================================================
+
+// CFunction
+message CFunctionMsg {
+    uint64 addr = 1;
+    string name = 2;
+    string functy_json = 3;                       // SimTypeFunction.to_json
+    repeated uint32 arg_list_ids = 4;             // CVariable node_ids
+    uint32 statements_id = 5;                     // CStatements node_id
+    repeated VariableInUseEntry variables_in_use = 6;
+    optional string demangled_name = 7;
+    bool show_demangled_name = 8;
+    bool omit_header = 9;
+    // variable_manager is reattached at parse time from kwargs; unified_local_vars is recomputed via refresh().
+}
+
+message VariableInUseEntry {
+    bytes simvariable = 1;                        // serialized SimVariable (already Serializable)
+    uint32 cvariable_id = 2;                      // CVariable node_id
+}
+
+// CStatements
+message CStatementsMsg {
+    repeated uint32 statements_ids = 1;
+    optional uint64 addr = 2;
+}
+
+// CAILBlock (ailment-coupled)
+message CAILBlockMsg {
+    AilmentBlob block = 1;                        // ailment.Block via pickle
+}
+
+// CWhileLoop / CDoWhileLoop — same shape.
+message CLoopMsg {
+    optional uint32 condition_id = 1;
+    optional uint32 body_id = 2;
+}
+
+// CForLoop
+message CForLoopMsg {
+    optional uint32 initializer_id = 1;
+    optional uint32 condition_id = 2;
+    optional uint32 iterator_id = 3;
+    optional uint32 body_id = 4;
+}
+
+// CIfElse
+message CIfElseBranch {
+    uint32 condition_id = 1;
+    optional uint32 statement_id = 2;
+}
+message CIfElseMsg {
+    repeated CIfElseBranch condition_and_nodes = 1;
+    optional uint32 else_node_id = 2;
+    bool simplify_else_scope = 3;
+    bool cstyle_ifs = 4;
+}
+
+// CIfBreak
+message CIfBreakMsg {
+    uint32 condition_id = 1;
+    bool cstyle_ifs = 2;
+}
+
+// CBreak / CContinue
+message CBreakMsg {}
+message CContinueMsg {}
+
+// CSwitchCase
+message CSwitchCaseEntry {
+    repeated int64 case_ids = 1;                  // a single int or a tuple of ints
+    uint32 statements_id = 2;                     // CStatements node_id
+}
+message CSwitchCaseMsg {
+    uint32 switch_id = 1;                         // CExpression node_id
+    repeated CSwitchCaseEntry cases = 2;
+    optional uint32 default_id = 3;
+}
+
+// CIncompleteSwitchCase
+message CIncompleteSwitchCaseEntry {
+    int64 case_addr = 1;
+    uint32 statements_id = 2;
+}
+message CIncompleteSwitchCaseMsg {
+    uint32 head_id = 1;
+    repeated CIncompleteSwitchCaseEntry cases = 2;
+}
+
+// CAssignment
+message CAssignmentMsg {
+    uint32 lhs_id = 1;
+    uint32 rhs_id = 2;
+}
+
+// CExpressionStatement
+message CExpressionStatementMsg {
+    uint32 expr_id = 1;
+    bool returning = 2;
+}
+
+// CReturn
+message CReturnMsg {
+    optional uint32 retval_id = 1;
+}
+
+// CGoto. ``target`` may be an int or a CExpression — encode as oneof.
+message CGotoMsg {
+    oneof target {
+        int64 target_int = 1;
+        uint32 target_expr_id = 2;
+    }
+    optional int32 target_idx = 3;
+}
+
+// CUnsupportedStatement (ailment-coupled)
+message CUnsupportedStatementMsg {
+    AilmentBlob stmt = 1;                         // ailment.Stmt.* via pickle
+}
+
+// CDirtyStatement (NOT ailment-coupled; wraps a CDirtyExpression)
+message CDirtyStatementMsg {
+    uint32 dirty_id = 1;                          // CDirtyExpression node_id
+}
+
+// CLabel
+message CLabelMsg {
+    string name = 1;
+}
+
+// CFunctionCall. ``callee_target`` is int | str | CExpression — oneof.
+message CFunctionCallMsg {
+    oneof callee_target {
+        int64 callee_target_int = 1;
+        string callee_target_str = 2;
+        uint32 callee_target_expr_id = 3;
+    }
+    optional uint64 callee_func_addr = 4;         // Function reference; resolved from KB at parse time
+    repeated uint32 args_ids = 5;
+    bool show_demangled_name = 6;
+    bool show_disambiguated_name = 7;
+}
+
+// CStructField
+message CStructFieldMsg {
+    string struct_type_json = 1;
+    int64 offset = 2;
+    string field = 3;
+}
+
+// CFakeVariable
+message CFakeVariableMsg {
+    string name = 1;
+    optional string type_json = 2;                // _type as SimType.to_json
+}
+
+// CVariable
+message CVariableMsg {
+    bytes variable = 1;                           // serialized SimVariable
+    optional bytes unified_variable = 2;
+    optional string variable_type_json = 3;
+    optional uint32 vvar_id = 4;
+}
+
+// CIndexedVariable
+message CIndexedVariableMsg {
+    uint32 variable_id = 1;
+    uint32 index_id = 2;
+    optional string type_json = 3;
+}
+
+// CVariableField
+message CVariableFieldMsg {
+    uint32 variable_id = 1;
+    uint32 field_id = 2;                          // CStructField node_id
+    bool var_is_ptr = 3;
+}
+
+// CUnaryOp
+message CUnaryOpMsg {
+    string op = 1;
+    uint32 operand_id = 2;
+}
+
+// CBinaryOp
+message CBinaryOpMsg {
+    string op = 1;
+    uint32 lhs_id = 2;
+    uint32 rhs_id = 3;
+    string common_type_json = 4;                  // common_type as SimType.to_json
+}
+
+// CTypeCast
+message CTypeCastMsg {
+    string src_type_json = 1;
+    string dst_type_json = 2;
+    uint32 expr_id = 3;
+}
+
+// CConstant. ``value`` is int | float | str. ``reference_values`` is dict[SimType, int|MemoryData|bytes|str].
+message CConstantReferenceValue {
+    string type_json = 1;
+    oneof value {
+        int64 int_value = 2;
+        bytes raw_bytes = 3;
+        string str_value = 4;
+        bytes memory_data = 5;                    // serialized MemoryData via its existing Serializable
+    }
+}
+message CConstantMsg {
+    oneof value {
+        int64 int_value = 1;
+        double float_value = 2;
+        string str_value = 3;
+    }
+    string type_json = 4;
+    repeated CConstantReferenceValue reference_values = 5;
+}
+
+// CRegister
+message CRegisterMsg {
+    string reg = 1;
+}
+
+// CITE
+message CITEMsg {
+    uint32 cond_id = 1;
+    uint32 iftrue_id = 2;
+    uint32 iffalse_id = 3;
+}
+
+// CMultiStatementExpression
+message CMultiStatementExpressionMsg {
+    uint32 stmts_id = 1;
+    uint32 expr_id = 2;
+}
+
+// CVEXCCallExpression
+message CVEXCCallExpressionMsg {
+    string callee = 1;
+    repeated uint32 operands_ids = 2;
+}
+
+// CDirtyExpression (ailment-coupled)
+message CDirtyExpressionMsg {
+    AilmentBlob dirty = 1;                        // ailment.Expr.DirtyExpression via pickle
+}
+
+// =====================================================================================================================
+// Polymorphic CConstruct wrapper
+// =====================================================================================================================
+
+message CConstructNode {
+    uint32 node_id = 1;
+    CConstructKind kind = 2;
+    CConstructTags tags = 3;
+    string idx = 4;
+    // For CExpression subclasses only:
+    optional bool collapsed = 5;
+    optional string expr_type_json = 6;           // _type as SimType.to_json (cached on CExpression)
+
+    oneof body {
+        CFunctionMsg cfunction = 100;
+        CStatementsMsg cstatements = 101;
+        CAILBlockMsg cailblock = 102;
+        CLoopMsg cwhile = 103;
+        CLoopMsg cdowhile = 104;
+        CForLoopMsg cfor = 105;
+        CIfElseMsg cifelse = 106;
+        CIfBreakMsg cifbreak = 107;
+        CBreakMsg cbreak = 108;
+        CContinueMsg ccontinue = 109;
+        CSwitchCaseMsg cswitch = 110;
+        CIncompleteSwitchCaseMsg cincomplete_switch = 111;
+        CAssignmentMsg cassignment = 112;
+        CExpressionStatementMsg cexpression_stmt = 113;
+        CReturnMsg creturn = 114;
+        CGotoMsg cgoto = 115;
+        CUnsupportedStatementMsg cunsupported = 116;
+        CDirtyStatementMsg cdirty_stmt = 117;
+        CLabelMsg clabel = 118;
+        CFunctionCallMsg cfuncall = 119;
+        CStructFieldMsg cstruct_field = 120;
+        CFakeVariableMsg cfake_var = 121;
+        CVariableMsg cvar = 122;
+        CIndexedVariableMsg cindexed_var = 123;
+        CVariableFieldMsg cvar_field = 124;
+        CUnaryOpMsg cunop = 125;
+        CBinaryOpMsg cbinop = 126;
+        CTypeCastMsg ctypecast = 127;
+        CConstantMsg cconst = 128;
+        CRegisterMsg creg = 129;
+        CITEMsg cite = 130;
+        CMultiStatementExpressionMsg cmulti_stmt_expr = 131;
+        CVEXCCallExpressionMsg cvex_ccall = 132;
+        CDirtyExpressionMsg cdirty_expr = 133;
+    }
+}
+
+// =====================================================================================================================
+// Position mappings
+// =====================================================================================================================
+// PositionMappingElement holds (start, length, obj). For all three PositionMappings used by codegen (map_pos_to_node,
+// map_pos_to_addr, and the per-SimVariable sets in map_ast_to_pos), ``obj`` is a CConstruct, so we store it as a
+// node_id reference. The InstructionMapping (map_addr_to_pos) maps ins_addr -> posmap_pos which are both ints.
+
+message PositionMappingEntry {
+    int32 start = 1;
+    int32 length = 2;
+    uint32 node_id = 3;                           // 0 means "no node" — though in practice obj is always present
+}
+
+message PositionMappingMsg {
+    repeated PositionMappingEntry entries = 1;
+}
+
+message InstructionMappingEntry {
+    uint64 ins_addr = 1;
+    int32 posmap_pos = 2;
+}
+
+message InstructionMappingMsg {
+    repeated InstructionMappingEntry entries = 1;
+}
+
+// map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]]
+message AstToPosEntry {
+    bytes simvariable = 1;
+    repeated PositionMappingEntry elements = 2;
+}
+
+// map_addr_to_label: dict[tuple[int, int | None], CLabel]
+message AddrToLabelEntry {
+    int64 addr = 1;
+    optional int32 idx = 2;                       // tuple's second element (block_idx); absent means None
+    uint32 label_id = 3;                          // CLabel node_id
+}
+
+// =====================================================================================================================
+// Top-level codegen wrapper
+// =====================================================================================================================
+
+message Codegen {
+    // AST table.
+    uint32 root_id = 1;                           // node_id of the top-level CFunction
+    repeated CConstructNode nodes = 2;
+
+    // Rendered text.
+    optional string text = 3;
+    optional string flavor = 4;
+
+    // Display-side state.
+    PositionMappingMsg map_pos_to_node = 10;
+    PositionMappingMsg map_pos_to_addr = 11;
+    InstructionMappingMsg map_addr_to_pos = 12;
+    repeated AstToPosEntry map_ast_to_pos = 13;
+    repeated AddrToLabelEntry map_addr_to_label = 14;
+    repeated uint32 cexterns_ids = 15;            // CVariable node_ids
+
+    // Comments and notes.
+    map<int64, string> expr_comments = 20;
+    map<int64, string> stmt_comments = 21;
+    map<string, string> notes_json = 22;          // DecompilationNote serialized to JSON; key = note key
+    // const_formats: dict[IdentType, dict[str, bool]]; IdentType = tuple[int, int, str]
+    repeated ConstFormatEntry const_formats = 23;
+
+    // Display options (round-tripped but not strictly part of the result).
+    optional int32 indent = 30;
+    optional bool show_casts = 31;
+    optional bool comment_gotos = 32;
+    optional bool braces_on_own_lines = 33;
+    optional bool use_compound_assignments = 34;
+    optional bool show_local_types = 35;
+    optional bool cstyle_null_cmp = 36;
+    optional bool show_externs = 37;
+    optional bool show_demangled_name = 38;
+    optional bool show_disambiguated_name = 39;
+    optional bool simplify_else_scope = 40;
+    optional bool cstyle_ifs = 41;
+    optional bool omit_func_header = 42;
+    optional bool display_block_addrs = 43;
+    optional bool display_vvar_ids = 44;
+    optional bool display_notes = 45;
+    optional bool prettify_thiscall = 46;
+    optional bool cstyle_void_param = 47;
+    optional int32 binop_depth_cutoff = 48;
+    optional uint64 min_data_addr = 49;
+    optional int32 max_str_len = 50;
+}
+
+message ConstFormatEntry {
+    int64 ident_ins_addr = 1;
+    int32 ident_kind = 2;
+    string ident_value = 3;
+    map<string, bool> fmt = 4;
+}
