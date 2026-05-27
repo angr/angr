@@ -1,15 +1,10 @@
 from __future__ import annotations
-from typing import TypeVar
 from typing import Self
 
 from collections.abc import Callable
 from collections import ChainMap
 
 _MISSING = object()
-
-K = TypeVar("K")
-V = TypeVar("V")
-TD = TypeVar("TD")
 
 
 class ChainMapCOW[K, V](ChainMap):
@@ -69,7 +64,7 @@ class ChainMapCOW[K, V](ChainMap):
         self._deleted.add(key)
         return value
 
-    def get(self, key: K, default: TD = None) -> V | TD:
+    def get[TD](self, key: K, default: TD = None) -> V | TD:
         if key in self._deleted:
             return default
         return super().get(key, default)

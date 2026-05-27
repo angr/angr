@@ -2,12 +2,9 @@
 from __future__ import annotations
 from collections.abc import Callable
 from collections import defaultdict
-from typing import TypeVar
 
 from .structuring import structurer_class_from_name
 from .structuring.phoenix import MultiStmtExprMode
-
-T = TypeVar("T")
 
 
 class DecompilationOption[T]:

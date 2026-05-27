@@ -1,10 +1,7 @@
 from __future__ import annotations
-from typing import Any, TypeVar
-from dataclasses import dataclass, field
 
-BlockAddr = TypeVar("BlockAddr", bound="int | None")
-StmtIdx = TypeVar("StmtIdx", bound="int | None")
-Context = TypeVar("Context")
+from dataclasses import dataclass, field
+from typing import Any
 
 
 class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:

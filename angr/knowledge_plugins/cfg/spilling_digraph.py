@@ -15,7 +15,7 @@ import struct
 import threading
 from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 import lmdb
 import networkx
@@ -32,11 +32,8 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(__name__)
 
-DK = TypeVar("DK")
-DV = TypeVar("DV")
 
-
-class DirtyDict(UserDict[DK, DV]):
+class DirtyDict[DK, DV](UserDict[DK, DV]):
     """
     A simple dict subclass that tracks whether it has been modified since creation or last reset.
 

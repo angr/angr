@@ -1,12 +1,8 @@
 from __future__ import annotations
 import platform
-from typing import TypeVar
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
 LIST2DICT_THRESHOLD = 96 if platform.python_implementation() == "PyPy" else 2048
-
-
-VT = TypeVar("VT")
 
 
 class DynamicDictList[VT]:

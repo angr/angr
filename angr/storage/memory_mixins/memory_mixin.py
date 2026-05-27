@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, TypeVar
+from typing import Any
 from typing import Self
 
 import claripy
 
 from angr.errors import SimMemoryError
 from angr.state_plugins.plugin import SimStatePlugin
-
-InData = TypeVar("InData")
-OutData = TypeVar("OutData")
-Addr = TypeVar("Addr")
 
 
 class MemoryMixin[InData, OutData, Addr](SimStatePlugin):

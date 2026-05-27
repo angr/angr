@@ -5,7 +5,7 @@ import functools
 import itertools
 import logging
 import weakref
-from typing import Any, TypeVar, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
 
 import archinfo
@@ -49,9 +49,6 @@ def arch_overridable(f):
 
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
-
-IPTypeConc = TypeVar("IPTypeConc")
-IPTypeSym = TypeVar("IPTypeSym")
 
 
 # pylint: disable=not-callable

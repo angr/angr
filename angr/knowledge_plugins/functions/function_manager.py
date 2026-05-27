@@ -29,13 +29,12 @@ from angr.protos import function_pb2
 from .function import Function
 from .soot_function import SootFunction
 
-K = TypeVar("K", int, SootMethodDescriptor)
-T = TypeVar("T")
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
     from angr.knowledge_plugins.rtdb import RuntimeDb
 
+K = TypeVar("K", int, SootMethodDescriptor)
 
 QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
 ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
@@ -107,7 +106,7 @@ class FunctionDictBase[K: (int, SootMethodDescriptor)]:
     @overload
     def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
+    def get[T](self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
 
     def get(self, addr: K, default=_missing, /, meta_only: bool = False):
         raise NotImplementedError
@@ -141,7 +140,7 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
+    def get[T](self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
     def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type: ignore #pylint:disable=unused-argument
         try:
@@ -362,7 +361,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
+    def get[T](self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
     def get(self, addr, default=_missing, /, meta_only: bool = False):  # type: ignore
         # First check in-memory

@@ -7,7 +7,7 @@ import contextlib
 from collections import defaultdict
 from collections.abc import Callable
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, cast, Any
+from typing import TYPE_CHECKING, cast, Any
 from types import NoneType
 from itertools import chain
 from traceback import format_exception
@@ -111,9 +111,6 @@ class AnalysisLogEntry:
         return f"<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>"
 
 
-A = TypeVar("A", bound="Analysis")
-
-
 class AnalysesHub(PluginVendor[Any]):
     """
     This class contains functions for all the registered and runnable analyses,
@@ -123,7 +120,7 @@ class AnalysesHub(PluginVendor[Any]):
         super().__init__()
         self.project = project
 
-    def _init_plugin(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
+    def _init_plugin[A: Analysis](self, plugin_cls: type[A]) -> AnalysisFactory[A]:
         return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
     def __getstate__(self):  # type: ignore[reportIncompatibleMethodOverride]
@@ -134,7 +131,7 @@ class AnalysesHub(PluginVendor[Any]):
         s, self.project = sd
         super().__setstate__(s)
 
-    def __getitem__(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
+    def __getitem__[A: Analysis](self, plugin_cls: type[A]) -> AnalysisFactory[A]:
         return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
 

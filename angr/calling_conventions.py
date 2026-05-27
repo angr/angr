@@ -1,7 +1,7 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 from __future__ import annotations
 import logging
-from typing import cast, TypeVar
+from typing import cast
 
 from collections.abc import Iterable
 from collections import defaultdict
@@ -43,8 +43,6 @@ from .state_plugins.sim_action_object import SimActionObject
 from .rust.sim_type import RustSimEnum
 
 l = logging.getLogger(name=__name__)
-
-T = TypeVar("T", bound="SimFunctionArgument")
 
 
 class PointerWrapper:

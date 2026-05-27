@@ -3,11 +3,8 @@ from __future__ import annotations
 import abc
 from typing import TypeVar
 
-
 import angr
 
-StateType = TypeVar("StateType")
-ResultType = TypeVar("ResultType")
 DataType_co = TypeVar("DataType_co", covariant=True)
 
 

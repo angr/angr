@@ -3,7 +3,7 @@ from __future__ import annotations
 # pylint: disable=import-outside-toplevel
 from collections import defaultdict, deque
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 import networkx
 
@@ -25,9 +25,6 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler import Clinic
 
     from .visitors.graph import GraphVisitor
-
-AnalysisState = TypeVar("AnalysisState")
-SuccessorType = TypeVar("SuccessorType")
 
 
 class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
