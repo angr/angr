@@ -778,12 +778,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         self.add_constraints(expr == v)
         return v
 
-    # This handles the preparation of concrete function launches from abstract functions.
-    @arch_overridable
-    def prepare_callsite(self, retval, args, cc="wtf"):
-        # TODO
-        pass
-
     def _stack_values_to_string(self, stack_values):
         """
         Convert each stack value to a string
