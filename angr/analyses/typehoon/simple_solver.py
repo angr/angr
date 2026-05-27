@@ -737,7 +737,7 @@ class SimpleSolver:
                         tvs, filtered_constraint_subset, primitive_constraints
                     )
                 tvs_with_primitive_constraints = set()
-                for primitive_constraint in primitive_constraints:
+                for primitive_constraint in sorted(primitive_constraints, key=repr):
                     tv = self._typevar_from_primitive_constraint(primitive_constraint)
                     tvs_with_primitive_constraints.add(tv)
                     assert tv is not None, f"Cannot find type variable in primitive constraint {primitive_constraint}"
