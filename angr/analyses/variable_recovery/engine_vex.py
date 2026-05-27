@@ -312,7 +312,7 @@ class SimEngineVRVEX(
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data.concrete_value))
+            typevar = self.tv_manager.new_dtv(r0.typevar, label=typevars.AddN(r1.data.concrete_value))
 
         tc: set[typevars.TypeConstraint] = set()
         if r0.typevar is not None and r1.typevar is not None:
@@ -335,7 +335,7 @@ class SimEngineVRVEX(
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data.concrete_value))
+            typevar = self.tv_manager.new_dtv(r0.typevar, label=typevars.SubN(r1.data.concrete_value))
 
         return RichR(
             diff,

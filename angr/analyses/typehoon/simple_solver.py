@@ -28,7 +28,7 @@ from .typevars import (
     FuncIn,
     FuncOut,
     ConvertTo,
-    new_dtv,
+    TypeVariableManager,
 )
 from .typeconsts import (
     BottomType,
@@ -548,6 +548,7 @@ class SimpleSolver:
         typevars: dict[TypeVariable, set[TypeVariable]],
         constraint_set_degradation_threshold: int = 150,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
+        tv_manager: TypeVariableManager | None = None,
     ):
         if bits not in (32, 64):
             raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
@@ -555,6 +556,7 @@ class SimpleSolver:
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
         self._typevars: dict[TypeVariable, set[TypeVariable]] = typevars
+        self.tv_manager = tv_manager if tv_manager is not None else TypeVariableManager(0x1337)
         self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._base_lattice = BASE_LATTICES[bits]
@@ -960,8 +962,8 @@ class SimpleSolver:
                 return constraint.super_type
         return None
 
-    @staticmethod
     def _get_all_paths(
+        self,
         graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
         sketch: Sketch,
         node: TypeVariable,
@@ -982,7 +984,7 @@ class SimpleSolver:
                 else:
                     raise TypeError("Unexpected")
                 labels += (label,)
-                succ_derived_typevar = new_dtv(
+                succ_derived_typevar = self.tv_manager.new_dtv_with_merged_labels(
                     base_typevar,
                     labels=labels,
                 )
@@ -990,7 +992,7 @@ class SimpleSolver:
                 succ_node = SketchNode(succ_derived_typevar)
                 sketch.add_edge(curr_node, succ_node, label)
                 visited[succ] = succ_node
-                SimpleSolver._get_all_paths(graph, sketch, succ, visited)
+                self._get_all_paths(graph, sketch, succ, visited)
                 del visited[succ]
             else:
                 # a cycle exists

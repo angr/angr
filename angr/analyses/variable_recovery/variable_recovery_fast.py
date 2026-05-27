@@ -29,7 +29,14 @@ from angr.sim_variable import (
 )
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.analyses import ForwardAnalysis, visitors
-from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
+from angr.analyses.typehoon.typevars import (
+    Equivalence,
+    TypeVariable,
+    TypeVariables,
+    Subtype,
+    DerivedTypeVariable,
+    TypeVariableManager,
+)
 from angr.analyses.typehoon.typeconsts import Int, TypeConstant, BottomType, TopType
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.rust.typehoon.translator import RustTypeTranslator
@@ -149,9 +156,9 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         for v0, v1 in self.phi_variables.items():
             # v0 will be replaced by v1
             if not typevars.has_type_variable_for(v1):
-                typevars.add_type_variable(v1, TypeVariable())
+                typevars.add_type_variable(v1, self._tv_manager.new_tv())
             if not typevars.has_type_variable_for(v0):
-                typevars.add_type_variable(v0, TypeVariable())
+                typevars.add_type_variable(v0, self._tv_manager.new_tv())
             # Assuming v2 = phi(v0, v1), then we know that v0_typevar == v1_typevar == v2_typevar
             # However, it's possible that neither v0 nor v1 will ever be used in future blocks, which not only makes
             # this phi function useless, but also leads to the incorrect assumption that v1_typevar == v2_typevar.
@@ -176,7 +183,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             if len(all_typevars) == 1:
                 typevar = all_typevars.pop()
             else:
-                typevar = TypeVariable()
+                typevar = self._tv_manager.new_tv()
                 for orig_typevar in all_typevars:
                     type_constraints[self.func_typevar].add(Equivalence(orig_typevar, typevar))
             stack_offset_typevars[offset] = typevar
@@ -291,6 +298,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._func_arg_vvars = func_arg_vvars
         self._func_ret_var = func_ret_var
         self._unify_variables = unify_variables
+        self.tv_manager = TypeVariableManager(self.function.addr)
 
         # handle type hints
         self.type_lifter = (
@@ -315,6 +323,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             vvar_type_hints=self.vvar_type_hints,
             type_lifter=self.type_lifter,
             func_ret_var=self._func_ret_var,
+            tv_manager=self.tv_manager,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -324,7 +333,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.var_to_typevars: defaultdict[SimVariable, set[TypeVariable]] = defaultdict(set)
         self.typevars = None
         self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
-        self.func_typevar = TypeVariable(name=func.name)
+        self.func_typevar = self.tv_manager.new_tv(name=func.name)
         self.delayed_type_constraints = None
         self.ret_val_size = None
         self.stack_offset_typevars: dict[int, TypeVariable] = {}
@@ -343,7 +352,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     def _pre_analysis(self):
         self.typevars = TypeVariables()
         if self._func_ret_var is not None:
-            self.typevars.add_type_variable(self._func_ret_var, TypeVariable())
+            self.typevars.add_type_variable(self._func_ret_var, self.tv_manager.new_tv())
         self.type_constraints = defaultdict(set)
         self.delayed_type_constraints = defaultdict(set)
 

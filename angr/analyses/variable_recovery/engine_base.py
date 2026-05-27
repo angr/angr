@@ -71,7 +71,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
     and storing data.
     """
 
-    def __init__(self, project, kb, vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None):
+    def __init__(
+        self,
+        project,
+        kb,
+        vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
+        tv_manager: typevars.TypeVariableManager | None = None,
+    ):
         super().__init__(project)
 
         self.vvar_type_hints: dict[int, typeconsts.TypeConstant] = (
@@ -79,6 +85,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         )
         self.kb = kb
         self.vvar_region: dict[int, Any] = {}
+        self.tv_manager = tv_manager if tv_manager is not None else typevars.TypeVariableManager(0x1337)
 
     @property
     def func_addr(self):
@@ -283,7 +290,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             if isinstance(variable, SimStackVariable) and variable.offset in self.state.stack_offset_typevars:
                 variable_typevar = self.state.stack_offset_typevars[variable.offset]
             else:
-                variable_typevar = typevars.TypeVariable()
+                variable_typevar = self.tv_manager.new_tv()
             self.state.typevars.add_type_variable(variable, variable_typevar)
         # we do not add any type constraint here because we are not sure if the given memory address will ever be
         # accessed or not
@@ -366,7 +373,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable):
                 # assign a new type variable to it
-                typevar = typevars.TypeVariable()
+                typevar = self.tv_manager.new_tv()
                 self.state.typevars.add_type_variable(variable, typevar)
                 # create constraints
             else:
@@ -487,7 +494,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 if isinstance(richr.typevar, typevars.DerivedTypeVariable):
                     typevar = richr.typevar
                 else:
-                    typevar = typevars.TypeVariable()
+                    typevar = self.tv_manager.new_tv()
                 self.state.typevars.add_type_variable(variable, typevar)
             else:
                 typevar = self.state.typevars.get_type_variable(variable)
@@ -629,7 +636,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             # create type constraints
             if data.typevar is not None:
                 if not self.state.typevars.has_type_variable_for(variable):
-                    typevar = typevars.TypeVariable()
+                    typevar = self.tv_manager.new_tv()
                     self.state.typevars.add_type_variable(variable, typevar)
                 else:
                     typevar = self.state.typevars.get_type_variable(variable)
@@ -705,7 +712,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         # create type constraints
         if not self.state.typevars.has_type_variable_for(variable):
-            typevar = typevars.TypeVariable()
+            typevar = self.tv_manager.new_tv()
             self.state.typevars.add_type_variable(variable, typevar)
         else:
             typevar = self.state.typevars.get_type_variable(variable)
@@ -720,7 +727,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 store_typevar = self._create_access_typevar(typevar, True, size, 0)
                 self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
             # FIXME: This is a hack so that we can interpret the target as an array
-            is_array = typevars.DerivedTypeVariable(typevar, typevars.IsArray())
+            is_array = self.tv_manager.new_dtv(typevar, label=typevars.IsArray())
             self.state.add_type_constraint(typevars.Existence(is_array))
 
             if data.typevar is not None:
@@ -740,7 +747,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             for tc in richr_addr.type_constraints:
                 self.state.add_type_constraint(tc)
 
-        typevar = typevars.TypeVariable() if richr_addr.typevar is None else richr_addr.typevar
+        typevar = self.tv_manager.new_tv() if richr_addr.typevar is None else richr_addr.typevar
 
         if isinstance(typevar, typevars.TypeVariable):
             if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.one_label, typevars.AddN):
@@ -880,13 +887,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
                     # create type constraints
                     if not self.state.typevars.has_type_variable_for(var):
-                        typevar = typevars.TypeVariable()
+                        typevar = self.tv_manager.new_tv()
                         self.state.typevars.add_type_variable(var, typevar)
                     else:
                         typevar = self.state.typevars.get_type_variable(var)
 
                 else:
-                    typevar = typevars.TypeVariable()
+                    typevar = self.tv_manager.new_tv()
                     sub_type = typeconsts.int_type(size * 8)
                     if sub_type is not None:
                         self.state.add_type_constraint(typevars.Subtype(sub_type, typevar))
@@ -992,7 +999,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         variable, _ = next(iter(existing_vars))
         # create type constraints
         if not self.state.typevars.has_type_variable_for(variable):
-            typevar = typevars.TypeVariable()
+            typevar = self.tv_manager.new_tv()
             self.state.typevars.add_type_variable(variable, typevar)
         else:
             typevar = self.state.typevars.get_type_variable(variable)
@@ -1092,7 +1099,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     self.state.delayed_type_constraints.pop(var)
 
                 if var not in self.state.typevars:
-                    typevar = typevars.TypeVariable()
+                    typevar = self.tv_manager.new_tv()
                     self.state.typevars.add_type_variable(var, typevar)
                 else:
                     # FIXME: This is an extremely stupid hack. Fix it later.
@@ -1239,7 +1246,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     self.state.delayed_type_constraints.pop(var)
 
                 if var not in self.state.typevars:
-                    typevar = typevars.TypeVariable()
+                    typevar = self.tv_manager.new_tv()
                     self.state.typevars.add_type_variable(var, typevar)
                 else:
                     # FIXME: This is an extremely stupid hack. Fix it later.
@@ -1286,7 +1293,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     self.state.variable_manager[self.func_addr].record_variable(codeloc, var, 0, atom=expr)
                 else:
                     var = next(iter(var_candidates))[0]
-                ty = typevars.TypeVariable()
+                ty = self.tv_manager.new_tv()
                 ty_const = typeconsts.int_type(bits)
                 if not self.state.typevars.has_type_variable_for(var):
                     self.state.typevars.add_type_variable(var, ty)
@@ -1311,29 +1318,28 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 if len(typevar.labels) == 1:
                     typevar = typevar.type_var
                 else:
-                    typevar = typevars.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
+                    typevar = self.tv_manager.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
             elif isinstance(typevar.labels[-1], SubN):
                 offset -= typevar.labels[-1].n
                 if len(typevar.labels) == 1:
                     typevar = typevar.type_var
                 else:
-                    typevar = typevars.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
+                    typevar = self.tv_manager.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
 
         if offset >= 4096:
             if self._likely_pointer(offset):
                 # typevar is the actual offset
-                return TypeVariable()
+                return self.tv_manager.new_tv()
             if (self.arch.bits == 32 and offset > 0x7FFF_FFFF) or (
                 self.arch.bits == 64 and offset > 0x7FFF_FFFF_FFFF_FFFF
             ):
                 # probably a negative offset
-                return TypeVariable()
+                return self.tv_manager.new_tv()
 
-        return DerivedTypeVariable(
+        return self.tv_manager.new_dtv(
             typevar,
-            None,
             labels=(lbl, typevars.HasField(bits, offset)),
         )
 
