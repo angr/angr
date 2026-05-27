@@ -1,7 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
 import logging
-from typing import TypeVar
 
 import networkx
 
@@ -16,8 +15,6 @@ from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
 
 _l = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 
 class Outliner(Analysis):

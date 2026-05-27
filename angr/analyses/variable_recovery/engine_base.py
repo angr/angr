@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TypeVar, cast
+from typing import Any, cast
 import contextlib
 import logging
 
@@ -29,8 +29,6 @@ from angr.utils.constants import MAX_POINTSTO_BITS
 #
 
 l = logging.getLogger(name=__name__)
-
-RichRT_co = TypeVar("RichRT_co", bound=claripy.ast.Bits, covariant=True)
 
 
 class RichR[RichRT_co: claripy.ast.Bits]:
@@ -63,9 +61,6 @@ class RichR[RichRT_co: claripy.ast.Bits]:
 
     def __repr__(self):
         return f"R{{{self.data!r}}}"
-
-
-VRStateType = TypeVar("VRStateType", bound=VariableRecoveryStateBase)
 
 
 class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockProtocol](

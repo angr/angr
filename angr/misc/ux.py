@@ -3,7 +3,6 @@ from __future__ import annotations
 import warnings
 from collections.abc import Callable
 from functools import wraps
-from typing import ParamSpec, TypeVar
 
 once_set: set[str] = set()
 
@@ -17,11 +16,8 @@ def once(key: str) -> bool:
 
 already_complained: set[object] = set()
 
-P = ParamSpec("P")
-R = TypeVar("R")
 
-
-def deprecated(replacement: str | None = None) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def deprecated[R, **P](replacement: str | None = None) -> Callable[[Callable[P, R]], Callable[P, R]]:
     def outer(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
         def inner(*args: P.args, **kwargs: P.kwargs) -> R:

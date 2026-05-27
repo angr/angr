@@ -1,6 +1,6 @@
 from __future__ import annotations
 import weakref
-from typing import Any, TYPE_CHECKING, cast, TypeVar
+from typing import Any, TYPE_CHECKING, cast
 from collections.abc import Generator, Iterable
 import logging
 from collections import defaultdict
@@ -30,8 +30,6 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-
-AnyClaripy = TypeVar("AnyClaripy", bound=claripy.ast.Base)
 
 
 def parse_stack_pointer(sp):
@@ -299,7 +297,9 @@ class VariableRecoveryStateBase:
                 yield from anno.addr_and_variables
 
     @staticmethod
-    def annotate_with_variables(expr: AnyClaripy, addr_and_variables: Iterable[tuple[int, SimVariable]]) -> AnyClaripy:
+    def annotate_with_variables[T: claripy.ast.Base](
+        expr: T, addr_and_variables: Iterable[tuple[int, SimVariable]]
+    ) -> T:
         return expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
 
     def stack_address(self, offset: int) -> claripy.ast.BV:

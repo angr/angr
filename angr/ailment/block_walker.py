@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Callable
 from abc import abstractmethod
-from typing import Any, TypeVar, cast
+from typing import Any, cast
 
 from . import Block
 from .statement import (
@@ -45,10 +45,6 @@ from .expression import (
     Insert,
     FunctionLikeMacro,
 )
-
-ExprType = TypeVar("ExprType")
-StmtType = TypeVar("StmtType")
-BlockType = TypeVar("BlockType")
 
 
 class AILBlockWalker[ExprType, StmtType, BlockType]:
@@ -372,7 +368,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
         return None
 
-    def _handle_block_end(self, stmt_results: list[StmtType], block: Block):
+    def _handle_block_end(self, stmt_results: list[None], block: Block):
         return None
 
     # Duplicate all handlers for performance...
