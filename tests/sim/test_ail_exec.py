@@ -68,7 +68,8 @@ class TestAILExec(unittest.TestCase):
     def test_vexccall_expression(self):
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -105,7 +106,7 @@ class TestAILExec(unittest.TestCase):
 
         assert len(successors.successors) == 1
         succ = successors.successors[0]
-        assert succ.addr == (0x400004, None)
+        assert succ.addr == 0x400004
 
         out = succ.registers.load(r0_offset, 4)
         assert isinstance(out, claripy.ast.BV)
@@ -116,7 +117,8 @@ class TestAILExec(unittest.TestCase):
         # some conditions may evaluate to BV1 (0/1) instead of Bool.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -141,13 +143,13 @@ class TestAILExec(unittest.TestCase):
         assert len(succ.unconstrained_successors) == 0
 
         true_succ = succ.successors[0]
-        assert true_succ.addr == (0x400004, None)
+        assert true_succ.addr == 0x400004
         assert true_succ.history.jumpkind == "Ijk_Boring"
         assert true_succ.scratch.exit_stmt_idx == 0
         assert true_succ.solver.is_true(true_succ.scratch.guard)
 
         false_succ = succ.unsat_successors[0]
-        assert false_succ.addr == (0x400008, None)
+        assert false_succ.addr == 0x400008
         assert false_succ.history.jumpkind == "Ijk_Boring"
         assert false_succ.scratch.exit_stmt_idx == 0
         assert false_succ.solver.is_false(false_succ.scratch.guard)
@@ -158,7 +160,8 @@ class TestAILExec(unittest.TestCase):
         # The engine should not assert; it should return a conservative top value instead.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -176,7 +179,7 @@ class TestAILExec(unittest.TestCase):
         engine.process(state, block=pred_block)
         assert len(pred_succ.successors) == 1
         s1 = pred_succ.successors[0]
-        assert s1.addr == (0x400004, None)
+        assert s1.addr == 0x400004
 
         # Emulate the history linkage normally created by SimSuccessors.process():
         # SimEngineAILSimState._handle_expr_Phi consults state.history.parent.recent_bbl_addrs[-1] to pick the
@@ -219,7 +222,8 @@ class TestAILExec(unittest.TestCase):
         # (notably Reference(vvar_*)) materialize stack vvars into the AIL callstack frame.
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state(add_options={angr.options.CALLLESS})
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -267,7 +271,8 @@ class TestAILExec(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, "x86_64", "true"), auto_load_libs=False)
 
         state = p.factory.blank_state()
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
         state.globals["ail_var_memory_cls"] = DefaultMemory
         state.globals["ail_lifter"] = lambda _addr: None
 
@@ -315,7 +320,7 @@ class TestAILExec(unittest.TestCase):
         assert len(successors.unconstrained_successors) == 0
 
         succ = successors.successors[0]
-        assert succ.addr == (0x400004, None)
+        assert succ.addr == 0x400004
         assert succ.history.jumpkind == "Ijk_Boring"
         assert succ.scratch.exit_stmt_idx == 1
 
@@ -325,7 +330,8 @@ class TestAILExec(unittest.TestCase):
         # We should pass only fixed args to run(), but keep all args for va_arg().
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
 
         bottom_frame = AILCallStack()
         state.register_plugin("callstack", bottom_frame)
@@ -354,7 +360,8 @@ class TestAILExec(unittest.TestCase):
         # Engine should assign the first N fixed args and ignore extras without raising.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = (0x400000, None)
+        state.addr = 0x400000
+        state.scratch.ail_block_idx = None
 
         bottom_frame = AILCallStack()
         state.register_plugin("callstack", bottom_frame)
