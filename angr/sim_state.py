@@ -390,8 +390,13 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         return self.solver.eval_one(self.regs._ip)
 
     @addr.setter
-    def addr(self, v):
-        self._ip = v
+    def addr(self, v: int | SootAddressDescriptor | tuple[int, int | None]):
+        # magic to handle ail addresses
+        if isinstance(v, tuple) and len(v) == 2:
+            self._ip = v[0]
+            self.scratch.ail_block_idx = v[1]
+        else:
+            self._ip = v
 
     @property
     def arch(self) -> Arch:

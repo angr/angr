@@ -69,8 +69,7 @@ class TestAILExec(unittest.TestCase):
     def test_vexccall_expression(self):
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -119,8 +118,7 @@ class TestAILExec(unittest.TestCase):
         # some conditions may evaluate to BV1 (0/1) instead of Bool.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -164,8 +162,7 @@ class TestAILExec(unittest.TestCase):
         # The engine should not assert; it should return a conservative top value instead.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -226,8 +223,7 @@ class TestAILExec(unittest.TestCase):
         # (notably Reference(vvar_*)) materialize stack vvars into the AIL callstack frame.
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state(add_options={angr.options.CALLLESS})
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
 
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
@@ -275,8 +271,7 @@ class TestAILExec(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, "x86_64", "true"), auto_load_libs=False)
 
         state = p.factory.blank_state()
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
         state.globals["ail_var_memory_cls"] = DefaultMemory
         state.globals["ail_lifter"] = lambda _addr: None
 
@@ -335,8 +330,7 @@ class TestAILExec(unittest.TestCase):
         # We should pass only fixed args to run(), but keep all args for va_arg().
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
 
         bottom_frame = AILCallStack()
         state.register_plugin("callstack", bottom_frame)
@@ -365,8 +359,7 @@ class TestAILExec(unittest.TestCase):
         # Engine should assign the first N fixed args and ignore extras without raising.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
-        state.addr = 0x400000
-        state.scratch.ail_block_idx = None
+        state.addr = (0x400000, None)
 
         bottom_frame = AILCallStack()
         state.register_plugin("callstack", bottom_frame)
