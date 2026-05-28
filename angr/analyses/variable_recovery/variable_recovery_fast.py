@@ -75,6 +75,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         delayed_type_constraints=None,
         stack_offset_typevars=None,
         ret_val_size=None,
+        *,
+        tv_manager: TypeVariableManager,
     ):
         super().__init__(
             block_addr,
@@ -90,6 +92,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             func_typevar=func_typevar,
             delayed_type_constraints=delayed_type_constraints,
             stack_offset_typevars=stack_offset_typevars,
+            tv_manager=tv_manager,
         )
         self.ret_val_size = ret_val_size
 
@@ -107,6 +110,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             self._analysis,
             self.arch,
             self.function,
+            tv_manager=self.tv_manager,
             stack_region=self.stack_region.copy(),  # pyright: ignore[reportCallIssue]
             register_region=self.register_region.copy(),  # pyright: ignore[reportCallIssue]
             global_region=self.global_region.copy(),  # pyright: ignore[reportCallIssue]
@@ -156,9 +160,9 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         for v0, v1 in self.phi_variables.items():
             # v0 will be replaced by v1
             if not typevars.has_type_variable_for(v1):
-                typevars.add_type_variable(v1, self._tv_manager.new_tv())
+                typevars.add_type_variable(v1, self.tv_manager.new_tv())
             if not typevars.has_type_variable_for(v0):
-                typevars.add_type_variable(v0, self._tv_manager.new_tv())
+                typevars.add_type_variable(v0, self.tv_manager.new_tv())
             # Assuming v2 = phi(v0, v1), then we know that v0_typevar == v1_typevar == v2_typevar
             # However, it's possible that neither v0 nor v1 will ever be used in future blocks, which not only makes
             # this phi function useless, but also leads to the incorrect assumption that v1_typevar == v2_typevar.
@@ -183,7 +187,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             if len(all_typevars) == 1:
                 typevar = all_typevars.pop()
             else:
-                typevar = self._tv_manager.new_tv()
+                typevar = self.tv_manager.new_tv()
                 for orig_typevar in all_typevars:
                     type_constraints[self.func_typevar].add(Equivalence(orig_typevar, typevar))
             stack_offset_typevars[offset] = typevar
@@ -203,6 +207,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             self._analysis,
             self.arch,
             self.function,
+            tv_manager=self.tv_manager,
             stack_region=merged_stack_region,
             register_region=merged_register_region,
             global_region=merged_global_region,
@@ -384,6 +389,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             self,
             self.project.arch,
             self.function,
+            tv_manager=self.tv_manager,
             project=self.project,
             typevars=self.typevars,
             type_constraints=self.type_constraints,
