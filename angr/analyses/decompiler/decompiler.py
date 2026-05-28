@@ -758,17 +758,14 @@ class Decompiler(Analysis):
 
         # Type inference
         try:
-            tp = self.project.analyses.Typehoon(
+            tp = self.project.analyses[self._typehoon_cls].prep(kb=var_kb, fail_fast=self._fail_fast)(
                 type_constraints,
                 func_typevar,
-                kb=var_kb,
-                fail_fast=self._fail_fast,
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
                 stack_offset_tvs=stack_offset_typevars,
                 stackvar_max_sizes=tv_max_sizes,
-                typehoon_cls=self._typehoon_cls,
                 tv_manager=tv_manager,
             )
             tp.update_variable_types(

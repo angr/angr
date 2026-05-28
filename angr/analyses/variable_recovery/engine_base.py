@@ -163,10 +163,10 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             )
 
             # find the correct variable
-            existing_vars: list[tuple[SimVariable, int | None]] = []
+            existing_vars: list[tuple[SimVariable, int]] = []
             for candidate, offset in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
-                    existing_vars.append((candidate, offset))
+                    existing_vars.append((candidate, offset if offset is not None else 0))
             if existing_vars:
                 variable, _ = existing_vars[0]
 
@@ -270,7 +270,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             existing_vars: list[tuple[SimVariable, int]] = []
             for candidate, offset in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
-                    existing_vars.append((candidate, offset))
+                    existing_vars.append((candidate, offset if offset is not None else 0))
         elif self.state.is_global_variable_address(data):
             # this is probably an address for a global variable
             global_var_addr = data.concrete_value
@@ -757,12 +757,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 base_typevar = typevar
                 field_offset = 0
 
-            store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
-            data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
-            if data.data.concrete:
-                self.state.add_type_constraint(typevars.Equivalence(store_typevar, data_typevar))
-            else:
-                self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
+            if isinstance(base_typevar, typevars.TypeVariable):
+                store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
+                data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
+                if data.data.concrete:
+                    self.state.add_type_constraint(typevars.Equivalence(store_typevar, data_typevar))
+                else:
+                    self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 
     def _load(self, richr_addr: RichR[claripy.ast.BV], size: int, expr=None):
         """
@@ -1312,25 +1313,20 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         size: int | None,
         offset: int,
     ) -> TypeVariable | DerivedTypeVariable:
-        if isinstance(typevar, DerivedTypeVariable):
-            if isinstance(typevar.labels[-1], AddN):
-                offset += typevar.labels[-1].n
-                if len(typevar.labels) == 1:
-                    typevar = typevar.type_var
-                else:
-                    typevar = self.tv_manager.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
-            elif isinstance(typevar.labels[-1], SubN):
-                offset -= typevar.labels[-1].n
-                if len(typevar.labels) == 1:
-                    typevar = typevar.type_var
-                else:
-                    typevar = self.tv_manager.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
+        tv = typevar
+        if isinstance(tv, DerivedTypeVariable):
+            if isinstance(tv.labels[-1], AddN):
+                offset += tv.labels[-1].n
+                tv = tv.type_var if len(tv.labels) == 1 else self.tv_manager.new_dtv(tv.type_var, labels=tv.labels[:-1])
+            elif isinstance(tv.labels[-1], SubN):
+                offset -= tv.labels[-1].n
+                tv = tv.type_var if len(tv.labels) == 1 else self.tv_manager.new_dtv(tv.type_var, labels=tv.labels[:-1])
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
 
         if offset >= 4096:
             if self._likely_pointer(offset):
-                # typevar is the actual offset
+                # tv is the actual offset
                 return self.tv_manager.new_tv()
             if (self.arch.bits == 32 and offset > 0x7FFF_FFFF) or (
                 self.arch.bits == 64 and offset > 0x7FFF_FFFF_FFFF_FFFF
@@ -1338,10 +1334,11 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 # probably a negative offset
                 return self.tv_manager.new_tv()
 
-        return self.tv_manager.new_dtv(
-            typevar,
+        new_dtv = self.tv_manager.new_dtv(
+            tv,
             labels=(lbl, typevars.HasField(bits, offset)),
         )
+        return cast(DerivedTypeVariable, new_dtv)
 
     def _likely_pointer(self, offset: int) -> bool:
         obj = self.project.loader.find_object_containing(offset)
