@@ -7,7 +7,7 @@ from angr.analyses.analysis import AnalysesHub
 from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.sim_type import RustSimTypeInt
 from angr.sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
-from angr.analyses.typehoon.typevars import TypeVariable
+from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager
 from angr.sim_variable import SimVariable, SimStackVariable
 
 if TYPE_CHECKING:
@@ -28,6 +28,7 @@ class RustTypehoon(Typehoon):
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
         constraint_set_degradation_threshold: int = 150,
         type_translator: RustTypeTranslator | None = None,
+        tv_manager: TypeVariableManager | None = None,
     ):
         super().__init__(
             constraints,
@@ -39,6 +40,7 @@ class RustTypehoon(Typehoon):
             stack_offset_tvs,
             constraint_set_degradation_threshold,
             type_translator=(type_translator if type_translator is not None else RustTypeTranslator(self.project.arch)),
+            tv_manager=tv_manager,
         )
 
     def update_variable_types(

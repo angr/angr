@@ -18,6 +18,7 @@ from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import parse_type
 from angr.errors import AngrAIError
 from angr.analyses.typehoon.typehoon import Typehoon
+from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from .clinic import ClinicStage
@@ -707,6 +708,8 @@ class Decompiler(Analysis):
         stack_offset_typevars = cache.stack_offset_typevars
         stackvar_max_sizes = cache.stackvar_max_sizes
         codegen = cache.codegen
+        max_tv_id = cache.max_tv_id
+        tv_manager = TypeVariableManager(self.func.addr, idx=max_tv_id + 1)
 
         if codegen is None:
             # nothing to reflow; but this should not happen
@@ -755,16 +758,15 @@ class Decompiler(Analysis):
 
         # Type inference
         try:
-            tp = self.project.analyses.Typehoon(
+            tp = self.project.analyses[self._typehoon_cls].prep(kb=var_kb, fail_fast=self._fail_fast)(
                 type_constraints,
                 func_typevar,
-                kb=var_kb,
-                fail_fast=self._fail_fast,
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
                 stack_offset_tvs=stack_offset_typevars,
                 stackvar_max_sizes=tv_max_sizes,
+                tv_manager=tv_manager,
             )
             tp.update_variable_types(
                 self.func.addr,

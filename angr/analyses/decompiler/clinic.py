@@ -2318,6 +2318,7 @@ class Clinic(Analysis):
                     stackvar_max_sizes=tv_max_sizes,
                     constraint_set_degradation_threshold=self._type_constraint_set_degradation_threshold,
                     type_translator=vr.type_lifter,
+                    tv_manager=vr.tv_manager,
                 )
                 # tp.pp_constraints()
                 # tp.pp_solution()
@@ -2386,6 +2387,7 @@ class Clinic(Analysis):
             self._cache.var_to_typevar = vr.var_to_typevars
             self._cache.stack_offset_typevars = vr.stack_offset_typevars
             self._cache.stackvar_max_sizes = stackvar_max_sizes
+            self._cache.max_tv_id = vr.tv_manager.max_tv_id
 
         return tmp_kb
 

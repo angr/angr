@@ -42,9 +42,10 @@ class SimEngineVRAIL(
         vvar_to_vvar: dict[int, int] | None,
         vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
         func_ret_var: SimVariable | None = None,
+        tv_manager: typevars.TypeVariableManager | None = None,
         **kwargs,
     ):
-        super().__init__(*args, vvar_type_hints=vvar_type_hints, **kwargs)
+        super().__init__(*args, vvar_type_hints=vvar_type_hints, tv_manager=tv_manager, **kwargs)
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
@@ -246,7 +247,7 @@ class SimEngineVRAIL(
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
-                ret_ty = typevars.TypeVariable()
+                ret_ty = self.tv_manager.new_tv()
                 if not isinstance(ret_ty, typeconsts.BottomType):
                     type_constraint = typevars.Subtype(ret_ty, return_ty)
                     self.state.add_type_constraint(type_constraint)
@@ -256,7 +257,7 @@ class SimEngineVRAIL(
             self._apply_format_string_type_constraints(func.name, prototype, args, expr.args)
 
         if ret_ty is None:
-            ret_ty = typevars.TypeVariable()
+            ret_ty = self.tv_manager.new_tv()
 
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
@@ -315,7 +316,7 @@ class SimEngineVRAIL(
                 self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.expr.args)
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
-            ret_ty = typevars.TypeVariable()
+            ret_ty = self.tv_manager.new_tv()
             if not isinstance(ret_ty, typeconsts.BottomType):
                 type_constraint = typevars.Subtype(return_ty, ret_ty)
                 self.state.add_type_constraint(type_constraint)
@@ -325,7 +326,7 @@ class SimEngineVRAIL(
             self._apply_format_string_type_constraints(func.name, prototype, args, stmt.expr.args)
 
         if ret_ty is None:
-            ret_ty = typevars.TypeVariable()
+            ret_ty = self.tv_manager.new_tv()
 
         # TODO: Expose it as an option
         return_value_use_full_width_reg = True
@@ -400,7 +401,7 @@ class SimEngineVRAIL(
                             ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
                         )
                         self.state.variable_manager[self.func_addr].add_variable("stack", stack_var.offset, stack_var)
-                        stack_typevar = typevars.TypeVariable()
+                        stack_typevar = self.tv_manager.new_tv()
                         self.state.typevars.add_type_variable(stack_var, stack_typevar)
                         existing_variables.add(stack_var)
                     for stack_var in existing_variables:
@@ -515,7 +516,7 @@ class SimEngineVRAIL(
             elif self.state.typevars.has_type_variable_for(self.func_ret_var):
                 ret_typevar = self.state.typevars.get_type_variable(self.func_ret_var)
             else:
-                ret_typevar = typevars.TypeVariable()
+                ret_typevar = self.tv_manager.new_tv()
                 self.state.typevars.add_type_variable(self.func_ret_var, ret_typevar)
 
             for ret_expr in stmt.ret_exprs:
@@ -586,37 +587,37 @@ class SimEngineVRAIL(
                 if r.typevar is not None:
                     tvs.add(r.typevar)
 
-        tv = typevars.TypeVariable()
+        tv = self.tv_manager.new_tv()
         for tv_ in tvs:
             self.state.add_type_constraint(typevars.Subtype(tv, tv_))
         return RichR(self.state.top(expr.bits), typevar=tv)
 
     def _handle_expr_StringLiteral(self, expr: StringLiteral):
-        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+        return RichR(self.state.top(expr.bits), typevar=self.tv_manager.new_tv())
 
     def _handle_expr_Struct(self, expr: Struct):
         for field in expr.fields.values():
             self._expr(field)
-        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+        return RichR(self.state.top(expr.bits), typevar=self.tv_manager.new_tv())
 
     def _handle_expr_RustEnum(self, expr: RustEnum):
         for field in expr.fields:
             self._expr(field)
-        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+        return RichR(self.state.top(expr.bits), typevar=self.tv_manager.new_tv())
 
     def _handle_expr_Array(self, expr: Array):
         for ele in expr.elements:
             self._expr(ele)
-        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+        return RichR(self.state.top(expr.bits), typevar=self.tv_manager.new_tv())
 
     def _handle_expr_Let(self, expr: Let):
         self._expr(expr.src)
-        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
+        return RichR(self.state.top(expr.bits), typevar=self.tv_manager.new_tv())
 
     def _handle_expr_FunctionLikeMacro(self, expr: FunctionLikeMacro):
         for arg in expr.args:
             self._expr(arg)
-        ret_ty = typevars.TypeVariable()
+        ret_ty = self.tv_manager.new_tv()
         return RichR(self.state.top(expr.bits), typevar=ret_ty)
 
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
@@ -631,10 +632,14 @@ class SimEngineVRAIL(
             ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
-                    typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ConvertTo(expr.to_bits))
+                    typevar = self.tv_manager.new_dtv_with_merged_labels(
+                        r.typevar.type_var, label=typevars.ConvertTo(expr.to_bits)
+                    )
             else:
                 if not isinstance(r.typevar, typeconsts.TypeConstant):
-                    typevar = typevars.new_dtv(r.typevar, label=typevars.ConvertTo(expr.to_bits))
+                    typevar = self.tv_manager.new_dtv_with_merged_labels(
+                        r.typevar, label=typevars.ConvertTo(expr.to_bits)
+                    )
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
@@ -648,10 +653,12 @@ class SimEngineVRAIL(
             ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
-                    typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ConvertTo(expr.bits))
+                    typevar = self.tv_manager.new_dtv_with_merged_labels(
+                        r.typevar.type_var, label=typevars.ConvertTo(expr.bits)
+                    )
             else:
                 if not isinstance(r.typevar, typeconsts.TypeConstant):
-                    typevar = typevars.new_dtv(r.typevar, label=typevars.ConvertTo(expr.bits))
+                    typevar = self.tv_manager.new_dtv_with_merged_labels(r.typevar, label=typevars.ConvertTo(expr.bits))
 
         return RichR(self.state.top(expr.bits), typevar=typevar)
 
@@ -670,9 +677,13 @@ class SimEngineVRAIL(
                 r.typevar.one_label, typevars.ReinterpretAs
             ):
                 # there is already a reinterpretas - overwrite it
-                typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+                typevar = self.tv_manager.new_dtv_with_merged_labels(
+                    r.typevar.type_var, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits)
+                )
             elif isinstance(r.typevar, typevars.TypeVariable):
-                typevar = typevars.new_dtv(r.typevar, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+                typevar = self.tv_manager.new_dtv_with_merged_labels(
+                    r.typevar, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits)
+                )
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
@@ -680,10 +691,10 @@ class SimEngineVRAIL(
         refbase_typevar = self.state.stack_offset_typevars.get(expr.offset, None)
         if refbase_typevar is None:
             # allocate a new type variable
-            refbase_typevar = typevars.TypeVariable()
+            refbase_typevar = self.tv_manager.new_tv()
             self.state.stack_offset_typevars[expr.offset] = refbase_typevar
 
-        ref_typevar = typevars.TypeVariable()
+        ref_typevar = self.tv_manager.new_tv()
         access_derived_typevar = self._create_access_typevar(ref_typevar, False, None, 0)
         load_constraint = typevars.Subtype(refbase_typevar, access_derived_typevar)
         self.state.add_type_constraint(load_constraint)
@@ -716,10 +727,10 @@ class SimEngineVRAIL(
                     refbase_typevar = self.state.stack_offset_typevars[off]
                 else:
                     # allocate a new type variable
-                    refbase_typevar = typevars.TypeVariable()
+                    refbase_typevar = self.tv_manager.new_tv()
                     self.state.stack_offset_typevars[off] = refbase_typevar
 
-            ref_typevar = typevars.TypeVariable()
+            ref_typevar = self.tv_manager.new_tv()
             access_derived_typevar = self._create_access_typevar(ref_typevar, False, None, 0)
             load_constraint = typevars.Subtype(refbase_typevar, access_derived_typevar)
             self.state.add_type_constraint(load_constraint)
@@ -743,7 +754,7 @@ class SimEngineVRAIL(
         r1 = self._expr(expr.iffalse)
 
         type_constraints = set()
-        tv = typevars.TypeVariable()
+        tv = self.tv_manager.new_tv()
         if r0.typevar is not None:
             type_constraints.add(typevars.Subtype(tv, r0.typevar))
         if r1.typevar is not None:
@@ -758,15 +769,17 @@ class SimEngineVRAIL(
 
         type_constraints = set()
         # create a new type variable and add constraints accordingly
-        r0_typevar = r0.typevar if r0.typevar is not None else typevars.TypeVariable()
+        r0_typevar = r0.typevar if r0.typevar is not None else self.tv_manager.new_tv()
 
         typevar = None
         if r1.data.concrete:
             # addition with constants. create a derived type variable
             if isinstance(r0_typevar, typevars.TypeVariable):
-                typevar = typevars.new_dtv(r0_typevar, label=typevars.AddN(r1.data.concrete_value))
+                typevar = self.tv_manager.new_dtv_with_merged_labels(
+                    r0_typevar, label=typevars.AddN(r1.data.concrete_value)
+                )
         elif r1.typevar is not None:
-            typevar = typevars.TypeVariable()
+            typevar = self.tv_manager.new_tv()
             type_constraints.add(typevars.Add(r0_typevar, r1.typevar, typevar))
         else:
             typevar = None
@@ -781,9 +794,11 @@ class SimEngineVRAIL(
         type_constraints = set()
         typevar = None
         if r0.typevar is not None and r1.data.concrete and isinstance(r0.typevar, typevars.TypeVariable):
-            typevar = typevars.new_dtv(r0.typevar, label=typevars.SubN(r1.data.concrete_value))
+            typevar = self.tv_manager.new_dtv_with_merged_labels(
+                r0.typevar, label=typevars.SubN(r1.data.concrete_value)
+            )
         else:
-            typevar = typevars.TypeVariable()
+            typevar = self.tv_manager.new_tv()
             if r0.typevar is not None and r1.typevar is not None:
                 type_constraints.add(typevars.Sub(r0.typevar, r1.typevar, typevar))
 

@@ -23,7 +23,7 @@ from angr.sim_variable import SimVariable
 from angr.errors import AngrRuntimeError
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.analyses.analysis import Analysis
-from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable
+from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject
@@ -202,6 +202,8 @@ class VariableRecoveryStateBase:
         arch: archinfo.Arch,
         func: Function,
         project: Project,
+        *,
+        tv_manager: TypeVariableManager,
         stack_region=None,
         register_region=None,
         global_region=None,
@@ -216,6 +218,7 @@ class VariableRecoveryStateBase:
         self.arch: Arch = arch
         self.function = func
         self.project = project
+        self.tv_manager = tv_manager
 
         if stack_region is not None:
             self.stack_region: MultiValuedMemory = stack_region
