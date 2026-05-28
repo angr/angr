@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import enum
 from collections import defaultdict
 from contextlib import suppress
@@ -66,6 +67,11 @@ from .typeconsts import (
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
+
+if TYPE_CHECKING:
+    import archinfo
+
+    from angr.sim_type import SimType
 
 _l = logging.getLogger(__name__)
 
@@ -216,6 +222,16 @@ BASE_LATTICES = {
     32: BASE_LATTICE_32,
     64: BASE_LATTICE_64,
 }
+
+
+def _invert_lattice(lattice: networkx.DiGraph) -> networkx.DiGraph:
+    inverted = networkx.DiGraph()
+    for src, dst in lattice.edges:
+        inverted.add_edge(dst, src)
+    return inverted
+
+
+BASE_LATTICES_INVERTED = {bits: _invert_lattice(lattice) for bits, lattice in BASE_LATTICES.items()}
 
 
 #
@@ -1792,11 +1808,26 @@ class SimpleSolver:
     # Type lattice
     #
 
-    def join(self, t1: TypeConstant | TypeVariable, t2: TypeConstant | TypeVariable) -> TypeConstant:
-        abstract_t1 = self.abstract(t1)
-        abstract_t2 = self.abstract(t2)
-        if abstract_t1 in self._base_lattice and abstract_t2 in self._base_lattice:
-            ancestor = networkx.lowest_common_ancestor(self._base_lattice, abstract_t1, abstract_t2)
+    @staticmethod
+    def _lattice_op(
+        t1: TypeConstant,
+        t2: TypeConstant,
+        lattice: networkx.DiGraph,
+        unit: TypeConstant,
+    ) -> TypeConstant:
+        """
+        The shared core of :meth:`join` and :meth:`meet`. Walk ``lattice`` to find the lowest common ancestor of the
+        two (abstracted) type constants.
+
+        :param lattice: The lattice to walk: the base lattice for join, or the inverted base lattice for meet.
+        :param unit:    The unit element of the operation: ``BottomType`` for join and ``TopType`` for meet. It acts as
+                        the identity element and is returned when the two types have no common ancestor in the lattice.
+        """
+
+        abstract_t1 = SimpleSolver.abstract(t1)
+        abstract_t2 = SimpleSolver.abstract(t2)
+        if abstract_t1 in lattice and abstract_t2 in lattice:
+            ancestor = networkx.lowest_common_ancestor(lattice, abstract_t1, abstract_t2)
 
             if (
                 isinstance(ancestor, Pointer)
@@ -1805,7 +1836,7 @@ class SimpleSolver:
                 and isinstance(t1, Pointer)
                 and isinstance(t2, Pointer)
             ):
-                return ancestor.__class__(self.join(t1.basetype, t2.basetype))
+                return ancestor.__class__(SimpleSolver._lattice_op(t1.basetype, t2.basetype, lattice, unit))  # type: ignore
 
             if ancestor == abstract_t1:
                 return t1
@@ -1814,39 +1845,62 @@ class SimpleSolver:
             return ancestor
         if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
             return t1
-        if t1 == Bottom_:
+        if t1 == unit:
             return t2
-        if t2 == Bottom_:
+        if t2 == unit:
             return t1
-        return Bottom_
+        return unit
 
-    def meet(self, t1: TypeConstant | TypeVariable, t2: TypeConstant | TypeVariable) -> TypeConstant:
-        abstract_t1 = self.abstract(t1)
-        abstract_t2 = self.abstract(t2)
-        if abstract_t1 in self._base_lattice_inverted and abstract_t2 in self._base_lattice_inverted:
-            ancestor = networkx.lowest_common_ancestor(self._base_lattice_inverted, abstract_t1, abstract_t2)
+    def join(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        return self._lattice_op(t1, t2, self._base_lattice, Bottom_)
 
-            if (
-                isinstance(ancestor, Pointer)
-                and isinstance(abstract_t1, Pointer)
-                and isinstance(abstract_t2, Pointer)
-                and isinstance(t1, Pointer)
-                and isinstance(t2, Pointer)
-            ):
-                return ancestor.__class__(self.meet(t1.basetype, t2.basetype))
+    def meet(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        return self._lattice_op(t1, t2, self._base_lattice_inverted, Top_)
 
-            if ancestor == abstract_t1:
-                return t1
-            if ancestor == abstract_t2:
-                return t2
-            return ancestor
-        if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
-            return t1
-        if t1 == Top_:
-            return t2
-        if t2 == Top_:
-            return t1
-        return Top_
+    @classmethod
+    def join_simtypes(cls, t1: SimType, t2: SimType, arch: archinfo.Arch) -> SimType:
+        """
+        Compute the join (the least general common supertype) of two SimTypes on the type lattice.
+
+        The two types are lifted to internal type constants, joined on the base lattice for ``arch.bits``, and the
+        result is translated back into a SimType. When the two types have no meaningful common supertype, the result is
+        a ``SimTypeBottom``.
+
+        :param t1:      The first SimType.
+        :param t2:      The second SimType.
+        :param arch:    The architecture, used to determine the pointer size and to build the resulting SimType.
+        :return:        The join of ``t1`` and ``t2`` as a SimType.
+        """
+
+        return cls._simtype_lattice_op(t1, t2, arch, BASE_LATTICES, Bottom_)
+
+    @classmethod
+    def meet_simtypes(cls, t1: SimType, t2: SimType, arch: archinfo.Arch) -> SimType:
+        """
+        Compute the meet (the greatest common subtype) of two SimTypes on the type lattice.
+
+        See :meth:`join_simtypes` for details. When the two types have no meaningful common subtype, the result is a
+        ``SimTypeBottom``.
+        """
+
+        return cls._simtype_lattice_op(t1, t2, arch, BASE_LATTICES_INVERTED, Top_)
+
+    @classmethod
+    def _simtype_lattice_op(
+        cls, t1: SimType, t2: SimType, arch: archinfo.Arch, lattices: dict[int, networkx.DiGraph], unit: TypeConstant
+    ) -> SimType:
+        # delayed import to avoid a circular import at module load time
+        from .translator import TypeTranslator  # pylint:disable=import-outside-toplevel
+
+        if arch.bits not in lattices:
+            raise ValueError(f"Pointer size {arch.bits} is not supported. Expect 32 or 64.")
+
+        translator = TypeTranslator(arch)
+        tc1 = translator.simtype2tc(t1)
+        tc2 = translator.simtype2tc(t2)
+        result_tc = cls._lattice_op(tc1, tc2, lattices[arch.bits], unit)
+        result_simtype, _ = translator.tc2simtype(result_tc)
+        return result_simtype
 
     @staticmethod
     def abstract(t: TypeConstant | TypeVariable) -> TypeConstant | TypeVariable:

@@ -66,6 +66,7 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.typehoon import Typehoon
+from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.ailment.expression import Struct, Array, RustEnum, Let, FunctionLikeMacro
 from .ail_simplifier import AILSimplifier
@@ -229,6 +230,7 @@ class Clinic(Analysis):
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         flatten_args=False,
+        constrain_callee_prototypes: bool = False,
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
     ):
@@ -318,6 +320,8 @@ class Clinic(Analysis):
         self.edges_to_remove: list[tuple[ailment.Address, ailment.Address]] = []
         self.copied_var_ids: set[int] = set()
 
+        self._constrain_callee_prototypes = constrain_callee_prototypes
+
         self._new_block_addrs: set[int] = set()
 
         # a reference to the Typehoon type inference engine; useful for debugging and loading stats post decompilation
@@ -341,8 +345,12 @@ class Clinic(Analysis):
 
         if self._mode == ClinicMode.DECOMPILE:
             self._analyze_for_decompiling()
-            if self._end_stage >= ClinicStage.MAKE_CALLSITES and self.variable_kb is not None:
-                self._constrain_callee_prototypes()
+            if (
+                self._end_stage >= ClinicStage.MAKE_CALLSITES
+                and self.variable_kb is not None
+                and self._constrain_callee_prototypes
+            ):
+                self.constrain_callee_prototypes()
         elif self._mode == ClinicMode.COLLECT_DATA_REFS:
             self._analyze_for_data_refs()
         else:
@@ -3922,7 +3930,23 @@ class Clinic(Analysis):
 
         return dict(func_proto_candidates)
 
-    def _constrain_callee_prototypes(self):
+    @staticmethod
+    def _flatten_pointer_to_array(ty: SimType) -> SimType:
+        """
+        Convert a pointer-to-array type (``type[N]*``) into a plain pointer type (``type*``). This normalizes argument
+        types observed at call sites so that pointers to arrays of different lengths can be joined together.
+        """
+        if isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeArray):
+            return SimTypePointer(ty.pts_to.elem_type)
+        return ty
+
+    def constrain_callee_prototypes(self):
+        """
+        Constrain the types of callee function arguments based on facts that are observed at call sites. Note that this
+        function will change the prototypes of (callee) functions in the knowledge base, which means it may affect
+        the decompilation output of the current function if it is decompiled again.
+        """
+
         func_proto_candidates = self._collect_callsite_prototypes()
 
         default_arg_type = SimTypeLongLong if self.project.arch.bits == 64 else SimTypeInt
@@ -3949,13 +3973,21 @@ class Clinic(Analysis):
                 ]
                 if not all_args:
                     continue
-                # TODO: Implement a better logic to find the precise type
-                precise_types = []
-                for a in all_args:
-                    if isinstance(a, (SimTypePointer, SimStruct, SimTypeArray, SimCppClass)):
-                        precise_types.append(a)
-                if len(precise_types) == 1:
-                    arg_result[arg_i] = precise_types[0]
+                # Among the observed argument types, keep the precise (informative) ones and merge them by computing
+                # their join on the type lattice. A single precise type joins to itself; multiple precise types are
+                # merged into their least general common supertype. We ignore the result when the join degrades to a
+                # bottom type, i.e., the observations have no meaningful common supertype.
+                precise_types = [
+                    self._flatten_pointer_to_array(a).with_arch(self.project.arch)
+                    for a in all_args
+                    if isinstance(a, (SimTypePointer, SimStruct, SimTypeArray, SimCppClass))
+                ]
+                if precise_types:
+                    joined = precise_types[0]
+                    for a in precise_types[1:]:
+                        joined = SimpleSolver.join_simtypes(joined, a, self.project.arch)
+                    if not isinstance(joined, SimTypeBottom):
+                        arg_result[arg_i] = joined
 
             if arg_result:
                 # build a new function prototype
