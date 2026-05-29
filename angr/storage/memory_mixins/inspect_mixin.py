@@ -16,6 +16,7 @@ class InspectMixin(MemoryMixin):
         - reg_write (before and after)
         - address_concretization_add_constraints (before)
     """
+
     def store(self, addr, data, size=None, *, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
             super().store(addr, data, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
