@@ -4,7 +4,19 @@ from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
-class InspectMixinHigh(MemoryMixin):
+class InspectMixin(MemoryMixin):
+    """
+    This mixin adds support for the inspect plugin to the memory model.
+
+    Inspect breakpoints are called for the following events:
+
+        - mem_read (before and after)
+        - mem_write (before and after)
+        - reg_read (before and after)
+        - reg_write (before and after)
+        - address_concretization_add_constraints (before)
+    """
+
     def store(self, addr, data, size=None, *, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
             super().store(addr, data, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
