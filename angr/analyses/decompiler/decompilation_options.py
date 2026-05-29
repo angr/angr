@@ -322,6 +322,20 @@ options = [
         default_value=False,
         clears_cache=False,
     ),
+    O(
+        "Constrain and improve callee function prototypes based on call site information",
+        "When enabled, the decompiler will analyze call sites and constrain the types of callee function arguments "
+        "based on facts observed at the call sites. This may improve the accuracy of callee function prototypes and "
+        "consequently enhance the decompilation output of the current function. Note that enabling this option may "
+        "change the prototypes of callee functions in the knowledge base, which could affect subsequent decompilation "
+        "results.",
+        bool,
+        "clinic",
+        "constrain_callee_prototypes",
+        category="Types",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
