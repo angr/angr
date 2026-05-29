@@ -111,7 +111,9 @@ class TestTypehoon(unittest.TestCase):
         assert func_phase2.prototype_source == PrototypeSource.CCA_LOW
         func_read6numbers = cfg.kb.functions["read_six_numbers"]
         assert func_read6numbers.prototype_source == PrototypeSource.CCA_LOW
-        dec_phase2 = proj.analyses.Decompiler(func_phase2, fail_fast=True)
+        dec_phase2 = proj.analyses.Decompiler(
+            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+        )
         print_decompilation_result(dec_phase2)
         assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
         assert func_phase2.prototype_source == PrototypeSource.CCA_DECOMPILER
@@ -129,7 +131,9 @@ class TestTypehoon(unittest.TestCase):
         )
 
         # decompile read_six_numbers, and its prototype should be updated to (char*, uint32_t*)
-        dec_read6numbers = proj.analyses.Decompiler(func_read6numbers, fail_fast=True)
+        dec_read6numbers = proj.analyses.Decompiler(
+            func_read6numbers, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+        )
         assert dec_read6numbers.codegen is not None and dec_read6numbers.codegen.text is not None
         print_decompilation_result(dec_read6numbers)
         assert func_read6numbers.prototype_source == PrototypeSource.CCA_DECOMPILER
@@ -145,7 +149,9 @@ class TestTypehoon(unittest.TestCase):
         )
 
         # decompile phase_2 again, and we should see an unsigned int [6] on the stack
-        dec_phase2 = proj.analyses.Decompiler(func_phase2, fail_fast=True)
+        dec_phase2 = proj.analyses.Decompiler(
+            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+        )
         assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
         print_decompilation_result(dec_phase2)
         assert re.search(r"  int v\d+\[6];", dec_phase2.codegen.text) is not None
