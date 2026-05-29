@@ -301,6 +301,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             case _:
                 assert False, f"Unsupported type of assignemnt dst {type(dst)}"
 
+    def _handle_stmt_NoOp(self, stmt) -> bool:
+        return True
+
     def _handle_stmt_Assignment(self, stmt) -> bool:
         val = self._expr_bits(stmt.src)
         self._do_assign(stmt.dst, val)

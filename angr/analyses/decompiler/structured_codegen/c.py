@@ -3473,6 +3473,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # return CStatements([ CAILBlock(node) ])
         cstmts = []
         for stmt in node.statements:
+            if isinstance(stmt, Stmt.NoOp):
+                continue
             try:
                 cstmt = self._handle(stmt, is_expr=False)
             except UnsupportedNodeTypeError:

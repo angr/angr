@@ -58,6 +58,41 @@ class Statement(TaggedObject, ABC):
     __hash__ = TaggedObject.__hash__
 
 
+class NoOp(Statement):
+    """
+    No operation.
+    """
+
+    def __init__(self, idx: int | None, **kwargs):
+        super().__init__(idx, **kwargs)
+
+    def likes(self, other) -> bool:
+        return type(other) is NoOp
+
+    matches = likes
+
+    def _hash_core(self) -> int:
+        return stable_hash((NoOp, self.idx))
+
+    def __repr__(self):
+        return "NoOp"
+
+    def __str__(self):
+        return "NoOp"
+
+    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
+        return False, self
+
+    @property
+    def depth(self) -> int:
+        return 1
+
+    def copy(self) -> NoOp:
+        return NoOp(self.idx, **self.tags)
+
+    deep_copy = copy
+
+
 class Assignment(Statement):
     """
     Assignment statement: expr_a = expr_b
