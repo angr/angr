@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-type StateType = SimState[ailment.Address, ailment.Address]
+type StateType = SimState[int, claripy.ast.BV]
 type DataType = claripy.ast.Bits | claripy.ast.Bool
 
 
@@ -49,7 +49,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         self, state: StateType, *, block: ailment.Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> None:
         self.state = state
-        self.state.bbl_addr = state.addr[0]
+        self.state.bbl_addr = state.addr
         # if there is a function parameter handoff waiting, process that asap
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
@@ -85,14 +85,27 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(callstack, AILCallStack)
         return callstack
 
-    def lift_addr(self, addr: ailment.Address) -> Clinic:
+    @property
+    def _ail_addr(self) -> tuple[int, int | None]:
+        return (self.state.addr, self.state.scratch.ail_block_idx)
+
+    def _set_ail_successor(self, state, addr: int, block_idx: int | None) -> int:
+        state.scratch.ail_block_idx = block_idx
+        return addr
+
+    def lift_addr(self, addr: int) -> Clinic:
         result = self.state.globals["ail_lifter"]  # type: ignore
         assert callable(result)
-        return result(addr[0])  # type: ignore
+        return result(addr)  # type: ignore
 
     def lift(self, state: StateType | int | ailment.Address) -> ailment.Block:
-        addr = (state, None) if isinstance(state, int) else state if isinstance(state, tuple) else state.addr
-        clinic = self.lift_addr(addr)
+        if isinstance(state, int):
+            addr = (state, None)
+        elif isinstance(state, tuple):
+            addr = state
+        else:
+            addr = self._ail_addr
+        clinic = self.lift_addr(addr[0])
         assert clinic.cc_graph is not None
         blocks = [blk for blk in clinic.cc_graph if (blk.addr, blk.idx) == addr]
         if len(blocks) == 0:
@@ -169,7 +182,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             succ = next(iter(clinic.cc_graph.succ[block]))
             self.successors.add_successor(
                 self.state,
-                (succ.addr, succ.idx),
+                self._set_ail_successor(self.state, succ.addr, succ.idx),
                 claripy.true(),
                 "Ijk_Boring",
                 add_guard=False,
@@ -255,12 +268,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
         new_frame = AILCallStack(func_addr=target)
         new_frame.passed_args = arguments
-        new_frame.return_addr = self.state.addr
+        new_frame.return_addr = self._ail_addr
         self.frame.push(new_frame)
 
         self.successors.add_successor(
             self.state,
-            target,
+            self._set_ail_successor(self.state, target_addr.concrete_value, None),
             claripy.true(),
             "Ijk_Call",
             add_guard=False,
@@ -309,10 +322,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_Jump(self, stmt: ailment.statement.Jump) -> bool:
         target_addr = self._expr_bv(stmt.target)
         assert target_addr.concrete
-        target = (target_addr.concrete_value, stmt.target_idx)
         self.successors.add_successor(
             self.state,
-            target,
+            self._set_ail_successor(self.state, target_addr.concrete_value, stmt.target_idx),
             claripy.true(),
             "Ijk_Boring",
             add_guard=False,
@@ -334,7 +346,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             assert target_false_addr.concrete
         self.successors.add_successor(
             state_true,
-            (target_true_addr.concrete_value, stmt.true_target_idx),
+            self._set_ail_successor(state_true, target_true_addr.concrete_value, stmt.true_target_idx),
             condition,
             "Ijk_Boring",
             exit_stmt_idx=self.stmt_idx,
@@ -343,7 +355,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if target_false_addr is not None:
             self.successors.add_successor(
                 state_false,
-                (target_false_addr.concrete_value, stmt.false_target_idx),
+                self._set_ail_successor(state_false, target_false_addr.concrete_value, stmt.false_target_idx),
                 ~condition,  # type: ignore
                 "Ijk_Boring",
                 exit_stmt_idx=self.stmt_idx,
@@ -366,9 +378,10 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             self.state.globals["vvars"][this_frame.func_addr].append(this_frame.vars)
         self.frame.pop()
         self.frame.passed_rets += (ret_values,)
+        succ_addr = self._set_ail_successor(self.state, target[0], target[1]) if target is not None else self.state.addr
         self.successors.add_successor(
             self.state,
-            target if target is not None else self.state.addr,
+            succ_addr,
             claripy.true(),
             "Ijk_Ret" if target is not None else "Ijk_Exit",
             add_guard=False,
@@ -460,12 +473,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         # the immediate "previous block" in history may be the current block itself.
         # Phi semantics are based on the *CFG predecessor at block entry*.
         # Walk backwards until we find a different block address.
-        if last_addr == self.state.addr:
+        ail_addr = self._ail_addr
+        if last_addr == ail_addr:
             cur_hist = parent.parent
             while cur_hist is not None:
                 if cur_hist.recent_bbl_addrs:
                     cand = cur_hist.recent_bbl_addrs[-1]
-                    if cand != self.state.addr:
+                    if cand != ail_addr:
                         last_addr = cand
                         break
                 cur_hist = cur_hist.parent

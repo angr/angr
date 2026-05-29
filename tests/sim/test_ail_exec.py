@@ -15,6 +15,7 @@ from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
 from angr.procedures.libc.snprintf import snprintf
+from angr.state_plugins.history import SimStateHistory
 from angr.storage import DefaultMemory
 
 
@@ -105,7 +106,8 @@ class TestAILExec(unittest.TestCase):
 
         assert len(successors.successors) == 1
         succ = successors.successors[0]
-        assert succ.addr == (0x400004, None)
+        assert succ.addr == 0x400004
+        assert succ.scratch.is_ail
 
         out = succ.registers.load(r0_offset, 4)
         assert isinstance(out, claripy.ast.BV)
@@ -141,13 +143,15 @@ class TestAILExec(unittest.TestCase):
         assert len(succ.unconstrained_successors) == 0
 
         true_succ = succ.successors[0]
-        assert true_succ.addr == (0x400004, None)
+        assert true_succ.addr == 0x400004
+        assert true_succ.scratch.is_ail
         assert true_succ.history.jumpkind == "Ijk_Boring"
         assert true_succ.scratch.exit_stmt_idx == 0
         assert true_succ.solver.is_true(true_succ.scratch.guard)
 
         false_succ = succ.unsat_successors[0]
-        assert false_succ.addr == (0x400008, None)
+        assert false_succ.addr == 0x400008
+        assert false_succ.scratch.is_ail
         assert false_succ.history.jumpkind == "Ijk_Boring"
         assert false_succ.scratch.exit_stmt_idx == 0
         assert false_succ.solver.is_false(false_succ.scratch.guard)
@@ -176,12 +180,12 @@ class TestAILExec(unittest.TestCase):
         engine.process(state, block=pred_block)
         assert len(pred_succ.successors) == 1
         s1 = pred_succ.successors[0]
-        assert s1.addr == (0x400004, None)
+        assert s1.addr == 0x400004
+        assert s1.scratch.is_ail
 
         # Emulate the history linkage normally created by SimSuccessors.process():
         # SimEngineAILSimState._handle_expr_Phi consults state.history.parent.recent_bbl_addrs[-1] to pick the
         # predecessor edge for the phi.
-        from angr.state_plugins.history import SimStateHistory  # pylint:disable=import-outside-toplevel
 
         h_parent = SimStateHistory()
         h_parent.recent_bbl_addrs.append((0x400000, None))
@@ -315,7 +319,8 @@ class TestAILExec(unittest.TestCase):
         assert len(successors.unconstrained_successors) == 0
 
         succ = successors.successors[0]
-        assert succ.addr == (0x400004, None)
+        assert succ.addr == 0x400004
+        assert succ.scratch.is_ail
         assert succ.history.jumpkind == "Ijk_Boring"
         assert succ.scratch.exit_stmt_idx == 1
 

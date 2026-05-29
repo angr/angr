@@ -47,7 +47,12 @@ def ail_call_state(
 
     if isinstance(start_addr, str):
         start_addr = project.kb.functions[start_addr].addr
-    state.addr = (start_addr, None) if isinstance(start_addr, int) else start_addr
+    if isinstance(start_addr, int):
+        state.addr = start_addr
+        state.scratch.ail_block_idx = None
+    else:
+        state.addr = start_addr[0]
+        state.scratch.ail_block_idx = start_addr[1]
 
     callstack_cls = callstack_cls or AILCallStack
     bottom_frame = callstack_cls()
