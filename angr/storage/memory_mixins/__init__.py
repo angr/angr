@@ -4,12 +4,12 @@ from angr.sim_state import SimState
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin
 from .bvv_conversion_mixin import DataNormalizationMixin
-from .clouseau_mixin import InspectMixinHigh
 from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
 from .hex_dumper_mixin import HexDumperMixin
+from .inspect_mixin import InspectMixin
 from .label_merger_mixin import LabelMergerMixin
 from .multi_value_merger_mixin import MultiValueMergerMixin
 from .name_resolution_mixin import NameResolutionMixin
@@ -70,13 +70,12 @@ class DefaultMemory(
     NameResolutionMixin,
     DataNormalizationMixin,
     SimplificationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     ActionsMixinHigh,
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
     AddressConcretizationMixin,
-    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     ConvenientMappingsMixin,
@@ -106,9 +105,8 @@ class DefaultListPagesMemory(
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     AddressConcretizationMixin,
-    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     ConvenientMappingsMixin,
@@ -130,7 +128,7 @@ class FastMemory(
     NameResolutionMixin,
     SimpleInterfaceMixin,
     SimplificationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     ConditionalMixin,
     ExplicitFillerMixin,
     DefaultFillerMixin,
@@ -144,12 +142,11 @@ class AbstractMemory(
     NameResolutionMixin,
     DataNormalizationMixin,
     SimplificationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     ActionsMixinHigh,
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
-    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     RegionedAddressConcretizationMixin,
@@ -270,7 +267,7 @@ __all__ = (
     "HexDumperMixin",
     "HistoryTrackingMixin",
     "ISPOMixin",
-    "InspectMixinHigh",
+    "InspectMixin",
     "JavaVmMemory",
     "JavaVmMemoryMixin",
     "KeyValueMemory",

@@ -4,7 +4,7 @@ from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
-class InspectMixinHigh(MemoryMixin):
+class InspectMixin(MemoryMixin):
     def store(self, addr, data, size=None, *, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
             super().store(addr, data, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
