@@ -177,7 +177,7 @@ class Decompiler(Analysis):
         clinic_graph=None,
         clinic_entry_node_addr=None,
         clinic_arg_vvars=None,
-        clinic_vvar_id_start=None,
+        clinic_vvar_id_start=0,
         clinic_start_stage=None,
         clinic_end_stage=None,
         clinic_skip_stages=(),
@@ -287,7 +287,7 @@ class Decompiler(Analysis):
         self.structuring_failures: list[int] = []
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
-        self.vvar_id_start = None
+        self.vvar_id_start = 0
         self._copied_var_ids: set[int] = set()
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
