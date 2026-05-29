@@ -70,7 +70,7 @@ class NewFunctionHandler(FunctionHandler):
             word_size = self.project.arch.bits // self.project.arch.byte_width
             # check if this is a call to new()
             # reading from rdi for the size argument passed to new()
-            cc = self.project.kb.functions[function_address].calling_convention
+            cc = self.project.kb.functions[function_address].calling_convention  # type: ignore[union-attr]
             if cc is not None:
                 size_arg_reg_offset = self.project.arch.registers[cc.args[0].reg_name][0]
                 size_arg_reg_size = cc.args[0].size
@@ -99,17 +99,17 @@ class NewFunctionHandler(FunctionHandler):
                 ),
             )
             # setting the values pointed by rax to zero
-            memory_location = MemoryLocation(self.max_addr, size)
+            memory_location = MemoryLocation(self.max_addr, size)  # type: ignore[arg-type]
             offset_to_values = {}
 
-            for offset in range(0, size, word_size):
+            for offset in range(0, size, word_size):  # type: ignore[arg-type]
                 offset_to_values[offset] = {claripy.BVV(0, word_size * state.arch.byte_width)}
             data.depends(memory_location, value=MultiValues(offset_to_values=offset_to_values))
-            self.max_addr += size
+            self.max_addr += size  # type: ignore[operator]
 
         else:
-            if self.project.kb.functions.contains_addr(function_address):
-                func = self.project.kb.functions.get_by_addr(function_address)
+            if self.project.kb.functions.contains_addr(function_address):  # type: ignore[union-attr]
+                func = self.project.kb.functions.get_by_addr(function_address)  # type: ignore[union-attr]
                 if func is not None and is_cpp_funcname_ctor(func.demangled_name):
                     # check if rdi has a possible this pointer/ object address, if so then we can assign this object
                     # this class
@@ -167,10 +167,15 @@ class StaticObjectFinder(Analysis):
             # is passed the this pointer(returned by new)...
             # if so then we say that it is possibly a constructor
             for node in func.graph.nodes():
-                if func.get_call_target(node.addr) == new_func_addr:
-                    ret_node_addr = func.get_call_return(node.addr)
+                call_target = func.get_call_target(node.addr)
+                if call_target is not None and new_func_addr in call_target:
+                    ret_node_addrs = func.get_call_return(node.addr)
+                    ret_node_addr = next(iter(ret_node_addrs), None)
                     ret_node = self.project.factory.block(ret_node_addr)
-                    call_after_new_addr = func.get_call_target(ret_node_addr)
+                    call_after_new_addrs = func.get_call_target(ret_node_addr)
+
+                    if call_after_new_addrs is None:
+                        continue
                     rd_before_node = rd.get_reaching_definitions_by_node(ret_node_addr, OP_BEFORE)
 
                     if cc is not None:
@@ -197,7 +202,8 @@ class StaticObjectFinder(Analysis):
                         this_ptr_reg_size = word_size
                     v1 = rd_after_node.registers.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
                     addr_in_rdi = v1.concrete_value if v1 is not None and v1.concrete else None
-
+                    # check if call target is in rdi
+                    call_after_new_addr = next(iter(call_after_new_addrs), None)
                     if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
                         self.possible_constructors[call_after_new_addr].append(self.possible_objects[addr_of_new_obj])
 
