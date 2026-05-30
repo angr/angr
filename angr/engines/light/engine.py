@@ -31,11 +31,6 @@ class BlockProtocol(Protocol):
     addr: int
 
 
-BlockType = TypeVar("BlockType", bound=BlockProtocol)
-ResultType = TypeVar("ResultType")
-StmtDataType = TypeVar("StmtDataType")
-
-
 class IRTop(pyvex.expr.IRExpr):
     """
     A dummy IRExpr used for intra-engine communication and code-reuse.

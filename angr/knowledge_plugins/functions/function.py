@@ -1902,10 +1902,6 @@ class Function(Serializable):
 
     @staticmethod
     def _addr_to_funcloc(addr):
-        # FIXME
-        if isinstance(addr, tuple):
-            return addr[0]
-        # int, long
         return addr
 
     def is_rust_function(self):

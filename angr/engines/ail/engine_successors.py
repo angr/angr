@@ -11,7 +11,7 @@ class AILMixin(SuccessorsEngine):
     """
 
     def process_successors(self, successors: SimSuccessors, block: Block | None = None, **kwargs):
-        if not isinstance(successors.addr, tuple):
+        if not self.state.scratch.is_ail:
             super().process_successors(successors, block=block, **kwargs)
             return
 

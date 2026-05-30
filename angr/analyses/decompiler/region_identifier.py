@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Literal, cast, overload, TypeVar
+from typing import Any, Literal, cast, overload
 from collections.abc import Iterable
 from itertools import count
 from collections import defaultdict
@@ -30,7 +30,6 @@ CONDITIONNODE_ADDR = count(0xFF000000)
 
 type TNode = Block | GraphRegion | MultiNode | ConditionNode
 type TGraph = "networkx.DiGraph[TNode]"
-T = TypeVar("T")
 
 
 class RegionIdentifier(Analysis):

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TypeVar
 
 from angr.errors import AngrNoPluginError
 
 l = logging.getLogger(name=__name__)
-
-P = TypeVar("P")
 
 
 class PluginHub[P]:
@@ -286,7 +283,7 @@ class PluginVendor[P](PluginHub[P]):
         return x
 
 
-class VendorPreset(PluginPreset[P]):
+class VendorPreset[P](PluginPreset[P]):
     """
     A specialized preset class for use with the PluginVendor.
     """

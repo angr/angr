@@ -1,6 +1,6 @@
 from __future__ import annotations
 import weakref
-from typing import Any, TYPE_CHECKING, cast, TypeVar
+from typing import Any, TYPE_CHECKING, cast
 from collections.abc import Generator, Iterable
 import logging
 from collections import defaultdict
@@ -23,15 +23,13 @@ from angr.sim_variable import SimVariable
 from angr.errors import AngrRuntimeError
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.analyses.analysis import Analysis
-from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable
+from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject
 
 
 l = logging.getLogger(name=__name__)
-
-AnyClaripy = TypeVar("AnyClaripy", bound=claripy.ast.Base)
 
 
 def parse_stack_pointer(sp):
@@ -204,6 +202,8 @@ class VariableRecoveryStateBase:
         arch: archinfo.Arch,
         func: Function,
         project: Project,
+        *,
+        tv_manager: TypeVariableManager,
         stack_region=None,
         register_region=None,
         global_region=None,
@@ -218,6 +218,7 @@ class VariableRecoveryStateBase:
         self.arch: Arch = arch
         self.function = func
         self.project = project
+        self.tv_manager = tv_manager
 
         if stack_region is not None:
             self.stack_region: MultiValuedMemory = stack_region
@@ -299,7 +300,9 @@ class VariableRecoveryStateBase:
                 yield from anno.addr_and_variables
 
     @staticmethod
-    def annotate_with_variables(expr: AnyClaripy, addr_and_variables: Iterable[tuple[int, SimVariable]]) -> AnyClaripy:
+    def annotate_with_variables[T: claripy.ast.Base](
+        expr: T, addr_and_variables: Iterable[tuple[int, SimVariable]]
+    ) -> T:
         return expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
 
     def stack_address(self, offset: int) -> claripy.ast.BV:

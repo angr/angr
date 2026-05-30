@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from angr.misc.ux import once
 
@@ -14,8 +14,6 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-
-S_co = TypeVar("S_co", covariant=True)
 
 
 class _CopyFunc[S_co](Protocol):
@@ -53,7 +51,7 @@ class SimStatePlugin:
         return d
 
     @staticmethod
-    def memo(f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
+    def memo[S_co](f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
         """
         A decorator function you should apply to ``copy``
         """

@@ -35,6 +35,8 @@ def condition_to_lambda(condition, default=False):
 
             if not isinstance(state.project.factory.default_engine, engines.vex.VEXLifter):
                 return False
+            if isinstance(state.callstack, engines.ail.callstack.AILCallStack):
+                return False
 
             try:
                 # If the address is not in the set (which could mean it is

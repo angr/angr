@@ -55,6 +55,10 @@ class SimStateScratch(SimStatePlugin):
         # pcode IR-relative jumps
         self.statement_offset = 0
 
+        # AIL block index — use the property setter externally to mark a state as AIL
+        self._is_ail = False
+        self._ail_block_idx = None
+
         if scratch is not None:
             self.temps = list(scratch.temps)
             self.tyenv = scratch.tyenv
@@ -80,8 +84,24 @@ class SimStateScratch(SimStatePlugin):
 
             self.statement_offset = scratch.statement_offset
 
+            self._is_ail = scratch._is_ail
+            self._ail_block_idx = scratch._ail_block_idx
+
         # privileges
         self._priv_stack = [False]
+
+    @property
+    def ail_block_idx(self):
+        return self._ail_block_idx
+
+    @ail_block_idx.setter
+    def ail_block_idx(self, value):
+        self._ail_block_idx = value
+        self._is_ail = True
+
+    @property
+    def is_ail(self):
+        return self._is_ail
 
     @property
     def priv(self):

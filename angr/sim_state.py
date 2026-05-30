@@ -5,7 +5,7 @@ import functools
 import itertools
 import logging
 import weakref
-from typing import Any, TypeVar, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
 
 import archinfo
@@ -49,9 +49,6 @@ def arch_overridable(f):
 
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
-
-IPTypeConc = TypeVar("IPTypeConc")
-IPTypeSym = TypeVar("IPTypeSym")
 
 
 # pylint: disable=not-callable
@@ -299,15 +296,16 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     def __repr__(self):
         try:
             addr = self.addr
-            ip_str = (
-                f"{addr:#x}"
-                if type(addr) is int
-                else (
-                    f"{addr[0]:#x}{'' if addr[1] is None else '.'}{'' if addr[1] is None else addr[1]}"
-                    if type(addr) is tuple
-                    else repr(addr)
-                )
-            )
+            if type(addr) is int:
+                ip_str = f"{addr:#x}"
+                try:
+                    scratch = self.scratch
+                    if scratch.is_ail and scratch.ail_block_idx is not None:
+                        ip_str = f"{addr:#x}.{scratch.ail_block_idx}"
+                except Exception:
+                    pass
+            else:
+                ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
@@ -346,17 +344,11 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         :return: an expression
         """
-        if isinstance(self._addr, tuple):
-            return self._addr
         return self.regs.ip
 
     @ip.setter
     def ip(self, val):
-        # I WISH FOR A BETTER WAY TO DO THIS
-        if isinstance(val, tuple):
-            self._addr = val
-        else:
-            self.regs.ip = val
+        self.regs.ip = val
 
     @property
     def _ip(self) -> IPTypeSym:
@@ -365,8 +357,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         :return: an expression
         """
-        if isinstance(self._addr, tuple):
-            return self._addr
         try:
             return self.regs._ip
         except AttributeError as e:
@@ -380,9 +370,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         :param val: The new instruction pointer.
         :return:    None
         """
-        if isinstance(val, tuple):
-            self._addr = val
-            return
         try:
             self.regs._ip = val
         except AttributeError as e:
@@ -398,13 +385,22 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         """
 
         ip = self._ip
-        if isinstance(ip, (SootAddressDescriptor, tuple)):
+        if isinstance(ip, SootAddressDescriptor):
             return ip
         return self.solver.eval_one(self.regs._ip)
 
     @addr.setter
-    def addr(self, v):
-        self._ip = v
+    def addr(self, v: int | SootAddressDescriptor | tuple[int, int | None]):
+        """
+        Set the instruction pointer to a concrete address, without triggering SimInspect breakpoints or generating
+        SimActions. This method has extra logic to handle AIL addresses, which are represented as a tuple of (address, block_idx).
+        """
+        # magic to handle ail addresses
+        if isinstance(v, tuple) and len(v) == 2:
+            self._ip = v[0]
+            self.scratch.ail_block_idx = v[1]
+        else:
+            self._ip = v
 
     @property
     def arch(self) -> Arch:
@@ -777,12 +773,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         v = self.solver.eval(expr)
         self.add_constraints(expr == v)
         return v
-
-    # This handles the preparation of concrete function launches from abstract functions.
-    @arch_overridable
-    def prepare_callsite(self, retval, args, cc="wtf"):
-        # TODO
-        pass
 
     def _stack_values_to_string(self, stack_values):
         """

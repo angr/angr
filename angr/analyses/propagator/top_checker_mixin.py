@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import TypeVar
 from collections.abc import Callable
 import claripy
 from pyvex.expr import IRExpr, Unop, get_op_retty, Binop
@@ -11,8 +10,6 @@ from angr.engines.engine import DataType_co
 from angr.engines.light.engine import SimEngineLight, SimEngineLightVEX
 
 TOPS: dict[int, claripy.ast.BV] = {}
-
-T = TypeVar("T")
 
 
 class ClaripyDataEngineMixin[StateType, DataType_co, BlockType, ResultType](
