@@ -43,6 +43,7 @@ class Outliner(Analysis):
         func,
         ail_graph: networkx.DiGraph[Block],
         src_loc: Address,
+        *,
         func_entry_loc: Address | None = None,
         frontier: set[tuple[Address, bool]] | None = None,
         child_name: str | None = None,
@@ -51,7 +52,7 @@ class Outliner(Analysis):
         min_step: int = 1,
         liveness: SLivenessAnalysis | None = None,
         duplicate_outliner: Outliner | None = None,
-        ail_manager: Manager | None = None,
+        ail_manager: Manager,
     ):
         self.parent_func = func
         self.parent_graph = ail_graph
@@ -144,8 +145,6 @@ class Outliner(Analysis):
         return block_addr
 
     def _next_atom(self) -> int:
-        if self._manager is None:
-            return None
         return self._manager.next_atom()
 
     def cleanup_interface(
@@ -431,7 +430,6 @@ class Outliner(Analysis):
         ret_exprs = list(ret_vars)
 
         # rewrite the callsite
-        callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         switch_varid = self._next_vvar_id()
         switch_vvar = VirtualVariable(
             None,
