@@ -222,18 +222,13 @@ class Outliner(Analysis):
                     assert False, (
                         "Why is there a phi which is not used in the function but only consumes one variable from before the function?"
                     )
-                    src = src_and_vvars[0][1]
-                    assert src is not None
-                    phi_assignment = Assignment(phi_assignment.idx, phi_assignment.dst, src, **phi_assignment.tags)
-                    new_callsite_phis[-1] = phi_assignment
-                else:
-                    phi_assignment = Assignment(
-                        phi_assignment.idx,
-                        phi_assignment.dst,
-                        Phi(phi_assignment.src.idx, phi_assignment.src.bits, src_and_vvars, **phi_assignment.src.tags),
-                        **phi_assignment.tags,
-                    )
-                    phi_block.statements[loc.stmt_idx] = Label(self._next_atom(), "placeholder", ins_addr=loc.ins_addr)
+                phi_assignment = Assignment(
+                    phi_assignment.idx,
+                    phi_assignment.dst,
+                    Phi(phi_assignment.src.idx, phi_assignment.src.bits, src_and_vvars, **phi_assignment.src.tags),
+                    **phi_assignment.tags,
+                )
+                phi_block.statements[loc.stmt_idx] = Label(self._next_atom(), "placeholder", ins_addr=loc.ins_addr)
                 new_callsite_phis.append(phi_assignment)
                 continue
 
@@ -356,6 +351,13 @@ class Outliner(Analysis):
             # this node is inclusive but has successors. convert it to an exclusive frontier.
             frontier.remove(loc)
             exclusive_frontier.update((n2.addr, n2.idx) for n2 in self.parent_graph.succ[blk] if n2 not in subgraph)
+
+            # also handle a silly case - we have an inclusive frontier but one of its successors goes back into the subgraph
+            # these edges are omitted by default
+            for n2 in self.parent_graph.succ[blk]:
+                if n2 in subgraph:
+                    subgraph.add_edge(blk, n2)
+
         inclusive_frontier = frontier - exclusive_frontier
         frontier.update(exclusive_frontier)
 
@@ -550,7 +552,7 @@ class Outliner(Analysis):
                         cond_jump.true_target, Const(self._next_atom(), new_ret_node.addr, self.project.arch.bits)
                     )
                     cond_jump.true_target_idx = new_ret_node.idx
-                if (
+                elif (
                     isinstance(cond_jump.false_target, Const)
                     and cond_jump.false_target.value == frontier_loc[0]
                     and cond_jump.false_target_idx == frontier_loc[1]
@@ -560,6 +562,8 @@ class Outliner(Analysis):
                         Const(self._next_atom(), new_ret_node.addr, self.project.arch.bits),
                     )
                     cond_jump.false_target_idx = new_ret_node.idx
+                else:
+                    assert False, "Conditional jump targets do not match graph structure"
                 ret_node.statements[-1] = cond_jump
                 subgraph.add_edge(ret_node, new_ret_node)
             else:
