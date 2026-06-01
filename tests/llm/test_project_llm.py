@@ -9,7 +9,6 @@ from unittest import mock
 
 import angr
 from angr.llm_client import LLMClient
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

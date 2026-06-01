@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
+
 from unittest import TestCase, main
 
 from archinfo import ArchAArch64
 
 import angr
 from angr.analyses import Disassembly
-from angr.analyses.disassembly import MemoryOperand, Instruction, Value, Register
+from angr.analyses.disassembly import Instruction, MemoryOperand, Register, Value
 from angr.errors import AngrTypeError
 
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import logging
+
 import networkx as nx
+
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, ConditionalJump
+from angr.ailment.statement import ConditionalJump, Statement
 
 from .utils import find_block_by_addr_and_idx
 

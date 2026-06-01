@@ -1,25 +1,25 @@
 # pylint:disable=missing-class-docstring,unused-argument,consider-using-dict-items
 from __future__ import annotations
+
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from angr import ailment
-from angr.ailment import Expression, Block, AILBlockRewriter
-from angr.ailment.expression import Call, ITE, Atom, Load, VirtualVariable
-from angr.ailment.statement import Statement, Assignment, Return
-
-from angr.utils.ail import is_phi_assignment
-from angr.utils.ssa import VVarUsesCollector
+from angr.ailment import AILBlockRewriter, Block, Expression
+from angr.ailment.expression import ITE, Atom, Call, Load, VirtualVariable
+from angr.ailment.statement import Assignment, Return, Statement
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
+from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    LoopNode,
     SequenceNode,
     SwitchCaseNode,
 )
+from angr.utils.ail import is_phi_assignment
+from angr.utils.ssa import VVarUsesCollector
 
 if TYPE_CHECKING:
     from angr.ailment.expression import MultiStatementExpression

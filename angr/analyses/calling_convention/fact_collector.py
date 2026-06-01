@@ -1,20 +1,21 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import pyvex
 
-from angr.utils.bits import u2s
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
-from angr.analyses.analysis import Analysis
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode, FuncNode
-from angr.engines.light import SimEngineNostmtVEX, SimEngineLight
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
+from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
+
 from .utils import is_sane_register_variable
 
 if TYPE_CHECKING:

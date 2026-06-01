@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 import claripy
 from archinfo import Endness
 
-from angr.analyses import Analysis, AnalysesHub
-from angr.ailment.expression import UnaryOp, BinaryOp, Const, Struct, Array, Load
+from angr.ailment.expression import Array, BinaryOp, Const, Load, Struct, UnaryOp
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeSlice
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 

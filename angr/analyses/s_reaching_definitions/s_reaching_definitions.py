@@ -6,12 +6,13 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
-from angr.code_location import AILCodeLocation
-from angr.analyses import Analysis, register_analysis
-from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs
-from angr.calling_conventions import default_cc, SimRegArg
+from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, get_vvar_uselocs
+
 from .s_rda_model import SRDAModel
 from .s_rda_view import SRDAView
 

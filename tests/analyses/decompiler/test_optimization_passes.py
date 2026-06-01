@@ -10,12 +10,12 @@ import unittest
 import networkx as nx
 
 import angr
-from angr.ailment.manager import Manager
-from angr.ailment import Block, Assignment, Register, Const, BinaryOp
+from angr.ailment import Assignment, BinaryOp, Block, Const, Register
 from angr.ailment.expression import Call
-from angr.ailment.statement import Return, Store, ConditionalJump
+from angr.ailment.manager import Manager
+from angr.ailment.statement import ConditionalJump, Return, Store
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode
+from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)

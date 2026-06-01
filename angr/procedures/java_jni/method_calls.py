@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import logging
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootArgument, SootMethodDescriptor
 
-from . import JNISimProcedure
 from angr.calling_conventions import SimCCSoot
 from angr.engines.soot.method_dispatcher import resolve_method
+
+from . import JNISimProcedure
 
 l = logging.getLogger("angr.procedures.java_jni.callmethod")
 

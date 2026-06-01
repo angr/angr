@@ -1,26 +1,27 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 import re
 import string
 import struct
 from collections import defaultdict
 from itertools import count
+from typing import TYPE_CHECKING
 
 import capstone
 import cle
 import networkx
 import pyvex
 
-from angr.analyses import AnalysesHub
-from . import Analysis
-from .cfg.cfg_emulated import CFGEmulated
-from .ddg import DDG
-from .cfg.cfg_fast import CFGFast
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.codenode import CodeNode, FuncNode
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.sim_variable import SimMemoryVariable, SimTemporaryVariable
+
+from .cfg.cfg_emulated import CFGEmulated
+from .cfg.cfg_fast import CFGFast
+from .ddg import DDG
 
 if TYPE_CHECKING:
     from .cfg import CFGNode

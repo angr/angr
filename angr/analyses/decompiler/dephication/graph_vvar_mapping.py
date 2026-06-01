@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
@@ -6,11 +7,10 @@ from typing import TYPE_CHECKING
 from angr.ailment import AILBlockRewriter
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
-from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
-from angr.analyses import Analysis
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.knowledge_plugins.functions import Function
-from angr.analyses import register_analysis
 from angr.utils.ssa import is_phi_assignment
 
 if TYPE_CHECKING:

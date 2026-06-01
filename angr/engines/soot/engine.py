@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
@@ -9,14 +10,16 @@ from archinfo.arch_soot import (
     SootArgument,
     SootMethodDescriptor,
 )
-
-from angr import sim_options as o
-from angr.errors import SimEngineError, SimTranslationError
 from cle import CLEError
-from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
-from angr.sim_type import SimTypeFunction, parse_type
-from angr.engines.successors import SuccessorsEngine
+
+import angr
+from angr import sim_options as o
 from angr.engines.procedure import ProcedureMixin
+from angr.engines.successors import SuccessorsEngine
+from angr.errors import SimEngineError, SimTranslationError
+from angr.sim_type import SimTypeFunction, parse_type
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from .statements import SimSootStmt_Return, SimSootStmt_ReturnVoid, translate_stmt
 from .values import SimSootValue_Local, SimSootValue_ParamRef
@@ -203,8 +206,6 @@ class SootMixin(SuccessorsEngine, ProcedureMixin):
         successors.processed = True
 
     def _get_sim_procedure(self, addr):
-        # Delayed import
-        from angr.procedures import SIM_PROCEDURES
 
         if addr in self.project._sim_procedures:
             return self.project._sim_procedures[addr]
@@ -213,8 +214,8 @@ class SootMixin(SuccessorsEngine, ProcedureMixin):
         class_name = method.class_name
         method_prototype = "{}({})".format(method.name, ",".join(method.params))
 
-        if class_name in SIM_PROCEDURES and method_prototype in SIM_PROCEDURES[class_name]:
-            procedure_cls = SIM_PROCEDURES[class_name][method_prototype]
+        if class_name in angr.SIM_PROCEDURES and method_prototype in angr.SIM_PROCEDURES[class_name]:
+            procedure_cls = angr.SIM_PROCEDURES[class_name][method_prototype]
         else:
             return None
 
@@ -225,11 +226,9 @@ class SootMixin(SuccessorsEngine, ProcedureMixin):
         return proc
 
     def get_unconstrained_simprocedure(self):
-        # Delayed import
-        from angr.procedures import SIM_PROCEDURES
 
         # TODO: fix method prototype
-        procedure_cls = SIM_PROCEDURES["angr.unconstrained"]["unconstrained()"]
+        procedure_cls = angr.SIM_PROCEDURES["angr.unconstrained"]["unconstrained()"]
 
         # Lazy-initialize it
         return procedure_cls(project=self.project)

@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import logging
 
 import networkx
 
-from angr.analyses.analysis import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.knowledge_plugins.cfg import CFGModel
 
 _l = logging.getLogger(__name__)

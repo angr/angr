@@ -17,7 +17,6 @@ isolation; their behaviour is exercised only by the integration tests.
 from __future__ import annotations
 
 import angr
-
 from angr.ailment import Block
 from angr.ailment.expression import (
     BinaryOp,
@@ -29,7 +28,6 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import ConditionalJump
-
 from angr.rust.optimization_passes.outliners.string_cmp_outliner import StringCmpOutliner
 from angr.rust.optimization_passes.outliners.unwrap_outliner import (
     OPTION_UNWRAP_FAILED_FUNCTION,

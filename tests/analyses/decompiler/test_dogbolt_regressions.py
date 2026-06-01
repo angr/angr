@@ -6,7 +6,6 @@ import os
 import unittest
 
 import angr
-
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests", "dogbolt")

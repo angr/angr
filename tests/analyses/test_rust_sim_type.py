@@ -3,12 +3,11 @@ from __future__ import annotations
 from collections import OrderedDict
 
 import archinfo
-import angr
 
-from angr.analyses.typehoon import typeconsts
+import angr
 import angr.rust.knowledge_plugins  # pylint:disable=unused-import
+from angr.analyses.typehoon import typeconsts
 from angr.rust.analyses.type_db_loader import TypeDBLoader
-from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.sim_type import (
     EnumVariant,
     RustSimEnum,
@@ -27,6 +26,7 @@ from angr.rust.sim_type import (
     RustSimTypeVec,
     is_composite_type,
 )
+from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.sim_type import SimTypeArray, SimTypeFunction, SimTypeLongLong
 
 

@@ -4,16 +4,16 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from angr.sim_type import (
-    SimType,
-    SimTypeBottom,
-    SimTypeInt,
-    SimTypeFunction,
-    SimTypePointer,
-    SimTypeArray,
-    SimStruct,
-    SimTypeNumOffset,
-    SimTypeNum,
     IDENT_TO_CLS,
+    SimStruct,
+    SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeNum,
+    SimTypeNumOffset,
+    SimTypePointer,
 )
 
 

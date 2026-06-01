@@ -6,10 +6,8 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
-import angr.ailment as ailment
-
 import angr
-
+import angr.ailment as ailment
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

@@ -1,9 +1,9 @@
 from __future__ import annotations
+
 from collections import OrderedDict
 
 from angr.ailment.statement import Statement
-
-from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode, SequenceNode, INDENT_DELTA
+from angr.analyses.decompiler.structurer_nodes import INDENT_DELTA, BaseNode, SequenceNode
 from angr.rust.sim_type import EnumVariant
 
 

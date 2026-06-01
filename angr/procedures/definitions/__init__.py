@@ -1,24 +1,25 @@
 # pylint:disable=arguments-renamed,global-statement
 from __future__ import annotations
+
 import copy
-import os
-import logging
-import json
 import inspect
+import json
+import logging
+import os
 from collections import defaultdict
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-import pydemumble
 import archinfo
+import pydemumble
 
+from angr.calling_conventions import CC_NAMES, DEFAULT_CC, SimCC
 from angr.errors import AngrMissingTypeError
-from angr.utils.json_utils import json_decode
-from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
-from angr.calling_conventions import DEFAULT_CC, CC_NAMES, SimCC
 from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
 from angr.procedures.stubs.syscall_stub import syscall as stub_syscall
+from angr.sim_type import SimType, SimTypeBottom, SimTypeFunction, parse_cpp_file, parse_file
+from angr.utils.json_utils import json_decode
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCCSyscall
@@ -965,8 +966,8 @@ def _update_libntdll(lib: SimLibrary):
 
 
 def _update_libuser32(lib: SimLibrary):
-    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
     from angr.calling_conventions import SimCCCdecl  # pylint:disable=import-outside-toplevel
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win_user32"])
     lib.add("wsprintfA", P["libc"]["sprintf"], cc=SimCCCdecl(archinfo.ArchX86()))

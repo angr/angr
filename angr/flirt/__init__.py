@@ -1,15 +1,15 @@
 # This submodule stores and manages FLIRT signatures
 from __future__ import annotations
 
-import os
 import json
-from collections import defaultdict
 import logging
+import os
+from collections import defaultdict
 
 from angr.analyses.flirt import (
     FlirtSignature,
-    FlirtSignatureParsed,
     FlirtSignatureError,
+    FlirtSignatureParsed,
     flirt_arch_to_arch_name,
     flirt_os_type_to_os_name,
 )

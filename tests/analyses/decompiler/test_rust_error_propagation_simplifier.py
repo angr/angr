@@ -11,8 +11,7 @@ from __future__ import annotations
 from angr.ailment import Block
 from angr.ailment.expression import Call, Const, RustEnum, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Jump, Label, Return
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode
-
+from angr.analyses.decompiler.structurer_nodes import SequenceNode
 from angr.rust.optimization_passes.error_propagation_simplifier import ErrorPropagationWalker
 
 

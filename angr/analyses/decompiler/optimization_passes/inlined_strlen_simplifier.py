@@ -1,10 +1,11 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 from typing import Any
 
 from angr.ailment import Block
-from angr.ailment.statement import Assignment, Label, ConditionalJump
-from angr.ailment.expression import BinaryOp, Call, VirtualVariable, Const, Phi, Load, Expression
+from angr.ailment.expression import BinaryOp, Call, Const, Expression, Load, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Label
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.utils.ail import is_phi_assignment
 from angr.utils.bits import u2s

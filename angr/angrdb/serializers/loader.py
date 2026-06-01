@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import Any
-from pathlib import Path
-import json
+
 import binascii
+import json
 import logging
 from io import BytesIO
-import archinfo
+from pathlib import Path
+from typing import Any
 
+import archinfo
 import cle
 
-from angr.errors import AngrCorruptDBError, AngrDBError
 from angr.angrdb.models import DbObject
+from angr.errors import AngrCorruptDBError, AngrDBError
 
 _l = logging.getLogger(__name__)
 

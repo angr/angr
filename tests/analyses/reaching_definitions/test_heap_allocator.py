@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from unittest import main, TestCase
+
+from unittest import TestCase, main
 
 from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress

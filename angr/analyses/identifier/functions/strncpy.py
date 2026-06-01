@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import random
 
 from angr.analyses.identifier.func import Func, TestData

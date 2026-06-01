@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
 import angr
 from angr.errors import SimEngineError
+
 from .base import SimSootValue
 from .constants import SimSootValue_IntConstant
 

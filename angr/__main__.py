@@ -4,19 +4,19 @@ import argparse
 import contextlib
 import logging
 import re
-from typing import TYPE_CHECKING
 from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from rich import progress as rich_progress
+from rich.console import Console
 from rich.logging import RichHandler
 from rich.syntax import Syntax
-from rich.console import Console
 from rich.table import Column
 
 import angr
-from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
-from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
+from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER, STRUCTURER_CLASSES
 from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:

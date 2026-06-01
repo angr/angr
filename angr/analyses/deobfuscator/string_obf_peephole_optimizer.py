@@ -1,9 +1,10 @@
 from __future__ import annotations
-from angr.ailment.expression import Call, Const
+
 import claripy
 
-from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
+from angr.ailment.expression import Call, Const
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
+from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.errors import AngrCallableMultistateError
 
 

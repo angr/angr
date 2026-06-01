@@ -4,12 +4,11 @@ from __future__ import annotations
 import archinfo
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Assignment, SideEffectStatement
 from angr.ailment.expression import Call, Const, Register, VirtualVariable
-
+from angr.ailment.statement import Assignment, SideEffectStatement, Statement
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 WIN64_REG_ARGS = {
     archinfo.ArchAMD64().registers["rcx"][0],

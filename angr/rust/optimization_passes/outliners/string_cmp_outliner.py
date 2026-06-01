@@ -3,10 +3,9 @@ from __future__ import annotations
 from archinfo import Endness
 
 from angr.ailment import AILBlockRewriter, BinaryOp, Const
-from angr.ailment.expression import Load, Convert, StringLiteral
+from angr.ailment.expression import Convert, Load, StringLiteral
 from angr.ailment.statement import ConditionalJump
-
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 class StringCmpOutliner(OptimizationPass):

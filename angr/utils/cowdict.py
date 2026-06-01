@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Self
 
-from collections.abc import Callable
 from collections import ChainMap
+from collections.abc import Callable
+from typing import Self
 
 _MISSING = object()
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import unittest
 
 import claripy
 
-from angr import SIM_PROCEDURES
-from angr import SimState, SimPosixError, SimFile
+from angr import SIM_PROCEDURES, SimFile, SimPosixError, SimState
 
 FAKE_ADDR = 0x100000
 

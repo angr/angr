@@ -7,8 +7,9 @@ based on the called function (e.g., malloc result -> ptr, strlen result -> len).
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment.expression import Call

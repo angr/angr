@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from collections import OrderedDict
+from collections.abc import Sequence
 from enum import Enum, IntEnum
 from typing import TYPE_CHECKING, Self, cast
 
@@ -16,6 +16,7 @@ from .utils import get_bits, is_none_or_likeable, is_none_or_matchable, stable_h
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
+
     from .manager import Manager
     from .statement import Statement
 

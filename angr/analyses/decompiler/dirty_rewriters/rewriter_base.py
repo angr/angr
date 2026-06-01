@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from angr.ailment.statement import DirtyStatement, Statement
 from angr.ailment.expression import DirtyExpression, Expression
+from angr.ailment.statement import DirtyStatement, Statement
 
 
 class DirtyRewriterBase:

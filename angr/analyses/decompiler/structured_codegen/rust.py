@@ -1,79 +1,83 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections.abc import Callable
-from collections import defaultdict, OrderedDict, Counter
+
 import logging
+from collections import Counter, OrderedDict, defaultdict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import archinfo
 
 from angr import ailment
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.expression import (
-    StackBaseOffset,
+    Array,
     BinaryOp,
+    FunctionLikeMacro,
+    Let,
+    StackBaseOffset,
     StringLiteral,
     Struct,
-    Array,
+)
+from angr.ailment.expression import (
     RustEnum as AilRustEnum,
-    Let,
-    FunctionLikeMacro,
 )
-
-from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
-from angr.sim_type import (
-    SimTypeLongLong,
-    SimTypeChar,
-    SimTypeWideChar,
-    SimStruct,
-    SimType,
-    SimTypeBottom,
-    SimTypeArray,
-    SimTypeFunction,
-    SimTypeFloat,
-    SimTypeDouble,
-    TypeRef,
-    SimTypeNum,
-    SimTypeFixedSizeArray,
-    SimTypeLength,
-    SimTypeReg,
-    SimTypeInt,
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    LoopNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
-from angr.rust.sim_type import (
-    RustSimType,
-    RustSimTypeInt,
-    RustSimTypeFunction,
-    RustSimTypeReference,
-    RustSimStruct,
-    EnumVariant,
-    RustSimTypeStrRef,
-)
-from angr.knowledge_plugins.functions import Function
-from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
-from angr.utils.constants import is_alignment_mask
-from angr.rust.utils.demangler import demangle, normalize
-from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from angr.analyses import Analysis, register_analysis
-from angr.analyses.decompiler.region_identifier import MultiNode
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    BreakNode,
-    SwitchCaseNode,
-    ContinueNode,
-    CascadingConditionNode,
+from angr.knowledge_plugins.functions import Function
+from angr.rust.sim_type import (
+    EnumVariant,
+    RustSimStruct,
+    RustSimType,
+    RustSimTypeFunction,
+    RustSimTypeInt,
+    RustSimTypeReference,
+    RustSimTypeStrRef,
 )
+from angr.rust.structuring.structurer_nodes import IfLetNode, PatternMatchNode
 from angr.rust.typehoon.translator import RustTypeTranslator
+from angr.rust.utils.demangler import demangle, normalize
+from angr.sim_type import (
+    SimStruct,
+    SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeFixedSizeArray,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLength,
+    SimTypeLongLong,
+    SimTypeNum,
+    SimTypeReg,
+    SimTypeWideChar,
+    TypeRef,
+)
+from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryVariable, SimVariable
+from angr.utils.constants import is_alignment_mask
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
+
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
     import archinfo
+
     import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 

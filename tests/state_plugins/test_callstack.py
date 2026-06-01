@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import unittest
 
 from angr.state_plugins.callstack import CallStack

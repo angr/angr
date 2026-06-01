@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import collections.abc
 import contextlib
-import threading
-import tempfile
-import weakref
+import io
 import logging
+import os
 import pickle
 import shelve
+import tempfile
+import threading
 import uuid
-import os
-import io
+import weakref
 
 import claripy
 

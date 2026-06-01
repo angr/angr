@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 import logging
 
 import networkx
 
-from angr.analyses import AnalysesHub
-from angr.utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
-from . import Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.utils.graph import PostDominators, TemporaryNode, compute_dominance_frontier
 
 _l = logging.getLogger(name=__name__)
 

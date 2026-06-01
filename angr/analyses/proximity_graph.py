@@ -1,15 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.codenode import BlockNode, FuncNode
-from angr.sim_variable import SimMemoryVariable
 from angr.knowledge_plugins.functions import Function
-from .analysis import Analysis, AnalysesHub
+from angr.sim_variable import SimMemoryVariable
+
+from .analysis import AnalysesHub, Analysis
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.decompiler import Decompiler

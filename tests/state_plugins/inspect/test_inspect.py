@@ -7,15 +7,14 @@ __package__ = __package__ or "tests.state_plugins.inspect"  # pylint:disable=red
 import os
 import unittest
 
-import pyvex
-import claripy
 import archinfo
+import claripy
+import pyvex
 
 import angr
-from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
-from angr.engines import ProcedureEngine, HeavyVEXMixin, SimInspectMixin
+from angr import BP_AFTER, BP_BEFORE, SIM_PROCEDURES, SimState, concretization_strategies
+from angr.engines import HeavyVEXMixin, ProcedureEngine, SimInspectMixin
 from angr.project import load_shellcode
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

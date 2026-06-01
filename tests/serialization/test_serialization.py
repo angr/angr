@@ -13,7 +13,6 @@ import unittest
 
 import angr
 from angr.sim_variable import SimStackVariable
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

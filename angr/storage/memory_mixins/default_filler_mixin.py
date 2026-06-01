@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr import sim_options as options
-from angr.misc.ux import once
 from angr.errors import SimMemoryMissingError
+from angr.misc.ux import once
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)
 

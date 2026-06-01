@@ -1,42 +1,44 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import logging
-from collections import defaultdict, OrderedDict
 
-import networkx
+import logging
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any
 
 import claripy
-import angr.ailment as ailment
+import networkx
 
-from angr.utils.graph import GraphUtils
-from angr.knowledge_plugins.cfg import IndirectJumpType
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+import angr.ailment as ailment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
+    BaseNode,
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    EmptyBlockNotice,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 from angr.analyses.decompiler.utils import (
     extract_jump_targets,
-    get_ast_subexprs,
-    switch_extract_cmp_bounds,
-    remove_last_statement,
     first_nonlabel_nonphi_node,
+    get_ast_subexprs,
+    remove_last_statement,
+    switch_extract_cmp_bounds,
 )
-from .structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    SwitchCaseNode,
-    BreakNode,
-    ContinueNode,
-    MultiNode,
-    CascadingConditionNode,
-    BaseNode,
-    EmptyBlockNotice,
-)
+from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.utils.graph import GraphUtils
+
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
@@ -1216,5 +1218,3 @@ class DreamStructurer(StructurerBase):
         seq.nodes = [n for n in seq.nodes if n is not None]
 
 
-# delayed import
-from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position

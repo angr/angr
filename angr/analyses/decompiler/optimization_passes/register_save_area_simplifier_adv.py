@@ -1,13 +1,14 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
-
-from angr.ailment.statement import Assignment
 from angr.ailment.expression import VirtualVariable
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.utils.ail import is_phi_assignment
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

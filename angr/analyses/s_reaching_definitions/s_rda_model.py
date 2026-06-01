@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Literal, overload
 from collections import defaultdict
 from collections.abc import Iterator
+from typing import Any, Literal, overload
 
-from angr.ailment.expression import VirtualVariable, Tmp
 from angr.ailment import Address
-from angr.knowledge_plugins.key_definitions import atoms, Definition
+from angr.ailment.expression import Tmp, VirtualVariable
 from angr.code_location import AILCodeLocation
+from angr.knowledge_plugins.key_definitions import Definition, atoms
 
 
 class SRDAModel:

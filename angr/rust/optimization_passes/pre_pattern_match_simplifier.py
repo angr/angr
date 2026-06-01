@@ -1,18 +1,18 @@
 from __future__ import annotations
+
 import logging
 from typing import Any
 
-
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Call, Load, Const, Convert, UnaryOp, VirtualVariable, RustEnum
+from angr.ailment.expression import Call, Const, Convert, Load, RustEnum, UnaryOp, VirtualVariable
 from angr.ailment.statement import ConditionalJump, Return
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.optimization_passes.return_duplicator_base import ReturnDuplicatorBase
+from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.mixins import DFAMixin
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
-from angr.rust.utils.ail import unwrap_stack_vvar_reference, unwrap_combo_reg_vvar_reference
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
-from angr.analyses.decompiler.optimization_passes.return_duplicator_base import ReturnDuplicatorBase
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.utils.ail import unwrap_combo_reg_vvar_reference, unwrap_stack_vvar_reference
 
 _l = logging.getLogger(name=__name__)
 

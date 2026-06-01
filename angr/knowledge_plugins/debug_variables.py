@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
-
 from cle.backends.elf.compilation_unit import CompilationUnit
-from cle.backends.elf.variable import Variable
 from cle.backends.elf.elf import ELF
+from cle.backends.elf.variable import Variable
 
 from .plugin import KnowledgeBasePlugin
 

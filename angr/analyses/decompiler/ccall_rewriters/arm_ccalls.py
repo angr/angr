@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 from angr.engines.vex.claripy.ccall import (
+    ARMG_CC_OP_ADD,
+    ARMG_CC_OP_LOGIC,
+    ARMG_CC_OP_MUL,
+    ARMG_CC_OP_NUMBER,
+    ARMG_CC_OP_SBB,
+    ARMG_CC_OP_SUB,
     ARMCondAL,
     ARMCondEQ,
     ARMCondGE,
@@ -16,12 +22,6 @@ from angr.engines.vex.claripy.ccall import (
     ARMCondNE,
     ARMCondNV,
     ARMCondPL,
-    ARMG_CC_OP_ADD,
-    ARMG_CC_OP_LOGIC,
-    ARMG_CC_OP_MUL,
-    ARMG_CC_OP_NUMBER,
-    ARMG_CC_OP_SBB,
-    ARMG_CC_OP_SUB,
 )
 
 from .rewriter_base import CCallRewriterBase

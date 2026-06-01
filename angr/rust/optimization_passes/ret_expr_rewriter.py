@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr.ailment import Const, Register
 from angr.ailment.expression import ComboRegister
-from angr.calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStructArg
 
 from .utils import SideEffectStatementRewriter
 

@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
-from angr.ailment import Statement, Block, Assignment, BinaryOp
-from angr.ailment.expression import Call, Const, VirtualVariable, Load
-from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
+from angr.ailment import Assignment, BinaryOp, Block, Statement
+from angr.ailment.block_walker import AILBlockRewriter, AILBlockViewer
+from angr.ailment.expression import Call, Const, Load, VirtualVariable
 from angr.ailment.statement import SideEffectStatement
-from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
+from angr.sim_type import SimTypeChar, SimTypePointer, SimTypeWideChar
 from angr.utils.graph import GraphUtils
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

@@ -1,16 +1,18 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment
+from angr.analyses.analysis import register_analysis
 from angr.knowledge_plugins.functions import Function
-from angr.analyses import register_analysis
-from .graph_rewriting import GraphRewritingAnalysis
+
 from .dephication_base import DephicationBase
+from .graph_rewriting import GraphRewritingAnalysis
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase

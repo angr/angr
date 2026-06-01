@@ -8,9 +8,10 @@ This module provides two base classes for semantic naming:
 """
 
 from __future__ import annotations
+
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
-import logging
 
 from angr.ailment.expression import Call, Const
 from angr.sim_variable import SimVariable
@@ -19,9 +20,9 @@ if TYPE_CHECKING:
     import networkx
 
     from angr.ailment import Block
+    from angr.analyses.decompiler.structurer_nodes import BaseNode
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-    from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode
 
 l = logging.getLogger(name=__name__)
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
-from angr.ailment.expression import VirtualVariable
-from angr.ailment.statement import Label, Jump, Assignment, ConditionalJump
 
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin
 from angr.rust.utils.ail import has_call
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.utils.ssa import VVarUsesCollector
 
 

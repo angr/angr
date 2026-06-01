@@ -1,6 +1,8 @@
 from __future__ import annotations
-import angr
+
 import logging
+
+import angr
 
 l = logging.getLogger(name=__name__)
 

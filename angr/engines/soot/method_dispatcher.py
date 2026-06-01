@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 from archinfo.arch_soot import SootMethodDescriptor

@@ -6,21 +6,22 @@ import logging
 import math
 from typing import TYPE_CHECKING
 
-from networkx import DiGraph
-
 import claripy
 from claripy.ast import BV
-from .dep_nodes import DepNodeTypes, ConstantDepNode, MemDepNode, VarDepNode, RegDepNode, TmpDepNode
-from .sim_act_location import SimActLocation, DEFAULT_LOCATION, ParsedInstruction
-from angr.analyses import Analysis
-from angr.analyses import AnalysesHub
-from angr.errors import AngrDDGError, AngrAnalysisError, SimValueError
-from angr.state_plugins import SimActionData
+from networkx import DiGraph
+
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.errors import AngrAnalysisError, AngrDDGError, SimValueError
+from angr.state_plugins.sim_action import SimActionData
 from angr.storage import DefaultMemory
 
+from .dep_nodes import ConstantDepNode, DepNodeTypes, MemDepNode, RegDepNode, TmpDepNode, VarDepNode
+from .sim_act_location import DEFAULT_LOCATION, ParsedInstruction, SimActLocation
+
 if TYPE_CHECKING:
-    from .dep_nodes import BaseDepNode
     from angr import SimState
+
+    from .dep_nodes import BaseDepNode
 
 logger = logging.getLogger(name=__name__)
 

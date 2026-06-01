@@ -1,7 +1,10 @@
 from __future__ import annotations
-import angr
-import claripy
+
 import logging
+
+import claripy
+
+import angr
 from angr.errors import SimProcedureError
 
 l = logging.getLogger(name=__name__)

@@ -1,5 +1,6 @@
 from __future__ import annotations
-from sqlalchemy import Column, Integer, String, Boolean, BLOB, TEXT, ForeignKey
+
+from sqlalchemy import BLOB, TEXT, Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()

@@ -1,5 +1,7 @@
 from __future__ import annotations
-from angr.procedures import SIM_PROCEDURES as P
+
+from angr.procedures.procedure_dict import SIM_PROCEDURES as P
+
 from . import SimLibrary
 
 libc = SimLibrary()

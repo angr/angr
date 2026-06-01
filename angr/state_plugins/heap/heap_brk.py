@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
@@ -6,6 +7,7 @@ import claripy
 from angr.errors import SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.plugin import SimStatePlugin
+
 from . import SimHeapBase
 
 l = logging.getLogger(__name__)

@@ -1,79 +1,80 @@
 # pylint:disable=superfluous-parens,too-many-boolean-expressions,line-too-long
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+
 import itertools
 import logging
 import math
 import re
 import string
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from enum import Enum, unique
+from typing import TYPE_CHECKING, Any
 
-import networkx
-from sortedcontainers import SortedDict
 import capstone
-
 import claripy
 import cle
+import networkx
 import pyvex
-from cle.address_translator import AT
 from archinfo import Endness
+from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
-from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
+from cle.address_translator import AT
+from sortedcontainers import SortedDict
 
-from angr.analyses import AnalysesHub
-from angr.misc.ux import once
-from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key, block_key_to_addr, block_key_to_size
-from angr.knowledge_plugins.cfg import (
-    CFGNode,
-    MEMORY_DATA_SORTS,
-    MemoryDataSort,
-    MemoryData,
-    IndirectJump,
-    IndirectJumpType,
-)
-from angr.knowledge_plugins.xrefs import XRef, XRefType
-from angr.codenode import HookNode, FuncNode
-from angr.utils.ins_addr_list import InsAddrList
 from angr import sim_options as o
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.codenode import FuncNode, HookNode
 from angr.errors import (
     AngrCFGError,
     AngrSkipJobNotice,
     SimEngineError,
+    SimIRSBNoDecodeError,
     SimMemoryError,
     SimTranslationError,
     SimValueError,
-    SimIRSBNoDecodeError,
 )
+from angr.knowledge_plugins.cfg import (
+    MEMORY_DATA_SORTS,
+    CFGNode,
+    IndirectJump,
+    IndirectJumpType,
+    MemoryData,
+    MemoryDataSort,
+)
+from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+from angr.misc.ux import once
+from angr.rustylib import SegmentList
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.funcid import (
+    is_function_likely_security_init_cookie,
     is_function_security_check_cookie,
     is_function_security_check_cookie_strict,
     is_function_security_init_cookie,
     is_function_security_init_cookie_win8,
-    is_function_likely_security_init_cookie,
 )
-from angr.analyses import ForwardAnalysis
-from angr.rustylib import SegmentList
+from angr.utils.ins_addr_list import InsAddrList
+
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 from .pe_msvc_eh_structs import (
-    parse_funcinfo,
-    parse_unwind_map,
-    parse_try_block_map,
-    parse_eh4_scopetable,
     FUNCINFO_SIZE,
-    UNWINDMAPENTRY_SIZE,
-    TRYBLOCKMAPENTRY_SIZE,
     HANDLERTYPE_SIZE,
+    TRYBLOCKMAPENTRY_SIZE,
+    UNWINDMAPENTRY_SIZE,
+    parse_eh4_scopetable,
+    parse_funcinfo,
+    parse_try_block_map,
+    parse_unwind_map,
 )
 
 if TYPE_CHECKING:
     from angr.block import Block
-    from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
+    from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import CFGNODE_K
 
 

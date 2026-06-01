@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
-
 import os
 import unittest
 from functools import cache
@@ -11,15 +10,13 @@ import claripy
 
 import angr
 from angr import ailment
+from angr.analyses.decompiler.clinic import Clinic
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
 from angr.procedures.libc.snprintf import snprintf
 from angr.state_plugins.history import SimStateHistory
 from angr.storage import DefaultMemory
-
-
-from angr.analyses.decompiler.clinic import Clinic
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

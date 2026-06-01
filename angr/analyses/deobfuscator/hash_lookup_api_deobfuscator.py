@@ -1,14 +1,13 @@
 from __future__ import annotations
-from collections.abc import Callable, Sequence
-from collections.abc import Iterator
+
+from collections.abc import Callable, Iterator, Sequence
 
 import claripy
 
 import angr
-from angr import sim_type
-from angr.analyses import Analysis
-from angr import ailment
+from angr import ailment, sim_type
 from angr.ailment.block_walker import AILBlockViewer
+from angr.analyses.analysis import Analysis
 from angr.errors import AngrCallableError
 from angr.knowledge_plugins.functions.function import Function
 

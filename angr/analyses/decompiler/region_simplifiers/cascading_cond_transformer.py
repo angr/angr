@@ -1,12 +1,13 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import claripy
 
 from angr import ailment
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, CascadingConditionNode
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import CascadingConditionNode, ConditionNode
 from angr.errors import AngrRuntimeError
 
 if TYPE_CHECKING:

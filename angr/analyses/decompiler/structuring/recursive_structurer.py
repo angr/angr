@@ -1,23 +1,25 @@
 from __future__ import annotations
-import itertools
-from typing import TYPE_CHECKING
-import logging
 
-from angr.analyses import Analysis, register_analysis
+import itertools
+import logging
+from typing import TYPE_CHECKING
+
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+from angr.analyses.decompiler.structurer_nodes import BaseNode
 from angr.utils.graph import GraphUtils
-from .structurer_nodes import BaseNode
-from .structurer_base import StructurerBase
+
 from .dream import DreamStructurer
+from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions import Function
     from angr.ailment.manager import Manager
+    from angr.knowledge_plugins.functions import Function
 
 
 _l = logging.getLogger(__name__)

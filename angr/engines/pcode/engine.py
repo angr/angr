@@ -1,17 +1,19 @@
 from __future__ import annotations
+
+import logging
 from collections.abc import Iterable
 
 import claripy
-import logging
 
-from angr.calling_conventions import DEFAULT_CC, default_cc, SimRegArg
-from angr.engines.successors import SuccessorsEngine, SimSuccessors
+from angr import errors
+from angr import sim_options as o
+from angr.calling_conventions import DEFAULT_CC, SimRegArg, default_cc
+from angr.engines.successors import SimSuccessors, SuccessorsEngine
 from angr.misc.ux import once
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr import sim_options as o
-from angr import errors
-from .lifter import PcodeLifterEngineMixin, IRSB
+
 from .emulate import PcodeEmulatorMixin
+from .lifter import IRSB, PcodeLifterEngineMixin
 
 l = logging.getLogger(__name__)
 

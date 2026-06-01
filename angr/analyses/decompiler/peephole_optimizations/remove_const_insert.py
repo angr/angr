@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Convert, Insert, Const
+
+from angr.ailment.expression import BinaryOp, Const, Convert, Insert
 
 from .base import PeepholeOptimizationExprBase
 

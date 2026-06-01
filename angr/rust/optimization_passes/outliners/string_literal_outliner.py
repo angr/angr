@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 from collections import OrderedDict
 
-from angr.rust.mixins import DFAMixin, SSAVariableMixin
 from angr.ailment import AILBlockRewriter, Block
-from angr.ailment.expression import Struct, Const, StringLiteral
-from angr.ailment.statement import Statement, Assignment
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.ailment.expression import Const, StringLiteral, Struct
+from angr.ailment.statement import Assignment, Statement
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins import DFAMixin, SSAVariableMixin
 from angr.rust.optimization_passes.utils import extract_str
 
 

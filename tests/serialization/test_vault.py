@@ -7,8 +7,8 @@ import os
 import unittest
 
 import claripy
-import angr
 
+import angr
 from tests.common import bin_location
 
 

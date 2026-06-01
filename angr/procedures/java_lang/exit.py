@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.procedures.java import JavaSimProcedure
 
 # pylint: disable=arguments-differ,unused-argument

@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 from angr import ailment
-from angr.utils.types import dereference_simtype_by_lib
+from angr.calling_conventions import SimComboArg, SimRegArg
 from angr.sim_type import SimTypeBottom
-from angr.calling_conventions import SimRegArg, SimComboArg
+from angr.utils.types import dereference_simtype_by_lib
+
 from .ailgraph_walker import AILGraphWalker
 
 l = logging.getLogger(__name__)

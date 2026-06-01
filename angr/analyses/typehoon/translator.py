@@ -1,10 +1,12 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from itertools import count
+from typing import TYPE_CHECKING
 
 from angr import sim_type
 from angr.sim_type import SimType, TypeRef
+
 from . import typeconsts
 from .typeconsts import TypeConstant
 

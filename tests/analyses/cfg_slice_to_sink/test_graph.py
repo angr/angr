@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import networkx
+
 import unittest
+
+import networkx
 
 from angr.analyses.cfg_slice_to_sink import CFGSliceToSink, slice_callgraph, slice_cfg_graph, slice_function_graph
 

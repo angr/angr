@@ -1,11 +1,10 @@
 from __future__ import annotations
-from angr.ailment.expression import Const, Load
 
-from angr import SIM_LIBRARIES
-from angr.ailment.expression import Call
-from angr.calling_conventions import default_cc
-from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
+from angr.ailment.expression import Call, Const, Load
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
+from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
+from angr.calling_conventions import default_cc
+from angr.procedures import SIM_LIBRARIES
 
 
 class APIObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):

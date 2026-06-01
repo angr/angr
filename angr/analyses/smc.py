@@ -1,15 +1,14 @@
 from __future__ import annotations
+
 import logging
 import random
-
-from enum import auto, IntFlag
 from collections.abc import Generator
+from enum import IntFlag, auto
 
 import angr
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.knowledge_plugins import Function
 from angr.sim_state import SimState
-
 from angr.utils.tagged_interval_map import TaggedIntervalMap
 
 log = logging.getLogger(__name__)

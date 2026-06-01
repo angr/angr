@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from collections import defaultdict
 
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load, StringLiteral, Call
+from angr.ailment.expression import BinaryOp, Call, Const, Load, StringLiteral, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins import CFAMixin, CFGTransformationMixin, DFAMixin, SRDAMixin, SSAVariableMixin
+from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeInt, RustSimTypeOption, RustSimTypeResult
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
-from angr.rust.sim_type import RustSimTypeResult, RustSimTypeOption, RustSimTypeFunction, RustSimTypeInt
-from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, CFGTransformationMixin, SSAVariableMixin
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 
 RESULT_UNWRAP_FAILED_FUNCTION = "core::result::unwrap_failed"
 OPTION_UNWRAP_FAILED_FUNCTION = "core::option::unwrap_failed"

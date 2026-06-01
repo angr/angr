@@ -1,7 +1,8 @@
 from __future__ import annotations
-from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
-from angr.rust.mixins.cfa_mixin import CFAMixin
+
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins.cfa_mixin import CFAMixin
+from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 
 SECURITY_CHECK_FUNCTIONS = (
     "core::panicking::panic_bounds_check",

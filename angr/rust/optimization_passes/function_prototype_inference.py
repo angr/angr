@@ -1,11 +1,12 @@
 from __future__ import annotations
-from angr.ailment.expression import VirtualVariable, Const, UnaryOp, BinaryOp, Call
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Label, SideEffectStatement
-from angr.rust.mixins import CFAMixin, SSAVariableMixin
-from angr.rust.analyses.rust_calling_convention import Pathfinder
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.sim_type import RustSimEnum, RustSimTypeFunction, is_composite_type
+
+from angr.ailment.expression import BinaryOp, Call, Const, UnaryOp, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.rust.analyses.rust_calling_convention import Pathfinder
+from angr.rust.mixins import CFAMixin, SSAVariableMixin
+from angr.rust.sim_type import RustSimEnum, RustSimTypeFunction, is_composite_type
 
 
 class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):

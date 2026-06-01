@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import platform
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950

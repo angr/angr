@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 
 from angr.errors import AngrExitError
-from .successors import SuccessorsEngine
+
 from .procedure import ProcedureMixin
+from .successors import SuccessorsEngine
 
 log = logging.getLogger(name=__name__)
 

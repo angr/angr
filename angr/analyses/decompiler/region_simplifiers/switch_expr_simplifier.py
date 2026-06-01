@@ -1,11 +1,12 @@
 # pylint:disable=no-self-use,arguments-renamed
 from __future__ import annotations
+
 from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 import angr.ailment as ailment
-from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import SwitchCaseNode
 
 if TYPE_CHECKING:
     from angr.ailment import Manager

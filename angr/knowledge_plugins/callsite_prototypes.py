@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from enum import Enum
 
-from .plugin import KnowledgeBasePlugin
-from angr.sim_type import SimTypeFunction
 from angr.calling_conventions import SimCC
+from angr.sim_type import SimTypeFunction
+
+from .plugin import KnowledgeBasePlugin
 
 
 class CallsitePrototypeKind(Enum):

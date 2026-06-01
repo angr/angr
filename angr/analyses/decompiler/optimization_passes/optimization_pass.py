@@ -1,28 +1,29 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
+
 import logging
 from collections import namedtuple
 from collections.abc import Generator
-from typing import Any, TYPE_CHECKING
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 import networkx
 
+import angr
 from angr import ailment
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
-from angr.analyses.decompiler.utils import add_labels, remove_edges_in_ailgraph, is_empty_node
-from angr.analyses.decompiler.counters import ControlFlowStructureCounter
+from angr.analyses.decompiler.utils import add_labels, is_empty_node, remove_edges_in_ailgraph
 from angr.project import Project
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.stack_item import StackItem
     from angr.knowledge_plugins.functions import Function
     from angr.sim_variable import SimVariable
-    from angr.analyses.decompiler.stack_item import StackItem
 
 
 _l = logging.getLogger(__name__)
@@ -404,7 +405,7 @@ class OptimizationPass(BaseOptimizationPass):
         return graph
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
-        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+        return self.project.analyses[angr.analyses.decompiler.RegionIdentifier].prep(kb=self.kb)(
             self._func,
             graph=graph,
             ail_manager=self.manager,
@@ -599,7 +600,7 @@ class StructuringOptimizationPass(OptimizationPass):
 
         remove_edges_in_ailgraph(graph, self._edges_to_remove)
 
-        self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+        self._ri = self.project.analyses[angr.analyses.decompiler.RegionIdentifier].prep(kb=self.kb)(
             self._func,
             graph=graph,
             ail_manager=self.manager,

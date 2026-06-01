@@ -1,17 +1,18 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from collections import defaultdict
 from itertools import chain
+from typing import TYPE_CHECKING
 
-from angr.utils.constants import DEFAULT_STATEMENT
 from angr.knowledge_plugins.key_definitions.atoms import Tmp
+from angr.utils.constants import DEFAULT_STATEMENT
 
-from .constants import ObservationPointType, OP_BEFORE, OP_AFTER
+from .constants import OP_AFTER, OP_BEFORE, ObservationPointType
 
 if TYPE_CHECKING:
-    from .definition import Definition
     from angr.code_location import CodeLocation
+
+    from .definition import Definition
 
 
 LocationType = tuple[int, int | None, int | None]  # block addr, block ID, stmt ID

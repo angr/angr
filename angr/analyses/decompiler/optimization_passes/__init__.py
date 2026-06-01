@@ -1,50 +1,51 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from archinfo import Arch
 
-from .optimization_pass import OptimizationPassStage
-from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
-from .expr_op_swapper import ExprOpSwapper
-from .ite_region_converter import ITERegionConverter
-from .ite_expr_converter import ITEExprConverter
-from .lowered_switch_simplifier import LoweredSwitchSimplifier
-from .div_simplifier import DivSimplifier
-from .mod_simplifier import ModSimplifier
-from .return_duplicator_low import ReturnDuplicatorLow
-from .return_duplicator_high import ReturnDuplicatorHigh
-from .const_derefs import ConstantDereferencesSimplifier
-from .register_save_area_simplifier import RegisterSaveAreaSimplifier
-from .ret_addr_save_simplifier import RetAddrSaveSimplifier
-from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
-from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
-from .flip_boolean_cmp import FlipBooleanCmp
-from .ret_deduplicator import ReturnDeduplicator
-from .win_stack_canary_simplifier import WinStackCanarySimplifier
-from .cross_jump_reverter import CrossJumpReverter
+from .call_stmt_rewriter import CallStatementRewriter
 from .code_motion import CodeMotionOptimization
-from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
+from .condition_constprop import ConditionConstantPropagation
+from .const_derefs import ConstantDereferencesSimplifier
+from .const_prop_reverter import ConstPropOptReverter
+from .cross_jump_reverter import CrossJumpReverter
 from .deadblock_remover import DeadblockRemover
-from .tag_slicer import TagSlicer
-from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
+from .determine_load_sizes import DetermineLoadSizes
+from .div_simplifier import DivSimplifier
+from .duplication_reverter import DuplicationReverter
+from .eager_std_string_concatenation import EagerStdStringConcatenationPass
+from .eager_std_string_eval import EagerStdStringEvalPass
+from .expr_op_swapper import ExprOpSwapper
+from .flip_boolean_cmp import FlipBooleanCmp
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
 from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
-from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
-from .const_prop_reverter import ConstPropOptReverter
-from .call_stmt_rewriter import CallStatementRewriter
-from .duplication_reverter import DuplicationReverter
-from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
-from .condition_constprop import ConditionConstantPropagation
-from .determine_load_sizes import DetermineLoadSizes
-from .eager_std_string_concatenation import EagerStdStringConcatenationPass
-from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
-from .register_save_area_simplifier_adv import RegisterSaveAreaSimplifierAdvanced
+from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .inlined_strlen_simplifier import InlinedStrlenSimplifier
+from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
+from .ite_expr_converter import ITEExprConverter
+from .ite_region_converter import ITERegionConverter
+from .lowered_switch_simplifier import LoweredSwitchSimplifier
+from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
+from .mod_simplifier import ModSimplifier
+from .optimization_pass import OptimizationPassStage
+from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
+from .register_save_area_simplifier import RegisterSaveAreaSimplifier
+from .register_save_area_simplifier_adv import RegisterSaveAreaSimplifierAdvanced
+from .ret_addr_save_simplifier import RetAddrSaveSimplifier
+from .ret_deduplicator import ReturnDeduplicator
+from .return_duplicator_high import ReturnDuplicatorHigh
+from .return_duplicator_low import ReturnDuplicatorLow
+from .stack_canary_simplifier import StackCanarySimplifier
 from .static_vvar_rewriter import StaticVVarRewriter
-from .eager_std_string_eval import EagerStdStringEvalPass
+from .switch_default_case_duplicator import SwitchDefaultCaseDuplicator
+from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
+from .tag_slicer import TagSlicer
+from .win_stack_canary_simplifier import WinStackCanarySimplifier
+from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset

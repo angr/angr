@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import functools
-from itertools import chain
 import typing
+from itertools import chain
 
 import claripy
 
 from angr import sim_options as o
 from angr.errors import SimActionError
-from .sim_action import SimActionData, SimActionOperation
 from angr.sim_state import SimState
+
+from .sim_action import SimActionData, SimActionOperation
 
 if typing.TYPE_CHECKING:
     from claripy.annotation import Annotation

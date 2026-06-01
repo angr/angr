@@ -12,16 +12,16 @@ import unittest
 import archinfo
 
 import angr
+from angr.calling_conventions import SimCCSystemVAMD64
 from angr.sim_type import (
-    SimTypeEnum,
     SimTypeBitfield,
-    SimTypeInt,
-    SimTypeFunction,
-    SimTypePointer,
     SimTypeChar,
+    SimTypeEnum,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypePointer,
     TypeRef,
 )
-from angr.calling_conventions import SimCCSystemVAMD64
 from tests.common import bin_location
 
 TEST_LOCATION = os.path.join(bin_location, "tests")

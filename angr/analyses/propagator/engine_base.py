@@ -1,14 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
-
-
-from angr.engines.light.engine import BlockProtocol
+from typing import TYPE_CHECKING
 
 from angr.engines.light import SimEngineLight
+from angr.engines.light.engine import BlockProtocol
 from angr.errors import SimEngineError
-from angr.project import Project
 from angr.misc.testing import is_testing
+from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel

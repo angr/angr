@@ -11,8 +11,8 @@ import archinfo
 
 import angr
 from angr import ailment
-from angr.ailment.manager import Manager
 from angr.ailment.expression import BinaryOp, Const
+from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences, EagerEvaluation
 from tests.common import bin_location
 

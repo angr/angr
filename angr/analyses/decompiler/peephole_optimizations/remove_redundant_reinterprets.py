@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import struct
 
-from angr.ailment.expression import Reinterpret, Const
+from angr.ailment.expression import Const, Reinterpret
 
 from .base import PeepholeOptimizationExprBase
 

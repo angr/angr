@@ -9,7 +9,11 @@ __all__ = [
 
 from .analysis import AILPurityAnalysis
 from .engine import (
-    ResultType as AILPurityResultType,
     DataSource as AILPurityDataSource,
+)
+from .engine import (
     DataUsage as AILPurityDataUsage,
+)
+from .engine import (
+    ResultType as AILPurityResultType,
 )

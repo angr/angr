@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import itertools
 import logging
 
-from angr.ailment import Block
-from angr.ailment.statement import Jump, ConditionalJump, Statement, DirtyStatement
 import networkx as nx
 
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.analyses.decompiler.block_similarity import is_similar, index_of_similar_stmts
+from angr.ailment import Block
+from angr.ailment.statement import ConditionalJump, DirtyStatement, Jump, Statement
 from angr.analyses.decompiler.block_io_finder import BlockIOFinder
-from angr.analyses.decompiler.utils import to_ail_supergraph, remove_labels, add_labels
+from angr.analyses.decompiler.block_similarity import index_of_similar_stmts, is_similar
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.utils import add_labels, remove_labels, to_ail_supergraph
 
 _l = logging.getLogger(name=__name__)
 

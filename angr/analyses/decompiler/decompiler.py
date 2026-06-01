@@ -1,47 +1,50 @@
 # pylint:disable=unused-import
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import networkx
 from cle import SymbolType
 
 from angr import ailment
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
-from angr.knowledge_plugins.functions.function import Function
-from angr.knowledge_base import KnowledgeBase
-from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
-from angr.utils import timethis
-from angr.analyses import Analysis, AnalysesHub
-from angr.sim_type import parse_type
-from angr.errors import AngrAIError
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
-from angr.rust.typehoon.typehoon import RustTypehoon
+from angr.errors import AngrAIError
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
-from .clinic import ClinicStage
-from .structured_codegen.c import CStructuredCodeGenerator
-from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
-from .structuring.phoenix import MultiStmtExprMode
-from .region_identifier import RegionIdentifier
-from .optimization_passes.optimization_pass import OptimizationPassStage
+from angr.rust.typehoon.typehoon import RustTypehoon
+from angr.sim_type import parse_type
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.utils import timethis
+
 from .ailgraph_walker import AILGraphWalker
+from .clinic import ClinicStage
 from .condition_processor import ConditionProcessor
-from .decompilation_options import DecompilationOption, PARAM_TO_OPTION
 from .decompilation_cache import DecompilationCache
-from .utils import remove_edges_in_ailgraph
-from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import SequenceNode
-from .presets import DECOMPILATION_PRESETS, DecompilationPreset
+from .decompilation_options import PARAM_TO_OPTION, DecompilationOption
 from .notes import DecompilationNote
+from .optimization_passes.optimization_pass import OptimizationPassStage
+from .presets import DECOMPILATION_PRESETS, DecompilationPreset
+from .region_identifier import RegionIdentifier
+from .sequence_walker import SequenceWalker
+from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
+from .structurer_nodes import SequenceNode
+from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
+from .structuring.phoenix import MultiStmtExprMode
+from .utils import remove_edges_in_ailgraph
 
 if TYPE_CHECKING:
+    from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
+
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
-    from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
     from .structured_codegen.base import BaseStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)

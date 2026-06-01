@@ -1,61 +1,61 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, overload, Literal
 
-from collections.abc import Callable
 import logging
 from collections import defaultdict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, overload
 
+import archinfo
 import networkx
-from sortedcontainers import SortedDict
-
 import pyvex
+from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from cle import (
     ELF,
     PE,
+    XBE,
     Blob,
-    PEStubs,
-    TLSObject,
-    MachO,
+    Coff,
     ExternObject,
-    KernelObject,
     FunctionHintSource,
     Hex,
-    Coff,
+    KernelObject,
+    MachO,
+    PEStubs,
     SRec,
-    XBE,
+    TLSObject,
 )
 from cle.backends import NamedRegion
-import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
-from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
+from sortedcontainers import SortedDict
 
-from angr.knowledge_plugins.functions.function_manager import FunctionManager
-from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, get_block_key, block_key_to_size
-from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.analyses.analysis import Analysis
+from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.engines.vex.lifter import VEX_IRSB_MAX_INST, VEX_IRSB_MAX_SIZE
 from angr.errors import (
     AngrCFGError,
-    SimTranslationError,
-    SimMemoryError,
-    SimIRSBError,
-    SimEngineError,
     AngrUnsupportedSyscallError,
+    SimEngineError,
     SimError,
+    SimIRSBError,
+    SimMemoryError,
+    SimTranslationError,
 )
-from angr.codenode import HookNode, BlockNode, FuncNode
-from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
-from angr.analyses import Analysis
-from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump  # pylint:disable=unused-import
+from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
+
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 if TYPE_CHECKING:
-    from angr.sim_state import SimState
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import K
+    from angr.sim_state import SimState
 
     AddressType = int | SootAddressDescriptor
     MethodType = int | SootMethodDescriptor

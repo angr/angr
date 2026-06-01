@@ -1,10 +1,13 @@
 from __future__ import annotations
+
 import logging
+
 from sortedcontainers import SortedDict
 
-from angr.serializable import Serializable
-from angr.protos import xrefs_pb2
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.protos import xrefs_pb2
+from angr.serializable import Serializable
+
 from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)

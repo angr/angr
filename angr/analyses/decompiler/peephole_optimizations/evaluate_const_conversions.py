@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Const, Convert, Extract
+
 from .base import PeepholeOptimizationExprBase
 
 

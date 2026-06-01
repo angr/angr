@@ -1,29 +1,30 @@
 from __future__ import annotations
+
+import json
 import logging
 from collections import defaultdict
 from pathlib import Path
-import json
 
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.calling_conventions import default_cc
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.rust.sim_type import (
-    RustSimTypeSize,
-    RustSimStruct,
-    RustSimTypeInt,
-    RustSimEnum,
     EnumVariant,
-    RustSimTypeBottom,
-    RustSimTypeReference,
+    RustSimEnum,
+    RustSimStruct,
     RustSimTypeArray,
-    RustSimTypeOption,
-    RustSimTypeResult,
+    RustSimTypeBottom,
     RustSimTypeFunction,
+    RustSimTypeInt,
+    RustSimTypeOption,
+    RustSimTypeReference,
+    RustSimTypeResult,
+    RustSimTypeSize,
     RustSimTypeSlice,
     RustSimTypeStrRef,
 )
 from angr.rust.utils.demangler import demangle
-from angr.calling_conventions import default_cc
-from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import SimTypeFunction
-from angr.knowledge_plugins.functions.function import PrototypeSource
 
 l = logging.getLogger(__name__)
 

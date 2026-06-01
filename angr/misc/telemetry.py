@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import enum
+from typing import TYPE_CHECKING
 
 try:
-    from opentelemetry.trace import get_current_span, Status, StatusCode, Tracer, get_tracer as _get_tracer
+    from opentelemetry.trace import Status, StatusCode, Tracer, get_current_span
+    from opentelemetry.trace import get_tracer as _get_tracer
 except ImportError:
     if TYPE_CHECKING:
         raise

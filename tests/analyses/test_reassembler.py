@@ -4,16 +4,15 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
-import sys
-import platform
 import os
-import tempfile
-import subprocess
+import platform
 import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 
 import angr
-
 from tests.common import bin_location, has_32_bit_compiler_support
 
 test_location = os.path.join(bin_location, "tests")

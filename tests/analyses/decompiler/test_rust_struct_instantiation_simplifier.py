@@ -10,7 +10,6 @@ and can be tested directly.
 from __future__ import annotations
 
 from angr.ailment.expression import Const
-
 from angr.rust.optimization_passes.struct_instantiation_simplifier import StructBuilder
 
 

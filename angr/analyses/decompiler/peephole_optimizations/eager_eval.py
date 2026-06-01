@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 from math import gcd
 
-from angr.ailment.expression import BinaryOp, UnaryOp, Const, Convert, StackBaseOffset
-
+from angr.ailment.expression import BinaryOp, Const, Convert, StackBaseOffset, UnaryOp
 from angr.utils.bits import sign_extend
+
 from .base import PeepholeOptimizationExprBase
 
 

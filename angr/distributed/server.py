@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import logging
-import time
+import multiprocessing
 import os
 import tempfile
-import multiprocessing
+import time
 
 from .worker import Worker
 

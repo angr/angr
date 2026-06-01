@@ -10,6 +10,11 @@ import angr
 from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.arm_ccalls import ARMCCallRewriter
 from angr.engines.vex.claripy.ccall import (
+    ARMG_CC_OP_ADD,
+    ARMG_CC_OP_LOGIC,
+    ARMG_CC_OP_MUL,
+    ARMG_CC_OP_SBB,
+    ARMG_CC_OP_SUB,
     ARMCondAL,
     ARMCondEQ,
     ARMCondGE,
@@ -24,11 +29,6 @@ from angr.engines.vex.claripy.ccall import (
     ARMCondNE,
     ARMCondNV,
     ARMCondPL,
-    ARMG_CC_OP_ADD,
-    ARMG_CC_OP_LOGIC,
-    ARMG_CC_OP_MUL,
-    ARMG_CC_OP_SBB,
-    ARMG_CC_OP_SUB,
 )
 
 

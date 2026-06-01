@@ -1,11 +1,13 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
+
 import logging
 
-from angr.analyses import ForwardAnalysis, visitors
+from angr.analyses.analysis import register_analysis
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.block import SootBlockNode
 from angr.errors import AngrLoopAnalysisError
-from . import register_analysis
+
 from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)

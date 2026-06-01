@@ -3,26 +3,26 @@ from __future__ import annotations
 
 import pytest
 
-from angr.mcp.server import (
-    load_binary,
-    get_cfg,
-    list_functions,
-    get_function_info,
-    decompile_function,
-    get_xrefs,
-    get_strings,
-    get_imports,
-    get_exports,
-    get_basic_blocks,
-    get_callgraph,
-    find_functions_by_pattern,
-    list_projects,
-    close_project,
-)
 from angr.mcp.errors import (
-    ProjectNotFoundError,
     CFGNotBuiltError,
     FunctionNotFoundError,
+    ProjectNotFoundError,
+)
+from angr.mcp.server import (
+    close_project,
+    decompile_function,
+    find_functions_by_pattern,
+    get_basic_blocks,
+    get_callgraph,
+    get_cfg,
+    get_exports,
+    get_function_info,
+    get_imports,
+    get_strings,
+    get_xrefs,
+    list_functions,
+    list_projects,
+    load_binary,
 )
 from angr.mcp.session import get_session_manager
 

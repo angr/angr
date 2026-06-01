@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
@@ -6,17 +7,18 @@ import archinfo
 import claripy
 
 import angr
-from angr.analyses import ForwardAnalysis, visitors
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
+from angr.analyses.typehoon.typevars import TypeVariableManager
+from angr.code_location import CodeLocation
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.functions.function import Function
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr import BP, BP_AFTER
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
-from angr.code_location import CodeLocation
-from angr.analyses.typehoon.typevars import TypeVariableManager
-from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
+from angr.state_plugins.inspect import BP, BP_AFTER
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .annotations import StackLocationAnnotation
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 
 l = logging.getLogger(name=__name__)
 

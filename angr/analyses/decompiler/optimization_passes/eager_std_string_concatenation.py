@@ -1,14 +1,15 @@
 # pylint:disable=too-many-boolean-expressions,unused-argument
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
 from archinfo import Endness
 
 from angr.ailment import Block
+from angr.ailment.expression import BinaryOp, Const, Load, VirtualVariable
 from angr.ailment.statement import WeakAssignment
-from angr.ailment.expression import VirtualVariable, BinaryOp, Const, Load
-from angr.sim_type import SimType, SimTypePointer, SimTypeChar
+from angr.sim_type import SimType, SimTypeChar, SimTypePointer
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 

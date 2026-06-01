@@ -1,30 +1,30 @@
 from __future__ import annotations
+
+from collections.abc import Iterable, Iterator
 from typing import (
     TYPE_CHECKING,
-    overload,
-    Literal,
     Any,
+    Literal,
+    overload,
 )
-from collections.abc import Iterable, Iterator
-
-import networkx
 
 import claripy
+import networkx
 from cle.loader import Loader
 
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.knowledge_plugins.cfg import CFGModel
 from angr.knowledge_plugins.key_definitions.atoms import (
     Atom,
-    MemoryLocation,
     AtomKind,
-    Register,
-    Tmp,
     ConstantSrc,
     GuardUse,
+    MemoryLocation,
+    Register,
+    Tmp,
 )
 from angr.knowledge_plugins.key_definitions.definition import A, Definition, DefinitionMatchPredicate
 from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
-from angr.knowledge_plugins.cfg import CFGModel
 
 if TYPE_CHECKING:
     pass

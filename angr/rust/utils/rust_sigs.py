@@ -9,7 +9,6 @@ import urllib.request
 
 from platformdirs import user_cache_dir
 
-
 l = logging.getLogger(name=__name__)
 
 

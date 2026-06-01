@@ -1,20 +1,21 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections import OrderedDict
 
+from collections import OrderedDict
+from typing import TYPE_CHECKING
+
+from angr.errors import AngrMissingTypeError
+from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.sim_type import (
-    TypeRef,
+    SimStruct,
     SimType,
-    SimTypePointer,
     SimTypeArray,
     SimTypeFixedSizeArray,
-    SimTypeRef,
-    SimStruct,
-    SimUnion,
     SimTypeFunction,
+    SimTypePointer,
+    SimTypeRef,
+    SimUnion,
+    TypeRef,
 )
-from angr.errors import AngrMissingTypeError
-from angr import SIM_TYPE_COLLECTIONS, SIM_LIBRARIES
 
 if TYPE_CHECKING:
     from angr.procedures.definitions import SimTypeCollection

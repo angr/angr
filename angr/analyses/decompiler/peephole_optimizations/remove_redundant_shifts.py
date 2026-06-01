@@ -1,5 +1,6 @@
 # pylint:disable=no-self-use,too-many-boolean-expressions
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase

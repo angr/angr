@@ -12,7 +12,7 @@ from itertools import combinations
 import claripy
 
 import angr
-from angr import SimState, SIM_LIBRARIES
+from angr import SIM_LIBRARIES, SimState
 from tests.common import broken
 
 log = logging.getLogger("angr.tests.string")

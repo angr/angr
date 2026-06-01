@@ -1,14 +1,16 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
 
 import cle
 
 from angr import ailment
-from angr.utils.funcid import is_function_security_check_cookie
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.utils.funcid import is_function_security_check_cookie
 from angr.utils.ssa import stmt_is_simple_call
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

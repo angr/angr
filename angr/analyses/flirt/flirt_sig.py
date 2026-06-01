@@ -1,14 +1,16 @@
 from __future__ import annotations
+
 import struct
 import zlib
 from io import BytesIO
 
 from angr.errors import AngrError
-from .consts import FlirtParseFlag, FlirtFeatureFlag, FlirtFunctionFlag
-from .flirt_utils import read_max_2_bytes, read_multiple_bytes
+
+from .consts import FlirtFeatureFlag, FlirtFunctionFlag, FlirtParseFlag
 from .flirt_function import FlirtFunction
 from .flirt_module import FlirtModule
 from .flirt_node import FlirtNode
+from .flirt_utils import read_max_2_bytes, read_multiple_bytes
 
 
 class FlirtSignatureError(AngrError):

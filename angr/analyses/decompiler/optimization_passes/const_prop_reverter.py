@@ -1,19 +1,21 @@
 from __future__ import annotations
+
+import itertools
 import logging
 from collections.abc import Callable
-import itertools
 
-import networkx
 import claripy
+import networkx
+
 from angr.ailment import Const
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.statement import SideEffectStatement, Statement, ConditionalJump, Assignment, Store, Return
-from angr.ailment.expression import Call, Convert, Register, Expression, Load
-
-from .optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
+from angr.ailment.expression import Call, Convert, Expression, Load, Register
+from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Statement, Store
+from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)
 

@@ -1,12 +1,14 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
-from typing import Literal, Any
-from collections import defaultdict
 
-from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, BinaryOp
-from angr.ailment.statement import Assignment, Store, Statement, SideEffectStatement
+from collections import defaultdict
+from typing import Any, Literal
+
+from angr.ailment.expression import BinaryOp, Call, Const, StackBaseOffset, VirtualVariable
+from angr.ailment.statement import Assignment, SideEffectStatement, Statement, Store
 from angr.ailment.utils import is_none_or_likeable
-from angr import SIM_LIBRARIES
+from angr.procedures import SIM_LIBRARIES
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

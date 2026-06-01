@@ -1,9 +1,10 @@
 from __future__ import annotations
-from angr.ailment import Expression, Assignment
-from angr.ailment.expression import VirtualVariable, Phi, FunctionLikeMacro, Call
-from angr.rust.sim_type import RustSimTypeFunction, RustSimType
+
+from angr.ailment import Assignment, Expression
+from angr.ailment.expression import Call, FunctionLikeMacro, Phi, VirtualVariable
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.rust.sim_type import RustSimType, RustSimTypeFunction
 
 
 class SRDAMixin:

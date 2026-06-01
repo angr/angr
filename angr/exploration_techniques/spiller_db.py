@@ -1,12 +1,13 @@
 # pylint:disable=missing-class-docstring,unused-import
 from __future__ import annotations
+
 import datetime
 
 try:
     import sqlalchemy
-    from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
-    from sqlalchemy.orm import declarative_base, sessionmaker
+    from sqlalchemy import Boolean, Column, DateTime, Integer, String, create_engine
     from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import declarative_base, sessionmaker
 
     Base = declarative_base()
 

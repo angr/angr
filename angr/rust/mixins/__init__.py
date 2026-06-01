@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from .cfa_mixin import CFAMixin
 from .cfg_transformation_mixin import CFGTransformationMixin
 from .dfa_mixin import DFAMixin

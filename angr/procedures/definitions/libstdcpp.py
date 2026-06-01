@@ -1,6 +1,8 @@
 from __future__ import annotations
-from angr.sim_type import SimTypeFunction, SimTypePointer, SimTypeChar, SimTypeBottom
-from angr.procedures import SIM_PROCEDURES as P
+
+from angr.procedures.procedure_dict import SIM_PROCEDURES as P
+from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypeFunction, SimTypePointer
+
 from . import SimCppLibrary
 
 libstdcpp = SimCppLibrary()

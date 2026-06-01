@@ -1,6 +1,8 @@
 from __future__ import annotations
-from . import JNISimProcedure
+
 from angr.engines.soot.values import SimSootValue_ThisRef
+
+from . import JNISimProcedure
 from .method_calls import CallMethodBase
 
 # pylint: disable=arguments-differ,unused-argument

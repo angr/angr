@@ -1,5 +1,6 @@
 # pylint:disable=unused-import
 from __future__ import annotations
+
 from angr.angrdb.models import DbComment
 from angr.knowledge_plugins.comments import Comments
 

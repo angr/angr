@@ -1,18 +1,22 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Literal, TypeVar
-from dataclasses import dataclass
-import logging
 
-from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_variable import SimTemporaryVariable
-from angr.sim_variable import SimMemoryVariable
-from angr.sim_variable import SimStackVariable
-from angr.sim_variable import SimRegisterVariable
-from angr.misc.ux import once
-from angr.engines.light import SpOffset
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal, TypeVar
+
 from angr.code_location import ExternalCodeLocation
-from angr.sim_variable import SimVariable
-from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping, VirtualVariable
+from angr.engines.light import SpOffset
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.misc.ux import once
+from angr.sim_variable import (
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
+)
+
+from .atoms import Atom, AtomKind, MemoryLocation, Register, Tmp, VirtualVariable, atom_kind_mapping
 from .tag import Tag
 
 if TYPE_CHECKING:

@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 import string
 
-import angr
 import claripy
+
+import angr
 
 l = logging.getLogger(name=__name__)
 

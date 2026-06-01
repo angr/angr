@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import random
+from typing import TYPE_CHECKING
 
 import claripy
 
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.knowledge_plugins.key_definitions.atoms import Atom
-from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState

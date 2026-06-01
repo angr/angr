@@ -6,13 +6,13 @@ import os
 import unittest
 
 import archinfo
+
 import angr
+from angr.analyses.typehoon.translator import TypeTranslator
+from angr.analyses.typehoon.typeconsts import Enum, Int32
 from angr.calling_conventions import SimCCSystemVAMD64
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import SimType, SimTypeEnum, SimTypeInt, SimTypePointer, parse_type, parse_defns, SimTypeFunction
-from angr.analyses.typehoon.typeconsts import Enum, Int32
-from angr.analyses.typehoon.translator import TypeTranslator
-
+from angr.sim_type import SimType, SimTypeEnum, SimTypeFunction, SimTypeInt, SimTypePointer, parse_defns, parse_type
 from tests.common import bin_location, print_decompilation_result
 
 

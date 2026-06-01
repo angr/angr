@@ -3,9 +3,9 @@ from __future__ import annotations
 import contextlib
 
 from angr import ailment
-from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.statement import Label, Jump, SideEffectStatement, Statement
-from angr.ailment.expression import Const, Call
+from angr.ailment import AILBlockRewriter, Block
+from angr.ailment.expression import Call, Const
+from angr.ailment.statement import Jump, Label, SideEffectStatement, Statement
 
 
 def extract_callee(obj, kb):

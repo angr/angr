@@ -1,7 +1,8 @@
 from __future__ import annotations
-from mmap import mmap
-from collections.abc import Generator
+
 import logging
+from collections.abc import Generator
+from mmap import mmap
 
 import claripy
 import cle

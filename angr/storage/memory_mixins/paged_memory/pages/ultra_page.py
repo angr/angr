@@ -1,15 +1,16 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
-import logging
-from typing import Any
-from collections.abc import Iterable
 
-from sortedcontainers import SortedDict
+import logging
+from collections.abc import Iterable
+from typing import Any
 
 import claripy
+from sortedcontainers import SortedDict
 
 from angr.errors import SimMemoryError
 from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview
+
 from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
 

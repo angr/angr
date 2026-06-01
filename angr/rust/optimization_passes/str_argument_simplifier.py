@@ -1,10 +1,11 @@
 from __future__ import annotations
-from angr.rust.sim_type import RustSimStruct
-from angr.rust.mixins import SRDAMixin
+
 from angr.ailment import Block, Const
-from angr.ailment.expression import Call, StringLiteral, VirtualVariable, Load
-from angr.rust.optimization_passes.utils import extract_str, CallRewriter
+from angr.ailment.expression import Call, Load, StringLiteral, VirtualVariable
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins import SRDAMixin
+from angr.rust.optimization_passes.utils import CallRewriter, extract_str
+from angr.rust.sim_type import RustSimStruct
 from angr.rust.utils.ail import deref_vvar_and_offset
 from angr.sim_type import TypeRef
 

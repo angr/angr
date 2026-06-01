@@ -11,28 +11,28 @@ from archinfo import Endness
 import angr
 from angr import AngrMissingTypeError
 from angr.sim_type import (
+    SimStruct,
     SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeCppFunction,
+    SimTypeDouble,
+    SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
-    SimTypePointer,
-    SimTypeChar,
-    SimTypeWideChar,
-    SimStruct,
-    SimTypeFloat,
-    SimUnion,
-    SimTypeDouble,
-    SimTypeLongLong,
     SimTypeLong,
+    SimTypeLongLong,
     SimTypeNum,
-    SimTypeReference,
-    SimTypeBottom,
-    SimTypeTop,
-    SimTypeString,
-    SimTypeCppFunction,
-    SimTypeArray,
+    SimTypePointer,
     SimTypeRef,
+    SimTypeReference,
+    SimTypeString,
+    SimTypeTop,
+    SimTypeWideChar,
+    SimUnion,
 )
-from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
+from angr.utils.library import convert_cppproto_to_py, convert_cproto_to_py
 from angr.utils.types import dereference_simtype
 
 

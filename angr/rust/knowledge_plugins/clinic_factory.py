@@ -1,6 +1,7 @@
 from __future__ import annotations
-import traceback
+
 import logging
+import traceback
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 

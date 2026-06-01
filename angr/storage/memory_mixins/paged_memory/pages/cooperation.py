@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from abc import abstractmethod
 from collections.abc import Generator
 
 import claripy
 
-from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
+from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
+
 from .multi_values import MultiValues
 
 

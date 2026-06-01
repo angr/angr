@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from angr.ailment import AILBlockRewriter, Statement, Block, Assignment
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp, Load
+from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
+from angr.ailment.expression import Load, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from angr.rust.mixins.srda_mixin import SRDAMixin
 

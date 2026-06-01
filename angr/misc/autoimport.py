@@ -1,9 +1,10 @@
 from __future__ import annotations
-import os
+
 import importlib
 import importlib.machinery
 import importlib.util
 import logging
+import os
 from collections.abc import Callable
 
 l = logging.getLogger(name=__name__)

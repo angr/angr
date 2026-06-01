@@ -1,19 +1,19 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-from collections.abc import Generator
-from collections import defaultdict
 import contextlib
 import logging
+from collections import defaultdict
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from archinfo.arch_arm import is_arm_arch
 
-from angr.analyses import AnalysesHub
-from angr.analyses.analysis import Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrRuntimeError
-from .flirt_sig import FlirtSignature, FlirtSignatureParsed
+
 from .flirt_function import FlirtFunction
 from .flirt_matcher import FlirtMatcher
+from .flirt_sig import FlirtSignature, FlirtSignatureParsed
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -107,7 +107,7 @@ class FlirtAnalysis(Analysis):
                 self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: list[bytes]) -> Generator[FlirtSignature]:
-        from angr.flirt import STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES  # pylint:disable=import-outside-toplevel
+        from angr.flirt import LIBRARY_TO_SIGNATURES, STRING_TO_LIBRARIES  # pylint:disable=import-outside-toplevel
 
         library_hits: dict[str, int] = defaultdict(int)
         for s, libs in STRING_TO_LIBRARIES.items():

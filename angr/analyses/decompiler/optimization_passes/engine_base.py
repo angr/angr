@@ -1,9 +1,9 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
 import angr.ailment as ailment
-
 from angr.engines.light import SimEngineLightAIL
 
 _l = logging.getLogger(name=__name__)

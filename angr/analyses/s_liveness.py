@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from collections import defaultdict, deque
 
 import networkx
-from angr.ailment import Block, Address
+
+from angr.ailment import Address, Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement
-
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src

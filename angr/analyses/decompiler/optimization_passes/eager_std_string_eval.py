@@ -1,13 +1,15 @@
 # pylint:disable=too-many-boolean-expressions,unused-argument
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
-from angr.ailment import Statement, Block
+from angr.ailment import Block, Statement
 from angr.ailment.block_walker import AILBlockRewriter
+from angr.ailment.expression import Call, Const, Load, UnaryOp, VirtualVariable
 from angr.ailment.statement import WeakAssignment
-from angr.ailment.expression import Call, VirtualVariable, Const, Load, UnaryOp
-from angr.sim_type import SimType, SimTypePointer, SimTypeChar
+from angr.sim_type import SimType, SimTypeChar, SimTypePointer
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

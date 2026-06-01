@@ -1,13 +1,14 @@
 from __future__ import annotations
-from angr.ailment import Block, Assignment, Const, AILBlockViewer
-from angr.ailment.expression import Call, VirtualVariable, RustEnum
-from angr.ailment.statement import Label, Return, Jump
-from angr.analyses.decompiler.utils import _flatten_structured_node
-from angr.rust.sim_type import RustSimTypeResult
+
+from angr.ailment import AILBlockViewer, Assignment, Block, Const
+from angr.ailment.expression import Call, RustEnum, VirtualVariable
+from angr.ailment.statement import Jump, Label, Return
 from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes.optimization_pass import SequenceOptimizationPass
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, MultiNode
+from angr.analyses.decompiler.structurer_nodes import MultiNode, SequenceNode
+from angr.analyses.decompiler.utils import _flatten_structured_node
+from angr.rust.sim_type import RustSimTypeResult
 from angr.rust.structuring.structurer_nodes import PatternMatchNode
 from angr.utils.ssa import VVarUsesCollector
 

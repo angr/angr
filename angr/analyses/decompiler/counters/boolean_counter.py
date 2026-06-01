@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 import typing
 
 from angr.ailment import AILBlockViewer
 
 if typing.TYPE_CHECKING:
+    from angr.ailment.block import Block
     from angr.ailment.expression import BinaryOp
     from angr.ailment.statement import Statement
-    from angr.ailment.block import Block
 
 
 class BooleanCounter(AILBlockViewer):

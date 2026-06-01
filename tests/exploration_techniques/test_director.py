@@ -4,13 +4,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
-import os
 import logging
+import os
 import unittest
 
 import angr
-from angr.sim_type import SimTypePointer, SimTypeChar
-
+from angr.sim_type import SimTypeChar, SimTypePointer
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

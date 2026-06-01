@@ -1,25 +1,25 @@
 # pylint:disable=no-self-use,arguments-renamed
 from __future__ import annotations
+
 import enum
-from typing import Any, TYPE_CHECKING
 from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any
 
 import angr.ailment as ailment
 from angr.ailment import UnaryOp
 from angr.ailment.expression import negate
-
-from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SwitchCaseNode,
-    ConditionNode,
-    SequenceNode,
-    MultiNode,
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
     BreakNode,
+    ConditionNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.utils import is_statement_terminating
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 
 if TYPE_CHECKING:
     from angr.ailment import Manager

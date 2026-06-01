@@ -1,7 +1,8 @@
 # decompilation options
 from __future__ import annotations
-from collections.abc import Callable
+
 from collections import defaultdict
+from collections.abc import Callable
 
 from .structuring import structurer_class_from_name
 from .structuring.phoenix import MultiStmtExprMode

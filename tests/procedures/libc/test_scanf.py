@@ -5,12 +5,11 @@ __package__ = __package__ or "tests.procedures.libc"  # pylint:disable=redefined
 
 import os
 import string
-
 import unittest
 
-import angr
 import claripy
 
+import angr
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

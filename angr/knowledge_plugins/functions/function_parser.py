@@ -1,15 +1,15 @@
 # pylint:disable=no-member,raise-missing-from
 from __future__ import annotations
-import logging
-import json
 
+import json
+import logging
 from collections import defaultdict
 
-from angr.calling_conventions import SimCC, SimCCUsercall, CC_NAMES
-from angr.codenode import BlockNode, HookNode, FuncNode
-from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
+from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.protos import function_pb2, primitives_pb2
 from angr.sim_type import SimType, SimTypeFunction
-from angr.protos import primitives_pb2, function_pb2
+from angr.utils.enums_conv import func_edge_type_from_pb, func_edge_type_to_pb
 from angr.utils.types import make_type_reference
 
 l = logging.getLogger(name=__name__)

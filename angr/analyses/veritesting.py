@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from functools import cmp_to_key
@@ -6,15 +7,15 @@ from functools import cmp_to_key
 import networkx
 from claripy import ClaripyError
 
-from angr import SIM_PROCEDURES
-from angr import options as o
-from angr.analyses import AnalysesHub
+from angr import sim_options as o
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGEmulated
+from angr.errors import AngrCFGError, AngrError, SimError, SimSolverModeError, SimValueError
 from angr.knowledge_base import KnowledgeBase
-from angr.errors import AngrError, AngrCFGError, SimValueError, SimSolverModeError, SimError
-from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_manager import SimulationManager
+from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
 from angr.utils.graph import shallow_reverse
-from . import Analysis, CFGEmulated
 
 l = logging.getLogger(name=__name__)
 

@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import logging
 import copy
-from collections.abc import Callable
+import logging
 from collections import defaultdict
+from collections.abc import Callable
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Assignment, Label, SideEffectStatement
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
-
+from angr.ailment.expression import Expression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Label, SideEffectStatement, Statement
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
-from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, ObservationPoint
 from angr.utils.ssa import get_reg_offset_base
-from angr.calling_conventions import SimRegArg, default_cc
 
 from .s_rda_model import SRDAModel
 

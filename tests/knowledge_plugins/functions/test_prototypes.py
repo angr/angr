@@ -10,7 +10,6 @@ import unittest
 import angr
 import angr.calling_conventions
 from angr.sim_type import SimTypePointer
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

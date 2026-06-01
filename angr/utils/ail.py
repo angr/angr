@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import Expression, Const, BinaryOp, Convert, VirtualVariable, Phi
-from angr.ailment.statement import Assignment, Statement, ConditionalJump
+from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Statement
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel

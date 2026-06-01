@@ -14,14 +14,15 @@ leverage the structured LoopNode information.
 """
 
 from __future__ import annotations
-from .naming_base import SemanticNamingBase, ClinicNamingBase, RegionNamingBase
-from .region_loop_counter_naming import RegionLoopCounterNaming
+
 from .array_index_naming import ArrayIndexNaming
-from .call_result_naming import CallResultNaming
-from .size_naming import SizeNaming
 from .boolean_naming import BooleanNaming
+from .call_result_naming import CallResultNaming
+from .naming_base import ClinicNamingBase, RegionNamingBase, SemanticNamingBase
+from .orchestrator import NAMING_PATTERNS, SemanticNamingOrchestrator
 from .pointer_naming import PointerNaming
-from .orchestrator import SemanticNamingOrchestrator, NAMING_PATTERNS
+from .region_loop_counter_naming import RegionLoopCounterNaming
+from .size_naming import SizeNaming
 
 __all__ = [
     "NAMING_PATTERNS",

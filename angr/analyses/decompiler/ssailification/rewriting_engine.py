@@ -1,52 +1,53 @@
 # pylint:disable=no-self-use,unused-argument,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections.abc import MutableMapping
+
 import logging
+from collections.abc import MutableMapping
+from typing import TYPE_CHECKING
 
 import archinfo
 
 from angr.ailment.block import Block
-from angr.ailment.manager import Manager
-from angr.ailment.statement import (
-    Statement,
-    Assignment,
-    CAS,
-    Store,
-    SideEffectStatement,
-    Return,
-    ConditionalJump,
-    DirtyStatement,
-    Jump,
-    WeakAssignment,
-)
 from angr.ailment.expression import (
+    ITE,
     Atom,
+    BinaryOp,
     Call,
+    ComboRegister,
+    Const,
+    Convert,
+    DirtyExpression,
     Expression,
     Extract,
     Insert,
-    Register,
-    VirtualVariable,
     Load,
-    Const,
-    VirtualVariableCategory,
-    BinaryOp,
-    UnaryOp,
-    Convert,
-    StackBaseOffset,
-    VEXCCallExpression,
-    ITE,
-    Tmp,
-    DirtyExpression,
+    Register,
     Reinterpret,
-    ComboRegister,
+    StackBaseOffset,
+    Tmp,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
+    VirtualVariableCategory,
 )
-
+from angr.ailment.manager import Manager
+from angr.ailment.statement import (
+    CAS,
+    Assignment,
+    ConditionalJump,
+    DirtyStatement,
+    Jump,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+    WeakAssignment,
+)
 from angr.ailment.tagged_object import TaggedObject
 from angr.engines.light.engine import SimEngineNostmtAIL
-from .rewriting_state import RewritingState
+
 from .consts import MAX_STACK_VAR_SIZE
+from .rewriting_state import RewritingState
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef

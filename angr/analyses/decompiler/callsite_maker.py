@@ -1,33 +1,34 @@
 from __future__ import annotations
-from typing import cast, Any, TYPE_CHECKING
+
 import copy
 import logging
+from typing import TYPE_CHECKING, Any, cast
 
 import archinfo
-from angr.ailment import Stmt, Expr, Const
-from angr.ailment.manager import Manager
 
+from angr.ailment import Const, Expr, Stmt
+from angr.ailment.manager import Manager
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.s_reaching_definitions import SRDAView
+from angr.calling_conventions import (
+    SimCC,
+    SimComboArg,
+    SimFunctionArgument,
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimStructArg,
+)
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
     SimType,
     SimTypeBottom,
-    SimTypePointer,
     SimTypeChar,
     SimTypeFloat,
     SimTypeFunction,
+    SimTypePointer,
 )
-from angr.calling_conventions import (
-    SimReferenceArgument,
-    SimRegArg,
-    SimStackArg,
-    SimCC,
-    SimStructArg,
-    SimComboArg,
-    SimFunctionArgument,
-)
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.analyses import Analysis, register_analysis
-from angr.analyses.s_reaching_definitions import SRDAView
 from angr.utils.types import dereference_simtype_by_lib
 
 if TYPE_CHECKING:

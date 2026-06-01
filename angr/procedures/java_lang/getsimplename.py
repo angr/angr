@@ -4,8 +4,8 @@ import logging
 
 import claripy
 
-from angr.procedures.java import JavaSimProcedure
 from angr.engines.soot.values.strref import SimSootValue_StringRef
+from angr.procedures.java import JavaSimProcedure
 
 l = logging.getLogger(name=__name__)
 

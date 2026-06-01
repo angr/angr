@@ -1,87 +1,87 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from __future__ import annotations
-from typing import cast, Any, TYPE_CHECKING
 
-from collections.abc import Iterable
-from collections.abc import Callable
-from collections import defaultdict, Counter
 import logging
-import struct
 import re
+import struct
+from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any, cast
 
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import StackBaseOffset, BinaryOp
-
+from angr.ailment.expression import BinaryOp, StackBaseOffset
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
+from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.errors import UnsupportedNodeTypeError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.knowledge_plugins.functions import Function
 from angr.sim_type import (
-    SimTypeLongLong,
-    SimTypeInt,
-    SimTypeShort,
-    SimTypeChar,
-    SimTypeWideChar,
-    SimTypePointer,
+    SimCppClass,
     SimStruct,
     SimType,
-    SimTypeBottom,
     SimTypeArray,
-    SimTypeFunction,
-    SimTypeFloat,
+    SimTypeBitfield,
+    SimTypeBottom,
+    SimTypeChar,
     SimTypeDouble,
-    TypeRef,
-    SimTypeNum,
+    SimTypeEnum,
     SimTypeFixedSizeArray,
-    SimTypeLength,
-    SimTypeReg,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
-    SimCppClass,
-    SimTypeEnum,
-    SimTypeBitfield,
+    SimTypeLength,
+    SimTypeLongLong,
+    SimTypeNum,
+    SimTypePointer,
+    SimTypeReg,
+    SimTypeShort,
+    SimTypeWideChar,
+    TypeRef,
 )
-from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import (
-    SimVariable,
-    SimTemporaryVariable,
-    SimStackVariable,
     SimMemoryVariable,
     SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
 )
+from angr.utils.bits import u2s
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
-from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
-from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from angr.utils.strings import decode_utf16_string
-from angr.utils.bits import u2s
-from angr.analyses.decompiler.utils import structured_node_is_simple_return
-from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-from angr.errors import UnsupportedNodeTypeError
-from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from angr.analyses import Analysis, register_analysis
-from angr.analyses.decompiler.region_identifier import MultiNode
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    BreakNode,
-    SwitchCaseNode,
-    IncompleteSwitchCaseNode,
-    ContinueNode,
-    CascadingConditionNode,
-)
+from angr.utils.types import dereference_simtype_by_lib, unpack_pointer_and_array, unpack_typeref
+
 from .base import (
     BaseStructuredCodeGenerator,
+    CConstantType,
+    IdentType,
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
-    IdentType,
-    CConstantType,
 )
 
 if TYPE_CHECKING:
     import archinfo
+
     import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 

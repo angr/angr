@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Literal
+
 import enum
+from typing import Literal
 
 DEBUG = False
 

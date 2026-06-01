@@ -7,8 +7,10 @@ import claripy
 import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
-from angr import BP_BEFORE, BP_AFTER, sim_options
+from angr import sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .base import ExplorationTechnique
 
 if TYPE_CHECKING:

@@ -4,16 +4,15 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import logging
-import time
 import os
 import pickle
+import time
 import unittest
 
 import networkx
 
 import angr
 from angr import options as o
-
 from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgemulated")

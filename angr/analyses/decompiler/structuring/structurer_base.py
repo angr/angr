@@ -1,47 +1,47 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict, OrderedDict
-import logging
 
-import networkx
+import logging
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any
 
 import claripy
+import networkx
 
 from angr import ailment
 from angr.ailment.manager import Manager
-from angr.analyses import Analysis
+from angr.analyses.analysis import Analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.utils import (
-    extract_jump_targets,
-    insert_node,
-    remove_last_statement,
-    has_nonlabel_nonphi_statements,
-)
 from angr.analyses.decompiler.label_collector import LabelCollector
-from angr.errors import AngrDecompilationError
-from angr.knowledge_plugins.cfg import IndirectJump
-from .structurer_nodes import (
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
+    BaseNode,
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    EmptyBlockNotice,
+    IncompleteSwitchCaseHeadStatement,
+    IncompleteSwitchCaseNode,
+    LoopNode,
     MultiNode,
     SequenceNode,
     SwitchCaseNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    ContinueNode,
-    BaseNode,
-    CascadingConditionNode,
-    BreakNode,
-    LoopNode,
-    EmptyBlockNotice,
-    IncompleteSwitchCaseNode,
-    IncompleteSwitchCaseHeadStatement,
 )
+from angr.analyses.decompiler.utils import (
+    extract_jump_targets,
+    has_nonlabel_nonphi_statements,
+    insert_node,
+    remove_last_statement,
+)
+from angr.errors import AngrDecompilationError
+from angr.knowledge_plugins.cfg import IndirectJump
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions import Function
     from angr.analyses.decompiler.graph_region import GraphRegion
+    from angr.knowledge_plugins.functions import Function
 
 _l = logging.getLogger(__name__)
 

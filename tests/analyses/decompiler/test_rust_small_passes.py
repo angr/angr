@@ -19,14 +19,13 @@ from angr.ailment import Block
 from angr.ailment.expression import Const
 from angr.ailment.statement import Jump, Label
 from angr.calling_conventions import SimRegArg, SimStructArg
-from angr.sim_type import SimStruct, SimTypeLongLong
-
 from angr.rust.optimization_passes.cleanup_code_remover import (
     CLEANUP_FUNCTIONS,
     CleanupCodeRemover,
 )
 from angr.rust.optimization_passes.ret_expr_rewriter import RetExprRewriter
 from angr.rust.optimization_passes.security_check_remover import SECURITY_CHECK_FUNCTIONS
+from angr.sim_type import SimStruct, SimTypeLongLong
 
 
 def _two_field_struct(name: str = "Pair") -> SimStruct:

@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from typing import Any
+
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
-from angr.analyses import Analysis
+from angr.analyses.analysis import Analysis
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase

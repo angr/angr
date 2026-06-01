@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import logging
 
-from angr.ailment.statement import SideEffectStatement, Assignment
+from angr.ailment.statement import Assignment, SideEffectStatement
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 

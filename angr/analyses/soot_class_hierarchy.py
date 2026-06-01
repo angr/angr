@@ -1,8 +1,8 @@
 from __future__ import annotations
+
 import logging
 
-from angr.analyses import AnalysesHub
-from . import Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 l = logging.getLogger(name=__name__)
 

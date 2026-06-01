@@ -1,36 +1,37 @@
 from __future__ import annotations
+
+from collections import defaultdict
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING, cast
-from dataclasses import dataclass
-from collections import defaultdict
-from collections.abc import Iterable, Callable
 
-from angr.ailment.statement import SideEffectStatement, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
+    ITE,
     Const,
     Convert,
+    DirtyExpression,
+    Expression,
     Extract,
     Insert,
+    Load,
     Register,
     StackBaseOffset,
-    ITE,
-    VEXCCallExpression,
     Tmp,
-    DirtyExpression,
-    Load,
+    VEXCCallExpression,
     VirtualVariable,
-    Expression,
 )
-
+from angr.ailment.statement import CAS, ConditionalJump, SideEffectStatement, Store
+from angr.calling_conventions import default_cc
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
-from angr.calling_conventions import default_cc
-from .traversal_state import TraversalState, Value, has_conflicting_value_types
+
 from .consts import MAX_STACK_VAR_SIZE
+from .traversal_state import TraversalState, Value, has_conflicting_value_types
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, Kind

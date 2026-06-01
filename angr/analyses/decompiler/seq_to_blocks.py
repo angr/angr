@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.ailment import Block
 
 from .sequence_walker import SequenceWalker

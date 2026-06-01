@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import pyvex
 
 from angr import sim_options as o
+from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol, value
+from angr.engines.vex.light.resilience import VEXResilienceMixin, raiseme
 
 from .concretizers import concretizers
-from angr.engines.vex.light.resilience import VEXResilienceMixin, raiseme
-from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol, value
 
 
 class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):

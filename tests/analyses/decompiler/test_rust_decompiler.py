@@ -10,7 +10,6 @@ from functools import wraps
 
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
-
 from tests.common import bin_location
 
 RUST_BINARIES_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "coreutils")

@@ -1,40 +1,27 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import enum
+import logging
 from collections import defaultdict
 from contextlib import suppress
-import logging
+from typing import TYPE_CHECKING
 
 import networkx
 from sortedcontainers import SortedDict
 
 from angr.utils.constants import MAX_POINTSTO_BITS
-from .typevars import (
-    Existence,
-    Subtype,
-    Equivalence,
-    Add,
-    Sub,
-    TypeVariable,
-    DerivedTypeVariable,
-    HasField,
-    AddN,
-    SubN,
-    IsArray,
-    TypeConstraint,
-    Load,
-    Store,
-    BaseLabel,
-    FuncIn,
-    FuncOut,
-    ConvertTo,
-    TypeVariableManager,
-)
+
+from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
 from .typeconsts import (
+    Array,
     BottomType,
-    TopType,
-    TypeConstant,
+    Enum,
+    Fd,
+    Float,
+    Float32,
+    Float64,
+    Function,
     Int,
     Int8,
     Int16,
@@ -43,30 +30,45 @@ from .typeconsts import (
     Int128,
     Int256,
     Int512,
-    SInt8,
-    UInt8,
-    SInt16,
-    UInt16,
-    SInt32,
-    UInt32,
-    SInt64,
-    UInt64,
     Pointer,
     Pointer32,
     Pointer64,
-    Struct,
-    Array,
-    Function,
-    int_type,
-    Float,
-    Float32,
-    Float64,
-    Enum,
-    Fd,
     RustEnum,
+    SInt8,
+    SInt16,
+    SInt32,
+    SInt64,
+    Struct,
+    TopType,
+    TypeConstant,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
+    int_type,
+)
+from .typevars import (
+    Add,
+    AddN,
+    BaseLabel,
+    ConvertTo,
+    DerivedTypeVariable,
+    Equivalence,
+    Existence,
+    FuncIn,
+    FuncOut,
+    HasField,
+    IsArray,
+    Load,
+    Store,
+    Sub,
+    SubN,
+    Subtype,
+    TypeConstraint,
+    TypeVariable,
+    TypeVariableManager,
 )
 from .variance import Variance
-from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
 
 if TYPE_CHECKING:
     import archinfo

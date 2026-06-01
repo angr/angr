@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from angr.errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
+from angr.errors import SimMemoryError, SimMemoryLimitError, SimUnsatError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(__name__)

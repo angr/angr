@@ -7,7 +7,6 @@ import itertools
 import unittest
 
 from angr.utils.bits import truncate_bits
-
 from tests.common import run_simple_unicorn_congruency_check
 
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
-import random
-import itertools
 
-from angr.analyses.identifier.func import Func, TestData
+import itertools
+import random
+
 from angr.analyses.identifier.errors import FunctionNotInitialized
+from angr.analyses.identifier.func import Func, TestData
 
 
 def rand_str(length, byte_list=None):

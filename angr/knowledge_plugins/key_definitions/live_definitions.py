@@ -1,23 +1,25 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, cast, overload
-from collections import defaultdict
-from collections.abc import Iterable, Generator
-from enum import Enum, auto
-import weakref
-import logging
 
+import logging
+import weakref
+from collections import defaultdict
+from collections.abc import Generator, Iterable
+from enum import Enum, auto
+from typing import TYPE_CHECKING, Any, cast, overload
+
+import archinfo
 import claripy
 from claripy.annotation import Annotation
-import archinfo
 
-from angr.errors import SimMemoryMissingError, SimMemoryError
-from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, MultiValues
-from angr.knowledge_plugins.key_definitions.definition import A
-from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.engines.light import SpOffset
+from angr.errors import SimMemoryError, SimMemoryMissingError
+from angr.knowledge_plugins.key_definitions.definition import A
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, MVType
 from angr.utils.constants import is_alignment_mask
-from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
+
+from .atoms import Atom, ConstantSrc, MemoryLocation, Register, Tmp
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .undefined import Undefined

@@ -1,27 +1,28 @@
 from __future__ import annotations
-from typing import Any, cast
+
 import contextlib
 import logging
+from typing import Any, cast
 
-import angr.ailment as ailment
 import claripy
 
+import angr.ailment as ailment
+from angr.analyses.typehoon import typeconsts, typevars
+from angr.analyses.typehoon.typevars import AddN, DerivedTypeVariable, Load, Store, SubN, TypeVariable
 from angr.analyses.variable_recovery.variable_recovery_base import VariableRecoveryStateBase
+from angr.code_location import CodeLocation
+from angr.engines.light import ArithmeticExpression, SimEngineLight
 from angr.engines.light.engine import BlockProtocol
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
 from angr.sim_variable import (
-    SimVariable,
-    SimStackVariable,
-    SimRegisterVariable,
-    SimMemoryVariable,
-    SimConstantVariable,
     SimComboRegisterVariable,
+    SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimVariable,
 )
-from angr.code_location import CodeLocation
-from angr.analyses.typehoon import typevars, typeconsts
-from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import MAX_POINTSTO_BITS
 
 #

@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Any
 
 from .clinic import Clinic
-from .structured_codegen import BaseStructuredCodeGenerator
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
-    from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
+    from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
+
+    from .structured_codegen import BaseStructuredCodeGenerator
 
 
 class DecompilationCache:

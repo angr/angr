@@ -9,6 +9,7 @@ from dataclasses import dataclass, fields
 from typing import Any
 
 from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)

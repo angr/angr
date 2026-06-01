@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import unittest
 
 import claripy
 
-from angr import SimState, SimHeapPTMalloc
+from angr import SimHeapPTMalloc, SimState
 
 
 # TODO: Make these tests more architecture-independent (note dependencies of some behavior on chunk metadata size)

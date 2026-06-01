@@ -1,9 +1,10 @@
 from __future__ import annotations
-from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference
+
 from angr.ailment import AILBlockRewriter, Block
-from angr.ailment.expression import Call, Const, Struct, StringLiteral
+from angr.ailment.expression import Call, Const, StringLiteral, Struct
 from angr.ailment.statement import Assignment
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference
 
 
 class VecOutliner(OptimizationPass):

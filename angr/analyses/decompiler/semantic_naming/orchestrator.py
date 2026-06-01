@@ -9,20 +9,22 @@ after structuring, where it can leverage the structured LoopNode information.
 """
 
 from __future__ import annotations
+
+import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
-import logging
 
 import networkx
 
 from angr import ailment
 from angr.sim_variable import SimVariable
-from .naming_base import ClinicNamingBase
+
 from .array_index_naming import ArrayIndexNaming
-from .call_result_naming import CallResultNaming
-from .size_naming import SizeNaming
 from .boolean_naming import BooleanNaming
+from .call_result_naming import CallResultNaming
+from .naming_base import ClinicNamingBase
 from .pointer_naming import PointerNaming
+from .size_naming import SizeNaming
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager

@@ -5,8 +5,7 @@ import logging
 
 import networkx
 
-from angr.analyses import AnalysesHub
-from . import Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 l = logging.getLogger(name=__name__)
 

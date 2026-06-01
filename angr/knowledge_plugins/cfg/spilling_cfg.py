@@ -8,25 +8,27 @@ disk-backed storage for CFGNode instances, following the SpillingFunctionDict pa
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import weakref
-import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Generator, Iterator
-from typing import TYPE_CHECKING, overload, Literal
+from typing import TYPE_CHECKING, Literal, overload
 
 import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.protos import cfg_pb2
+
 from .block_id import BlockID
-from .cfg_node import CFGNode, CFGENode
+from .cfg_node import CFGENode, CFGNode
 from .spilling_digraph import SpillingDiGraph
-from .types import CFGNODE_K, CFGENODE_K, SOOTNODE_K, K, CFG_ADDR_TYPES
+from .types import CFG_ADDR_TYPES, CFGENODE_K, CFGNODE_K, SOOTNODE_K, K
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
+
     from .cfg_model import CFGModel
 
 l = logging.getLogger(name=__name__)

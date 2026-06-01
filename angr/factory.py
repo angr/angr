@@ -2,23 +2,23 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import overload, TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from angr.exploration_techniques.base import ExplorationTechnique
 
-from .knowledge_plugins.functions import Function
-from .sim_state import SimState
-from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
-from .callable import Callable
-from .errors import AngrError
-from .engines import UberEngine, ProcedureEngine
-from .sim_type import SimTypeFunction, SimTypeInt
-from .codenode import HookNode, SyscallNode
 from .block import Block, SootBlock
+from .callable import Callable
+from .calling_conventions import PointerWrapper, SimCCUnknown, SimRegArg, SimStackArg, default_cc
+from .codenode import HookNode, SyscallNode
+from .engines import ProcedureEngine, UberEngine
+from .errors import AngrError
+from .knowledge_plugins.functions import Function
 from .sim_manager import SimulationManager
+from .sim_state import SimState
+from .sim_type import SimTypeFunction, SimTypeInt
 
 try:
     from .engines import UberEnginePcode

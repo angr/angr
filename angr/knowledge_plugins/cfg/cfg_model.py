@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import string
-from collections.abc import Iterator, Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
 import cle
@@ -11,22 +11,24 @@ import networkx
 from sortedcontainers import SortedDict, SortedList
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
+from angr.errors import AngrCFGError
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.serializable import Serializable
-from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
-from angr.errors import AngrCFGError
+from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
+
 from .cfg_node import CFGNode
-from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
+from .memory_data import MemoryData, MemoryDataSort
 from .spilling_cfg import SpillingCFG, get_block_key
 
 if TYPE_CHECKING:
     from archinfo.arch_soot import SootAddressDescriptor
 
     from angr.knowledge_base import KnowledgeBase
-    from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
+    from angr.knowledge_plugins.xrefs import XRef, XRefManager
     from angr.rustylib import SegmentList
+
     from .types import CFG_ADDR_TYPES
 
 l = logging.getLogger(name=__name__)

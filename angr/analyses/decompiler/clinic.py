@@ -1,94 +1,96 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, NamedTuple, TYPE_CHECKING
+
 import copy
-import logging
 import enum
+import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, NamedTuple
 
-import networkx
 import capstone
+import networkx
 
 from angr import ailment
-from angr.ailment import Statement, Block, AILBlockRewriter
+from angr.ailment import AILBlockRewriter, Block, Statement
 from angr.ailment.block_walker import AILBlockViewer
-from angr.analyses.decompiler.callsite_maker import CallSiteMaker
-from angr.code_location import ExternalCodeLocation
-from angr.ailment.expression import VirtualVariable
-from angr.errors import AngrDecompilationError
-from angr.knowledge_base import KnowledgeBase
-from angr.knowledge_plugins.functions import Function
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.key_definitions import atoms
-from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.codenode import BlockNode, FuncNode
-from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.utils import timethis
-from angr.utils.ssa import is_phi_assignment
-from angr.utils.graph import GraphUtils
-from angr.utils.types import dereference_simtype_by_lib
-from angr.calling_conventions import (
-    SimRegArg,
-    SimStackArg,
-    SimFunctionArgument,
-    SimStructArg,
-    SimCCUsercall,
-    SimReferenceArgument,
-    SimComboArg,
-)
-from angr.sim_type import (
-    SimType,
-    SimTypeChar,
-    SimTypeInt,
-    SimTypeLongLong,
-    SimTypeShort,
-    SimTypeFunction,
-    SimTypeBottom,
-    SimTypeFloat,
-    SimTypePointer,
-    SimStruct,
-    SimTypeArray,
-    SimCppClass,
-)
-from angr.analyses.stack_pointer_tracker import Register, OffsetVal
-from angr.sim_variable import (
-    SimVariable,
-    SimStackVariable,
-    SimRegisterVariable,
-    SimMemoryVariable,
-    SimConstantVariable,
-    SimComboRegisterVariable,
-)
-from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
-from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.analyses import Analysis, register_analysis
+from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.analyses.s_liveness import SLivenessAnalysis
+from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
-from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.ailment.expression import Struct, Array, RustEnum, Let, FunctionLikeMacro
+from angr.calling_conventions import (
+    SimCCUsercall,
+    SimComboArg,
+    SimFunctionArgument,
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimStructArg,
+)
+from angr.code_location import ExternalCodeLocation
+from angr.codenode import BlockNode, FuncNode
+from angr.errors import AngrDecompilationError
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.sim_type import (
+    SimCppClass,
+    SimStruct,
+    SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+    SimTypeShort,
+)
+from angr.sim_variable import (
+    SimComboRegisterVariable,
+    SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimVariable,
+)
+from angr.utils import timethis
+from angr.utils.graph import GraphUtils
+from angr.utils.ssa import is_phi_assignment
+from angr.utils.types import dereference_simtype_by_lib
+
 from .ail_simplifier import AILSimplifier
-from .ssailification.ssailification import Ssailification
-from .stack_item import StackItem, StackItemType
-from .return_maker import ReturnMaker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import (
+    CONDENSING_OPTS,
+    DUPLICATING_OPTS,
     OptimizationPassStage,
     StackCanarySimplifier,
     TagSlicer,
-    DUPLICATING_OPTS,
-    CONDENSING_OPTS,
 )
+from .return_maker import ReturnMaker
 from .semantic_naming import SemanticNamingOrchestrator
+from .ssailification.ssailification import Ssailification
+from .stack_item import StackItem, StackItemType
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.cfg import CFGModel
     from angr.analyses.s_reaching_definitions import SRDAModel
-    from .notes import DecompilationNote
+    from angr.knowledge_plugins.cfg import CFGModel
+
     from .decompilation_cache import DecompilationCache
-    from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+    from .notes import DecompilationNote
+    from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
 l = logging.getLogger(name=__name__)
 

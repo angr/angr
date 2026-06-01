@@ -10,7 +10,6 @@ import sys
 import unittest
 
 import angr
-
 from tests.common import bin_location
 
 

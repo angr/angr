@@ -4,8 +4,8 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
-import re
 import os
+import re
 import unittest
 from collections import OrderedDict
 
@@ -13,31 +13,30 @@ import archinfo
 
 import angr
 from angr.analyses.decompiler.clinic import Clinic
-from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import (
-    SimTypeFloat,
-    SimTypePointer,
-    SimStruct,
-    SimTypeInt,
-    SimTypeBottom,
-    SimTypeFunction,
-    SimTypeChar,
-    SimTypeArray,
-)
+from angr.analyses.typehoon.simple_solver import SimpleSolver
+from angr.analyses.typehoon.translator import TypeTranslator
+from angr.analyses.typehoon.typeconsts import Float32, Float64, Int32, Pointer64, Struct
 from angr.analyses.typehoon.typevars import (
-    TypeVariable,
     DerivedTypeVariable,
-    Subtype,
     FuncIn,
     FuncOut,
+    HasField,
     Load,
     Store,
-    HasField,
+    Subtype,
+    TypeVariable,
 )
-from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32, Float64
-from angr.analyses.typehoon.translator import TypeTranslator
-from angr.analyses.typehoon.simple_solver import SimpleSolver
-
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import (
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypePointer,
+)
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")

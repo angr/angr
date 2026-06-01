@@ -8,7 +8,6 @@ import os
 from unittest import TestCase, main
 
 import angr
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

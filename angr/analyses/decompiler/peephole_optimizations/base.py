@@ -1,11 +1,16 @@
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, UnaryOp, Expression
-from angr.ailment.manager import Manager
-from angr.ailment.statement import Statement, Assignment
+
+from typing import TYPE_CHECKING
+
 from angr.ailment import Block
-from angr.project import Project
-from angr.knowledge_base import KnowledgeBase
+from angr.ailment.expression import BinaryOp, Expression, UnaryOp
+from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment, Statement
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.project import Project
+
+if TYPE_CHECKING:
+    from angr.knowledge_base import KnowledgeBase
 
 
 class PeepholeOptimizationStmtBase:

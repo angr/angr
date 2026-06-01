@@ -3,12 +3,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
-from contextlib import suppress
 import gc
 import os
 import pickle
 import shutil
 import unittest
+from contextlib import suppress
 
 from claripy import BVS
 
@@ -17,7 +17,6 @@ from angr.knowledge_plugins.cfg.spilling_cfg import USE_SPILLING_CFGNODE_DICT, S
 from angr.knowledge_plugins.cfg.spilling_digraph import SpillingDiGraph
 from angr.knowledge_plugins.functions.function_manager import USE_SPILLING_FUNCTION_DICT, SpillingFunctionDict
 from angr.storage import SimFile
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

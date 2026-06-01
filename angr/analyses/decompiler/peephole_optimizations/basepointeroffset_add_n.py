@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, BasePointerOffset, Const
+
+from angr.ailment.expression import BasePointerOffset, BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 

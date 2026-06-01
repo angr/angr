@@ -1,28 +1,30 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from itertools import chain
-from collections.abc import Iterable
+
 import logging
+from collections.abc import Iterable
+from itertools import chain
 from typing import cast
 
 import archinfo
-from archinfo.types import RegisterOffset
 import claripy
-import angr.ailment as ailment
+from archinfo.types import RegisterOffset
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
+import angr.ailment as ailment
+from angr.calling_conventions import SimRegArg, SimTypeBottom, default_cc
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.errors import SimEngineError, SimMemoryMissingError
-from angr.calling_conventions import default_cc, SimRegArg, SimTypeBottom
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, mv_is_bv
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from angr.code_location import CodeLocation, ExternalCodeLocation
-from .subject import SubjectType
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, mv_is_bv
+
+from .function_handler import FunctionCallData, FunctionHandler
 from .rd_state import ReachingDefinitionsState
-from .function_handler import FunctionHandler, FunctionCallData
+from .subject import SubjectType
 
 l = logging.getLogger(name=__name__)
 

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
-from angr.analyses.typehoon import typeconsts
-from angr.analyses.typehoon.typeconsts import TypeConstant, IntVar
 from angr import sim_type
+from angr.analyses.typehoon import typeconsts
+from angr.analyses.typehoon.translator import SimTypeTempRef, TypeTranslator
+from angr.analyses.typehoon.typeconsts import IntVar, TypeConstant
 from angr.rust.sim_type import (
-    RustSimTypeInt,
-    RustSimTypeReference,
+    EnumVariant,
+    RustSimEnum,
+    RustSimStruct,
     RustSimType,
     RustSimTypeArray,
-    RustSimTypeSize,
-    RustSimStruct,
-    RustSimTypeResult,
+    RustSimTypeInt,
     RustSimTypeOption,
-    RustSimEnum,
-    EnumVariant,
+    RustSimTypeReference,
+    RustSimTypeResult,
+    RustSimTypeSize,
 )
 from angr.sim_type import SimTypeNum
 

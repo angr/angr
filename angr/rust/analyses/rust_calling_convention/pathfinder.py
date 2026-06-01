@@ -1,13 +1,13 @@
 from __future__ import annotations
+
 from networkx.classes import DiGraph
 from networkx.exception import NetworkXError
 
-from angr.ailment import AILBlockRewriter
-from angr.rust.mixins import SRDAMixin
-from angr.rust.utils.ail import has_call, extract_vvar_and_offset
-from angr.ailment.statement import Return, Jump, ConditionalJump, Label, Assignment, Statement, Store
+from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Phi, VirtualVariable
-from angr.ailment import Block
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, Statement, Store
+from angr.rust.mixins import SRDAMixin
+from angr.rust.utils.ail import extract_vvar_and_offset, has_call
 from angr.utils.graph import GraphUtils
 
 

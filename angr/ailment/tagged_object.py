@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict, TYPE_CHECKING
-from typing import Self
+from typing import TYPE_CHECKING, Any, Self, TypedDict
 
 from angr.ailment.manager import Manager
 

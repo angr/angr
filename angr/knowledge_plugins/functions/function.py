@@ -1,42 +1,42 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-import os
-import logging
-import itertools
-from collections import defaultdict, UserDict
-from collections.abc import Iterable, Iterator
+
 import contextlib
+import itertools
 import json
+import logging
+import os
+import re
+from collections import UserDict, defaultdict
+from collections.abc import Iterable, Iterator
 from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
-import re
 
+import claripy
 import networkx
 import pydemumble
 import rust_demangler
-
-from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
-import claripy
+from cle.backends.symbol import Symbol
 
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode, FuncNode
-from angr.knowledge_plugins.xrefs.xref import XRef
-from angr.serializable import Serializable
+from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc
+from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.xrefs.xref import XRef
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
 from angr.protos import function_pb2
-from angr.calling_conventions import DEFAULT_CC, default_cc
+from angr.serializable import Serializable
 from angr.sim_type import SimTypeFunction, parse_defns
-from angr.calling_conventions import SimCC
-from angr.project import Project
 from angr.utils.library import get_cpp_function_name_and_metadata
+
 from .function_parser import FunctionParser
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
+    from angr.project import Project
 
 l = logging.getLogger(name=__name__)
 

@@ -1,32 +1,33 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr import ailment
-from angr.analyses.decompiler.goto_manager import GotoManager
-from angr.analyses import AnalysesHub
-from angr.analyses.analysis import Analysis
+from angr.ailment import Manager
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
-from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
 from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
-from angr.ailment import Manager
-from .goto import GotoSimplifier
-from .if_ import IfSimplifier
+from angr.analyses.decompiler.structurer_nodes import LoopNode
+
+from .cascading_cond_transformer import CascadingConditionTransformer
 from .cascading_ifs import CascadingIfsRemover
-from .ifelse import IfElseFlattener
-from .loop import LoopSimplifier
 from .expr_folding import (
     ExpressionCounter,
     ExpressionFolder,
-    StoreStatementFinder,
     ExpressionLocation,
     InterferenceChecker,
     LoopNodeFinder,
+    StoreStatementFinder,
 )
-from .cascading_cond_transformer import CascadingConditionTransformer
+from .goto import GotoSimplifier
+from .if_ import IfSimplifier
+from .ifelse import IfElseFlattener
+from .loop import LoopSimplifier
+from .switch_cluster_simplifier import SwitchClusterFinder, simplify_lowered_switches, simplify_switch_clusters
 from .switch_expr_simplifier import SwitchExpressionSimplifier
-from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters, simplify_lowered_switches
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal

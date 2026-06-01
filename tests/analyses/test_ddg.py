@@ -4,15 +4,14 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
-import os
 import logging
+import os
 import time
 import unittest
 
 import angr
 from angr.code_location import CodeLocation
 from angr.sim_variable import SimRegisterVariable
-
 from tests.common import bin_location
 
 l = logging.getLogger("angr.tests.test_ddg")

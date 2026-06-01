@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
-
 import logging
 import os.path
-from unittest import TestCase
 import unittest
-
-from angr.ailment.expression import VirtualVariableCategory
+from unittest import TestCase
 
 import angr
+from angr.ailment.expression import VirtualVariableCategory
+from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.outliner import Outliner
-from angr.sim_type import SimStruct, SimTypeArray, SimTypeWideChar, SimTypeChar
+from angr.sim_type import SimStruct, SimTypeArray, SimTypeChar, SimTypeWideChar
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
-from angr.analyses.decompiler.clinic import ClinicStage
-
 from tests.common import bin_location
 
 

@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring
 from __future__ import annotations
-from angr import SimProcedure
+
+from angr.sim_procedure import SimProcedure
 
 
 class ExFreePoolWithTag(SimProcedure):

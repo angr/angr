@@ -1,24 +1,25 @@
 # pylint:disable=no-self-use,too-many-boolean-expressions
 from __future__ import annotations
+
 import string
 
 from archinfo import Endness
 
 from angr.ailment.expression import (
+    BinaryOp,
     Call,
     Const,
-    BinaryOp,
+    Insert,
     Register,
     StackBaseOffset,
-    VirtualVariable,
     UnaryOp,
-    Insert,
+    VirtualVariable,
 )
-from angr.ailment.statement import Assignment, Store, SideEffectStatement
+from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.ailment.tagged_object import TagDict
-
-from angr import SIM_LIBRARIES
+from angr.procedures import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = set(string.printable)
