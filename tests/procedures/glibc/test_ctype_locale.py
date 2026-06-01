@@ -5,18 +5,17 @@ from __future__ import annotations
 __package__ = __package__ or "tests.procedures.glibc"  # pylint:disable=redefined-builtin
 
 import os
-import subprocess
 import unittest
 
 import angr
+from angr.sim_options import concrete
 
-from tests.common import bin_location, skip_if_not_linux
+from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestCtypeLocale(unittest.TestCase):
-    @skip_if_not_linux
     def test_ctype_b_loc(self):
         """
         test_ctype_locale.test_ctype_b_loc
@@ -59,10 +58,12 @@ class TestCtypeLocale(unittest.TestCase):
             result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 2].short.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_b_loc()
-        output = subprocess.check_output(bin_path, shell=True)
+        p_concrete = angr.Project(bin_path, auto_load_libs=True, exclude_sim_procedures_list=["__ctype_toupper_loc"])
+        sim_mgr = p_concrete.factory.simulation_manager(p_concrete.factory.entry_state(options=concrete))
+        sim_mgr.run()
+        output = sim_mgr.one_deadended.posix.dumps(1)
         assert result == output
 
-    @skip_if_not_linux
     def test_ctype_tolower_loc(self):
         """
         test_ctype_locale.test_ctype_tolower_loc
@@ -108,10 +109,12 @@ class TestCtypeLocale(unittest.TestCase):
             result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 4].int.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_tolower_loc()
-        output = subprocess.check_output(bin_path, shell=True)
+        p_concrete = angr.Project(bin_path, auto_load_libs=True, exclude_sim_procedures_list=["__ctype_toupper_loc"])
+        sim_mgr = p_concrete.factory.simulation_manager(p_concrete.factory.entry_state(options=concrete))
+        sim_mgr.run()
+        output = sim_mgr.one_deadended.posix.dumps(1)
         assert result == output
 
-    @skip_if_not_linux
     def test_ctype_toupper_loc(self):
         """
         test_ctype_locale.test_ctype_toupper_loc
@@ -157,7 +160,10 @@ class TestCtypeLocale(unittest.TestCase):
             result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 4].int.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_toupper_loc()
-        output = subprocess.check_output(bin_path, shell=True)
+        p_concrete = angr.Project(bin_path, auto_load_libs=True, exclude_sim_procedures_list=["__ctype_toupper_loc"])
+        sim_mgr = p_concrete.factory.simulation_manager(p_concrete.factory.entry_state(options=concrete))
+        sim_mgr.run()
+        output = sim_mgr.one_deadended.posix.dumps(1)
         assert result == output
 
 
