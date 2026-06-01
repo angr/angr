@@ -14,6 +14,7 @@ from angr.ailment.expression import (
     Expression,
     Extract,
     Insert,
+    IRegister,
     Load,
     Register,
     StackBaseOffset,
@@ -452,6 +453,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if isinstance(stmt.dst, Register):
             self.register_set(stmt.dst.reg_offset, stmt.dst.size, src, stmt.dst)
+        elif isinstance(stmt.dst, IRegister):
+            # Unresolved indexed register write -- resolve if possible, else skip
+            offset = stmt.dst.concrete_reg_offset()
+            if offset is not None:
+                self.register_set(offset, stmt.dst.size, src, stmt.dst)
         elif isinstance(stmt.dst, VirtualVariable):
             self.state.live_vvars = self.state.live_vvars.clean()
             self.state.live_vvars[stmt.dst.varid] = src
@@ -623,6 +629,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _handle_expr_Register(self, expr: Register):
         return self.register_get(expr.reg_offset, expr.size, expr)
+
+    def _handle_expr_IRegister(self, expr: IRegister):
+        offset = expr.concrete_reg_offset()
+        if offset is None:
+            self._expr(expr.reg_offset)
+            return set()
+        return self.register_get(offset, expr.size, expr)
 
     def _handle_expr_Load(self, expr: Load):
         addr = self._expr(expr.addr)

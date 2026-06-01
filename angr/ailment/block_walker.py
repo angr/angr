@@ -21,6 +21,7 @@ from .expression import (
     Extract,
     FunctionLikeMacro,
     Insert,
+    IRegister,
     Load,
     MultiStatementExpression,
     Phi,
@@ -71,6 +72,7 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
     Tmp,
     Register,
     ComboRegister,
+    IRegister,
     Reinterpret,
     Const,
     MultiStatementExpression,
@@ -317,6 +319,12 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_Register(
         self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.reg_offset, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Const(
@@ -852,6 +860,16 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr.registers = new_regs
             return new_expr
 
+        return expr
+
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        reg_offset = self._handle_expr(0, expr.reg_offset, stmt_idx, stmt, block)
+        if reg_offset is not expr.reg_offset:
+            new_expr = expr.copy()
+            new_expr.reg_offset = reg_offset
+            return new_expr
         return expr
 
     def _handle_Call(

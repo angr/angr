@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
-from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
+from angr.ailment.expression import Call, Const, Convert, Expression, Load, Phi, Register, Tmp, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
 from angr.analyses.analysis import Analysis, register_analysis
@@ -284,6 +284,22 @@ class BlockSimplifier(Analysis):
                         if stmt.src == old:
                             r = True
                             new_src = new.copy()
+                        elif (
+                            isinstance(stmt.src, Phi)
+                            and all(v is not None for _, v in stmt.src.src_and_vvars)
+                            and all(
+                                (isinstance(v, Const) and v.likes(new) and v.value == new.value) for v in repls.values()
+                            )  # All same value?
+                            and {v.varid for _, v in stmt.src.src_and_vvars}
+                            == {v.varid for v in repls}  # All vvars replaced?
+                        ):
+                            # If stmt.src is a Phi variable, we can't replace any expressions
+                            # with non virtual variables. However, if we know we are going to replace
+                            # all vvars with the same constant, then just rewrite it!
+                            replaced = True
+                            new_src = new
+                            new_statements[codeloc.stmt_idx] = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
+                            break
                         else:
                             r, new_src = stmt.src.replace(old, new)
                             if (
