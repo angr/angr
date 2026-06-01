@@ -632,7 +632,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         exclude_sparse_regions=True,
         skip_specific_regions=True,
         heuristic_plt_resolving=None,
-        detect_tail_calls=False,
+        detect_tail_calls=True,
         low_priority=False,
         cfb=None,
         model=None,
