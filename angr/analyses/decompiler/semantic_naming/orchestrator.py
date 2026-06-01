@@ -120,6 +120,8 @@ class SemanticNamingOrchestrator:
         renamed = (v for v in self.renamed_variables if v.renamed)
         for var in sorted(renamed, key=lambda v: str(v.ident)):
             base = var.name
+            if base is None:
+                continue
             if n := varname_count[base]:
                 var.name = f"{base}{n}"
                 var.clear_hash()

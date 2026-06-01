@@ -242,7 +242,7 @@ class TestResolveNameCollisions(unittest.TestCase):
             v.renamed = renamed
             variables.append(v)
 
-        orch = SemanticNamingOrchestrator(None, None, None, None)
+        orch = SemanticNamingOrchestrator(None, None, None, None)  # type: ignore[arg-type]
         orch.renamed_variables = set(variables)
         orch.resolve_name_collisions()
         return {v.ident: v.name for v in variables}
