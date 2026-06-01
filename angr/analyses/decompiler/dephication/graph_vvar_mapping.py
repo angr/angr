@@ -233,6 +233,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     if vvar is None or vvar.varid != varid:
                         continue
 
+                    assignment_created = False
                     if src not in stmt_appended_locs:
                         # we have not yet appended a statement to this block
                         the_block = self._blocks[src]
@@ -250,10 +251,10 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         assignment = Assignment(
                             self.ail_manager.next_atom(), new_vvar, vvar, ins_addr=ins_addr, dephi=True
                         )
-
                         self._append_stmt(the_block, assignment, old_vvarid=varid, new_vvarid=new_vvar_id)
 
                         stmt_appended_locs[src] = new_vvar
+                        assignment_created = True
 
                     else:
                         new_vvar = stmt_appended_locs[src]
@@ -267,6 +268,11 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     phi_block.statements[phidef_stmt_idx] = phi_stmt
 
                     new_vvar_info.add((src, varid, new_vvar_id))
+
+                    if assignment_created:
+                        # tick new_vvar_id and self.vvar_id_start
+                        new_vvar_id += 1
+                        self.vvar_id_start += 1
 
             return 0, new_vvar_info
 
