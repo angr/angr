@@ -3227,7 +3227,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
 
-        proj.analyses.CompleteCallingConventions(mode=CallingConventionAnalysisMode.VARIABLES)
+        proj.analyses.CompleteCallingConventions(mode=CallingConventionAnalysisMode.VARIABLES, recover_variables=True)
 
         # disable eager returns simplifier
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
