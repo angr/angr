@@ -1,7 +1,9 @@
 # pylint: disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 
-from angr.ailment.expression import BinaryOp, Const, Convert, Insert
+from angr.ailment.expression import BinaryOp, Call, Const, Convert, Insert, Reinterpret, UnaryOp
+from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.sim_type import SimTypeFloat
 
 from .base import PeepholeOptimizationExprBase
 
@@ -157,6 +159,20 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
 
     def _optimize_Convert(self, expr: Convert):
         operand_expr = expr.operand
+        # Conv(big->small, Conv(small->big, x)) => x  (round-trip widening then narrowing)
+        if (
+            isinstance(operand_expr, Convert)
+            and expr.to_bits == operand_expr.from_bits
+            and expr.from_bits == operand_expr.to_bits
+            and operand_expr.from_bits < operand_expr.to_bits
+            and (
+                # Same-type round-trip (e.g. Conv(64I->32I, Conv(32I->64I, x)))
+                (expr.from_type == expr.to_type and operand_expr.from_type == operand_expr.to_type)
+                # FP-narrowing of integer-widened value (e.g. Conv(64F->32F, Conv(32I->64I, x)))
+                or (expr.to_type == Convert.TYPE_FP and operand_expr.from_type == Convert.TYPE_INT)
+            )
+        ):
+            return operand_expr.operand
         if (
             expr.from_type == expr.to_type == Convert.TYPE_INT
             and isinstance(operand_expr, Insert)
@@ -169,6 +185,26 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             return Convert(
                 expr.idx, operand_expr.value.bits, expr.bits, expr.is_signed, operand_expr.value, **expr.tags
             )
+        # Conv(big->small, UnaryOp(Conv(small->big, x))) => UnaryOp(x)
+        if (
+            isinstance(operand_expr, UnaryOp)
+            and not isinstance(operand_expr, Reinterpret)
+            and isinstance(operand_expr.operand, Convert)
+        ):
+            inner_conv = operand_expr.operand
+            if (
+                inner_conv.from_bits == expr.to_bits
+                and inner_conv.to_bits == expr.from_bits
+                and inner_conv.from_bits < inner_conv.to_bits
+            ):
+                return UnaryOp(
+                    operand_expr.idx,
+                    operand_expr.op,
+                    inner_conv.operand,
+                    bits=expr.to_bits,
+                    floating_point=operand_expr.floating_point,
+                    ins_addr=operand_expr.tags.get("ins_addr"),
+                )
         if isinstance(operand_expr, BinaryOp):
             if operand_expr.op in {
                 "Mul",
@@ -284,4 +320,24 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             new_operand,
                             **expr.tags,
                         )
+        # Conv(NI->MI, Call<returns_float>) => Conv(NF->MF, Call)
+        # SSA may insert integer Convs to reconcile Call result width with the
+        # x87 fpreg register; retype to FP when the prototype says float.
+        if (
+            expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and isinstance(operand_expr, Call)
+        ):
+            call_proto = variable_map_of(self.manager).prototype(operand_expr)
+            if call_proto is not None and isinstance(call_proto.returnty, SimTypeFloat):
+                return Convert(
+                    expr.idx,
+                    expr.from_bits,
+                    expr.to_bits,
+                    expr.is_signed,
+                    operand_expr,
+                    from_type=Convert.TYPE_FP,
+                    to_type=Convert.TYPE_FP,
+                    **expr.tags,
+                )
         return None

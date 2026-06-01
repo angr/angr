@@ -22,14 +22,18 @@ from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .eager_std_string_eval import EagerStdStringEvalPass
 from .expr_op_swapper import ExprOpSwapper
 from .flip_boolean_cmp import FlipBooleanCmp
+from .fp_negation import FpNegation
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
 from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .inlined_strlen_simplifier import InlinedStrlenSimplifier
 from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
+from .insert_extract_reverter import InsertExtractReverter
+from .ireg_replacer import IRegReplacer
 from .ite_expr_converter import ITEExprConverter
 from .ite_region_converter import ITERegionConverter
+from .ite_simplifier import ITESimplifier
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .mod_simplifier import ModSimplifier
@@ -61,6 +65,7 @@ ALL_OPTIMIZATION_PASSES = [
     BasePointerSaveSimplifier,
     DivSimplifier,
     ModSimplifier,
+    ITESimplifier,
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
     X86GccGetPcSimplifier,
@@ -99,6 +104,9 @@ ALL_OPTIMIZATION_PASSES = [
     InlinedStrlenSimplifier,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
+    IRegReplacer,
+    InsertExtractReverter,
+    FpNegation,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -156,8 +164,11 @@ __all__ = (
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
+    "FpNegation",
+    "IRegReplacer",
     "ITEExprConverter",
     "ITERegionConverter",
+    "ITESimplifier",
     "InlinedMemcpySimplifier",
     "InlinedMemcpySimplifierLate",
     "InlinedMemsetSimplifier",
@@ -168,6 +179,7 @@ __all__ = (
     "InlinedStrlenSimplifier",
     "InlinedWcscpySimplifier",
     "InlinedWcscpySimplifierLate",
+    "InsertExtractReverter",
     "LoweredSwitchSimplifier",
     "MipsGpSettingSimplifier",
     "ModSimplifier",

@@ -4366,17 +4366,27 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         start_pos = lines.index("{")
-        assert lines[start_pos + 3 :][:6] == [
-            "if (a1)",
-            "v1 = a1;",
-            "else",
-            "v1 = a0;",
-            "g_1234 = v1;",
-            "return 4660;",
-        ] or lines[start_pos + 1 :][:2] == [
-            "*((int *)&g_1234) = (a1 ? a1 : a0);",
-            "return 4660;",
-        ]
+        assert (
+            lines[start_pos + 3 :][:6]
+            == [
+                "if (a1)",
+                "v1 = a1;",
+                "else",
+                "v1 = a0;",
+                "g_1234 = v1;",
+                "return 4660;",
+            ]
+            or lines[start_pos + 1 :][:2]
+            == [
+                "*((int *)&g_1234) = (a1 ? a1 : a0);",
+                "return 4660;",
+            ]
+            or lines[start_pos + 1 :][:2]
+            == [
+                "g_1234 = (a1 ? a1 : a0);",
+                "return 4660;",
+            ]
+        )
 
     def test_decompiling_rust_binary_rust_probestack(self, decompiler_options=None):
         bin_path = os.path.join(
@@ -4450,8 +4460,8 @@ class TestDecompiler(unittest.TestCase):
         assert '"current_angle_int: %d\\n"' in d.codegen.text
         assert "10.0" in d.codegen.text
         assert re.search(r"int_to_float\(\w+\)", d.codegen.text) is not None
-        assert re.search(r"increment_float\(current_angle, 10.0\)", d.codegen.text) is not None
-        assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(current_angle, 10.0f?\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(prev_angle, 8.0f?\)", d.codegen.text) is not None
         assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text or re.search(
             r"(\w+) = compare_floats\(30, current_angle, prev_angle\);\s*if \(!\1\)", d.codegen.text
         )
@@ -5398,44 +5408,84 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
-        assert normalize_whitespace(f"""
+        text = normalize_whitespace(dec.codegen.text)
+        assert (
+            normalize_whitespace(f"""
                 if ((int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
                 return (int){a0} - 1;
-                """) in normalize_whitespace(dec.codegen.text)
+                """)
+            in text
+            or normalize_whitespace(f"""
+                if (!(int){a0})
+                    return (int){a0} - 1;
+                return test_cond_tailcall_jmp_callee({a0});
+                """)
+            in text
+        )
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
-        assert normalize_whitespace(f"""
+        text = normalize_whitespace(dec.codegen.text)
+        assert (
+            normalize_whitespace(f"""
                 if ({a0})
                     test_cond_noreturn_tailcall_jmp_callee(); /* do not return */
                 return {a0} - 1;
-                """) in normalize_whitespace(dec.codegen.text)
+                """)
+            in text
+            or normalize_whitespace(f"""
+                if (!{a0})
+                    return {a0} - 1;
+                test_cond_noreturn_tailcall_jmp_callee(); /* do not return */
+                """)
+            in text
+        )
 
         func = proj.kb.functions["test_cond_tailcall_cjmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
-        assert normalize_whitespace(f"""
+        text = normalize_whitespace(dec.codegen.text)
+        assert (
+            normalize_whitespace(f"""
                 if ((int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
                 return (int){a0} - 1;
-                """) in normalize_whitespace(dec.codegen.text)
+                """)
+            in text
+            or normalize_whitespace(f"""
+                if (!(int){a0})
+                    return (int){a0} - 1;
+                return test_cond_tailcall_cjmp_callee({a0});
+                """)
+            in text
+        )
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
-        assert normalize_whitespace(f"""
+        text = normalize_whitespace(dec.codegen.text)
+        assert (
+            normalize_whitespace(f"""
                 if ({a0})
                     test_cond_noreturn_tailcall_cjmp_callee(); /* do not return */
                 return {a0} - 1;
-                """) in normalize_whitespace(dec.codegen.text)
+                """)
+            in text
+            or normalize_whitespace(f"""
+                if (!{a0})
+                    return {a0} - 1;
+                test_cond_noreturn_tailcall_cjmp_callee(); /* do not return */
+                """)
+            in text
+        )
 
     def test_decompiling_arduino_giga_flash_webhandler_switch_case(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "06aa650f61d71744c6709c7c092d9169.hex")
