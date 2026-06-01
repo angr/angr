@@ -1245,5 +1245,3 @@ def remove_edges_in_ailgraph(
     for src_addr, dst_addr in edges_to_remove:
         if src_addr in d and dst_addr in d and ail_graph.has_edge(d[src_addr], d[dst_addr]):
             ail_graph.remove_edge(d[src_addr], d[dst_addr])
-
-

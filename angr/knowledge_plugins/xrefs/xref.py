@@ -82,7 +82,6 @@ class XRef(Serializable):
     def serialize_to_cmessage(self):
         # pylint:disable=no-member
 
-
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
             # determine target_type from memory_data.sort
@@ -115,7 +114,6 @@ class XRef(Serializable):
     @classmethod
     def parse_from_cmessage(cls, cmsg, bits=None, **kwargs):  # pylint:disable=arguments-differ
         # Note that we cannot recover _memory_data from cmsg
-
 
         if not isinstance(bits, int):
             raise TypeError("bits must be provided.")

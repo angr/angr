@@ -444,7 +444,6 @@ class Director(ExplorationTechnique):
         """
 
         if self._cfg is None:
-
             starts = list(simgr.active)
             self._cfg_kb = KnowledgeBase(self.project)
 

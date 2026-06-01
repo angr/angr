@@ -55,7 +55,6 @@ class LoopSeer(ExplorationTechnique):
         self.loops = {}
         self.cut_succs = []
 
-
         if type(loops) is Loop:
             loops = [loops]
 
