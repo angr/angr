@@ -331,7 +331,7 @@ These builtin procedures are available in the ``angr.SIM_PROCEDURES``
 dictionary, which is two-leveled, keyed first on the package name (libc, posix,
 win32, stubs) and then on the name of the library function. Executing a
 SimProcedure instead of the actual library function that gets loaded from your
-system makes analysis a LOT more tractable, at the cost of `some potential
+system makes analysis a LOT more tractable, at the cost of :ref:`some potential
 inaccuracies <Gotchas when using angr>`.
 
 When no such summary is available for a given function:
