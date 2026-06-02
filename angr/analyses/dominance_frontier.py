@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import overload
 
 import networkx
+
 from angr.codenode import CodeNode
 from angr.knowledge_plugins.functions.function import Function
-from angr.utils.graph import compute_dominance_frontier, Dominators
+from angr.utils.graph import Dominators, compute_dominance_frontier
 
 
 class DominanceFrontier[T_co]:

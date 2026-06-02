@@ -1,43 +1,44 @@
 from __future__ import annotations
-from typing import Literal, TYPE_CHECKING, cast, overload
+
+import logging
 from collections import defaultdict
 from collections.abc import Iterator
-from itertools import count, chain
-import logging
+from itertools import chain, count
+from typing import TYPE_CHECKING, Literal, cast, overload
 
 import cle
 import networkx
-
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
 from angr import ailment
-from angr.utils.orderedset import OrderedSet
-from angr.utils.ail import is_phi_assignment
-from angr.utils.types import unpack_pointer, replace_pointer_pts_to
-from angr.protos import variables_pb2
-from angr.serializable import Serializable
-from angr.sim_variable import (
-    SimVariable,
-    SimStackVariable,
-    SimMemoryVariable,
-    SimRegisterVariable,
-    SimConstantVariable,
-    SimComboRegisterVariable,
-)
-from angr.sim_type import (
-    TypeRef,
-    SimType,
-    SimStruct,
-    SimTypeBottom,
-    SimTypeChar,
-    SimTypeShort,
-    SimTypeInt,
-    SimTypeLong,
-)
 from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
+from angr.protos import variables_pb2
+from angr.serializable import Serializable
+from angr.sim_type import (
+    SimStruct,
+    SimType,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeShort,
+    TypeRef,
+)
+from angr.sim_variable import (
+    SimComboRegisterVariable,
+    SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimVariable,
+)
+from angr.utils.ail import is_phi_assignment
+from angr.utils.orderedset import OrderedSet
+from angr.utils.types import replace_pointer_pts_to, unpack_pointer
+
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:

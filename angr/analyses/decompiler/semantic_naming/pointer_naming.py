@@ -7,13 +7,14 @@ This module detects variables used as pointers and names them appropriately
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from angr import ailment
-from angr.ailment.expression import BinaryOp, Call, UnaryOp, Const, Load
-from angr.ailment.statement import Assignment, Store, SideEffectStatement
+from angr.ailment.expression import BinaryOp, Call, Const, Load, UnaryOp
+from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase

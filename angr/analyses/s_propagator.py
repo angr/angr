@@ -1,46 +1,45 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Mapping
 from collections import defaultdict
+from collections.abc import Mapping
 
 import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     Const,
-    Insert,
-    Phi,
-    VirtualVariable,
-    VirtualVariableCategory,
-    StackBaseOffset,
-    Load,
     Convert,
     Expression,
+    Insert,
+    Load,
+    Phi,
+    StackBaseOffset,
     Tmp,
+    VirtualVariable,
+    VirtualVariableCategory,
 )
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
-
-from angr.knowledge_plugins.functions import Function
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
-from angr.analyses import Analysis, register_analysis
+from angr.knowledge_plugins.functions import Function
 from angr.utils.ssa import (
-    get_vvar_uselocs,
+    get_tmp_deflocs,
+    get_tmp_uselocs,
     get_vvar_deflocs,
+    get_vvar_uselocs,
     has_ite_expr,
     has_ite_stmt,
+    has_store_stmt_in_between_stmts,
     has_tmp_expr,
-    is_phi_assignment,
-    is_const_assignment,
     is_const_and_vvar_assignment,
+    is_const_assignment,
     is_const_vvar_load_assignment,
     is_const_vvar_load_dirty_assignment,
     is_const_vvar_tmp_assignment,
+    is_phi_assignment,
     is_vvar_propagatable,
-    get_tmp_uselocs,
-    get_tmp_deflocs,
-    has_store_stmt_in_between_stmts,
 )
 
 

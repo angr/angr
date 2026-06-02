@@ -1,10 +1,10 @@
 from __future__ import annotations
+
+import logging
+from collections.abc import Callable, Iterable, MutableMapping
+from functools import partial
 from itertools import chain
 from typing import TYPE_CHECKING, Any, TypeVar
-from collections.abc import Iterable, MutableMapping
-from collections.abc import Callable
-from functools import partial
-import logging
 
 import networkx
 
@@ -12,19 +12,19 @@ from angr import ailment
 from angr.ailment import Block
 from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, Statement
-
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.ssa import is_phi_assignment
+
 from .rewriting_engine import SimEngineSSARewriting
 from .rewriting_state import RewritingState
 
 if TYPE_CHECKING:
+    from angr.ailment import Manager
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
     from angr.project import Project
-    from angr.ailment import Manager
 
 l = logging.getLogger(__name__)
 T = TypeVar("T")

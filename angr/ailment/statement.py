@@ -8,9 +8,10 @@ from typing import Self
 import claripy
 
 from angr import ailment
-from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
-from .expression import Atom, Expression, DirtyExpression
+
+from .expression import Atom, DirtyExpression, Expression
 from .tagged_object import TaggedObject
+from .utils import is_none_or_likeable, is_none_or_matchable, stable_hash
 
 
 class Statement(TaggedObject, ABC):

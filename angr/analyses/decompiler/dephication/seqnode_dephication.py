@@ -1,18 +1,19 @@
 from __future__ import annotations
-from collections import defaultdict
-import logging
-from typing import Any, TYPE_CHECKING
 
-from angr.ailment.block import Block
-from angr.ailment.statement import Assignment
-from angr.ailment.expression import VirtualVariable, Phi, BinaryOp, UnaryOp
+import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 import angr
-from angr.utils.ail import is_phi_assignment
-from angr.knowledge_plugins.functions import Function
-from angr.analyses import register_analysis
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, LoopNode
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Phi, UnaryOp, VirtualVariable
+from angr.ailment.statement import Assignment
+from angr.analyses.analysis import register_analysis
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import LoopNode, SequenceNode
+from angr.knowledge_plugins.functions import Function
+from angr.utils.ail import is_phi_assignment
+
 from .dephication_base import DephicationBase
 from .rewriting_engine import SimEngineDephiRewriting
 

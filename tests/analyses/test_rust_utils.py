@@ -11,14 +11,12 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment
-
 from angr.rust.optimization_passes.utils import (
     extract_callee,
     extract_str,
     extract_str_from_addr,
     replace_argument_pairs,
 )
-from angr.rust.utils.demangler import _is_rust_hash, demangle, normalize
 from angr.rust.utils.ail import (
     deref_vvar_and_offset,
     extract_vvar_and_offset,
@@ -29,6 +27,7 @@ from angr.rust.utils.ail import (
     unwrap_stack_vvar_reference,
     unwrap_stack_vvar_reference_with_offset,
 )
+from angr.rust.utils.demangler import _is_rust_hash, demangle, normalize
 
 
 def _stack_vvar(vvar_id: int = 0, offset: int = 16) -> VirtualVariable:

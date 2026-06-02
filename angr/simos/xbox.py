@@ -5,8 +5,9 @@ try:
 except ImportError:
     xbe = None
 
-from angr.procedures import SIM_PROCEDURES
 from angr.calling_conventions import SimCCStdcall
+from angr.procedures import SIM_PROCEDURES
+
 from .simos import SimOS
 
 

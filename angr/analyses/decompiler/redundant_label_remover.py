@@ -4,7 +4,7 @@ from __future__ import annotations
 import angr.ailment as ailment
 
 from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import SequenceNode
+from .structurer_nodes import SequenceNode
 from .utils import first_nonlabel_nonphi_statement
 
 

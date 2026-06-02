@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from angr.ailment import Const
-from angr.ailment.expression import BinaryOp, Call, Load, Expression, Tmp
-from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment
+from angr.ailment.expression import BinaryOp, Call, Expression, Load, Tmp
+from angr.ailment.statement import CAS, Assignment, ConditionalJump, Statement
 
 from .base import PeepholeOptimizationMultiStmtBase
 

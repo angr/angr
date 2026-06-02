@@ -11,7 +11,7 @@ import claripy
 from angr.errors import SimMemoryError
 from angr.state_plugins.sim_action_object import SimActionObject
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageBase, ListPage, UltraPage, MVListPage
+from angr.storage.memory_mixins.paged_memory.pages import ListPage, MVListPage, PageBase, UltraPage
 
 # yeet
 ffi = cffi.FFI()

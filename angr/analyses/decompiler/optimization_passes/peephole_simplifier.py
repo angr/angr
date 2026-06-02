@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from angr import ailment
+from angr.analyses.decompiler.peephole_optimizations import (
+    EXPR_OPTS,
+    PeepholeOptimizationExprBase,
+)
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import (
     peephole_optimize_expr,
 )
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.peephole_optimizations import (
-    PeepholeOptimizationExprBase,
-    EXPR_OPTS,
-)
+
 from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
 
 

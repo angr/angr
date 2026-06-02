@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr import ailment
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

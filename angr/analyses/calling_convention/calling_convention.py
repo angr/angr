@@ -1,64 +1,64 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+import logging
 from collections import defaultdict
 from collections.abc import Mapping
-import logging
+from typing import TYPE_CHECKING
 
-import networkx
 import capstone
-
-from pyvex.stmt import Put
+import networkx
 from pyvex.expr import RdTmp
+from pyvex.stmt import Put
 
 from angr import ailment
-from angr.code_location import ExternalCodeLocation
-
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
+    SimCC,
+    SimCCMicrosoftThiscall,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
-    SimCC,
     default_cc,
-    SimCCMicrosoftThiscall,
 )
+from angr.code_location import ExternalCodeLocation
 from angr.errors import SimTranslationError
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
+from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
+from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
+from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal, VariableType
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_type import (
     PointerDisposition,
-    SimTypeCppFunction,
-    SimTypeInt,
-    SimTypeFunction,
     SimType,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeCppFunction,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeInt128,
     SimTypeLongLong,
     SimTypePointer,
     SimTypeShort,
-    SimTypeChar,
-    SimTypeBottom,
-    SimTypeFloat,
-    SimTypeDouble,
     parse_cpp_file,
-    SimTypeInt128,
 )
-from angr.sim_variable import SimStackVariable, SimRegisterVariable
-from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
-from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
-from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
-from angr.knowledge_plugins.functions import Function
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.utils.ssa import get_reg_offset_base_and_size, get_reg_offset_base
-from angr import SIM_PROCEDURES
-from angr.analyses import Analysis, register_analysis, ReachingDefinitionsAnalysis
-from angr.analyses.reaching_definitions import get_all_definitions
-from .utils import is_sane_register_variable
+from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
+
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
+from .utils import is_sane_register_variable
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
-    from angr.knowledge_plugins.key_definitions.uses import Uses
     from angr.knowledge_plugins.key_definitions.definition import Definition
+    from angr.knowledge_plugins.key_definitions.uses import Uses
 
 l = logging.getLogger(name=__name__)
 

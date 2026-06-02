@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+
 # pylint: disable=import-outside-toplevel
 from typing import TYPE_CHECKING
-from collections.abc import Callable, Iterable
 
 import claripy
 
@@ -11,9 +12,9 @@ from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 if TYPE_CHECKING:
+    from angr.ailment import Address
     from angr.analyses.decompiler.clinic import Clinic
     from angr.project import Project
-    from angr.ailment import Address
 
 
 def ail_call_state(

@@ -1,37 +1,39 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
-from collections.abc import Callable, Generator
+
 import logging
 from collections import defaultdict
+from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING, Any
 
 import archinfo
-from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
+from archinfo.arch_arm import is_arm_arch
 
-from angr.utils.graph import GraphUtils
-from angr.analyses import ForwardAnalysis
-from angr.knowledge_plugins.cfg import BlockID
-from .cfg.cfg_job_base import FunctionKey, CFGJobBase
 from angr import sim_options
-from angr.engines.procedure import ProcedureEngine
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGEmulated
+from angr.analyses.forward_analysis import ForwardAnalysis
 from angr.engines import SimSuccessors
+from angr.engines.procedure import ProcedureEngine
 from angr.errors import (
     AngrDelayJobNotice,
+    AngrError,
+    AngrJobMergingFailureNotice,
     AngrSkipJobNotice,
     AngrVFGError,
-    AngrError,
     AngrVFGRestartAnalysisNotice,
-    AngrJobMergingFailureNotice,
-    SimValueError,
-    SimIRSBError,
     SimError,
+    SimIRSBError,
+    SimValueError,
 )
+from angr.knowledge_plugins.cfg import BlockID
 from angr.procedures import SIM_PROCEDURES
-from angr.state_plugins.callstack import CallStack
-from angr.analyses import AnalysesHub
 from angr.sim_state import SimState
-from . import Analysis, CFGEmulated
+from angr.state_plugins.callstack import CallStack
+from angr.utils.graph import GraphUtils
+
+from .cfg.cfg_job_base import CFGJobBase, FunctionKey
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

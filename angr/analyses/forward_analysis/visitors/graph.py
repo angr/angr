@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import TypeVar
-from collections.abc import Collection, Iterator
+
 from collections import defaultdict
+from collections.abc import Collection, Iterator
+from typing import TypeVar
 
 from angr.utils.algo import binary_insert
 

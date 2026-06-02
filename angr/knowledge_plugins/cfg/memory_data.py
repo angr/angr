@@ -1,5 +1,6 @@
 # pylint:disable=no-member
 from __future__ import annotations
+
 from angr.protos import cfg_pb2
 from angr.serializable import Serializable
 

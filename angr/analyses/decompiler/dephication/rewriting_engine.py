@@ -1,38 +1,38 @@
 # pylint:disable=unused-argument,no-self-use,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 from angr.ailment.block import Block
-from angr.ailment.statement import (
-    Statement,
-    Assignment,
-    Store,
-    SideEffectStatement,
-    CAS,
-    Return,
-    ConditionalJump,
-    DirtyStatement,
-    WeakAssignment,
-)
 from angr.ailment.expression import (
+    ITE,
     Atom,
+    BinaryOp,
     Call,
+    Convert,
+    DirtyExpression,
     Expression,
     Extract,
     Insert,
-    VirtualVariable,
     Load,
-    BinaryOp,
-    UnaryOp,
     Phi,
-    Convert,
-    ITE,
-    VEXCCallExpression,
-    DirtyExpression,
     Reinterpret,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
 )
-
+from angr.ailment.statement import (
+    CAS,
+    Assignment,
+    ConditionalJump,
+    DirtyStatement,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+    WeakAssignment,
+)
 from angr.engines.light import SimEngineNostmtAIL
 
 if TYPE_CHECKING:

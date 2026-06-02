@@ -4,13 +4,13 @@ from .base import (
     BaseStructuredCodeGenerator,
     InstructionMapping,
     InstructionMappingElement,
-    PositionMappingElement,
     PositionMapping,
+    PositionMappingElement,
 )
 from .c import CStructuredCodeGenerator, CStructuredCodeWalker
-from .rust import RustStructuredCodeGenerator
-from .dwarf_import import ImportSourceCode
 from .dummy import DummyStructuredCodeGenerator
+from .dwarf_import import ImportSourceCode
+from .rust import RustStructuredCodeGenerator
 
 __all__ = (
     "BaseStructuredCodeGenerator",

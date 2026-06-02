@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.analysis import AnalysesHub
-from angr.rust.typehoon.translator import RustTypeTranslator
-from angr.rust.sim_type import RustSimTypeInt
-from angr.sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
+from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager
-from angr.sim_variable import SimVariable, SimStackVariable
+from angr.rust.sim_type import RustSimTypeInt
+from angr.rust.typehoon.translator import RustTypeTranslator
+from angr.sim_type import SimStruct, SimTypeArray, SimTypeBottom, SimTypePointer
+from angr.sim_variable import SimStackVariable, SimVariable
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType

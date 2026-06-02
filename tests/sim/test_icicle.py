@@ -12,9 +12,8 @@ from __future__ import annotations
 
 import os
 from io import BytesIO
-from unittest import TestCase
-
 from typing import cast
+from unittest import TestCase
 
 import archinfo
 import cle

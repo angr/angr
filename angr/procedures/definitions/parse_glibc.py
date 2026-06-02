@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import logging
-import sys
-import os
 import json
+import logging
+import os
+import sys
 from collections import OrderedDict
 
-from angr.sim_type import SimTypePointer, parse_file, ALL_TYPES, PointerDisposition
+from angr.sim_type import ALL_TYPES, PointerDisposition, SimTypePointer, parse_file
 
 l = logging.getLogger(name="parse_glibc")
 

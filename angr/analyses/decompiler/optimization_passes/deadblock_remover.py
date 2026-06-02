@@ -1,15 +1,16 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
+import claripy
 import networkx
 
-import claripy
-
-from angr.ailment.statement import Jump
 from angr.ailment.expression import Const
-from angr.utils.graph import to_acyclic_graph
+from angr.ailment.statement import Jump
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.utils.graph import to_acyclic_graph
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

@@ -1,17 +1,18 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import json
 
+import json
+from typing import TYPE_CHECKING, Any
+
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.base import CConstantType
-from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-from angr.knowledge_plugins import StructuredCodeManager
 from angr.angrdb.models import DbStructuredCode
+from angr.knowledge_plugins import StructuredCodeManager
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen.base import IdentType
-    from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 
 class ConstFormatsSerializer:

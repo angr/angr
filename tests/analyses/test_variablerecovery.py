@@ -3,14 +3,13 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
-import os
 import logging
+import os
 import unittest
 
 import angr
-from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.variables import VariableType
-
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")

@@ -3,8 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 from collections.abc import Iterator
-from typing import Any
-from typing import Self
+from typing import Any, Self
 
 import claripy
 
@@ -12,6 +11,7 @@ from angr import errors
 from angr.errors import AngrError, SimEmptyCallStackError, SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)

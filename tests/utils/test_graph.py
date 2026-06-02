@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
 from __future__ import annotations
+
 import unittest
+
 import networkx as nx
+
 from angr.ailment.block import Block
-from angr.utils.graph import Dominators, TemporaryNode, GraphUtils
+from angr.utils.graph import Dominators, GraphUtils, TemporaryNode
 
 
 class TestGraph(unittest.TestCase):

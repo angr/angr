@@ -1,12 +1,12 @@
 from __future__ import annotations
+
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from angr.ailment import Assignment, Expression, Statement, Block, UnaryOp
-from angr.ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset, BinaryOp, Const
+from angr.ailment import Assignment, Block, Expression, Statement, UnaryOp
+from angr.ailment.expression import BasePointerOffset, BinaryOp, Const, Load, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Store
-
-from angr.rust.utils.ail import unwrap_stack_vvar_reference, CallFinder
+from angr.rust.utils.ail import CallFinder, unwrap_stack_vvar_reference
 
 
 @dataclass

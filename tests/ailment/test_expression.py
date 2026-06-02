@@ -1,8 +1,9 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
+
+import unittest
 from collections import OrderedDict
 from types import SimpleNamespace
-import unittest
 
 import pytest
 

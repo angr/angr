@@ -1,19 +1,22 @@
 # pylint:disable=bad-builtin
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections import defaultdict
 
-from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
+from collections import defaultdict
+from typing import TYPE_CHECKING
+
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrRuntimeError
-from angr.analyses.analysis import Analysis, AnalysesHub
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
+
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
-from .typevars import Equivalence, Subtype, TypeVariable, DerivedTypeVariable, TypeVariableManager
+from .typeconsts import Array, Pointer, Struct, TopType, TypeConstant
+from .typevars import DerivedTypeVariable, Equivalence, Subtype, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
+
     from .typevars import TypeConstraint
 
 

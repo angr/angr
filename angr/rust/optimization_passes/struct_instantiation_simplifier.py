@@ -1,26 +1,27 @@
 from __future__ import annotations
-from collections import defaultdict, OrderedDict
+
+from collections import OrderedDict, defaultdict
 
 import claripy
 from archinfo import Endness
 
-from angr.rust.optimization_passes.utils import CallRewriter
 from angr.ailment import UnaryOp
-from angr.ailment.expression import Call, Const, VirtualVariable, Struct, Array, Load, BinaryOp
+from angr.ailment.expression import Array, BinaryOp, Call, Const, Load, Struct, VirtualVariable
 from angr.ailment.statement import Assignment
-from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
+from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import (
-    RustSimStruct,
-    RustSimTypeReference,
-    RustSimTypeUnit,
-    RustSimTypeInt,
     RustSimEnum,
-    RustSimTypeResult,
+    RustSimStruct,
+    RustSimTypeInt,
     RustSimTypeOption,
+    RustSimTypeReference,
+    RustSimTypeResult,
     RustSimTypeSlice,
+    RustSimTypeUnit,
 )
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.utils.ssa import VVarUsesCollector
 
 

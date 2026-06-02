@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from collections.abc import MutableMapping
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin

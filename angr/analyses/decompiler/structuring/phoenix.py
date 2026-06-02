@@ -1,52 +1,52 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 # ruff: noqa: SIM102
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict, OrderedDict
-from enum import StrEnum
-import logging
 
-import networkx
+import logging
+from collections import OrderedDict, defaultdict
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 import claripy
-from angr.ailment.block import Block
-from angr.ailment.statement import Statement, ConditionalJump, Jump, Label, Return
-from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression, BinaryOp
+import networkx
 
-from angr.utils.graph import GraphUtils
-from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block
-from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.utils import (
-    remove_last_statement,
-    remove_last_statements,
-    extract_jump_targets,
-    switch_extract_cmp_bounds,
-    switch_extract_cmp_bounds_from_condition,
-    is_empty_or_label_only_node,
-    has_nonlabel_nonphi_statements,
-    first_nonlabel_nonphi_statement,
-    switch_extract_bitwiseand_jumptable_info,
-    switch_extract_switch_expr_from_jump_target,
-)
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
+from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
-from .structurer_nodes import (
-    ConditionNode,
-    SequenceNode,
-    LoopNode,
-    ConditionalBreakNode,
-    BreakNode,
-    ContinueNode,
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
-    MultiNode,
-    SwitchCaseNode,
-    IncompleteSwitchCaseNode,
+    BreakNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
     EmptyBlockNotice,
     IncompleteSwitchCaseHeadStatement,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
+from angr.analyses.decompiler.utils import (
+    extract_jump_targets,
+    first_nonlabel_nonphi_statement,
+    has_nonlabel_nonphi_statements,
+    is_empty_or_label_only_node,
+    remove_last_statement,
+    remove_last_statements,
+    switch_extract_bitwiseand_jumptable_info,
+    switch_extract_cmp_bounds,
+    switch_extract_cmp_bounds_from_condition,
+    switch_extract_switch_expr_from_jump_target,
+)
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, to_acyclic_graph
+
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:

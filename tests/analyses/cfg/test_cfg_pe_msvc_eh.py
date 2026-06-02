@@ -9,20 +9,19 @@ import os
 import unittest
 
 import angr
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.analyses.cfg.pe_msvc_eh_structs import (
-    parse_funcinfo,
-    parse_unwind_map,
-    parse_try_block_map,
-    parse_eh4_scopetable,
-    FUNCINFO_SIZE,
-    UNWINDMAPENTRY_SIZE,
-    TRYBLOCKMAPENTRY_SIZE,
-    HANDLERTYPE_SIZE,
     EH4_SCOPETABLE_HEADER_SIZE,
     EH4_SCOPETABLE_RECORD_SIZE,
+    FUNCINFO_SIZE,
+    HANDLERTYPE_SIZE,
+    TRYBLOCKMAPENTRY_SIZE,
+    UNWINDMAPENTRY_SIZE,
+    parse_eh4_scopetable,
+    parse_funcinfo,
+    parse_try_block_map,
+    parse_unwind_map,
 )
-
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from tests.common import bin_location, is_testing
 
 TEST_BINARY = os.path.join(

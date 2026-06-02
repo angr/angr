@@ -13,9 +13,8 @@ import angr
 import angr.analyses.decompiler
 from angr.ailment import Manager
 from angr.analyses import Decompiler
-from angr.analyses.decompiler.structuring import DreamStructurer
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
-
+from angr.analyses.decompiler.structuring import DreamStructurer
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.ailment.expression import Load, UnaryOp
 
 from .base import PeepholeOptimizationExprBase

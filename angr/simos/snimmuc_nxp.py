@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from cle.backends import Blob
 
 from angr.knowledge_base import KnowledgeBase
+
 from .simos import SimOS
 
 if TYPE_CHECKING:

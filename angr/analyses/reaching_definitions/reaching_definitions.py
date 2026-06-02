@@ -1,31 +1,33 @@
 from __future__ import annotations
-import logging
-from typing import Any
-from collections.abc import Iterable
-from collections import defaultdict
 
-import angr.ailment as ailment
+import contextlib
+import logging
+from collections import defaultdict
+from collections.abc import Iterable
+from typing import Any
+
 import pyvex
 
-from angr.analyses import ForwardAnalysis
+import angr.ailment as ailment
+from angr.analyses.analysis import Analysis
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.analyses.forward_analysis.visitors.graph import NodeType
 from angr.block import Block
-from angr.knowledge_plugins.cfg.cfg_node import CFGNode
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.codenode import CodeNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight
+from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.knowledge_plugins.functions import Function
-from angr.knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType, ObservationPoint
-from angr.code_location import CodeLocation, ExternalCodeLocation
-from angr.analyses.forward_analysis.visitors.graph import NodeType
-from angr.analyses.analysis import Analysis
+from angr.knowledge_plugins.key_definitions import LiveDefinitions, ReachingDefinitionsModel
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE, ObservationPoint, ObservationPointType
+
+from .dep_graph import DepGraph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
-from .rd_state import ReachingDefinitionsState
+from .function_handler import FunctionCallRelationships, FunctionHandler
 from .rd_initializer import RDAStateInitializer
+from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
-from .function_handler import FunctionHandler, FunctionCallRelationships
-from .dep_graph import DepGraph
-import contextlib
 
 l = logging.getLogger(name=__name__)
 

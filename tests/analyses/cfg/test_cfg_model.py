@@ -4,13 +4,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
+import logging
 import os
 import unittest
-import logging
 
 import angr
 from angr.analyses import CFGFast
-
 from tests.common import bin_location
 
 log = logging.getLogger(__name__)

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from angr.ailment.statement import Statement
-from angr.ailment.expression import VirtualVariable
 from angr.ailment.block import Block
-
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Statement
 from angr.code_location import AILCodeLocation
 from angr.utils.cowdict import ChainMapCOW
 

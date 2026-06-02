@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import claripy
 
 from angr.errors import SimMemoryError

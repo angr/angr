@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 
 class FlirtSigPropagation(Analysis):

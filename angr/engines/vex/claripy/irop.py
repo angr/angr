@@ -5,18 +5,18 @@ This module contains symbolic implementations of VEX operations.
 # pylint:disable=no-member
 from __future__ import annotations
 
-from functools import partial
 import collections
 import itertools
-import operator
-import math
-import re
 import logging
+import math
+import operator
+import re
+from functools import partial
 
-import pyvex
 import claripy
+import pyvex
 
-from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
+from angr.errors import SimOperationError, SimValueError, SimZeroDivisionException, UnsupportedIROpError
 from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)

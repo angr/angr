@@ -2,16 +2,16 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 from __future__ import annotations
 
-from collections import OrderedDict
 import ctypes
 import unittest
+from collections import OrderedDict
 
-from archinfo import Endness
 import claripy
+from archinfo import Endness
 
 import angr
 from angr import SimState
-from angr.sim_type import register_types, parse_types, SimStruct, SimTypeNumOffset
+from angr.sim_type import SimStruct, SimTypeNumOffset, parse_types, register_types
 
 
 class TestMemView(unittest.TestCase):

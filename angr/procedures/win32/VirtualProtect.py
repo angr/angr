@@ -1,6 +1,8 @@
 from __future__ import annotations
-import angr
+
 import logging
+
+import angr
 
 from .VirtualAlloc import convert_prot, deconvert_prot
 

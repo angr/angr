@@ -11,49 +11,47 @@ import time
 import unittest
 from functools import wraps
 
-import angr.ailment as ailment
-
 import angr
-from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_type import (
-    SimTypeInt,
-    SimTypePointer,
-    SimTypeBottom,
-    SimTypeLongLong,
-    SimTypeArray,
-    SimTypeChar,
-    SimTypeFunction,
-)
-from angr.calling_conventions import default_cc
+import angr.ailment as ailment
 from angr.analyses import (
-    VariableRecoveryFast,
     CallingConventionAnalysis,
-    CompleteCallingConventionsAnalysis,
     CFGFast,
+    CompleteCallingConventionsAnalysis,
     Decompiler,
+    VariableRecoveryFast,
 )
 from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
-from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION, get_structurer_option
 from angr.analyses.decompiler.optimization_passes import (
-    DUPLICATING_OPTS,
     CONDENSING_OPTS,
-    LoweredSwitchSimplifier,
+    DUPLICATING_OPTS,
     CrossJumpReverter,
-    InlinedStringTransformationSimplifier,
-    ReturnDuplicatorLow,
-    ReturnDuplicatorHigh,
     DuplicationReverter,
+    InlinedStringTransformationSimplifier,
     ITERegionConverter,
+    LoweredSwitchSimplifier,
+    ReturnDuplicatorHigh,
+    ReturnDuplicatorLow,
 )
-from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
+from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
+from angr.calling_conventions import default_cc
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.sim_type import (
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+)
 from angr.sim_variable import SimStackVariable
 from angr.utils.library import convert_cproto_to_py
-
-from tests.common import bin_location, broken, print_decompilation_result, set_decompiler_option, WORKER
+from tests.common import WORKER, bin_location, broken, print_decompilation_result, set_decompiler_option
 
 test_location = os.path.join(bin_location, "tests")
 

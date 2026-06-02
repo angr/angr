@@ -6,7 +6,6 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 from .block_id import BlockID
 
-
 CFGNODE_K = tuple[int, int]  # tuple[addr, size]
 CFGENODE_K = tuple[BlockID, int, int]  # tuple[BlockID, size, looping times]
 SOOTNODE_K = SootAddressDescriptor

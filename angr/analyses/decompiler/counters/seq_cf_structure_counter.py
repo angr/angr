@@ -1,10 +1,10 @@
 from __future__ import annotations
+
 from collections import defaultdict
 
 import angr.ailment as ailment
-
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
+from angr.analyses.decompiler.structurer_nodes import LoopNode
 
 
 class ControlFlowStructureCounter(SequenceWalker):

@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import logging
 
+from angr.analyses.loopfinder import Loop
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
+
 from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
@@ -51,9 +54,6 @@ class LoopSeer(ExplorationTechnique):
         self.limit_concrete_loops = limit_concrete_loops
         self.loops = {}
         self.cut_succs = []
-
-        # Delayed import
-        from angr.analyses.loopfinder import Loop
 
         if type(loops) is Loop:
             loops = [loops]

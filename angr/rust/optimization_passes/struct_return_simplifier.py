@@ -1,22 +1,23 @@
 from __future__ import annotations
+
 from collections import defaultdict
 
-from angr.ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, RustEnum
+from angr.ailment.expression import Const, Load, RustEnum, StackBaseOffset, Struct, VirtualVariable
 from angr.ailment.statement import Return, Store
-from angr.rust.utils.ail import extract_vvar_and_offset
-from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.rust.mixins.srda_mixin import SRDAMixin
 from angr.rust.sim_type import (
-    RustSimTypeInt,
+    EnumVariant,
     RustSimStruct,
     RustSimTypeFunction,
-    RustSimTypeResult,
+    RustSimTypeInt,
     RustSimTypeOption,
-    EnumVariant,
+    RustSimTypeResult,
     RustSimTypeUnit,
 )
+from angr.rust.utils.ail import extract_vvar_and_offset
 
 
 class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin):

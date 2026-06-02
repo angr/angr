@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr.ailment import AILBlockRewriter, Block, Expression
-from angr.ailment.statement import ConditionalJump, Statement, Assignment
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable
-
+from angr.ailment.expression import BinaryOp, Const, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
 from angr.utils.graph import dominates
 from angr.utils.timing import timethis
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

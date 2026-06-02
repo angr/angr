@@ -4,11 +4,10 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import unittest
 import os.path
+import unittest
 
 import angr
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

@@ -4,9 +4,10 @@ falling back to the standard library json module otherwise.
 """
 
 from __future__ import annotations
-import platform
+
 import contextlib
 import json
+import platform
 from typing import Any
 
 _msgspec = None

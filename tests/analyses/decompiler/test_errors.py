@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import os
 import tempfile
 import unittest
+
 import angr
-from angr.angrdb import AngrDB
 from angr.analyses.decompiler.peephole_optimizations import PeepholeOptimizationStmtBase
+from angr.angrdb import AngrDB
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

@@ -1,37 +1,37 @@
 from __future__ import annotations
-from collections import defaultdict, OrderedDict
-from typing import Any, TYPE_CHECKING
-from collections.abc import Callable
-from collections.abc import Generator
-import operator
+
 import logging
+import operator
+from collections import OrderedDict, defaultdict
+from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING, Any
 
 import claripy
 import networkx
 
 from angr import ailment
 from angr.ailment.expression import StringLiteral
-from angr.utils.graph import GraphUtils
-from angr.utils.graph import dominates, inverted_idoms
-from angr.utils.ail import is_head_controlled_loop_block
 from angr.block import Block, BlockNode
 from angr.errors import AngrRuntimeError
+from angr.utils.ail import is_head_controlled_loop_block
+from angr.utils.graph import GraphUtils, dominates, inverted_idoms
+
+from .graph_region import GraphRegion
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
-from .structuring.structurer_nodes import (
-    MultiNode,
-    EmptyBlockNotice,
-    SequenceNode,
-    CodeNode,
-    SwitchCaseNode,
+from .structurer_nodes import (
     BreakNode,
+    CascadingConditionNode,
+    CodeNode,
     ConditionalBreakNode,
-    LoopNode,
     ConditionNode,
     ContinueNode,
-    CascadingConditionNode,
+    EmptyBlockNotice,
     IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
-from .graph_region import GraphRegion
 from .utils import peephole_optimize_expr
 
 if TYPE_CHECKING:

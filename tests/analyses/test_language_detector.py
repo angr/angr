@@ -7,13 +7,12 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
-from collections import defaultdict
 import unittest
+from collections import defaultdict
 from unittest.mock import MagicMock
 
 import angr
-from angr.analyses.language_detector import LanguageDetector, LanguageDetectionResult, LanguageDetectionConfidenceLevel
-
+from angr.analyses.language_detector import LanguageDetectionConfidenceLevel, LanguageDetectionResult, LanguageDetector
 from tests.common import bin_location
 
 

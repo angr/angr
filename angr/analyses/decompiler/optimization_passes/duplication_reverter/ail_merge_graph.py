@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
@@ -10,11 +11,11 @@ from angr.ailment.statement import ConditionalJump
 from .errors import SAILRSemanticError
 from .similarity import ail_similarity_to_orig_blocks
 from .utils import (
-    copy_graph_and_nodes,
-    replace_node_in_graph,
     ail_block_from_stmts,
+    copy_graph_and_nodes,
     correct_jump_targets,
     deepcopy_ail_anyjump,
+    replace_node_in_graph,
 )
 
 _l = logging.getLogger(name=__name__)

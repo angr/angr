@@ -1,29 +1,29 @@
 from __future__ import annotations
-import weakref
-from typing import Any, TYPE_CHECKING, cast
-from collections.abc import Generator, Iterable
-import logging
-from collections import defaultdict
 
-import networkx
+import logging
+import weakref
+from collections import defaultdict
+from collections.abc import Generator, Iterable
+from typing import TYPE_CHECKING, Any, cast
 
 import archinfo
 import claripy
-from claripy.annotation import Annotation
+import networkx
 from archinfo import Arch
+from claripy.annotation import Annotation
+
 from angr import ailment
 from angr.ailment.expression import BinaryOp, StackBaseOffset
-
+from angr.analyses.analysis import Analysis
 from angr.analyses.dominance_frontier import DominanceFrontier
+from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager, TypeVariables
 from angr.codenode import CodeNode
+from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
-from angr.utils.cowdict import DefaultChainMapCOW
 from angr.sim_variable import SimVariable
-from angr.errors import AngrRuntimeError
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.analyses.analysis import Analysis
-from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable, TypeVariableManager
+from angr.utils.cowdict import DefaultChainMapCOW
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject

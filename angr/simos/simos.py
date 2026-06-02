@@ -1,19 +1,20 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 import struct
+from typing import TYPE_CHECKING
 
-from archinfo import ArchMIPS32, ArchS390X
 import claripy
+from archinfo import ArchMIPS32, ArchS390X
 
 import angr
-from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrSimOSError
-from angr.sim_state import SimState
-from angr.state_plugins import SimSystemPosix
-from angr.calling_conventions import default_cc
-from angr.procedures import SIM_PROCEDURES as P
 from angr import sim_options as o
-from angr.storage.file import SimFileStream, SimFileBase
+from angr.calling_conventions import default_cc
+from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrSimOSError
+from angr.procedures import SIM_PROCEDURES as P
+from angr.sim_state import SimState
+from angr.state_plugins.posix import SimSystemPosix
+from angr.storage.file import SimFileBase, SimFileStream
 
 if TYPE_CHECKING:
     from angr.sim_procedure import SimProcedure

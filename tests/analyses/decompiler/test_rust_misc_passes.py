@@ -14,7 +14,6 @@ integration tests; nothing in it is unit-testable in isolation.
 from __future__ import annotations
 
 import angr
-
 from angr.ailment.expression import (
     Const,
     Load,
@@ -22,7 +21,6 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-
 from angr.rust.optimization_passes.deref_coercion_simplifier import (
     STR_CMP_EQ_FUNCTION,
     STR_CMP_NE_FUNCTION,

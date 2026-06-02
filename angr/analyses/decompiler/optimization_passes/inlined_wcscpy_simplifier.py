@@ -1,18 +1,18 @@
 # pylint:disable=no-self-use,too-many-boolean-expressions
 from __future__ import annotations
+
 import string
 
 from archinfo import Endness
 
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Call, Const, Register, StackBaseOffset, VirtualVariable, UnaryOp
-from angr.ailment.statement import Assignment, Store, SideEffectStatement
+from angr.ailment.expression import Call, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
+from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.ailment.tagged_object import TagDict
-
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
-from .optimization_pass import OptimizationPass, OptimizationPassStage
 
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = {ord(x) for x in string.printable if ord(x) >= 0x20}
 ASCII_DIGITS = {ord(x) for x in string.digits}

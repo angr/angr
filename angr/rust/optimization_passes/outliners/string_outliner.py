@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from angr.ailment import AILBlockRewriter, Block
-from angr.ailment.expression import Call, Const, Struct, StringLiteral
+from angr.ailment.expression import Call, Const, StringLiteral, Struct
 from angr.ailment.statement import Assignment
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 class StringOutliner(OptimizationPass):

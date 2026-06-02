@@ -1,17 +1,17 @@
 from __future__ import annotations
+
 import logging
-from typing import Any
 from collections.abc import Callable
+from typing import Any
 
 import cle
-from cle.backends.externs import KernelObject, ExternObject
-from cle.backends.tls.elf_tls import ELFTLSObject
+from cle.backends.externs import ExternObject, KernelObject
 from cle.backends.ihex import Hex
+from cle.backends.tls.elf_tls import ELFTLSObject
 from sortedcontainers import SortedDict
 
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort, MemoryData
-from angr.analyses.analysis import Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 
 _l = logging.getLogger(name=__name__)
 

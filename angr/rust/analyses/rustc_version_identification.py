@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
-import logging
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.rust.utils.demangler import demangle
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.rust.utils.demangler import demangle
 
 l = logging.getLogger(name=__name__)

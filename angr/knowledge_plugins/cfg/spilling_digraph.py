@@ -19,13 +19,14 @@ from typing import TYPE_CHECKING, Any
 
 import lmdb
 import networkx
-from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
-from angr.utils.json_utils import json_encode, json_decode
 from angr.protos import cfg_pb2
-from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
-from .types import K, CFG_ADDR_TYPES
+from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
+from angr.utils.json_utils import json_decode, json_encode
+
 from .block_id import BlockID
+from .types import CFG_ADDR_TYPES, K
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb

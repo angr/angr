@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
-from angr.engines.soot.method_dispatcher import resolve_method
 from angr.engines.soot.exceptions import SootMethodNotLoadedException
+from angr.engines.soot.method_dispatcher import resolve_method
+
 from .base import SimSootExpr
 
 

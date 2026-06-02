@@ -1,14 +1,15 @@
 from __future__ import annotations
-from collections.abc import Collection
+
 import logging
-from typing import Any
 from collections import defaultdict
+from collections.abc import Collection
+from typing import Any
 
 import networkx
 
 from angr.ailment.block import Block
 
-from .structuring.structurer_nodes import ConditionNode, MultiNode
+from .structurer_nodes import ConditionNode, MultiNode
 
 l = logging.getLogger(name=__name__)
 

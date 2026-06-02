@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import unittest
 
-import pyvex
 import claripy
+import pyvex
 
+import angr.engines.vex.claripy.ccall as s_ccall
 from angr import SimState, load_shellcode
 from angr.engines import HeavyVEXMixin
-import angr.engines.vex.claripy.ccall as s_ccall
 
 l = logging.getLogger(__name__)
 

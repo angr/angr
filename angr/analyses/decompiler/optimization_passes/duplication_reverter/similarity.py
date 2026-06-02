@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 import itertools
 import logging
 
 import networkx as nx
 
 from angr.ailment.block import Block
+from angr.analyses.decompiler.block_similarity import is_similar, longest_ail_subseq
 
 from .utils import bfs_list_blocks
-from angr.analyses.decompiler.block_similarity import longest_ail_subseq, is_similar
 
 _l = logging.getLogger(name=__name__)
 

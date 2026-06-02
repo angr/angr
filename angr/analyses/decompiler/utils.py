@@ -1,5 +1,6 @@
-# pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports,import-outside-toplevel
+# pylint:disable=broad-exception-caught,import-outside-toplevel
 from __future__ import annotations
+
 import contextlib
 import copy
 import logging
@@ -20,8 +21,18 @@ from angr.analyses.decompiler.peephole_optimizations.base import (
     PeepholeOptimizationMultiStmtBase,
 )
 from angr.utils.ail import is_phi_assignment
-from .seq_to_blocks import SequenceToBlocks
 
+from .seq_to_blocks import SequenceToBlocks
+from .structurer_nodes import (
+    BaseNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 
 pdb = __import__("pdb")
 with contextlib.suppress(ImportError):
@@ -1234,16 +1245,3 @@ def remove_edges_in_ailgraph(
     for src_addr, dst_addr in edges_to_remove:
         if src_addr in d and dst_addr in d and ail_graph.has_edge(d[src_addr], d[dst_addr]):
             ail_graph.remove_edge(d[src_addr], d[dst_addr])
-
-
-# delayed import
-from .structuring.structurer_nodes import (
-    MultiNode,
-    BaseNode,
-    CodeNode,
-    SequenceNode,
-    ConditionNode,
-    SwitchCaseNode,
-    CascadingConditionNode,
-    LoopNode,
-)

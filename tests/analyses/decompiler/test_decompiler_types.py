@@ -4,13 +4,12 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
-import unittest
 import re
+import unittest
 
 import angr
 from angr.sim_type import SimTypeArray, SimTypeChar, SimTypeInt
-
-from tests.common import bin_location, WORKER, print_decompilation_result
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 

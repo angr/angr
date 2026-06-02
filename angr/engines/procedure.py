@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import logging
 
-from angr import sim_options as o
 from angr import errors
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr import sim_options as o
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .successors import SuccessorsEngine
 
 l = logging.getLogger(name=__name__)

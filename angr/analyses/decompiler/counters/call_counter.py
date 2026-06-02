@@ -1,10 +1,10 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr.ailment import Block
-from angr.ailment.statement import Label, ConditionalJump
 from angr.ailment.block_walker import AILBlockViewer
-
+from angr.ailment.statement import ConditionalJump, Label
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:

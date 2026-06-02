@@ -1,20 +1,22 @@
 # pylint:disable=unused-argument,useless-return
 from __future__ import annotations
+
 from collections import OrderedDict
 
 from angr import ailment
 from angr.errors import UnsupportedNodeTypeError
-from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
-from .structuring.structurer_nodes import (
-    MultiNode,
-    CodeNode,
-    SequenceNode,
-    ConditionNode,
-    SwitchCaseNode,
-    LoopNode,
+from angr.rust.structuring.structurer_nodes import IfLetNode, PatternMatchNode
+
+from .structurer_nodes import (
     CascadingConditionNode,
+    CodeNode,
     ConditionalBreakNode,
+    ConditionNode,
     IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
 
 

@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, overload
 
-from .atoms import Atom, Register, MemoryLocation, SpOffset
-from .uses import Uses
+from .atoms import Atom, MemoryLocation, Register, SpOffset
+from .constants import OP_BEFORE, ObservationPointType
 from .live_definitions import LiveDefinitions
 from .liveness import Liveness
-from .constants import OP_BEFORE, ObservationPointType
+from .uses import Uses
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.key_definitions.definition import Definition
     from angr.code_location import CodeLocation
+    from angr.knowledge_plugins.key_definitions.definition import Definition
 
 
 # TODO: Make ReachingDefinitionsModel serializable

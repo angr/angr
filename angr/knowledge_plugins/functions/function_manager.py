@@ -1,34 +1,32 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
-from typing import TypeVar, cast, TYPE_CHECKING, overload
-from collections.abc import Generator
-from collections import OrderedDict, UserDict
-import logging
-import collections.abc
-import re
-import weakref
 import bisect
+import collections.abc
+import logging
 import os
+import re
 import threading
-from collections import defaultdict
+import weakref
+from collections import OrderedDict, UserDict, defaultdict
+from collections.abc import Generator
+from typing import TYPE_CHECKING, TypeVar, cast, overload
 
+import cle
 import lmdb
 import networkx
-
 from archinfo.arch_soot import SootMethodDescriptor
-import cle
 from cachetools import LRUCache
-from sortedcontainers import SortedDict, SortedList, SortedKeysView, SortedItemsView, SortedValuesView
+from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.errors import SimEngineError
 from angr.codenode import FuncNode, HookNode
+from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
-from angr.utils.smart_cache import SmartLRUCache
 from angr.protos import function_pb2
+from angr.utils.smart_cache import SmartLRUCache
+
 from .function import Function
 from .soot_function import SootFunction
-
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase

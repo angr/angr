@@ -1,11 +1,13 @@
 # pylint:disable=super-init-not-called
 from __future__ import annotations
+
 import os
 from collections import defaultdict
 
 import networkx
 
 from angr.codenode import BlockNode
+
 from .function import Function
 
 

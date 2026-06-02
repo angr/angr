@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections.abc import Iterable, Generator
+
+from collections.abc import Generator, Iterable
+from typing import TYPE_CHECKING, Any
 
 import claripy
+
 import angr.ailment as ailment
 
 if TYPE_CHECKING:

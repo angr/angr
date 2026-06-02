@@ -1,18 +1,20 @@
 from __future__ import annotations
+
 import logging
 
-from pypcode import OpCode, Varnode, PcodeOp
 import pypcode
+from pypcode import OpCode, PcodeOp, Varnode
 
-from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.pcode.lifter import IRSB
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from .block import Block
-from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, SideEffectStatement
-from .expression import Call, Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
+from .converter_common import Converter
+from .expression import BinaryOp, Call, Const, Convert, DirtyExpression, Expression, Load, Register, Tmp, UnaryOp
 
 # FIXME: Convert, ITE
 from .manager import Manager
-from .converter_common import Converter
+from .statement import Assignment, ConditionalJump, Jump, Return, SideEffectStatement, Statement, Store
 
 log = logging.getLogger(name=__name__)
 

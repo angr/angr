@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
@@ -6,15 +7,15 @@ import claripy
 import networkx
 import pyvex
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.code_location import CodeLocation
-from angr.errors import SimSolverModeError, SimUnsatError, AngrDDGError
+from angr.errors import AngrDDGError, SimSolverModeError, SimUnsatError
 from angr.sim_variable import (
-    SimRegisterVariable,
-    SimMemoryVariable,
-    SimTemporaryVariable,
     SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
     SimStackVariable,
+    SimTemporaryVariable,
 )
 
 l = logging.getLogger(name=__name__)

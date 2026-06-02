@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Any
-from collections.abc import Iterable, Iterator
-from collections import defaultdict, OrderedDict
+
 import logging
+from collections import OrderedDict, defaultdict
+from collections.abc import Iterable, Iterator
+from typing import Any
 
 import networkx
 import networkx.algorithms

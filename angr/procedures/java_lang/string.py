@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from angr.procedures.java import JavaSimProcedure
 from angr.engines.soot.expressions import SimSootExpr_NewArray
 from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_StringRef
+from angr.procedures.java import JavaSimProcedure
 
 log = logging.getLogger(name=__name__)
 

@@ -1,29 +1,31 @@
 from __future__ import annotations
-import inspect
+
 import copy
+import inspect
 import itertools
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import claripy
-from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
+from cle import SymbolType
 
 import angr
 from angr import sim_options as o
-from angr.errors import SimProcedureError, SimShadowStackError
-from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import (
     DEFAULT_CC,
-    default_cc,
-    SimTypeFunction,
-    SimTypePointer,
-    SimTypeChar,
     ArgSession,
+    SimTypeChar,
+    SimTypeFunction,
     SimTypeNum,
+    SimTypePointer,
+    default_cc,
 )
-from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from angr.errors import SimProcedureError, SimShadowStackError
+from angr.state_plugins.sim_action import SimActionExit
+
 from .sim_type import parse_signature, parse_type
+from .state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState

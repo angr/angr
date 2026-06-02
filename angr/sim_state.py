@@ -5,32 +5,33 @@ import functools
 import itertools
 import logging
 import weakref
-from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import archinfo
+import claripy
 from archinfo import Arch
 from archinfo.arch_soot import SootAddressDescriptor
-import claripy
 from cle import Clemory
 
 from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
+from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
-from .state_plugins import SimStatePlugin
+from .state_plugins.plugin import SimStatePlugin
 
 if TYPE_CHECKING:
-    from .storage import DefaultMemory
-    from .state_plugins.solver import SimSolver
-    from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.view import SimRegNameView, SimMemView
+    from angr.project import Project
+    from angr.simos.javavm import SimJavaVM
+
     from .state_plugins.callstack import CallStack
     from .state_plugins.inspect import SimInspector
     from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.posix import SimSystemPosix
     from .state_plugins.scratch import SimStateScratch
-    from angr.project import Project
-    from angr.simos.javavm import SimJavaVM
+    from .state_plugins.solver import SimSolver
+    from .state_plugins.view import SimMemView, SimRegNameView
+    from .storage import DefaultMemory
 
 
 l = logging.getLogger(name=__name__)

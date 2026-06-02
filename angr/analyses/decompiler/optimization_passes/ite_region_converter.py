@@ -1,14 +1,15 @@
 # pylint:disable=unnecessary-pass
 from __future__ import annotations
+
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, SideEffectStatement, ConditionalJump, Assignment, Jump
-from angr.ailment.expression import ITE, Call, Const, VirtualVariable, Phi
-
+from angr.ailment.expression import ITE, Call, Const, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffectStatement, Statement
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import subgraph_between_nodes
-from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)

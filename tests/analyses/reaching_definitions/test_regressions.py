@@ -5,6 +5,7 @@ import struct
 from unittest import TestCase
 
 from archinfo import ArchAArch64
+
 import angr
 from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
 from angr.knowledge_plugins import Function

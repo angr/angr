@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from archinfo import Endness
-from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import Const, VirtualVariable, BinaryOp, UnaryOp, Load
-from angr.ailment.statement import WeakAssignment, SideEffectStatement
 
-from angr.sim_type import SimTypeReference, SimCppClass
+from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.ailment.expression import BinaryOp, Const, Load, UnaryOp, VirtualVariable
+from angr.ailment.statement import SideEffectStatement, WeakAssignment
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.sim_type import SimCppClass, SimTypeReference
+
 from .base import PeepholeOptimizationStmtBase
 
 

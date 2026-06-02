@@ -7,8 +7,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import archinfo
 import cle
@@ -18,21 +18,21 @@ from cachetools import LRUCache
 
 # FIXME: Reusing these errors from pyvex for compatibility. Eventually these
 # should be refactored to use common error classes.
-from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
-from pyvex.expr import IRExpr, Const, U8, U16, U32, U64
+from pyvex.errors import LiftingException, PyVEXError, SkipStatementsError
+from pyvex.expr import U8, U16, U32, U64, Const, IRExpr
 
-from angr.engines.engine import SimEngine
-from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
-from angr.sim_state import SimState
-from angr.misc.ux import once
-from angr.errors import SimEngineError, SimTranslationError, SimError
 from angr import sim_options as o
 from angr.block import DisassemblerBlock, DisassemblerInsn
+from angr.engines.engine import SimEngine
+from angr.errors import SimEngineError, SimError, SimTranslationError
+from angr.misc.ux import once
+from angr.sim_state import SimState
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 
 from .behavior import BehaviorFactory
 
 if TYPE_CHECKING:
-    from pypcode import PcodeOp, Context
+    from pypcode import Context, PcodeOp
 
 
 l = logging.getLogger(__name__)

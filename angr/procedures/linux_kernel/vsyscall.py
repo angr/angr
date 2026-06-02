@@ -1,6 +1,8 @@
 from __future__ import annotations
-import angr
+
 import claripy
+
+import angr
 
 
 class _vsyscall(angr.SimProcedure):

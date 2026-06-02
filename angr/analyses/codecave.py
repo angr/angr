@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import logging
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
-from dataclasses import dataclass
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function

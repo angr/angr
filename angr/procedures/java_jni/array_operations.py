@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from . import JNISimProcedure
 from angr.engines.soot.expressions import SimSootExpr_NewArray
 from angr.engines.soot.values import SimSootValue_ArrayRef
+
+from . import JNISimProcedure
 
 l = logging.getLogger("angr.procedures.java_jni.array_operations")
 

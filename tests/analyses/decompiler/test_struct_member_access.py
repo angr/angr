@@ -7,9 +7,8 @@ import os.path
 import unittest
 
 import angr
-from angr.sim_type import PointerDisposition
 from angr import default_cc
-
+from angr.sim_type import PointerDisposition
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")

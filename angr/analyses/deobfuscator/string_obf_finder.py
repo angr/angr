@@ -1,21 +1,21 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import string
+
 import logging
+import string
+from typing import TYPE_CHECKING, Any
 
 import capstone
+import claripy
 import networkx
 
-import claripy
-
-from angr.analyses import Analysis, AnalysesHub
-from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError, AngrAnalysisError
-from angr.calling_conventions import SimRegArg, default_cc
-from angr.state_plugins.sim_action import SimActionData
-from angr.sim_options import ZERO_FILL_UNCONSTRAINED_REGISTERS, ZERO_FILL_UNCONSTRAINED_MEMORY, TRACK_MEMORY_ACTIONS
-from angr.sim_type import SimTypeFunction, SimTypeBottom, SimTypePointer
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.reaching_definitions import ObservationPointType
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.errors import AngrAnalysisError, AngrCallableError, AngrCallableMultistateError, SimMemoryMissingError
+from angr.sim_options import TRACK_MEMORY_ACTIONS, ZERO_FILL_UNCONSTRAINED_MEMORY, ZERO_FILL_UNCONSTRAINED_REGISTERS
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypePointer
+from angr.state_plugins.sim_action import SimActionData
 from angr.utils.graph import GraphUtils
 
 from .irsb_reg_collector import IRSBRegisterCollector

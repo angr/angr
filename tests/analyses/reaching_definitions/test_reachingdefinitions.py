@@ -7,24 +7,23 @@ import os
 import pickle
 from unittest import TestCase, main
 
-import angr.ailment as ailment
 import claripy
 
 import angr
-from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
-from angr.code_location import CodeLocation, ExternalCodeLocation
-from angr.codenode import FuncNode
-from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
-from angr.analyses.reaching_definitions.subject import Subject
+import angr.ailment as ailment
+from angr.analyses import CFGFast, CompleteCallingConventionsAnalysis, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.function_handler_library import LibcHandlers
+from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+from angr.analyses.reaching_definitions.subject import Subject
 from angr.block import Block
+from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.codenode import FuncNode
 from angr.engines.light import SpOffset
-from angr.knowledge_plugins.key_definitions import DerefSize
+from angr.knowledge_plugins.key_definitions import Definition, DerefSize
+from angr.knowledge_plugins.key_definitions.atoms import AtomKind, GuardUse, MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE, ObservationPointType
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
-from angr.knowledge_plugins.key_definitions.atoms import AtomKind, GuardUse, Tmp, Register, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, OP_BEFORE, OP_AFTER
-from angr.knowledge_plugins.key_definitions import Definition
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
 from angr.utils.constants import DEFAULT_STATEMENT

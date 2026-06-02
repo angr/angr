@@ -1,14 +1,15 @@
 from __future__ import annotations
-from typing import Any
+
 import logging
+from typing import Any
 
 import networkx
 
 from angr import ailment
-from angr.utils.ail import is_phi_assignment
-from angr.analyses import ForwardAnalysis
+from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from angr.analyses.forward_analysis.visitors.graph import NodeType
-from angr.analyses.forward_analysis import FunctionGraphVisitor
+from angr.utils.ail import is_phi_assignment
+
 from .rewriting_engine import SimEngineDephiRewriting
 
 l = logging.getLogger(__name__)

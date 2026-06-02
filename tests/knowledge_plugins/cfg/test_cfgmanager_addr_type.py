@@ -1,11 +1,11 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
-from unittest import main, TestCase
+from unittest import TestCase, main
 
-from angr.knowledge_plugins.cfg.cfg_manager import CFGManager
 from angr.knowledge_plugins.cfg.block_id import BlockID
-from angr.knowledge_plugins.cfg.spilling_digraph import SpillingAdjDict, DirtyDict
+from angr.knowledge_plugins.cfg.cfg_manager import CFGManager
+from angr.knowledge_plugins.cfg.spilling_digraph import DirtyDict, SpillingAdjDict
 
 
 class TestCFGManagerNewCFGModelAddrType(TestCase):

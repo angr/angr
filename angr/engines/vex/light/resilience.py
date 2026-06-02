@@ -1,6 +1,7 @@
 from __future__ import annotations
-from angr.engines.vex.light import VEXMixin
+
 from angr import errors
+from angr.engines.vex.light import VEXMixin
 
 raiseme = object()
 

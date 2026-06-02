@@ -1,21 +1,21 @@
 from __future__ import annotations
+
 from collections import OrderedDict
 
 from angr import ailment
-from angr.ailment.expression import VirtualVariable, Load
-from angr.ailment.statement import Label, Assignment, Return
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
-
-from angr.rust.utils.ail import unwrap_stack_vvar_reference
-from angr.rust.mixins import DFAMixin
-from angr.rust.optimization_passes.pre_pattern_match_simplifier import PrePatternMatchSimplifier
+from angr.ailment.expression import Load, VirtualVariable
+from angr.ailment.statement import Assignment, Label, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import (
     OptimizationPassStage,
     SequenceOptimizationPass,
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import ConditionNode
+from angr.rust.mixins import DFAMixin
+from angr.rust.optimization_passes.pre_pattern_match_simplifier import PrePatternMatchSimplifier
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
-from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
+from angr.rust.structuring.structurer_nodes import IfLetNode, PatternMatchNode
+from angr.rust.utils.ail import unwrap_stack_vvar_reference
 
 
 class PatternMatchWalker(SequenceWalker, DFAMixin):

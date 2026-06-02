@@ -1,23 +1,24 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import itertools
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
 
 import angr
+from angr import ailment, errors
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
-from angr import ailment, errors
 from angr.engines.successors import SimSuccessors
-from angr.sim_state import SimState
 from angr.engines.vex.claripy import ccall
+from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.constants import DEFAULT_STATEMENT
 
 if TYPE_CHECKING:
-    from angr.project import Project
     from angr.analyses.decompiler.clinic import Clinic
+    from angr.project import Project
 
 log = logging.getLogger(__name__)
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
-import angr
+
 import itertools
+
+import angr
 
 malloc_mem_counter = itertools.count()
 

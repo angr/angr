@@ -16,14 +16,13 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
-from typing import TYPE_CHECKING
 import os
-import unittest
 import re
+import unittest
+from typing import TYPE_CHECKING
 
 import angr
-
-from tests.common import bin_location, print_decompilation_result, WORKER
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler import Decompiler

@@ -1,29 +1,31 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import logging
 
-import networkx
+import logging
+from typing import TYPE_CHECKING, Any
 
 import claripy
+import networkx
+
 from angr import sim_options
-from angr.ailment import Block
-from angr.ailment.statement import Assignment, SideEffectStatement
-from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory, Const, UnaryOp
-from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar
-from angr.sim_variable import SimRegisterVariable, SimStackVariable
-from angr.analyses import Analysis
-from angr.analyses.purity import AILPurityAnalysis, AILPurityResultType
-from angr.analyses.decompiler.clinic import ClinicStage
 from angr.ail_callable import AILCallable
+from angr.ailment import Block
+from angr.ailment.expression import Call, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, SideEffectStatement
+from angr.analyses.analysis import Analysis
+from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.utils import call_exprs_in_graph
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.analyses.purity import AILPurityAnalysis, AILPurityResultType
 from angr.calling_conventions import PointerWrapper
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypePointer
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
+
 from .scope_ops_analyzer import ScopeOpsAnalyzer
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions import Function
     from angr.analyses.decompiler.clinic import Clinic
     from angr.analyses.decompiler.structured_codegen.c import CFunction
+    from angr.knowledge_plugins.functions import Function
 
 
 _l = logging.getLogger(__name__)

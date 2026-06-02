@@ -1,36 +1,38 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use,unused-argument
 from __future__ import annotations
-from typing import Any
-from collections.abc import Callable
-from collections import defaultdict
 
-from archinfo import Endness
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
+
 import archinfo
+import claripy
+from archinfo import Endness
+
 from angr.ailment.expression import (
-    Const,
-    Load,
-    Register,
-    Expression,
-    StackBaseOffset,
-    Convert,
     BinaryOp,
-    VirtualVariable,
+    Const,
+    Convert,
+    Expression,
+    Load,
     Phi,
+    Register,
+    StackBaseOffset,
     UnaryOp,
+    VirtualVariable,
 )
 from angr.ailment.statement import ConditionalJump, Jump, Store
-import claripy
-
-from angr.utils.bits import zeroextend_on_demand
+from angr.code_location import CodeLocation
 from angr.engines.light import SimEngineNostmtAIL
+from angr.errors import SimMemoryMissingError
 from angr.storage.memory_mixins import (
-    SimpleInterfaceMixin,
     DefaultFillerMixin,
     PagedMemoryMixin,
+    SimpleInterfaceMixin,
     UltraPagesMixin,
 )
-from angr.code_location import CodeLocation
-from angr.errors import SimMemoryMissingError
+from angr.utils.bits import zeroextend_on_demand
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

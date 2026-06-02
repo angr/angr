@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
 import re
 import unittest
 
 import angr
 from angr import ailment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
+from angr.analyses.decompiler.structurer_nodes import LoopNode
 
 
 class TestPropagatorLoops(unittest.TestCase):

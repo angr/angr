@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import Convert, BinaryOp, Const, ITE, Expression, VirtualVariable
+
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, VirtualVariable
 
 from .base import PeepholeOptimizationExprBase
 

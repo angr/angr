@@ -1,20 +1,21 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import os
-import sys
+
+import contextlib
 import functools
 import logging
+import os
+import shutil
+import sys
 import tempfile
 import uuid
-import contextlib
-import shutil
 import weakref
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 import lmdb
 
-from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.errors import AngrRuntimeDbError
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

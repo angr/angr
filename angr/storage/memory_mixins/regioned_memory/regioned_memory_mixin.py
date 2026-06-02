@@ -1,20 +1,22 @@
 from __future__ import annotations
+
 import logging
-from itertools import count
-from typing import Optional, TYPE_CHECKING
 from collections.abc import Generator
+from itertools import count
+from typing import TYPE_CHECKING, Optional
 
 import claripy
 from claripy.annotation import RegionAnnotation
-from claripy.ast import Bool, Bits, BV
+from claripy.ast import BV, Bits, Bool
 
+from angr.errors import SimAbstractMemoryError, SimMemoryError
 from angr.sim_options import AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY
 from angr.state_plugins.sim_action_object import _raw_ast
-from angr.errors import SimMemoryError, SimAbstractMemoryError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.balancer import constraint_to_si
-from .region_data import AddressWrapper, RegionMap
+
 from .abstract_address_descriptor import AbstractAddressDescriptor
+from .region_data import AddressWrapper, RegionMap
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState

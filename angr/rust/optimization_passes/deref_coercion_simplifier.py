@@ -1,15 +1,15 @@
 from __future__ import annotations
+
 import logging
 
+from angr.ailment import BinaryOp, Block, Const
 from angr.ailment.block_walker import AILBlockRewriter
-from angr.ailment import Block, BinaryOp, Const
-from angr.ailment.expression import VirtualVariable, StringLiteral, FunctionLikeMacro, Call
+from angr.ailment.expression import Call, FunctionLikeMacro, StringLiteral, VirtualVariable
 from angr.ailment.statement import Statement
-
-from angr.rust.sim_type import RustSimStruct
-from angr.rust.optimization_passes.utils import CallRewriter
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import CFAMixin, SRDAMixin
+from angr.rust.optimization_passes.utils import CallRewriter
+from angr.rust.sim_type import RustSimStruct
 
 l = logging.getLogger(__file__)
 

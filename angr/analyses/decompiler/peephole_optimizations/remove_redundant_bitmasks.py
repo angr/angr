@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from angr.ailment.expression import BinaryOp, Convert, Const, ITE, Extract, Insert
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert
+
 from .base import PeepholeOptimizationExprBase
 
 _MASKS = {

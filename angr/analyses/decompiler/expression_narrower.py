@@ -1,28 +1,28 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
+from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
-from angr.ailment.expression import Atom, Call, VirtualVariable, Convert, BinaryOp, Phi, Extract
 from angr.ailment.utils import is_none_or_likeable
-
-from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
+from angr.knowledge_plugins.key_definitions import atoms
 
 if TYPE_CHECKING:
+    from angr.ailment.block import Block
     from angr.ailment.expression import (
+        ITE,
+        DirtyExpression,
         Expression,
         Load,
         UnaryOp,
-        ITE,
-        DirtyExpression,
         VEXCCallExpression,
     )
     from angr.ailment.manager import Manager
     from angr.ailment.statement import Statement
-    from angr.ailment.block import Block
 
 
 _l = logging.getLogger(__name__)

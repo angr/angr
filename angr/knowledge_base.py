@@ -2,26 +2,27 @@
 
 from __future__ import annotations
 
-from itertools import count
 import logging
-
+from itertools import count
 from typing import TYPE_CHECKING
 
 from angr.knowledge_plugins.obfuscations import Obfuscations
 
-from .knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
+from .knowledge_plugins.plugin import KnowledgeBasePlugin, default_plugins
 
 if TYPE_CHECKING:
+    from .knowledge_plugins import (
+        CFGManager,
+        FunctionManager,
+        KeyDefinitionManager,
+        PropagationManager,
+        RuntimeDb,
+        StructuredCodeManager,
+        TypesStore,
+        VariableManager,
+        XRefManager,
+    )
     from .project import Project
-    from .knowledge_plugins import FunctionManager
-    from .knowledge_plugins import VariableManager
-    from .knowledge_plugins import KeyDefinitionManager
-    from .knowledge_plugins import CFGManager
-    from .knowledge_plugins import StructuredCodeManager
-    from .knowledge_plugins import TypesStore
-    from .knowledge_plugins import PropagationManager
-    from .knowledge_plugins import XRefManager
-    from .knowledge_plugins import RuntimeDb
 
 
 l = logging.getLogger(name=__name__)

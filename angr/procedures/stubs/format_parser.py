@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-import string
+
 import logging
 import math
+import string
+from typing import TYPE_CHECKING
+
 import claripy
 
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr import sim_type
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets
 

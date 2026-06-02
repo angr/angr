@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from unittest import main, TestCase
 
-import networkx
+from unittest import TestCase, main
+
 import archinfo
+import networkx
 
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import parse_defns

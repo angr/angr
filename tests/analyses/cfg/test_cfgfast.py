@@ -4,16 +4,16 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import os
 import logging
+import os
 import unittest
 
 import archinfo
-import angr
-from angr.codenode import FuncNode
-from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
-from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
+import angr
+from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
+from angr.codenode import FuncNode
+from angr.knowledge_plugins.cfg import CFGModel, CFGNode, MemoryDataSort
 from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")

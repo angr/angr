@@ -1,6 +1,6 @@
 from __future__ import annotations
-from collections.abc import Generator
-from collections.abc import Iterator
+
+from collections.abc import Generator, Iterator
 
 
 class InsAddrList:

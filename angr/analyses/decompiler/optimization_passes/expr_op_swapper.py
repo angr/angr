@@ -1,18 +1,19 @@
 from __future__ import annotations
+
 import logging
-from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from angr.ailment.block import Block as AILBlock
+from angr.ailment.expression import BinaryOp, Expression
 from angr.ailment.statement import Statement
-from angr.ailment.expression import Expression, BinaryOp
-
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
-from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+
+from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode
+    from angr.analyses.decompiler.structurer_nodes import ConditionalBreakNode, ConditionNode, LoopNode
 
 
 _l = logging.getLogger(__name__)

@@ -1,12 +1,12 @@
 from __future__ import annotations
+
 from collections import defaultdict
 
 from angr.ailment import AILBlockRewriter
 from angr.ailment.expression import Call, VirtualVariable
-from angr.rust.mixins import SRDAMixin, CFAMixin
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.ailment.statement import Assignment
-
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins import CFAMixin, SRDAMixin
 
 DEREF_COERCION_FUNCTIONS = [
     "core::ops::deref::Deref::deref",

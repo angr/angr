@@ -1,7 +1,8 @@
 from __future__ import annotations
-import angr
 
+import angr
 from angr.storage.file import Flags
+
 from .fstat import fstat
 
 

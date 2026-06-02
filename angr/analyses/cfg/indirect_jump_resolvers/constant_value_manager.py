@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+
 import logging
+from typing import TYPE_CHECKING, Any
 
 import claripy
 
+from angr.analyses.propagator.vex_vars import VEXReg
 from angr.code_location import CodeLocation
 from angr.project import Project
-from angr.analyses.propagator.vex_vars import VEXReg
+
 from .propagator_utils import PropagatorLoadCallback
 
 if TYPE_CHECKING:

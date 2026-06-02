@@ -11,14 +11,14 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
 from angr.calling_conventions import (
-    SimStackArg,
-    SimRegArg,
     SimCCCdecl,
     SimCCSystemVAMD64,
+    SimRegArg,
+    SimStackArg,
 )
-from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom, SimTypeFloat
+from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from tests.common import bin_location, requires_binaries_private
 
 test_location = os.path.join(bin_location, "tests")

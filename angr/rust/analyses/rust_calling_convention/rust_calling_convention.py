@@ -1,36 +1,37 @@
 from __future__ import annotations
+
 import logging
 import traceback
 from collections import OrderedDict
 
+from angr.ailment import Manager
+from angr.ailment.block import Block
+from angr.ailment.expression import Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import default_cc
-from angr.ailment import Manager
-from angr.ailment.block import Block
-from angr.ailment.expression import Const, Call, VirtualVariable, VirtualVariableCategory
-from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.functions import Function
-from angr.sim_type import SimTypeFunction
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.utils import extract_str, extract_str_from_addr
 from angr.rust.sim_type import (
-    RustSimEnum,
-    RustSimTypeOption,
-    RustSimTypeResult,
-    RustSimType,
-    RustSimTypeUnit,
-    RustSimTypeInt,
-    RustSimTypeReference,
-    RustSimStruct,
-    RustSimTypeFunction,
-    RustSimTypeStrRef,
     EnumVariant,
+    RustSimEnum,
+    RustSimStruct,
+    RustSimType,
+    RustSimTypeFunction,
+    RustSimTypeInt,
+    RustSimTypeOption,
+    RustSimTypeReference,
+    RustSimTypeResult,
+    RustSimTypeStrRef,
+    RustSimTypeUnit,
     is_composite_type,
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.utils.ail import CallVisitor
-from angr.rust.utils.demangler import normalize, demangle
+from angr.rust.utils.demangler import demangle, normalize
+from angr.sim_type import SimTypeFunction
 
 from .fact_collector import FactCollector
 from .rust_calling_convention_model import RustCallingConventionModel

@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from collections import OrderedDict
 
 from angr.ailment import Const
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.sim_type import RustSimStruct
-from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class StructMatcher:

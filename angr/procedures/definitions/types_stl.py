@@ -1,9 +1,10 @@
 # pylint:disable=line-too-long
 from __future__ import annotations
+
 from collections import OrderedDict
 
 from angr.procedures.definitions import SimTypeCollection
-from angr.sim_type import SimCppClass, SimTypePointer, SimTypeChar, SimTypeInt
+from angr.sim_type import SimCppClass, SimTypeChar, SimTypeInt, SimTypePointer
 
 typelib = SimTypeCollection()
 typelib.set_names("cpp::std")

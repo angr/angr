@@ -1,12 +1,13 @@
 from __future__ import annotations
-import traceback
+
 import logging
+import traceback
 import zlib
 
-from .ansi import Color, BackgroundColor, color, clear
-
-from .testing import is_testing
 from angr.utils.formatting import ansi_color_enabled
+
+from .ansi import BackgroundColor, Color, clear, color
+from .testing import is_testing
 
 
 class Loggers:

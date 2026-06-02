@@ -1,9 +1,10 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
 
-from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
-from angr.ailment.statement import Assignment, Store, SideEffectStatement
-from angr import SIM_LIBRARIES
+from angr.ailment.expression import Call, Const, Load, StackBaseOffset, UnaryOp, VirtualVariable
+from angr.ailment.statement import Assignment, SideEffectStatement, Store
+from angr.procedures import SIM_LIBRARIES
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

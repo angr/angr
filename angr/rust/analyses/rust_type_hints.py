@@ -1,9 +1,9 @@
 from __future__ import annotations
-from angr.ailment import Assignment
-from angr.ailment.expression import VirtualVariable, StringLiteral, FunctionLikeMacro, Call
 
-from angr.rust.sim_type import is_composite_type, RustSimTypeFunction, RustSimTypeStrRef
-from angr.analyses import Analysis, AnalysesHub
+from angr.ailment import Assignment
+from angr.ailment.expression import Call, FunctionLikeMacro, StringLiteral, VirtualVariable
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeStrRef, is_composite_type
 
 
 class RustTypeHintsAnalysis(Analysis):

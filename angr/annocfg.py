@@ -1,13 +1,14 @@
 from __future__ import annotations
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
 from typing import Literal
 
 import networkx
 
-from .utils.constants import DEFAULT_STATEMENT
 from .errors import AngrAnnotatedCFGError, AngrExitError
 from .knowledge_plugins.cfg import CFGNode
+from .utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
 

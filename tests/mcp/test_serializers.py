@@ -4,12 +4,12 @@ from __future__ import annotations
 import pytest
 
 from angr.mcp.serializers import (
-    serialize_function,
-    serialize_function_summary,
-    serialize_xref,
     serialize_basic_block,
     serialize_cfg_stats,
+    serialize_function,
+    serialize_function_summary,
     serialize_symbol,
+    serialize_xref,
 )
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 
 import pytest
+
 import angr
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.rust.sim_type import RustSimStruct, RustSimTypeInt

@@ -1,51 +1,55 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+import contextlib
 import itertools
 import logging
 import sys
 from collections import defaultdict
 from functools import reduce
-import contextlib
+from typing import TYPE_CHECKING
 
-import angr
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
-from angr.analyses import ForwardAnalysis
-from angr.utils.graph import GraphUtils
-from angr.analyses import AnalysesHub
-from angr import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
-from angr import options as o
+import angr
+from angr import procedures
+from angr import sim_options as o
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.backward_slice import BackwardSlice
+from angr.analyses.cdg import CDG
+from angr.analyses.ddg import DDG
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.analyses.loopfinder import Loop, LoopFinder
 from angr.codenode import BlockNode, FuncNode
 from angr.engines.procedure import ProcedureEngine
-from angr.exploration_techniques.loop_seer import LoopSeer
-from angr.exploration_techniques.slicecutor import Slicecutor
-from angr.exploration_techniques.explorer import Explorer
-from angr.exploration_techniques.lengthlimiter import LengthLimiter
 from angr.errors import (
     AngrCFGError,
     AngrError,
+    AngrExitError,
     AngrSkipJobNotice,
     AngrSyscallError,
+    SimEmptyCallStackError,
     SimError,
-    SimValueError,
-    SimSolverModeError,
     SimFastPathError,
     SimIRSBError,
-    AngrExitError,
-    SimEmptyCallStackError,
+    SimSolverModeError,
+    SimValueError,
 )
+from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.lengthlimiter import LengthLimiter
+from angr.exploration_techniques.loop_seer import LoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.knowledge_plugins.cfg import BlockID, CFGENode, IndirectJump
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_state import SimState
 from angr.state_plugins.callstack import CallStack
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action import SimActionData
-from angr.knowledge_plugins.cfg import CFGENode, IndirectJump, BlockID
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.cdg import CDG
-from angr.analyses.ddg import DDG
-from angr.analyses.backward_slice import BackwardSlice
-from angr.analyses.loopfinder import LoopFinder, Loop
+from angr.utils.graph import GraphUtils
+
 from .cfg_base import CFGBase
 from .cfg_job_base import CFGJobBase
 

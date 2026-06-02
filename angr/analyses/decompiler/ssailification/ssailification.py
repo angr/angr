@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
-from typing import Literal
 from collections import defaultdict
 from itertools import count
+from typing import Literal
 
 import networkx
 
@@ -12,12 +13,12 @@ from angr.ailment.expression import (
     StackBaseOffset,
     VirtualVariable,
 )
-
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
-from angr.analyses import Analysis, register_analysis
-from .traversal import TraversalAnalysis
+
 from .rewriting import RewritingAnalysis
+from .traversal import TraversalAnalysis
 
 l = logging.getLogger(name=__name__)
 

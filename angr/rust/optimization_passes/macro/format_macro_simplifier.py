@@ -1,18 +1,18 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict, deque
 
-from angr.analyses import Analysis, AnalysesHub
-from angr.knowledge_plugins import KnowledgeBasePlugin
 from angr.ailment import Block
-from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array, FunctionLikeMacro, Call
+from angr.ailment.expression import Array, Call, Const, FunctionLikeMacro, StringLiteral, Struct, VirtualVariable
 from angr.ailment.statement import Store
-from angr.rust.optimization_passes.utils import extract_str_from_addr
-from angr.rust.utils.ail import unwrap_stack_vvar_reference, extract_vvar_and_offset
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.knowledge_plugins import KnowledgeBasePlugin
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
-from angr.rust.optimization_passes.utils import CallRewriter
+from angr.rust.optimization_passes.utils import CallRewriter, extract_str_from_addr
 from angr.rust.sim_type import RustSimType, RustSimTypeSize
+from angr.rust.utils.ail import extract_vvar_and_offset, unwrap_stack_vvar_reference
 from angr.rust.utils.demangler import demangle, normalize
 
 FORMAT_FUNCTIONS = (

@@ -1,11 +1,12 @@
 # pylint:disable=consider-using-with
 from __future__ import annotations
-import json
-import subprocess
+
 import argparse
-import tempfile
-import os
 import itertools
+import json
+import os
+import subprocess
+import tempfile
 from collections import defaultdict
 
 import angr

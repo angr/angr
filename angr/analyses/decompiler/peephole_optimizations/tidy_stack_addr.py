@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import UnaryOp, BinaryOp, StackBaseOffset, Const
+from angr.ailment.expression import BinaryOp, Const, StackBaseOffset, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 

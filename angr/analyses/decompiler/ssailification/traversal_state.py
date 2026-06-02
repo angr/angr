@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from collections import defaultdict
 from collections.abc import MutableMapping
+from typing import TYPE_CHECKING
 
 from angr.ailment.expression import StackBaseOffset
 from angr.code_location import AILCodeLocation

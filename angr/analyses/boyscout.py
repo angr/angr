@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 import re
 from collections import defaultdict
@@ -6,7 +7,7 @@ from collections import defaultdict
 from archinfo import all_arches
 from archinfo.arch_arm import is_arm_arch
 
-from angr.analyses import AnalysesHub, Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 l = logging.getLogger(name=__name__)
 

@@ -5,11 +5,10 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 
-from unittest import TestCase, main
 import os.path
+from unittest import TestCase, main
 
 import angr
-
 from tests.common import bin_location, skip
 
 

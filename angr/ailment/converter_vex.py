@@ -1,29 +1,31 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
 import logging
 
 import pyvex
-from angr.utils.constants import DEFAULT_STATEMENT
+
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import UnsupportedIROpError
+from angr.utils.constants import DEFAULT_STATEMENT
 
 from .block import Block
-from .statement import Assignment, CAS, Store, Jump, SideEffectStatement, ConditionalJump, DirtyStatement, Return
+from .converter_common import Converter, SkipConversionNotice
 from .expression import (
+    ITE,
+    BinaryOp,
     Call,
     Const,
-    Register,
-    Tmp,
-    DirtyExpression,
-    UnaryOp,
     Convert,
-    BinaryOp,
+    DirtyExpression,
     Load,
-    ITE,
+    Register,
     Reinterpret,
+    Tmp,
+    UnaryOp,
     VEXCCallExpression,
 )
-from .converter_common import SkipConversionNotice, Converter
+from .statement import CAS, Assignment, ConditionalJump, DirtyStatement, Jump, Return, SideEffectStatement, Store
 
 log = logging.getLogger(name=__name__)
 

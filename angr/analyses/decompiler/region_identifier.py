@@ -1,26 +1,27 @@
 from __future__ import annotations
-from typing import Any, Literal, cast, overload
+
+import logging
+from collections import defaultdict
 from collections.abc import Iterable
 from itertools import count
-from collections import defaultdict
-import logging
+from typing import Any, Literal, cast, overload
 
 import networkx
 
 from angr import ailment
 from angr.ailment import Block, Manager
-from angr.ailment.statement import ConditionalJump, Jump
 from angr.ailment.expression import Const
-from angr.knowledge_plugins.functions.function import Function
-from angr.utils.graph import GraphUtils
-from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
-from angr.utils.doms import IncrementalDominators
+from angr.ailment.statement import ConditionalJump, Jump
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.errors import AngrRuntimeError
-from angr.analyses import Analysis, register_analysis
-from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
-from .graph_region import GraphRegion
+from angr.knowledge_plugins.functions.function import Function
+from angr.utils.doms import IncrementalDominators
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
+
 from .condition_processor import ConditionProcessor
-from .utils import replace_last_statement, first_nonlabel_nonphi_statement, copy_graph
+from .graph_region import GraphRegion
+from .structurer_nodes import ConditionNode, IncompleteSwitchCaseHeadStatement, MultiNode
+from .utils import copy_graph, first_nonlabel_nonphi_statement, replace_last_statement
 
 l = logging.getLogger(name=__name__)
 

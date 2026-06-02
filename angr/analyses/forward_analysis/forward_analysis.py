@@ -22,7 +22,7 @@ from .job_info import JobInfo
 
 if TYPE_CHECKING:
     from angr import ailment
-    from angr.analyses.decompiler import Clinic
+    from angr.analyses.decompiler.clinic import Clinic
 
     from .visitors.graph import GraphVisitor
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
-from angr.ailment import Expr
 
+from angr.ailment import Expr
 from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
+
 from .rewriter_base import CCallRewriterBase
 
 AMD64_CondTypes = data["AMD64"]["CondTypes"]

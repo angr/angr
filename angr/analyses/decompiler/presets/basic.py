@@ -1,15 +1,9 @@
 from __future__ import annotations
-from .preset import DecompilationPreset
+
 from angr.analyses.decompiler.optimization_passes import (
-    RegisterSaveAreaSimplifier,
-    StackCanarySimplifier,
-    WinStackCanarySimplifier,
     BasePointerSaveSimplifier,
+    CallStatementRewriter,
     ConstantDereferencesSimplifier,
-    RetAddrSaveSimplifier,
-    RegisterSaveAreaSimplifierAdvanced,
-    X86GccGetPcSimplifier,
-    MipsGpSettingSimplifier,
     InlinedMemcpySimplifier,
     InlinedMemcpySimplifierLate,
     InlinedMemsetSimplifier,
@@ -18,10 +12,18 @@ from angr.analyses.decompiler.optimization_passes import (
     InlinedStrcpySimplifierLate,
     InlinedWcscpySimplifier,
     InlinedWcscpySimplifierLate,
-    CallStatementRewriter,
-    SwitchReusedEntryRewriter,
+    MipsGpSettingSimplifier,
     PostStructuringPeepholeOptimizationPass,
+    RegisterSaveAreaSimplifier,
+    RegisterSaveAreaSimplifierAdvanced,
+    RetAddrSaveSimplifier,
+    StackCanarySimplifier,
+    SwitchReusedEntryRewriter,
+    WinStackCanarySimplifier,
+    X86GccGetPcSimplifier,
 )
+
+from .preset import DecompilationPreset
 
 preset_basic = DecompilationPreset(
     "basic",

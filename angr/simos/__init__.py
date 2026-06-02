@@ -5,15 +5,16 @@ Manage OS-level configuration.
 from __future__ import annotations
 
 from collections import defaultdict
+
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
-from .simos import SimOS
-from .userland import SimUserland
-from .linux import SimLinux
 from .cgc import SimCGC
-from .windows import SimWindows
 from .javavm import SimJavaVM
+from .linux import SimLinux
+from .simos import SimOS
 from .snimmuc_nxp import SimSnimmucNxp
+from .userland import SimUserland
+from .windows import SimWindows
 from .xbox import SimXbox
 
 os_mapping = defaultdict(lambda: SimOS)

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import angr.ailment as ailment
-
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 

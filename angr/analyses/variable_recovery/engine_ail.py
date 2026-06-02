@@ -1,23 +1,25 @@
 # pylint:disable=arguments-differ,invalid-unary-operand-type
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast
+
 import logging
+from typing import TYPE_CHECKING, cast
+
+import claripy
 
 import angr.ailment as ailment
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.errors import SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable
-import claripy
-
-from angr.ailment.expression import StringLiteral, Struct, Array, RustEnum, Let, FunctionLikeMacro
-from angr.engines.light.engine import SimEngineNostmtAIL
-from angr.sim_type import SimTypeFunction, SimTypePointer
-from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
+from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, StringLiteral, Struct
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
+from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.errors import SimMemoryMissingError
+from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
+from angr.sim_type import SimTypeFunction, SimTypePointer
+from angr.sim_variable import SimStackVariable, SimVariable
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
-from .engine_base import SimEngineVRBase, RichR
+
+from .engine_base import RichR, SimEngineVRBase
 
 if TYPE_CHECKING:
     from .variable_recovery_fast import VariableRecoveryFastState  # noqa: F401

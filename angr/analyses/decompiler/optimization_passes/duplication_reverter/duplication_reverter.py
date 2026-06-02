@@ -1,34 +1,34 @@
 from __future__ import annotations
-from collections import defaultdict
-import logging
-from itertools import combinations
+
 import itertools
+import logging
+from collections import defaultdict
+from itertools import combinations
 
 import networkx as nx
 
 import angr.ailment as ailment
 from angr.ailment.block import Block
-from angr.ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
-from angr.ailment.expression import Const, Register, Convert, Expression, VirtualVariable
+from angr.ailment.expression import Const, Convert, Expression, Register, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return
+from angr.analyses.decompiler.block_io_finder import BlockIOFinder
+from angr.analyses.decompiler.block_similarity import index_of_similar_stmts, is_similar, longest_ail_subseq
+from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
+from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
+from angr.utils.graph import dominates
 
-from .ail_merge_graph import AILMergeGraph, AILBlockSplit
+from .ail_merge_graph import AILBlockSplit, AILMergeGraph
 from .errors import SAILRSemanticError
 from .similarity import longest_ail_graph_subseq
-
 from .utils import (
-    replace_node_in_graph,
-    find_block_in_successors_by_addr,
     copy_graph_and_nodes,
     correct_jump_targets,
     deepcopy_ail_anyjump,
+    find_block_in_successors_by_addr,
+    replace_node_in_graph,
 )
-from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
-from angr.analyses.decompiler.block_io_finder import BlockIOFinder
-from angr.analyses.decompiler.block_similarity import is_similar, index_of_similar_stmts, longest_ail_subseq
-from angr.analyses.decompiler.utils import to_ail_supergraph, remove_labels
-from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
-from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
-from angr.utils.graph import dominates
 
 _l = logging.getLogger(name=__name__)
 

@@ -1,18 +1,20 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Any
 
 from angr import ailment
 from angr.ailment.expression import Op
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import ConditionNode
 from angr.analyses.decompiler.utils import (
-    structured_node_is_simple_return,
-    structured_node_is_simple_return_strict,
     sequence_to_statements,
     structured_node_has_multi_predecessors,
+    structured_node_is_simple_return,
+    structured_node_is_simple_return_strict,
 )
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
+
+from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
 
 if TYPE_CHECKING:
     from angr.ailment import Manager

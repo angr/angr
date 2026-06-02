@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any
 
 import networkx
 
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.utils.graph import PostDominators, TemporaryNode
+
 from .phoenix import PhoenixStructurer
 
 

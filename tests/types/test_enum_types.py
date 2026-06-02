@@ -9,13 +9,13 @@ import unittest
 import archinfo
 
 from angr.sim_type import (
-    SimTypeEnum,
     SimTypeBitfield,
+    SimTypeChar,
+    SimTypeEnum,
+    SimTypeFunction,
     SimTypeInt,
     SimTypeLong,
-    SimTypeFunction,
     SimTypePointer,
-    SimTypeChar,
     TypeRef,
     parse_type,
 )

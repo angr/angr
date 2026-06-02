@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from .region_identifier import RegionIdentifier
-from .structured_codegen import CStructuredCodeGenerator, ImportSourceCode
-from .clinic import Clinic
-from .region_simplifiers import RegionSimplifier
-from .decompiler import Decompiler
-from .decompilation_options import options, options_by_category
+from . import optimization_passes, structuring
+from .ail_simplifier import AILSimplifier
 from .block_simplifier import BlockSimplifier
 from .callsite_maker import CallSiteMaker
-from .ail_simplifier import AILSimplifier
-from .ssailification import Ssailification
+from .clinic import Clinic
+from .decompilation_options import options, options_by_category
+from .decompiler import Decompiler
 from .dephication import GraphDephication, SeqNodeDephication
 from .presets import DECOMPILATION_PRESETS
-from . import structuring
-from . import optimization_passes
+from .region_identifier import RegionIdentifier
+from .region_simplifiers import RegionSimplifier
+from .ssailification import Ssailification
+from .structured_codegen import CStructuredCodeGenerator, ImportSourceCode
 
 StructuredCodeGenerator = CStructuredCodeGenerator
 

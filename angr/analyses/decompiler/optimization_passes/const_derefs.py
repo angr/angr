@@ -1,13 +1,14 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
-from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.expression import Load, Const
+from angr.ailment import AILBlockRewriter, Block
+from angr.ailment.expression import Const, Load
 from angr.ailment.statement import Statement
-
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

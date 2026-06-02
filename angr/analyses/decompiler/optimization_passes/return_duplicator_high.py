@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import logging
 from typing import Any
 
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
+from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import copy_graph
-from .return_duplicator_base import ReturnDuplicatorBase
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .return_duplicator_base import ReturnDuplicatorBase
 
 _l = logging.getLogger(name=__name__)
 

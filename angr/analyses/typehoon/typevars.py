@@ -1,15 +1,17 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from typing import Any, Union, TYPE_CHECKING
 
-from collections.abc import Sequence, Iterable
+from collections.abc import Iterable, Sequence
 from itertools import count
+from typing import TYPE_CHECKING, Any, Union
 
 from angr.utils.constants import MAX_POINTSTO_BITS
+
 from .variance import Variance
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
+
     from .typeconsts import TypeConstant
 
 

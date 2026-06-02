@@ -1,12 +1,12 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from itertools import count
+
 import logging
+from itertools import count
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Jump
 from angr.ailment.expression import Const
-
+from angr.ailment.statement import Jump
 from angr.knowledge_plugins.cfg import IndirectJumpType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage

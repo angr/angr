@@ -9,7 +9,6 @@ deterministic functions that can be exercised in isolation.
 from __future__ import annotations
 
 import angr
-
 from angr.rust.optimization_passes.macro.format_macro_simplifier import (
     FORMAT_FUNCTIONS,
     NEW_ARGUMENT_FUNCTION,

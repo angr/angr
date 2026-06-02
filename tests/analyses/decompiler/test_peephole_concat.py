@@ -8,8 +8,8 @@ import os
 import unittest
 
 import angr
-from angr.ailment.manager import Manager
 from angr.ailment.expression import BinaryOp, Const, Convert, Register
+from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import ConcatSimplifier
 from tests.common import bin_location
 

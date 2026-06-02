@@ -7,7 +7,6 @@ import os
 import unittest
 
 from angr.project import Project
-
 from tests.common import bin_location
 
 

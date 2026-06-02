@@ -10,20 +10,20 @@ from unittest import TestCase, main
 
 import archinfo
 
+from angr import Project, load_shellcode, types
 from angr.calling_conventions import (
-    SimReferenceArgument,
-    SimStackArg,
-    SimTypeInt,
-    SimTypeFixedSizeArray,
-    SimCCSystemVAMD64,
-    SimTypeFunction,
-    SimRegArg,
     SimCCMicrosoftAMD64,
     SimCCRISCV64,
+    SimCCSystemVAMD64,
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimTypeFixedSizeArray,
+    SimTypeFunction,
+    SimTypeInt,
+    default_cc,
 )
-from angr.sim_type import parse_file, SimStructValue, SimTypeRef, SimCppClass
-from angr.calling_conventions import default_cc
-from angr import Project, load_shellcode, types
+from angr.sim_type import SimCppClass, SimStructValue, SimTypeRef, parse_file
 
 from .common import bin_location
 

@@ -1,26 +1,28 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
+
 from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 import claripy
+
 from angr import ailment
 from angr.ailment.expression import negate
 
+from .condition_processor import ConditionProcessor
 from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import (
+from .structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    LoopNode,
     MultiNode,
     SequenceNode,
-    CodeNode,
-    ConditionNode,
     SwitchCaseNode,
-    ConditionalBreakNode,
-    BreakNode,
-    LoopNode,
-    CascadingConditionNode,
-    ContinueNode,
 )
-from .condition_processor import ConditionProcessor
 
 if TYPE_CHECKING:
     from angr.ailment import Manager

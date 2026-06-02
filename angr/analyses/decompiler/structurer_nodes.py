@@ -1,10 +1,12 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from typing import Any
-from collections.abc import Iterable
+
 from collections import OrderedDict
+from collections.abc import Iterable
+from typing import Any
 
 import claripy
+
 import angr.ailment as ailment
 from angr.ailment.block import Block
 

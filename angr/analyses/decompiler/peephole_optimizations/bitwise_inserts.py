@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 import itertools
+
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert
+
 from .base import PeepholeOptimizationExprBase
 
 

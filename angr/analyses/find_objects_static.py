@@ -1,16 +1,19 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import claripy
 
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGFast
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
-from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
+from angr.analyses.vtable import VtableFinder
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.utils.cpp import is_cpp_funcname_ctor
-from . import Analysis, VtableFinder, CFGFast, ReachingDefinitionsAnalysis
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.function_handler import FunctionCallData

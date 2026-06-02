@@ -1,13 +1,14 @@
 from __future__ import annotations
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
 
 import networkx
 
 from angr.ailment import Block
-from angr.ailment.expression import Phi, Const
+from angr.ailment.expression import Const, Phi
 from angr.ailment.statement import Assignment, ConditionalJump, Jump
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.utils.ail import is_phi_assignment
 
 _l = logging.getLogger(__name__)

@@ -11,7 +11,6 @@ import unittest
 
 import angr
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

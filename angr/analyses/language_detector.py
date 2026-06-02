@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import enum
 import logging
 import re
-import enum
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 if TYPE_CHECKING:
     from cle.backends import Backend

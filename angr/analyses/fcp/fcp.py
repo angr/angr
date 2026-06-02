@@ -1,21 +1,21 @@
 from __future__ import annotations
-from typing import Any
-from collections.abc import Callable
-from collections import defaultdict
 
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
+
+import claripy
 import networkx
 import pyvex
-import claripy
 
-from angr.utils.bits import s2u
-from angr.block import Block
-from angr.analyses.analysis import Analysis
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode, FuncNode
-from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
-from angr.calling_conventions import SimStackArg
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
+from angr.block import Block
+from angr.calling_conventions import SimStackArg
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.engines.light import RegisterOffset, SimEngineLight, SimEngineNostmtVEX, SpOffset
+from angr.knowledge_plugins.functions import Function
+from angr.utils.bits import s2u
 
 
 class SV:

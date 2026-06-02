@@ -6,6 +6,7 @@ import claripy
 
 from angr import sim_options
 from angr.state_plugins.sim_event import resource_event
+
 from .base import ExplorationTechnique
 from .common import condition_to_lambda
 

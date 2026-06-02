@@ -6,9 +6,9 @@ import logging
 import networkx
 from networkx import NetworkXError
 
-from angr.ailment import Const, Block
-from angr.ailment.expression import VirtualVariable, Phi
-from angr.ailment.statement import Jump, ConditionalJump, Assignment
+from angr.ailment import Block, Const
+from angr.ailment.expression import Phi, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump
 
 l = logging.getLogger(name=__name__)
 

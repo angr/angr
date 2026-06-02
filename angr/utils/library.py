@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr.sim_type import (
-    parse_file,
-    parse_cpp_file,
-    normalize_cpp_function_name,
     SimTypeCppFunction,
     SimTypeFd,
-    register_types,
+    normalize_cpp_function_name,
+    parse_cpp_file,
+    parse_file,
     parse_types,
+    register_types,
 )
 
 if TYPE_CHECKING:

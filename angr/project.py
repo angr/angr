@@ -1,21 +1,24 @@
 from __future__ import annotations
+
 import logging
 import os
-import types
-from io import BytesIO, IOBase
 import pickle
 import string
+import types
 from collections import defaultdict
+from io import BytesIO, IOBase
 from pathlib import Path
 from typing import Any, cast
 
 import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
-from .sim_procedure import SimProcedure
-from .llm_client import LLMClient
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
+from angr.knowledge_base import KnowledgeBase
 
 from .errors import AngrNoPluginError
+from .llm_client import LLMClient
+from .sim_procedure import SimProcedure
 
 l = logging.getLogger(name=__name__)
 
@@ -986,8 +989,7 @@ class Project:
         return min(((sz // 256) // 100 + 1) * 50, 800)
 
 
-from .factory import AngrObjectFactory
-from .simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
-from .knowledge_base import KnowledgeBase
-from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .factory import AngrObjectFactory
+from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
+from .simos import SimOS, os_mapping

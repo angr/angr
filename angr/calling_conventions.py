@@ -1,46 +1,47 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 from __future__ import annotations
+
+import contextlib
 import logging
+from collections import defaultdict
+from collections.abc import Iterable
 from typing import cast
 
-from collections.abc import Iterable
-from collections import defaultdict
-import contextlib
-
-import claripy
 import archinfo
+import claripy
 from archinfo import RegisterName
 
 import angr
+
 from .errors import AngrTypeError
+from .rust.sim_type import RustSimEnum
 from .sim_type import (
     NamedTypeMixin,
     SimCppClass,
-    SimType,
-    SimTypeChar,
-    SimTypePointer,
-    SimTypeFixedSizeArray,
-    SimTypeArray,
-    SimTypeString,
-    SimTypeFunction,
-    SimTypeFloat,
-    SimTypeDouble,
-    SimTypeReg,
     SimStruct,
     SimStructValue,
+    SimType,
+    SimTypeArray,
+    SimTypeBitfield,
+    SimTypeBool,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeEnum,
+    SimTypeFixedSizeArray,
+    SimTypeFloat,
+    SimTypeFunction,
     SimTypeInt,
     SimTypeNum,
-    SimUnion,
-    SimTypeBottom,
-    parse_signature,
-    SimTypeReference,
+    SimTypePointer,
     SimTypeRef,
-    SimTypeBool,
-    SimTypeEnum,
-    SimTypeBitfield,
+    SimTypeReference,
+    SimTypeReg,
+    SimTypeString,
+    SimUnion,
+    parse_signature,
 )
 from .state_plugins.sim_action_object import SimActionObject
-from .rust.sim_type import RustSimEnum
 
 l = logging.getLogger(name=__name__)
 

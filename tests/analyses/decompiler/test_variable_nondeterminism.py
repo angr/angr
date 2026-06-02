@@ -4,11 +4,11 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import difflib
 import os
 import subprocess
 import sys
 import unittest
-import difflib
 
 from tests.common import bin_location, is_testing
 

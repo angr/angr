@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from angr.ailment import Block, Expression, UnaryOp, BinaryOp, Const, AILBlockViewer
-from angr.ailment.expression import VirtualVariable, FunctionLikeMacro, Call
+from angr.ailment import AILBlockViewer, BinaryOp, Block, Const, Expression, UnaryOp
+from angr.ailment.expression import Call, FunctionLikeMacro, VirtualVariable
 from angr.ailment.statement import Statement
 
 

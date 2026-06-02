@@ -10,8 +10,10 @@
 # If these tests break, contact @subwire (or, likely, he will find you)
 from __future__ import annotations
 
-from common import bin_priv_location
 import os
+
+from common import bin_priv_location
+
 import angr
 
 

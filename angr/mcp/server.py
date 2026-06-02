@@ -10,6 +10,7 @@ import networkx as nx
 from fastmcp import FastMCP
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+
 from .errors import (
     CFGNotBuiltError,
     DecompilationError,

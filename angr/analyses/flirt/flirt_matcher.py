@@ -1,13 +1,15 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections.abc import Callable
 
-from .flirt_sig import FlirtSignatureParsed
-from .flirt_node import FlirtNode
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 from .flirt_module import FlirtModule
+from .flirt_node import FlirtNode
+from .flirt_sig import FlirtSignatureParsed
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+
     from .flirt_function import FlirtFunction
 
 

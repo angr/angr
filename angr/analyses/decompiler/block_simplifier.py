@@ -1,28 +1,30 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-import logging
-from typing import TYPE_CHECKING
-from collections.abc import Iterable, Mapping
 
-from angr.ailment.manager import Manager
-from angr.ailment.statement import Statement, Assignment, SideEffectStatement, Store, Jump
-from angr.ailment.expression import Call, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
+import logging
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING
+
 from angr.ailment import AILBlockViewer
+from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
+from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.s_propagator import SPropagatorAnalysis
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
-from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import has_reference_to_vvar
+
 from .peephole_optimizations import (
+    EXPR_OPTS,
     MULTI_STMT_OPTS,
     STMT_OPTS,
-    EXPR_OPTS,
-    PeepholeOptimizationStmtBase,
     PeepholeOptimizationExprBase,
     PeepholeOptimizationMultiStmtBase,
+    PeepholeOptimizationStmtBase,
 )
-from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
+from .utils import peephole_optimize_exprs, peephole_optimize_multistmts, peephole_optimize_stmts
 
 if TYPE_CHECKING:
     from angr.ailment.block import Block

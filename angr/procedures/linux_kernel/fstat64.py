@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import claripy
+
 import angr
 
 # these structs can be easily-ish pulled out of qemu/linux-user/syscall_defs.h

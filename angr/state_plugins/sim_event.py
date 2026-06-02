@@ -1,6 +1,7 @@
 from __future__ import annotations
-import traceback
+
 import itertools
+import traceback
 
 event_id_count = itertools.count()
 

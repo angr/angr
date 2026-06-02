@@ -1,9 +1,10 @@
 # pylint:disable=no-member,global-statement
 from __future__ import annotations
+
 import os
 import time
-from functools import wraps
 from collections import defaultdict
+from functools import wraps
 
 TIMING = os.environ.get("TIMING", "").lower() not in {"", "no", "0", "false"}
 PRINT = os.environ.get("PRINT", "").lower() not in {"", "no", "0", "false"}

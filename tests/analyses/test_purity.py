@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-# pylint: disable=missing-class-docstring,no-self-use
-import unittest
 import os
 
-import angr
-from angr.analyses.purity import AILPurityAnalysis, AILPurityResultType, AILPurityDataSource, AILPurityDataUsage
+# pylint: disable=missing-class-docstring,no-self-use
+import unittest
 
+import angr
+from angr.analyses.purity import AILPurityAnalysis, AILPurityDataSource, AILPurityDataUsage, AILPurityResultType
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

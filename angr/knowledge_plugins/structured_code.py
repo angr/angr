@@ -1,13 +1,13 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
     from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+    from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
 
 
 class StructuredCodeManager(KnowledgeBasePlugin):
@@ -28,8 +28,8 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return self.cached[self._normalize_key(item)]
 
     def __setitem__(self, key, value: DecompilationCache | BaseStructuredCodeGenerator):
-        from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
         from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+        from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
 
         nkey = self._normalize_key(key)
 

@@ -5,9 +5,10 @@ import logging
 
 from angr.errors import SimEventError
 from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
-from .sim_event import SimEvent
 from .sim_action import SimAction, SimActionConstraint
+from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
 

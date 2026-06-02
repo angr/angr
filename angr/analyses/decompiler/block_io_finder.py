@@ -1,34 +1,33 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import Any
 
 from angr.ailment import Block
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.expression import (
+    ITE,
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    Expression,
+    Load,
+    StackBaseOffset,
+    Tmp,
+    UnaryOp,
+    VirtualVariable,
+)
 from angr.ailment.statement import (
+    Assignment,
+    ConditionalJump,
+    Jump,
+    Return,
     SideEffectStatement,
     Statement,
-    ConditionalJump,
-    Assignment,
     Store,
-    Return,
-    Jump,
 )
-from angr.ailment.expression import (
-    Call,
-    Load,
-    VirtualVariable,
-    Expression,
-    BinaryOp,
-    UnaryOp,
-    Convert,
-    ITE,
-    Tmp,
-    Const,
-    StackBaseOffset,
-)
-from angr.ailment.block_walker import AILBlockViewer
-
-
-from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset, ConstantSrc
+from angr.knowledge_plugins.key_definitions.atoms import ConstantSrc, MemoryLocation, Register, SpOffset
 
 
 class BlockIOFinder(AILBlockViewer):

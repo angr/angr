@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from angr.state_plugins.plugin import SimStatePlugin
-from .heap_freelist import SimHeapFreelist, Chunk
-from .utils import concretize
 from angr.errors import SimHeapError, SimMergeError, SimSolverError
+from angr.state_plugins.plugin import SimStatePlugin
+
+from .heap_freelist import Chunk, SimHeapFreelist
+from .utils import concretize
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
 

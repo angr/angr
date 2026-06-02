@@ -1,5 +1,6 @@
 # pylint:disable=line-too-long
 from __future__ import annotations
+
 import logging
 import math
 

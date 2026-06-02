@@ -1,69 +1,69 @@
 # pylint:disable=too-many-boolean-expressions,consider-using-enumerate
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections.abc import Container
-from collections.abc import Iterable
-from collections import defaultdict
-from enum import Enum
+
 import logging
+from collections import defaultdict
+from collections.abc import Container, Iterable
+from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 import networkx
 
-from angr.ailment import AILBlockRewriter, AILBlockViewer, Address
+from angr.ailment import Address, AILBlockRewriter, AILBlockViewer
 from angr.ailment.block import Block
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    FunctionLikeMacro,
+    Insert,
+    Load,
+    Register,
+    StackBaseOffset,
+    Tmp,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
+)
 from angr.ailment.statement import (
-    Statement,
     Assignment,
-    Store,
-    SideEffectStatement,
     ConditionalJump,
     DirtyStatement,
-    WeakAssignment,
     Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+    WeakAssignment,
 )
-from angr.ailment.expression import (
-    Call,
-    Insert,
-    Register,
-    Convert,
-    Load,
-    StackBaseOffset,
-    Expression,
-    DirtyExpression,
-    VEXCCallExpression,
-    Tmp,
-    Const,
-    BinaryOp,
-    VirtualVariable,
-    UnaryOp,
-    FunctionLikeMacro,
-)
-
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
+from angr.code_location import AILCodeLocation
+from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
-from angr.utils.ail import is_phi_assignment, HasExprWalker, is_expr_used_as_reg_base_value
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.propagations.states import Equivalence
+from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
+from angr.utils.ail import HasExprWalker, is_expr_used_as_reg_base_value, is_phi_assignment
 from angr.utils.ssa import (
     has_call_in_between_stmts,
-    has_store_stmt_in_between_stmts,
     has_load_expr_in_between_stmts,
+    has_store_stmt_in_between_stmts,
     is_vvar_eliminatable,
 )
-from angr.code_location import AILCodeLocation
-from angr.sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
-from angr.knowledge_plugins.propagations.states import Equivalence
-from angr.knowledge_plugins.key_definitions import atoms
-from angr.knowledge_plugins.key_definitions.definition import Definition
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.errors import AngrRuntimeError
-from angr.analyses import Analysis, AnalysesHub
 from angr.utils.timing import timethis
+
 from .ailgraph_walker import AILGraphWalker
-from .expression_narrower import ExprNarrowingInfo, EffectiveSizeExtractor, ExpressionNarrower
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
-from .dirty_rewriters import DIRTY_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
+from .dirty_rewriters import DIRTY_REWRITERS
+from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager

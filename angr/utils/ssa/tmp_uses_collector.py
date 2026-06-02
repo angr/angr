@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
-from angr.ailment.expression import Tmp
-from angr.ailment.statement import Statement, Assignment
 from angr.ailment.block import Block
+from angr.ailment.expression import Tmp
+from angr.ailment.statement import Assignment, Statement
 
 
 class TmpUsesCollector(AILBlockViewer):

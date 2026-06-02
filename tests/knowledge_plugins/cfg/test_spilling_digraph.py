@@ -5,14 +5,13 @@ from __future__ import annotations
 __package__ = __package__ or "tests.knowledge_plugins.cfg"  # pylint:disable=redefined-builtin
 
 import os
-import unittest
 import pickle
+import unittest
 
 import angr
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
-from angr.knowledge_plugins.cfg.spilling_digraph import SpillingAdjDict, SpillingDiGraph, DirtyDict
 from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key
-
+from angr.knowledge_plugins.cfg.spilling_digraph import DirtyDict, SpillingAdjDict, SpillingDiGraph
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

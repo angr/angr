@@ -6,14 +6,13 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import logging
 import os
-import unittest
 import re
+import unittest
 
 import networkx
 
 import angr
-
-from tests.common import bin_location, print_decompilation_result, WORKER
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 

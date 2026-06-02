@@ -4,12 +4,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import os
-import unittest
 import logging
+import os
 import tempfile
-from typing import TYPE_CHECKING
+import unittest
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import angr
 from angr.analyses import CFGFast

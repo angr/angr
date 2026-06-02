@@ -9,8 +9,7 @@ import os
 import unittest
 
 import angr
-
-from tests.common import broken, bin_location, do_trace, load_cgc_pov
+from tests.common import bin_location, broken, do_trace, load_cgc_pov
 
 
 def tracer_cgc(

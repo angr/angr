@@ -1,10 +1,11 @@
 # pylint:disable=arguments-differ,no-member
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr.code_location import CodeLocation
-from angr.serializable import Serializable
 from angr.protos import variables_pb2
+from angr.serializable import Serializable
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable

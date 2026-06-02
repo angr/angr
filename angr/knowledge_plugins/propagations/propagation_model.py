@@ -1,12 +1,15 @@
 from __future__ import annotations
-from typing import Any
+
 from collections import defaultdict
+from typing import Any
 
 import claripy
+
 import angr.ailment as ailment
-from angr.serializable import Serializable
 from angr.knowledge_plugins.functions.function import Function
-from .states import PropagatorVEXState, PropagatorState
+from angr.serializable import Serializable
+
+from .states import PropagatorState, PropagatorVEXState
 
 
 class PropagationModel(Serializable):

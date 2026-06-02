@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from collections.abc import Iterator
 from typing import Any, TypeGuard, TypeVar, cast
-import archinfo
 
+import archinfo
 import claripy
 
 from angr.storage.memory_object import bv_slice

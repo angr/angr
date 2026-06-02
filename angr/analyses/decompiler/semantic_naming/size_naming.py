@@ -7,6 +7,7 @@ appropriately (e.g., size, len, count, n).
 """
 
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
