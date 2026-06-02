@@ -24,9 +24,10 @@ from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.errors import AngrOutlinerEmptySubgraphError, AngrOutlinerMultiEntranceError
+from angr.errors import AngrOutlinerEmptySubgraphError, AngrOutlinerError, AngrOutlinerMultiEntranceError
 from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimTemporaryVariable, SimVariable
 from angr.knowledge_plugins.functions import Function
-from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
+from angr.utils.graph import Dominators, compute_dominance_frontier
 from angr.utils.ssa import is_phi_assignment
 
 _l = logging.getLogger(__name__)
@@ -182,13 +183,14 @@ class Outliner(Analysis):
                     assert len(start_loc_phis) == 1, "Why is a given variable used in two phis in the same block?"
                     external_phis[start_loc_phis[0][0]].add(vvar_id)
                 elif len(phi_stmts) == len(use_stmts):
-                    assert False, "Why does src_loc not dominate all blocks of the child function?"
                     (use_loc,) = {l for _, l in use_locs}
-                    assert self.src_loc == (
+                    if self.src_loc == (
                         use_loc.block_addr,
                         use_loc.block_idx,
-                    ), "Why does src_loc not dominate all blocks of the child function?"
-                    external_phis[use_loc].add(vvar_id)
+                    ):
+                        external_phis[use_loc].add(vvar_id)
+                    else:
+                        undef_vvars.add(vvar_id)
                 else:
                     undef_vvars.add(vvar_id)
 
@@ -210,7 +212,10 @@ class Outliner(Analysis):
             if not srda.all_vvar_uses[phi_assignment.dst.varid]:
                 # this var skips the function entirely! it is not actually an argument!
                 phi_block.statements[loc.stmt_idx] = Label(
-                    self._next_atom(), "placeholder", ins_addr=phi_assignment.tags.get("ins_addr", None)
+                    self._next_atom(),
+                    "placeholder",
+                    ins_addr=phi_assignment.tags.get("ins_addr", None),
+                    outliner_artifact=True,
                 )  # problematic...
                 # if there are any edges from the function anyway, make sure they are no-op copies and then remove them
                 assert all(
@@ -228,7 +233,9 @@ class Outliner(Analysis):
                     Phi(phi_assignment.src.idx, phi_assignment.src.bits, src_and_vvars, **phi_assignment.src.tags),
                     **phi_assignment.tags,
                 )
-                phi_block.statements[loc.stmt_idx] = Label(self._next_atom(), "placeholder", ins_addr=loc.ins_addr)
+                phi_block.statements[loc.stmt_idx] = Label(
+                    self._next_atom(), "placeholder", ins_addr=loc.ins_addr, outliner_artifact=True
+                )
                 new_callsite_phis.append(phi_assignment)
                 continue
 
@@ -252,11 +259,11 @@ class Outliner(Analysis):
                     new_vvar.bits,
                     [(src, vvar) for src, vvar in phi_assignment.src.src_and_vvars if src not in child_locs],
                 )
-            new_callsite_phi = Assignment(self._next_atom(), new_vvar, new_callsite_src)
+            new_callsite_phi = Assignment(self._next_atom(), new_vvar, new_callsite_src, outliner_artifact=True)
             new_callsite_phis.append(new_callsite_phi)
 
             # update callee head
-            if external_vvars == {vvar for _, vvar in phi_assignment.src.src_and_vvars if vvar is not None}:
+            if external_vvars == {vvar.varid for _, vvar in phi_assignment.src.src_and_vvars if vvar is not None}:
                 # all predecessors are external - this is the actual arg
                 # n.b. for outlining paper we cannot change any given (block_addr, block_idx, stmt_idx)'s actual semantics
                 # ...but "just do a phi" or "just do an assignment" are equivalent
@@ -327,19 +334,33 @@ class Outliner(Analysis):
                 exclusive_frontier.add(loc)
 
         # generate a subgraph
-        subgraph = subgraph_between_nodes(
-            self.parent_graph, self.blocks[self.src_loc], (self.blocks[loc] for loc in frontier), include_frontier=True
-        )
-        for loc in list(frontier):
-            node = self.blocks[loc]
-            if node not in subgraph:
-                _l.warning("Requested an frontier of %s but it was not reached", node)
-                frontier.remove(loc)
-                exclusive_frontier.discard(loc)
+        # first get all nodes reachable from the entry
+        queue = [self.blocks[self.src_loc]]
+        seen = set(queue)
+        while queue:
+            node = queue.pop()
+            for succ in self.parent_graph.succ[node]:
+                if succ not in seen:
+                    queue.append(succ)
+                    seen.add(succ)
 
-        subgraph.remove_nodes_from(self.blocks[loc] for loc in exclusive_frontier)
-        if not subgraph:
-            raise AngrOutlinerEmptySubgraphError("Trying to outline an empty subgraph")
+        # now get all nodes that can reach any frontier without going through the starting node
+        queue = [self.blocks[loc] for loc in frontier]
+        seen2 = set(queue)
+        while queue:
+            node = queue.pop()
+            if (node.addr, node.idx) == self.src_loc:
+                continue
+            for pred in self.parent_graph.pred[node]:
+                if pred not in seen2:
+                    queue.append(pred)
+                    seen2.add(pred)
+
+        # if there is a way out the top of the function without going through the entry, something is wrong
+        if seen2 - seen:
+            raise AngrOutlinerMultiEntranceError("Request for outlining function with multiple entrances")
+
+        subgraph = self.parent_graph.subgraph(seen2).copy()
 
         # normalize the frontier, making it so that we only use an inclusive node if we reach the end of the function
         for loc in list(frontier):
@@ -350,16 +371,21 @@ class Outliner(Analysis):
                 continue
             # this node is inclusive but has successors. convert it to an exclusive frontier.
             frontier.remove(loc)
-            exclusive_frontier.update((n2.addr, n2.idx) for n2 in self.parent_graph.succ[blk] if n2 not in subgraph)
-
-            # also handle a silly case - we have an inclusive frontier but one of its successors goes back into the subgraph
-            # these edges are omitted by default
-            for n2 in self.parent_graph.succ[blk]:
-                if n2 in subgraph:
-                    subgraph.add_edge(blk, n2)
+            new_frontier = [(n2.addr, n2.idx) for n2 in self.parent_graph.succ[blk] if n2 not in subgraph]
+            if not new_frontier:
+                if self._fail_fast:
+                    raise AngrOutlinerError("Specified a frontier which is totally subsumed by other frontiers?")
+                _l.warning("Specified a frontier which is totally subsumed by other frontiers: %s", loc)
+            exclusive_frontier.update(new_frontier)
 
         inclusive_frontier = frontier - exclusive_frontier
         frontier.update(exclusive_frontier)
+
+        subgraph.remove_nodes_from(self.blocks[loc] for loc in exclusive_frontier)
+        if not subgraph:
+            raise AngrOutlinerEmptySubgraphError("Trying to outline an empty subgraph")
+        if not networkx.is_weakly_connected(subgraph):
+            raise AngrOutlinerEmptySubgraphError("Outlined subgraph is disconnected")
 
         # "reaching the end of the function" for an inclusive frontier can either be a return statement or a noret call.
         # separate these and also generate a full list of out edges
@@ -393,10 +419,6 @@ class Outliner(Analysis):
         for loc in inclusive_frontier:
             self.frontier_vars.update(self.parent_liveness.model.live_outs[loc])
         self.frontier_vars -= self.parent_liveness.model.live_ins[self.src_loc]
-
-        for u, v in self.parent_graph.edges:
-            if v in subgraph and u not in subgraph and (v.addr, v.idx) != self.src_loc:
-                raise AngrOutlinerMultiEntranceError("Request for outlining function with multiple entrances")
 
         # begin mutation!
         self.parent_graph.remove_nodes_from(subgraph)
@@ -469,7 +491,9 @@ class Outliner(Analysis):
             bits=self.project.arch.bits,
             ins_addr=self.src_loc[0],
         )
-        call_stmt = Assignment(self._next_atom(), tuple_vvar, call_expr, ins_addr=self.src_loc[0])
+        call_stmt = Assignment(
+            self._next_atom(), tuple_vvar, call_expr, ins_addr=self.src_loc[0], outliner_artifact=True
+        )
         new_src_node = Block(
             self._next_block_addr(),
             0,
@@ -495,6 +519,7 @@ class Outliner(Analysis):
                         Endness.BE,
                     ),
                     ins_addr=self.src_loc[0],
+                    outliner_artifact=True,
                 )
             )
             bit_sum += ret_var.bits
@@ -528,7 +553,10 @@ class Outliner(Analysis):
             networkx.relabel_nodes(subgraph, {old_ret_node: id(ret_node)}, copy=False)
             networkx.relabel_nodes(subgraph, {id(ret_node): ret_node}, copy=False)  # type: ignore
             ret_stmt = Return(
-                self._next_atom(), [new_ret_expr], ins_addr=max(stmt.tags.get("ins_addr", -1) for stmt in ret_node.statements)
+                self._next_atom(),
+                [new_ret_expr],
+                ins_addr=max(stmt.tags.get("ins_addr", -1) for stmt in ret_node.statements),
+                outliner_artifact=True,
             )
 
             # safe: we copied ret_node
@@ -592,6 +620,7 @@ class Outliner(Analysis):
                     true_target_idx=jump_target[1],
                     false_target_idx=next_dispatcher_node_addr[1],
                     ins_addr=dispatcher_node_addr[0],
+                    outliner_artifact=True,
                 )
                 dispatcher_node = Block(dispatcher_node_addr[0], 0, [stmt], dispatcher_node_addr[1])
                 self.blocks[dispatcher_node_addr] = dispatcher_node
@@ -615,12 +644,15 @@ class Outliner(Analysis):
                         Const(self._next_atom(), last_jump_target[0], self.project.arch.bits),
                         last_jump_target[1],
                         ins_addr=final_node.addr,
+                        outliner_artifact=True,
                     )
                 )
                 self.parent_graph.add_edge(final_node, self.blocks[last_jump_target])
                 self._update_phi_stmts(self.blocks[last_jump_target])
             else:
-                final_node.statements.append(Return(self._next_atom(), [switch_vvar], ins_addr=final_node.addr))
+                final_node.statements.append(
+                    Return(self._next_atom(), [switch_vvar], ins_addr=final_node.addr, outliner_artifact=True)
+                )
 
         elif exclusive_frontier:
             # simple return value. just stitch the callsite to the return site.
@@ -629,14 +661,92 @@ class Outliner(Analysis):
             self.parent_graph.add_edge(new_src_node, frontier_node)
             self._update_phi_stmts(frontier_node)
 
+        for pred in list(self.parent_graph.pred[new_src_node]):
+            self._update_jmp_stmts(pred)
         self._update_phi_stmts(new_src_node)
 
         return callee_func, subgraph, callee_arg_vvars
 
+    def _update_jmp_stmts(self, block: Block):
+        dsts = list(self.parent_graph.succ[block])
+        dst_addrs = [(dst.addr, dst.idx) for dst in dsts]
+        edits: dict[int, Statement] = {}
+        for stmt_idx, stmt in enumerate(block.statements):
+            if (
+                isinstance(stmt, Jump)
+                and isinstance(stmt.target, Const)
+                and isinstance(stmt.target.value, int)
+                and (stmt.target.value, stmt.target_idx) not in dst_addrs
+            ):
+                assert len(dst_addrs) == 1
+                edits[stmt_idx] = Jump(
+                    stmt.idx,
+                    Const(stmt.target.idx, dst_addrs[0][0], stmt.target.bits, **stmt.target.tags),
+                    dst_addrs[0][1],
+                    **stmt.tags,
+                )
+            elif (
+                isinstance(stmt, ConditionalJump)
+                and isinstance(stmt.true_target, Const)
+                and isinstance(stmt.true_target.value, int)
+                and (stmt.true_target.value, stmt.true_target_idx) not in dst_addrs
+            ):
+                assert len(dst_addrs) == 2
+                assert isinstance(stmt.false_target, Const) and isinstance(stmt.false_target.value, int)
+                false_addr = (stmt.false_target.value, stmt.false_target_idx)
+                if false_addr == dst_addrs[0]:
+                    true_addr = dst_addrs[1]
+                else:
+                    assert false_addr == dst_addrs[1]
+                    true_addr = dst_addrs[0]
+                edits[stmt_idx] = ConditionalJump(
+                    stmt.idx,
+                    stmt.condition,
+                    Const(stmt.true_target.idx, true_addr[0], stmt.true_target.bits, **stmt.true_target.tags),
+                    stmt.false_target,
+                    true_addr[1],
+                    stmt.false_target_idx,
+                    **stmt.tags,
+                )
+            elif (
+                isinstance(stmt, ConditionalJump)
+                and isinstance(stmt.false_target, Const)
+                and isinstance(stmt.false_target.value, int)
+                and (stmt.false_target.value, stmt.false_target_idx) not in dst_addrs
+            ):
+                assert len(dst_addrs) == 2
+                assert isinstance(stmt.true_target, Const) and isinstance(stmt.true_target.value, int)
+                true_addr = (stmt.true_target.value, stmt.true_target_idx)
+                if true_addr == dst_addrs[0]:
+                    false_addr = dst_addrs[1]
+                else:
+                    assert true_addr == dst_addrs[1]
+                    false_addr = dst_addrs[0]
+                edits[stmt_idx] = ConditionalJump(
+                    stmt.idx,
+                    stmt.condition,
+                    stmt.true_target,
+                    Const(stmt.false_target.idx, false_addr[0], stmt.false_target.bits, **stmt.false_target.tags),
+                    stmt.true_target_idx,
+                    false_addr[1],
+                    **stmt.tags,
+                )
+
+        if not edits:
+            return
+
+        new = block.copy()
+        for stmt_idx, stmt in edits.items():
+            new.statements[stmt_idx] = stmt
+
+        networkx.relabel_nodes(self.parent_graph, {block: id(new)}, copy=False)
+        networkx.relabel_nodes(self.parent_graph, {id(new): new}, copy=False)  # type: ignore
+        self.blocks[new.addr, new.idx] = new
+
     def _update_phi_stmts(self, block: Block):
         srcs = list(self.parent_graph.predecessors(block))
         src_addrs = [(src.addr, src.idx) for src in srcs]
-        edits: defaultdict[Block, dict[int, list[tuple[Address, VirtualVariable | None]]]] = defaultdict(dict)
+        edits: dict[int, list[tuple[Address, VirtualVariable | None]]] = {}
         for stmt_idx, stmt in enumerate(block.statements):
             if (
                 not isinstance(stmt, Assignment)
@@ -649,7 +759,7 @@ class Outliner(Analysis):
             assert len(return_vars) <= 1, "This retsite runs Phi on multiple return values"
             exemplar_return_var = next(iter(return_vars), None)
             passthru_vars = {
-                v
+                (v.varid if v is not None else None): v
                 for s, v in stmt.src.src_and_vvars
                 if (v is not None and v not in self.child_retvars and s in self.novel_parent_addrs)
                 or s in self.novel_child_addrs
@@ -657,7 +767,7 @@ class Outliner(Analysis):
             assert len(passthru_vars) <= 1, (
                 "This retsite runs Phi on multiple vars coming through the child function which are NOT defined in the function"
             )
-            exemplar_passthru_var = next(iter(passthru_vars), None)
+            exemplar_passthru_var = next(iter(passthru_vars.values()), None)
 
             old_mapping = dict(stmt.src.src_and_vvars)
             novel_preds = set(src_addrs) & (self.novel_parent_addrs | self.novel_child_addrs)
@@ -677,28 +787,26 @@ class Outliner(Analysis):
                     new_mapping[pred] = old_mapping[pred]
 
             assert any(vvar is not None for vvar in new_mapping.values())
-            edits[block][stmt_idx] = sorted(new_mapping.items(), key=lambda x: (x[0][0], x[0][1] is not None, x[0][1]))
+            edits[stmt_idx] = sorted(new_mapping.items(), key=lambda x: (x[0][0], x[0][1] is not None, x[0][1]))
 
-        new_blocks: dict[Address, Block] = {}
-        for old, stmts in edits.items():
-            new = old.copy()
-            new_blocks[new.addr, new.idx] = new
-            for stmt_idx, src_and_vvars in stmts.items():
-                old_assignment = old.statements[stmt_idx]
-                assert isinstance(old_assignment, Assignment)
-                assert isinstance(old_assignment.src, Phi)
-                new.statements[stmt_idx] = Assignment(
-                    old_assignment.idx,
-                    old_assignment.dst,
-                    Phi(old_assignment.src.idx, old_assignment.src.bits, src_and_vvars, **old_assignment.src.tags),
-                    **old_assignment.tags,
-                )
+        if not edits:
+            return
 
-        networkx.relabel_nodes(
-            self.parent_graph, {self.blocks[addr]: id(new) for addr, new in new_blocks.items()}, copy=False
-        )
-        networkx.relabel_nodes(self.parent_graph, {id(new): new for new in new_blocks.values()}, copy=False)  # type: ignore
-        self.blocks.update(new_blocks)
+        new = block.copy()
+        for stmt_idx, src_and_vvars in edits.items():
+            old_assignment = block.statements[stmt_idx]
+            assert isinstance(old_assignment, Assignment)
+            assert isinstance(old_assignment.src, Phi)
+            new.statements[stmt_idx] = Assignment(
+                old_assignment.idx,
+                old_assignment.dst,
+                Phi(old_assignment.src.idx, old_assignment.src.bits, src_and_vvars, **old_assignment.src.tags),
+                **old_assignment.tags,
+            )
+
+        networkx.relabel_nodes(self.parent_graph, {block: id(new)}, copy=False)
+        networkx.relabel_nodes(self.parent_graph, {id(new): new}, copy=False)  # type: ignore
+        self.blocks[new.addr, new.idx] = new
 
     @staticmethod
     def _node_addr_to_str(addr: tuple[int, int | None], inclusive: bool) -> str:
