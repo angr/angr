@@ -660,6 +660,10 @@ class AngrOutlinerMultiEntranceError(AngrOutlinerError):
     pass
 
 
+class AngrOutlinerUnreachedExitError(AngrOutlinerError):
+    pass
+
+
 #
 # LLM / AI errors
 #
