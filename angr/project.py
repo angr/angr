@@ -991,5 +991,3 @@ class Project:
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG edges
         return min(((sz // 256) // 100 + 1) * 50, 800)
-
-

@@ -144,5 +144,3 @@ class XRef(Serializable):
             dst=self.dst,
             xref_type=self.type,
         )
-
-
