@@ -31,6 +31,13 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+# -- Options for autosectionlabel --------------------------------------------
+# Prefix every auto-generated section label with the document path so labels
+# in different files (e.g. "Core Concepts" appearing in two docs) don't
+# collide. References must spell out the document path:
+# ``:ref:`text <path/to/doc:Heading>```.
+autosectionlabel_prefix_document = True
+
 # -- Options for autodoc -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#configuration
 autoclass_content = "class"
