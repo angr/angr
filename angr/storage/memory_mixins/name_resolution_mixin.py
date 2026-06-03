@@ -3,6 +3,7 @@ from __future__ import annotations
 import claripy
 from archinfo.arch_arm import is_arm_arch
 
+import angr
 from angr.errors import SimMemoryError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
@@ -17,9 +18,6 @@ class NameResolutionMixin(MemoryMixin):
     """
 
     def _resolve_location_name(self, name, is_write=False):
-        # Delayed load so SimMemory does not rely on SimEngines
-        from angr.engines.vex.claripy.ccall import _get_flags
-
         if self.category == "reg":
             if self.state.arch.name in ("X86", "AMD64"):
                 if name in stn_map:
@@ -31,12 +29,12 @@ class NameResolutionMixin(MemoryMixin):
                 if name in ("flags", "eflags", "rflags"):
                     # we tweak the state to convert the vex condition registers into the flags register
                     if not is_write:  # this work doesn't need to be done if we're just gonna overwrite it
-                        self.store("cc_dep1", _get_flags(self.state))  # constraints cannot be added by this
+                        self.store("cc_dep1", angr.engines.vex.claripy.ccall._get_flags(self.state))  # constraints cannot be added by this
                     self.store("cc_op", 0)  # OP_COPY
                     return self.state.arch.registers["cc_dep1"]
             if (is_arm_arch(self.state.arch) or self.state.arch.name == "AARCH64") and name == "flags":
                 if not is_write:
-                    self.store("cc_dep1", _get_flags(self.state))
+                    self.store("cc_dep1", angr.engines.vex.claripy.ccall._get_flags(self.state))
                 self.store("cc_op", 0)
                 return self.state.arch.registers["cc_dep1"]
 

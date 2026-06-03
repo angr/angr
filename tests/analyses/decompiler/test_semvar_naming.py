@@ -22,6 +22,8 @@ import unittest
 from typing import TYPE_CHECKING
 
 import angr
+from angr.analyses.decompiler.semantic_naming.orchestrator import SemanticNamingOrchestrator
+from angr.sim_variable import SimRegisterVariable
 from tests.common import WORKER, bin_location, print_decompilation_result
 
 if TYPE_CHECKING:
@@ -232,8 +234,6 @@ class TestResolveNameCollisions(unittest.TestCase):
     @staticmethod
     def _resolve(vars_spec):
         """Run resolve_name_collisions over fake renamed variables; return {ident: name}."""
-        from angr.analyses.decompiler.semantic_naming.orchestrator import SemanticNamingOrchestrator
-        from angr.sim_variable import SimRegisterVariable
 
         variables = []
         for ident, name, renamed in vars_spec:

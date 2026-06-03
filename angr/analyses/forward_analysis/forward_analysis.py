@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-# pylint: disable=import-outside-toplevel
 from collections import defaultdict, deque
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import networkx
 
+from angr import ailment
 from angr.analyses.forward_analysis.visitors.function_graph import FunctionGraphVisitor
 from angr.errors import (
     AngrDelayJobNotice,
@@ -21,7 +21,6 @@ from angr.utils.algo import binary_insert
 from .job_info import JobInfo
 
 if TYPE_CHECKING:
-    from angr import ailment
     from angr.analyses.decompiler.clinic import Clinic
 
     from .visitors.graph import GraphVisitor
@@ -575,7 +574,7 @@ class ForwardAnalysisForDummies[AnalysisState, NodeType, JobKey](
 
 
 class ForwardAnalysisForClinic[AnalysisState](
-    ForwardAnalysisForDummies[AnalysisState, "ailment.Block", tuple[int, int | None]]
+    ForwardAnalysisForDummies[AnalysisState, ailment.Block, tuple[int, int | None]]
 ):
     def __init__(self, *args, clinic: Clinic, **kwargs):
         assert clinic.graph is not None
@@ -585,7 +584,6 @@ class ForwardAnalysisForClinic[AnalysisState](
         return (job.addr, job.idx)
 
     def _run_on_node(self, node: ailment.Block, state: AnalysisState) -> tuple[bool | None, AnalysisState]:
-        from angr import ailment
 
         status, result = self._step_node(node, state)
 

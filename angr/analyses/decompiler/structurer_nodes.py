@@ -7,6 +7,7 @@ from typing import Any
 
 import claripy
 
+import angr
 import angr.ailment as ailment
 from angr.ailment.block import Block
 
@@ -26,12 +27,10 @@ class MultiNode:
 
     def __init__(self, nodes: Iterable[Block], addr: int | None = None, idx: int | None = None):
         # delayed import
-        from angr.analyses.decompiler.graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
-
         self.nodes: list[Block] = []
 
         for node in nodes:
-            if type(node) is MultiNode or type(node) is GraphRegion:
+            if isinstance(node, (MultiNode, angr.analyses.decompiler.graph_region.GraphRegion)):
                 self.nodes += node.nodes
             else:
                 self.nodes.append(node)

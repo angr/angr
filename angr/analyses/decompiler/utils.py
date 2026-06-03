@@ -1073,11 +1073,7 @@ def decompile_functions(
     :param preset:          The configuration preset to use during decompilation.
     :return:                The decompilation of all functions appended in order.
     """
-    # delayed imports to avoid circular imports
-    from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
-    from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER
-
-    structurer = structurer or DEFAULT_STRUCTURER.NAME
+    structurer = structurer or angr.analyses.decompiler.structuring.DEFAULT_STRUCTURER.NAME
 
     path = pathlib.Path(path).resolve().absolute()
     # resolve loader args
@@ -1115,8 +1111,8 @@ def decompile_functions(
     # decompile all functions
     decompilation = ""
     dec_options = [
-        (PARAM_TO_OPTION["structurer_cls"], structurer),
-        (PARAM_TO_OPTION["show_casts"], show_casts),
+        (angr.analyses.decompiler.decompilation_options.PARAM_TO_OPTION["structurer_cls"], structurer),
+        (angr.analyses.decompiler.decompilation_options.PARAM_TO_OPTION["show_casts"], show_casts),
     ]
     if llm:
         dec_options.append(("llm_refine", True))

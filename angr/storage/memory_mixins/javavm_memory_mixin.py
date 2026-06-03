@@ -6,6 +6,7 @@ import os
 
 import claripy
 
+import angr
 from angr import concretization_strategies
 from angr.engines.soot.values import (
     SimSootValue_ArrayBaseRef,
@@ -42,11 +43,10 @@ class JavaVmMemoryMixin(MemoryMixin):
         super().__init__(memory_id=memory_id, **kwargs)
 
         self._stack = [] if stack is None else stack
-        # delayed import
-        from . import KeyValueMemory  # pylint: disable=import-outside-toplevel
-
-        self.heap = KeyValueMemory("mem") if heap is None else heap
-        self.vm_static_table = KeyValueMemory("mem") if vm_static_table is None else vm_static_table
+        self.heap = angr.storage.memory_mixins.KeyValueMemory("mem") if heap is None else heap
+        self.vm_static_table = (
+            angr.storage.memory_mixins.KeyValueMemory("mem") if vm_static_table is None else vm_static_table
+        )
 
         # Heap helper
         # TODO: ask someone how we want to manage this
@@ -123,9 +123,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         return None
 
     def push_stack_frame(self):
-        from . import KeyValueMemory  # pylint: disable=import-outside-toplevel
-
-        self._stack.append(KeyValueMemory("mem"))
+        self._stack.append(angr.storage.memory_mixins.KeyValueMemory("mem"))
 
     def pop_stack_frame(self):
         self._stack = self._stack[:-1]

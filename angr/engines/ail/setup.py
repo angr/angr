@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-
-# pylint: disable=import-outside-toplevel
 from typing import TYPE_CHECKING
 
 import claripy
 
+import angr
 from angr.engines.ail.callstack import AILCallStack
 from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
@@ -41,9 +40,8 @@ def ail_call_state(
         plugin_preset=plugin_preset,
     )
     # break circular imports. this module should maybe live somewhere else
-    from angr.storage import DefaultMemory
 
-    state.globals["ail_var_memory_cls"] = memory_cls or DefaultMemory  # type: ignore
+    state.globals["ail_var_memory_cls"] = memory_cls or angr.storage.DefaultMemory  # type: ignore
     state.globals["ail_lifter"] = lifter  # type: ignore
 
     if isinstance(start_addr, str):

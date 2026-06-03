@@ -21,6 +21,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from cle.address_translator import AT
 from sortedcontainers import SortedDict
 
+import angr
 from angr import sim_options as o
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis
@@ -1873,9 +1874,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if not (9 <= len(func.block_addrs_set) < 12):
                 return
 
-            from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=import-outside-toplevel
-
-            clinic = self.project.analyses.Clinic(func, mode=ClinicMode.COLLECT_DATA_REFS)
+            clinic = self.project.analyses.Clinic(
+                func, mode=angr.analyses.decompiler.clinic.ClinicMode.COLLECT_DATA_REFS
+            )
             for irsb_addr, refs in clinic.data_refs.items():
                 self._process_irsb_data_refs(irsb_addr, refs)
 

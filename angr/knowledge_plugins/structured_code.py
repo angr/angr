@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import angr
+
 from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
@@ -28,13 +30,10 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return self.cached[self._normalize_key(item)]
 
     def __setitem__(self, key, value: DecompilationCache | BaseStructuredCodeGenerator):
-        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-        from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
-
         nkey = self._normalize_key(key)
 
-        if isinstance(value, BaseStructuredCodeGenerator):
-            cache = DecompilationCache(nkey)
+        if isinstance(value, angr.analyses.decompiler.structured_codegen.BaseStructuredCodeGenerator):
+            cache = angr.analyses.decompiler.decompilation_cache.DecompilationCache(nkey)
             cache.codegen = value
         else:
             cache = value

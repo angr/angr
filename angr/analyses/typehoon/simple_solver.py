@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import networkx
 from sortedcontainers import SortedDict
 
+import angr
 from angr.utils.constants import MAX_POINTSTO_BITS
 
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -1891,13 +1892,10 @@ class SimpleSolver:
     def _simtype_lattice_op(
         cls, t1: SimType, t2: SimType, arch: archinfo.Arch, lattices: dict[int, networkx.DiGraph], unit: TypeConstant
     ) -> SimType:
-        # delayed import to avoid a circular import at module load time
-        from .translator import TypeTranslator  # pylint:disable=import-outside-toplevel
-
         if arch.bits not in lattices:
             raise ValueError(f"Pointer size {arch.bits} is not supported. Expect 32 or 64.")
 
-        translator = TypeTranslator(arch)
+        translator = angr.analyses.typehoon.translator.TypeTranslator(arch)
         tc1 = translator.simtype2tc(t1)
         tc2 = translator.simtype2tc(t2)
         result_tc = cls._lattice_op(tc1, tc2, lattices[arch.bits], unit)

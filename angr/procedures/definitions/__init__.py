@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import archinfo
 import pydemumble
 
+import angr
 from angr.calling_conventions import CC_NAMES, DEFAULT_CC, SimCC
 from angr.errors import AngrMissingTypeError
 from angr.misc import autoimport
@@ -966,11 +967,10 @@ def _update_libntdll(lib: SimLibrary):
 
 
 def _update_libuser32(lib: SimLibrary):
-    from angr.calling_conventions import SimCCCdecl  # pylint:disable=import-outside-toplevel
     from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win_user32"])
-    lib.add("wsprintfA", P["libc"]["sprintf"], cc=SimCCCdecl(archinfo.ArchX86()))
+    lib.add("wsprintfA", P["libc"]["sprintf"], cc=angr.calling_conventions.SimCCCdecl(archinfo.ArchX86()))
 
 
 def _update_libntoskrnl(lib: SimLibrary):
