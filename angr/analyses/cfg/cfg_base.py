@@ -636,6 +636,24 @@ class CFGBase(Analysis):
         else:
             return address < self._regions[start_addr]
 
+    def _inside_regions_and_region_end(self, address: int | None) -> tuple[bool, int | None]:
+        """
+        Check if the address is inside any existing region, and return the end of that region.
+
+        :param int address: Address to check.
+        :return:            A tuple (True, region_end) if the address is within one of the memory regions, where
+                            region_end is the end of that memory region; (False, None) otherwise.
+        """
+
+        try:
+            start_addr = next(self._regions.irange(maximum=address, reverse=True))
+        except StopIteration:
+            return False, None
+        else:
+            if address < self._regions[start_addr]:
+                return True, self._regions[start_addr]
+        return False, None
+
     def _get_min_addr(self) -> int | None:
         """
         Get the minimum address out of all regions. We assume self._regions is sorted.
