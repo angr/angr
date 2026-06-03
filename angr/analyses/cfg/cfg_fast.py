@@ -1096,7 +1096,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 return None
         return val
 
-    def _scan_for_printable_strings(self, start_addr: int) -> int:
+    def _scan_for_printable_strings(
+        self, start_addr: int, min_length_nullterminated: int = 3, min_length_non_nullterminated: int = 13
+    ) -> int:
         """
         This method finds both zero-terminated strings and non-zero terminated strings. In the case of zero-terminated
         strings, the returned stirng length will include the ending null byte.
@@ -1128,7 +1130,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             sz.append(val)
             addr += 1
 
-        if sz and len(sz) >= 3:
+        if sz and len(sz) >= min(min_length_nullterminated, min_length_non_nullterminated):
             # avoid commonly seen ambiguous cases
             if is_arm_arch(self.project.arch):
                 # little endian
@@ -1137,12 +1139,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     return sz_bytes.find(b"\x70\x47")
                 if self.project.arch.memory_endness == Endness.BE and b"\x47\x70" in sz_bytes:  # bx lr
                     return sz_bytes.find(b"\x47\x70")
-            return len(sz) + 1 if is_sz else len(sz)
+            if is_sz and len(sz) >= min_length_nullterminated:
+                return len(sz) + 1
+            if not is_sz and len(sz) >= min_length_non_nullterminated:
+                return len(sz)
 
         # no string is found
         return 0
 
-    def _scan_for_printable_widestrings(self, start_addr: int, min_length: int = 3) -> int:
+    def _scan_for_printable_widestrings(
+        self, start_addr: int, min_length_nullterminated: int = 3, min_length_non_nullterminated: int = 9
+    ) -> int:
         addr = start_addr
         sz = []
         is_sz = True
@@ -1174,9 +1181,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             is_sz = False
             break
 
-        if sz and len(sz) >= min_length * 2:
+        if sz and len(sz) >= min(min_length_nullterminated, min_length_non_nullterminated) * 2:
             l.debug("Got a wide-string of %d wide chars", len(sz))
-            return len(sz) + 2 if is_sz else len(sz)
+            if is_sz and len(sz) >= min_length_nullterminated * 2:
+                return len(sz) + 2
+            if not is_sz and len(sz) >= min_length_non_nullterminated * 2:
+                return len(sz)
 
         # no wide string is found
         return 0
