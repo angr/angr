@@ -2352,8 +2352,8 @@ class CConstant(CExpression):
                     return
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                     refval = self.reference_values[self._type]
-                    if isinstance(refval, MemoryData) and refval.content is not None:
-                        v = refval.content.decode("utf-8")
+                    if isinstance(refval, MemoryData):
+                        v = refval.content.decode("utf-8") if refval.content else f"<unknown@{refval.addr:#x}>"
                     elif isinstance(refval, bytes):
                         v = refval.decode("latin1")
                     else:
@@ -2364,11 +2364,12 @@ class CConstant(CExpression):
                     return
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                     refval = self.reference_values[self._type]
-                    v = (
-                        decode_utf16_string(refval.content)
-                        if isinstance(refval, MemoryData)
-                        else decode_utf16_string(refval)
-                    )  # it's a string
+                    if isinstance(refval, MemoryData):
+                        v = decode_utf16_string(refval.content) if refval.content else f"<unknown@{refval.addr:#x}>"
+                    elif isinstance(refval, bytes):
+                        v = decode_utf16_string(refval) if refval else "<unknown_bytes>"
+                    else:
+                        assert False, f"Unexpected reference value type {type(refval)} for wide char pointer"
                     yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
                     return
                 else:
