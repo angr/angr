@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import angr
 from angr.engines.light import SpOffset
 from angr.protos import primitives_pb2
 from angr.serializable import Serializable
@@ -29,7 +30,7 @@ class XRef(Serializable):
         block_addr: int | None = None,
         stmt_idx: int | None = None,
         insn_op_idx: int | None = None,
-        memory_data: MemoryData | None = None,
+        memory_data: angr.knowledge_plugins.cfg.memory_data.MemoryData | None = None,
         dst: int | None = None,
         xref_type=None,
     ):
@@ -85,7 +86,7 @@ class XRef(Serializable):
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
             # determine target_type from memory_data.sort
-            if self.memory_data.sort == MemoryDataSort.CodeReference:
+            if self.memory_data.sort == angr.knowledge_plugins.cfg.memory_data.MemoryDataSort.CodeReference:
                 cmsg.target_type = primitives_pb2.CodeReference.CodeTarget
             else:
                 cmsg.target_type = primitives_pb2.CodeReference.DataTarget
@@ -145,4 +146,3 @@ class XRef(Serializable):
         )
 
 
-from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort

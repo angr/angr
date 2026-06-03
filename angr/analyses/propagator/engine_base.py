@@ -7,10 +7,10 @@ from angr.engines.light import SimEngineLight
 from angr.engines.light.engine import BlockProtocol
 from angr.errors import SimEngineError
 from angr.misc.testing import is_testing
-from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
+    from angr.project import Project
 
 l = logging.getLogger(name=__name__)
 

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pycparser
 
 from angr.exploration_techniques.base import ExplorationTechnique
-from angr.project import Project
 from angr.sim_state import SimState
 from angr.sim_type import SimTypeFunction
 
 from .calling_conventions import SimCC, default_cc
 from .errors import AngrCallableError, AngrCallableMultistateError
 from .sim_manager import SimulationManager
+
+if TYPE_CHECKING:
+    from angr.project import Project
 
 
 class Callable:

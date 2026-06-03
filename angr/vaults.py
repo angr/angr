@@ -14,8 +14,9 @@ import weakref
 
 import claripy
 
+import angr
+
 from .errors import AngrVaultError
-from .project import Project
 from .sim_state import SimState
 from .sim_type import SimType
 
@@ -98,7 +99,7 @@ class Vault(collections.abc.MutableMapping):
             claripy.ast.Bits,
         }
         self.module_dedup = set()  # {'claripy', 'angr', 'archinfo', 'pyvex' } # cle causes recursion
-        self.uuid_dedup = {SimState, Project}
+        self.uuid_dedup = {SimState, angr.Project}
         self.unsafe_key_baseclasses = {claripy.ast.Base, SimType}
 
     def _get_persistent_id(self, o):

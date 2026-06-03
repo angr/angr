@@ -1,4 +1,3 @@
-# pylint: disable=wildcard-import
 # pylint: disable=wrong-import-position
 from __future__ import annotations
 
