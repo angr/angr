@@ -12,10 +12,10 @@ by `Florent Bordignon <https://github.com/bordig-f>`_.
 
 To jump to a specific category:
 
-* :ref:`Introduction` - examples showing off the very basics of angr's functionality
-* :ref:`Reversing` - examples showing angr being used in reverse engineering tasks
-* :ref:`Vulnerability Discovery` - examples of angr being used to search for vulnerabilities
-* :ref:`Exploitation` - examples of angr being used as an exploitation assistance tool
+* :ref:`Introduction <examples:Introduction>` - examples showing off the very basics of angr's functionality
+* :ref:`Reversing <examples:Reversing>` - examples showing angr being used in reverse engineering tasks
+* :ref:`Vulnerability Discovery <examples:Vulnerability Discovery>` - examples of angr being used to search for vulnerabilities
+* :ref:`Exploitation <examples:Exploitation>` - examples of angr being used as an exploitation assistance tool
 
 Introduction
 ------------

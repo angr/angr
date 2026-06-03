@@ -32,7 +32,7 @@ General speed tips
   function you're jumping into. If there's no autonomy requirement for this
   project, you can often isolate individual problem spots where analysis hangs
   up and summarize them with a hook.
-* *Use SimInspect*. :ref:`SimInspect <Breakpoints>` is the most underused and
+* *Use SimInspect*. :ref:`SimInspect <core-concepts/simulation:Breakpoints>` is the most underused and
   one of the most powerful features of angr. You can hook and modify almost any
   behavior of angr, including memory index resolution (which is often the
   slowest part of any angr analysis).

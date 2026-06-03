@@ -4,7 +4,7 @@ Analyses
 angr's goal is to make it easy to carry out useful analyses on binary programs.
 To this end, angr allows you to package analysis code in a common format that
 can be easily applied to any project. We will cover writing your own analyses
-:ref:`Writing Analyses`, but the idea is that all the analyses appear under
+:ref:`Writing Analyses <extending-angr/analysis_writing:Writing Analyses>`, but the idea is that all the analyses appear under
 ``project.analyses`` (for example, ``project.analyses.CFGFast()``) and can be
 called as functions, returning analysis result instances.
 

@@ -5,8 +5,7 @@ This is a collection of commonly-asked "how do I do X?" questions and other
 general questions about angr, for those too lazy to read this whole document.
 
 If your question is of the form "how do I fix X issue after installing", see
-also the Troubleshooting section of the :ref:`install instructions <Installing
-angr>`.
+also the Troubleshooting section of the :ref:`install instructions <getting-started/installing:Installing angr>`.
 
 Why is it named angr?
 ---------------------
@@ -71,7 +70,7 @@ well as all other analyses, log at the INFO level.
 Why is angr so slow?
 --------------------
 
-It's complicated! :ref:`Optimization considerations`
+It's complicated! :ref:`Optimization considerations <advanced-topics/speed:Optimization considerations>`
 
 How do I find bugs using angr?
 ------------------------------
