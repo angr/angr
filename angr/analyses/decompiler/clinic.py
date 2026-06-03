@@ -1439,7 +1439,78 @@ class Clinic(Analysis):
         return converted
 
     def _convert_vex(self, block):
+        fast = self._convert_vex_fast(block)
+        if fast is not None:
+            return fast
+        # Fallback: convert the cached pyvex Python IRSB.
         return ailment.IRSBConverter.convert(block.vex, self._ail_manager)
+
+    def _convert_vex_fast(self, block):
+        """Convert ``block`` to AIL via the Rust libVEX-lift fast path, which
+        skips materializing a pyvex Python IRSB. Returns ``None`` (so the caller
+        falls back to the Python-IRSB path) when the block was produced in a way
+        the direct re-lift can't faithfully reproduce (patched/self-modifying
+        memory, the P-code engine, or a non-VEX/ARM-thumb edge case)."""
+        if "vex" not in ailment.available_converters:
+            return None
+        engine = self.project.factory.default_engine
+        # The direct re-lift reads from the loader; bail if the engine would
+        # instead read from patched/self-modifying state, or isn't VEX.
+        if getattr(engine, "selfmodifying_code", False):
+            return None
+        if self.project.kb.patches.values():
+            return None
+        if not hasattr(engine, "_default_opt_level"):
+            return None  # not a VEX engine (e.g. P-code)
+
+        arch = self.project.arch
+        thumb = 1 if bool(getattr(block, "thumb", False)) else 0
+        opt_level = block._opt_level
+        if opt_level is None:
+            opt_level = engine._default_opt_level
+        strict_block_end = block._strict_block_end
+        if strict_block_end is None:
+            strict_block_end = engine.default_strict_block_end
+
+        size = block.size
+
+        # Reproduce VEXLifter._load_bytes exactly: hand libVEX the whole memory
+        # backer, with ``bytes_offset`` = (addr - backer_start) + thumb. That
+        # offset doubles as libVEX's lookback window, which ARM/THUMB decoding
+        # needs for IT-state; ``max_bytes`` caps the decode to the block. The
+        # backer is passed zero-copy via the buffer protocol.
+        # ``block.addr`` carries the THUMB bit; the engine normalizes it away
+        # before computing the backer offset and re-adds it as bytes_offset.
+        base_addr = (block.addr & ~1) if thumb else block.addr
+        clemory = self.project.loader.memory_ro_view
+        if clemory is None:
+            clemory = self.project.loader.memory
+        try:
+            start, backer = next(clemory.backers(base_addr))
+        except (StopIteration, Exception):
+            return None
+        if start > base_addr or not isinstance(backer, (bytes, bytearray, memoryview)):
+            return None
+        offset = base_addr - start
+        if offset < 0 or offset >= len(backer):
+            return None
+
+        lift_addr = base_addr | thumb
+        try:
+            return ailment.VEXIRSBConverter.convert_from_lift(
+                arch,
+                lift_addr,
+                backer,
+                self._ail_manager,
+                opt_level=opt_level,
+                strict_block_end=strict_block_end,
+                cross_insn_opt=block._cross_insn_opt,
+                max_bytes=size,
+                bytes_offset=offset + thumb,
+            )
+        except Exception:
+            l.debug("convert_from_lift fast path failed at %#x; falling back", block.addr, exc_info=True)
+            return None
 
     @timethis
     def _replace_single_target_indirect_transitions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
