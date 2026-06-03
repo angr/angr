@@ -62,12 +62,13 @@ class SPropagatorAnalysis(Analysis):
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         subject: Block | Function,
+        *,
+        ail_manager: Manager,
         func_graph: networkx.DiGraph | None = None,
         only_consts: bool = True,
         stack_pointer_tracker=None,
         func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
-        ail_manager: Manager | None = None,
         stack_arg_offsets: set[int] | None = None,
     ):
         if isinstance(subject, Block):
@@ -407,11 +408,10 @@ class SPropagatorAnalysis(Analysis):
                     for vvar_at_use, useloc in vvar_uselocs_set:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
                         if sb_offset is not None:
-                            idx = None if self._ail_manager is None else self._ail_manager.next_atom()
-                            v = StackBaseOffset(idx, self.project.arch.bits, sb_offset)
+                            v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if sp_bits is not None and vvar.bits < sp_bits:
                                 # truncation needed
-                                v = Convert(None, sp_bits, vvar.bits, False, v)
+                                v = Convert(self._ail_manager.next_atom(), sp_bits, vvar.bits, False, v)
                             self.replace(replacements, useloc, vvar_at_use, v)
                     continue
                 if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
@@ -423,11 +423,10 @@ class SPropagatorAnalysis(Analysis):
                     for vvar_at_use, useloc in vvar_uselocs_set:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
                         if sb_offset is not None:
-                            idx = None if self._ail_manager is None else self._ail_manager.next_atom()
-                            v = StackBaseOffset(idx, self.project.arch.bits, sb_offset)
+                            v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if bp_bits is not None and vvar.bits < bp_bits:
                                 # truncation needed
-                                v = Convert(None, bp_bits, vvar.bits, False, v)
+                                v = Convert(self._ail_manager.next_atom(), bp_bits, vvar.bits, False, v)
                             self.replace(replacements, useloc, vvar_at_use, v)
                     continue
 

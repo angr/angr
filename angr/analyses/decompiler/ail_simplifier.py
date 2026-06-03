@@ -350,6 +350,7 @@ class AILSimplifier(Analysis):
             # gp=self._gp,
             only_consts=self._only_consts,
             stack_arg_offsets={x for _, x in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None,
+            ail_manager=self._ail_manager,
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
