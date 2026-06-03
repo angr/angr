@@ -793,7 +793,8 @@ class SimpleSolver:
                 constraint_subset = self._filter_constraints(new_constraint_subset)
 
         # set the solution for missing type vars to TOP
-        self.determine(sketches, set(sketches).difference(set(self.solution)), equiv_classes, self.solution)
+        pending = sorted(set(sketches).difference(set(self.solution)), key=repr)
+        self.determine(sketches, pending, equiv_classes, self.solution)
 
         # set solutions for non-representative type variables
         for tv, reptv in equiv_classes.items():
@@ -1109,12 +1110,11 @@ class SimpleSolver:
             elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
-                rep_cls = next(
-                    iter(
-                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
-                    ),
-                    cls0,
+                candidates = sorted(
+                    (elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))),
+                    key=repr,
                 )
+                rep_cls = candidates[0] if candidates else cls0
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls
             # the logic below refers to the retypd reference implementation. it is different from Algorithm E.1
