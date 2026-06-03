@@ -426,9 +426,18 @@ def has_load_expr_in_between_stmts(
     )
 
 
-def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None, stack_arg_offsets: set[int] | None) -> bool:
+def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement, stack_arg_offsets: set[int] | None) -> bool:
     if isinstance(def_stmt, Assignment) and isinstance(def_stmt.src, Insert):
         # do not create huge insert chains
+        return False
+    if (
+        isinstance(def_stmt, Assignment)
+        and isinstance(def_stmt.dst, VirtualVariable)
+        and def_stmt.dst.varid != vvar.varid
+    ):
+        # the definition statement is not directly assigning to the vvar; this is probably because the vvar happens to
+        # be defined together in def_stmt.src, e.g., `vvar_781 = Reference(vvar_780)` where vvar_780 is first seen at
+        # this statement. we cannot propagate vvar_780.
         return False
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
