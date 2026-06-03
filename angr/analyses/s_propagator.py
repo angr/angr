@@ -258,10 +258,16 @@ class SPropagatorAnalysis(Analysis):
 
                 block = blocks[(defloc.block_addr, defloc.block_idx)]
                 stmt = block.statements[defloc.stmt_idx]
+
+                if not (
+                    isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id
+                ):
+                    # come back later, this is not the def you're looking for
+                    continue
+
                 if (
                     (vvar.was_reg or vvar.was_parameter)
                     and sum(vvar_useloc_to_count.values()) <= 2
-                    and isinstance(stmt, Assignment)
                     and isinstance(stmt.src, Load)
                 ):
                     # do we want to propagate this Load expression if it's used for less than twice?
@@ -281,12 +287,7 @@ class SPropagatorAnalysis(Analysis):
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         continue
 
-                if (
-                    (vvar.was_reg or vvar.was_stack)
-                    and len(vvar_uselocs_set) == 2
-                    and isinstance(stmt, Assignment)
-                    and not is_phi_assignment(stmt)
-                ):
+                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs_set) == 2 and not is_phi_assignment(stmt):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
@@ -367,7 +368,7 @@ class SPropagatorAnalysis(Analysis):
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load
-                if (vvar.was_reg or vvar.was_parameter) and isinstance(stmt, Assignment) and not has_tmp_expr(stmt.src):
+                if (vvar.was_reg or vvar.was_parameter) and not has_tmp_expr(stmt.src):
                     stmt_src = stmt.src
                     # unpack conversions
                     while isinstance(stmt_src, Convert):
