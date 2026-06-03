@@ -18,11 +18,11 @@ from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import add_labels, is_empty_node, remove_edges_in_ailgraph
-from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.stack_item import StackItem
     from angr.knowledge_plugins.functions import Function
+    from angr.project import Project
     from angr.sim_variable import SimVariable
 
 

@@ -7,10 +7,10 @@ from angr.ailment.expression import BinaryOp, Expression, UnaryOp
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Statement
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
+    from angr.project import Project
 
 
 class PeepholeOptimizationStmtBase:

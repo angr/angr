@@ -20,12 +20,12 @@ from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager, T
 from angr.codenode import CodeNode
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
-from angr.project import Project
 from angr.sim_variable import SimVariable
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.utils.cowdict import DefaultChainMapCOW
 
 if TYPE_CHECKING:
+    from angr.project import Project
     from angr.storage import SimMemoryObject
 
 

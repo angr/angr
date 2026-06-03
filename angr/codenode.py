@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootMethodDescriptor
 
-from .block import Block
+import angr
 
 if TYPE_CHECKING:
     from . import SimProcedure
@@ -39,7 +39,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         return self.size
 
     def __eq__(self, other):
-        if type(other) is Block:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(other, angr.Block):
             raise TypeError("You do not want to be comparing a CodeNode to a Block")
         return (
             type(self) is type(other)

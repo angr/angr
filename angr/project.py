@@ -16,9 +16,13 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from angr.knowledge_base import KnowledgeBase
 
+from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
 from .errors import AngrNoPluginError
+from .factory import AngrObjectFactory
 from .llm_client import LLMClient
+from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
 from .sim_procedure import SimProcedure
+from .simos import SimOS, os_mapping
 
 l = logging.getLogger(name=__name__)
 
@@ -987,9 +991,3 @@ class Project:
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG edges
         return min(((sz // 256) // 100 + 1) * 50, 800)
-
-
-from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
-from .factory import AngrObjectFactory
-from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
-from .simos import SimOS, os_mapping

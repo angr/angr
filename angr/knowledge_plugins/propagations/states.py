@@ -13,12 +13,13 @@ import angr.ailment as ailment
 from angr.code_location import CodeLocation
 from angr.engines.light.engine import SimEngineLight
 from angr.errors import SimMemoryMissingError
-from angr.project import Project
 from angr.storage.memory_mixins import LabeledMemory
 from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 
 if TYPE_CHECKING:
     from archinfo import Arch
+
+    from angr.project import Project
 
 
 class CallExprFinder(ailment.AILBlockRewriter):

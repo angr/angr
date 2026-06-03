@@ -26,7 +26,6 @@ from angr.calling_conventions import default_cc
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
-from angr.project import Project
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
 
@@ -35,6 +34,7 @@ from .traversal_state import TraversalState, Value, has_conflicting_value_types
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, Kind
+    from angr.project import Project
 
 CUTOFF = 15  # arbitrary; be mindful of performance as various parts will be O(N^2)
 

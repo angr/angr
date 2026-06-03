@@ -9,7 +9,6 @@ from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.key_definitions import DerefSize
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
-from angr.project import Project
 from angr.sim_variable import SimMemoryVariable
 
 if TYPE_CHECKING:
@@ -18,6 +17,7 @@ if TYPE_CHECKING:
         ReachingDefinitionsAnalysis,
     )
     from angr.knowledge_base import KnowledgeBase
+    from angr.project import Project
 
 
 log = logging.getLogger(__name__)

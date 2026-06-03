@@ -6,15 +6,16 @@ from itertools import chain
 
 import claripy
 
+import angr
 from angr import sim_options as o
 from angr.errors import SimActionError
 from angr.sim_state import SimState
 
-from .sim_action import SimActionData, SimActionOperation
-
 if typing.TYPE_CHECKING:
     from claripy.annotation import Annotation
     from claripy.ast.base import ArgType, Base  # noqa: F401  (Base referenced via ArgType forward ref)
+
+    from angr.state_plugins.sim_action import SimActionData, SimActionOperation
 
 
 def _raw_ast(a):
@@ -83,10 +84,24 @@ class SimActionObject:
         self.ast = ast
         if len(deps) != 0 and (state is None or o.ACTION_DEPS in state.options):
             self.reg_deps = frozenset.union(
-                *[r.reg_deps for r in deps if isinstance(r, SimActionData | SimActionOperation)]
+                *[
+                    r.reg_deps
+                    for r in deps
+                    if isinstance(
+                        r,
+                        angr.state_plugins.sim_action.SimActionData | angr.state_plugins.sim_action.SimActionOperation,
+                    )
+                ]
             )
             self.tmp_deps = frozenset.union(
-                *[r.tmp_deps for r in deps if isinstance(r, SimActionData | SimActionOperation)]
+                *[
+                    r.tmp_deps
+                    for r in deps
+                    if isinstance(
+                        r,
+                        angr.state_plugins.sim_action.SimActionData | angr.state_plugins.sim_action.SimActionOperation,
+                    )
+                ]
             )
         else:
             self.reg_deps = reg_deps

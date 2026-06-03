@@ -7,6 +7,8 @@ from mmap import mmap
 import claripy
 import cle
 
+from .paged_memory_mixin import PagedMemoryMixin
+
 l = logging.getLogger(__name__)
 
 BackerType = bytes | bytearray | list[int]
@@ -25,9 +27,6 @@ class NotMemoryview:
 
     def __setitem__(self, k, v):
         memoryview(self.obj)[self.offset : self.offset + self.size][k] = v
-
-
-from .paged_memory_mixin import PagedMemoryMixin
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):

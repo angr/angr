@@ -8,8 +8,8 @@ from typing import Any
 import claripy
 from sortedcontainers import SortedDict
 
+import angr
 from angr.errors import SimMemoryError
-from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview
 
 from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
@@ -347,12 +347,18 @@ class UltraPage(MemoryObjectMixin, PageBase):
         assert self.symbolic_bitmap is not None
         mv_data = (
             self.concrete_data
-            if isinstance(self.concrete_data, (memoryview, NotMemoryview))
+            if isinstance(
+                self.concrete_data,
+                (memoryview, angr.storage.memory_mixins.paged_memory.page_backer_mixins.NotMemoryview),
+            )
             else memoryview(self.concrete_data)
         )
         mv_bitm = (
             self.symbolic_bitmap
-            if isinstance(self.symbolic_bitmap, (memoryview, NotMemoryview))
+            if isinstance(
+                self.symbolic_bitmap,
+                (memoryview, angr.storage.memory_mixins.paged_memory.page_backer_mixins.NotMemoryview),
+            )
             else memoryview(self.symbolic_bitmap)
         )
         result = (

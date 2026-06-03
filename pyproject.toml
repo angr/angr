@@ -135,7 +135,6 @@ extend-select = [
 ]
 ignore = [
     "B011",   # Asserts
-    "E402",   # Bottom imports
     "E741",   # Variable names
     "RUF012", # FIXME: Annotate class variables
     "RUF007", # Prefer `itertools.pairwise()` over `zip()` when iterating over successive pairs
@@ -144,6 +143,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"angr/__init__.py" = [
+    "E402", # Package root: bootstrap code is interleaved with imports and the import order is load-bearing
+]
 "angr/misc/bug_report.py" = [
     "F821", # name not found
 ]

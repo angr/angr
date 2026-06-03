@@ -1,4 +1,4 @@
-# pylint:disable=wrong-import-position,arguments-differ
+# pylint:disable=arguments-differ
 from __future__ import annotations
 
 import logging
@@ -8,6 +8,7 @@ import pyvex
 from archinfo import Arch, ArchARM
 from pyvex import IRSB
 
+from .codenode import BlockNode, SootBlockNode
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
 from .utils.ins_addr_list import InsAddrList
@@ -570,6 +571,3 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
-
-
-from .codenode import BlockNode, SootBlockNode

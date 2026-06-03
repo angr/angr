@@ -18,7 +18,6 @@ from angr.errors import (
 )
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action_object import _raw_ast
-from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
@@ -435,7 +434,7 @@ class SimSuccessors:
                 fallback = True
                 break
 
-            if target.symbolic is False and state.solver.eval(target) == DUMMY_SYMBOLIC_READ_VALUE:
+            if target.symbolic is False and state.solver.eval(target) == angr.storage.DUMMY_SYMBOLIC_READ_VALUE:
                 # Ignore the dummy value, which acts as the sentinel of this ITE tree
                 reached_sentinel = True
                 continue

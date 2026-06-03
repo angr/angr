@@ -14,6 +14,8 @@ from archinfo import Arch
 from archinfo.arch_soot import SootAddressDescriptor
 from cle import Clemory
 
+import angr
+
 from . import sim_options as o
 from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError
 from .misc.plugins import PluginHub, PluginPreset
@@ -25,6 +27,7 @@ if TYPE_CHECKING:
     from angr.simos.javavm import SimJavaVM
 
     from .state_plugins.callstack import CallStack
+    from .state_plugins.history import SimStateHistory
     from .state_plugins.inspect import SimInspector
     from .state_plugins.jni_references import SimStateJNIReferences
     from .state_plugins.posix import SimSystemPosix
@@ -658,7 +661,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             )
             if (
                 plugin_common_ancestor is None
-                and plugin_class is SimStateHistory
+                and plugin_class is angr.state_plugins.SimStateHistory
                 and common_ancestor_history is not None
             ):
                 plugin_common_ancestor = common_ancestor_history
@@ -908,5 +911,3 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset("default", default_state_plugin_preset)
-
-from .state_plugins.history import SimStateHistory
