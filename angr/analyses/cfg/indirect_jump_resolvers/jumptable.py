@@ -2108,16 +2108,27 @@ class JumpTableResolver(IndirectJumpResolver):
         :return:                            None
         """
 
+        def _scratch_gated(hook, block_addr, stmt_idx):
+            def _action(_s):
+                if _s.scratch.bbl_addr == block_addr and _s.scratch.stmt_idx == stmt_idx:
+                    hook(_s)
+
+            return _action
+
+        def _statement_gated(hook, block_addr, stmt_idx):
+            def _action(_s):
+                if _s.scratch.bbl_addr == block_addr and _s.inspect.attrs.statement == stmt_idx:
+                    hook(_s)
+
+            return _action
+
         for sort, block_addr, stmt_idx in stmts_to_instrument:
             l.debug("Add a %s hook to overwrite memory/register values at %#x:%d.", sort, block_addr, stmt_idx)
             if sort == "mem_write":
                 bp = BP(
                     when=BP_BEFORE,
                     enabled=True,
-                    action=StoreHook.hook,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
-                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
-                    ),
+                    action=_scratch_gated(StoreHook.hook, block_addr, stmt_idx),
                 )
                 state.inspect.add_breakpoint("mem_write", bp)
             elif sort == "mem_read":
@@ -2125,38 +2136,26 @@ class JumpTableResolver(IndirectJumpResolver):
                 bp0 = BP(
                     when=BP_BEFORE,
                     enabled=True,
-                    action=hook.hook_before,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
-                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
-                    ),
+                    action=_scratch_gated(hook.hook_before, block_addr, stmt_idx),
                 )
                 state.inspect.add_breakpoint("mem_read", bp0)
                 bp1 = BP(
                     when=BP_AFTER,
                     enabled=True,
-                    action=hook.hook_after,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
-                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
-                    ),
+                    action=_scratch_gated(hook.hook_after, block_addr, stmt_idx),
                 )
                 state.inspect.add_breakpoint("mem_read", bp1)
             elif sort == "reg_write":
                 bp = BP(
                     when=BP_BEFORE,
                     enabled=True,
-                    action=PutHook.hook,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
-                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
-                    ),
+                    action=_scratch_gated(PutHook.hook, block_addr, stmt_idx),
                 )
                 state.inspect.add_breakpoint("reg_write", bp)
             else:
                 raise NotImplementedError(f"Unsupported sort {sort} in stmts_to_instrument.")
 
         reg_val = 0x13370000
-
-        def bp_condition(block_addr, stmt_idx, _s):
-            return _s.scratch.bbl_addr == block_addr and _s.inspect.attrs.statement == stmt_idx
 
         for block_addr, stmt_idx, reg_offset, reg_bits in regs_to_initialize:
             l.debug(
@@ -2168,8 +2167,11 @@ class JumpTableResolver(IndirectJumpResolver):
             bp = BP(
                 when=BP_BEFORE,
                 enabled=True,
-                action=RegisterInitializerHook(reg_offset, reg_bits, reg_val).hook,
-                condition=functools.partial(bp_condition, block_addr, stmt_idx),
+                action=_statement_gated(
+                    RegisterInitializerHook(reg_offset, reg_bits, reg_val).hook,
+                    block_addr,
+                    stmt_idx,
+                ),
             )
             state.inspect.add_breakpoint("statement", bp)
             reg_val += 16
