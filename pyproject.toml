@@ -102,6 +102,9 @@ target = "angr.rustylib"
 path = "native/angr/Cargo.toml"
 debug = false
 
+[tool.distutils.bdist_wheel]
+py_limited_api = "cp312"
+
 [tool.uv]
 default-groups = ["dev", "extras"]
 
