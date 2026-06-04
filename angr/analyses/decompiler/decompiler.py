@@ -484,6 +484,7 @@ class Decompiler(Analysis):
                     flavor=self._flavor,
                     func_args=clinic.arg_list,
                     variable_kb=clinic.variable_kb,
+                    variable_map=clinic.variable_map,
                     expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                     const_formats=old_codegen.const_formats if old_codegen is not None else None,

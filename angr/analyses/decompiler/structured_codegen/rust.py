@@ -73,6 +73,7 @@ from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryV
 from angr.utils.constants import is_alignment_mask
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
+from ..variable_map import VariableMap
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
@@ -1769,7 +1770,7 @@ class RustLet(RustExpression):
         var = None
         if isinstance(def_, ailment.Stmt.Store):
             expr = def_.addr
-            var = def_.variable
+            var = self.codegen._variable_map.variable(def_)
         if expr and var is not None:
             var_thing = self.codegen._variable(var, expr.size)
             var_thing.tags = dict(expr.tags)
@@ -2745,6 +2746,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         min_data_addr: int = 0x400_000,
         notes=None,
         display_notes: bool = True,
+        variable_map: VariableMap | None = None,
     ):
         super().__init__(flavor=flavor, notes=notes)
 
@@ -2800,6 +2802,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._cfg = cfg
         self._sequence = sequence
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
+        self._variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: dict | None = None
@@ -3569,10 +3572,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         var = None
         if isinstance(move, ailment.Stmt.Store):
             expr = move.addr
-            var = move.variable
+            var = self._variable_map.variable(move)
         elif isinstance(move, ailment.Stmt.Assignment):
             expr = move.dst
-            var = move.dst.variable
+            var = self._variable_map.variable(move.dst)
         if expr and var is not None:
             var_thing = self._variable(var, expr.size)
             var_thing.tags = dict(expr.tags)
@@ -3647,9 +3650,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return proposed_ty
             return old_ty
 
-        if stmt.variable is not None:
-            cvar = self._variable(stmt.variable, stmt.size)
-            offset = stmt.offset or 0
+        stmt_var = self._variable_map.variable(stmt)
+        if stmt_var is not None:
+            cvar = self._variable(stmt_var, stmt.size)
+            offset = self._variable_map.variable_offset(stmt) or 0
             assert type(offset) is int  # I refuse to deal with the alternative
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
@@ -3784,11 +3788,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return proposed_ty
             return old_ty
 
-        if expr.variable:
-            cvar = self._variable(expr.variable, None)
-            if expr.variable.size == expr.size:
+        expr_var = self._variable_map.variable(expr)
+        if expr_var:
+            cvar = self._variable(expr_var, None)
+            if expr_var.size == expr.size:
                 return cvar
-            offset = 0 if expr.variable_offset is None else expr.variable_offset
+            expr_var_offset = self._variable_map.variable_offset(expr)
+            offset = 0 if expr_var_offset is None else expr_var_offset
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_size(expr.size, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
@@ -3804,9 +3810,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return proposed_ty
             return old_ty
 
-        if expr.variable is not None:
-            cvar = self._variable(expr.variable, expr.size)
-            offset = expr.variable_offset or 0
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            cvar = self._variable(expr_var, expr.size)
+            offset = self._variable_map.variable_offset(expr) or 0
             assert type(offset) is int  # I refuse to deal with the alternative
             return self._access_constant_offset(
                 RustUnaryOp("Reference", cvar, codegen=self), offset, ty, False, negotiate
@@ -3910,16 +3917,17 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # default to int
             type_ = self.default_simtype_from_size(expr.size)
 
-        if variable is None and hasattr(expr, "reference_variable") and expr.reference_variable is not None:
-            variable = expr.reference_variable
+        expr_reference_variable = self._variable_map.reference_variable(expr)
+        if variable is None and expr_reference_variable is not None:
+            variable = expr_reference_variable
             if inline_string:
-                self._inlined_strings.add(expr.reference_variable)
+                self._inlined_strings.add(expr_reference_variable)
             elif function_pointer:
-                self._function_pointers.add(expr.reference_variable)
+                self._function_pointers.add(expr_reference_variable)
 
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
-            offset = getattr(expr, "reference_variable_offset", 0)
+            offset = self._variable_map.reference_variable_offset(expr)
             return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
@@ -4091,10 +4099,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
 
     def _handle_Expr_BinaryOp(self, expr: BinaryOp, **kwargs):
-        if expr.variable is not None:
-            cvar = self._variable(expr.variable, None)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            cvar = self._variable(expr_var, None)
             return self._access_constant_offset_reference(
-                self._get_variable_reference(cvar), expr.variable_offset or 0, None
+                self._get_variable_reference(cvar), self._variable_map.variable_offset(expr) or 0, None
             )
 
         lhs = self._handle(expr.operands[0])
@@ -4187,13 +4196,14 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
     def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
-        if expr.variable:
-            cvar = self._variable(expr.variable, None)
-            if expr.variable.size != expr.size:
+        expr_var = self._variable_map.variable(expr)
+        if expr_var:
+            cvar = self._variable(expr_var, None)
+            if expr_var.size != expr.size:
                 l.warning(
                     "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
                     expr.size,
-                    expr.variable.size,
+                    expr_var.size,
                 )
                 src_type = cvar.type
                 dst_type = RustSimTypeInt(expr.bits, signed=False)
@@ -4204,8 +4214,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
-        if expr.variable is not None:
-            var_thing = self._variable(expr.variable, expr.size)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            var_thing = self._variable(expr_var, expr.size)
             var_thing.tags = dict(expr.tags)
             if "def_at" in var_thing.tags and "ins_addr" not in var_thing.tags:
                 def_at = var_thing.tags["def_at"]
