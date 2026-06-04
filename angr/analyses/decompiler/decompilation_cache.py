@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
 
     from .structured_codegen import BaseStructuredCodeGenerator
+    from .variable_map import VariableMap
 
 
 class DecompilationCache:
@@ -33,6 +34,7 @@ class DecompilationCache:
         "stackvar_max_sizes",
         "type_constraints",
         "var_to_typevar",
+        "variable_map",
     )
 
     def __init__(self, addr):
@@ -46,6 +48,7 @@ class DecompilationCache:
         self.stack_offset_typevars: dict | None = None
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.clinic: Clinic | None = None
+        self.variable_map: VariableMap | None = None
         self.ite_exprs: set[tuple[int, Any]] | None = None
         self.binop_operators: dict[OpDescriptor, str] | None = None
         self.errors: list[str] = []
