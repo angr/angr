@@ -1895,7 +1895,7 @@ class SimpleSolver:
         if arch.bits not in lattices:
             raise ValueError(f"Pointer size {arch.bits} is not supported. Expect 32 or 64.")
 
-        translator = angr.analyses.typehoon.translator.TypeTranslator(arch)
+        translator = angr.analyses.typehoon.TypeTranslator(arch)
         tc1 = translator.simtype2tc(t1)
         tc2 = translator.simtype2tc(t2)
         result_tc = cls._lattice_op(tc1, tc2, lattices[arch.bits], unit)

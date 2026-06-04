@@ -132,7 +132,9 @@ def register_optimization_pass(opt_pass, *, presets: list[str | DecompilationPre
     if presets:
         for preset in presets:
             if isinstance(preset, str):
-                preset = decompiler.presets.DECOMPILATION_PRESETS[preset]  # intentionally raise a KeyError if the preset is not found
+                preset = decompiler.presets.DECOMPILATION_PRESETS[
+                    preset
+                ]  # intentionally raise a KeyError if the preset is not found
             if opt_pass not in preset.opt_passes:
                 preset.opt_passes.append(opt_pass)
 

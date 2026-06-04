@@ -20,7 +20,6 @@ class SimEngineFailure(SuccessorsEngine, ProcedureMixin):
             raise AngrExitError(f"Cannot execute following jumpkind {jumpkind}")
 
         if jumpkind == "Ijk_Exit":
-
             log.debug("Execution terminated at %#x", state.addr)
             terminator = angr.SIM_PROCEDURES["stubs"]["PathTerminator"](project=self.project)
             return self.process_procedure(state, successors, terminator, arguments=[], **kwargs)

@@ -17,7 +17,6 @@ from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.errors import AngrAIError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions.function import Function
-from angr.llm_models import FunctionNameSuggestion, VariableNameSuggestions, VariableTypeSuggestions
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_type import parse_type
@@ -912,6 +911,8 @@ class Decompiler(Analysis):
                             If False (default), exceptions are caught and the method returns False.
         """
 
+        from angr.llm_models import VariableNameSuggestions  # pylint:disable=import-outside-toplevel
+
         if llm_client is None:
             llm_client = self.project.llm_client
         if llm_client is None:
@@ -991,6 +992,8 @@ class Decompiler(Analysis):
         :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
         """
 
+        from angr.llm_models import FunctionNameSuggestion  # pylint:disable=import-outside-toplevel
+
         if llm_client is None:
             llm_client = self.project.llm_client
         if llm_client is None:
@@ -1037,6 +1040,8 @@ class Decompiler(Analysis):
 
         :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
         """
+
+        from angr.llm_models import VariableTypeSuggestions  # pylint:disable=import-outside-toplevel
 
         if llm_client is None:
             llm_client = self.project.llm_client

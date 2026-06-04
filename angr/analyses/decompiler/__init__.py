@@ -4,15 +4,17 @@ from . import optimization_passes, structuring
 from .ail_simplifier import AILSimplifier
 from .block_simplifier import BlockSimplifier
 from .callsite_maker import CallSiteMaker
-from .clinic import Clinic
+from .clinic import Clinic, ClinicMode
+from .decompilation_cache import DecompilationCache
 from .decompilation_options import options, options_by_category
 from .decompiler import Decompiler
 from .dephication import GraphDephication, SeqNodeDephication
+from .graph_region import GraphRegion
 from .presets import DECOMPILATION_PRESETS
 from .region_identifier import RegionIdentifier
 from .region_simplifiers import RegionSimplifier
 from .ssailification import Ssailification
-from .structured_codegen import CStructuredCodeGenerator, ImportSourceCode
+from .structured_codegen import BaseStructuredCodeGenerator, CStructuredCodeGenerator, ImportSourceCode
 
 StructuredCodeGenerator = CStructuredCodeGenerator
 
@@ -20,12 +22,16 @@ StructuredCodeGenerator = CStructuredCodeGenerator
 __all__ = (
     "DECOMPILATION_PRESETS",
     "AILSimplifier",
+    "BaseStructuredCodeGenerator",
     "BlockSimplifier",
     "CStructuredCodeGenerator",
     "CallSiteMaker",
     "Clinic",
+    "ClinicMode",
+    "DecompilationCache",
     "Decompiler",
     "GraphDephication",
+    "GraphRegion",
     "ImportSourceCode",
     "RegionIdentifier",
     "RegionSimplifier",

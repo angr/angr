@@ -1874,9 +1874,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if not (9 <= len(func.block_addrs_set) < 12):
                 return
 
-            clinic = self.project.analyses.Clinic(
-                func, mode=angr.analyses.decompiler.clinic.ClinicMode.COLLECT_DATA_REFS
-            )
+            clinic = self.project.analyses.Clinic(func, mode=angr.analyses.decompiler.ClinicMode.COLLECT_DATA_REFS)
             for irsb_addr, refs in clinic.data_refs.items():
                 self._process_irsb_data_refs(irsb_addr, refs)
 

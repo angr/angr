@@ -29,7 +29,9 @@ class NameResolutionMixin(MemoryMixin):
                 if name in ("flags", "eflags", "rflags"):
                     # we tweak the state to convert the vex condition registers into the flags register
                     if not is_write:  # this work doesn't need to be done if we're just gonna overwrite it
-                        self.store("cc_dep1", angr.engines.vex.claripy.ccall._get_flags(self.state))  # constraints cannot be added by this
+                        self.store(
+                            "cc_dep1", angr.engines.vex.claripy.ccall._get_flags(self.state)
+                        )  # constraints cannot be added by this
                     self.store("cc_op", 0)  # OP_COPY
                     return self.state.arch.registers["cc_dep1"]
             if (is_arm_arch(self.state.arch) or self.state.arch.name == "AARCH64") and name == "flags":

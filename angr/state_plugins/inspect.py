@@ -165,7 +165,7 @@ def BP_IPDB(state: SimState) -> None:  # pylint: disable=unused-argument
 
 
 def BP_IPYTHON(state: SimState) -> None:  # pylint: disable=unused-argument
-    import IPython  # noqa: PLC0415
+    import IPython
 
     shell = IPython.terminal.embed.InteractiveShellEmbed()
     shell.mainloop(

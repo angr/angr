@@ -120,7 +120,6 @@ class CuteFormatter(logging.Formatter):
 
 def is_enabled_for(logger, level):
     if level == 1:
-
         return angr.loggers.profiling_enabled
     return originalIsEnabledFor(logger, level)
 

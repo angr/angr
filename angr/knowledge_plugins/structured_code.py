@@ -32,8 +32,8 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __setitem__(self, key, value: DecompilationCache | BaseStructuredCodeGenerator):
         nkey = self._normalize_key(key)
 
-        if isinstance(value, angr.analyses.decompiler.structured_codegen.BaseStructuredCodeGenerator):
-            cache = angr.analyses.decompiler.decompilation_cache.DecompilationCache(nkey)
+        if isinstance(value, angr.analyses.decompiler.BaseStructuredCodeGenerator):
+            cache = angr.analyses.decompiler.DecompilationCache(nkey)
             cache.codegen = value
         else:
             cache = value

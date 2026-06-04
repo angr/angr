@@ -564,7 +564,6 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-
         strtol = angr.SIM_PROCEDURES["libc"]["strtol"]
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
@@ -573,7 +572,6 @@ class FormatParser(SimProcedure):
         """
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
-
 
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
 
