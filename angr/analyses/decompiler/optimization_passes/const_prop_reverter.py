@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 
 import claripy
@@ -7,7 +8,7 @@ import claripy
 from angr.ailment import Block, Const
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Convert, Expression, Load, Register
-from angr.ailment.statement import Assignment, Return, SideEffectStatement
+from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -18,12 +19,26 @@ _l = logging.getLogger(__name__)
 
 
 class BlockWalker(AILBlockViewer):
-    def __init__(self, walked_objs: dict[type, set[SideEffectStatement | Return]]):
+    def __init__(self, walked_objs: dict[type, set[SideEffectStatement | Assignment | Return | Store]]):
         super().__init__()
         self.walked_objs = walked_objs
 
     def _handle_SideEffectStatement(self, stmt_idx, stmt: SideEffectStatement, block):
         self.walked_objs[SideEffectStatement].add(stmt)
+
+    def _handle_Assignment(self, stmt_idx, stmt: Assignment, block):
+        src = stmt.src
+        if isinstance(src, Convert):
+            src = src.operand
+        if isinstance(src, Call):
+            self.walked_objs[Assignment].add(stmt)
+
+    def _handle_Store(self, stmt_idx, stmt: Store, block):
+        src = stmt.data
+        if isinstance(src, Convert):
+            src = src.operand
+        if isinstance(src, Call):
+            self.walked_objs[Store].add(stmt)
 
     def _handle_Return(self, stmt_idx, stmt: Return, block):
         self.walked_objs[Return].add(stmt)
@@ -79,11 +94,10 @@ class ConstPropOptReverter(OptimizationPass):
 
         # handle pairs of potentially similar calls
         for call_set in call_sets:
-            for call0, blk0 in call_set:
-                for call1, blk1 in call_set:
-                    if call0 is call1:
-                        continue
-                    self._handle_SideEffectStatement_pair(call0, blk0, call1, blk1)
+            for (call0, blk0), (call1, blk1) in itertools.combinations(call_set, 2):
+                if call0 is call1:
+                    continue
+                self._handle_CallStatement_pair(call0, blk0, call1, blk1)
 
         if self._call_pair_targets:
             self._analyze_call_pair_targets()
@@ -98,8 +112,12 @@ class ConstPropOptReverter(OptimizationPass):
         if not self.resolution:
             self.out_graph = None
 
-    def _find_candidate_pairs(self) -> tuple[list[set[tuple[SideEffectStatement, Block]]], set[tuple[Return, Block]]]:
-        call_sets: dict[str, set[tuple[SideEffectStatement, Block]]] = {}  # organized by function call target
+    def _find_candidate_pairs(
+        self,
+    ) -> tuple[list[set[tuple[SideEffectStatement | Assignment | Store, Block]]], set[tuple[Return, Block]]]:
+        call_sets: dict[
+            str, set[tuple[SideEffectStatement | Assignment | Store, Block]]
+        ] = {}  # organized by function call target
         return_set: set[tuple[Return, Block]] = set()
 
         # walk the graph to collect all calls and returns
@@ -107,20 +125,24 @@ class ConstPropOptReverter(OptimizationPass):
         for blk in self._graph:
             walked_objs = {
                 SideEffectStatement: set(),
+                Assignment: set(),
+                Store: set(),
                 Return: set(),
             }
             walker = BlockWalker(walked_objs)
             walker.walk(blk)
 
-            for call_stmt in walked_objs[SideEffectStatement]:
+            for call_stmt in walked_objs[SideEffectStatement] | walked_objs[Assignment] | walked_objs[Store]:
                 call_stmt_and_blocks.add((call_stmt, blk))
             for ret_stmt in walked_objs[Return]:
                 return_set.add((ret_stmt, blk))
 
         # now, let's group the calls
         for call_stmt, blk in call_stmt_and_blocks:
-            assert isinstance(call_stmt, SideEffectStatement)
-            call_expr = call_stmt.expr
+            assert isinstance(call_stmt, (SideEffectStatement, Assignment, Store))
+            call_expr = self._get_callexpr_from_stmt(call_stmt)
+            if call_expr is None:
+                continue
             key = str(call_expr.target)
             if key not in call_sets:
                 call_sets[key] = set()
@@ -132,6 +154,7 @@ class ConstPropOptReverter(OptimizationPass):
         all_obs_points = []
         for _, observation_points in self._call_pair_targets:
             all_obs_points.extend(observation_points)
+        all_obs_points = list(set(all_obs_points))
 
         self.rd = self.project.analyses.ReachingDefinitions(subject=self._func, observation_points=all_obs_points)
 
@@ -268,11 +291,18 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Calls
     #
 
-    def _handle_SideEffectStatement_pair(self, stmt0: SideEffectStatement, blk0, stmt1: SideEffectStatement, blk1):
+    def _handle_CallStatement_pair(
+        self,
+        stmt0: SideEffectStatement | Assignment | Store,
+        blk0,
+        stmt1: SideEffectStatement | Assignment | Store,
+        blk1,
+    ):
 
-        obj0, obj1 = stmt0.expr, stmt1.expr
+        obj0 = self._get_callexpr_from_stmt(stmt0)
+        obj1 = self._get_callexpr_from_stmt(stmt1)
 
-        if obj0 is obj1:
+        if obj0 is None or obj1 is None or obj0 is obj1:
             return
         if not isinstance(obj0, Call) or not isinstance(obj1, Call):
             return
@@ -313,3 +343,21 @@ class ConstPropOptReverter(OptimizationPass):
 
         # zip args of call 0 and 1 conflict if they are not like each other
         return {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
+
+    @staticmethod
+    def _get_callexpr_from_stmt(stmt: SideEffectStatement | Assignment | Store) -> Call | None:
+        if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+            return stmt.expr
+        if isinstance(stmt, Assignment):
+            src = stmt.src
+            if isinstance(src, Convert):
+                src = src.operand
+            if isinstance(src, Call):
+                return src
+        if isinstance(stmt, Store):
+            data = stmt.data
+            if isinstance(data, Convert):
+                data = data.operand
+            if isinstance(data, Call):
+                return data
+        return None
