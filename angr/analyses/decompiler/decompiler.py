@@ -37,6 +37,7 @@ from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from .structurer_nodes import SequenceNode
 from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
+from .variable_map import VariableMap
 from .structuring.phoenix import MultiStmtExprMode
 from .utils import remove_edges_in_ailgraph
 
@@ -314,6 +315,11 @@ class Decompiler(Analysis):
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
 
+        # The Decompiler owns the VariableMap. A fresh map is created before launching a new Clinic (re-linking
+        # populates it from scratch over freshly-allocated atom idx values). When a cached Clinic is reused without
+        # re-linking, its existing map is carried over below.
+        variable_map = VariableMap()
+
         # convert function blocks to AIL blocks
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
@@ -349,6 +355,7 @@ class Decompiler(Analysis):
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
                 flavor=self._flavor,
+                variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -359,6 +366,9 @@ class Decompiler(Analysis):
 
         self.clinic = clinic
         self.cache = cache
+        # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial
+        # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
+        cache.variable_map = clinic.variable_map
         self._variable_kb = clinic.variable_kb
         self._update_progress(70.0, text="Identifying regions")
         self.vvar_id_start = clinic.vvar_id_start
