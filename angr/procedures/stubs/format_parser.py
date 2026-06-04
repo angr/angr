@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import claripy
 
+import angr
 from angr import sim_type
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
@@ -563,9 +564,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
-
-        strtol = SIM_PROCEDURES["libc"]["strtol"]
+        strtol = angr.SIM_PROCEDURES["libc"]["strtol"]
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
 
@@ -574,9 +573,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
-
-        strlen = SIM_PROCEDURES["libc"]["strlen"]
+        strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
 
         return self.inline_call(strlen, str_addr).ret_expr
 

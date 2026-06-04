@@ -5,6 +5,7 @@ import json
 import logging
 from collections import defaultdict
 
+import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.protos import function_pb2, primitives_pb2
@@ -50,10 +51,7 @@ class FunctionParser:
         """
         :return :
         """
-        # delayed import
-        from .function import Function  # pylint:disable=import-outside-toplevel
-
-        obj = Function._get_cmsg()
+        obj = angr.knowledge_plugins.Function._get_cmsg()
         obj.ea = function.addr
         obj.is_entrypoint = False  # TODO: Set this up accordingly
         obj.name = function.name
@@ -178,9 +176,6 @@ class FunctionParser:
 
         :return Function:
         """
-        # delayed import
-        from .function import Function  # pylint:disable=import-outside-toplevel
-
         proto = SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None
         if proto is not None:
             if not isinstance(proto, SimTypeFunction):
@@ -201,9 +196,7 @@ class FunctionParser:
         if cmsg.HasField("returning"):
             returning = cmsg.returning
 
-        from angr.knowledge_plugins.functions.function import PrototypeSource  # pylint:disable=import-outside-toplevel
-
-        obj = Function(
+        obj = angr.knowledge_plugins.functions.Function(
             function_manager,
             cmsg.ea,
             name=cmsg.name,
@@ -216,7 +209,7 @@ class FunctionParser:
             calling_convention=cc,
             prototype=proto,
             prototype_libname=cmsg.prototype_libname or None,
-            prototype_source=PrototypeSource(cmsg.prototype_source),
+            prototype_source=angr.knowledge_plugins.functions.PrototypeSource(cmsg.prototype_source),
         )
         obj._project = project
         obj.normalized = cmsg.normalized

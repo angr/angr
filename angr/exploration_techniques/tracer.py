@@ -7,6 +7,7 @@ import claripy
 import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
+import angr
 from angr import sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
@@ -63,8 +64,6 @@ class RepHook:
         return p.execute(state, None, arguments=e_args)
 
     def run(self, state):
-        from angr import SIM_PROCEDURES  # pylint: disable=import-outside-toplevel
-
         dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
 
         if self.mnemonic.startswith("stos"):
@@ -86,7 +85,7 @@ class RepHook:
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
-            memset = SIM_PROCEDURES["libc"]["memset"]
+            memset = angr.SIM_PROCEDURES["libc"]["memset"]
             memset().execute(state, arguments=[dst, val, size])
 
             if state.arch.name == "X86":
@@ -113,7 +112,7 @@ class RepHook:
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
-            memcpy = SIM_PROCEDURES["libc"]["memcpy"]
+            memcpy = angr.SIM_PROCEDURES["libc"]["memcpy"]
             memcpy().execute(state, arguments=[dst, src, size])
 
             if state.arch.name == "X86":

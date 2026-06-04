@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 from archinfo import Arch
 
+import angr.analyses.decompiler as decompiler
+
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter
 from .code_motion import CodeMotionOptimization
@@ -128,11 +130,11 @@ def register_optimization_pass(opt_pass, *, presets: list[str | DecompilationPre
     ALL_OPTIMIZATION_PASSES.append(opt_pass)
 
     if presets:
-        from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
-
         for preset in presets:
             if isinstance(preset, str):
-                preset = DECOMPILATION_PRESETS[preset]  # intentionally raise a KeyError if the preset is not found
+                preset = decompiler.presets.DECOMPILATION_PRESETS[
+                    preset
+                ]  # intentionally raise a KeyError if the preset is not found
             if opt_pass not in preset.opt_passes:
                 preset.opt_passes.append(opt_pass)
 
