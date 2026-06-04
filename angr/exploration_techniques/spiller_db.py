@@ -18,7 +18,7 @@ try:
         priority = Column(Integer)
         taken = Column(Boolean, default=False)
         stash = Column(String, default="")
-        timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+        timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
 
 except ImportError:
     sqlalchemy = None
