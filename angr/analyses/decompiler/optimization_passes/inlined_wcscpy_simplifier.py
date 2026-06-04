@@ -134,6 +134,14 @@ class InlinedWcscpySimplifier(OptimizationPass):
         str_id = self.kb.custom_strings.allocate(s)
         wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
         wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
+        str_const = Const(
+            self.manager.next_atom(),
+            None,
+            str_id,
+            self.project.arch.bits,
+            type=wstr_type,
+        )
+        self.manager.variable_map.set_custom_string(str_const)
         return SideEffectStatement(
             stmt.idx,
             Call(
@@ -141,14 +149,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 "wcsncpy",
                 args=[
                     dst,
-                    Const(
-                        self.manager.next_atom(),
-                        None,
-                        str_id,
-                        self.project.arch.bits,
-                        custom_string=True,
-                        type=wstr_type,
-                    ),
+                    str_const,
                     Const(self.manager.next_atom(), None, len(s) // 2, self.project.arch.bits),
                 ],
                 prototype=SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
@@ -371,30 +372,32 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 if new_str.endswith(b"\x00\x00"):
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
+                    str_const = Const(
+                        self.manager.next_atom(),
+                        None,
+                        new_str_idx,
+                        last_stmt.expr.args[0].bits,
+                        type=wstr_type,
+                    )
+                    self.manager.variable_map.set_custom_string(str_const)
                     args = [
                         last_stmt.expr.args[0],
-                        Const(
-                            self.manager.next_atom(),
-                            None,
-                            new_str_idx,
-                            last_stmt.expr.args[0].bits,
-                            custom_string=True,
-                            type=wstr_type,
-                        ),
+                        str_const,
                     ]
                 else:
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
+                    str_const = Const(
+                        self.manager.next_atom(),
+                        None,
+                        new_str_idx,
+                        last_stmt.expr.args[0].bits,
+                        type=wstr_type,
+                    )
+                    self.manager.variable_map.set_custom_string(str_const)
                     args = [
                         last_stmt.expr.args[0],
-                        Const(
-                            self.manager.next_atom(),
-                            None,
-                            new_str_idx,
-                            last_stmt.expr.args[0].bits,
-                            custom_string=True,
-                            type=wstr_type,
-                        ),
+                        str_const,
                         Const(self.manager.next_atom(), None, len(new_str) // 2, self.project.arch.bits),
                     ]
 
@@ -543,8 +546,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
             return True, bytes(chars)
         return False, None
 
-    @staticmethod
-    def is_inlined_wcsncpy(stmt):
+    def is_inlined_wcsncpy(self, stmt):
         return (
             isinstance(stmt, SideEffectStatement)
             and isinstance(stmt.expr.target, str)
@@ -552,7 +554,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
             and stmt.expr.args is not None
             and len(stmt.expr.args) == 3
             and isinstance(stmt.expr.args[1], Const)
-            and "custom_string" in stmt.expr.args[1].tags
+            and self.manager.variable_map.custom_string(stmt.expr.args[1])
         )
 
     @staticmethod

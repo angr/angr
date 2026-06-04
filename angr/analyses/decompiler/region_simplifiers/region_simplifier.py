@@ -189,7 +189,7 @@ class RegionSimplifier(Analysis):
                 definition = definition.copy()
                 if definition.ret_expr is not None:
                     definition.ret_expr = definition.ret_expr.copy()
-                    definition.ret_expr.variable = None  # type: ignore
+                    self.ail_manager.variable_map.set_variable(definition.ret_expr, None)
             variable_assignments[var] = definition, loc
             variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps
@@ -202,13 +202,13 @@ class RegionSimplifier(Analysis):
                 del variable_uses[var]
 
         # ensure there is no interference between the call site and the use site
-        checker = InterferenceChecker(variable_assignments, variable_uses, region)
+        checker = InterferenceChecker(variable_assignments, variable_uses, region, self.ail_manager.variable_map)
         for varid in checker.interfered_assignments:
             if varid in variable_assignments:
                 del variable_assignments[varid]
                 del variable_uses[varid]
         # fold these expressions if possible
-        ExpressionFolder(variable_assignments, variable_uses, region)
+        ExpressionFolder(variable_assignments, variable_uses, region, self.ail_manager.variable_map)
         return region
 
     def _simplify_switch_expressions(self, region):
@@ -216,7 +216,7 @@ class RegionSimplifier(Analysis):
         return region
 
     def _simplify_switch_clusters(self, region):
-        finder = SwitchClusterFinder(region)
+        finder = SwitchClusterFinder(region, self.ail_manager.variable_map)
         simplify_switch_clusters(region, finder.var2condnodes, finder.var2switches)
         simplify_lowered_switches(
             region,
@@ -263,7 +263,9 @@ class RegionSimplifier(Analysis):
 
     def _apply_region_loop_counter_naming(self, region) -> None:
         assert self._variable_manager is not None
-        namer = RegionLoopCounterNaming(region, self._variable_manager, self.kb.functions)
+        namer = RegionLoopCounterNaming(
+            region, self._variable_manager, self.kb.functions, self.ail_manager.variable_map
+        )
         namer.analyze()
         namer.apply_names()
 

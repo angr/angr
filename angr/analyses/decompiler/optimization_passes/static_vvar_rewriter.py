@@ -160,9 +160,9 @@ class VVarRewritingVisitor(AILBlockRewriter):
                                 None,
                                 str_id,
                                 arg.bits,
-                                custom_string=True,
                                 **arg.tags,
                             )
+                            self.manager.variable_map.set_custom_string(str_id_arg)
                             if new_args is None:
                                 new_args = expr.args[:arg_idx]
                             new_args.append(str_id_arg)
@@ -186,9 +186,9 @@ class VVarRewritingVisitor(AILBlockRewriter):
                                 None,
                                 str_id,
                                 arg.bits,
-                                custom_string=True,
                                 **arg.tags,
                             )
+                            self.manager.variable_map.set_custom_string(str_id_arg)
                             if new_args is None:
                                 new_args = expr.args[:arg_idx]
                             new_args.append(str_id_arg)
@@ -252,7 +252,7 @@ class VVarAliasVisitor(AILBlockViewer):
             # got a new memcpy call that we can handle
             dst, src, size = call.args
             if dst.varid not in self._static_vvars:
-                if src.tags.get("custom_string", False):
+                if self.manager.variable_map.custom_string(src):
                     ident = f"static_buf_{stmt.tags['ins_addr']}"
                     buf = self.kb.custom_strings[src.value_int]
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)

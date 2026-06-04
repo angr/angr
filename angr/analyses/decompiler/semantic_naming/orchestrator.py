@@ -58,12 +58,14 @@ class SemanticNamingOrchestrator:
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: ailment.Block,
+        variable_map,
         patterns: list[type[ClinicNamingBase]] | None = None,
     ):
         self._graph = ail_graph
         self._variable_manager = variable_manager
         self._functions = functions
         self._entry_node = entry_node
+        self._variable_map = variable_map
         self._patterns = patterns or NAMING_PATTERNS
 
         # Track all renamed variables
@@ -87,6 +89,7 @@ class SemanticNamingOrchestrator:
                 self._variable_manager,
                 self._functions,
                 self._entry_node,
+                self._variable_map,
             )
 
             # Analyze to get suggested renames

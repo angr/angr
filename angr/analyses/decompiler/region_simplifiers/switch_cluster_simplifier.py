@@ -85,7 +85,7 @@ class SwitchClusterFinder(SequenceWalker):
     Find comparisons and switches in order to identify switch clusters.
     """
 
-    def __init__(self, node):
+    def __init__(self, node, variable_map):
         handlers = {
             SwitchCaseNode: self._handle_SwitchCase,
             ConditionNode: self._handle_Condition,
@@ -93,6 +93,7 @@ class SwitchClusterFinder(SequenceWalker):
         }
         super().__init__(handlers)
 
+        self._variable_map = variable_map
         self.var2condnodes: defaultdict[Any, list[ConditionalRegion]] = defaultdict(list)
         self.var2switches: defaultdict[Any, list[SwitchCaseRegion]] = defaultdict(list)
 
@@ -110,10 +111,9 @@ class SwitchClusterFinder(SequenceWalker):
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, parent=None, **kwargs):
         cond = node.switch_expr
-        if hasattr(cond, "variable"):
-            variable = cond.variable
-            scr = SwitchCaseRegion(variable, node, parent)
-            self.var2switches[variable].append(scr)
+        variable = self._variable_map.variable(cond)
+        scr = SwitchCaseRegion(variable, node, parent)
+        self.var2switches[variable].append(scr)
         return super()._handle_SwitchCase(node, parent=parent, **kwargs)
 
     def _process_condition(self, cond: ailment.Expr.Expression, node: ConditionNode | ailment.Block, parent):
@@ -133,9 +133,9 @@ class SwitchClusterFinder(SequenceWalker):
             variable = None
             if isinstance(cond.operands[1], ailment.Expr.Const):
                 v = cond.operands[1].value
-            if isinstance(cond.operands[0], ailment.Expr.VirtualVariable) and hasattr(cond.operands[0], "variable"):
+            if isinstance(cond.operands[0], ailment.Expr.VirtualVariable):
                 # there we go
-                variable = cond.operands[0].variable
+                variable = self._variable_map.variable(cond.operands[0])
 
             if v is not None and variable is not None:
                 real_op = ailment.Expr.BinaryOp.COMPARISON_NEGATION[cond.op] if negated else cond.op

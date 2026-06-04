@@ -403,6 +403,8 @@ class Clinic(Analysis):
     def _analyze_for_decompiling(self):
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
+        # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
+        self._ail_manager.variable_map = self.variable_map
 
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
@@ -989,7 +991,9 @@ class Clinic(Analysis):
         assert entry_node is not None
 
         # Run all semantic naming patterns via the orchestrator
-        orchestrator = SemanticNamingOrchestrator(self._ail_graph, var_manager, self.kb.functions, entry_node)
+        orchestrator = SemanticNamingOrchestrator(
+            self._ail_graph, var_manager, self.kb.functions, entry_node, self.variable_map
+        )
         var_name_mapping = orchestrator.analyze()
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
@@ -1007,6 +1011,7 @@ class Clinic(Analysis):
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
+        self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers
         self._update_progress(15.0, text="Tracking stack pointers")
@@ -2648,7 +2653,7 @@ class Clinic(Analysis):
 
         elif isinstance(expr, ailment.Expr.Const) and expr.is_int:
             # custom string?
-            if expr.tags.get("custom_string", False):
+            if self.variable_map.custom_string(expr):
                 s = self.kb.custom_strings[expr.value]
                 ty = (
                     expr.tags["type"]

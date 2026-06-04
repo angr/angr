@@ -43,9 +43,11 @@ class SemanticNamingBase(ABC):
         self,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
+        variable_map,
     ):
         self._variable_manager = variable_manager
         self._functions = functions
+        self._variable_map = variable_map
         self._var_to_new_name: dict[SimVariable, str] = {}
 
     @abstractmethod
@@ -106,8 +108,9 @@ class SemanticNamingBase(ABC):
         """
         Get the SimVariable linked to an expression, if any.
         """
-        if hasattr(expr, "variable") and expr.variable is not None:
-            return self._variable_manager.unified_variable(expr.variable)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            return self._variable_manager.unified_variable(expr_var)
         return None
 
     def _get_function_name(self, call: Call) -> str | None:
@@ -144,8 +147,9 @@ class ClinicNamingBase(SemanticNamingBase):
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: Block,
+        variable_map,
     ):
-        super().__init__(variable_manager, functions)
+        super().__init__(variable_manager, functions, variable_map)
         self._graph = ail_graph
         self._entry_node = entry_node
 
@@ -164,6 +168,7 @@ class RegionNamingBase(SemanticNamingBase):
         region: BaseNode,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
+        variable_map,
     ):
-        super().__init__(variable_manager, functions)
+        super().__init__(variable_manager, functions, variable_map)
         self._region = region

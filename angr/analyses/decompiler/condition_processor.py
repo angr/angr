@@ -949,15 +949,16 @@ class ConditionProcessor:
             )
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
-            if condition.variable is not None:
+            condition_var = self.ail_manager.variable_map.variable(condition)
+            if condition_var is not None:
                 if condition.bits == 1:
                     var = claripy.BoolS(
-                        f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
+                        f"ailexpr_{condition!r}-{condition_var.ident}-{ins_addr:x}",
                         explicit_name=True,
                     )
                 else:
                     var = claripy.BVS(
-                        f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
+                        f"ailexpr_{condition!r}-{condition_var.ident}-{ins_addr:x}",
                         condition.bits,
                         explicit_name=True,
                     )

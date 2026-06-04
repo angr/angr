@@ -12,6 +12,12 @@ class Manager:
 
         self.atom_ctr = itertools.count()
 
+        # An optional side container (analyses.decompiler.VariableMap) that maps atom .idx values to variable-related
+        # information. It is attached by Clinic so that optimization passes, peephole optimizations, and region
+        # simplifiers (all of which hold a reference to this Manager) can read and update variable information without
+        # storing it on the AIL atoms themselves. Kept untyped here to avoid an ailment->angr import dependency.
+        self.variable_map = None
+
         self._ins_addr: int | None = None
 
         ###
