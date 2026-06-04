@@ -32,6 +32,7 @@ dist
 *.db
 *.dylib
 docs/_build
+docs/api/
 uv.lock
 target/
 .DS_Store
