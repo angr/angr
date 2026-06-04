@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import itertools
 import logging
-from collections.abc import Callable
 
 import claripy
-import networkx
 
-from angr.ailment import Const
+from angr.ailment import Block, Const
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Convert, Expression, Load, Register
-from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Statement, Store
+from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -20,110 +17,16 @@ from .optimization_pass import OptimizationPass, OptimizationPassStage
 _l = logging.getLogger(__name__)
 
 
-class PairAILBlockRewriter:
-    """
-    This AILBlockRewriter will walk two blocks at a time and call a handler for each pair of statements that are
-    instances of the same type. This is useful for comparing two statements for similarity across blocks.
-    """
+class BlockWalker(AILBlockViewer):
+    def __init__(self, walked_objs: dict[type, set[SideEffectStatement | Return]]):
+        super().__init__()
+        self.walked_objs = walked_objs
 
-    def __init__(self, graph: networkx.DiGraph, stmt_pair_handlers=None):
-        self.graph = graph
+    def _handle_SideEffectStatement(self, stmt_idx, stmt: SideEffectStatement, block):
+        self.walked_objs[SideEffectStatement].add(stmt)
 
-        _default_stmt_handlers = {
-            Assignment: self._handle_Assignment_pair,
-            Call: self._handle_Call_pair,
-            Store: self._handle_Store_pair,
-            ConditionalJump: self._handle_ConditionalJump_pair,
-            Return: self._handle_Return_pair,
-        }
-
-        self.stmt_pair_handlers: dict[Statement, Callable] = stmt_pair_handlers or _default_stmt_handlers
-
-    # pylint: disable=no-self-use
-    def _walk_block(self, block):
-        walked_objs = {
-            Assignment: set(),
-            Call: set(),
-            Store: set(),
-            ConditionalJump: set(),
-            Return: set(),
-        }
-
-        # create a walker that will:
-        # 1. recursively expand a stmt with the default handler then,
-        # 2. record the stmt parts in the walked_objs dict with the overwritten handler
-        #
-        # CallExpressions are a special case that require a handler in expressions, since they are statements.
-        walker = AILBlockViewer()
-        _default_stmt_handlers = {
-            Assignment: walker._handle_Assignment,
-            Store: walker._handle_Store,
-            ConditionalJump: walker._handle_ConditionalJump,
-            Return: walker._handle_Return,
-        }
-
-        def _handle_ail_obj(stmt_idx, stmt, block_):
-            _default_stmt_handlers[type(stmt)](stmt_idx, stmt, block_)
-            walked_objs[type(stmt)].add(stmt)
-
-        # pylint: disable=unused-argument
-        def _handle_call_expr(expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block_):
-            walked_objs[Call].add(expr)
-
-        _stmt_handlers = dict.fromkeys(walked_objs, _handle_ail_obj)
-        walker.stmt_handlers = _stmt_handlers
-        walker.expr_handlers[Call] = _handle_call_expr
-
-        walker.walk(block)
-        return walked_objs
-
-    def walk(self):
-        for b0, b1 in itertools.combinations(self.graph.nodes, 2):
-            walked_obj_by_blk = {}
-
-            for blk in (b0, b1):
-                walked_obj_by_blk[blk] = self._walk_block(blk)
-
-            for typ, objs0 in walked_obj_by_blk[b0].items():
-                try:
-                    handler = self.stmt_pair_handlers[typ]
-                except KeyError:
-                    continue
-
-                if not objs0:
-                    continue
-
-                objs1 = walked_obj_by_blk[b1][typ]
-                if not objs1:
-                    continue
-
-                for o0 in objs0:
-                    for o1 in objs1:
-                        handler(o0, b0, o1, b1)
-
-    #
-    # default handlers
-    #
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Assignment_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Call_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Store_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_ConditionalJump_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Return_pair(self, obj0, blk0, obj1, blk1):
-        return
+    def _handle_Return(self, stmt_idx, stmt: Return, block):
+        self.walked_objs[Return].add(stmt)
 
 
 class ConstPropOptReverter(OptimizationPass):
@@ -168,21 +71,62 @@ class ConstPropOptReverter(OptimizationPass):
         self.resolution = False
         self.out_graph = self._graph.copy()
 
-        _pair_stmt_handlers = {
-            Call: self._handle_Call_pair,
-            Return: self._handle_Return_pair,
-        }
-
         if self.out_graph is None:
             return
 
-        walker = PairAILBlockRewriter(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
-        walker.walk()
+        # find pairs of SideEffectStatements and Returns
+        call_sets, return_set = self._find_candidate_pairs()
+
+        # handle pairs of potentially similar calls
+        for call_set in call_sets:
+            for call0, blk0 in call_set:
+                for call1, blk1 in call_set:
+                    if call0 is call1:
+                        continue
+                    self._handle_SideEffectStatement_pair(call0, blk0, call1, blk1)
+
         if self._call_pair_targets:
             self._analyze_call_pair_targets()
 
+        # handle pairs of potentially similar returns
+        for ret0, blk0 in return_set:
+            for ret1, blk1 in return_set:
+                if ret0 is ret1:
+                    continue
+                self._handle_Return_pair(ret0, blk0, ret1, blk1)
+
         if not self.resolution:
             self.out_graph = None
+
+    def _find_candidate_pairs(self) -> tuple[list[set[tuple[SideEffectStatement, Block]]], set[tuple[Return, Block]]]:
+        call_sets: dict[str, set[tuple[SideEffectStatement, Block]]] = {}  # organized by function call target
+        return_set: set[tuple[Return, Block]] = set()
+
+        # walk the graph to collect all calls and returns
+        call_stmt_and_blocks = set()
+        for blk in self._graph:
+            walked_objs = {
+                SideEffectStatement: set(),
+                Return: set(),
+            }
+            walker = BlockWalker(walked_objs)
+            walker.walk(blk)
+
+            for call_stmt in walked_objs[SideEffectStatement]:
+                call_stmt_and_blocks.add((call_stmt, blk))
+            for ret_stmt in walked_objs[Return]:
+                return_set.add((ret_stmt, blk))
+
+        # now, let's group the calls
+        for call_stmt, blk in call_stmt_and_blocks:
+            assert isinstance(call_stmt, SideEffectStatement)
+            call_expr = call_stmt.expr
+            key = str(call_expr.target)
+            if key not in call_sets:
+                call_sets[key] = set()
+            call_sets[key].add((call_stmt, blk))
+
+        return list(call_sets.values()), return_set
 
     def _analyze_call_pair_targets(self):
         all_obs_points = []
@@ -251,7 +195,7 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Returns
     #
 
-    def _handle_Return_pair(self, obj0: Return, blk0: Return, obj1, blk1):
+    def _handle_Return_pair(self, obj0: Return, blk0: Block, obj1: Return, blk1: Block):
         if obj0 is obj1:
             return
 
@@ -324,8 +268,13 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Calls
     #
 
-    def _handle_Call_pair(self, obj0: Call, blk0, obj1: Call, blk1):
+    def _handle_SideEffectStatement_pair(self, stmt0: SideEffectStatement, blk0, stmt1: SideEffectStatement, blk1):
+
+        obj0, obj1 = stmt0.expr, stmt1.expr
+
         if obj0 is obj1:
+            return
+        if not isinstance(obj0, Call) or not isinstance(obj1, Call):
             return
 
         # verify both calls are calls to the same function
@@ -354,7 +303,7 @@ class ConstPropOptReverter(OptimizationPass):
         self._call_pair_targets.append(((call0, blk0, call1, blk1, arg_conflicts), observation_points))
 
     @staticmethod
-    def find_conflicting_call_args(call0: SideEffectStatement | Call, call1: SideEffectStatement | Call):
+    def find_conflicting_call_args(call0: Call, call1: Call):
         if not call0.args or not call1.args:
             return None
 
