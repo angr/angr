@@ -1113,8 +1113,6 @@ class Load(Expression):
         addr: Expression,
         size: int,
         endness: str,
-        variable=None,  # pylint:disable=unused-argument
-        variable_offset=None,  # pylint:disable=unused-argument
         guard=None,
         alt=None,
         **kwargs,
