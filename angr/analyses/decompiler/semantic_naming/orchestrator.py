@@ -58,14 +58,16 @@ class SemanticNamingOrchestrator:
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: ailment.Block,
-        variable_map,
+        variable_map=None,
         patterns: list[type[ClinicNamingBase]] | None = None,
     ):
+        from angr.analyses.decompiler.variable_map import VariableMap
+
         self._graph = ail_graph
         self._variable_manager = variable_manager
         self._functions = functions
         self._entry_node = entry_node
-        self._variable_map = variable_map
+        self._variable_map = variable_map if variable_map is not None else VariableMap()
         self._patterns = patterns or NAMING_PATTERNS
 
         # Track all renamed variables

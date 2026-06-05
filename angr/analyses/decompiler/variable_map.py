@@ -10,6 +10,20 @@ if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
 
 
+def variable_map_of(manager) -> VariableMap:
+    """
+    Return the :class:`VariableMap` attached to an ailment ``Manager``, lazily creating and attaching an empty one if
+    the manager does not have a map yet (e.g. Managers constructed outside of Clinic in tests). This keeps consumers
+    that reach the map through ``manager.variable_map`` from having to special-case ``None``.
+    """
+
+    vm = getattr(manager, "variable_map", None)
+    if vm is None:
+        vm = VariableMap()
+        manager.variable_map = vm
+    return vm
+
+
 class VariableMap:
     """
     A side container that maps the ``.idx`` of AIL :class:`Statement` and :class:`Expression` objects to

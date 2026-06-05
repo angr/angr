@@ -18,6 +18,7 @@ from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
 from .graph_region import GraphRegion
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
+from .variable_map import variable_map_of
 from .structurer_nodes import (
     BreakNode,
     CascadingConditionNode,
@@ -949,7 +950,7 @@ class ConditionProcessor:
             )
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
-            condition_var = self.ail_manager.variable_map.variable(condition)
+            condition_var = variable_map_of(self.ail_manager).variable(condition)
             if condition_var is not None:
                 if condition.bits == 1:
                     var = claripy.BoolS(

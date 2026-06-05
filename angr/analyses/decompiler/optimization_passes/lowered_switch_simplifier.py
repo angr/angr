@@ -10,6 +10,7 @@ from angr.ailment import AILBlockViewer, Block
 from angr.ailment.expression import BinaryOp, Const, Expression, Load, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     MultiNode,
@@ -212,7 +213,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     def _analyze_simplified_region(self, region, initial=False):
         super()._analyze_simplified_region(region, initial=initial)
-        finder = SwitchClusterFinder(region, self.manager.variable_map)
+        finder = SwitchClusterFinder(region, variable_map_of(self.manager))
         self._switches_present_in_code = len(finder.var2switches.values())
 
     def _check(self):
@@ -413,15 +414,15 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
         variable_comparisons = OrderedDict()
         for node in sorted_nodes:
-            r = self._find_switch_variable_comparison_type_a(node, self.manager.variable_map)
+            r = self._find_switch_variable_comparison_type_a(node, variable_map_of(self.manager))
             if r is not None:
                 variable_comparisons[node] = ("a", *r)
                 continue
-            r = self._find_switch_variable_comparison_type_b(node, self.manager.variable_map)
+            r = self._find_switch_variable_comparison_type_b(node, variable_map_of(self.manager))
             if r is not None:
                 variable_comparisons[node] = ("b", *r)
                 continue
-            r = self._find_switch_variable_comparison_type_c(node, self.manager.variable_map)
+            r = self._find_switch_variable_comparison_type_c(node, variable_map_of(self.manager))
             if r is not None:
                 variable_comparisons[node] = ("c", *r)
                 continue
