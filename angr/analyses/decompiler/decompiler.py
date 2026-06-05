@@ -370,6 +370,7 @@ class Decompiler(Analysis):
         # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
         cache.variable_map = clinic.variable_map
         self._variable_kb = clinic.variable_kb
+        self._variable_map = clinic.variable_map
         self._update_progress(70.0, text="Identifying regions")
         self.vvar_id_start = clinic.vvar_id_start
         self._copied_var_ids = clinic.copied_var_ids
@@ -869,14 +870,26 @@ class Decompiler(Analysis):
         """
         variable_kb = self._variable_kb
         dephication = self.project.analyses.GraphDephication(
-            self.func, ail_graph, rewrite=True, variable_kb=variable_kb, kb=self.kb, fail_fast=self._fail_fast
+            self.func,
+            ail_graph,
+            rewrite=True,
+            variable_kb=variable_kb,
+            variable_map=self._variable_map,
+            kb=self.kb,
+            fail_fast=self._fail_fast,
         )
         return dephication.output
 
     def transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
         variable_kb = self._variable_kb
         dephication = self.project.analyses.SeqNodeDephication(
-            self.func, seq_node, rewrite=True, variable_kb=variable_kb, kb=self.kb, fail_fast=self._fail_fast
+            self.func,
+            seq_node,
+            rewrite=True,
+            variable_kb=variable_kb,
+            variable_map=self._variable_map,
+            kb=self.kb,
+            fail_fast=self._fail_fast,
         )
         return dephication.output
 
