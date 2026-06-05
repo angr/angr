@@ -55,7 +55,6 @@ class RetExprRewriter(OptimizationPass):
                             reg_offset, reg_size = self.project.arch.registers[reg_name]
                             reg = Register(
                                 self.manager.next_atom(),
-                                None,
                                 reg_offset,
                                 reg_size * 8,
                                 reg_name=reg_name,

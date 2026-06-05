@@ -48,7 +48,6 @@ class ReturnMaker(AILGraphWalker):
                 new_stmt.ret_exprs.append(
                     ailment.Expr.Register(
                         self._next_atom(),
-                        None,
                         reg[0],
                         ret_val.size * self.arch.byte_width,
                         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
@@ -75,7 +74,6 @@ class ReturnMaker(AILGraphWalker):
                         new_stmt.ret_exprs.append(
                             ailment.Expr.Register(
                                 self._next_atom(),
-                                None,
                                 reg[0],
                                 ret_val_loc.size * self.arch.byte_width,
                                 reg_name=self.arch.translate_register_name(reg[0], ret_val_loc.size),

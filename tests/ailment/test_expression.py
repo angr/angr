@@ -69,8 +69,8 @@ class TestExpression(unittest.TestCase):
         assert copied_struct.tags == struct_expr.tags
 
     def test_combo_register_and_virtual_variable_accessors(self):
-        reg0 = Register(0, None, 16, 64, reg_name="rax")
-        reg1 = Register(1, None, 24, 64, reg_name="rdx")
+        reg0 = Register(0, 16, 64, reg_name="rax")
+        reg1 = Register(1, 24, 64, reg_name="rdx")
         combo = ComboRegister(2, None, [reg0, reg1])
 
         assert combo.size == 16

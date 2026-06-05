@@ -227,7 +227,6 @@ class CallSiteMaker(Analysis):
                     else:
                         reg = Expr.Register(
                             self._atom_idx(),
-                            None,
                             offset,
                             size * 8,
                             reg_name=arg_loc.reg_name,

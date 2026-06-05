@@ -95,7 +95,6 @@ class VEXExprConverter:
         reg_name = manager.arch.translate_register_name(offset, reg_size)
         return Register(
             manager.next_atom(),
-            None,
             offset,
             bits,
             reg_name=reg_name,
@@ -756,7 +755,6 @@ class VEXIRSBConverter(Converter):
             ret_reg_offset = manager.arch.ret_offset
             ret_expr = Register(
                 manager.next_atom(),
-                None,
                 ret_reg_offset,
                 manager.arch.bits,
                 reg_name=manager.arch.translate_register_name(ret_reg_offset, size=manager.arch.bits),
@@ -768,7 +766,6 @@ class VEXIRSBConverter(Converter):
             if fp_ret_reg_offset is not None and fp_ret_reg_offset != ret_reg_offset:
                 fp_ret_expr = Register(
                     manager.next_atom(),
-                    None,
                     fp_ret_reg_offset,
                     manager.arch.bits,
                     reg_name=manager.arch.translate_register_name(fp_ret_reg_offset, size=manager.arch.bits),

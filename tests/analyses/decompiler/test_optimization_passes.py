@@ -28,7 +28,7 @@ def c(v):
 
 def r(o):
     """Simple AIL Register shorthand"""
-    return Register(0, None, o, 32)
+    return Register(0, o, 32)
 
 
 class TestFlipBooleanCmp(unittest.TestCase):

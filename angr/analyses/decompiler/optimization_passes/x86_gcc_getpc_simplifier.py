@@ -53,7 +53,7 @@ class X86GccGetPcSimplifier(OptimizationPass):
             old_stmt = block.statements[stmt_idx]
             block.statements[stmt_idx] = ailment.Stmt.Assignment(
                 old_stmt.idx,
-                ailment.Expr.Register(self.manager.next_atom(), None, pcreg_offset, 32, reg_name=getpc_reg),
+                ailment.Expr.Register(self.manager.next_atom(), pcreg_offset, 32, reg_name=getpc_reg),
                 ailment.Expr.Const(self.manager.next_atom(), getpc_reg_value, 32),
                 **old_stmt.tags,
             )

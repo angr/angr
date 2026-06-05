@@ -185,8 +185,8 @@ class Tmp(Atom):
 class Register(Atom):
     __slots__ = ("reg_offset",)
 
-    def __init__(self, idx: int, variable, reg_offset: int, bits: int, **kwargs):
-        super().__init__(idx, variable, **kwargs)
+    def __init__(self, idx: int, reg_offset: int, bits: int, **kwargs):
+        super().__init__(idx, **kwargs)
 
         self.reg_offset = reg_offset
         self.bits = bits
@@ -209,12 +209,10 @@ class Register(Atom):
         return stable_hash(("reg", self.reg_offset, self.bits, self.idx))
 
     def copy(self) -> Register:
-        return Register(self.idx, None, self.reg_offset, self.bits, **self.tags)
+        return Register(self.idx, self.reg_offset, self.bits, **self.tags)
 
     def deep_copy(self, manager) -> Register:
-        return self._transfer_varmap(
-            Register(manager.next_atom(), None, self.reg_offset, self.bits, **self.tags), manager
-        )
+        return self._transfer_varmap(Register(manager.next_atom(), self.reg_offset, self.bits, **self.tags), manager)
 
 
 class ComboRegister(Atom):

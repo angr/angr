@@ -758,7 +758,7 @@ class ConditionProcessor:
                     self.ail_manager.next_atom(),
                     "CmpEQ",
                     (
-                        ailment.Expr.Register(self.ail_manager.next_atom(), None, self.EXC_COUNTER, 64),
+                        ailment.Expr.Register(self.ail_manager.next_atom(), self.EXC_COUNTER, 64),
                         ailment.Expr.Const(self.ail_manager.next_atom(), self.EXC_COUNTER, 64),
                     ),
                     False,

@@ -591,7 +591,6 @@ class Clinic(Analysis):
                             self._ail_manager.next_atom(),
                             ailment.Expr.Register(
                                 self._ail_manager.next_atom(),
-                                None,
                                 self.project.arch.ret_offset,
                                 self.project.arch.bits,
                             ),
@@ -641,7 +640,6 @@ class Clinic(Analysis):
                         param_vvar,
                         ailment.Expr.Register(
                             self._ail_manager.next_atom(),
-                            None,
                             reg_offset,
                             reg_arg.bits,
                             ins_addr=caller_block.addr + caller_block.original_size,
@@ -1260,7 +1258,6 @@ class Clinic(Analysis):
                                 reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
                                 last_stmt.ret_expr = ailment.Expr.Register(
                                     self._ail_manager.next_atom(),
-                                    None,
                                     reg_offset,
                                     reg_size * 8,
                                     ins_addr=callsite_ins_addr,
@@ -1380,7 +1377,6 @@ class Clinic(Analysis):
             dflag_offset, dflag_size = self.project.arch.registers["d"]
             dflag = ailment.Expr.Register(
                 self._ail_manager.next_atom(),
-                None,
                 dflag_offset,
                 dflag_size * self.project.arch.byte_width,
                 ins_addr=block.addr,
@@ -1507,7 +1503,6 @@ class Clinic(Analysis):
                     tags.pop("reg_name", None)
                     ret_expr = ailment.Expr.Register(
                         self._ail_manager.next_atom(),
-                        None,
                         ret_reg_offset,
                         self.project.arch.bits,
                         reg_name=self.project.arch.translate_register_name(ret_reg_offset, size=self.project.arch.bits),
@@ -1566,7 +1561,6 @@ class Clinic(Analysis):
                 arg_offset, arg_bits = self.project.arch.registers[arg.reg_name]
                 arg_expr = ailment.Expr.Register(
                     self._ail_manager.next_atom(),
-                    None,
                     arg_offset,
                     arg_bits * self.project.arch.byte_width,
                     **last_stmt.tags,
@@ -2820,7 +2814,6 @@ class Clinic(Analysis):
                         call_stmt = last_stmt.copy()
                         call_stmt.expr.target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
-                            None,
                             self.project.arch.registers["rax"][0],
                             64,
                             ins_addr=call_stmt.tags["ins_addr"],
@@ -3845,7 +3838,6 @@ class Clinic(Analysis):
                             [
                                 ailment.Expr.Register(
                                     self._ail_manager.next_atom(),
-                                    None,
                                     self.project.arch.sp_offset,
                                     self.project.arch.bits,
                                 ),

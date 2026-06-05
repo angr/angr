@@ -89,7 +89,7 @@ class TestAILExec(unittest.TestCase):
         r0_offset = p.arch.registers["r0"][0]
         assign_stmt = ailment.statement.Assignment(
             idx=0,
-            dst=ailment.expression.Register(None, None, r0_offset, 32),
+            dst=ailment.expression.Register(None, r0_offset, 32),
             src=ccall_expr,
         )
         assign_stmt.tags["ins_addr"] = 0x400000
@@ -193,7 +193,7 @@ class TestAILExec(unittest.TestCase):
         rax_offset = p.arch.registers["rax"][0]
         assign = ailment.statement.Assignment(
             idx=0,
-            dst=ailment.expression.Register(None, None, rax_offset, 64),
+            dst=ailment.expression.Register(None, rax_offset, 64),
             src=phi,
         )
         assign.tags["ins_addr"] = 0x400004
