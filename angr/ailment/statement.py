@@ -203,8 +203,6 @@ class Store(Statement):
         size: int,
         endness: str,
         guard: Expression | None = None,
-        variable=None,  # pylint:disable=unused-argument
-        offset=None,  # pylint:disable=unused-argument
         **kwargs,
     ):
         super().__init__(idx, **kwargs)
