@@ -1225,8 +1225,6 @@ class ITE(Expression):
         cond: Expression,
         iffalse: Expression,
         iftrue: Expression,
-        variable=None,  # pylint:disable=unused-argument
-        variable_offset=None,  # pylint:disable=unused-argument
         **kwargs,
     ):
         depth = (
