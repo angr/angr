@@ -182,6 +182,7 @@ disable = [
     "unidiomatic-typecheck",
     "arguments-differ",
     "signature-differs",
+    "too-many-nested-blocks",
 ]
 
 [tool.pytest.ini_options]

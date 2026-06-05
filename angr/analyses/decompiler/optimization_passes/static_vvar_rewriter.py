@@ -216,11 +216,18 @@ class VVarAliasVisitor(AILBlockViewer):
     The visitor that discovers const assignments and aliases of existing static vvars.
     """
 
-    def __init__(self, static_buffers: dict[str, FixedBuffer], static_vvars: dict[int, FixedBufferPtr | Const], kb):
+    def __init__(
+        self,
+        static_buffers: dict[str, FixedBuffer],
+        static_vvars: dict[int, FixedBufferPtr | Const],
+        kb,
+        manager: Manager,
+    ):
         super().__init__()
         self._static_buffers = static_buffers
         self._static_vvars = static_vvars
         self.kb = kb
+        self.manager = manager
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
@@ -252,7 +259,7 @@ class VVarAliasVisitor(AILBlockViewer):
             # got a new memcpy call that we can handle
             dst, src, size = call.args
             if dst.varid not in self._static_vvars:
-                if self.manager.variable_map.custom_string(src):
+                if self.manager.variable_map is not None and self.manager.variable_map.custom_string(src):
                     ident = f"static_buf_{stmt.tags['ins_addr']}"
                     buf = self.kb.custom_strings[src.value_int]
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
@@ -315,7 +322,7 @@ class StaticVVarRewriter(OptimizationPass):
 
     def _check(self):
         # discover aliases
-        alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb)
+        alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb, self.manager)
         head = {(node.addr, node.idx): node for node in self._graph}[self.entry_node_addr]
         for block in reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(self._graph, head))):
             alias_visitor.walk(block)
@@ -343,7 +350,7 @@ class StaticVVarRewriter(OptimizationPass):
             # discover more aliases
             old_static_buffers = dict(self._static_buffers)
             old_static_vvars = dict(self._static_vvars)
-            alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb)
+            alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb, self.manager)
             head = {(node.addr, node.idx): node for node in g}[self.entry_node_addr]
             for block in reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(g, head))):
                 alias_visitor.walk(block)

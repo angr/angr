@@ -30,7 +30,7 @@ from .statement import CAS, Assignment, ConditionalJump, DirtyStatement, Jump, R
 log = logging.getLogger(name=__name__)
 
 
-class VEXExprConverter(Converter):
+class VEXExprConverter:
     @staticmethod
     def simop_from_vexop(vex_op):
         return vexop_to_simop(vex_op)
@@ -481,7 +481,7 @@ EXPRESSION_MAPPINGS = {
 }
 
 
-class VEXStmtConverter(Converter):
+class VEXStmtConverter:
     @staticmethod
     def convert(stmt, manager):  # pylint:disable=arguments-differ
         """

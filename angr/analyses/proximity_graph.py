@@ -175,6 +175,7 @@ class ProximityGraphAnalysis(Analysis):
         self._cfg_model = cfg_model
         self._xrefs = xrefs
         self._decompilation = decompilation
+        self._variable_map = self._decompilation._variable_map if self._decompilation is not None else None
         self._expand_funcs = expand_funcs.copy() if expand_funcs else None
 
         self.graph: networkx.DiGraph | None = None
@@ -197,7 +198,8 @@ class ProximityGraphAnalysis(Analysis):
         if blank_nodes:
             self._merge_nodes(graph, blank_nodes)
 
-    def _merge_nodes(self, graph: networkx.DiGraph, nodes: list[BaseProxiNode]) -> None:
+    @staticmethod
+    def _merge_nodes(graph: networkx.DiGraph, nodes: list[BaseProxiNode]) -> None:
         for node in nodes:
             predecessors = set(graph.predecessors(node))
             successors = set(graph.successors(node))
@@ -352,6 +354,9 @@ class ProximityGraphAnalysis(Analysis):
 
         # dedup
         string_refs: set[int] = set()
+
+        if decompilation.clinic is None:
+            return []
 
         # Walk the clinic structure to dump string references and function calls
         ail_graph = decompilation.clinic.cc_graph

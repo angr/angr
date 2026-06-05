@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import networkx
 
 from angr import ailment
+from angr.analyses.decompiler.variable_map import VariableMap
 from angr.sim_variable import SimVariable
 
 from .array_index_naming import ArrayIndexNaming
@@ -61,8 +62,6 @@ class SemanticNamingOrchestrator:
         variable_map=None,
         patterns: list[type[ClinicNamingBase]] | None = None,
     ):
-        from angr.analyses.decompiler.variable_map import VariableMap
-
         self._graph = ail_graph
         self._variable_manager = variable_manager
         self._functions = functions

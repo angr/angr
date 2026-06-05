@@ -545,8 +545,8 @@ class UnaryOp(Op):
         idx: int,
         op: str,
         operand: Expression,
-        variable=None,
-        variable_offset: int | None = None,
+        variable=None,  # pylint:disable=unused-argument
+        variable_offset: int | None = None,  # pylint:disable=unused-argument
         bits=None,
         **kwargs,
     ):
@@ -923,8 +923,8 @@ class BinaryOp(Op):
         operands: Sequence[Expression],
         signed: bool = False,
         *,
-        variable=None,
-        variable_offset=None,
+        variable=None,  # pylint:disable=unused-argument
+        variable_offset=None,  # pylint:disable=unused-argument
         bits=None,
         floating_point=False,
         rounding_mode=None,
@@ -1119,8 +1119,8 @@ class Load(Expression):
         addr: Expression,
         size: int,
         endness: str,
-        variable=None,
-        variable_offset=None,
+        variable=None,  # pylint:disable=unused-argument
+        variable_offset=None,  # pylint:disable=unused-argument
         guard=None,
         alt=None,
         **kwargs,
@@ -1233,8 +1233,8 @@ class ITE(Expression):
         cond: Expression,
         iffalse: Expression,
         iftrue: Expression,
-        variable=None,
-        variable_offset=None,
+        variable=None,  # pylint:disable=unused-argument
+        variable_offset=None,  # pylint:disable=unused-argument
         **kwargs,
     ):
         depth = (
@@ -1649,8 +1649,8 @@ class BasePointerOffset(Expression):
         bits: int,
         base: Expression | str,
         offset: int,
-        variable=None,
-        variable_offset=None,
+        variable=None,  # pylint:disable=unused-argument
+        variable_offset=None,  # pylint:disable=unused-argument
         **kwargs,
     ):
         super().__init__(idx, (offset.depth if isinstance(offset, Expression) else 0) + 1, **kwargs)
