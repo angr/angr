@@ -187,9 +187,6 @@ class Store(Statement):
     Store statement: ``*addr = data``
     """
 
-    # NOTE: variable/offset (the variable and its offset) are no longer stored on Store; that information now lives
-    # in a side VariableMap. The constructor still accepts (and ignores) `variable`/`offset` for backwards
-    # compatibility with existing call sites.
     __slots__ = (
         "addr",
         "data",

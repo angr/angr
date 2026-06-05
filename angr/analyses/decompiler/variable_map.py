@@ -1,23 +1,28 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from angr.sim_type import SimType
 
 if TYPE_CHECKING:
+    from angr.ailment.manager import Manager
     from angr.ailment.tagged_object import TaggedObject
     from angr.sim_variable import SimVariable
 
 
-def variable_map_of(manager) -> VariableMap:
+_l = logging.getLogger(name=__name__)
+
+
+def variable_map_of(manager: Manager) -> VariableMap:
     """
     Return the :class:`VariableMap` attached to an ailment ``Manager``, lazily creating and attaching an empty one if
     the manager does not have a map yet (e.g. Managers constructed outside of Clinic in tests). This keeps consumers
     that reach the map through ``manager.variable_map`` from having to special-case ``None``.
     """
 
-    vm = getattr(manager, "variable_map", None)
+    vm = manager.variable_map
     if vm is None:
         vm = VariableMap()
         manager.variable_map = vm
@@ -27,7 +32,7 @@ def variable_map_of(manager) -> VariableMap:
 class VariableMap:
     """
     A side container that maps the ``.idx`` of AIL :class:`Statement` and :class:`Expression` objects to
-    variable-related information that used to be stored directly on the AIL objects themselves.
+    variable-related information.
 
     The following pieces of information are tracked:
 
@@ -41,8 +46,8 @@ class VariableMap:
       ``variable_offset`` that are specifically used for constants that reference global/extern variables.
 
     Keys are the integer ``.idx`` values of AIL Statement/Expression objects. Because :class:`Clinic` builds one
-    :class:`ailment.Manager` per function, ``.idx`` values are unique within a single function, so a VariableMap is
-    scoped to one function and is stored on its :class:`DecompilationCache`.
+    :class:`ailment.Manager` per invocation, ``.idx`` values are unique within a single Clinic. So a VariableMap is
+    scoped to one Clinic instance and is stored in the corresponding :class:`DecompilationCache`.
     """
 
     __slots__ = (
@@ -68,7 +73,7 @@ class VariableMap:
 
     @staticmethod
     def _key(obj: TaggedObject | int) -> int:
-        return obj if type(obj) is int else obj.idx
+        return obj if isinstance(obj, int) else obj.idx
 
     #
     # Accessors
@@ -100,9 +105,16 @@ class VariableMap:
     #
 
     def set_variable(self, obj: TaggedObject | int, variable: SimVariable | None, offset: int = 0) -> None:
+        """Set the variable information for an AIL atom. If ``variable`` is ``None``, the variable information for
+        this atom is cleared."""
+
         key = self._key(obj)
-        self._variables[key] = variable
-        self._variable_offsets[key] = offset
+        if variable is None:
+            self._variables.pop(key, None)
+            self._variable_offsets.pop(key, None)
+        else:
+            self._variables[key] = variable
+            self._variable_offsets[key] = offset
 
     def set_variable_offset(self, obj: TaggedObject | int, offset: int) -> None:
         self._variable_offsets[self._key(obj)] = offset
@@ -114,9 +126,15 @@ class VariableMap:
         self._reference_values[self._key(obj)] = reference_values
 
     def set_reference_variable(self, obj: TaggedObject | int, variable: SimVariable | None, offset: int = 0) -> None:
+        """Set the reference variable information for an AIL atom. If ``variable`` is ``None``, the reference variable information for
+        this atom is cleared."""
         key = self._key(obj)
-        self._reference_variables[key] = variable
-        self._reference_variable_offsets[key] = offset
+        if variable is None:
+            self._reference_variables.pop(key, None)
+            self._reference_variable_offsets.pop(key, None)
+        else:
+            self._reference_variables[key] = variable
+            self._reference_variable_offsets[key] = offset
 
     def transfer(self, src: TaggedObject | int, dst: TaggedObject | int) -> None:
         """
@@ -137,7 +155,7 @@ class VariableMap:
             self._reference_variable_offsets,
         ):
             if src_key in d:
-                d[dst_key] = d[src_key]
+                d[dst_key] = d[src_key]  # type:ignore
 
     #
     # Serialization
@@ -156,9 +174,9 @@ class VariableMap:
         d: dict[SimType, Any] = {}
         for item in items:
             ty_json = item.get("type")
-            ty = SimType.from_json(ty_json) if ty_json is not None else None
-            if ty is None:
+            if ty_json is None:
                 continue
+            ty = SimType.from_json(ty_json)
             d[ty] = item.get("value")
         return d
 
@@ -193,11 +211,15 @@ class VariableMap:
 
         vm = cls()
 
-        def _resolve(ident):
+        def _resolve(ident) -> SimVariable | None:
             return resolve_variable(ident) if ident is not None else None
 
         for idx, ident in data.get("variables", {}).items():
-            vm._variables[int(idx)] = _resolve(ident)
+            v = _resolve(ident)
+            if v is not None:
+                vm._variables[int(idx)] = v
+            else:
+                _l.warning("Variable with ident %s could not be resolved during VariableMap deserialization", ident)
         for idx, offset in data.get("variable_offsets", {}).items():
             vm._variable_offsets[int(idx)] = offset
         for idx, value in data.get("custom_strings", {}).items():
@@ -205,7 +227,13 @@ class VariableMap:
         for idx, items in data.get("reference_values", {}).items():
             vm._reference_values[int(idx)] = cls._reference_values_from_json(items)
         for idx, ident in data.get("reference_variables", {}).items():
-            vm._reference_variables[int(idx)] = _resolve(ident)
+            v = _resolve(ident)
+            if v is not None:
+                vm._reference_variables[int(idx)] = v
+            else:
+                _l.warning(
+                    "Reference variable with ident %s could not be resolved during VariableMap deserialization", ident
+                )
         for idx, offset in data.get("reference_variable_offsets", {}).items():
             vm._reference_variable_offsets[int(idx)] = offset
 

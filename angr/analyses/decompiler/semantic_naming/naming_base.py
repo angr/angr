@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
     from angr.ailment import Block
     from angr.analyses.decompiler.structurer_nodes import BaseNode
+    from angr.analyses.decompiler.variable_map import VariableMap
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
@@ -43,7 +44,7 @@ class SemanticNamingBase(ABC):
         self,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
-        variable_map,
+        variable_map: VariableMap,
     ):
         self._variable_manager = variable_manager
         self._functions = functions
@@ -147,7 +148,7 @@ class ClinicNamingBase(SemanticNamingBase):
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: Block,
-        variable_map,
+        variable_map: VariableMap,
     ):
         super().__init__(variable_manager, functions, variable_map)
         self._graph = ail_graph
