@@ -35,8 +35,6 @@ class ConvShlShr(PeepholeOptimizationExprBase):
                                 Const(self.manager.next_atom(), bitmask, n),
                             ),
                             False,
-                            variable=None,
-                            variable_offset=None,
                             **expr.tags,
                         )
                         return BinaryOp(

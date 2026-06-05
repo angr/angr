@@ -919,8 +919,6 @@ class BinaryOp(Op):
         operands: Sequence[Expression],
         signed: bool = False,
         *,
-        variable=None,  # pylint:disable=unused-argument
-        variable_offset=None,  # pylint:disable=unused-argument
         bits=None,
         floating_point=False,
         rounding_mode=None,
