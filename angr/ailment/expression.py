@@ -543,8 +543,6 @@ class UnaryOp(Op):
         idx: int,
         op: str,
         operand: Expression,
-        variable=None,  # pylint:disable=unused-argument
-        variable_offset: int | None = None,  # pylint:disable=unused-argument
         bits=None,
         **kwargs,
     ):
