@@ -1639,8 +1639,6 @@ class BasePointerOffset(Expression):
         bits: int,
         base: Expression | str,
         offset: int,
-        variable=None,  # pylint:disable=unused-argument
-        variable_offset=None,  # pylint:disable=unused-argument
         **kwargs,
     ):
         super().__init__(idx, (offset.depth if isinstance(offset, Expression) else 0) + 1, **kwargs)
