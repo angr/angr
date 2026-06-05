@@ -10,13 +10,13 @@ from angr.ailment import AILBlockViewer, Block
 from angr.ailment.expression import BinaryOp, Const, Expression, Load, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
-from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     MultiNode,
     SequenceNode,
 )
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.utils.graph import GraphUtils
 
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass

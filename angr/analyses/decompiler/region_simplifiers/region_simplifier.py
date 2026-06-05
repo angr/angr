@@ -12,6 +12,7 @@ from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemov
 from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
 from angr.analyses.decompiler.structurer_nodes import LoopNode
 
+from ..variable_map import variable_map_of
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .cascading_ifs import CascadingIfsRemover
 from .expr_folding import (
@@ -28,7 +29,6 @@ from .ifelse import IfElseFlattener
 from .loop import LoopSimplifier
 from .switch_cluster_simplifier import SwitchClusterFinder, simplify_lowered_switches, simplify_switch_clusters
 from .switch_expr_simplifier import SwitchExpressionSimplifier
-from ..variable_map import variable_map_of
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal

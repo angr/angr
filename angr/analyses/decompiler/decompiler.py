@@ -37,9 +37,9 @@ from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from .structurer_nodes import SequenceNode
 from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
-from .variable_map import VariableMap
 from .structuring.phoenix import MultiStmtExprMode
 from .utils import remove_edges_in_ailgraph
+from .variable_map import VariableMap
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable

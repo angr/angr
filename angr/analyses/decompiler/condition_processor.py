@@ -18,7 +18,6 @@ from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
 from .graph_region import GraphRegion
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
-from .variable_map import variable_map_of
 from .structurer_nodes import (
     BreakNode,
     CascadingConditionNode,
@@ -34,6 +33,7 @@ from .structurer_nodes import (
     SwitchCaseNode,
 )
 from .utils import peephole_optimize_expr
+from .variable_map import variable_map_of
 
 if TYPE_CHECKING:
     from angr.ailment import Manager

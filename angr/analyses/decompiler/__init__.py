@@ -14,8 +14,8 @@ from .presets import DECOMPILATION_PRESETS
 from .region_identifier import RegionIdentifier
 from .region_simplifiers import RegionSimplifier
 from .ssailification import Ssailification
-from .variable_map import VariableMap
 from .structured_codegen import BaseStructuredCodeGenerator, CStructuredCodeGenerator, ImportSourceCode
+from .variable_map import VariableMap
 
 StructuredCodeGenerator = CStructuredCodeGenerator
 
