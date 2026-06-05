@@ -51,10 +51,15 @@ class VariableMap:
     #
     # Key helper
     #
+    # AIL .idx values are NOT unique per object: ailment deliberately reuses an atom's .idx when rewriting
+    # expressions (e.g. a Const operand can share the .idx of the BinaryOp it lives in). Keying purely by .idx would
+    # therefore conflate distinct co-existing atoms. We key by (idx, class-name) instead, which matches AIL's own
+    # notion of identity (``__eq__`` requires equal type and idx) while still being preserved by ``copy()`` and
+    # transferable across ``deep_copy()``.
 
     @staticmethod
-    def _key(obj: TaggedObject | int) -> int:
-        return obj if type(obj) is int else obj.idx
+    def _key(obj: TaggedObject | tuple) -> tuple:
+        return obj if type(obj) is tuple else (obj.idx, type(obj).__name__)
 
     #
     # Accessors
@@ -148,23 +153,34 @@ class VariableMap:
             d[ty] = item.get("value")
         return d
 
+    @staticmethod
+    def _encode_key(key: tuple) -> str:
+        # key is (idx, class-name); encode as "<idx>:<class-name>" so it can be a JSON object key.
+        return f"{key[0]}:{key[1]}"
+
+    @staticmethod
+    def _decode_key(s: str) -> tuple:
+        idx, _, cls = s.partition(":")
+        return (int(idx), cls)
+
     def to_json(self) -> dict[str, Any]:
         """
         Serialize this VariableMap to a JSON-compatible object.
 
         Variables are referenced by their ``.ident`` (reference-by-ident); they must be resolved back to
-        :class:`SimVariable` objects via a resolver in :meth:`from_json`.
+        :class:`SimVariable` objects via a resolver in :meth:`from_json`. Keys are encoded as ``"<idx>:<class-name>"``.
         """
 
+        ek = self._encode_key
         return {
-            "variables": {idx: (v.ident if v is not None else None) for idx, v in self._variables.items()},
-            "variable_offsets": dict(self._variable_offsets),
-            "custom_strings": dict(self._custom_strings),
-            "reference_values": {idx: self._reference_values_to_json(d) for idx, d in self._reference_values.items()},
+            "variables": {ek(k): (v.ident if v is not None else None) for k, v in self._variables.items()},
+            "variable_offsets": {ek(k): v for k, v in self._variable_offsets.items()},
+            "custom_strings": {ek(k): v for k, v in self._custom_strings.items()},
+            "reference_values": {ek(k): self._reference_values_to_json(d) for k, d in self._reference_values.items()},
             "reference_variables": {
-                idx: (v.ident if v is not None else None) for idx, v in self._reference_variables.items()
+                ek(k): (v.ident if v is not None else None) for k, v in self._reference_variables.items()
             },
-            "reference_variable_offsets": dict(self._reference_variable_offsets),
+            "reference_variable_offsets": {ek(k): v for k, v in self._reference_variable_offsets.items()},
         }
 
     @classmethod
@@ -178,21 +194,22 @@ class VariableMap:
         """
 
         vm = cls()
+        dk = cls._decode_key
 
         def _resolve(ident):
             return resolve_variable(ident) if ident is not None else None
 
-        for idx, ident in data.get("variables", {}).items():
-            vm._variables[int(idx)] = _resolve(ident)
-        for idx, offset in data.get("variable_offsets", {}).items():
-            vm._variable_offsets[int(idx)] = offset
-        for idx, value in data.get("custom_strings", {}).items():
-            vm._custom_strings[int(idx)] = value
-        for idx, items in data.get("reference_values", {}).items():
-            vm._reference_values[int(idx)] = cls._reference_values_from_json(items)
-        for idx, ident in data.get("reference_variables", {}).items():
-            vm._reference_variables[int(idx)] = _resolve(ident)
-        for idx, offset in data.get("reference_variable_offsets", {}).items():
-            vm._reference_variable_offsets[int(idx)] = offset
+        for k, ident in data.get("variables", {}).items():
+            vm._variables[dk(k)] = _resolve(ident)
+        for k, offset in data.get("variable_offsets", {}).items():
+            vm._variable_offsets[dk(k)] = offset
+        for k, value in data.get("custom_strings", {}).items():
+            vm._custom_strings[dk(k)] = value
+        for k, items in data.get("reference_values", {}).items():
+            vm._reference_values[dk(k)] = cls._reference_values_from_json(items)
+        for k, ident in data.get("reference_variables", {}).items():
+            vm._reference_variables[dk(k)] = _resolve(ident)
+        for k, offset in data.get("reference_variable_offsets", {}).items():
+            vm._reference_variable_offsets[dk(k)] = offset
 
         return vm
