@@ -150,7 +150,7 @@ class PartialConstantExprRewriter(AILBlockRewriter):
                 return expr
             if new_mask == 0:
                 return Const(expr_idx, None, 0, expr.bits, **expr.tags)
-            new_mask_expr = Const(mask_expr.idx, mask_expr.variable, new_mask, mask_expr.bits, **mask_expr.tags)
+            new_mask_expr = Const(mask_expr.idx, None, new_mask, mask_expr.bits, **mask_expr.tags)
             return BinaryOp(expr_idx, expr.op, [vvar, new_mask_expr], bits=expr.bits, **expr.tags)
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 

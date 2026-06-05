@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, TypedDict
+from typing import TYPE_CHECKING, Self, TypedDict
 
 from angr.ailment.manager import Manager
 
@@ -8,7 +8,6 @@ if TYPE_CHECKING:
     from typing import Unpack
 
     from angr.sim_type import SimType
-    from angr.sim_variable import SimVariable
 
 
 class TagDict(TypedDict, total=False):
@@ -18,7 +17,6 @@ class TagDict(TypedDict, total=False):
 
     always_propagate: bool
     block_idx: int
-    custom_string: bool
     deref_src_addr: int
     extra_def: bool
     extra_defs: list[int]
@@ -26,9 +24,6 @@ class TagDict(TypedDict, total=False):
     is_prototype_guessed: bool
     keep_in_slice: bool
     orig_ins_addr: int
-    reference_values: dict[SimType, Any]
-    reference_variable_offset: int
-    reference_variable: SimVariable
     reg_name: str
     type: dict[str, SimType]
     uninitialized: bool
@@ -66,3 +61,13 @@ class TaggedObject:
 
     def deep_copy(self, manager: Manager) -> Self:
         raise NotImplementedError
+
+    def _transfer_varmap(self, new, manager: Manager):
+        """
+        Helper for deep_copy: when a manager carries a VariableMap, transfer this object's variable information to the
+        freshly deep-copied object ``new`` (which has a new .idx). Returns ``new`` for convenient chaining.
+        """
+        variable_map = getattr(manager, "variable_map", None)
+        if variable_map is not None:
+            variable_map.transfer(self, new)
+        return new

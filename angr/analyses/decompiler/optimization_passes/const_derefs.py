@@ -89,8 +89,6 @@ class BlockWalker(AILBlockRewriter):
                         Const(self.manager.next_atom(), None, w, expr.addr.size, **expr.addr.addr.tags),
                         expr.size,
                         expr.endness,
-                        variable=expr.variable,
-                        variable_offset=expr.variable_offset,
                         guard=expr.guard,
                         alt=expr.alt,
                         **expr.tags,

@@ -686,8 +686,6 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
                 stmt.size,
                 stmt.endness,
                 guard=guard,
-                variable=stmt.variable,
-                offset=stmt.offset,
                 **stmt.tags,
             )
         return stmt

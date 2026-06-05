@@ -325,18 +325,21 @@ class ProximityGraphAnalysis(Analysis):
                 # not a string. present it as a constant integer
                 args.append(IntegerProxiNode(arg.value_int, None))
         elif isinstance(arg, ailment.expression.Load):
-            if arg.variable is not None:
-                args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
-            elif arg.addr.variable is not None:
-                if isinstance(arg.addr.variable, SimMemoryVariable):
-                    args.append(VariableProxiNode(arg.addr.variable.addr, arg.addr.variable.name))
+            arg_var = self._variable_map.variable(arg)
+            arg_addr_var = self._variable_map.variable(arg.addr)
+            if arg_var is not None:
+                args.append(VariableProxiNode(arg_var.addr, arg_var.name))
+            elif arg_addr_var is not None:
+                if isinstance(arg_addr_var, SimMemoryVariable):
+                    args.append(VariableProxiNode(arg_addr_var.addr, arg_addr_var.name))
                 else:
-                    args.append(VariableProxiNode(None, arg.addr.variable.name))
+                    args.append(VariableProxiNode(None, arg_addr_var.name))
             else:
                 args.append(UnknownProxiNode("l_"))
         elif isinstance(arg, ailment.expression.StackBaseOffset):
-            if arg.variable is not None:
-                args.append(VariableProxiNode(arg.variable, arg.variable.name))
+            arg_var = self._variable_map.variable(arg)
+            if arg_var is not None:
+                args.append(VariableProxiNode(arg_var, arg_var.name))
             else:
                 args.append(UnknownProxiNode("s_"))
         else:
@@ -354,6 +357,7 @@ class ProximityGraphAnalysis(Analysis):
         ail_graph = decompilation.clinic.cc_graph
         if ail_graph is None:
             return []
+        self._variable_map = decompilation.clinic.variable_map
 
         def _handle_Call(
             expr_idx: int,

@@ -43,7 +43,7 @@ class ConstIncrementingRewriter(AILBlockRewriter):
 
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.value == 1:
-            return Const(expr.idx, expr.variable, 2, expr.bits, **expr.tags)
+            return Const(expr.idx, None, 2, expr.bits, **expr.tags)
         return super()._handle_Const(expr_idx, expr, stmt_idx, stmt, block)
 
 

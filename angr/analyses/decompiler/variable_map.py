@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from angr.sim_type import SimType
 
@@ -103,6 +104,27 @@ class VariableMap:
         self._reference_variables[key] = variable
         self._reference_variable_offsets[key] = offset
 
+    def transfer(self, src: TaggedObject | int, dst: TaggedObject | int) -> None:
+        """
+        Copy all variable information associated with ``src`` to ``dst``. Used when an AIL atom is deep-copied to a new
+        ``.idx`` (e.g. during structuring/duplication) so that the new atom keeps the same variable association.
+        """
+
+        src_key = self._key(src)
+        dst_key = self._key(dst)
+        if src_key == dst_key:
+            return
+        for d in (
+            self._variables,
+            self._variable_offsets,
+            self._custom_strings,
+            self._reference_values,
+            self._reference_variables,
+            self._reference_variable_offsets,
+        ):
+            if src_key in d:
+                d[dst_key] = d[src_key]
+
     #
     # Serialization
     #
@@ -138,9 +160,7 @@ class VariableMap:
             "variables": {idx: (v.ident if v is not None else None) for idx, v in self._variables.items()},
             "variable_offsets": dict(self._variable_offsets),
             "custom_strings": dict(self._custom_strings),
-            "reference_values": {
-                idx: self._reference_values_to_json(d) for idx, d in self._reference_values.items()
-            },
+            "reference_values": {idx: self._reference_values_to_json(d) for idx, d in self._reference_values.items()},
             "reference_variables": {
                 idx: (v.ident if v is not None else None) for idx, v in self._reference_variables.items()
             },

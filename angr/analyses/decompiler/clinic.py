@@ -2414,24 +2414,15 @@ class Clinic(Analysis):
         return tmp_kb
 
     def _set_expr_variable(self, expr, variable, offset) -> None:
-        # dual-write: keep the legacy attributes on the AIL object and update the side VariableMap. The legacy
-        # attributes will be removed once all consumers read from the VariableMap.
-        expr.variable = variable
-        expr.variable_offset = offset
         self.variable_map.set_variable(expr, variable, offset)
 
     def _set_store_variable(self, stmt, variable, offset) -> None:
-        stmt.variable = variable
-        stmt.offset = offset
         self.variable_map.set_variable(stmt, variable, offset)
 
     def _set_reference_variable(self, expr, variable, offset) -> None:
-        expr.tags["reference_variable"] = variable
-        expr.tags["reference_variable_offset"] = offset
         self.variable_map.set_reference_variable(expr, variable, offset)
 
     def _set_reference_values(self, expr, reference_values) -> None:
-        expr.tags["reference_values"] = reference_values
         self.variable_map.set_reference_values(expr, reference_values)
 
     def _link_variables_on_block(self, block, kb):

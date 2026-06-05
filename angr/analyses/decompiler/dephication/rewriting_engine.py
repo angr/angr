@@ -105,8 +105,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 stmt.dst.bits,
                 stmt.dst.category,
                 oident=stmt.dst.oident,
-                variable=stmt.dst.variable,
-                variable_offset=stmt.dst.variable_offset,
                 **stmt.dst.tags,
             )
 
@@ -195,7 +193,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 stmt.data if new_data is None else new_data,
                 stmt.size,
                 stmt.endness,
-                variable=stmt.variable,
                 guard=stmt.guard,
                 **stmt.tags,
             )
@@ -303,8 +300,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 expr.bits,
                 expr.category,
                 oident=expr.oident,
-                variable=expr.variable,
-                variable_offset=expr.variable_offset,
                 **expr.tags,
             )
         return None

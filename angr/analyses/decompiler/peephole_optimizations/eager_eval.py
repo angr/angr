@@ -44,7 +44,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 # x + (-A)  ==>  x - A
                 new_op1 = Const(
                     op1.idx,
-                    op1.variable,
+                    None,
                     -op1.value,
                     op1.bits,
                     **op1.tags,
@@ -54,8 +54,6 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     "Sub",
                     [op0, new_op1],
                     expr.signed,
-                    variable=expr.variable,
-                    variable_offset=expr.variable_offset,
                     bits=expr.bits,
                     **expr.tags,
                 )
@@ -145,7 +143,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 mask = (1 << op1.bits) - 1
                 complement = Const(
                     op1.idx,
-                    op1.variable,
+                    None,
                     ((~op1.value) + 1) & mask,
                     op1.bits,
                     **op1.tags,
@@ -155,8 +153,6 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     "Add",
                     [op0, complement],
                     expr.signed,
-                    variable=expr.variable,
-                    variable_offset=expr.variable_offset,
                     bits=expr.bits,
                     **expr.tags,
                 )
@@ -242,19 +238,13 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if const_0.value != 0 and const_1.value != 0:
                 gcd_ = gcd(const_0.value, const_1.value)
                 if gcd_ != 1:
-                    new_const_1 = Const(
-                        const_1.idx, const_1.variable, const_1.value // gcd_, const_1.bits, **const_1.tags
-                    )
-                    new_const_0 = Const(
-                        const_0.idx, const_0.variable, const_0.value // gcd_, const_0.bits, **const_0.tags
-                    )
+                    new_const_1 = Const(const_1.idx, None, const_1.value // gcd_, const_1.bits, **const_1.tags)
+                    new_const_0 = Const(const_0.idx, None, const_0.value // gcd_, const_0.bits, **const_0.tags)
                     mul = BinaryOp(
                         expr0.idx,
                         "Mul",
                         (expr0.operands[0], new_const_1),
                         expr0.signed,
-                        variable=expr0.variable,
-                        variable_offset=expr0.variable_offset,
                         bits=expr0.bits,
                         **expr0.tags,
                     )
@@ -386,9 +376,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 # (n * C) - n  ==>  (C - 1) * n
                 coeff_0 = expr0.operands[1]
                 coeff = Const(coeff_0.idx, None, coeff_0.value - 1, expr.bits, **coeff_0.tags)
-                return BinaryOp(
-                    expr.idx, "Mul", [n, coeff], expr.signed, variable=expr.variable, bits=expr.bits, **expr.tags
-                )
+                return BinaryOp(expr.idx, "Mul", [n, coeff], expr.signed, bits=expr.bits, **expr.tags)
             if isinstance(expr1, BinaryOp) and expr1.op == "Mul" and isinstance(expr.operands[1].operands[1], Const):
                 n1 = expr.operands[1].operands[0]
                 if n.likes(n1):
@@ -401,7 +389,6 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         "Mul",
                         [n, coeff],
                         expr.signed,
-                        variable=expr.variable,
                         bits=expr.bits,
                         **expr.tags,
                     )
@@ -429,7 +416,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             # truncation
             mask = (1 << expr.to_bits) - 1
             v = expr.operand.value & mask
-            return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
+            return Const(expr.idx, None, v, expr.to_bits, **expr.operand.tags)
         if (
             isinstance(expr.operand, Const)
             and expr.operand.is_int
@@ -440,8 +427,8 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             assert isinstance(expr.operand.value, int)
             if expr.is_signed is False:
                 # unsigned extension
-                return Const(expr.idx, expr.operand.variable, expr.operand.value, expr.to_bits, **expr.operand.tags)
+                return Const(expr.idx, None, expr.operand.value, expr.to_bits, **expr.operand.tags)
             # signed extension
             v = sign_extend(expr.operand.value, expr.to_bits)
-            return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
+            return Const(expr.idx, None, v, expr.to_bits, **expr.operand.tags)
         return None

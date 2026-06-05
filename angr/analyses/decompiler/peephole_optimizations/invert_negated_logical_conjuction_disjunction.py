@@ -27,8 +27,6 @@ class InvertNegatedLogicalConjunctionsAndDisjunctions(PeepholeOptimizationExprBa
                     "LogicalOr",
                     inner_operands,
                     expr.operand.signed,
-                    variable=expr.operand.variable,
-                    variable_offset=expr.operand.variable_offset,
                     bits=expr.operand.bits,
                     **expr.tags,
                 )
@@ -42,8 +40,6 @@ class InvertNegatedLogicalConjunctionsAndDisjunctions(PeepholeOptimizationExprBa
                     "LogicalAnd",
                     inner_operands,
                     expr.operand.signed,
-                    variable=expr.operand.variable,
-                    variable_offset=expr.operand.variable_offset,
                     bits=expr.operand.bits,
                     **expr.tags,
                 )

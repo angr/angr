@@ -111,7 +111,7 @@ def deepcopy_ail_jump(stmt: Jump, idx=1):
     target: Const = stmt.target
     tags = stmt.tags.copy()
 
-    return Jump(idx, Const(1, target.variable, target.value, target.bits, **target.tags.copy()), **tags)
+    return Jump(idx, Const(1, None, target.value, target.bits, **target.tags.copy()), **tags)
 
 
 def deepcopy_ail_condjump(stmt: ConditionalJump, idx=1):
@@ -122,8 +122,8 @@ def deepcopy_ail_condjump(stmt: ConditionalJump, idx=1):
     return ConditionalJump(
         idx,
         stmt.condition.copy(),
-        Const(1, true_target.variable, true_target.value, true_target.bits, **true_target.tags.copy()),
-        Const(1, false_target.variable, false_target.value, false_target.bits, **false_target.tags.copy()),
+        Const(1, None, true_target.value, true_target.bits, **true_target.tags.copy()),
+        Const(1, None, false_target.value, false_target.bits, **false_target.tags.copy()),
         **tags,
     )
 

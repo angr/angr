@@ -70,7 +70,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                 elif expr.op in {"Add", "Sub"}:
                     # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
                     op0, op1 = expr.operands
-                    con = Const(op1.idx, op1.variable, op1.value, op0.from_bits)
+                    con = Const(op1.idx, None, op1.value, op0.from_bits)
                     return Convert(
                         op0.idx,
                         op0.from_bits,
@@ -117,7 +117,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             r0 = BinaryOp(
                                 left.idx,
                                 left.op,
-                                [shift_lhs.operand, Const(a.idx, a.variable, a.value, from_bits)],
+                                [shift_lhs.operand, Const(a.idx, None, a.value, from_bits)],
                                 left.signed,
                                 bits=from_bits,
                                 **left.tags,
@@ -125,7 +125,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             r1 = BinaryOp(
                                 op0.idx,
                                 op0.op,
-                                [r0, Const(b.idx, b.variable, b.value, from_bits)],
+                                [r0, Const(b.idx, None, b.value, from_bits)],
                                 op0.signed,
                                 bits=from_bits,
                                 **op0.tags,
@@ -133,7 +133,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             return BinaryOp(
                                 expr.idx,
                                 expr.op,
-                                [r1, Const(c.idx, c.variable, c.value, from_bits)],
+                                [r1, Const(c.idx, None, c.value, from_bits)],
                                 expr.signed,
                                 bits=1,
                                 **expr.tags,
