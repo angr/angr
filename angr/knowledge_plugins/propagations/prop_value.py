@@ -179,7 +179,7 @@ class PropValue:
 
         if isinstance(expr, ailment.Expr.Const):
             mask = (1 << bits) - 1
-            return ailment.Expr.Const(expr.idx, expr.variable, (expr.value >> start) & mask, bits, **expr.tags)
+            return ailment.Expr.Const(expr.idx, None, (expr.value >> start) & mask, bits, **expr.tags)
 
         if start == 0:
             return ailment.Expr.Convert(None, expr.bits, bits, False, expr, **expr.tags)
@@ -193,7 +193,7 @@ class PropValue:
         if expr is None:
             return None
         if isinstance(expr, ailment.Expr.Const):
-            return ailment.Expr.Const(expr.idx, expr.variable, expr.value, bits + expr.bits, **expr.tags)
+            return ailment.Expr.Const(expr.idx, None, expr.value, bits + expr.bits, **expr.tags)
         if isinstance(expr, ailment.Expr.Convert):
             return ailment.Expr.Convert(None, expr.from_bits, bits + expr.to_bits, False, expr.operand, **expr.tags)
         return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr, **expr.tags)
