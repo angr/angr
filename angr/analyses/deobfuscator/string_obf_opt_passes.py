@@ -77,13 +77,15 @@ class StringObfType3Rewriter(OptimizationPass):
             old_call_expr: Call = old_stmt.src
         else:
             old_call_expr: Call = old_stmt.expr
+        str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
+        self.manager.variable_map.set_custom_string(str_const)
         new_call = Call(
             old_call_expr.idx,
             "init_str",
             args=[
                 old_call_expr.args[0],
-                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                Const(None, None, len(deobf_content), self.project.arch.bits),
+                str_const,
+                Const(None, len(deobf_content), self.project.arch.bits),
             ],
             bits=old_call_expr.bits,
             **old_call_expr.tags,

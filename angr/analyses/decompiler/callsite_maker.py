@@ -207,7 +207,6 @@ class CallSiteMaker(Analysis):
                                     vvar_use,
                                     Expr.Const(
                                         self._ail_manager.next_atom(),
-                                        None,
                                         (offset - vvar_def_reg_offset) * 8,
                                         8,
                                     ),
@@ -228,7 +227,6 @@ class CallSiteMaker(Analysis):
                     else:
                         reg = Expr.Register(
                             self._atom_idx(),
-                            None,
                             offset,
                             size * 8,
                             reg_name=arg_loc.reg_name,

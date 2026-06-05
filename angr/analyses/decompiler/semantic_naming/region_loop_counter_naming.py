@@ -53,8 +53,9 @@ class RegionLoopCounterNaming(RegionNamingBase):
         region: BaseNode,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
+        variable_map,
     ):
-        super().__init__(region, variable_manager, functions)
+        super().__init__(region, variable_manager, functions, variable_map)
 
         # Track loops and their nesting
         self._loop_nodes: list[LoopNode] = []

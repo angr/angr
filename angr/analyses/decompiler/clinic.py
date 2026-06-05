@@ -83,6 +83,7 @@ from .return_maker import ReturnMaker
 from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
+from .variable_map import VariableMap
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
@@ -168,7 +169,7 @@ class ComboRegReferenceWalker(AILBlockRewriter):
                 offset += reg_vvar.size
             addr = ailment.Expr.UnaryOp(self._ail_manager.next_atom(), "Reference", combo_reg)
             if offset != 0:
-                offset_expr = ailment.Expr.Const(self._ail_manager.next_atom(), None, offset, self.project.arch.bits)
+                offset_expr = ailment.Expr.Const(self._ail_manager.next_atom(), offset, self.project.arch.bits)
                 addr = ailment.Expr.BinaryOp(
                     self._ail_manager.next_atom(),
                     "Add",
@@ -235,6 +236,7 @@ class Clinic(Analysis):
         constrain_callee_prototypes: bool = False,
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
+        variable_map: VariableMap | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -250,6 +252,10 @@ class Clinic(Analysis):
         self.func_args = None
         self.func_ret_var = SimVariable(0, "__retvar", "__retvar")
         self.variable_kb = variable_kb
+        # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
+        # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
+        # storing this information directly on AIL Statement/Expression objects.
+        self.variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
@@ -397,6 +403,8 @@ class Clinic(Analysis):
     def _analyze_for_decompiling(self):
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
+        # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
+        self._ail_manager.variable_map = self.variable_map
 
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
@@ -583,7 +591,6 @@ class Clinic(Analysis):
                             self._ail_manager.next_atom(),
                             ailment.Expr.Register(
                                 self._ail_manager.next_atom(),
-                                None,
                                 self.project.arch.ret_offset,
                                 self.project.arch.bits,
                             ),
@@ -633,7 +640,6 @@ class Clinic(Analysis):
                         param_vvar,
                         ailment.Expr.Register(
                             self._ail_manager.next_atom(),
-                            None,
                             reg_offset,
                             reg_arg.bits,
                             ins_addr=caller_block.addr + caller_block.original_size,
@@ -983,12 +989,14 @@ class Clinic(Analysis):
         assert entry_node is not None
 
         # Run all semantic naming patterns via the orchestrator
-        orchestrator = SemanticNamingOrchestrator(self._ail_graph, var_manager, self.kb.functions, entry_node)
+        orchestrator = SemanticNamingOrchestrator(
+            self._ail_graph, var_manager, self.kb.functions, entry_node, self.variable_map
+        )
         var_name_mapping = orchestrator.analyze()
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
     def _stage_collect_externs(self) -> None:
-        self.externs = self._collect_externs(self._ail_graph, self.variable_kb)
+        self.externs = self._collect_externs(self._ail_graph, self.variable_kb, self.variable_map)
 
     def _analyze_for_data_refs(self):
         # Remove alignment blocks
@@ -1001,6 +1009,7 @@ class Clinic(Analysis):
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
+        self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers
         self._update_progress(15.0, text="Tracking stack pointers")
@@ -1249,7 +1258,6 @@ class Clinic(Analysis):
                                 reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
                                 last_stmt.ret_expr = ailment.Expr.Register(
                                     self._ail_manager.next_atom(),
-                                    None,
                                     reg_offset,
                                     reg_size * 8,
                                     ins_addr=callsite_ins_addr,
@@ -1369,13 +1377,12 @@ class Clinic(Analysis):
             dflag_offset, dflag_size = self.project.arch.registers["d"]
             dflag = ailment.Expr.Register(
                 self._ail_manager.next_atom(),
-                None,
                 dflag_offset,
                 dflag_size * self.project.arch.byte_width,
                 ins_addr=block.addr,
             )
             forward = ailment.Expr.Const(
-                self._ail_manager.next_atom(), None, 1, dflag_size * self.project.arch.byte_width, ins_addr=block.addr
+                self._ail_manager.next_atom(), 1, dflag_size * self.project.arch.byte_width, ins_addr=block.addr
             )
             dflag_assignment = ailment.Stmt.Assignment(
                 self._ail_manager.next_atom(), dflag, forward, ins_addr=block.addr
@@ -1441,7 +1448,7 @@ class Clinic(Analysis):
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
                         new_last_stmt.expr.target = ailment.Expr.Const(
-                            self._ail_manager.next_atom(), None, successors[0].addr, last_stmt.expr.target.bits
+                            self._ail_manager.next_atom(), successors[0].addr, last_stmt.expr.target.bits
                         )
                         block.statements[-1] = new_last_stmt
 
@@ -1459,7 +1466,7 @@ class Clinic(Analysis):
                     new_last_stmt = last_stmt.copy()
                     assert isinstance(successors[0].addr, int)
                     new_last_stmt.target = ailment.Expr.Const(
-                        self._ail_manager.next_atom(), None, successors[0].addr, last_stmt.target.bits
+                        self._ail_manager.next_atom(), successors[0].addr, last_stmt.target.bits
                     )
                     block.statements[-1] = new_last_stmt
 
@@ -1496,7 +1503,6 @@ class Clinic(Analysis):
                     tags.pop("reg_name", None)
                     ret_expr = ailment.Expr.Register(
                         self._ail_manager.next_atom(),
-                        None,
                         ret_reg_offset,
                         self.project.arch.bits,
                         reg_name=self.project.arch.translate_register_name(ret_reg_offset, size=self.project.arch.bits),
@@ -1555,7 +1561,6 @@ class Clinic(Analysis):
                 arg_offset, arg_bits = self.project.arch.registers[arg.reg_name]
                 arg_expr = ailment.Expr.Register(
                     self._ail_manager.next_atom(),
-                    None,
                     arg_offset,
                     arg_bits * self.project.arch.byte_width,
                     **last_stmt.tags,
@@ -2391,6 +2396,7 @@ class Clinic(Analysis):
             self._link_variables_on_block(block, tmp_kb)
 
         if self._cache is not None:
+            self._cache.variable_map = self.variable_map
             self._cache.arg_vvars = arg_vvars
             self._cache.type_constraints = vr.type_constraints
             self._cache.func_typevar = vr.func_typevar
@@ -2400,6 +2406,18 @@ class Clinic(Analysis):
             self._cache.max_tv_id = vr.tv_manager.max_tv_id
 
         return tmp_kb
+
+    def _set_expr_variable(self, expr, variable, offset) -> None:
+        self.variable_map.set_variable(expr, variable, offset)
+
+    def _set_store_variable(self, stmt, variable, offset) -> None:
+        self.variable_map.set_variable(stmt, variable, offset)
+
+    def _set_reference_variable(self, expr, variable, offset) -> None:
+        self.variable_map.set_reference_variable(expr, variable, offset)
+
+    def _set_reference_values(self, expr, reference_values) -> None:
+        self.variable_map.set_reference_values(expr, reference_values)
 
     def _link_variables_on_block(self, block, kb):
         """
@@ -2418,7 +2436,8 @@ class Clinic(Analysis):
                 # find a memory variable
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
                 if len(mem_vars) == 1:
-                    stmt.variable, stmt.offset = next(iter(mem_vars))
+                    var, offset = next(iter(mem_vars))
+                    self._set_store_variable(stmt, var, offset)
                 else:
                     # check if the dest address is a variable
                     stmt: ailment.Stmt.Store
@@ -2428,8 +2447,7 @@ class Clinic(Analysis):
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
                             var = next(iter(variables))
-                            stmt.variable = var
-                            stmt.offset = 0
+                            self._set_store_variable(stmt, var, 0)
                     else:
                         self._link_variables_on_expr(
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr
@@ -2519,15 +2537,13 @@ class Clinic(Analysis):
                 final_reg_vars = reg_vars
             if len(final_reg_vars) >= 1:
                 reg_var, offset = next(iter(final_reg_vars))
-                expr.variable = reg_var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, reg_var, offset)
 
         elif type(expr) is ailment.Expr.VirtualVariable:
             vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(vars_) >= 1:
                 var, offset = next(iter(vars_))
-                expr.variable = var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, var, offset)
 
             if expr.was_combo_reg:
                 for reg_vvar in expr.reg_vvars:
@@ -2546,33 +2562,37 @@ class Clinic(Analysis):
                 # if we are accessing the variable directly (offset == 0), we link the variable onto this expression
                 if (
                     offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0)
-                ) and "reference_variable" in base_addr.tags:
-                    expr.variable = base_addr.tags["reference_variable"]
-                    expr.variable_offset = base_addr.tags["reference_variable_offset"]
+                ) and self.variable_map.reference_variable(base_addr) is not None:
+                    self._set_expr_variable(
+                        expr,
+                        self.variable_map.reference_variable(base_addr),
+                        self.variable_map.reference_variable_offset(base_addr),
+                    )
 
                 if base_addr is None and offset is None:
                     # this is a local variable
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
-                    if "reference_variable" in expr.addr.tags and expr.addr.tags["reference_variable"] is not None:
+                    if self.variable_map.reference_variable(expr.addr) is not None:
                         # copy over the variable to this expr since the variable on a constant is supposed to be a
                         # reference variable.
-                        expr.variable = expr.addr.tags["reference_variable"]
-                        expr.variable_offset = expr.addr.tags["reference_variable_offset"]
+                        self._set_expr_variable(
+                            expr,
+                            self.variable_map.reference_variable(expr.addr),
+                            self.variable_map.reference_variable_offset(expr.addr),
+                        )
             else:
                 if len(variables) > 1:
                     l.error(
                         "More than one variable are available for atom %s. Consider fixing it using phi nodes.", expr
                     )
                 var, offset = next(iter(variables))
-                expr.variable = var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, var, offset)
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
-                expr.variable = var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, var, offset)
             else:
                 self._link_variables_on_expr(
                     variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[0]
@@ -2585,8 +2605,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
-                expr.variable = var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, var, offset)
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
@@ -2605,8 +2624,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
-                expr.variable = var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, var, offset)
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.cond)
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.iftrue)
@@ -2616,21 +2634,18 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
-                expr.variable = var
-                expr.variable_offset = offset
+                self._set_expr_variable(expr, var, offset)
 
         elif isinstance(expr, ailment.Expr.Const) and expr.is_int:
             # custom string?
-            if expr.tags.get("custom_string", False):
+            if self.variable_map.custom_string(expr):
                 s = self.kb.custom_strings[expr.value]
                 ty = (
                     expr.tags["type"]
                     if "type" in expr.tags
                     else SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                 )
-                expr.tags["reference_values"] = {
-                    ty: s,
-                }
+                self._set_reference_values(expr, {ty: s})
             else:
                 # global variable?
                 global_vars = global_variables.get_global_variables(expr.value_int)
@@ -2647,15 +2662,13 @@ class Clinic(Analysis):
                             global_vars = {global_var}
                 if global_vars:
                     global_var = next(iter(global_vars))
-                    expr.tags["reference_variable"] = global_var
-                    expr.tags["reference_variable_offset"] = 0
+                    self._set_reference_variable(expr, global_var, 0)
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
                     if len(variables) >= 1:
                         var, offset = next(iter(variables))
-                        expr.variable = var
-                        expr.variable_offset = offset
+                        self._set_expr_variable(expr, var, offset)
 
         elif isinstance(expr, ailment.Expr.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, expr)
@@ -2801,7 +2814,6 @@ class Clinic(Analysis):
                         call_stmt = last_stmt.copy()
                         call_stmt.expr.target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
-                            None,
                             self.project.arch.registers["rax"][0],
                             64,
                             ins_addr=call_stmt.tags["ins_addr"],
@@ -2872,10 +2884,10 @@ class Clinic(Analysis):
             ite_expr_stmt.idx,
             ite_expr.cond,
             ailment.Expr.Const(
-                self._ail_manager.next_atom(), None, true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
+                self._ail_manager.next_atom(), true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
             ),
             ailment.Expr.Const(
-                self._ail_manager.next_atom(), None, false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
+                self._ail_manager.next_atom(), false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
             ),
             **ite_expr_stmt.tags,
         )
@@ -3280,9 +3292,7 @@ class Clinic(Analysis):
                 # the head is removed - let's replace it with a jump to the target
                 jump_stmt = ailment.Stmt.Jump(
                     self._ail_manager.next_atom(),
-                    ailment.Expr.Const(
-                        self._ail_manager.next_atom(), None, intended_head_1.addr, self.project.arch.bits
-                    ),
+                    ailment.Expr.Const(self._ail_manager.next_atom(), intended_head_1.addr, self.project.arch.bits),
                     target_idx=intended_head_1.idx,
                     ins_addr=o.addr,
                 )
@@ -3296,9 +3306,7 @@ class Clinic(Analysis):
                     # update the jump target
                     new_head.statements[-1] = ailment.Stmt.Jump(
                         new_head.statements[-1].idx,
-                        ailment.Expr.Const(
-                            self._ail_manager.next_atom(), None, intended_head_1.addr, self.project.arch.bits
-                        ),
+                        ailment.Expr.Const(self._ail_manager.next_atom(), intended_head_1.addr, self.project.arch.bits),
                         target_idx=intended_head_1.idx,
                         **new_head.statements[-1].tags,
                     )
@@ -3436,7 +3444,7 @@ class Clinic(Analysis):
             node.statements.insert(0, lbl)
 
     @staticmethod
-    def _collect_externs(ail_graph, variable_kb):
+    def _collect_externs(ail_graph, variable_kb, variable_map: VariableMap):
         global_vars = variable_kb.variables.global_manager.get_variables()
         walker = ailment.AILBlockRewriter()
         variables = set()
@@ -3449,16 +3457,17 @@ class Clinic(Analysis):
             block: ailment.Block | None,
         ):
             for v in [
-                getattr(expr, "variable", None),
-                expr.tags.get("reference_variable", None) if hasattr(expr, "tags") else None,
+                variable_map.variable(expr),
+                variable_map.reference_variable(expr),
             ]:
                 if v and v in global_vars:
                     variables.add(v)
             return ailment.AILBlockRewriter._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
-            if stmt.variable and stmt.variable in global_vars:
-                variables.add(stmt.variable)
+            store_var = variable_map.variable(stmt)
+            if store_var and store_var in global_vars:
+                variables.add(store_var)
             return ailment.AILBlockRewriter._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
@@ -3829,7 +3838,6 @@ class Clinic(Analysis):
                             [
                                 ailment.Expr.Register(
                                     self._ail_manager.next_atom(),
-                                    None,
                                     self.project.arch.sp_offset,
                                     self.project.arch.bits,
                                 ),
@@ -3884,7 +3892,7 @@ class Clinic(Analysis):
                 arg_types = []
                 for arg_expr in expr.args:
                     arg_type = None
-                    if hasattr(arg_expr, "variable") and arg_expr.variable is not None:
+                    if self.variable_map.variable(arg_expr) is not None:
                         # the type is type(a)
                         t = None
                         if isinstance(arg_expr, ailment.Expr.VirtualVariable):
@@ -3904,7 +3912,7 @@ class Clinic(Analysis):
 
                         if t is None:
                             # maybe not a function arg
-                            v = arg_expr.variable
+                            v = self.variable_map.variable(arg_expr)
                             if v is not None:
                                 t = variables.get_variable_type(v)
 
@@ -3913,7 +3921,7 @@ class Clinic(Analysis):
                     elif isinstance(arg_expr, ailment.Expr.UnaryOp) and arg_expr.op == "Reference":
                         # &a; the type becomes a pointer to type(a)
                         inner = arg_expr.operand
-                        v = inner.variable
+                        v = self.variable_map.variable(inner)
                         if v is not None:
                             t = variables.get_variable_type(v)
                             if t is not None:

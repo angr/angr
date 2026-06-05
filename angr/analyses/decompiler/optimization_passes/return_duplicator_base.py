@@ -44,8 +44,6 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 dst.bits,
                 dst.category,
                 dst.oident,
-                variable=dst.variable,
-                variable_offset=dst.variable_offset,
                 **dst.tags,
             )
 
@@ -63,8 +61,6 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 expr.bits,
                 expr.category,
                 expr.oident,
-                variable=expr.variable,
-                variable_offset=expr.variable_offset,
                 **expr.tags,
             )
         return expr

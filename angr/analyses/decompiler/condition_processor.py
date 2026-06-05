@@ -33,6 +33,7 @@ from .structurer_nodes import (
     SwitchCaseNode,
 )
 from .utils import peephole_optimize_expr
+from .variable_map import variable_map_of
 
 if TYPE_CHECKING:
     from angr.ailment import Manager
@@ -757,8 +758,8 @@ class ConditionProcessor:
                     self.ail_manager.next_atom(),
                     "CmpEQ",
                     (
-                        ailment.Expr.Register(self.ail_manager.next_atom(), None, self.EXC_COUNTER, 64),
-                        ailment.Expr.Const(self.ail_manager.next_atom(), None, self.EXC_COUNTER, 64),
+                        ailment.Expr.Register(self.ail_manager.next_atom(), self.EXC_COUNTER, 64),
+                        ailment.Expr.Const(self.ail_manager.next_atom(), self.EXC_COUNTER, 64),
                     ),
                     False,
                 ),
@@ -844,7 +845,7 @@ class ConditionProcessor:
             return cond
 
         if cond.op in {"BoolS", "BoolV"} and claripy.is_true(claripy.simplify(cond)):
-            return ailment.Expr.Const(self.ail_manager.next_atom(), None, True, 1)
+            return ailment.Expr.Const(self.ail_manager.next_atom(), True, 1)
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
         if cond.op in {"BVS", "BoolS"} and cond.args[0] in self._condition_mapping:
@@ -902,12 +903,12 @@ class ConditionProcessor:
             "__mod__": lambda cond_, tags: _binary_op_reduce("Mod", cond_.args, tags),
             "LShR": lambda cond_, tags: _binary_op_reduce("Shr", cond_.args, tags),
             "BVV": lambda cond_, tags: ailment.Expr.Const(
-                self.ail_manager.next_atom(), None, cond_.args[0], cond_.size(), **tags
+                self.ail_manager.next_atom(), cond_.args[0], cond_.size(), **tags
             ),
             "BoolV": lambda cond_, tags: (
-                ailment.Expr.Const(self.ail_manager.next_atom(), None, True, 1, **tags)
+                ailment.Expr.Const(self.ail_manager.next_atom(), True, 1, **tags)
                 if cond_.args[0] is True
-                else ailment.Expr.Const(self.ail_manager.next_atom(), None, False, 1, **tags)
+                else ailment.Expr.Const(self.ail_manager.next_atom(), False, 1, **tags)
             ),
             "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
             "ZeroExt": lambda cond_, tags: _binary_op_reduce(
@@ -949,15 +950,16 @@ class ConditionProcessor:
             )
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
-            if condition.variable is not None:
+            condition_var = variable_map_of(self.ail_manager).variable(condition)
+            if condition_var is not None:
                 if condition.bits == 1:
                     var = claripy.BoolS(
-                        f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
+                        f"ailexpr_{condition!r}-{condition_var.ident}-{ins_addr:x}",
                         explicit_name=True,
                     )
                 else:
                     var = claripy.BVS(
-                        f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
+                        f"ailexpr_{condition!r}-{condition_var.ident}-{ins_addr:x}",
                         condition.bits,
                         explicit_name=True,
                     )

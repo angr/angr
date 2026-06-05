@@ -192,9 +192,7 @@ class Store(Statement):
         "data",
         "endness",
         "guard",
-        "offset",
         "size",
-        "variable",
     )
 
     def __init__(
@@ -205,8 +203,6 @@ class Store(Statement):
         size: int,
         endness: str,
         guard: Expression | None = None,
-        variable=None,
-        offset=None,
         **kwargs,
     ):
         super().__init__(idx, **kwargs)
@@ -215,9 +211,7 @@ class Store(Statement):
         self.data = data
         self.size = size
         self.endness = endness
-        self.variable = variable
         self.guard = guard
-        self.offset = offset  # variable_offset
 
     def likes(self, other):
         return (
@@ -246,13 +240,8 @@ class Store(Statement):
         return f"Store ({self.addr}, {self.data}[{self.size}])" + ("" if self.guard is None else f"[{self.guard}]")
 
     def __str__(self):
-        if self.variable is None:
-            return (
-                f"STORE(addr={self.addr}, data={self.data!s}, size={self.size},"
-                f" endness={self.endness}, guard={self.guard})"
-            )
-        return f"{self.variable.name} ={'L' if self.endness == 'Iend_LE' else 'B'} {self.data}<{self.size}>" + (
-            "" if self.guard is None else f"[{self.guard}]"
+        return (
+            f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
         )
 
     def replace(self, old_expr, new_expr):
@@ -284,7 +273,6 @@ class Store(Statement):
                 self.size,
                 self.endness,
                 guard=replaced_guard,
-                variable=self.variable,
                 **self.tags,
             )
         return False, self
@@ -301,22 +289,21 @@ class Store(Statement):
             self.size,
             self.endness,
             guard=self.guard,
-            variable=self.variable,
-            offset=self.offset,
             **self.tags,
         )
 
     def deep_copy(self, manager) -> Store:
-        return Store(
-            manager.next_atom(),
-            self.addr.deep_copy(manager),
-            self.data.deep_copy(manager),
-            self.size,
-            self.endness,
-            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
-            variable=self.variable,
-            offset=self.offset,
-            **self.tags,
+        return self._transfer_varmap(
+            Store(
+                manager.next_atom(),
+                self.addr.deep_copy(manager),
+                self.data.deep_copy(manager),
+                self.size,
+                self.endness,
+                guard=self.guard.deep_copy(manager) if self.guard is not None else None,
+                **self.tags,
+            ),
+            manager,
         )
 
 

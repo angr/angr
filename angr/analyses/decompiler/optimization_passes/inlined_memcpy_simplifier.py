@@ -88,15 +88,15 @@ class InlinedMemcpySimplifier(OptimizationPass):
         if should_replace:
             assert dst_offset is not None and src_offset is not None and store_size is not None
             return SideEffectStatement(
-                stmt.idx,
+                self.manager.next_atom(),
                 Call(
-                    stmt.idx,
+                    self.manager.next_atom(),
                     "memcpy",
                     calling_convention=None,
                     args=[
                         StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
                         StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
-                        Const(self.manager.next_atom(), None, store_size, self.project.arch.bits),
+                        Const(self.manager.next_atom(), store_size, self.project.arch.bits),
                     ],
                     prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
                     bits=None,

@@ -90,7 +90,6 @@ class X86CCallRewriter(CCallRewriterBase):
                         )
                         max_signed = Expr.Const(
                             self.ail_manager.next_atom(),
-                            None,
                             (1 << (dep_1.bits - 1)),
                             bits=dep_1.bits * 2,
                             **ccall.tags,
@@ -113,7 +112,6 @@ class X86CCallRewriter(CCallRewriterBase):
                         )
                         max_signed = Expr.Const(
                             self.ail_manager.next_atom(),
-                            None,
                             (1 << (dep_1.bits - 1)),
                             bits=dep_1.bits,
                             **ccall.tags,
@@ -129,7 +127,6 @@ class X86CCallRewriter(CCallRewriterBase):
                         # dep_1 is the result
                         overflowed = Expr.Const(
                             self.ail_manager.next_atom(),
-                            None,
                             1 << (dep_1.bits - 1),
                             dep_1.bits,
                             **ccall.tags,
@@ -147,8 +144,8 @@ class X86CCallRewriter(CCallRewriterBase):
                         return Expr.ITE(
                             ccall.idx,
                             ret_cond,
-                            Expr.Const(self.ail_manager.next_atom(), None, 0, ccall.bits, **ccall.tags),
-                            Expr.Const(self.ail_manager.next_atom(), None, 1, ccall.bits, **ccall.tags),
+                            Expr.Const(self.ail_manager.next_atom(), 0, ccall.bits, **ccall.tags),
+                            Expr.Const(self.ail_manager.next_atom(), 1, ccall.bits, **ccall.tags),
                             **ccall.tags,
                         )
                 elif cond_v == X86_CondTypes["CondZ"]:
@@ -168,7 +165,6 @@ class X86CCallRewriter(CCallRewriterBase):
                         )
                         zero = Expr.Const(
                             self.ail_manager.next_atom(),
-                            None,
                             0,
                             dep_1.bits,
                             **ccall.tags,
@@ -210,7 +206,7 @@ class X86CCallRewriter(CCallRewriterBase):
                         cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpEQ",
-                            (dep_1, Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)),
+                            (dep_1, Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)),
                             True,
                             bits=1,
                             **ccall.tags,
@@ -246,7 +242,7 @@ class X86CCallRewriter(CCallRewriterBase):
                         cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLT",
-                            (dep_1, Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)),
+                            (dep_1, Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)),
                             True,
                             **ccall.tags,
                         )
@@ -275,7 +271,6 @@ class X86CCallRewriter(CCallRewriterBase):
                         )
                         zero = Expr.Const(
                             self.ail_manager.next_atom(),
-                            None,
                             0,
                             dep_1.bits,
                             **ccall.tags,
@@ -316,7 +311,7 @@ class X86CCallRewriter(CCallRewriterBase):
                         cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLE" if cond_v == X86_CondTypes["CondBE"] else "CmpLT",
-                            (dep_1, Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)),
+                            (dep_1, Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)),
                             False,
                             bits=1,
                             **ccall.tags,
@@ -370,6 +365,6 @@ class X86CCallRewriter(CCallRewriterBase):
             bits = 32
         if bits < 32:
             if isinstance(expr, Expr.Const):
-                return Expr.Const(expr.idx, None, expr.value & ((1 << bits) - 1), bits, **tags)
+                return Expr.Const(expr.idx, expr.value & ((1 << bits) - 1), bits, **tags)
             return Expr.Convert(self.ail_manager.next_atom(), 32, bits, False, expr, **tags)
         return expr

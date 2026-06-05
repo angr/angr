@@ -202,7 +202,7 @@ class StructurerBase(Analysis):
                     # does not fall through to the next branch
                     goto_stmt = ailment.Stmt.Jump(
                         self.ail_manager.next_atom(),
-                        ailment.Expr.Const(self.ail_manager.next_atom(), None, switch_end_addr, self.project.arch.bits),
+                        ailment.Expr.Const(self.ail_manager.next_atom(), switch_end_addr, self.project.arch.bits),
                         target_idx=None,
                         ins_addr=cond_node.addr,
                     )

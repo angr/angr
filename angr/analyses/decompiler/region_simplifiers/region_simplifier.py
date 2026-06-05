@@ -11,6 +11,7 @@ from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
 from angr.analyses.decompiler.structurer_nodes import LoopNode
+from angr.analyses.decompiler.variable_map import variable_map_of
 
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .cascading_ifs import CascadingIfsRemover
@@ -185,11 +186,13 @@ class RegionSimplifier(Analysis):
                 continue
 
             if isinstance(definition, ailment.Stmt.SideEffectStatement):
-                # clear the existing variable since we no longer write to this variable after expression folding
+                # clear the existing variable since we no longer write to this variable after expression folding.
+                # deep_copy the ret_expr so it gets a fresh .idx; otherwise clearing its VariableMap entry (which is
+                # idx-keyed) would also clear the variable of the original ret_expr, which shares the same .idx.
                 definition = definition.copy()
                 if definition.ret_expr is not None:
-                    definition.ret_expr = definition.ret_expr.copy()
-                    definition.ret_expr.variable = None  # type: ignore
+                    definition.ret_expr = definition.ret_expr.deep_copy(self.ail_manager)
+                    variable_map_of(self.ail_manager).set_variable(definition.ret_expr, None)
             variable_assignments[var] = definition, loc
             variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps
@@ -202,13 +205,13 @@ class RegionSimplifier(Analysis):
                 del variable_uses[var]
 
         # ensure there is no interference between the call site and the use site
-        checker = InterferenceChecker(variable_assignments, variable_uses, region)
+        checker = InterferenceChecker(variable_assignments, variable_uses, region, variable_map_of(self.ail_manager))
         for varid in checker.interfered_assignments:
             if varid in variable_assignments:
                 del variable_assignments[varid]
                 del variable_uses[varid]
         # fold these expressions if possible
-        ExpressionFolder(variable_assignments, variable_uses, region)
+        ExpressionFolder(variable_assignments, variable_uses, region, variable_map_of(self.ail_manager))
         return region
 
     def _simplify_switch_expressions(self, region):
@@ -216,7 +219,7 @@ class RegionSimplifier(Analysis):
         return region
 
     def _simplify_switch_clusters(self, region):
-        finder = SwitchClusterFinder(region)
+        finder = SwitchClusterFinder(region, variable_map_of(self.ail_manager))
         simplify_switch_clusters(region, finder.var2condnodes, finder.var2switches)
         simplify_lowered_switches(
             region,
@@ -263,7 +266,9 @@ class RegionSimplifier(Analysis):
 
     def _apply_region_loop_counter_naming(self, region) -> None:
         assert self._variable_manager is not None
-        namer = RegionLoopCounterNaming(region, self._variable_manager, self.kb.functions)
+        namer = RegionLoopCounterNaming(
+            region, self._variable_manager, self.kb.functions, variable_map_of(self.ail_manager)
+        )
         namer.analyze()
         namer.apply_names()
 

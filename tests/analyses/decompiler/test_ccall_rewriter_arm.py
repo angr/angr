@@ -34,13 +34,13 @@ from angr.engines.vex.claripy.ccall import (
 
 def _make_ccall(callee, cond_n_op_val, dep1=None, dep2=None, dep3=None, bits=32):
     """Helper to build a VEXCCallExpression for armg_calculate_condition."""
-    cond_n_op = Expr.Const(0, None, cond_n_op_val, 32)
+    cond_n_op = Expr.Const(0, cond_n_op_val, 32)
     if dep1 is None:
-        dep1 = Expr.Register(1, None, 0, 32)  # r0
+        dep1 = Expr.Register(1, 0, 32)  # r0
     if dep2 is None:
-        dep2 = Expr.Register(2, None, 4, 32)  # r1
+        dep2 = Expr.Register(2, 4, 32)  # r1
     if dep3 is None:
-        dep3 = Expr.Const(3, None, 0, 32)
+        dep3 = Expr.Const(3, 0, 32)
     return Expr.VEXCCallExpression(
         idx=0,
         callee=callee,
@@ -51,13 +51,13 @@ def _make_ccall(callee, cond_n_op_val, dep1=None, dep2=None, dep3=None, bits=32)
 
 def _make_flag_ccall(callee, cc_op_val, dep1=None, dep2=None, dep3=None, bits=32):
     """Helper to build a VEXCCallExpression for armg_calculate_flag_*."""
-    cc_op = Expr.Const(0, None, cc_op_val, 32)
+    cc_op = Expr.Const(0, cc_op_val, 32)
     if dep1 is None:
-        dep1 = Expr.Register(1, None, 0, 32)
+        dep1 = Expr.Register(1, 0, 32)
     if dep2 is None:
-        dep2 = Expr.Register(2, None, 4, 32)
+        dep2 = Expr.Register(2, 4, 32)
     if dep3 is None:
-        dep3 = Expr.Const(3, None, 0, 32)
+        dep3 = Expr.Const(3, 0, 32)
     return Expr.VEXCCallExpression(
         idx=0,
         callee=callee,
@@ -246,19 +246,19 @@ class TestARMCCallRewriterCondition(unittest.TestCase):
     # ---- SBB conditions ----
 
     def test_sbb_hs_no_borrow(self):
-        dep3 = Expr.Const(0, None, 0, 32)
+        dep3 = Expr.Const(0, 0, 32)
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondHS, ARMG_CC_OP_SBB), dep3=dep3)
         result = _unwrap_convert(_rewrite(ccall))
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpGE"
 
     def test_sbb_hs_with_borrow(self):
-        dep3 = Expr.Const(0, None, 1, 32)
+        dep3 = Expr.Const(0, 1, 32)
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondHS, ARMG_CC_OP_SBB), dep3=dep3)
         result = _unwrap_convert(_rewrite(ccall))
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpGT"
 
     def test_sbb_lo_no_borrow(self):
-        dep3 = Expr.Const(0, None, 0, 32)
+        dep3 = Expr.Const(0, 0, 32)
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondLO, ARMG_CC_OP_SBB), dep3=dep3)
         result = _unwrap_convert(_rewrite(ccall))
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpLT"
@@ -272,10 +272,10 @@ class TestARMCCallRewriterCondition(unittest.TestCase):
     # ---- Non-const cond_n_op returns None ----
 
     def test_symbolic_cond_n_op_returns_none(self):
-        cond_n_op = Expr.Register(0, None, 0, 32)  # symbolic
-        dep1 = Expr.Register(1, None, 0, 32)
-        dep2 = Expr.Register(2, None, 4, 32)
-        dep3 = Expr.Const(3, None, 0, 32)
+        cond_n_op = Expr.Register(0, 0, 32)  # symbolic
+        dep1 = Expr.Register(1, 0, 32)
+        dep2 = Expr.Register(2, 4, 32)
+        dep3 = Expr.Const(3, 0, 32)
         ccall = Expr.VEXCCallExpression(
             idx=0,
             callee="armg_calculate_condition",
@@ -313,19 +313,19 @@ class TestARMCCallRewriterFlagHelpers(unittest.TestCase):
         assert isinstance(result.operands[0], Expr.BinaryOp) and result.operands[0].op == "Add"
 
     def test_flag_c_sbb_no_borrow(self):
-        dep3 = Expr.Const(0, None, 0, 32)
+        dep3 = Expr.Const(0, 0, 32)
         ccall = _make_flag_ccall("armg_calculate_flag_c", ARMG_CC_OP_SBB, dep3=dep3)
         result = _unwrap_convert(_rewrite(ccall))
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpGE"
 
     def test_flag_c_sbb_with_borrow(self):
-        dep3 = Expr.Const(0, None, 1, 32)
+        dep3 = Expr.Const(0, 1, 32)
         ccall = _make_flag_ccall("armg_calculate_flag_c", ARMG_CC_OP_SBB, dep3=dep3)
         result = _unwrap_convert(_rewrite(ccall))
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpGT"
 
     def test_flag_c_logic_returns_dep2(self):
-        dep2 = Expr.Register(0, None, 4, 32)
+        dep2 = Expr.Register(0, 4, 32)
         ccall = _make_flag_ccall("armg_calculate_flag_c", ARMG_CC_OP_LOGIC, dep2=dep2)
         result = _rewrite(ccall)
         # Should return dep2 directly (shifter carry out)
@@ -337,10 +337,10 @@ class TestARMCCallRewriterFlagHelpers(unittest.TestCase):
         assert result is None
 
     def test_flag_c_symbolic_op_returns_none(self):
-        cc_op = Expr.Register(0, None, 0, 32)
-        dep1 = Expr.Register(1, None, 0, 32)
-        dep2 = Expr.Register(2, None, 4, 32)
-        dep3 = Expr.Const(3, None, 0, 32)
+        cc_op = Expr.Register(0, 0, 32)
+        dep1 = Expr.Register(1, 0, 32)
+        dep2 = Expr.Register(2, 4, 32)
+        dep3 = Expr.Const(3, 0, 32)
         ccall = Expr.VEXCCallExpression(
             idx=0, callee="armg_calculate_flag_c", operands=(cc_op, dep1, dep2, dep3), bits=32
         )
@@ -417,8 +417,8 @@ class TestARMCCallRewriterRenamedCCall(unittest.TestCase):
 
     def test_renamed_ccall_wrong_operand_count_not_rewritten(self):
         # A _ccall with != 4 operands should not be rewritten
-        cond_n_op = Expr.Const(0, None, _cond_n_op(ARMCondEQ, ARMG_CC_OP_SUB), 32)
-        dep1 = Expr.Register(1, None, 0, 32)
+        cond_n_op = Expr.Const(0, _cond_n_op(ARMCondEQ, ARMG_CC_OP_SUB), 32)
+        dep1 = Expr.Register(1, 0, 32)
         ccall = Expr.VEXCCallExpression(idx=0, callee="_ccall", operands=(cond_n_op, dep1), bits=32)
         result = _rewrite(ccall)
         assert result is None

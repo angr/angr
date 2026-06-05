@@ -149,8 +149,8 @@ class PartialConstantExprRewriter(AILBlockRewriter):
             if new_mask == mask:
                 return expr
             if new_mask == 0:
-                return Const(expr_idx, None, 0, expr.bits, **expr.tags)
-            new_mask_expr = Const(mask_expr.idx, mask_expr.variable, new_mask, mask_expr.bits, **mask_expr.tags)
+                return Const(expr_idx, 0, expr.bits, **expr.tags)
+            new_mask_expr = Const(mask_expr.idx, new_mask, mask_expr.bits, **mask_expr.tags)
             return BinaryOp(expr_idx, expr.op, [vvar, new_mask_expr], bits=expr.bits, **expr.tags)
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -1027,7 +1027,7 @@ class AILSimplifier(Analysis):
                     continue
                 if use_loc not in replacements[key]:
                     replacements[key][use_loc] = {}
-                replacements[key][use_loc][expr] = Const(self._ail_manager.next_atom(), None, value, bits, **expr.tags)
+                replacements[key][use_loc][expr] = Const(self._ail_manager.next_atom(), value, bits, **expr.tags)
 
         return self._replace_exprs_in_blocks(replacements) if replacements else False
 
@@ -1280,7 +1280,6 @@ class AILSimplifier(Analysis):
                         new_idx,
                         Const(
                             self._ail_manager.next_atom(),
-                            None,
                             eq.atom0.addr,
                             self.project.arch.bits,
                         ),
@@ -2206,7 +2205,7 @@ class AILSimplifier(Analysis):
             stmt_idx: int, stmt: DirtyStatement, block: Block | None
         ) -> Statement:
             # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
-            rewriter = rewriter_cls(stmt, self.project.arch)
+            rewriter = rewriter_cls(stmt, self.project.arch, self._ail_manager)
             if rewriter.result is not None:
                 _any_update.v = True
                 if walker._update_block and block is not None:
@@ -2220,7 +2219,7 @@ class AILSimplifier(Analysis):
         ):
             r_expr = AILBlockRewriter._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
             assert isinstance(r_expr, DirtyExpression)
-            rewriter = rewriter_cls(r_expr, self.project.arch)
+            rewriter = rewriter_cls(r_expr, self.project.arch, self._ail_manager)
             if rewriter.result is not None:
                 _any_update.v = True
                 assert isinstance(rewriter.result, Expression)

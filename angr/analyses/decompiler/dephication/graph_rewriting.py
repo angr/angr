@@ -20,11 +20,20 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object, obj
     This analysis traverses the AIL graph and rewrites virtual variables accordingly.
     """
 
-    def __init__(self, project, func, ail_graph, vvar_to_vvar: dict[int, int], variable_kb=None):
+    def __init__(
+        self,
+        project,
+        func,
+        ail_graph,
+        vvar_to_vvar: dict[int, int],
+        variable_kb=None,
+        variable_map=None,
+    ):
         self.project = project
         self._function = func
         self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
         self.variable_kb = variable_kb
+        self.variable_map = variable_map
 
         ForwardAnalysis.__init__(
             self, order_jobs=False, allow_merging=False, allow_widening=False, graph_visitor=self._graph_visitor
@@ -32,7 +41,11 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object, obj
         self._graph = ail_graph
         self._vvar_to_vvar = vvar_to_vvar
         self._engine_ail = SimEngineDephiRewriting(
-            self.project, self._vvar_to_vvar, func_addr=self._function.addr, variable_kb=self.variable_kb
+            self.project,
+            self._vvar_to_vvar,
+            func_addr=self._function.addr,
+            variable_kb=self.variable_kb,
+            variable_map=self.variable_map,
         )
 
         self._visited_blocks: set[Any] = set()

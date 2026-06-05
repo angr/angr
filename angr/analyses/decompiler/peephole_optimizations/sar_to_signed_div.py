@@ -67,7 +67,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
                             "Div",
                             [
                                 converted_innerexpr,
-                                Const(self.manager.next_atom(), None, 2**const_value, converted_innerexpr.bits),
+                                Const(self.manager.next_atom(), 2**const_value, converted_innerexpr.bits),
                             ],
                             True,
                             **inner_expr.tags,

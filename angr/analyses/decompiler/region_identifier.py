@@ -654,9 +654,7 @@ class RegionIdentifier(Analysis):
                             new_last_stmt = ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
-                                ailment.Expr.Const(
-                                    self.ail_manager.next_atom(), None, condnode_addr, self.project.arch.bits
-                                ),
+                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
                                 last_stmt.false_target,
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
@@ -668,9 +666,7 @@ class RegionIdentifier(Analysis):
                                 last_stmt.idx,
                                 last_stmt.condition,
                                 last_stmt.true_target,
-                                ailment.Expr.Const(
-                                    self.ail_manager.next_atom(), None, condnode_addr, self.project.arch.bits
-                                ),
+                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
@@ -680,9 +676,7 @@ class RegionIdentifier(Analysis):
                         if isinstance(last_stmt.target, ailment.Expr.Const):
                             new_last_stmt = Jump(
                                 last_stmt.idx,
-                                ailment.Expr.Const(
-                                    self.ail_manager.next_atom(), None, condnode_addr, self.project.arch.bits
-                                ),
+                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
@@ -1199,9 +1193,7 @@ class RegionIdentifier(Analysis):
                 node.statements.append(
                     Jump(
                         self.ail_manager.next_atom(),
-                        Const(
-                            self.ail_manager.next_atom(), None, node.addr + node.original_size, self.project.arch.bits
-                        ),
+                        Const(self.ail_manager.next_atom(), node.addr + node.original_size, self.project.arch.bits),
                         ins_addr=node.addr,
                     )
                 )
@@ -1219,7 +1211,6 @@ class RegionIdentifier(Analysis):
                             self.ail_manager.next_atom(),
                             Const(
                                 self.ail_manager.next_atom(),
-                                None,
                                 node.addr + node.original_size,
                                 self.project.arch.bits,
                             ),

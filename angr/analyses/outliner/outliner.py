@@ -203,7 +203,7 @@ class Outliner(Analysis):
 
         for ret_node, frontier_node in out_edges:
             if retval_to_target:
-                new_ret_exprs = [*ret_exprs[:-1], Const(None, None, frontier_node.addr, self.project.arch.bits)]
+                new_ret_exprs = [*ret_exprs[:-1], Const(None, frontier_node.addr, self.project.arch.bits)]
             else:
                 new_ret_exprs = ret_exprs
             ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.tags["ins_addr"] for stmt in ret_node.statements))
@@ -221,11 +221,11 @@ class Outliner(Analysis):
                     cond_jump = ret_node.statements[-1]
                     if isinstance(cond_jump.true_target, Const) and cond_jump.true_target.value == frontier_node.addr:
                         _, cond_jump = cond_jump.replace(
-                            cond_jump.true_target, Const(None, None, new_ret_node.addr, self.project.arch.bits)
+                            cond_jump.true_target, Const(None, new_ret_node.addr, self.project.arch.bits)
                         )
                     if isinstance(cond_jump.false_target, Const) and cond_jump.false_target.value == frontier_node.addr:
                         _, cond_jump = cond_jump.replace(
-                            cond_jump.false_target, Const(None, None, new_ret_node.addr, self.project.arch.bits)
+                            cond_jump.false_target, Const(None, new_ret_node.addr, self.project.arch.bits)
                         )
                     ret_node.statements[-1] = cond_jump
                     subgraph.add_edge(ret_node, new_ret_node)
@@ -241,13 +241,13 @@ class Outliner(Analysis):
                     dispatcher_node_addr = next_dispatcher_node_addr
                     next_dispatcher_node_addr = self._next_block_addr(), None
 
-                    retval_const = Const(None, None, retval, self.project.arch.bits)
+                    retval_const = Const(None, retval, self.project.arch.bits)
                     cmp = BinaryOp(None, "CmpEQ", [switch_vvar, retval_const])
                     stmt = ConditionalJump(
                         None,
                         cmp,
-                        Const(None, None, jump_target[0], self.project.arch.bits),
-                        Const(None, None, next_dispatcher_node_addr[0], self.project.arch.bits),
+                        Const(None, jump_target[0], self.project.arch.bits),
+                        Const(None, next_dispatcher_node_addr[0], self.project.arch.bits),
                         true_target_idx=jump_target[1],
                         false_target_idx=next_dispatcher_node_addr[1],
                         ins_addr=dispatcher_node_addr[0],

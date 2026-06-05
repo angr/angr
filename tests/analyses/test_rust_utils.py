@@ -47,7 +47,7 @@ def _ref(operand) -> UnaryOp:
 
 
 def _const(value: int, bits: int = 64) -> Const:
-    return Const(0, None, value, bits)
+    return Const(0, value, bits)
 
 
 def test_unwrap_stack_vvar_reference_returns_underlying_vvar():
@@ -195,27 +195,27 @@ def _project_with_synthetic_function(addr: int, name: str):
 
 def test_extract_callee_returns_function_for_call_with_const_target():
     project = _project_with_synthetic_function(0x0, "callee")
-    call = Call(0, Const(0, None, 0x0, 64), args=[])
+    call = Call(0, Const(0, 0x0, 64), args=[])
     result = extract_callee(call, project.kb)
     assert result is project.kb.functions[0x0]
 
 
 def test_extract_callee_walks_block_to_terminal_call():
     project = _project_with_synthetic_function(0x0, "callee")
-    call = Call(0, Const(0, None, 0x0, 64), args=[])
+    call = Call(0, Const(0, 0x0, 64), args=[])
     block = Block(0x100, 0, statements=[call])  # pyright: ignore[reportArgumentType]
     assert extract_callee(block, project.kb) is project.kb.functions[0x0]
 
 
 def test_extract_callee_returns_none_for_unknown_target():
     project = _project_with_synthetic_function(0x0, "callee")
-    unknown = Call(0, Const(0, None, 0xDEADBEEF, 64), args=[])
+    unknown = Call(0, Const(0, 0xDEADBEEF, 64), args=[])
     assert extract_callee(unknown, project.kb) is None
 
 
 def test_extract_callee_returns_none_for_non_block_non_call():
     project = _project_with_synthetic_function(0x0, "callee")
-    assert extract_callee(Const(0, None, 0, 64), project.kb) is None
+    assert extract_callee(Const(0, 0, 64), project.kb) is None
 
 
 def test_extract_str_short_circuits_for_zero_length():

@@ -97,9 +97,7 @@ class SimplifierAILEngine(
 
         # replace
         if (addr, data) != (stmt.addr, stmt.data):
-            return ailment.statement.Store(
-                stmt.idx, addr, data, stmt.size, stmt.endness, variable=stmt.variable, **stmt.tags
-            )
+            return ailment.statement.Store(stmt.idx, addr, data, stmt.size, stmt.endness, **stmt.tags)
 
         return stmt
 
@@ -251,7 +249,7 @@ class SimplifierAILEngine(
             value = operand_expr.value
             mask = (2**expr.to_bits) - 1
             value &= mask
-            return ailment.expression.Const(expr.idx, operand_expr.variable, value, expr.to_bits, **expr.tags)
+            return ailment.expression.Const(expr.idx, value, expr.to_bits, **expr.tags)
         if type(operand_expr) is ailment.expression.BinaryOp and operand_expr.op in {
             "Mul",
             "Shl",
@@ -270,7 +268,6 @@ class SimplifierAILEngine(
                     )
                     converted_const = ailment.expression.Const(
                         operand_expr.operands[1].idx,
-                        operand_expr.operands[1].variable,
                         operand_expr.operands[1].value,
                         expr.to_bits,
                         **operand_expr.operands[1].tags,
@@ -337,8 +334,6 @@ class SimplifierAILEngine(
             self._expr(expr.cond),
             self._expr(expr.iffalse),
             self._expr(expr.iftrue),
-            variable=expr.variable,
-            variable_offset=expr.variable_offset,
             **expr.tags,
         )
 
@@ -380,9 +375,7 @@ class SimplifierAILEngine(
     def _handle_unop_Default(self, expr):
         operand = self._expr(expr.operand)
         if operand != expr.operand:
-            return ailment.expression.UnaryOp(
-                expr.idx, expr.op, operand, variable=expr.variable, variable_offset=expr.variable_offset, **expr.tags
-            )
+            return ailment.expression.UnaryOp(expr.idx, expr.op, operand, **expr.tags)
         return expr
 
     _handle_unop_Not = _handle_unop_Default
@@ -406,8 +399,6 @@ class SimplifierAILEngine(
                 expr.op,
                 (lhs, rhs),
                 expr.signed,
-                variable=expr.variable,
-                variable_offset=expr.variable_offset,
                 bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,

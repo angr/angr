@@ -47,6 +47,6 @@ class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
                     except KeyError:
                         return expr
                     value = offset + op1.value
-                    return Const(self.manager.next_atom(), None, value, self.project.arch.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), value, self.project.arch.bits, **expr.tags)
 
         return expr

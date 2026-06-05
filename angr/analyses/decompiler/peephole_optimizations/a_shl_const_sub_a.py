@@ -29,7 +29,7 @@ class AShlConstSubA(PeepholeOptimizationExprBase):
                     "Mul",
                     [
                         a,
-                        Const(self.manager.next_atom(), None, 2**N - 1, expr.bits, **expr.operands[0].operands[1].tags),
+                        Const(self.manager.next_atom(), 2**N - 1, expr.bits, **expr.operands[0].operands[1].tags),
                     ],
                     expr.signed,
                     **expr.tags,

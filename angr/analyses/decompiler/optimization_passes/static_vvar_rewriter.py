@@ -108,7 +108,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     return expr
                 data = buffer.content[v.offset : v.offset + expr.size]
                 value = int.from_bytes(data, byteorder="little" if expr.endness == "Iend_LE" else "big")
-                return Const(self.manager.next_atom(), None, value, expr.bits, **expr.tags)
+                return Const(self.manager.next_atom(), value, expr.bits, **expr.tags)
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -131,7 +131,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                         and data[str_len * word_size : str_len * word_size + word_size] != b"\x00" * word_size
                     ):
                         str_len += 1
-                    return Const(self.manager.next_atom(), None, str_len, expr.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), str_len, expr.bits, **expr.tags)
 
         elif expr.args and expr.prototype is not None:
             new_args: list | None = None
@@ -157,12 +157,11 @@ class VVarRewritingVisitor(AILBlockRewriter):
                             str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
                             str_id_arg = Const(
                                 self.manager.next_atom(),
-                                None,
                                 str_id,
                                 arg.bits,
-                                custom_string=True,
                                 **arg.tags,
                             )
+                            self.manager.variable_map.set_custom_string(str_id_arg)
                             if new_args is None:
                                 new_args = expr.args[:arg_idx]
                             new_args.append(str_id_arg)
@@ -183,12 +182,11 @@ class VVarRewritingVisitor(AILBlockRewriter):
                             str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
                             str_id_arg = Const(
                                 self.manager.next_atom(),
-                                None,
                                 str_id,
                                 arg.bits,
-                                custom_string=True,
                                 **arg.tags,
                             )
+                            self.manager.variable_map.set_custom_string(str_id_arg)
                             if new_args is None:
                                 new_args = expr.args[:arg_idx]
                             new_args.append(str_id_arg)
@@ -216,11 +214,18 @@ class VVarAliasVisitor(AILBlockViewer):
     The visitor that discovers const assignments and aliases of existing static vvars.
     """
 
-    def __init__(self, static_buffers: dict[str, FixedBuffer], static_vvars: dict[int, FixedBufferPtr | Const], kb):
+    def __init__(
+        self,
+        static_buffers: dict[str, FixedBuffer],
+        static_vvars: dict[int, FixedBufferPtr | Const],
+        kb,
+        manager: Manager,
+    ):
         super().__init__()
         self._static_buffers = static_buffers
         self._static_vvars = static_vvars
         self.kb = kb
+        self.manager = manager
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
@@ -252,7 +257,7 @@ class VVarAliasVisitor(AILBlockViewer):
             # got a new memcpy call that we can handle
             dst, src, size = call.args
             if dst.varid not in self._static_vvars:
-                if src.tags.get("custom_string", False):
+                if self.manager.variable_map is not None and self.manager.variable_map.custom_string(src):
                     ident = f"static_buf_{stmt.tags['ins_addr']}"
                     buf = self.kb.custom_strings[src.value_int]
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
@@ -315,7 +320,7 @@ class StaticVVarRewriter(OptimizationPass):
 
     def _check(self):
         # discover aliases
-        alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb)
+        alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb, self.manager)
         head = {(node.addr, node.idx): node for node in self._graph}[self.entry_node_addr]
         for block in reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(self._graph, head))):
             alias_visitor.walk(block)
@@ -343,7 +348,7 @@ class StaticVVarRewriter(OptimizationPass):
             # discover more aliases
             old_static_buffers = dict(self._static_buffers)
             old_static_vvars = dict(self._static_vvars)
-            alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb)
+            alias_visitor = VVarAliasVisitor(self._static_buffers, self._static_vvars, self.kb, self.manager)
             head = {(node.addr, node.idx): node for node in g}[self.entry_node_addr]
             for block in reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(g, head))):
                 alias_visitor.walk(block)

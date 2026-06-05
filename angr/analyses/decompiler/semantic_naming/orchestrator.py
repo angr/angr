@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import networkx
 
 from angr import ailment
+from angr.analyses.decompiler.variable_map import VariableMap
 from angr.sim_variable import SimVariable
 
 from .array_index_naming import ArrayIndexNaming
@@ -58,12 +59,14 @@ class SemanticNamingOrchestrator:
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: ailment.Block,
+        variable_map=None,
         patterns: list[type[ClinicNamingBase]] | None = None,
     ):
         self._graph = ail_graph
         self._variable_manager = variable_manager
         self._functions = functions
         self._entry_node = entry_node
+        self._variable_map = variable_map if variable_map is not None else VariableMap()
         self._patterns = patterns or NAMING_PATTERNS
 
         # Track all renamed variables
@@ -87,6 +90,7 @@ class SemanticNamingOrchestrator:
                 self._variable_manager,
                 self._functions,
                 self._entry_node,
+                self._variable_map,
             )
 
             # Analyze to get suggested renames

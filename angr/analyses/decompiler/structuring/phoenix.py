@@ -433,7 +433,7 @@ class PhoenixStructurer(StructurerBase):
                         assert last_stmt is not None
                         cond_jump = Jump(
                             self.ail_manager.next_atom(),
-                            Const(self.ail_manager.next_atom(), None, right.addr, self.project.arch.bits),
+                            Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                             None,
                             ins_addr=last_stmt.tags["ins_addr"],
                         )
@@ -920,7 +920,7 @@ class PhoenixStructurer(StructurerBase):
                         if claripy.is_true(break_cond):
                             break_stmt = Jump(
                                 self.ail_manager.next_atom(),
-                                Const(self.ail_manager.next_atom(), None, successor.addr, self.project.arch.bits),
+                                Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
                                 target_idx=successor.idx if isinstance(successor, Block) else None,
                                 ins_addr=last_src_stmt.tags["ins_addr"],
                             )
@@ -933,7 +933,7 @@ class PhoenixStructurer(StructurerBase):
                                 # we create a conditional jump that will be converted to a conditional break later
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
-                                    Const(self.ail_manager.next_atom(), None, successor.addr, self.project.arch.bits),
+                                    Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
@@ -942,7 +942,6 @@ class PhoenixStructurer(StructurerBase):
                                     self.ail_manager.next_atom(),
                                     Const(
                                         self.ail_manager.next_atom(),
-                                        None,
                                         fallthrough_node.addr,
                                         self.project.arch.bits,
                                     ),
@@ -966,7 +965,7 @@ class PhoenixStructurer(StructurerBase):
                                 assert other_target is not None
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
-                                    Const(self.ail_manager.next_atom(), None, successor.addr, self.project.arch.bits),
+                                    Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
@@ -1421,7 +1420,7 @@ class PhoenixStructurer(StructurerBase):
             # (e.g., inside another switch-case). we need to create a default node that jumps to the other node
             jmp_to_default_node = Jump(
                 self.ail_manager.next_atom(),
-                Const(self.ail_manager.next_atom(), None, node_default_addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), node_default_addr, self.project.arch.bits),
                 None,
                 ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
             )
@@ -2098,7 +2097,7 @@ class PhoenixStructurer(StructurerBase):
                     statements=[
                         Jump(
                             self.ail_manager.next_atom(),
-                            Const(self.ail_manager.next_atom(), None, entry_addr, self.project.arch.bits),
+                            Const(self.ail_manager.next_atom(), entry_addr, self.project.arch.bits),
                             target_idx=entry_idx,
                             ins_addr=0,
                             stmt_idx=0,
@@ -2237,7 +2236,7 @@ class PhoenixStructurer(StructurerBase):
                 if not isinstance(case_node_last_stmt, Jump):
                     jump_stmt = Jump(
                         self.ail_manager.next_atom(),
-                        Const(self.ail_manager.next_atom(), None, head.addr, self.project.arch.bits),
+                        Const(self.ail_manager.next_atom(), head.addr, self.project.arch.bits),
                         None,
                         ins_addr=out_src.addr,
                     )
@@ -2597,7 +2596,7 @@ class PhoenixStructurer(StructurerBase):
                             statements=[
                                 Jump(
                                     self.ail_manager.next_atom(),
-                                    Const(self.ail_manager.next_atom(), None, right.addr, self.project.arch.bits),
+                                    Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                                     ins_addr=new_cond_node.addr,
                                 )
                             ],
@@ -2742,8 +2741,8 @@ class PhoenixStructurer(StructurerBase):
             cond_jump = ConditionalJump(
                 self.ail_manager.next_atom(),
                 cond,
-                Const(self.ail_manager.next_atom(), None, right.addr, self.project.arch.bits),
-                Const(self.ail_manager.next_atom(), None, succ.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), succ.addr, self.project.arch.bits),
                 true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
                 false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -2783,10 +2782,8 @@ class PhoenixStructurer(StructurerBase):
             cond_jump = ConditionalJump(
                 self.ail_manager.next_atom(),
                 cond,
-                Const(self.ail_manager.next_atom(), None, left.addr, self.project.arch.bits, ins_addr=start_node.addr),
-                Const(
-                    self.ail_manager.next_atom(), None, else_node.addr, self.project.arch.bits, ins_addr=start_node.addr
-                ),
+                Const(self.ail_manager.next_atom(), left.addr, self.project.arch.bits, ins_addr=start_node.addr),
+                Const(self.ail_manager.next_atom(), else_node.addr, self.project.arch.bits, ins_addr=start_node.addr),
                 true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else None,
                 false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -2829,8 +2826,8 @@ class PhoenixStructurer(StructurerBase):
             cond_jump = ConditionalJump(
                 self.ail_manager.next_atom(),
                 cond,
-                Const(self.ail_manager.next_atom(), None, right.addr, self.project.arch.bits),
-                Const(self.ail_manager.next_atom(), None, succ.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), succ.addr, self.project.arch.bits),
                 true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
                 false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -2869,8 +2866,8 @@ class PhoenixStructurer(StructurerBase):
             cond_jump = ConditionalJump(
                 self.ail_manager.next_atom(),
                 cond,
-                Const(self.ail_manager.next_atom(), None, right.addr, self.project.arch.bits),
-                Const(self.ail_manager.next_atom(), None, else_node.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), else_node.addr, self.project.arch.bits),
                 true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
                 false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -3213,7 +3210,7 @@ class PhoenixStructurer(StructurerBase):
                 statements=[
                     Jump(
                         self.ail_manager.next_atom(),
-                        Const(self.ail_manager.next_atom(), None, dst.addr, self.project.arch.bits),
+                        Const(self.ail_manager.next_atom(), dst.addr, self.project.arch.bits),
                         ins_addr=stmt_addr,
                         stmt_idx=0,
                     )

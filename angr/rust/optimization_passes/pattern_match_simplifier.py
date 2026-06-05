@@ -11,6 +11,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import (
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import ConditionNode
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import DFAMixin
 from angr.rust.optimization_passes.pre_pattern_match_simplifier import PrePatternMatchSimplifier
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
@@ -21,10 +22,11 @@ from angr.rust.utils.ail import unwrap_stack_vvar_reference
 class PatternMatchWalker(SequenceWalker, DFAMixin):
     """Walker that converts condition nodes into pattern match or if-let nodes."""
 
-    def __init__(self, var_manager, graph):
+    def __init__(self, var_manager, graph, variable_map):
         super().__init__()
         self.var_manager = var_manager
         self.graph = graph
+        self._variable_map = variable_map
 
     @staticmethod
     def _find_first_block(node):
@@ -167,7 +169,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         """Get the enum type from scrutinee's tags or variable manager."""
         enum_ty = scrutinee.tags.get("type", None)
         if enum_ty is None:
-            enum_ty = self.var_manager.get_variable_type(scrutinee.variable)
+            enum_ty = self.var_manager.get_variable_type(self._variable_map.variable(scrutinee))
         if isinstance(enum_ty, (RustSimTypeOption, RustSimTypeResult)):
             return enum_ty
         return None
@@ -257,6 +259,10 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
     def _analyze(self, cache=None):
         if self._variable_kb is None:
             return
-        walker = PatternMatchWalker(self._variable_kb.variables.get_function_manager(self._func.addr), self._graph)
+        walker = PatternMatchWalker(
+            self._variable_kb.variables.get_function_manager(self._func.addr),
+            self._graph,
+            variable_map_of(self.manager),
+        )
         walker.walk(self.seq)
         self.out_seq = self.seq

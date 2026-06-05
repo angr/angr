@@ -85,7 +85,7 @@ def extract_partial_expr(base_expr: Expression, off: int, size: int, ail_manager
         raise ValueError("Insufficient expression bits")
 
     base_mask = ((1 << bits) - 1) << (off * byte_width)
-    base_mask = Const(ail_manager.next_atom(), None, base_mask, base_expr.bits)
+    base_mask = Const(ail_manager.next_atom(), base_mask, base_expr.bits)
     masked_base_expr = BinaryOp(
         ail_manager.next_atom(),
         "And",
@@ -95,7 +95,7 @@ def extract_partial_expr(base_expr: Expression, off: int, size: int, ail_manager
         **base_expr.tags,
     )
     if off > 0:
-        shift_amount = Const(ail_manager.next_atom(), None, off * byte_width, byte_width)
+        shift_amount = Const(ail_manager.next_atom(), off * byte_width, byte_width)
         shifted_vvar = BinaryOp(
             ail_manager.next_atom(),
             "Shr",

@@ -32,13 +32,11 @@ class RemoveConstInsert(PeepholeOptimizationExprBase):
                 "Shl",
                 [
                     value,
-                    Const(self.manager.next_atom(), None, expr.offset.value * self.project.arch.byte_width, expr.bits),
+                    Const(self.manager.next_atom(), expr.offset.value * self.project.arch.byte_width, expr.bits),
                 ],
                 signed=False,
             )
             if expr.offset.value != 0
             else value
         )
-        return BinaryOp(
-            expr.idx, "Or", [shifted, Const(self.manager.next_atom(), None, base, shifted.bits)], signed=False
-        )
+        return BinaryOp(expr.idx, "Or", [shifted, Const(self.manager.next_atom(), base, shifted.bits)], signed=False)

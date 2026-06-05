@@ -393,7 +393,7 @@ class BlockSimplifier(Analysis):
 
                     if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
-                        stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
+                        stmt = SideEffectStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags)
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
                     continue

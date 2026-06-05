@@ -31,7 +31,7 @@ class CoalesceAdjacentShiftRights(PeepholeOptimizationExprBase):
                 r = BinaryOp(
                     expr.idx,
                     expr.op,
-                    [inner.operands[0], Const(self.manager.next_atom(), None, new_shift, 8)],
+                    [inner.operands[0], Const(self.manager.next_atom(), new_shift, 8)],
                     expr.signed,
                     **expr.tags,
                 )

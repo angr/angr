@@ -91,9 +91,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                     switch_head_node = self._get_block(switch_head_addr)
                     goto_stmt = Jump(
                         self.manager.next_atom(),
-                        Const(
-                            self.manager.next_atom(), None, default_addr, self.project.arch.bits, ins_addr=default_addr
-                        ),
+                        Const(self.manager.next_atom(), default_addr, self.project.arch.bits, ins_addr=default_addr),
                         target_idx=None,  # I'm assuming the ID of the default node is None here
                         ins_addr=default_addr,
                     )

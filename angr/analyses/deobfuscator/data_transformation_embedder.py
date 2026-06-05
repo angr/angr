@@ -1,3 +1,4 @@
+# pylint:disable=protected-access
 from __future__ import annotations
 
 import logging
@@ -123,7 +124,7 @@ class DataTransformationEmbedder(Analysis):
             arg_sort = []
             for arg in args:
                 if isinstance(arg, Const):
-                    if arg.tags.get("custom_string", False):
+                    if self.clinic.variable_map.custom_string(arg):
                         has_constant_string_arg = True
                     if arg.value_int in cfg.memory_data:
                         md = cfg.memory_data[arg.value_int]
@@ -233,7 +234,7 @@ class DataTransformationEmbedder(Analysis):
             arg = trans_desc["args"][arg_idx]
             if arg_sort == "const":
                 if isinstance(arg, Const):
-                    if arg.tags.get("custom_string", False):
+                    if self.clinic.variable_map.custom_string(arg):
                         s = self.project.kb.custom_strings[arg.value_int]
                         # FIXME: we force the first argument to be a uint8_t* here
                         callee_func.prototype.args = (
@@ -278,7 +279,7 @@ class DataTransformationEmbedder(Analysis):
                 alloc_expr = Call(
                     None,
                     "malloc",
-                    args=[Const(None, None, buf_size, self.project.arch.bits)],
+                    args=[Const(None, buf_size, self.project.arch.bits)],
                     bits=self.project.arch.bits,
                     ins_addr=callsite_insaddr,
                 )
@@ -286,14 +287,18 @@ class DataTransformationEmbedder(Analysis):
 
                 str_id = self.project.kb.custom_strings.allocate(data)
                 src_expr = Const(
-                    None, None, str_id, self.project.arch.bits, ins_addr=callsite_insaddr, custom_string=True
+                    self.clinic._ail_manager.next_atom(),
+                    str_id,
+                    self.project.arch.bits,
+                    ins_addr=callsite_insaddr,
                 )
+                self.clinic.variable_map.set_custom_string(src_expr)
                 assign_stmt = SideEffectStatement(
                     None,
                     Call(
                         None,
                         "memcpy",
-                        args=[dst, src_expr, Const(None, None, len(data), self.project.arch.bits)],
+                        args=[dst, src_expr, Const(None, len(data), self.project.arch.bits)],
                         ins_addr=callsite_insaddr,
                     ),
                     ins_addr=callsite_insaddr,
@@ -311,7 +316,7 @@ class DataTransformationEmbedder(Analysis):
                     )
                     if value.symbolic:
                         return False
-                    value_expr = Const(None, None, value.concrete_value, arg.operand.bits)
+                    value_expr = Const(None, value.concrete_value, arg.operand.bits)
                     alloc_stmt = Assignment(
                         None,
                         arg.operand,
@@ -595,14 +600,15 @@ class DataTransformationEmbedder(Analysis):
                 stmts.append(assign_stmt)
                 buffer_addr = v.concrete_value
                 str_id = self.project.kb.custom_strings.allocate(known_buffers[buffer_addr])
-                src_expr = Const(None, None, str_id, v.size(), ins_addr=addr, custom_string=True)
-                size_expr = Const(None, None, len(known_buffers[buffer_addr]), v.size(), ins_addr=addr)
+                src_expr = Const(self.clinic._ail_manager.next_atom(), str_id, v.size(), ins_addr=addr)
+                self.clinic.variable_map.set_custom_string(src_expr)
+                size_expr = Const(None, len(known_buffers[buffer_addr]), v.size(), ins_addr=addr)
                 memcpy_stmt = SideEffectStatement(
                     None, Call(None, "memcpy", args=[old_vvar, src_expr, size_expr], ins_addr=addr), ins_addr=addr
                 )
                 stmts.append(memcpy_stmt)
             else:
-                const_expr = Const(None, None, v.concrete_value, v.size(), ins_addr=addr)
+                const_expr = Const(None, v.concrete_value, v.size(), ins_addr=addr)
                 assign_stmt = Assignment(None, old_vvar, const_expr, ins_addr=addr)
                 stmts.append(assign_stmt)
 

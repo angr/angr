@@ -395,9 +395,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     if last_stmt.target.value != successor.addr:
                         new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
                         last_stmt.target_idx = successor.idx
-                        new_last_stmt.target = Const(
-                            self.manager.next_atom(), None, successor.addr, self.project.arch.bits
-                        )
+                        new_last_stmt.target = Const(self.manager.next_atom(), successor.addr, self.project.arch.bits)
                         new_node = node.copy()
                         new_node.statements[-1] = new_last_stmt
                 # the last statement is not a jump, but this node should have one, so add it
@@ -405,7 +403,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     new_node = node.copy()
                     new_last_stmt = Jump(
                         self.manager.next_atom(),
-                        Const(self.manager.next_atom(), None, successor.addr, self.project.arch.bits),
+                        Const(self.manager.next_atom(), successor.addr, self.project.arch.bits),
                         target_idx=successor.idx,
                     )
                     # TODO: improve addressing here
@@ -469,8 +467,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         cond_jump = ConditionalJump(
             1,
             best_condition.copy() if best_condition is not None else None,
-            Const(self.manager.next_atom(), None, 0, self.project.arch.bits),
-            Const(self.manager.next_atom(), None, 0, self.project.arch.bits),
+            Const(self.manager.next_atom(), 0, self.project.arch.bits),
+            Const(self.manager.next_atom(), 0, self.project.arch.bits),
             **old_stmt_tags,
         )
         cond_block.statements = [cond_jump]
@@ -783,7 +781,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 nop_blk = Block(
                     self.new_block_addr(),
                     0,
-                    statements=[Jump(0, Const(0, 0, 0, self.project.arch.bits), 0, ins_addr=self.new_block_addr())],
+                    statements=[Jump(0, Const(0, 0, self.project.arch.bits), 0, ins_addr=self.new_block_addr())],
                 )
                 # point src -> nop -> dst
                 graph.add_edge(src, nop_blk)

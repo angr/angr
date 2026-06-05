@@ -50,8 +50,6 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
                         binop_expr.op,
                         (atom, binop_expr.operands[1]),
                         binop_expr.signed,
-                        variable=binop_expr.variable,
-                        variable_offset=binop_expr.variable_offset,
                         **binop_expr.tags,
                     )
                     return Convert(

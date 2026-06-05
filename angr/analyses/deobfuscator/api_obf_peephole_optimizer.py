@@ -44,7 +44,7 @@ class APIObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
                 func.find_declaration(ignore_binary_name=True)
             else:
                 func = self.kb.functions[funcname]
-            return Const(expr.idx, None, func.addr, self.project.arch.bits, **expr.tags)
+            return Const(expr.idx, func.addr, self.project.arch.bits, **expr.tags)
         return None
 
 
@@ -67,12 +67,12 @@ class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
             # it's likely the main binary
             callees = list(self.project.kb.functions.get_by_name(api, check_previous_names=True))
             if len(callees) == 1:
-                return Const(expr.idx, None, callees[0].addr, expr.bits, **(expr.tags | {"always_propagate": True}))
+                return Const(expr.idx, callees[0].addr, expr.bits, **(expr.tags | {"always_propagate": True}))
             return None
         if dll not in self.project.loader.shared_objects:
             return None
         sym = self.project.loader.shared_objects[dll].get_symbol(api)
-        return Const(expr.idx, None, sym.rebased_addr, expr.bits, **(expr.tags | {"always_propagate": True}))
+        return Const(expr.idx, sym.rebased_addr, expr.bits, **(expr.tags | {"always_propagate": True}))
 
 
 EXPR_OPTS.append(APIObfType1PeepholeOptimizer)

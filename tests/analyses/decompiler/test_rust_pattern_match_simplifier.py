@@ -14,7 +14,7 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
     def test_extracts_sign_bit_niche_discriminant(self):
         vvar = VirtualVariable(None, 0, 64, VirtualVariableCategory.STACK, -0x20)
         cast = Convert(None, 64, 64, True, vvar)
-        zero = Const(None, None, 0, 64)
+        zero = Const(None, 0, 64)
         condition = Convert(
             None,
             64,
@@ -33,7 +33,7 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
                         ],
                         bits=64,
                     ),
-                    Const(None, None, 63, 8),
+                    Const(None, 63, 8),
                 ],
                 bits=64,
             ),

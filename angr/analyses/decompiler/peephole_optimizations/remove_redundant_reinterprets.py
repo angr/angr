@@ -40,6 +40,6 @@ class RemoveRedundantReinterprets(PeepholeOptimizationExprBase):
                 raise NotImplementedError
 
             value = struct.unpack(float_fmt, struct.pack(int_fmt, expr.operand.value))[0]
-            return Const(expr.idx, None, value, expr.bits, **expr.tags)
+            return Const(expr.idx, value, expr.bits, **expr.tags)
 
         return None
