@@ -483,10 +483,9 @@ EXPRESSION_MAPPINGS = {
 
 class VEXStmtConverter(Converter):
     @staticmethod
-    def convert(idx, stmt, manager):  # pylint:disable=arguments-differ
+    def convert(stmt, manager):  # pylint:disable=arguments-differ
         """
 
-        :param idx:
         :param stmt:
         :param manager:
         :return:
@@ -505,22 +504,22 @@ class VEXStmtConverter(Converter):
                 vex_stmt_idx=manager.vex_stmt_idx,
             )
             return DirtyStatement(
-                idx,
+                manager.next_atom(),
                 dirty,
                 ins_addr=manager.ins_addr,
                 vex_block_addr=manager.block_addr,
                 vex_stmt_idx=manager.vex_stmt_idx,
             )
 
-        return func(idx, stmt, manager)
+        return func(stmt, manager)
 
     @staticmethod
-    def WrTmp(idx, stmt, manager):
+    def WrTmp(stmt, manager):
         var = VEXExprConverter.tmp(stmt.tmp, stmt.data.result_size(manager.tyenv), manager)
         reg = VEXExprConverter.convert(stmt.data, manager)
 
         return Assignment(
-            idx,
+            manager.next_atom(),
             var,
             reg,
             ins_addr=manager.ins_addr,
@@ -529,11 +528,11 @@ class VEXStmtConverter(Converter):
         )
 
     @staticmethod
-    def Put(idx, stmt, manager):
+    def Put(stmt, manager):
         data = VEXExprConverter.convert(stmt.data, manager)
         reg = VEXExprConverter.register(stmt.offset, data.bits, manager)
         return Assignment(
-            idx,
+            manager.next_atom(),
             reg,
             data,
             ins_addr=manager.ins_addr,
@@ -542,9 +541,9 @@ class VEXStmtConverter(Converter):
         )
 
     @staticmethod
-    def Store(idx, stmt, manager):
+    def Store(stmt, manager):
         return Store(
-            idx,
+            manager.next_atom(),
             VEXExprConverter.convert(stmt.addr, manager),
             VEXExprConverter.convert(stmt.data, manager),
             stmt.data.result_size(manager.tyenv) // 8,
@@ -555,7 +554,7 @@ class VEXStmtConverter(Converter):
         )
 
     @staticmethod
-    def Exit(idx, stmt, manager):
+    def Exit(stmt, manager):
         if stmt.jumpkind in {
             "Ijk_EmWarn",
             "Ijk_NoDecode",
@@ -569,7 +568,7 @@ class VEXStmtConverter(Converter):
             raise SkipConversionNotice
 
         return ConditionalJump(
-            idx,
+            manager.next_atom(),
             VEXExprConverter.convert(stmt.guard, manager),
             VEXExprConverter.convert(stmt.dst, manager),
             None,  # it will be filled in right afterwards
@@ -579,7 +578,7 @@ class VEXStmtConverter(Converter):
         )
 
     @staticmethod
-    def LoadG(idx, stmt: pyvex.IRStmt.LoadG, manager):
+    def LoadG(stmt: pyvex.IRStmt.LoadG, manager):
         sizes = {
             "ILGop_Ident32": (32, 32, False),
             "ILGop_Ident64": (64, 64, False),
@@ -604,7 +603,7 @@ class VEXStmtConverter(Converter):
             src = Convert(manager.next_atom(), load_bits, convert_bits, signed, src)
 
         return Assignment(
-            idx,
+            manager.next_atom(),
             dst,
             src,
             ins_addr=manager.ins_addr,
@@ -613,9 +612,9 @@ class VEXStmtConverter(Converter):
         )
 
     @staticmethod
-    def StoreG(idx, stmt: pyvex.IRStmt.StoreG, manager):
+    def StoreG(stmt: pyvex.IRStmt.StoreG, manager):
         return Store(
-            idx,
+            manager.next_atom(),
             VEXExprConverter.convert(stmt.addr, manager),
             VEXExprConverter.convert(stmt.data, manager),
             stmt.data.result_size(manager.tyenv) // 8,
@@ -627,7 +626,7 @@ class VEXStmtConverter(Converter):
         )
 
     @staticmethod
-    def CAS(idx, stmt: pyvex.IRStmt.CAS, manager):
+    def CAS(stmt: pyvex.IRStmt.CAS, manager):
         # addr
         addr = VEXExprConverter.convert(stmt.addr, manager)
         data_lo = VEXExprConverter.convert(stmt.dataLo, manager)
@@ -641,11 +640,20 @@ class VEXStmtConverter(Converter):
             else None
         )
         return CAS(
-            idx, addr, data_lo, data_hi, expd_lo, expd_hi, old_lo, old_hi, stmt.endness, ins_addr=manager.ins_addr
+            manager.next_atom(),
+            addr,
+            data_lo,
+            data_hi,
+            expd_lo,
+            expd_hi,
+            old_lo,
+            old_hi,
+            stmt.endness,
+            ins_addr=manager.ins_addr,
         )
 
     @staticmethod
-    def Dirty(idx, stmt: pyvex.IRStmt.Dirty, manager):
+    def Dirty(stmt: pyvex.IRStmt.Dirty, manager):
         # we translate it into tmp = DirtyExpression() if possible
 
         operands = [VEXExprConverter.convert(op, manager) for op in stmt.args]
@@ -668,7 +676,7 @@ class VEXStmtConverter(Converter):
 
         if stmt.tmp == 0xFFFFFFFF:
             return DirtyStatement(
-                idx,
+                manager.next_atom(),
                 dirty_expr,
                 ins_addr=manager.ins_addr,
                 vex_block_addr=manager.block_addr,
@@ -677,7 +685,7 @@ class VEXStmtConverter(Converter):
 
         tmp = VEXExprConverter.tmp(stmt.tmp, bits, manager)
         return Assignment(
-            idx,
+            manager.next_atom(),
             tmp,
             dirty_expr,
             ins_addr=manager.ins_addr,
@@ -710,7 +718,6 @@ class VEXIRSBConverter(Converter):
 
         # convert each VEX statement into an AIL statement
         statements = []
-        idx = 0
 
         manager.tyenv = irsb.tyenv
         manager.block_addr = irsb.addr
@@ -734,17 +741,15 @@ class VEXIRSBConverter(Converter):
 
             manager.vex_stmt_idx = vex_stmt_idx
             try:
-                converted = VEXStmtConverter.convert(idx, stmt, manager)
+                converted = VEXStmtConverter.convert(stmt, manager)
                 if isinstance(converted, list):
                     # got multiple statements
                     statements.extend(converted)
-                    idx += len(converted)
                 else:
                     # got one statement
                     statements.append(converted)
                     if type(converted) is ConditionalJump:
                         conditional_jumps.append(converted)
-                    idx += 1
             except SkipConversionNotice:
                 pass
 
