@@ -36,6 +36,7 @@ from angr.analyses.decompiler.structurer_nodes import (
     SwitchCaseNode,
 )
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -73,7 +74,6 @@ from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryV
 from angr.utils.constants import is_alignment_mask
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
-from ..variable_map import VariableMap
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:

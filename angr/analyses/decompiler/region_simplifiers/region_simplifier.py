@@ -11,8 +11,8 @@ from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
 from angr.analyses.decompiler.structurer_nodes import LoopNode
+from angr.analyses.decompiler.variable_map import variable_map_of
 
-from ..variable_map import variable_map_of
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .cascading_ifs import CascadingIfsRemover
 from .expr_folding import (
