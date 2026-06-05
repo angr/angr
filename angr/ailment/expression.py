@@ -155,8 +155,8 @@ class Const(Atom):
 class Tmp(Atom):
     __slots__ = ("tmp_idx",)
 
-    def __init__(self, idx: int, variable, tmp_idx: int, bits, **kwargs):
-        super().__init__(idx, variable, **kwargs)
+    def __init__(self, idx: int, tmp_idx: int, bits, **kwargs):
+        super().__init__(idx, **kwargs)
 
         self.tmp_idx = tmp_idx
         self.bits = bits
@@ -176,10 +176,10 @@ class Tmp(Atom):
         return stable_hash(("tmp", self.tmp_idx, self.bits))
 
     def copy(self) -> Tmp:
-        return Tmp(self.idx, None, self.tmp_idx, self.bits, **self.tags)
+        return Tmp(self.idx, self.tmp_idx, self.bits, **self.tags)
 
     def deep_copy(self, manager) -> Tmp:
-        return self._transfer_varmap(Tmp(manager.next_atom(), None, self.tmp_idx, self.bits, **self.tags), manager)
+        return self._transfer_varmap(Tmp(manager.next_atom(), self.tmp_idx, self.bits, **self.tags), manager)
 
 
 class Register(Atom):

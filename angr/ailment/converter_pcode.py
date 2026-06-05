@@ -316,7 +316,7 @@ class PCodeIRSBConverter(Converter):
                 assert unique_offset is not None, "Cannot find the source unique variable"
                 # TODO: Check size
                 _, ori_tmp_size = self._unique_tracker[unique_offset]
-                t = Tmp(self._manager.next_atom(), None, unique_offset, ori_tmp_size * 8)
+                t = Tmp(self._manager.next_atom(), unique_offset, ori_tmp_size * 8)
                 # FIXME: Asserting BE
                 right_shift_amount = varnode.offset + varnode.size - (unique_offset + ori_tmp_size)
                 if right_shift_amount != 0:
@@ -329,7 +329,7 @@ class PCodeIRSBConverter(Converter):
                     )
                 return Convert(self._manager.next_atom(), t.bits, size, False, t, ins_addr=self._manager.ins_addr)
 
-            return Tmp(self._manager.next_atom(), None, offset, size)
+            return Tmp(self._manager.next_atom(), offset, size)
         if space_name in ["ram", "mem"]:
             assert not is_write
             addr = Const(self._manager.next_atom(), varnode.offset, self._manager.arch.bits)

@@ -108,7 +108,6 @@ class VEXExprConverter:
     def tmp(tmp_idx, bits, manager):
         return Tmp(
             manager.next_atom(),
-            None,
             tmp_idx,
             bits,
             ins_addr=manager.ins_addr,
