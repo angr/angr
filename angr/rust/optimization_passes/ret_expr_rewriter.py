@@ -60,7 +60,7 @@ class RetExprRewriter(OptimizationPass):
                                 reg_name=reg_name,
                             )
                             regs.append(reg)
-                        ret_expr = ComboRegister(self.manager.next_atom(), None, regs)
+                        ret_expr = ComboRegister(self.manager.next_atom(), regs)
                         new_call = call_stmt.copy()
                         new_call.ret_expr = ret_expr
                         return new_call

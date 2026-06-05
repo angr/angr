@@ -216,8 +216,8 @@ class Register(Atom):
 
 
 class ComboRegister(Atom):
-    def __init__(self, idx, variable, registers: list[Register | VirtualVariable], **kwargs):
-        super().__init__(idx, variable, **kwargs)
+    def __init__(self, idx, registers: list[Register | VirtualVariable], **kwargs):
+        super().__init__(idx, **kwargs)
         self.registers = registers
         self.bits = sum(reg.bits for reg in registers)
 
@@ -245,7 +245,7 @@ class ComboRegister(Atom):
         return stable_hash(("combo_reg", tuple(self.registers), self.bits, self.idx))
 
     def copy(self) -> ComboRegister:
-        return ComboRegister(self.idx, None, self.registers, **self.tags)
+        return ComboRegister(self.idx, self.registers, **self.tags)
 
 
 class VirtualVariableCategory(IntEnum):

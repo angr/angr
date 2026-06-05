@@ -50,7 +50,7 @@ class ConstIncrementingRewriter(AILBlockRewriter):
 def test_block_walker_visits_rust_ail_expression_children():
     reg0 = Register(0, 16, 64)
     reg1 = Register(1, 24, 64)
-    combo = ComboRegister(2, None, [reg0, reg1])
+    combo = ComboRegister(2, [reg0, reg1])
     struct = Struct(3, "Pair", OrderedDict([(0, combo)]), OrderedDict([("value", 0)]), 128)
     enum = RustEnum(4, "Ok", [struct], 128)
     array = Array(5, [enum], 128)

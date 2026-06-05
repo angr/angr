@@ -71,11 +71,11 @@ class TestExpression(unittest.TestCase):
     def test_combo_register_and_virtual_variable_accessors(self):
         reg0 = Register(0, 16, 64, reg_name="rax")
         reg1 = Register(1, 24, 64, reg_name="rdx")
-        combo = ComboRegister(2, None, [reg0, reg1])
+        combo = ComboRegister(2, [reg0, reg1])
 
         assert combo.size == 16
         assert "ComboRegister" in str(combo)
-        assert combo.likes(ComboRegister(3, None, [reg0.copy(), reg1.copy()]))
+        assert combo.likes(ComboRegister(3, [reg0.copy(), reg1.copy()]))
         assert combo.matches(combo.copy())
         assert hash(combo) == hash(combo)
 
