@@ -153,23 +153,16 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for suboffset in definfo.variable_range:
                 mapping[suboffset].add(def_)
 
-        current_extent = (0, 0)
-        current_defs = set()
-
-        def flush():
-            for def2 in current_defs:
-                definfo = self.def_info[def2]
-                size2 = current_extent[1] - current_extent[0]
-                definfo.variable_offset = current_extent[0]
-                definfo.variable_size = size2
-
         for mapping in [reg_mapping, stack_mapping]:
+            current_extent = (0, 0)
+            current_defs = set()
+
             for offset in sorted(mapping):
                 for def_ in mapping[offset]:
                     definfo = self.def_info[def_]
 
                     if definfo.variable_offset >= current_extent[1] or current_extent[0] == current_extent[1]:
-                        flush()
+                        self._flush(current_defs, current_extent)
                         current_defs.clear()
                         current_extent = definfo.variable_offset, definfo.variable_endoffset
 
@@ -178,7 +171,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                         min(current_extent[0], definfo.variable_offset),
                         max(current_extent[1], definfo.variable_endoffset),
                     )
-        flush()
+
+            self._flush(current_defs, current_extent)
+
+    def _flush(self, current_defs: set[Def], current_extent: tuple[int, int]) -> None:
+        for def2 in current_defs:
+            definfo = self.def_info[def2]
+            size2 = current_extent[1] - current_extent[0]
+            definfo.variable_offset = current_extent[0]
+            definfo.variable_size = size2
 
     def _acodeloc(self):
         return AILCodeLocation(
