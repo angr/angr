@@ -166,7 +166,6 @@ class VEXExprConverter:
                             inner,
                             Const(
                                 manager.next_atom(),
-                                None,
                                 simop._to_size,
                                 8,
                                 ins_addr=manager.ins_addr,
@@ -225,7 +224,7 @@ class VEXExprConverter:
             # convert it to a sub
             op_name = "Sub"
             op1_val, op1_bits = operands[1].value, operands[1].bits
-            operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
+            operands[1] = Const(operands[1].idx, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
         vector_count = None
@@ -415,7 +414,6 @@ class VEXExprConverter:
         # pyvex.IRExpr.Const
         return Const(
             manager.next_atom(),
-            None,
             expr.con.value,
             expr.result_size(manager.tyenv),
             ins_addr=manager.ins_addr,
@@ -428,7 +426,6 @@ class VEXExprConverter:
         # pyvex.const.xxx
         return Const(
             manager.next_atom(),
-            None,
             expr.value,
             expr.size,
             ins_addr=manager.ins_addr,

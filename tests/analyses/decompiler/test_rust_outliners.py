@@ -55,7 +55,7 @@ def _string_cmp_outliner() -> StringCmpOutliner:
 
 
 def _const(value: int, bits: int = 64) -> Const:
-    return Const(0, None, value, bits)
+    return Const(0, value, bits)
 
 
 def _load(addr_expr, bits: int = 64) -> Load:
@@ -200,8 +200,8 @@ def test_unwrap_state_decides_eq_discriminant_when_true_target_matches_failed_bl
     jump = ConditionalJump(
         0,
         cond,
-        Const(0, None, 0x4000, 64),
-        Const(0, None, 0x5000, 64),
+        Const(0, 0x4000, 64),
+        Const(0, 0x5000, 64),
         true_target_idx=0,
         false_target_idx=0,
     )
@@ -224,8 +224,8 @@ def test_unwrap_state_decides_ne_discriminant_when_false_target_matches_failed_b
     jump = ConditionalJump(
         0,
         cond,
-        Const(0, None, 0x5000, 64),
-        Const(0, None, 0x4000, 64),
+        Const(0, 0x5000, 64),
+        Const(0, 0x4000, 64),
         true_target_idx=0,
         false_target_idx=0,
     )
@@ -244,9 +244,7 @@ def test_unwrap_state_decides_ne_discriminant_when_false_target_matches_failed_b
 def test_unwrap_state_returns_none_for_non_binary_condition():
     vvar = _stack_vvar()
     failed_block = Block(0x4000, 0, statements=[], idx=0)
-    jump = ConditionalJump(
-        0, vvar, Const(0, None, 0x4000, 64), Const(0, None, 0x5000, 64), true_target_idx=0, false_target_idx=0
-    )
+    jump = ConditionalJump(0, vvar, Const(0, 0x4000, 64), Const(0, 0x5000, 64), true_target_idx=0, false_target_idx=0)
     cond_block = Block(0x3000, 0, statements=[jump], idx=0)
     state = UnwrapSimplifierState(
         conditional_jump_block=cond_block,

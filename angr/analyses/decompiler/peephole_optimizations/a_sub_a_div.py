@@ -21,14 +21,14 @@ class ASubADiv(PeepholeOptimizationExprBase):
                     mul = BinaryOp(
                         expr.idx,
                         "Mul",
-                        [a, Const(self.manager.next_atom(), None, N - 1, expr.bits)],
+                        [a, Const(self.manager.next_atom(), N - 1, expr.bits)],
                         False,
                         **expr.tags,
                     )
                     return BinaryOp(
                         expr1.idx,
                         "Div",
-                        [mul, Const(self.manager.next_atom(), None, N, expr.bits, **expr1.tags)],
+                        [mul, Const(self.manager.next_atom(), N, expr.bits, **expr1.tags)],
                         False,
                         **expr1.tags,
                     )

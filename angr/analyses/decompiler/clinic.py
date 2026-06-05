@@ -169,7 +169,7 @@ class ComboRegReferenceWalker(AILBlockRewriter):
                 offset += reg_vvar.size
             addr = ailment.Expr.UnaryOp(self._ail_manager.next_atom(), "Reference", combo_reg)
             if offset != 0:
-                offset_expr = ailment.Expr.Const(self._ail_manager.next_atom(), None, offset, self.project.arch.bits)
+                offset_expr = ailment.Expr.Const(self._ail_manager.next_atom(), offset, self.project.arch.bits)
                 addr = ailment.Expr.BinaryOp(
                     self._ail_manager.next_atom(),
                     "Add",
@@ -1386,7 +1386,7 @@ class Clinic(Analysis):
                 ins_addr=block.addr,
             )
             forward = ailment.Expr.Const(
-                self._ail_manager.next_atom(), None, 1, dflag_size * self.project.arch.byte_width, ins_addr=block.addr
+                self._ail_manager.next_atom(), 1, dflag_size * self.project.arch.byte_width, ins_addr=block.addr
             )
             dflag_assignment = ailment.Stmt.Assignment(
                 self._ail_manager.next_atom(), dflag, forward, ins_addr=block.addr
@@ -1452,7 +1452,7 @@ class Clinic(Analysis):
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
                         new_last_stmt.expr.target = ailment.Expr.Const(
-                            self._ail_manager.next_atom(), None, successors[0].addr, last_stmt.expr.target.bits
+                            self._ail_manager.next_atom(), successors[0].addr, last_stmt.expr.target.bits
                         )
                         block.statements[-1] = new_last_stmt
 
@@ -1470,7 +1470,7 @@ class Clinic(Analysis):
                     new_last_stmt = last_stmt.copy()
                     assert isinstance(successors[0].addr, int)
                     new_last_stmt.target = ailment.Expr.Const(
-                        self._ail_manager.next_atom(), None, successors[0].addr, last_stmt.target.bits
+                        self._ail_manager.next_atom(), successors[0].addr, last_stmt.target.bits
                     )
                     block.statements[-1] = new_last_stmt
 
@@ -2891,10 +2891,10 @@ class Clinic(Analysis):
             ite_expr_stmt.idx,
             ite_expr.cond,
             ailment.Expr.Const(
-                self._ail_manager.next_atom(), None, true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
+                self._ail_manager.next_atom(), true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
             ),
             ailment.Expr.Const(
-                self._ail_manager.next_atom(), None, false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
+                self._ail_manager.next_atom(), false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags
             ),
             **ite_expr_stmt.tags,
         )
@@ -3299,9 +3299,7 @@ class Clinic(Analysis):
                 # the head is removed - let's replace it with a jump to the target
                 jump_stmt = ailment.Stmt.Jump(
                     self._ail_manager.next_atom(),
-                    ailment.Expr.Const(
-                        self._ail_manager.next_atom(), None, intended_head_1.addr, self.project.arch.bits
-                    ),
+                    ailment.Expr.Const(self._ail_manager.next_atom(), intended_head_1.addr, self.project.arch.bits),
                     target_idx=intended_head_1.idx,
                     ins_addr=o.addr,
                 )
@@ -3315,9 +3313,7 @@ class Clinic(Analysis):
                     # update the jump target
                     new_head.statements[-1] = ailment.Stmt.Jump(
                         new_head.statements[-1].idx,
-                        ailment.Expr.Const(
-                            self._ail_manager.next_atom(), None, intended_head_1.addr, self.project.arch.bits
-                        ),
+                        ailment.Expr.Const(self._ail_manager.next_atom(), intended_head_1.addr, self.project.arch.bits),
                         target_idx=intended_head_1.idx,
                         **new_head.statements[-1].tags,
                     )

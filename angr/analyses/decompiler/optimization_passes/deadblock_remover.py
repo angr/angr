@@ -71,7 +71,7 @@ class DeadblockRemover(OptimizationPass):
                 other_successor = next(s for s in self._graph.successors(p) if s != b)
                 p.statements[-1] = Jump(
                     self.manager.next_atom(),
-                    Const(self.manager.next_atom(), None, other_successor.addr, self.project.arch.bits),
+                    Const(self.manager.next_atom(), other_successor.addr, self.project.arch.bits),
                     other_successor.idx,
                     **p.statements[-1].tags,
                 )

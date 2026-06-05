@@ -35,6 +35,6 @@ class ASubAShrConstShrConst(PeepholeOptimizationExprBase):
             ):
                 dividend = 2 ** expr.operands[1].value
                 return BinaryOp(
-                    a0.idx, "Div", [a0, Const(self.manager.next_atom(), None, dividend, expr.bits)], True, **expr.tags
+                    a0.idx, "Div", [a0, Const(self.manager.next_atom(), dividend, expr.bits)], True, **expr.tags
                 )
         return None

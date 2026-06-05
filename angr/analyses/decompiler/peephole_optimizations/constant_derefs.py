@@ -30,9 +30,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 if "got" in sec.name and val == 0:
                     return None
 
-                return Const(
-                    self.manager.next_atom(), None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value
-                )
+                return Const(self.manager.next_atom(), val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
 
             # is it loading from a blob?
             obj = self.project.loader.find_object_containing(expr.addr.value)
@@ -43,8 +41,6 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 except KeyError:
                     return None
 
-                return Const(
-                    self.manager.next_atom(), None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value
-                )
+                return Const(self.manager.next_atom(), val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
 
         return None

@@ -41,7 +41,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
                     if varid in self._str_defs:
                         s = self._str_defs[varid]
                         if s is not None:
-                            return Const(self.manager.next_atom(), None, len(s), expr.bits, **expr.tags)
+                            return Const(self.manager.next_atom(), len(s), expr.bits, **expr.tags)
                 if (
                     func.short_name == "c_str"
                     and len(expr.args) == 1
@@ -54,7 +54,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
                         s = self._str_defs[varid]
                         if s is not None:
                             idx = self.kb.custom_strings.allocate(s)
-                            const = Const(self.manager.next_atom(), None, idx, expr.bits, **expr.tags)
+                            const = Const(self.manager.next_atom(), idx, expr.bits, **expr.tags)
                             self.manager.variable_map.set_custom_string(const)
                             return const
 

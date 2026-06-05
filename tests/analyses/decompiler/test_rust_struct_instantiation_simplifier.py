@@ -14,7 +14,7 @@ from angr.rust.optimization_passes.struct_instantiation_simplifier import Struct
 
 
 def _const(value: int = 0, bits: int = 64) -> Const:
-    return Const(0, None, value, bits)
+    return Const(0, value, bits)
 
 
 def test_rebase_field_exprs_subtracts_field_offset_from_each_key():

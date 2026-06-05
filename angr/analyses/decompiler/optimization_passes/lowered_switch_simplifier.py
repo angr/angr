@@ -304,7 +304,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         statements.append(
                             Jump(
                                 self.manager.next_atom(),
-                                Const(self.manager.next_atom(), None, case.target, self.project.arch.bits),
+                                Const(self.manager.next_atom(), case.target, self.project.arch.bits),
                                 ins_addr=case.original_node.addr,
                             )
                         )

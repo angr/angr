@@ -952,7 +952,7 @@ class DreamStructurer(StructurerBase):
                     statements=[
                         ailment.Stmt.Jump(
                             self.ail_manager.next_atom(),
-                            ailment.Expr.Const(self.ail_manager.next_atom(), None, entry_addr, self.project.arch.bits),
+                            ailment.Expr.Const(self.ail_manager.next_atom(), entry_addr, self.project.arch.bits),
                             ins_addr=0,
                             stmt_idx=0,
                         )
@@ -976,7 +976,7 @@ class DreamStructurer(StructurerBase):
                     statements=[
                         ailment.Stmt.Jump(
                             self.ail_manager.next_atom(),
-                            ailment.Expr.Const(self.ail_manager.next_atom(), None, entry_addr, self.project.arch.bits),
+                            ailment.Expr.Const(self.ail_manager.next_atom(), entry_addr, self.project.arch.bits),
                             ins_addr=0,
                             stmt_idx=0,
                         )

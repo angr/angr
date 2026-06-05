@@ -61,7 +61,7 @@ class StructBuilder:
             if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.context.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.context.project.arch.byte_width
-                size_expr = Const(self.context.manager.next_atom(), None, size, data.addr.bits)
+                size_expr = Const(self.context.manager.next_atom(), size, data.addr.bits)
                 leftover_addr = BinaryOp(
                     self.context.manager.next_atom(),
                     "Add",

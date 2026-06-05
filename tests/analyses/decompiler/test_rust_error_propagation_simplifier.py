@@ -24,11 +24,11 @@ def _label(name: str = "lbl") -> Label:
 
 
 def _jump(target: int = 0x1000) -> Jump:
-    return Jump(0, Const(0, None, target, 64))
+    return Jump(0, Const(0, target, 64))
 
 
 def _const(value: int = 0, bits: int = 64) -> Const:
-    return Const(0, None, value, bits)
+    return Const(0, value, bits)
 
 
 def test_is_safe_block_accepts_label_and_register_assignment():

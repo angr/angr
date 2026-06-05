@@ -32,7 +32,7 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
                 return BinaryOp(
                     expr.idx,
                     "And",
-                    [inner.operand, Const(self.manager.next_atom(), None, mask, inner.operand.bits)],
+                    [inner.operand, Const(self.manager.next_atom(), mask, inner.operand.bits)],
                     False,
                     **expr.tags,
                 )

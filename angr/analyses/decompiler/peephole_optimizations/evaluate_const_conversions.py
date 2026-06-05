@@ -30,4 +30,4 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
         if signed and value >= 1 << (expr.bits - 1):
             value -= 1 << expr.bits  # re-adds sign
 
-        return Const(inner.idx, None, value, expr.bits, **inner.tags)
+        return Const(inner.idx, value, expr.bits, **inner.tags)

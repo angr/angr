@@ -69,7 +69,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 and (shiftleft_amount := get_expr_shift_left_amount(stmt_1.src)) is not None
                 and shiftleft_amount + stmt2_op1.value == stmt.dst.bits
             ):
-                rol_amount = Const(self.manager.next_atom(), None, shiftleft_amount, 8, **stmt1_op1.tags)
+                rol_amount = Const(self.manager.next_atom(), shiftleft_amount, 8, **stmt1_op1.tags)
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
@@ -121,7 +121,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 and (op0_shiftamount := get_expr_shift_left_amount(op0)) is not None
                 and op0_shiftamount + op1_v == stmt.dst.bits
             ):
-                shiftamount = Const(self.manager.next_atom(), None, op0_shiftamount, 8, **op0.operands[1].tags)
+                shiftamount = Const(self.manager.next_atom(), op0_shiftamount, 8, **op0.operands[1].tags)
                 return Assignment(
                     stmt.idx,
                     stmt.dst,

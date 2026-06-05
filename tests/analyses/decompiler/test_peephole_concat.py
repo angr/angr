@@ -25,7 +25,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
     def test_zero_extend_concat(self):
         # 0 CONCAT a  =>  Convert(a, unsigned, 2*bits)
         low = Register(None, None, 0, 32)
-        high = Const(None, None, 0, 32)
+        high = Const(None, 0, 32)
         concat = BinaryOp(None, "Concat", [high, low], False, bits=64)
 
         result = self.opt.optimize(concat)
@@ -38,7 +38,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
     def test_sign_extend_concat(self):
         # (a >> 31) CONCAT a  =>  Convert(a, signed, 64)
         low = Register(None, None, 0, 32)
-        high = BinaryOp(None, "Sar", [low, Const(None, None, 31, 8)], False, bits=32)
+        high = BinaryOp(None, "Sar", [low, Const(None, 31, 8)], False, bits=32)
         concat = BinaryOp(None, "Concat", [high, low], False, bits=64)
 
         result = self.opt.optimize(concat)
@@ -53,7 +53,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         high = Register(None, None, 0, 32)
         low = Register(None, None, 8, 32)
         concat = BinaryOp(None, "Concat", [high, low], False, bits=64)
-        shr = BinaryOp(None, "Shr", [concat, Const(None, None, 32, 8)], False, bits=64)
+        shr = BinaryOp(None, "Shr", [concat, Const(None, 32, 8)], False, bits=64)
 
         result = self.opt.optimize(shr)
         assert result == Convert(None, 32, 64, False, high)
@@ -63,7 +63,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         high = Register(None, None, 0, 32)
         low = Register(None, None, 8, 32)
         concat = BinaryOp(None, "Concat", [high, low], False, bits=64)
-        and_expr = BinaryOp(None, "And", [concat, Const(None, None, 0xFFFFFFFF, 64)], False, bits=64)
+        and_expr = BinaryOp(None, "And", [concat, Const(None, 0xFFFFFFFF, 64)], False, bits=64)
 
         result = self.opt.optimize(and_expr)
         # Result should be low, possibly with zero-extension
@@ -88,7 +88,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         high = Register(None, None, 0, 32)
         low = Register(None, None, 8, 32)
         concat = BinaryOp(None, "Concat", [high, low], False, bits=64)
-        shr = BinaryOp(None, "Shr", [concat, Const(None, None, 16, 8)], False, bits=64)
+        shr = BinaryOp(None, "Shr", [concat, Const(None, 16, 8)], False, bits=64)
 
         result = self.opt.optimize(shr)
         assert result is None
@@ -98,7 +98,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         high = Register(None, None, 0, 32)
         low = Register(None, None, 8, 32)
         concat = BinaryOp(None, "Concat", [high, low], False, bits=64)
-        and_expr = BinaryOp(None, "And", [concat, Const(None, None, 0xFF, 64)], False, bits=64)
+        and_expr = BinaryOp(None, "And", [concat, Const(None, 0xFF, 64)], False, bits=64)
 
         result = self.opt.optimize(and_expr)
         assert result is None

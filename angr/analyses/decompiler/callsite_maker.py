@@ -207,7 +207,6 @@ class CallSiteMaker(Analysis):
                                     vvar_use,
                                     Expr.Const(
                                         self._ail_manager.next_atom(),
-                                        None,
                                         (offset - vvar_def_reg_offset) * 8,
                                         8,
                                     ),

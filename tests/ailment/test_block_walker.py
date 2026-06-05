@@ -43,7 +43,7 @@ class ConstIncrementingRewriter(AILBlockRewriter):
 
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.value == 1:
-            return Const(expr.idx, None, 2, expr.bits, **expr.tags)
+            return Const(expr.idx, 2, expr.bits, **expr.tags)
         return super()._handle_Const(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -69,7 +69,7 @@ def test_block_walker_visits_rust_ail_expression_children():
 
 
 def test_block_rewriter_rebuilds_rust_ail_expression_containers():
-    old_const = Const(0, None, 1, 32)
+    old_const = Const(0, 1, 32)
     struct = Struct(1, "One", OrderedDict([(0, old_const)]), OrderedDict([("value", 0)]), 32)
     enum = RustEnum(2, "Some", [struct], 32)
     array = Array(3, [enum], 32)

@@ -67,7 +67,7 @@ class BlockWalker(AILBlockRewriter):
                     w = None
                 if w is not None and not (is_got and w == 0):
                     # nice! replace it with the actual value
-                    return Const(self.manager.next_atom(), None, w, expr.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), w, expr.bits, **expr.tags)
         elif (
             isinstance(expr.addr, Load)
             and expr.addr.bits == self._project.arch.bits
@@ -86,7 +86,7 @@ class BlockWalker(AILBlockRewriter):
                     # nice! replace it with a load from that address
                     return Load(
                         expr.idx,
-                        Const(self.manager.next_atom(), None, w, expr.addr.size, **expr.addr.addr.tags),
+                        Const(self.manager.next_atom(), w, expr.addr.size, **expr.addr.addr.tags),
                         expr.size,
                         expr.endness,
                         guard=expr.guard,

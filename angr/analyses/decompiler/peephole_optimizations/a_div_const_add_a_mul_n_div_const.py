@@ -38,7 +38,6 @@ class ADivConstAddAMulNDivConst(PeepholeOptimizationExprBase):
                                 a0,
                                 Const(
                                     self.manager.next_atom(),
-                                    None,
                                     N1 + 1,
                                     expr.bits,
                                     **expr.operands[0].operands[1].tags,

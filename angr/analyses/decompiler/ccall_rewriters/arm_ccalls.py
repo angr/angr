@@ -99,9 +99,9 @@ class ARMCCallRewriter(CCallRewriterBase):
 
         # AL (always) / NV (never) — independent of operation
         if cond_v == ARMCondAL:
-            return Expr.Const(ccall.idx, None, 1, ccall.bits, **ccall.tags)
+            return Expr.Const(ccall.idx, 1, ccall.bits, **ccall.tags)
         if cond_v == ARMCondNV:
-            return Expr.Const(ccall.idx, None, 0, ccall.bits, **ccall.tags)
+            return Expr.Const(ccall.idx, 0, ccall.bits, **ccall.tags)
 
         if op_v == ARMG_CC_OP_SUB:
             return self._rewrite_sub(ccall, cond_v, inv, dep_1, dep_2)
@@ -158,7 +158,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         op_v = cc_op.value_int
         dep_1 = ccall.operands[1]
         dep_2 = ccall.operands[2]
-        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
 
         if op_v == ARMG_CC_OP_SUB:
             # N = sign(dep_1 - dep_2) → (dep_1 - dep_2) <s 0 → dep_1 <s dep_2
@@ -184,7 +184,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         op_v = cc_op.value_int
         dep_1 = ccall.operands[1]
         dep_2 = ccall.operands[2]
-        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
 
         if op_v == ARMG_CC_OP_SUB:
             # Z = (dep_1 == dep_2)
@@ -285,7 +285,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         ADD: flags from ``dep_1 + dep_2``.
         """
         add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
-        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
 
         # EQ/NE — Z flag: (dep_1 + dep_2) == 0
         if cond_v in {ARMCondEQ, ARMCondNE}:
@@ -314,7 +314,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         LOGIC: flags from AND/OR/XOR result (dep_1 = result).
         MUL:   flags from multiply result (dep_1 = result).
         """
-        zero = Expr.Const(self.ail_manager.next_atom(), None, 0, dep_1.bits, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
 
         # EQ/NE — Z flag: dep_1 == 0
         if cond_v in {ARMCondEQ, ARMCondNE}:

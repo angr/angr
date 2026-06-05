@@ -33,7 +33,7 @@ from angr.rust.optimization_passes.struct_return_simplifier import StructReturnS
 
 
 def _const(value: int = 0, bits: int = 64) -> Const:
-    return Const(0, None, value, bits)
+    return Const(0, value, bits)
 
 
 def _stack_vvar(varid: int = 0, bits: int = 64, offset: int = 0x10) -> VirtualVariable:

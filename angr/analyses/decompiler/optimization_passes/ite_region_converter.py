@@ -239,7 +239,7 @@ class ITERegionConverter(OptimizationPass):
         # transitioning statement in the future
         goto_stmt = Jump(
             self.manager.next_atom(),
-            Const(self.manager.next_atom(), None, region_tail.addr, self.project.arch.bits),
+            Const(self.manager.next_atom(), region_tail.addr, self.project.arch.bits),
             region_tail.idx,
             **conditional_jump.tags,
         )

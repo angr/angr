@@ -50,7 +50,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             # that the only bits we get from v0 will just be replaced with v1
             return Insert(
                 expr.idx,
-                Const(self.manager.next_atom(), None, 0, expr.bits),
+                Const(self.manager.next_atom(), 0, expr.bits),
                 expr.offset,
                 expr.value,
                 expr.endness,

@@ -81,7 +81,6 @@ class SwitchReusedEntryRewriter(OptimizationPass):
                     self.manager.next_atom(),
                     Const(
                         self.manager.next_atom(),
-                        None,
                         entry_node.addr,
                         self.project.arch.bits,
                         ins_addr=entry_node.addr,

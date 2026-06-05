@@ -566,7 +566,7 @@ class SimEngineSSARewriting(
         return BinaryOp(
             expr.idx,
             "Add",
-            [refers, Const(self.ail_manager.next_atom(), None, vvar.stack_offset - expr.offset, refers.bits)],
+            [refers, Const(self.ail_manager.next_atom(), vvar.stack_offset - expr.offset, refers.bits)],
         )
 
     def _handle_expr_Extract(self, expr: Extract):
@@ -736,7 +736,7 @@ class SimEngineSSARewriting(
         if size > vvar.size:
             if self._fail_fast:
                 assert False, "Invariant failure: we generated a vvar which is smaller than one of its uses"
-            remainder = Const(self.ail_manager.next_atom(), None, 0, size * 8 - vvar.bits, uninitalized=True)
+            remainder = Const(self.ail_manager.next_atom(), 0, size * 8 - vvar.bits, uninitalized=True)
             order = [vvar, remainder] if endness == archinfo.Endness.LE else [remainder, vvar]
             return BinaryOp(
                 self.ail_manager.next_atom(),
@@ -748,7 +748,7 @@ class SimEngineSSARewriting(
             self.ail_manager.next_atom(),
             size * 8,
             vvar,
-            Const(self.ail_manager.next_atom(), None, offset, 64),
+            Const(self.ail_manager.next_atom(), offset, 64),
             endness,
             **orig_tags.tags,
         )
@@ -767,7 +767,7 @@ class SimEngineSSARewriting(
             else:
                 raise TypeError(vvar.category)
             if base is None:
-                base = Const(self.ail_manager.next_atom(), None, 0, vvar.bits, uninitialized=True)
+                base = Const(self.ail_manager.next_atom(), 0, vvar.bits, uninitialized=True)
             endness = (
                 self.project.arch.memory_endness
                 if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
@@ -777,7 +777,7 @@ class SimEngineSSARewriting(
                 base = BinaryOp(
                     self.ail_manager.next_atom(),
                     "Concat",
-                    [base, Const(self.ail_manager.next_atom(), None, 0, vvar.bits - base.bits, uninitialized=True)],
+                    [base, Const(self.ail_manager.next_atom(), 0, vvar.bits - base.bits, uninitialized=True)],
                     bits=vvar.bits,
                 )
             elif base.bits > vvar.bits:
@@ -785,13 +785,13 @@ class SimEngineSSARewriting(
                     self.ail_manager.next_atom(),
                     vvar.bits,
                     base,
-                    Const(self.ail_manager.next_atom(), None, offset, 64),
+                    Const(self.ail_manager.next_atom(), offset, 64),
                     endness,
                 )
             combined = Insert(
                 self.ail_manager.next_atom(),
                 base,
-                Const(self.ail_manager.next_atom(), None, offset, 64),
+                Const(self.ail_manager.next_atom(), offset, 64),
                 value,
                 endness,
             )

@@ -67,7 +67,7 @@ class CCondPropBlockWalker(AILBlockRewriter):
         if expr.varid == self.vvar_id and not (
             isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == self.vvar_id
         ):
-            return Const(expr.idx, None, self.const_value.value, self.const_value.bits, **expr.tags)
+            return Const(expr.idx, self.const_value.value, self.const_value.bits, **expr.tags)
         return expr
 
 

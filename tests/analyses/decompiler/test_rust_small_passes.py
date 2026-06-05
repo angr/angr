@@ -37,7 +37,7 @@ def _label_stmt(name: str = "lbl") -> Label:
 
 
 def _jump_stmt(target_addr: int = 0x1000) -> Jump:
-    return Jump(0, Const(0, None, target_addr, 64))
+    return Jump(0, Const(0, target_addr, 64))
 
 
 def test_cleanup_functions_list_covers_known_dealloc_and_drop_names():

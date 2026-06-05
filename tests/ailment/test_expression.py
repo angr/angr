@@ -121,8 +121,8 @@ class TestExpression(unittest.TestCase):
 
     def test_rust_ail_value_expressions(self):
         manager = ailment.Manager()
-        old = Const(0, None, 1, 32)
-        new = Const(1, None, 2, 32)
+        old = Const(0, 1, 32)
+        new = Const(1, 2, 32)
 
         literal = StringLiteral(2, b"hello\n", 48, tag="literal")
         assert literal.size == 6
@@ -146,7 +146,7 @@ class TestExpression(unittest.TestCase):
         replaced, new_outer = outer.replace(old, new)
         assert replaced
         assert new_outer.get_field("inner.value") is new
-        assert not outer.replace(Const(8, None, 99, 32), new)[0]
+        assert not outer.replace(Const(8, 99, 32), new)[0]
 
         enum_expr = RustEnum(9, "Ok", [old], 32)
         assert enum_expr.size == 4

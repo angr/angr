@@ -249,7 +249,7 @@ class SimplifierAILEngine(
             value = operand_expr.value
             mask = (2**expr.to_bits) - 1
             value &= mask
-            return ailment.expression.Const(expr.idx, None, value, expr.to_bits, **expr.tags)
+            return ailment.expression.Const(expr.idx, value, expr.to_bits, **expr.tags)
         if type(operand_expr) is ailment.expression.BinaryOp and operand_expr.op in {
             "Mul",
             "Shl",
@@ -268,7 +268,6 @@ class SimplifierAILEngine(
                     )
                     converted_const = ailment.expression.Const(
                         operand_expr.operands[1].idx,
-                        None,
                         operand_expr.operands[1].value,
                         expr.to_bits,
                         **operand_expr.operands[1].tags,

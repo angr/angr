@@ -38,7 +38,7 @@ class StringObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
 
                 if out.concrete:
                     return Const(
-                        None, None, out.concrete_value, self.project.arch.bits, **expr.tags
+                        None, out.concrete_value, self.project.arch.bits, **expr.tags
                     )  # FIXME: use out.bits when the function prototype recovery is more reliable
 
         return None

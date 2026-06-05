@@ -61,7 +61,7 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
                     "CmpLT",
                     (
                         cvt,
-                        Const(self.manager.next_atom(), None, 0, to_bits),
+                        Const(self.manager.next_atom(), 0, to_bits),
                     ),
                     True,
                     **expr.tags,

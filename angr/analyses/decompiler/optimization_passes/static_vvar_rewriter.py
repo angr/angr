@@ -108,7 +108,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     return expr
                 data = buffer.content[v.offset : v.offset + expr.size]
                 value = int.from_bytes(data, byteorder="little" if expr.endness == "Iend_LE" else "big")
-                return Const(self.manager.next_atom(), None, value, expr.bits, **expr.tags)
+                return Const(self.manager.next_atom(), value, expr.bits, **expr.tags)
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -131,7 +131,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                         and data[str_len * word_size : str_len * word_size + word_size] != b"\x00" * word_size
                     ):
                         str_len += 1
-                    return Const(self.manager.next_atom(), None, str_len, expr.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), str_len, expr.bits, **expr.tags)
 
         elif expr.args and expr.prototype is not None:
             new_args: list | None = None
@@ -157,7 +157,6 @@ class VVarRewritingVisitor(AILBlockRewriter):
                             str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
                             str_id_arg = Const(
                                 self.manager.next_atom(),
-                                None,
                                 str_id,
                                 arg.bits,
                                 **arg.tags,
@@ -183,7 +182,6 @@ class VVarRewritingVisitor(AILBlockRewriter):
                             str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
                             str_id_arg = Const(
                                 self.manager.next_atom(),
-                                None,
                                 str_id,
                                 arg.bits,
                                 **arg.tags,

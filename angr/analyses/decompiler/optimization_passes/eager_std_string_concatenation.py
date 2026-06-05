@@ -146,7 +146,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
             assert old_block is not None
             block = old_block.copy()
             old_stmt = block.statements[last_stmt_idx]
-            str_const = Const(self.manager.next_atom(), None, str_id, self.project.arch.bits)
+            str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
             self.manager.variable_map.set_custom_string(str_const)
             block.statements[last_stmt_idx] = WeakAssignment(
                 old_stmt.idx,

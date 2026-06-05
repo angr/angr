@@ -136,7 +136,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
         wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
         str_const = Const(
             self.manager.next_atom(),
-            None,
             str_id,
             self.project.arch.bits,
             type=wstr_type,
@@ -150,7 +149,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 args=[
                     dst,
                     str_const,
-                    Const(self.manager.next_atom(), None, len(s) // 2, self.project.arch.bits),
+                    Const(self.manager.next_atom(), len(s) // 2, self.project.arch.bits),
                 ],
                 prototype=SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
                     self.project.arch
@@ -374,7 +373,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
                     str_const = Const(
                         self.manager.next_atom(),
-                        None,
                         new_str_idx,
                         last_stmt.expr.args[0].bits,
                         type=wstr_type,
@@ -389,7 +387,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
                     str_const = Const(
                         self.manager.next_atom(),
-                        None,
                         new_str_idx,
                         last_stmt.expr.args[0].bits,
                         type=wstr_type,
@@ -398,7 +395,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     args = [
                         last_stmt.expr.args[0],
                         str_const,
-                        Const(self.manager.next_atom(), None, len(new_str) // 2, self.project.arch.bits),
+                        Const(self.manager.next_atom(), len(new_str) // 2, self.project.arch.bits),
                     ]
 
                 tags = TagDict(stmt.tags)

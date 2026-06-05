@@ -173,12 +173,12 @@ class LoopUnroller(Analysis):
                         stmt.idx,
                         stmt.condition,
                         (
-                            Const(None, None, new_true_target[0], true_target.bits, **true_target.tags)
+                            Const(None, new_true_target[0], true_target.bits, **true_target.tags)
                             if new_true_target is not None
                             else true_target
                         ),
                         (
-                            Const(None, None, new_false_target[0], stmt.false_target.bits, **false_target.tags)
+                            Const(None, new_false_target[0], stmt.false_target.bits, **false_target.tags)
                             if new_false_target is not None
                             else false_target
                         ),
@@ -197,7 +197,7 @@ class LoopUnroller(Analysis):
                 if new_target is not None:
                     new_stmt = Jump(
                         stmt.idx,
-                        Const(None, None, new_target[0], target.bits, **target.tags),
+                        Const(None, new_target[0], target.bits, **target.tags),
                         target_idx=new_target[1],
                         **stmt.tags,
                     )

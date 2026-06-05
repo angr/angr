@@ -93,8 +93,8 @@ class Atom(Expression):
 class Const(Atom):
     __slots__ = ("value",)
 
-    def __init__(self, idx: int, variable, value: int | float, bits: int, **kwargs):
-        super().__init__(idx, variable, **kwargs)
+    def __init__(self, idx: int, value: int | float, bits: int, **kwargs):
+        super().__init__(idx, **kwargs)
 
         self.value = value
         self.bits = bits
@@ -142,10 +142,10 @@ class Const(Atom):
         return self.value >> (self.bits - 1)
 
     def copy(self) -> Const:
-        return Const(self.idx, None, self.value, self.bits, **self.tags)
+        return Const(self.idx, self.value, self.bits, **self.tags)
 
     def deep_copy(self, manager) -> Const:
-        return self._transfer_varmap(Const(manager.next_atom(), None, self.value, self.bits, **self.tags), manager)
+        return self._transfer_varmap(Const(manager.next_atom(), self.value, self.bits, **self.tags), manager)
 
     @property
     def is_int(self) -> bool:

@@ -117,14 +117,14 @@ class InlinedMemsetSimplifier(OptimizationPass):
                             # Creating memsets on the stack is a recipe to screw up variable identification.
                             base_expr = None
                         case "global":
-                            base_expr = Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits)
+                            base_expr = Const(self.manager.next_atom(), candidate.offset, self.project.arch.bits)
                         case "heap":
                             base_expr = BinaryOp(
                                 self.manager.next_atom(),
                                 "Add",
                                 [
                                     candidate.base,
-                                    Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits),
+                                    Const(self.manager.next_atom(), candidate.offset, self.project.arch.bits),
                                 ],
                                 False,
                                 bits=self.project.arch.bits,
@@ -145,8 +145,8 @@ class InlinedMemsetSimplifier(OptimizationPass):
                             "memset",
                             args=[
                                 base_expr,
-                                Const(self.manager.next_atom(), None, candidate.value, 8),
-                                Const(self.manager.next_atom(), None, candidate.count, self.project.arch.bits),
+                                Const(self.manager.next_atom(), candidate.value, 8),
+                                Const(self.manager.next_atom(), candidate.count, self.project.arch.bits),
                             ],
                             prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch),
                             **ref_stmt.tags,

@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 def c(v):
     """Simple AIL Const shorthand"""
-    return Const(0, None, v, 32)
+    return Const(0, v, 32)
 
 
 def r(o):

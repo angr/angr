@@ -28,7 +28,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
 
         expr = ailment.Expr.Load(
             None,
-            ailment.Expr.Const(None, None, 0xA000, proj.arch.bits),
+            ailment.Expr.Const(None, 0xA000, proj.arch.bits),
             proj.arch.bytes,
             archinfo.Endness.LE,
             ins_addr=0x400100,
@@ -42,7 +42,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
 
         # multiple cases that no optimization should happen
         # a. Loading a pointer from a writable location
-        expr = ailment.Expr.Load(None, ailment.Expr.Const(None, None, 0x21DF4, proj.arch.bits), 1, archinfo.Endness.LE)
+        expr = ailment.Expr.Load(None, ailment.Expr.Const(None, 0x21DF4, proj.arch.bits), 1, archinfo.Endness.LE)
         opt = ConstantDereferences(proj, proj.kb, manager, 0)
         optimized = opt.optimize(expr)
         assert optimized is None
@@ -54,13 +54,13 @@ class TestPeepholeOptimizations(unittest.TestCase):
         opt = EagerEvaluation(proj, proj.kb, manager)
 
         # Optimize 12 % 5 --> 2
-        expr = BinaryOp(None, "Mod", [Const(None, None, 12, 32), Const(None, None, 5, 32)])
+        expr = BinaryOp(None, "Mod", [Const(None, 12, 32), Const(None, 5, 32)])
         expr_opt = opt.optimize(expr)
         assert isinstance(expr_opt, Const)
         assert expr_opt.value == 2
 
         # Don't optimize x % 0
-        expr = BinaryOp(None, "Mod", [Const(None, None, 12, 32), Const(None, None, 0, 32)])
+        expr = BinaryOp(None, "Mod", [Const(None, 12, 32), Const(None, 0, 32)])
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
 

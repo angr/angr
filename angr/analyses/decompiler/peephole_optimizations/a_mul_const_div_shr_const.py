@@ -34,7 +34,6 @@ class AMulConstDivShrConst(PeepholeOptimizationExprBase):
                         a,
                         Const(
                             self.manager.next_atom(),
-                            None,
                             N0 // (2**N2),
                             expr.bits,
                             **expr.operands[0].operands[1].tags,

@@ -32,7 +32,7 @@ class ConvShlShr(PeepholeOptimizationExprBase):
                             "And",
                             (
                                 Convert(expr_a.idx, m, n, False, expr_a.operand, **expr_a.tags),
-                                Const(self.manager.next_atom(), None, bitmask, n),
+                                Const(self.manager.next_atom(), bitmask, n),
                             ),
                             False,
                             variable=None,
@@ -44,7 +44,7 @@ class ConvShlShr(PeepholeOptimizationExprBase):
                             "Shr",
                             (
                                 and_expr,
-                                Const(self.manager.next_atom(), None, q - p, and_expr.bits),
+                                Const(self.manager.next_atom(), q - p, and_expr.bits),
                             ),
                             False,
                             **expr.tags,
