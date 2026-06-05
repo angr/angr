@@ -156,7 +156,13 @@ class ConstPropOptReverter(OptimizationPass):
             all_obs_points.extend(observation_points)
         all_obs_points = list(set(all_obs_points))
 
-        self.rd = self.project.analyses.ReachingDefinitions(subject=self._func, observation_points=all_obs_points)
+        self.rd = self.project.analyses.ReachingDefinitions(
+            subject=self._func,
+            func_graph=self._graph,
+            observation_points=all_obs_points,
+            dep_graph=None,
+            track_liveness=False,
+        )
 
         for (call0, blk0, call1, blk1, arg_conflicts), _ in self._call_pair_targets:
             # attempt to do constant resolution for each argument that differs
@@ -320,6 +326,11 @@ class ConstPropOptReverter(OptimizationPass):
         if not arg_conflicts:
             return
 
+        # Only keep conflicts that _analyze_call_pair_targets can handle
+        resolvable_conflicts = {i: args for i, args in arg_conflicts.items() if self._is_resolvable_conflict(args)}
+        if not resolvable_conflicts:
+            return
+
         _l.debug(
             "Found two calls at (%x, %x) that are similar. Attempting to resolve const args now...",
             blk0.addr,
@@ -330,7 +341,27 @@ class ConstPropOptReverter(OptimizationPass):
         observation_points = ("node", blk0.addr, OP_BEFORE), ("node", blk1.addr, OP_BEFORE)
 
         # do full analysis after collecting all calls in _analyze
-        self._call_pair_targets.append(((call0, blk0, call1, blk1, arg_conflicts), observation_points))
+        self._call_pair_targets.append(((call0, blk0, call1, blk1, resolvable_conflicts), observation_points))
+
+    @staticmethod
+    def _is_resolvable_conflict(args) -> bool:
+        """A conflict is resolvable by _analyze_call_pair_targets iff one argument is a constant and
+        the other is (a Convert of) a Load from a constant address.
+        Update this method when _analyze_call_pair_targets is more powerful!
+        """
+        a0, a1 = args
+        const_arg = sym_arg = None
+        for arg in (a0, a1):
+            if isinstance(arg, Const) and const_arg is None:
+                const_arg = arg
+            elif not isinstance(arg, Const) and sym_arg is None:
+                sym_arg = arg
+        if const_arg is None or sym_arg is None:
+            return False
+        unwrapped = sym_arg.operands[0] if isinstance(sym_arg, Convert) else sym_arg
+        return (
+            isinstance(unwrapped, Load) and isinstance(unwrapped.addr, Const) and isinstance(unwrapped.addr.value, int)
+        )
 
     @staticmethod
     def find_conflicting_call_args(call0: Call, call1: Call):

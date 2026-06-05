@@ -203,7 +203,7 @@ class SimEngineRDAIL(
         self.state.kill_definitions(ip)
 
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.Stmt.SideEffectStatement):
-        data = self._handle_Call_base(stmt, is_expr=False)
+        data = self._handle_Call_base(stmt.expr, is_expr=False)
         src = data.ret_values
         if src is None:
             return
@@ -238,17 +238,15 @@ class SimEngineRDAIL(
         if self.state.analysis:
             self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)
 
-    def _handle_Call_base(
-        self, stmt: ailment.Expr.Call | ailment.Stmt.SideEffectStatement, is_expr: bool = False
-    ) -> FunctionCallData:
-        if isinstance(stmt.target, ailment.Expr.Expression):
-            target = self._expr(stmt.target)  # pylint:disable=unused-variable
+    def _handle_Call_base(self, call: ailment.Expr.Call, is_expr: bool = False) -> FunctionCallData:
+        if isinstance(call.target, ailment.Expr.Expression):
+            target = self._expr(call.target)  # pylint:disable=unused-variable
             func_name = None
-        elif isinstance(stmt.target, str):
-            func_name = stmt.target
+        elif isinstance(call.target, str):
+            func_name = call.target
             target = None
         else:
-            target = stmt.target
+            target = call.target
             func_name = None
 
         ip = Register(cast(RegisterOffset, self.arch.ip_offset), self.arch.bytes)
@@ -256,7 +254,7 @@ class SimEngineRDAIL(
 
         statement = self.block.statements[self.stmt_idx]
         caller_will_handle_single_ret = True
-        ret_expr = getattr(stmt, "ret_expr", None)
+        ret_expr = getattr(call, "ret_expr", None)
         if hasattr(statement, "dst") and statement.dst != ret_expr:
             caller_will_handle_single_ret = False
 
@@ -266,11 +264,11 @@ class SimEngineRDAIL(
                 target, self.state.codeloc, self.state.analysis.model.func_addr
             ),
             target,
-            cc=stmt.calling_convention,
-            prototype=stmt.prototype,
+            cc=call.calling_convention,
+            prototype=call.prototype,
             name=func_name,
-            args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
-            redefine_locals=stmt.args is None and not is_expr,
+            args_values=[self._expr(arg) for arg in call.args] if call.args is not None else None,
+            redefine_locals=call.args is None and not is_expr,
             caller_will_handle_single_ret=caller_will_handle_single_ret,
             ret_atoms=(
                 {Atom.from_ail_expr(ret_expr, self.arch)}  # TODO: Support stack atoms in the future
@@ -281,8 +279,8 @@ class SimEngineRDAIL(
 
         self._function_handler.handle_function(self.state, data)
 
-        if hasattr(stmt, "arg_defs"):
-            for arg_def in stmt.arg_defs:
+        if hasattr(call, "arg_defs"):
+            for arg_def in call.arg_defs:
                 arg_def: Definition
                 if arg_def in self.state.all_definitions:
                     self.state.kill_definitions(arg_def.atom)
