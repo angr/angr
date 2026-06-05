@@ -79,11 +79,10 @@ class Expression(TaggedObject, ABC):
 
 class Atom(Expression):
     # NOTE: variable/variable_offset are no longer stored on AIL atoms; that information now lives in a side
-    # VariableMap (see angr.analyses.decompiler.variable_map). The constructor still accepts (and ignores) the
-    # `variable`/`variable_offset` arguments for backwards compatibility with existing call sites.
+    # VariableMap (see angr.analyses.decompiler.variable_map).
     __slots__ = ()
 
-    def __init__(self, idx: int, variable=None, variable_offset=0, **kwargs):  # pylint:disable=unused-argument
+    def __init__(self, idx: int, **kwargs):
         super().__init__(idx, 0, **kwargs)
 
     def __repr__(self) -> str:
