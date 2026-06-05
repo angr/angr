@@ -133,9 +133,9 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 str_const = Const(self.manager.next_atom(), None, str_id, self.project.arch.bits)
                 self.manager.variable_map.set_custom_string(str_const)
                 return SideEffectStatement(
-                    stmt.idx,
+                    self.manager.next_atom(),
                     Call(
-                        stmt.idx,
+                        self.manager.next_atom(),
                         "strncpy",
                         calling_convention=None,
                         args=[
@@ -192,9 +192,9 @@ class InlinedStrcpySimplifier(OptimizationPass):
                     str_const = Const(self.manager.next_atom(), None, str_id, self.project.arch.bits)
                     self.manager.variable_map.set_custom_string(str_const)
                     return SideEffectStatement(
-                        stmt.idx,
+                        self.manager.next_atom(),
                         Call(
-                            stmt.idx,
+                            self.manager.next_atom(),
                             "strncpy",
                             calling_convention=None,
                             args=[
@@ -293,7 +293,11 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 tags.pop("extra_defs", None)
 
             return [
-                SideEffectStatement(stmt.idx, Call(stmt.idx, call_name, args=args, prototype=prototype, **tags), **tags)
+                SideEffectStatement(
+                    self.manager.next_atom(),
+                    Call(self.manager.next_atom(), call_name, args=args, prototype=prototype, **tags),
+                    **tags,
+                )
             ]
 
         return None

@@ -143,9 +143,9 @@ class InlinedWcscpySimplifier(OptimizationPass):
         )
         self.manager.variable_map.set_custom_string(str_const)
         return SideEffectStatement(
-            stmt.idx,
+            self.manager.next_atom(),
             Call(
-                stmt.idx,
+                self.manager.next_atom(),
                 "wcsncpy",
                 args=[
                     dst,
@@ -411,7 +411,9 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     tags.pop("extra_defs", None)
                 return [
                     SideEffectStatement(
-                        stmt.idx, Call(stmt.idx, call_name, args=args, prototype=prototype, **tags), **tags
+                        self.manager.next_atom(),
+                        Call(self.manager.next_atom(), call_name, args=args, prototype=prototype, **tags),
+                        **tags,
                     )
                 ]
 

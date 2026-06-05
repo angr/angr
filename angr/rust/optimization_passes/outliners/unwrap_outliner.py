@@ -169,7 +169,9 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                     **last_stmt.tags,
                 )
                 if second_block is not None:
-                    second_block.statements[-1] = SideEffectStatement(last_stmt.idx, replacement, **last_stmt.tags)
+                    second_block.statements[-1] = SideEffectStatement(
+                        self.manager.next_atom(), replacement, **last_stmt.tags
+                    )
 
     def _analyze(self, cache=None):
         for block in list(self._graph.nodes):

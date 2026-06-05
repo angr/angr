@@ -2206,7 +2206,7 @@ class AILSimplifier(Analysis):
             stmt_idx: int, stmt: DirtyStatement, block: Block | None
         ) -> Statement:
             # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
-            rewriter = rewriter_cls(stmt, self.project.arch)
+            rewriter = rewriter_cls(stmt, self.project.arch, self._ail_manager)
             if rewriter.result is not None:
                 _any_update.v = True
                 if walker._update_block and block is not None:
@@ -2220,7 +2220,7 @@ class AILSimplifier(Analysis):
         ):
             r_expr = AILBlockRewriter._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
             assert isinstance(r_expr, DirtyExpression)
-            rewriter = rewriter_cls(r_expr, self.project.arch)
+            rewriter = rewriter_cls(r_expr, self.project.arch, self._ail_manager)
             if rewriter.result is not None:
                 _any_update.v = True
                 assert isinstance(rewriter.result, Expression)

@@ -309,7 +309,7 @@ class SimEngineSSARewriting(
             assert isinstance(stmt.fp_ret_expr, Atom)
             new_stmt = self._replace_def_expr(stmt.fp_ret_expr, replaced_call, stmt)
         if new_stmt is None:
-            new_stmt = SideEffectStatement(stmt.idx, replaced_call, **stmt.tags)
+            new_stmt = SideEffectStatement(self.ail_manager.next_atom(), replaced_call, **stmt.tags)
 
         return new_stmt
 

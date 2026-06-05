@@ -139,9 +139,9 @@ class InlinedMemsetSimplifier(OptimizationPass):
 
                     ref_stmt = statements[start_stmt_idx]
                     call_stmt = SideEffectStatement(
-                        ref_stmt.idx,
+                        self.manager.next_atom(),
                         Call(
-                            ref_stmt.idx,
+                            self.manager.next_atom(),
                             "memset",
                             args=[
                                 base_expr,

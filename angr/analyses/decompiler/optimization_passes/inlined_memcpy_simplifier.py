@@ -88,9 +88,9 @@ class InlinedMemcpySimplifier(OptimizationPass):
         if should_replace:
             assert dst_offset is not None and src_offset is not None and store_size is not None
             return SideEffectStatement(
-                stmt.idx,
+                self.manager.next_atom(),
                 Call(
-                    stmt.idx,
+                    self.manager.next_atom(),
                     "memcpy",
                     calling_convention=None,
                     args=[

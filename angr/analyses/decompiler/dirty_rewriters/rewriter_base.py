@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from angr.ailment.expression import DirtyExpression, Expression
 from angr.ailment.statement import DirtyStatement, Statement
+
+if TYPE_CHECKING:
+    from angr.ailment.manager import Manager
 
 
 class DirtyRewriterBase:
@@ -11,11 +16,13 @@ class DirtyRewriterBase:
 
     __slots__ = (
         "arch",
+        "manager",
         "result",
     )
 
-    def __init__(self, dirty: DirtyExpression | DirtyStatement, arch):
+    def __init__(self, dirty: DirtyExpression | DirtyStatement, arch, manager: Manager):
         self.arch = arch
+        self.manager = manager
         self.result: Expression | Statement | None = (
             self._rewrite_expr(dirty) if isinstance(dirty, DirtyExpression) else self._rewrite_stmt(dirty)
         )

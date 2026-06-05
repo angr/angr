@@ -19,7 +19,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
         call_expr = self._rewrite_expr_to_call(dirty.dirty)
         if call_expr is None:
             return None
-        return SideEffectStatement(dirty.idx, call_expr, **dirty.tags)
+        return SideEffectStatement(self.manager.next_atom(), call_expr, **dirty.tags)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
         return self._rewrite_expr_to_call(dirty)
@@ -34,7 +34,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     return None
                 bits = size.value_int * self.arch.byte_width
                 return Call(
-                    idx=dirty.idx,
+                    self.manager.next_atom(),
                     target=f"__in{self._inout_intrinsic_suffix(bits)}",
                     calling_convention=None,
                     prototype=sim_type.SimTypeFunction(
@@ -52,7 +52,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     return None
                 bits = size.value_int * self.arch.byte_width
                 return Call(
-                    dirty.idx,
+                    self.manager.next_atom(),
                     target=f"__out{self._inout_intrinsic_suffix(bits)}",
                     calling_convention=None,
                     prototype=sim_type.SimTypeFunction(

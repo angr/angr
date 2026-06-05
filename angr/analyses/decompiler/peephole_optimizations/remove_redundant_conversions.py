@@ -240,7 +240,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     # ignore the high bits of each operand
                     op0, op1 = operand_expr.operands
                     new_op0 = Convert(
-                        expr.idx,
+                        self.manager.next_atom(),
                         expr.from_bits,
                         expr.to_bits,
                         False,
@@ -248,7 +248,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         **expr.tags,
                     )
                     new_op1 = Convert(
-                        expr.idx,
+                        self.manager.next_atom(),
                         expr.from_bits,
                         expr.to_bits,
                         False,
@@ -257,7 +257,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     )
 
                     return BinaryOp(
-                        expr.idx,
+                        self.manager.next_atom(),
                         operand_expr.op,
                         [new_op0, new_op1],
                         operand_expr.signed,
@@ -269,7 +269,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     assert isinstance(op0, Convert)
                     if op0.to_bits > op0.from_bits and op0.to_bits == expr.from_bits:
                         new_operand = BinaryOp(
-                            expr.idx,
+                            self.manager.next_atom(),
                             operand_expr.op,
                             [op0.operand, op1],
                             operand_expr.signed,
@@ -277,7 +277,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             **operand_expr.tags,
                         )
                         return Convert(
-                            expr.idx,
+                            self.manager.next_atom(),
                             new_operand.bits,
                             expr.to_bits,
                             expr.is_signed,
