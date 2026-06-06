@@ -1691,11 +1691,25 @@ impl AilExpression {
             }
             ab.eq(bb).unwrap_or(false)
         }
+        // Treat ``NaN`` as equal to ``NaN`` to mirror the legacy Python
+        // ``Const.likes`` (which short-circuits via ``self.value is
+        // other.value``). With the default IEEE 754 ``PartialEq`` on
+        // ``f64``, ``NaN != NaN`` causes structurally identical Const
+        // wrappers around NaN to never converge in fixed-point loops
+        // (e.g. ``BlockSimplifier`` / ``DivSimplifier``).
+        fn const_values_eq(a: &ConstValue, b: &ConstValue) -> bool {
+            match (a, b) {
+                (ConstValue::Float(x), ConstValue::Float(y)) => {
+                    x == y || (x.is_nan() && y.is_nan())
+                }
+                _ => a == b,
+            }
+        }
         match (&self.inner, &other.inner) {
             (
                 ExprInner::Const { value: a, .. },
                 ExprInner::Const { value: b, .. },
-            ) => a == b && self.header.bits == other.header.bits,
+            ) => const_values_eq(a, b) && self.header.bits == other.header.bits,
             (
                 ExprInner::Tmp { tmp_idx: a, .. },
                 ExprInner::Tmp { tmp_idx: b, .. },
