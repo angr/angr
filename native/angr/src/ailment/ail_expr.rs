@@ -881,6 +881,28 @@ impl AilExpression {
                 args,
                 arg_vvars,
             } => {
+                // Walk the polymorphic ``target`` slot. Call targets are
+                // typically AIL expressions (Const for resolved calls,
+                // VirtualVariable / Register for indirect calls) and the
+                // legacy ``Call.replace`` recurses into them. If the slot
+                // holds a non-Expression (e.g. ``str`` for SimProcedure
+                // names) leave it untouched.
+                let (ct, rt) = Python::attach(|py| {
+                    let bound = target.bind(py);
+                    if let Ok(expr_cell) = bound.cast::<Expression>() {
+                        let inner = expr_cell.borrow().expr.clone();
+                        let (c, r) = inner.replace_ail(old, new);
+                        if !c {
+                            return (false, target.clone_ref(py));
+                        }
+                        match Py::new(py, Expression::wrap(r)) {
+                            Ok(p) => (true, p.into_any()),
+                            Err(_) => (false, target.clone_ref(py)),
+                        }
+                    } else {
+                        (false, target.clone_ref(py))
+                    }
+                });
                 let (ca, ra) = match args {
                     Some(v) => {
                         let (c, r) = walk_vec(v);
@@ -895,7 +917,7 @@ impl AilExpression {
                     }
                     None => (false, None),
                 };
-                if !ca && !cav {
+                if !ct && !ca && !cav {
                     return (false, self.clone());
                 }
                 (
@@ -903,7 +925,7 @@ impl AilExpression {
                     AilExpression {
                         header: self.header.clone(),
                         inner: ExprInner::Call {
-                            target: Python::attach(|py| target.clone_ref(py)),
+                            target: rt,
                             calling_convention: calling_convention.as_ref().map(|x| {
                                 Python::attach(|py| x.clone_ref(py))
                             }),
