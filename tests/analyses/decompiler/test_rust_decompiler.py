@@ -7,6 +7,8 @@ import os
 import re
 import unittest
 
+import pytest
+
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location
@@ -31,7 +33,13 @@ class TestRustcVersionIdentification(unittest.TestCase):
         sig_dir = get_default_sig_dir()
         self.assertTrue(sig_dir is not None, "get_default_sig_dir() returned None")
 
+<<<<<<< HEAD
     def _check_fmt_version(self, configuration):
+=======
+    @pytest.mark.timeout(600)
+    @for_all_rust_configs
+    def test_fmt_version(self, configuration):
+>>>>>>> tests: Bump timeouts for slow rust_decompiler tests
         path = rust_binary_path(configuration, "fmt")
         assert os.path.isfile(path)
         expected = self.EXPECTED_VERSIONS[configuration]
