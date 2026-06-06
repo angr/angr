@@ -223,6 +223,41 @@ class Reinterpret(metaclass=_AilMarkerMeta):
         return _Expression._new_reinterpret(idx, from_bits, from_type, to_bits, to_type, operand, **tags)
 
 
+# Master's ``BinaryOp.__init__`` derives ``bits`` from ``op`` when callers
+# don't pass one explicitly (CmpEQ/Not/LogicalOr/... are 1-bit, Carry is
+# 8-bit, Concat is sum of operand widths, etc.). The Phase D Rust
+# constructor only knows to fall back to ``operands[0].bits``, so without
+# this shim a freshly-built ``BinaryOp('CmpEQ', [v8, v8])`` would end up
+# 8 bits wide and downstream code treating its result as a boolean would
+# break (e.g. ``condition_processor`` asserting the condition coerces to
+# a claripy Bool).
+_BINOP_FIXED_BITS = {
+    "CmpF": 32,
+    "CmpEQ": 1,
+    "CmpNE": 1,
+    "CmpLT": 1,
+    "CmpGE": 1,
+    "CmpLE": 1,
+    "CmpGT": 1,
+    "ExpCmpNE": 1,
+    "Carry": 8,
+    "SCarry": 8,
+    "SBorrow": 8,
+}
+
+
+def _binop_bits_for(op, operands):
+    fixed = _BINOP_FIXED_BITS.get(op)
+    if fixed is not None:
+        return fixed
+    op0_bits = operands[0].bits if not isinstance(operands[0], int) else operands[1].bits
+    if op == "Concat":
+        return op0_bits + operands[1].bits
+    if op == "Mull":
+        return op0_bits * 2
+    return op0_bits
+
+
 class BinaryOp(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``BinaryOp``."""
 
@@ -253,6 +288,8 @@ class BinaryOp(metaclass=_AilMarkerMeta):
         vector_size=None,
         **tags,
     ) -> _Expression:
+        if bits is None:
+            bits = _binop_bits_for(op, operands)
         return _Expression._new_binary_op(
             idx,
             op,
