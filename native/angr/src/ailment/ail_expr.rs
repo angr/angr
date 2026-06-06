@@ -1631,6 +1631,26 @@ impl AilExpression {
         if self.kind() != other.kind() {
             return false;
         }
+        // Helper: compare a polymorphic ``Py<PyAny>`` slot (typically an
+        // AIL Expression, occasionally a plain int/str) for structural
+        // equality. ``Expression.__eq__`` requires matching ``.idx`` --
+        // two structurally-identical-but-freshly-minted ``Const``s
+        // round-trip as not-equal -- so prefer the ``.likes()`` method
+        // when present and fall back to Python ``==`` for non-Expression
+        // shapes.
+        fn py_slot_likes(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
+            let ab = a.bind(py);
+            let bb = b.bind(py);
+            if ab.is(&bb) {
+                return true;
+            }
+            if let Ok(r) = ab.call_method1("likes", (&bb,)) {
+                if let Ok(t) = r.is_truthy() {
+                    return t;
+                }
+            }
+            ab.eq(bb).unwrap_or(false)
+        }
         match (&self.inner, &other.inner) {
             (
                 ExprInner::Const { value: a, .. },
@@ -1962,9 +1982,14 @@ impl AilExpression {
                     ..
                 },
             ) => Python::attach(|py| {
-                if !a_t.bind(py).eq(b_t.bind(py)).unwrap_or(false) {
+                // Phase D: target is an Expression (usually Const);
+                // Python ``==`` would force matching ``.idx``, so use the
+                // structural slot helper.
+                if !py_slot_likes(py, a_t, b_t) {
                     return false;
                 }
+                // calling_convention / prototype are non-AIL Python objects
+                // (SimCC, SimType) -- plain ``==`` is the right contract.
                 let opt_eq = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
                     match (a, b) {
                         (None, None) => true,
