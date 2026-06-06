@@ -1471,13 +1471,28 @@ class Clinic(Analysis):
                     if not self.project.is_hooked(succ_addr) or not isinstance(
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
-                        # found a single successor - replace the last statement
+                        # found a single successor - replace the last statement.
+                        # Phase D: ``new_last_stmt.expr`` materializes a fresh
+                        # wrapper around a clone of the stored Call, so the
+                        # legacy ``new_last_stmt.expr.target = const`` chain
+                        # mutated the throwaway clone and the actual stored
+                        # Call kept its original (indirect) target. Rebuild
+                        # the Call with the resolved target and write it back
+                        # through the ``expr`` setter.
                         assert isinstance(last_stmt.expr.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
-                        new_last_stmt.expr.target = ailment.Expr.Const(
-                            self._ail_manager.next_atom(), successors[0].addr, last_stmt.expr.target.bits
+                        old_call = new_last_stmt.expr
+                        new_call = ailment.Expr.Call(
+                            old_call.idx,
+                            ailment.Expr.Const(self._ail_manager.next_atom(), successors[0].addr, old_call.target.bits),
+                            calling_convention=old_call.calling_convention,
+                            prototype=old_call.prototype,
+                            args=old_call.args,
+                            bits=old_call.bits,
+                            **old_call.tags,
                         )
+                        new_last_stmt.expr = new_call
                         block.statements[-1] = new_last_stmt
 
             elif isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
