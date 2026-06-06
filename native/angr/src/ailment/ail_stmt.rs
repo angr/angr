@@ -1361,6 +1361,19 @@ impl Statement {
         }
     }
 
+    #[setter]
+    fn set_expr(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let ail = extract_ail_expr(&value)?;
+        match &mut self.stmt.inner {
+            StmtInner::SideEffectStatement { expr, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *expr = Box::new(ail);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
+        }
+    }
+
     /// SideEffectStatement.ret_expr
     #[getter]
     fn ret_expr(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
