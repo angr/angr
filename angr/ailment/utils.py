@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import struct
 
+import archinfo
+
 from angr import ailment
 
 try:
@@ -109,3 +111,22 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     if isinstance(arg1, ailment.expression.Expression):
         return arg1.matches(arg2)
     return arg1 == arg2
+
+
+def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
+    """
+    Return ``True`` if ``expr`` is an ``Extract`` that takes the
+    least-significant ``expr.bits`` bits of its base, considering endianness.
+
+    On master this lived as ``Extract.is_lsb_extract``; Phase D collapsed
+    the per-variant pyclasses into a single ``Expression`` fat enum, so
+    variant-specific methods now live here as plain functions taking an
+    ``Expression`` argument.
+    """
+    if not isinstance(expr, ailment.expression.Extract):
+        return False
+    if not isinstance(expr.offset, ailment.expression.Const):
+        return False
+    if expr.endness == archinfo.Endness.LE:
+        return expr.offset.value == 0
+    return expr.offset.value * 8 + expr.bits == expr.base.bits
