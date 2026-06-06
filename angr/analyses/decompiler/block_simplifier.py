@@ -149,11 +149,13 @@ class BlockSimplifier(Analysis):
 
         while True:
             ctr += 1
-            # block.pp()
             new_block = self._simplify_block_once(block)
-            # print()
-            # new_block.pp()
-            if new_block == block:
+            # Phase D: ``Statement.__eq__`` requires matching ``idx``, but each
+            # simplification round mints fresh statements via
+            # ``manager.next_atom()``, so ``new_block == block`` is always
+            # False even when nothing changed structurally. Use ``.likes()``
+            # which compares structural shape regardless of ``idx``.
+            if new_block.likes(block):
                 break
             self._clear_cache()
             block = new_block
