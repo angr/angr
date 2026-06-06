@@ -11,6 +11,8 @@ import time
 import unittest
 from functools import wraps
 
+import pytest
+
 import angr
 import angr.ailment as ailment
 from angr.analyses import (
@@ -750,6 +752,7 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "Did not find statement 'puts(\"Empty title\");'"
 
+    @pytest.mark.timeout(300)
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
