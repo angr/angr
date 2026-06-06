@@ -886,16 +886,18 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     # Expression handlers
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        # reach a fixed point
-        ctr = 0
+        # Reach a fixed point. Convergence relies on handlers returning the
+        # same ``expr`` Python object when nothing changed -- the convention
+        # in this module's ``_handle_*`` methods. Under Phase D's
+        # fresh-wrapper semantics, structural ``==`` won't break the loop
+        # (handlers minting new expressions assign new ``idx`` so
+        # ``__eq__`` -- which requires matching ``idx`` -- always returns
+        # False) and would loop forever; identity is the right check.
         while True:
-            ctr += 1
             result = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
-            if result == expr:
+            if result is expr:
                 break
             expr = result
-            if ctr > 100:
-                raise RuntimeError(f"AILBlockRewriter did not converge after {ctr} iterations")
         return expr
 
     def _handle_Load(
