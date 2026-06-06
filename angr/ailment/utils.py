@@ -130,3 +130,20 @@ def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
     if expr.endness == archinfo.Endness.LE:
         return expr.offset.value == 0
     return expr.offset.value * 8 + expr.bits == expr.base.bits
+
+
+def is_lsb_overwrite(expr: ailment.expression.Expression) -> bool:
+    """
+    Return ``True`` if ``expr`` is an ``Insert`` that overwrites the
+    least-significant ``expr.value.bits`` bits of its base, considering
+    endianness.
+
+    Phase D counterpart of master's ``Insert.is_lsb_overwrite``.
+    """
+    if not isinstance(expr, ailment.expression.Insert):
+        return False
+    if not (isinstance(expr.offset, ailment.expression.Const) and isinstance(expr.offset.value, int)):
+        return False
+    if expr.endness == archinfo.Endness.LE:
+        return expr.offset.value == 0
+    return expr.offset.value * 8 + expr.value.bits == expr.bits
