@@ -1625,8 +1625,26 @@ impl AilExpression {
         h
     }
 
-    /// Structural equality used by the Python ``__eq__`` after a fast
-    /// idx-first short-circuit. Recursively compares operands.
+    /// Structural-with-identity equality. Two expressions ``likes`` each
+    /// other when they are the same variant carrying the same identifying
+    /// information AND their operands transitively ``likes`` each other.
+    ///
+    /// For SSA atoms ``VirtualVariable`` this means the ``varid`` must
+    /// agree -- ``likes`` will distinguish two structurally identical
+    /// reads of the same register that come from different definitions.
+    /// Contrast with ``matches``: ``matches`` is the structural-only
+    /// sibling that ignores ``varid`` (and other identifying fields) and
+    /// only requires the *shape* of the expression to be the same.
+    ///
+    /// Rule of thumb:
+    /// * ``likes`` = "is this the same value at the AIL level" -- used
+    ///   by Python ``__eq__`` (after the idx-first short-circuit), by
+    ///   rewriting passes that replace one node with an equivalent one,
+    ///   and anywhere identity within the SSA-numbered IR matters.
+    /// * ``matches`` = "do these two expressions have the same shape" --
+    ///   used by deduplication / similarity passes that need to recognize
+    ///   that the same source expression compiled into two different
+    ///   SSA-numbered occurrences should be treated as identical.
     pub fn likes(&self, other: &AilExpression) -> bool {
         if self.kind() != other.kind() {
             return false;
@@ -2078,6 +2096,384 @@ impl AilExpression {
                 ExprInner::StackBaseOffset { offset: b },
             ) => a == b && self.header.bits == other.header.bits,
             _ => false,
+        }
+    }
+
+    /// Structural-only equality. Unlike ``likes``, ``matches`` ignores
+    /// identifying fields that distinguish two structurally identical
+    /// occurrences of the same source-level expression:
+    ///
+    /// * ``VirtualVariable.matches`` ignores ``varid``. Two reads of the
+    ///   same physical register through two different SSA definitions
+    ///   ``matches`` but do not ``likes``.
+    /// * Recursive variants (``BinaryOp``, ``UnaryOp``, ``Convert``,
+    ///   ``Reinterpret``, ``Load``, ``ITE``, ``Call``, ``DirtyExpression``,
+    ///   ``VEXCCallExpression``, ``MultiStatementExpression``) descend
+    ///   into their sub-expressions via ``matches`` rather than ``likes``,
+    ///   so the relaxation propagates.
+    ///
+    /// All other variants (Const/Tmp/Register/StringLiteral/...) carry
+    /// no SSA identifying info, so ``matches`` reduces to ``likes`` for
+    /// them. This mirrors the legacy Python AIL contract where most
+    /// classes declare ``matches = likes`` and only a handful override.
+    ///
+    /// Primary user: deduplication/similarity passes such as
+    /// ``DuplicationReverter`` and ``block_similarity.is_similar`` --
+    /// they need to recognize that the two branches of an if/else that
+    /// each compile the same source expression should be treated as
+    /// duplicates even though SSA renumbering gave their values
+    /// different ``varid``s.
+    pub fn matches(&self, other: &AilExpression) -> bool {
+        if self.kind() != other.kind() {
+            return false;
+        }
+        // Polymorphic slot comparator that prefers structural ``matches``
+        // when the held object supports it. Same fallback chain as the
+        // ``likes`` variant, but routes through ``.matches()`` so the
+        // relaxation propagates into Python-side slots (e.g. a Call
+        // target wrapped as ``Expression``).
+        fn py_slot_matches(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
+            let ab = a.bind(py);
+            let bb = b.bind(py);
+            if ab.is(&bb) {
+                return true;
+            }
+            if let Ok(r) = ab.call_method1("matches", (&bb,)) {
+                if let Ok(t) = r.is_truthy() {
+                    return t;
+                }
+            }
+            ab.eq(bb).unwrap_or(false)
+        }
+        match (&self.inner, &other.inner) {
+            // -- VirtualVariable: matches ignores ``varid``. This is the
+            // -- single most important relaxation -- it lets the dedup
+            // -- passes recognize the same source-level read across two
+            // -- SSA branches.
+            (
+                ExprInner::VirtualVariable {
+                    category: a_c,
+                    oident: a_o,
+                    ..
+                },
+                ExprInner::VirtualVariable {
+                    category: b_c,
+                    oident: b_o,
+                    ..
+                },
+            ) => Python::attach(|py| {
+                self.header.bits == other.header.bits
+                    && a_c == b_c
+                    && a_o.bind(py).eq(b_o.bind(py)).unwrap_or(false)
+            }),
+            // -- Phi: same shape, but per-source pairs only require the
+            // -- *source* to match; the vvar id is ignored (per master's
+            // -- ``Phi.matches``). The legacy contract walks the dicts
+            // -- and only verifies the keys (sources) line up.
+            (
+                ExprInner::Phi { src_and_vvars: a, .. },
+                ExprInner::Phi { src_and_vvars: b, .. },
+            ) => Python::attach(|py| {
+                if self.header.bits != other.header.bits {
+                    return false;
+                }
+                let la = a.bind(py);
+                let lb = b.bind(py);
+                if la.len() != lb.len() {
+                    return false;
+                }
+                // Collect ``src`` keys from each list-of-tuples and
+                // compare as sets. ``vvar`` payloads are intentionally
+                // ignored.
+                let collect_srcs = |lst: &Bound<'_, PyAny>| -> Option<Vec<Py<PyAny>>> {
+                    let mut out = Vec::with_capacity(lst.len().ok()?);
+                    for item in lst.try_iter().ok()? {
+                        let item = item.ok()?;
+                        let src = item.get_item(0).ok()?;
+                        out.push(src.unbind());
+                    }
+                    Some(out)
+                };
+                let Some(srcs_a) = collect_srcs(&la) else { return false; };
+                let Some(srcs_b) = collect_srcs(&lb) else { return false; };
+                // Order-insensitive: each ``src`` in a must appear in b.
+                'outer: for sa in &srcs_a {
+                    for sb in &srcs_b {
+                        if sa.bind(py).eq(sb.bind(py)).unwrap_or(false) {
+                            continue 'outer;
+                        }
+                    }
+                    return false;
+                }
+                true
+            }),
+            // -- Recursive variants: descend via ``matches`` so the
+            // -- relaxation propagates.
+            (
+                ExprInner::UnaryOp { op: a_op, operand: a_o, .. },
+                ExprInner::UnaryOp { op: b_op, operand: b_o, .. },
+            ) => {
+                a_op == b_op
+                    && self.header.bits == other.header.bits
+                    && a_o.matches(b_o)
+            }
+            (
+                ExprInner::Convert {
+                    operand: a_o,
+                    from_bits: a_fb,
+                    to_bits: a_tb,
+                    is_signed: a_s,
+                    from_type: a_ft,
+                    to_type: a_tt,
+                    ..
+                },
+                ExprInner::Convert {
+                    operand: b_o,
+                    from_bits: b_fb,
+                    to_bits: b_tb,
+                    is_signed: b_s,
+                    from_type: b_ft,
+                    to_type: b_tt,
+                    ..
+                },
+            ) => {
+                a_fb == b_fb
+                    && a_tb == b_tb
+                    && a_s == b_s
+                    && a_ft == b_ft
+                    && a_tt == b_tt
+                    && self.header.bits == other.header.bits
+                    && a_o.matches(b_o)
+            }
+            (
+                ExprInner::Reinterpret {
+                    operand: a_o,
+                    from_bits: a_fb,
+                    from_type: a_ft,
+                    to_bits: a_tb,
+                    to_type: a_tt,
+                    ..
+                },
+                ExprInner::Reinterpret {
+                    operand: b_o,
+                    from_bits: b_fb,
+                    from_type: b_ft,
+                    to_bits: b_tb,
+                    to_type: b_tt,
+                    ..
+                },
+            ) => {
+                a_fb == b_fb
+                    && a_tb == b_tb
+                    && a_ft == b_ft
+                    && a_tt == b_tt
+                    && a_o.matches(b_o)
+            }
+            (
+                ExprInner::BinaryOp {
+                    op: op_a,
+                    operands: ops_a,
+                    signed: s_a,
+                    floating_point: fp_a,
+                    ..
+                },
+                ExprInner::BinaryOp {
+                    op: op_b,
+                    operands: ops_b,
+                    signed: s_b,
+                    floating_point: fp_b,
+                    ..
+                },
+            ) => {
+                op_a == op_b
+                    && s_a == s_b
+                    && fp_a == fp_b
+                    && self.header.bits == other.header.bits
+                    && ops_a[0].matches(&ops_b[0])
+                    && ops_a[1].matches(&ops_b[1])
+            }
+            (
+                ExprInner::Load {
+                    addr: a_addr,
+                    size: a_size,
+                    endness: a_end,
+                    ..
+                },
+                ExprInner::Load {
+                    addr: b_addr,
+                    size: b_size,
+                    endness: b_end,
+                    ..
+                },
+            ) => a_size == b_size && a_end == b_end && a_addr.matches(b_addr),
+            (
+                ExprInner::ITE {
+                    cond: ac,
+                    iffalse: af,
+                    iftrue: at,
+                    ..
+                },
+                ExprInner::ITE {
+                    cond: bc,
+                    iffalse: bf,
+                    iftrue: bt,
+                    ..
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && ac.matches(bc)
+                    && af.matches(bf)
+                    && at.matches(bt)
+            }
+            (
+                ExprInner::Extract {
+                    base: ab,
+                    offset: ao,
+                    endness: ae,
+                },
+                ExprInner::Extract {
+                    base: bb,
+                    offset: bo,
+                    endness: be,
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && ae == be
+                    && ab.matches(bb)
+                    && ao.matches(bo)
+            }
+            (
+                ExprInner::Insert {
+                    base: ab,
+                    offset: ao,
+                    value: av,
+                    endness: ae,
+                },
+                ExprInner::Insert {
+                    base: bb,
+                    offset: bo,
+                    value: bv,
+                    endness: be,
+                },
+            ) => ae == be && ab.matches(bb) && ao.matches(bo) && av.matches(bv),
+            (
+                ExprInner::Call {
+                    target: a_t,
+                    calling_convention: a_cc,
+                    prototype: a_p,
+                    args: a_args,
+                    ..
+                },
+                ExprInner::Call {
+                    target: b_t,
+                    calling_convention: b_cc,
+                    prototype: b_p,
+                    args: b_args,
+                    ..
+                },
+            ) => Python::attach(|py| {
+                if !py_slot_matches(py, a_t, b_t) {
+                    return false;
+                }
+                let opt_eq = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
+                    match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
+                        _ => false,
+                    }
+                };
+                if !opt_eq(a_cc, b_cc) {
+                    return false;
+                }
+                if !opt_eq(a_p, b_p) {
+                    return false;
+                }
+                match (a_args, b_args) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => {
+                        a.len() == b.len()
+                            && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y))
+                    }
+                    _ => false,
+                }
+            }),
+            (
+                ExprInner::DirtyExpression {
+                    callee: a_c,
+                    operands: a_ops,
+                    guard: a_g,
+                    mfx: a_mfx,
+                    maddr: a_ma,
+                    msize: a_ms,
+                },
+                ExprInner::DirtyExpression {
+                    callee: b_c,
+                    operands: b_ops,
+                    guard: b_g,
+                    mfx: b_mfx,
+                    maddr: b_ma,
+                    msize: b_ms,
+                },
+            ) => {
+                if a_c != b_c
+                    || a_mfx != b_mfx
+                    || a_ms != b_ms
+                    || self.header.bits != other.header.bits
+                {
+                    return false;
+                }
+                let opt_matches = |a: &Option<Box<AilExpression>>,
+                                   b: &Option<Box<AilExpression>>| match (a, b) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => x.matches(y),
+                    _ => false,
+                };
+                opt_matches(a_g, b_g)
+                    && opt_matches(a_ma, b_ma)
+                    && a_ops.len() == b_ops.len()
+                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.matches(y))
+            }
+            (
+                ExprInner::VEXCCallExpression {
+                    callee: a_c,
+                    operands: a_ops,
+                },
+                ExprInner::VEXCCallExpression {
+                    callee: b_c,
+                    operands: b_ops,
+                },
+            ) => {
+                a_c == b_c
+                    && self.header.bits == other.header.bits
+                    && a_ops.len() == b_ops.len()
+                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.matches(y))
+            }
+            (
+                ExprInner::MultiStatementExpression {
+                    stmts: a_s,
+                    expr: a_e,
+                },
+                ExprInner::MultiStatementExpression {
+                    stmts: b_s,
+                    expr: b_e,
+                },
+            ) => {
+                a_s.len() == b_s.len()
+                    && a_s.iter().zip(b_s.iter()).all(|(x, y)| x.matches(y))
+                    && a_e.matches(b_e)
+            }
+            // -- ComboRegister: recurses via matches but Python defines
+            // -- ``matches = likes`` for it. Since likes already recurses
+            // -- via ``likes`` and there's no varid in plain Register, the
+            // -- two are equivalent. Keep the recursion explicit for
+            // -- forward-consistency.
+            (
+                ExprInner::ComboRegister { registers: a, .. },
+                ExprInner::ComboRegister { registers: b, .. },
+            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y)),
+            // -- All other variants: no identifying info distinguishes
+            // -- ``matches`` from ``likes``. Defer to ``likes``.
+            _ => self.likes(other),
         }
     }
 }
@@ -4408,13 +4804,17 @@ impl Expression {
         Ok(self.expr.likes(&o.borrow().expr))
     }
 
-    /// Pattern matching -- for the spike, identical to ``likes``. The
-    /// legacy pyclasses had slightly different ``matches`` semantics
-    /// (e.g. ``Const.matches`` ignored ``idx`` but not ``value``); the
-    /// spike preserves the simpler structural-equality contract until
-    /// a regression demands the per-variant nuance.
+    /// Structural-only equality. See ``AilExpression::matches`` for the
+    /// full contract. In one line: ``matches`` is ``likes`` with SSA
+    /// identifying info (notably ``VirtualVariable.varid``) stripped,
+    /// so two structurally identical expressions originating from
+    /// different SSA definitions compare equal. Used by dedup/similarity
+    /// passes; not used by Python ``__eq__``.
     fn matches(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        self.likes(other)
+        let Ok(o) = other.cast::<Expression>() else {
+            return Ok(false);
+        };
+        Ok(self.expr.matches(&o.borrow().expr))
     }
 
     /// ``replace(old, new)`` -- substitute any ``likes``-matching node

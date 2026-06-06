@@ -700,6 +700,19 @@ impl AilStatement {
         }
     }
 
+    /// Structural-with-identity equality on statements. ``likes`` is the
+    /// statement-level analogue of ``AilExpression::likes``: two statements
+    /// like each other when they are the same variant, every sub-expression
+    /// like-matches, and every plain-Python slot (Jump targets,
+    /// SimCC/SimType payloads, etc.) compares equal via Python ``==``.
+    /// Sub-expressions are compared via ``AilExpression::likes``, so SSA
+    /// ``varid`` differences propagate up and cause two structurally
+    /// identical statements to not ``likes`` each other.
+    ///
+    /// Backs Python ``Statement.__eq__`` (after an idx-first short-circuit)
+    /// and is used by rewriting passes that replace one statement with an
+    /// SSA-equivalent one. For the structural-only variant that dedup /
+    /// similarity passes want, see ``matches`` below.
     pub fn likes(&self, other: &AilStatement) -> bool {
         if self.kind() != other.kind() {
             return false;
@@ -859,6 +872,180 @@ impl AilStatement {
                 StmtInner::DirtyStatement { dirty: a },
                 StmtInner::DirtyStatement { dirty: b },
             ) => a.likes(b),
+            _ => false,
+        }
+    }
+
+    /// Structural-only equality on statements. The statement-level
+    /// counterpart of ``AilExpression::matches``: sub-expressions are
+    /// compared via ``AilExpression::matches`` rather than ``likes``,
+    /// so SSA ``varid`` differences are intentionally not observed.
+    ///
+    /// In master's Python AIL every statement class declares an explicit
+    /// ``matches`` that mirrors ``likes`` but recurses through ``matches``
+    /// on sub-expressions; we preserve that contract here. Plain
+    /// Python-object slots (Jump targets, CC/SimType payloads, label
+    /// names, dirty-statement payloads) keep their Python ``==`` (or
+    /// structural ``.matches()`` for slots that wrap Expression).
+    ///
+    /// The deduplication / similarity passes
+    /// (``block_similarity.is_similar``, ``DuplicationReverter``) call
+    /// this to recognize that the same source-level statement compiled
+    /// into two SSA branches should be treated as duplicates even
+    /// though SSA renumbering gave their dst/src vvars different
+    /// ``varid``s. Without this relaxation those passes never find
+    /// merge candidates.
+    pub fn matches(&self, other: &AilStatement) -> bool {
+        if self.kind() != other.kind() {
+            return false;
+        }
+        // Statement-target slot comparator: prefer the held object's
+        // ``.matches()`` so the structural relaxation propagates.
+        // Same fallback chain as the ``likes`` variant.
+        fn py_target_matches(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
+            let ab = a.bind(py);
+            let bb = b.bind(py);
+            if ab.is(&bb) {
+                return true;
+            }
+            if let Ok(r) = ab.call_method1("matches", (bb,)) {
+                if let Ok(t) = r.is_truthy() {
+                    return t;
+                }
+            }
+            ab.eq(b.bind(py)).unwrap_or(false)
+        }
+        match (&self.inner, &other.inner) {
+            (
+                StmtInner::Assignment { dst: a_d, src: a_s },
+                StmtInner::Assignment { dst: b_d, src: b_s },
+            )
+            | (
+                StmtInner::WeakAssignment { dst: a_d, src: a_s },
+                StmtInner::WeakAssignment { dst: b_d, src: b_s },
+            ) => a_d.matches(b_d) && a_s.matches(b_s),
+            (
+                StmtInner::Label { name: a },
+                StmtInner::Label { name: b },
+            ) => a == b,
+            (
+                StmtInner::Store {
+                    addr: a_a,
+                    data: a_d,
+                    size: a_s,
+                    endness: a_e,
+                    ..
+                },
+                StmtInner::Store {
+                    addr: b_a,
+                    data: b_d,
+                    size: b_s,
+                    endness: b_e,
+                    ..
+                },
+            ) => a_s == b_s && a_e == b_e && a_a.matches(b_a) && a_d.matches(b_d),
+            (
+                StmtInner::Jump {
+                    target: a_t,
+                    target_idx: a_ti,
+                },
+                StmtInner::Jump {
+                    target: b_t,
+                    target_idx: b_ti,
+                },
+            ) => a_ti == b_ti && Python::attach(|py| py_target_matches(py, a_t, b_t)),
+            (
+                StmtInner::ConditionalJump {
+                    condition: a_c,
+                    true_target: a_t,
+                    false_target: a_f,
+                    ..
+                },
+                StmtInner::ConditionalJump {
+                    condition: b_c,
+                    true_target: b_t,
+                    false_target: b_f,
+                    ..
+                },
+            ) => {
+                if !a_c.matches(b_c) {
+                    return false;
+                }
+                Python::attach(|py| {
+                    let opt_matches =
+                        |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| match (a, b) {
+                            (None, None) => true,
+                            (Some(x), Some(y)) => py_target_matches(py, x, y),
+                            _ => false,
+                        };
+                    opt_matches(a_t, b_t) && opt_matches(a_f, b_f)
+                })
+            }
+            (
+                StmtInner::SideEffectStatement {
+                    expr: a_e,
+                    ret_expr: a_r,
+                    fp_ret_expr: a_f,
+                },
+                StmtInner::SideEffectStatement {
+                    expr: b_e,
+                    ret_expr: b_r,
+                    fp_ret_expr: b_f,
+                },
+            ) => {
+                let opt_matches = |a: &Option<Box<AilExpression>>,
+                                   b: &Option<Box<AilExpression>>| match (a, b) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => x.matches(y),
+                    _ => false,
+                };
+                a_e.matches(b_e) && opt_matches(a_r, b_r) && opt_matches(a_f, b_f)
+            }
+            (
+                StmtInner::Return { ret_exprs: a },
+                StmtInner::Return { ret_exprs: b },
+            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y)),
+            (
+                StmtInner::CAS {
+                    addr: a_a,
+                    data_lo: a_dl,
+                    data_hi: a_dh,
+                    expd_lo: a_el,
+                    expd_hi: a_eh,
+                    old_lo: a_ol,
+                    old_hi: a_oh,
+                    endness: a_e,
+                },
+                StmtInner::CAS {
+                    addr: b_a,
+                    data_lo: b_dl,
+                    data_hi: b_dh,
+                    expd_lo: b_el,
+                    expd_hi: b_eh,
+                    old_lo: b_ol,
+                    old_hi: b_oh,
+                    endness: b_e,
+                },
+            ) => {
+                let opt_matches = |a: &Option<Box<AilExpression>>,
+                                   b: &Option<Box<AilExpression>>| match (a, b) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => x.matches(y),
+                    _ => false,
+                };
+                a_e == b_e
+                    && a_a.matches(b_a)
+                    && a_dl.matches(b_dl)
+                    && opt_matches(a_dh, b_dh)
+                    && a_el.matches(b_el)
+                    && opt_matches(a_eh, b_eh)
+                    && a_ol.matches(b_ol)
+                    && opt_matches(a_oh, b_oh)
+            }
+            (
+                StmtInner::DirtyStatement { dirty: a },
+                StmtInner::DirtyStatement { dirty: b },
+            ) => a.matches(b),
             _ => false,
         }
     }
@@ -1695,8 +1882,12 @@ impl Statement {
         self.stmt._hash_core()
     }
 
-    /// Structural equality (ignores ``idx``). Exposed as a method
-    /// because analyses use ``a.likes(b)`` rather than ``a == b``.
+    /// Structural-with-identity equality. See ``AilStatement::likes``
+    /// for the full contract. Backs Python ``Statement.__eq__`` after
+    /// the idx-first short-circuit and is used by rewriting passes
+    /// that swap a statement for an SSA-equivalent one; in particular,
+    /// two statements that operate on the same source-level register
+    /// through different SSA ``varid``s will *not* ``likes`` each other.
     fn likes(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
         let Ok(o) = other.cast::<Statement>() else {
             return Ok(false);
@@ -1704,9 +1895,17 @@ impl Statement {
         Ok(self.stmt.likes(&o.borrow().stmt))
     }
 
-    /// Pattern matching -- identical to ``likes`` in the spike.
+    /// Structural-only equality. See ``AilStatement::matches`` for the
+    /// full contract. In one line: ``matches`` is ``likes`` with SSA
+    /// identifying info on sub-expressions stripped, so two statements
+    /// that compile from the same source but landed in different SSA
+    /// numberings compare equal. Primary callers are dedup / similarity
+    /// passes; not used by Python ``__eq__``.
     fn matches(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        self.likes(other)
+        let Ok(o) = other.cast::<Statement>() else {
+            return Ok(false);
+        };
+        Ok(self.stmt.matches(&o.borrow().stmt))
     }
 
     /// ``replace(old, new)`` -- substitute any expression node in
