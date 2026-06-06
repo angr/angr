@@ -418,7 +418,13 @@ class DivSimplifier(OptimizationPass):
             new_block = block
             old_block = None
 
-            while new_block != old_block:
+            # Phase D: ``Block.__eq__`` requires statement idx to line up,
+            # but each engine iteration mints fresh statements via
+            # ``manager.next_atom()``, so ``new_block != old_block`` is
+            # always True even when nothing changed structurally. Use
+            # ``.likes()`` (structural shape, idx-agnostic) so the loop
+            # converges. Mirrors the ``BlockSimplifier`` fix.
+            while old_block is None or not new_block.likes(old_block):
                 old_block = new_block
                 new_block = self.engine.process(state=self.state.copy(), block=old_block.copy())
                 _l.debug("new block: %s", new_block.statements)
