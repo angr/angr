@@ -2837,13 +2837,30 @@ class Clinic(Analysis):
                 if self.kb.functions.contains_addr(callee):
                     callee_func = self.kb.functions.get_by_addr(callee)
                     if callee_func.info.get("jmp_rax", False) is True:
-                        # rewrite this statement into Call(rax)
+                        # rewrite this statement into Call(rax). Phase D's Statement
+                        # accessors mint fresh wrappers around clones, so
+                        # ``call_stmt.expr.target = ...`` would write into a throwaway.
+                        # Rebuild the Call and route the new expression through the
+                        # ``Statement.expr =`` setter. Preserve ``arg_vvars`` -- in
+                        # Phase D it is a structural field on Call, not a tag, so
+                        # ``**old_call.tags`` does not carry it.
                         call_stmt = last_stmt.copy()
-                        call_stmt.expr.target = ailment.Expr.Register(
+                        old_call = call_stmt.expr
+                        new_target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
                             self.project.arch.registers["rax"][0],
                             64,
                             ins_addr=call_stmt.tags["ins_addr"],
+                        )
+                        call_stmt.expr = ailment.Expr.Call(
+                            old_call.idx,
+                            new_target,
+                            calling_convention=old_call.calling_convention,
+                            prototype=old_call.prototype,
+                            args=old_call.args,
+                            arg_vvars=old_call.arg_vvars,
+                            bits=old_call.bits,
+                            **old_call.tags,
                         )
                         block.statements[-1] = call_stmt
 
