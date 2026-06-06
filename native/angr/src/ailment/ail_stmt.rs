@@ -639,6 +639,30 @@ impl AilStatement {
         if self.kind() != other.kind() {
             return false;
         }
+        // Helper used by Jump/ConditionalJump arms below: compare two
+        // ``Py<PyAny>`` slots that hold a Jump target. Targets are typically
+        // Expression instances (``Const``) but can also be plain Python
+        // ``int`` or ``str`` for unresolved indirect jumps. ``Expression``
+        // sees ``Expression.__eq__`` whose contract is idx-strict -- which
+        // means two structurally equal targets with different freshly minted
+        // ``.idx`` round-trip as not-equal, and structural ``likes()``
+        // semantics on the surrounding Statement get poisoned by it. Prefer
+        // calling ``.likes()`` when available (the structurally-equivalent
+        // check used everywhere else on AIL atoms), and only fall back to
+        // ``==`` for non-Expression target shapes.
+        fn py_target_likes(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
+            let ab = a.bind(py);
+            let bb = b.bind(py);
+            if ab.is(&bb) {
+                return true;
+            }
+            if let Ok(r) = ab.call_method1("likes", (bb,)) {
+                if let Ok(t) = r.is_truthy() {
+                    return t;
+                }
+            }
+            ab.eq(b.bind(py)).unwrap_or(false)
+        }
         match (&self.inner, &other.inner) {
             (
                 StmtInner::Assignment { dst: a_d, src: a_s },
@@ -677,10 +701,7 @@ impl AilStatement {
                     target: b_t,
                     target_idx: b_ti,
                 },
-            ) => {
-                a_ti == b_ti
-                    && Python::attach(|py| a_t.bind(py).eq(b_t.bind(py)).unwrap_or(false))
-            }
+            ) => a_ti == b_ti && Python::attach(|py| py_target_likes(py, a_t, b_t)),
             (
                 StmtInner::ConditionalJump {
                     condition: a_c,
@@ -699,12 +720,13 @@ impl AilStatement {
                     return false;
                 }
                 Python::attach(|py| {
-                    let opt_eq = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| match (a, b) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
-                        _ => false,
-                    };
-                    opt_eq(a_t, b_t) && opt_eq(a_f, b_f)
+                    let opt_likes =
+                        |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| match (a, b) {
+                            (None, None) => true,
+                            (Some(x), Some(y)) => py_target_likes(py, x, y),
+                            _ => false,
+                        };
+                    opt_likes(a_t, b_t) && opt_likes(a_f, b_f)
                 })
             }
             (

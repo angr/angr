@@ -143,7 +143,10 @@ class BlockSimplifier(Analysis):
         new_block = self._eliminate_self_assignments(block)
         if self._count_nonconstant_statements(new_block) >= 2 and self._has_propagatable_assignments(new_block):
             new_block = self._eliminate_dead_assignments(new_block)
-        if new_block != block:
+        # Phase D: structural ``likes`` (idx-agnostic) instead of ``!=`` which
+        # always trips on fresh ``manager.next_atom()`` ids even when nothing
+        # changed structurally.
+        if not new_block.likes(block):
             self._clear_cache()
             block = new_block
 
