@@ -476,7 +476,38 @@ impl AilStatement {
                 false_target_idx,
             } => {
                 let (cc, rc) = walk(condition);
-                if !cc {
+                // Same rationale as the Jump arm below: the target slots
+                // are ``Py<PyAny>`` because they may legally hold non-AIL
+                // values, but when they hold an AIL Expression we have to
+                // recurse so propagation can fold into them.
+                let (ct_ch, ct_new, cf_ch, cf_new) = Python::attach(|py| {
+                    let walk_target = |slot: &Option<Py<PyAny>>| -> (bool, Option<Py<PyAny>>) {
+                        match slot {
+                            None => (false, None),
+                            Some(t) => {
+                                let bound = t.bind(py);
+                                if let Ok(expr_cell) = bound.cast::<Expression>() {
+                                    let inner = expr_cell.borrow().expr.clone();
+                                    let (c, r) = inner.replace_ail(old_expr, new_expr);
+                                    if !c {
+                                        (false, Some(t.clone_ref(py)))
+                                    } else {
+                                        match Py::new(py, Expression::wrap(r)) {
+                                            Ok(p) => (true, Some(p.into_any())),
+                                            Err(_) => (false, Some(t.clone_ref(py))),
+                                        }
+                                    }
+                                } else {
+                                    (false, Some(t.clone_ref(py)))
+                                }
+                            }
+                        }
+                    };
+                    let (a, b) = walk_target(true_target);
+                    let (c, d) = walk_target(false_target);
+                    (a, b, c, d)
+                });
+                if !cc && !ct_ch && !cf_ch {
                     return (false, self.clone());
                 }
                 (
@@ -485,12 +516,8 @@ impl AilStatement {
                         header: self.header.clone(),
                         inner: StmtInner::ConditionalJump {
                             condition: rc,
-                            true_target: true_target.as_ref().map(|t| {
-                                Python::attach(|py| t.clone_ref(py))
-                            }),
-                            false_target: false_target.as_ref().map(|t| {
-                                Python::attach(|py| t.clone_ref(py))
-                            }),
+                            true_target: ct_new,
+                            false_target: cf_new,
                             true_target_idx: *true_target_idx,
                             false_target_idx: *false_target_idx,
                         },
@@ -583,7 +610,45 @@ impl AilStatement {
                     },
                 )
             }
-            // Label and Jump have no expression subtrees to walk.
+            // Jump and ConditionalJump store target slots as
+            // ``Py<PyAny>`` because callers occasionally place non-AIL
+            // values there (plain ``int`` or ``str`` for unresolved
+            // indirect targets), but the common case is an AIL
+            // ``Expression`` and a propagator that wants to fold a vvar
+            // into the target -- e.g. lowering ``Goto vvar_X`` into
+            // ``Goto(Conv(Load(...)))`` so the structurer can recognize
+            // a jumptable -- has to be able to walk into it. Recurse if
+            // the slot wraps an ``Expression``.
+            StmtInner::Jump {
+                target,
+                target_idx,
+            } => Python::attach(|py| {
+                let bound = target.bind(py);
+                if let Ok(expr_cell) = bound.cast::<Expression>() {
+                    let inner = expr_cell.borrow().expr.clone();
+                    let (changed, replaced) = inner.replace_ail(old_expr, new_expr);
+                    if !changed {
+                        return (false, self.clone());
+                    }
+                    let new_py = match Py::new(py, Expression::wrap(replaced)) {
+                        Ok(p) => p.into_any(),
+                        Err(_) => return (false, self.clone()),
+                    };
+                    (
+                        true,
+                        AilStatement {
+                            header: self.header.clone(),
+                            inner: StmtInner::Jump {
+                                target: new_py,
+                                target_idx: *target_idx,
+                            },
+                        },
+                    )
+                } else {
+                    (false, self.clone())
+                }
+            }),
+            // Label has no expression subtrees to walk.
             _ => (false, self.clone()),
         }
     }
