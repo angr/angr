@@ -34,7 +34,14 @@ class VVarUsesCollector(AILBlockViewer):
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if isinstance(stmt, Assignment):
-            if expr is stmt.dst:
+            # Phase D: accessors like ``stmt.dst`` materialize a fresh Python
+            # wrapper around a clone of the underlying AIL expression, so the
+            # legacy ``expr is stmt.dst`` identity check no longer matches the
+            # def site -- it would silently classify the def as a use and inflate
+            # use counts, blocking copy propagation downstream. AIL ``idx`` is
+            # unique per expression and survives the wrapper clone, so identity
+            # is now recovered via ``expr.idx == stmt.dst.idx``.
+            if expr.idx == stmt.dst.idx:
                 return
             if isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi) and expr.varid == stmt.dst.varid:
                 # avoid phi loops
