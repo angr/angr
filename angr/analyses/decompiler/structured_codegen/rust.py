@@ -10,6 +10,7 @@ import archinfo
 
 from angr import ailment
 from angr.ailment import Block, Expr, Stmt, Tmp
+from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.expression import (
     Array,
     BinaryOp,
@@ -3439,7 +3440,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # if (node, is_expr) in self.ailexpr2cnode:
         #     return self.ailexpr2cnode[(node, is_expr)]
 
-        handler: Callable | None = self._handlers.get(node.__class__, None)
+        # Phase D: AIL Expressions / Statements all share one rustlib
+        # pyclass; ``node.__class__`` no longer discriminates. ``_dispatch_key``
+        # maps the variant tag back to the marker class registered in
+        # ``self._handlers``. Non-AIL nodes (CodeNode/SequenceNode/...) have
+        # no ``kind`` and fall through to ``type(node)`` cleanly. Mirrors the
+        # C codegen fix.
+        handler: Callable | None = self._handlers.get(_dispatch_key(node), None)
         if handler is not None:
             if isinstance(node, (Expr.Call, FunctionLikeMacro)):
                 # special case for Call
@@ -3449,7 +3456,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if self.ailexpr2cnode is not None:
                 self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
-        raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
+        raise UnsupportedNodeTypeError(
+            f"Node type {getattr(node, 'kind', None) or type(node).__name__} is not supported yet."
+        )
 
     def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
