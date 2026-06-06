@@ -4102,6 +4102,28 @@ impl Expression {
         }
     }
 
+    /// BinaryOp.vector_count
+    #[getter]
+    fn vector_count(&self) -> PyResult<Option<i64>> {
+        match &self.expr.inner {
+            ExprInner::BinaryOp { vector_count, .. } => Ok(*vector_count),
+            _ => Err(PyAttributeError::new_err(
+                "no 'vector_count' on this Expression",
+            )),
+        }
+    }
+
+    /// BinaryOp.vector_size
+    #[getter]
+    fn vector_size(&self) -> PyResult<Option<i64>> {
+        match &self.expr.inner {
+            ExprInner::BinaryOp { vector_size, .. } => Ok(*vector_size),
+            _ => Err(PyAttributeError::new_err(
+                "no 'vector_size' on this Expression",
+            )),
+        }
+    }
+
     /// Load.addr
     #[getter]
     fn addr(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
