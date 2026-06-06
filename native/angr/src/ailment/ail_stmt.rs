@@ -1387,6 +1387,24 @@ impl Statement {
         }
     }
 
+    #[setter]
+    fn set_ret_exprs(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::Return { ret_exprs } => {
+                let mut new_vec: Vec<AilExpression> = Vec::new();
+                for item in value.try_iter()? {
+                    new_vec.push(extract_ail_expr(&item?)?);
+                }
+                self.stmt.header.cached_hash.clear();
+                *ret_exprs = new_vec;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'ret_exprs' on this Statement",
+            )),
+        }
+    }
+
     /// CAS.data_lo / data_hi / expd_lo / expd_hi / old_lo / old_hi
     #[getter]
     fn data_lo(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
