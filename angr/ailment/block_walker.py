@@ -886,17 +886,21 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     # Expression handlers
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        # Reach a fixed point. Convergence relies on handlers returning the
-        # same ``expr`` Python object when nothing changed -- the convention
-        # in this module's ``_handle_*`` methods. Under Phase D's
-        # fresh-wrapper semantics, structural ``==`` won't break the loop
-        # (handlers minting new expressions assign new ``idx`` so
-        # ``__eq__`` -- which requires matching ``idx`` -- always returns
-        # False) and would loop forever; identity is the right check.
-        while True:
+        # Reach a fixed point. Handlers return the input ``expr`` Python
+        # object when nothing changed (legacy convention), so ``is`` is
+        # the right termination check. Phase D adds the wrinkle that
+        # ``expr.X`` accessors mint fresh wrappers each time, so handlers
+        # that compare ``new_X != expr.X`` for ``changed`` may produce
+        # a structurally-equal-but-different-identity replacement even
+        # when no rewrite happened. Cap the iteration at a few rounds and
+        # fall back to a structural ``likes`` check to avoid infinite
+        # loops in that corner case.
+        for _ in range(8):
             result = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
             if result is expr:
-                break
+                return expr
+            if isinstance(result, Expression) and isinstance(expr, Expression) and result.likes(expr):
+                return result
             expr = result
         return expr
 
