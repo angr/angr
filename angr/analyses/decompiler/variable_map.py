@@ -72,6 +72,8 @@ class VariableMap:
         "_variable_offsets",
         "_variables",
         "_variants",
+        "_vvar_id_to_variable",
+        "_vvar_id_to_variable_offset",
     )
 
     def __init__(self):
@@ -87,6 +89,14 @@ class VariableMap:
         self._variants: dict[int, Any] = {}
         # ``returnty`` (a :class:`SimType`): the return type of a Rust ``FunctionLikeMacro`` call.
         self._returntys: dict[int, SimType] = {}
+        # Secondary index for VirtualVariable atoms keyed by their stable
+        # ``varid``. Phase D minted fresh Expression wrappers (each carrying a
+        # new ``.idx``) from intermediate passes that didn't propagate
+        # variable_map entries via ``transfer``; without this fallback those
+        # later vvar wrappers render as raw ``vvar_X`` in the C output even
+        # though their varid was registered at variable-recovery time.
+        self._vvar_id_to_variable: dict[int, SimVariable] = {}
+        self._vvar_id_to_variable_offset: dict[int, int] = {}
 
     #
     # Key helper
@@ -101,10 +111,26 @@ class VariableMap:
     #
 
     def variable(self, obj: TaggedObject | int) -> SimVariable | None:
-        return self._variables.get(self._key(obj))
+        v = self._variables.get(self._key(obj))
+        if v is not None:
+            return v
+        # VirtualVariable varid fallback: under Phase D, mid-pipeline
+        # rewrites can re-wrap a vvar with a fresh ``.idx`` whose entry
+        # was never registered. The varid is the stable SSA identifier,
+        # so a same-varid hit is semantically equivalent.
+        varid = getattr(obj, "varid", None)
+        if varid is not None:
+            return self._vvar_id_to_variable.get(varid)
+        return None
 
     def variable_offset(self, obj: TaggedObject | int) -> int:
-        return self._variable_offsets.get(self._key(obj), 0)
+        key = self._key(obj)
+        if key in self._variable_offsets:
+            return self._variable_offsets[key]
+        varid = getattr(obj, "varid", None)
+        if varid is not None and varid in self._vvar_id_to_variable_offset:
+            return self._vvar_id_to_variable_offset[varid]
+        return 0
 
     def custom_string(self, obj: TaggedObject | int) -> bool:
         return self._custom_strings.get(self._key(obj), False)
@@ -119,7 +145,10 @@ class VariableMap:
         return self._reference_variable_offsets.get(self._key(obj), 0)
 
     def has_variable(self, obj: TaggedObject | int) -> bool:
-        return self._key(obj) in self._variables
+        if self._key(obj) in self._variables:
+            return True
+        varid = getattr(obj, "varid", None)
+        return varid is not None and varid in self._vvar_id_to_variable
 
     def prototype(self, obj: TaggedObject | int) -> SimTypeFunction | None:
         return self._prototypes.get(self._key(obj))
@@ -148,6 +177,18 @@ class VariableMap:
         else:
             self._variables[key] = variable
             self._variable_offsets[key] = offset
+        # Mirror into the varid-keyed secondary index so subsequent
+        # lookups via a fresh-wrapper vvar of the same logical SSA
+        # variable still resolve. We only mirror when ``obj`` carries a
+        # ``varid`` -- i.e. it's a VirtualVariable instance (or wrapper).
+        varid = getattr(obj, "varid", None)
+        if varid is not None:
+            if variable is None:
+                self._vvar_id_to_variable.pop(varid, None)
+                self._vvar_id_to_variable_offset.pop(varid, None)
+            else:
+                self._vvar_id_to_variable[varid] = variable
+                self._vvar_id_to_variable_offset[varid] = offset
 
     def set_variable_offset(self, obj: TaggedObject | int, offset: int) -> None:
         self._variable_offsets[self._key(obj)] = offset
