@@ -16,7 +16,7 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 
-use crate::ailment::ail_expr::{AilExpression, Expression};
+use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
 use crate::ailment::base::CachedHash;
 use crate::ailment::hash::{HashItem, stable_hash};
 use crate::ailment::tags::{Tags, TagsView};
@@ -78,15 +78,17 @@ pub enum StmtInner {
         guard: Option<Box<AilExpression>>,
     },
     Jump {
-        /// Typically a Const expression, but can be a Python int/str
-        /// for indirect jumps with unresolved targets. Kept opaque.
-        target: Py<PyAny>,
+        /// Typically a Const expression (resolved target) but may be a
+        /// symbolic ``str`` for unresolved indirect jumps. Stored as the
+        /// typed ``CFGTarget`` sum -- see ``ail_expr.rs::CFGTarget`` for
+        /// rationale.
+        target: CFGTarget,
         target_idx: Option<i64>,
     },
     ConditionalJump {
         condition: Box<AilExpression>,
-        true_target: Option<Py<PyAny>>,
-        false_target: Option<Py<PyAny>>,
+        true_target: Option<CFGTarget>,
+        false_target: Option<CFGTarget>,
         true_target_idx: Option<i64>,
         false_target_idx: Option<i64>,
     },
@@ -175,9 +177,7 @@ impl AilStatement {
                 HashItem::Int(*size as i128),
                 HashItem::Str(endness.as_str()),
             ]) as i64,
-            StmtInner::Jump { target, target_idx } => Python::attach(|py| {
-                let th =
-                    crate::ailment::utils::py_object_hash_u64(target.bind(py)).unwrap_or(0);
+            StmtInner::Jump { target, target_idx } => {
                 let ti = match target_idx {
                     Some(v) => HashItem::Int(*v as i128),
                     None => HashItem::None,
@@ -185,26 +185,22 @@ impl AilStatement {
                 stable_hash(&[
                     HashItem::TypeName("Jump"),
                     HashItem::Int(self.header.idx as i128),
-                    HashItem::U64Hash(th),
+                    target.hash_item(),
                     ti,
                 ]) as i64
-            }),
+            }
             StmtInner::ConditionalJump {
                 condition,
                 true_target,
                 false_target,
                 ..
-            } => Python::attach(|py| {
+            } => {
                 let tt = match true_target {
-                    Some(t) => HashItem::U64Hash(
-                        crate::ailment::utils::py_object_hash_u64(t.bind(py)).unwrap_or(0),
-                    ),
+                    Some(t) => t.hash_item(),
                     None => HashItem::None,
                 };
                 let ft = match false_target {
-                    Some(t) => HashItem::U64Hash(
-                        crate::ailment::utils::py_object_hash_u64(t.bind(py)).unwrap_or(0),
-                    ),
+                    Some(t) => t.hash_item(),
                     None => HashItem::None,
                 };
                 stable_hash(&[
@@ -214,7 +210,7 @@ impl AilStatement {
                     tt,
                     ft,
                 ]) as i64
-            }),
+            }
             StmtInner::SideEffectStatement { expr, .. } => stable_hash(&[
                 HashItem::TypeName("SideEffectStatement"),
                 HashItem::Int(self.header.idx as i128),
@@ -287,9 +283,13 @@ impl AilStatement {
         let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
             v.iter().map(|x| x.deep_copy_ail(py, manager)).collect()
         };
-        let dc_pyany = |obj: &Py<PyAny>| -> PyResult<Py<PyAny>> {
-            let copy_mod = py.import("copy")?;
-            Ok(copy_mod.call_method1("deepcopy", (obj,))?.unbind())
+        // Deep copy a CFGTarget: recursively deep-copy the inner
+        // expression for ``Expr``, clone the string for ``Symbol``.
+        let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
+            match t {
+                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Box::new(e.deep_copy_ail(py, manager)?))),
+                CFGTarget::Symbol(s) => Ok(CFGTarget::Symbol(s.clone())),
+            }
         };
         let inner = match &self.inner {
             StmtInner::Assignment { dst, src } => StmtInner::Assignment {
@@ -315,7 +315,7 @@ impl AilStatement {
                 guard: recurse_opt(guard)?,
             },
             StmtInner::Jump { target, target_idx } => StmtInner::Jump {
-                target: dc_pyany(target)?,
+                target: dc_target(target)?,
                 target_idx: *target_idx,
             },
             StmtInner::ConditionalJump {
@@ -327,11 +327,11 @@ impl AilStatement {
             } => StmtInner::ConditionalJump {
                 condition: recurse(condition)?,
                 true_target: match true_target {
-                    Some(t) => Some(dc_pyany(t)?),
+                    Some(t) => Some(dc_target(t)?),
                     None => None,
                 },
                 false_target: match false_target {
-                    Some(t) => Some(dc_pyany(t)?),
+                    Some(t) => Some(dc_target(t)?),
                     None => None,
                 },
                 true_target_idx: *true_target_idx,
@@ -476,37 +476,17 @@ impl AilStatement {
                 false_target_idx,
             } => {
                 let (cc, rc) = walk(condition);
-                // Same rationale as the Jump arm below: the target slots
-                // are ``Py<PyAny>`` because they may legally hold non-AIL
-                // values, but when they hold an AIL Expression we have to
-                // recurse so propagation can fold into them.
-                let (ct_ch, ct_new, cf_ch, cf_new) = Python::attach(|py| {
-                    let walk_target = |slot: &Option<Py<PyAny>>| -> (bool, Option<Py<PyAny>>) {
-                        match slot {
-                            None => (false, None),
-                            Some(t) => {
-                                let bound = t.bind(py);
-                                if let Ok(expr_cell) = bound.cast::<Expression>() {
-                                    let inner = expr_cell.borrow().expr.clone();
-                                    let (c, r) = inner.replace_ail(old_expr, new_expr);
-                                    if !c {
-                                        (false, Some(t.clone_ref(py)))
-                                    } else {
-                                        match Py::new(py, Expression::wrap(r)) {
-                                            Ok(p) => (true, Some(p.into_any())),
-                                            Err(_) => (false, Some(t.clone_ref(py))),
-                                        }
-                                    }
-                                } else {
-                                    (false, Some(t.clone_ref(py)))
-                                }
-                            }
+                let walk_target = |slot: &Option<CFGTarget>| -> (bool, Option<CFGTarget>) {
+                    match slot {
+                        None => (false, None),
+                        Some(t) => {
+                            let (c, r) = t.replace_ail(old_expr, new_expr);
+                            (c, Some(r))
                         }
-                    };
-                    let (a, b) = walk_target(true_target);
-                    let (c, d) = walk_target(false_target);
-                    (a, b, c, d)
-                });
+                    }
+                };
+                let (ct_ch, ct_new) = walk_target(true_target);
+                let (cf_ch, cf_new) = walk_target(false_target);
                 if !cc && !ct_ch && !cf_ch {
                     return (false, self.clone());
                 }
@@ -622,32 +602,22 @@ impl AilStatement {
             StmtInner::Jump {
                 target,
                 target_idx,
-            } => Python::attach(|py| {
-                let bound = target.bind(py);
-                if let Ok(expr_cell) = bound.cast::<Expression>() {
-                    let inner = expr_cell.borrow().expr.clone();
-                    let (changed, replaced) = inner.replace_ail(old_expr, new_expr);
-                    if !changed {
-                        return (false, self.clone());
-                    }
-                    let new_py = match Py::new(py, Expression::wrap(replaced)) {
-                        Ok(p) => p.into_any(),
-                        Err(_) => return (false, self.clone()),
-                    };
-                    (
-                        true,
-                        AilStatement {
-                            header: self.header.clone(),
-                            inner: StmtInner::Jump {
-                                target: new_py,
-                                target_idx: *target_idx,
-                            },
-                        },
-                    )
-                } else {
-                    (false, self.clone())
+            } => {
+                let (changed, new_target) = target.replace_ail(old_expr, new_expr);
+                if !changed {
+                    return (false, self.clone());
                 }
-            }),
+                (
+                    true,
+                    AilStatement {
+                        header: self.header.clone(),
+                        inner: StmtInner::Jump {
+                            target: new_target,
+                            target_idx: *target_idx,
+                        },
+                    },
+                )
+            }
             // Label has no expression subtrees to walk.
             _ => (false, self.clone()),
         }
@@ -670,6 +640,8 @@ impl AilStatement {
             StmtInner::Store {
                 addr, data, guard, ..
             } => check(addr) || check(data) || check_opt(guard),
+            // Same rationale as the Jump arm below -- the legacy ``has_atom``
+            // only walks the condition, not the target slots.
             StmtInner::ConditionalJump { condition, .. } => check(condition),
             StmtInner::SideEffectStatement {
                 expr,
@@ -696,6 +668,11 @@ impl AilStatement {
                     || check_opt(old_hi)
             }
             StmtInner::DirtyStatement { dirty } => check(dirty),
+            // Jump.target / Label have no expression subtrees relevant to
+            // analyses that ask "does this statement contain ``atom``" --
+            // the legacy contract returns False here, and several passes
+            // (e.g. propagation) depend on it not pulling Const-typed
+            // jump targets into the "uses ``atom``" set.
             StmtInner::Label { .. } | StmtInner::Jump { .. } => false,
         }
     }
@@ -716,30 +693,6 @@ impl AilStatement {
     pub fn likes(&self, other: &AilStatement) -> bool {
         if self.kind() != other.kind() {
             return false;
-        }
-        // Helper used by Jump/ConditionalJump arms below: compare two
-        // ``Py<PyAny>`` slots that hold a Jump target. Targets are typically
-        // Expression instances (``Const``) but can also be plain Python
-        // ``int`` or ``str`` for unresolved indirect jumps. ``Expression``
-        // sees ``Expression.__eq__`` whose contract is idx-strict -- which
-        // means two structurally equal targets with different freshly minted
-        // ``.idx`` round-trip as not-equal, and structural ``likes()``
-        // semantics on the surrounding Statement get poisoned by it. Prefer
-        // calling ``.likes()`` when available (the structurally-equivalent
-        // check used everywhere else on AIL atoms), and only fall back to
-        // ``==`` for non-Expression target shapes.
-        fn py_target_likes(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
-            let ab = a.bind(py);
-            let bb = b.bind(py);
-            if ab.is(&bb) {
-                return true;
-            }
-            if let Ok(r) = ab.call_method1("likes", (bb,)) {
-                if let Ok(t) = r.is_truthy() {
-                    return t;
-                }
-            }
-            ab.eq(b.bind(py)).unwrap_or(false)
         }
         match (&self.inner, &other.inner) {
             (
@@ -779,7 +732,7 @@ impl AilStatement {
                     target: b_t,
                     target_idx: b_ti,
                 },
-            ) => a_ti == b_ti && Python::attach(|py| py_target_likes(py, a_t, b_t)),
+            ) => a_ti == b_ti && a_t.likes(b_t),
             (
                 StmtInner::ConditionalJump {
                     condition: a_c,
@@ -797,15 +750,12 @@ impl AilStatement {
                 if !a_c.likes(b_c) {
                     return false;
                 }
-                Python::attach(|py| {
-                    let opt_likes =
-                        |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| match (a, b) {
-                            (None, None) => true,
-                            (Some(x), Some(y)) => py_target_likes(py, x, y),
-                            _ => false,
-                        };
-                    opt_likes(a_t, b_t) && opt_likes(a_f, b_f)
-                })
+                let opt_likes = |a: &Option<CFGTarget>, b: &Option<CFGTarget>| match (a, b) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => x.likes(y),
+                    _ => false,
+                };
+                opt_likes(a_t, b_t) && opt_likes(a_f, b_f)
             }
             (
                 StmtInner::SideEffectStatement {
@@ -899,22 +849,6 @@ impl AilStatement {
         if self.kind() != other.kind() {
             return false;
         }
-        // Statement-target slot comparator: prefer the held object's
-        // ``.matches()`` so the structural relaxation propagates.
-        // Same fallback chain as the ``likes`` variant.
-        fn py_target_matches(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
-            let ab = a.bind(py);
-            let bb = b.bind(py);
-            if ab.is(&bb) {
-                return true;
-            }
-            if let Ok(r) = ab.call_method1("matches", (bb,)) {
-                if let Ok(t) = r.is_truthy() {
-                    return t;
-                }
-            }
-            ab.eq(b.bind(py)).unwrap_or(false)
-        }
         match (&self.inner, &other.inner) {
             (
                 StmtInner::Assignment { dst: a_d, src: a_s },
@@ -953,7 +887,7 @@ impl AilStatement {
                     target: b_t,
                     target_idx: b_ti,
                 },
-            ) => a_ti == b_ti && Python::attach(|py| py_target_matches(py, a_t, b_t)),
+            ) => a_ti == b_ti && a_t.matches(b_t),
             (
                 StmtInner::ConditionalJump {
                     condition: a_c,
@@ -971,15 +905,12 @@ impl AilStatement {
                 if !a_c.matches(b_c) {
                     return false;
                 }
-                Python::attach(|py| {
-                    let opt_matches =
-                        |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| match (a, b) {
-                            (None, None) => true,
-                            (Some(x), Some(y)) => py_target_matches(py, x, y),
-                            _ => false,
-                        };
-                    opt_matches(a_t, b_t) && opt_matches(a_f, b_f)
-                })
+                let opt_matches = |a: &Option<CFGTarget>, b: &Option<CFGTarget>| match (a, b) {
+                    (None, None) => true,
+                    (Some(x), Some(y)) => x.matches(y),
+                    _ => false,
+                };
+                opt_matches(a_t, b_t) && opt_matches(a_f, b_f)
             }
             (
                 StmtInner::SideEffectStatement {
@@ -1175,7 +1106,7 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Jump {
-                target: target.unbind(),
+                target: CFGTarget::from_py(&target)?,
                 target_idx,
             },
         }))
@@ -1198,8 +1129,14 @@ impl Statement {
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
         let cond_ail = extract_ail_expr(&condition)?;
-        let tt = true_target.and_then(|t| if t.is_none() { None } else { Some(t.unbind()) });
-        let ft = false_target.and_then(|t| if t.is_none() { None } else { Some(t.unbind()) });
+        let conv = |slot: Option<Bound<'_, PyAny>>| -> PyResult<Option<CFGTarget>> {
+            match slot {
+                Some(t) if !t.is_none() => Ok(Some(CFGTarget::from_py(&t)?)),
+                _ => Ok(None),
+            }
+        };
+        let tt = conv(true_target)?;
+        let ft = conv(false_target)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::ConditionalJump {
@@ -1428,7 +1365,7 @@ impl Statement {
     #[getter]
     fn target(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.stmt.inner {
-            StmtInner::Jump { target, .. } => Ok(target.clone_ref(py)),
+            StmtInner::Jump { target, .. } => target.to_py(py),
             _ => Err(PyAttributeError::new_err("no 'target' on this Statement")),
         }
     }
@@ -1459,11 +1396,12 @@ impl Statement {
 
     /// ConditionalJump.true_target
     #[getter]
-    fn true_target<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    fn true_target(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         match &self.stmt.inner {
-            StmtInner::ConditionalJump { true_target, .. } => {
-                Ok(true_target.as_ref().map(|t| t.bind(py).clone()))
-            }
+            StmtInner::ConditionalJump { true_target, .. } => match true_target {
+                Some(t) => Ok(Some(t.to_py(py)?)),
+                None => Ok(None),
+            },
             _ => Err(PyAttributeError::new_err(
                 "no 'true_target' on this Statement",
             )),
@@ -1472,11 +1410,12 @@ impl Statement {
 
     /// ConditionalJump.false_target
     #[getter]
-    fn false_target<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    fn false_target(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         match &self.stmt.inner {
-            StmtInner::ConditionalJump { false_target, .. } => {
-                Ok(false_target.as_ref().map(|t| t.bind(py).clone()))
-            }
+            StmtInner::ConditionalJump { false_target, .. } => match false_target {
+                Some(t) => Ok(Some(t.to_py(py)?)),
+                None => Ok(None),
+            },
             _ => Err(PyAttributeError::new_err(
                 "no 'false_target' on this Statement",
             )),
@@ -1485,10 +1424,11 @@ impl Statement {
 
     #[setter]
     fn set_target(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let new_target = CFGTarget::from_py(&value)?;
         match &mut self.stmt.inner {
             StmtInner::Jump { target, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *target = value.unbind();
+                *target = new_target;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'target' on this Statement")),
@@ -1526,10 +1466,14 @@ impl Statement {
 
     #[setter]
     fn set_true_target(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        let new_target = match value {
+            Some(v) if !v.is_none() => Some(CFGTarget::from_py(&v)?),
+            _ => None,
+        };
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { true_target, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *true_target = value.and_then(|v| if v.is_none() { None } else { Some(v.unbind()) });
+                *true_target = new_target;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1540,10 +1484,14 @@ impl Statement {
 
     #[setter]
     fn set_false_target(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+        let new_target = match value {
+            Some(v) if !v.is_none() => Some(CFGTarget::from_py(&v)?),
+            _ => None,
+        };
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { false_target, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *false_target = value.and_then(|v| if v.is_none() { None } else { Some(v.unbind()) });
+                *false_target = new_target;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1861,13 +1809,13 @@ impl Statement {
                 .max(old_lo.header.depth)
                 + 1),
             StmtInner::DirtyStatement { dirty } => Ok(dirty.header.depth + 1),
-            StmtInner::Jump { target, .. } => Ok(
-                if let Ok(e) = target.bind(py).cast::<Expression>() {
-                    e.borrow().expr.header.depth + 1
-                } else {
-                    1
-                },
-            ),
+            StmtInner::Jump { target, .. } => {
+                let _ = py;
+                Ok(match target {
+                    CFGTarget::Expr(e) => e.header.depth + 1,
+                    CFGTarget::Symbol(_) => 1,
+                })
+            }
             _ => Err(PyAttributeError::new_err("no 'depth' on this Statement")),
         }
     }
@@ -2026,7 +1974,11 @@ impl Statement {
                 ))
             }
             StmtInner::Jump { target, .. } => {
-                Ok(format!("Goto({})", target.bind(py).str()?))
+                let s = match target {
+                    CFGTarget::Expr(e) => Expression::wrap((**e).clone()).render(py)?,
+                    CFGTarget::Symbol(name) => name.clone(),
+                };
+                Ok(format!("Goto({})", s))
             }
             StmtInner::ConditionalJump {
                 condition,
@@ -2035,14 +1987,15 @@ impl Statement {
                 ..
             } => {
                 let c = Expression::wrap((**condition).clone()).render(py)?;
-                let t = match true_target {
-                    Some(x) => x.bind(py).str()?.to_string(),
-                    None => "None".into(),
+                let render = |opt: &Option<CFGTarget>| -> PyResult<String> {
+                    Ok(match opt {
+                        Some(CFGTarget::Expr(e)) => Expression::wrap((**e).clone()).render(py)?,
+                        Some(CFGTarget::Symbol(s)) => s.clone(),
+                        None => "None".into(),
+                    })
                 };
-                let f = match false_target {
-                    Some(x) => x.bind(py).str()?.to_string(),
-                    None => "None".into(),
-                };
+                let t = render(true_target)?;
+                let f = render(false_target)?;
                 Ok(format!("if ({}) {{ Goto {} }} else {{ Goto {} }}", c, t, f))
             }
             StmtInner::SideEffectStatement { expr, .. } => {
@@ -2150,10 +2103,44 @@ fn _placeholder(l: &Bound<'_, PyList>, t: &Bound<'_, PyTuple>) {
 // ---------------------------------------------------------------------------
 
 mod serialize {
-    use super::{AilStatement, StmtHeader, StmtInner};
+    use super::{AilStatement, CFGTarget, StmtHeader, StmtInner};
     use crate::ailment::ail_expr::serialize as expr_serialize;
     use crate::ailment::tags::Tags;
     use serde::{Deserialize, Serialize};
+
+    /// Bridge a runtime ``CFGTarget`` to the wire-format ``PolyValue``
+    /// already used for serialization. Symbol → ``PolyValue::Str``;
+    /// Expr → ``PolyValue::Expr(Wire)``. Keeps the on-disk format
+    /// unchanged so older cached blobs deserialize.
+    fn cfgtarget_to_poly(t: &CFGTarget) -> expr_serialize::PolyValue {
+        match t {
+            CFGTarget::Expr(e) => {
+                expr_serialize::PolyValue::Expr(Box::new(expr_serialize::Wire::from(
+                    e.as_ref(),
+                )))
+            }
+            CFGTarget::Symbol(s) => expr_serialize::PolyValue::Str(s.clone()),
+        }
+    }
+
+    /// Reverse of ``cfgtarget_to_poly``: read a ``PolyValue`` from the
+    /// wire format and project into ``CFGTarget``. Any other ``PolyValue``
+    /// shape (legacy ``Int`` for raw addresses, ``Pickle`` for opaque
+    /// payloads, ...) is rendered as a ``Symbol`` carrying the value's
+    /// debug string -- this keeps deserialization total but the
+    /// resulting target won't ``likes`` an Expression peer, which is
+    /// acceptable for the legacy unresolved-target case.
+    fn poly_to_cfgtarget(pv: expr_serialize::PolyValue) -> CFGTarget {
+        match pv {
+            expr_serialize::PolyValue::Expr(wire) => {
+                CFGTarget::Expr(Box::new(wire.into_ail()))
+            }
+            expr_serialize::PolyValue::Str(s) => CFGTarget::Symbol(s),
+            expr_serialize::PolyValue::Int(i) => CFGTarget::Symbol(format!("{}", i)),
+            expr_serialize::PolyValue::BigInt(s) => CFGTarget::Symbol(format!("0x{}", s)),
+            _ => CFGTarget::Symbol("<unsupported jump target>".to_string()),
+        }
+    }
 
     #[derive(Serialize, Deserialize)]
     pub struct Hdr {
@@ -2262,10 +2249,7 @@ mod serialize {
                 },
                 StmtInner::Jump { target, target_idx } => StmtWire::Jump {
                     h,
-                    target: pyo3::Python::attach(|py| {
-                        expr_serialize::PolyValue::from_pyany(target.bind(py))
-                            .unwrap_or(expr_serialize::PolyValue::None)
-                    }),
+                    target: cfgtarget_to_poly(target),
                     target_idx: *target_idx,
                 },
                 StmtInner::ConditionalJump {
@@ -2277,18 +2261,8 @@ mod serialize {
                 } => StmtWire::ConditionalJump {
                     h,
                     condition: expr_serialize::Wire::from(condition),
-                    true_target: true_target.as_ref().map(|t| {
-                        pyo3::Python::attach(|py| {
-                            expr_serialize::PolyValue::from_pyany(t.bind(py))
-                                .unwrap_or(expr_serialize::PolyValue::None)
-                        })
-                    }),
-                    false_target: false_target.as_ref().map(|t| {
-                        pyo3::Python::attach(|py| {
-                            expr_serialize::PolyValue::from_pyany(t.bind(py))
-                                .unwrap_or(expr_serialize::PolyValue::None)
-                        })
-                    }),
+                    true_target: true_target.as_ref().map(cfgtarget_to_poly),
+                    false_target: false_target.as_ref().map(cfgtarget_to_poly),
                     true_target_idx: *true_target_idx,
                     false_target_idx: *false_target_idx,
                 },
@@ -2377,13 +2351,13 @@ mod serialize {
                     h,
                     target,
                     target_idx,
-                } => pyo3::Python::attach(|py| AilStatement {
+                } => AilStatement {
                     header: rebuild_header(h),
                     inner: StmtInner::Jump {
-                        target: target.into_pyany(py).unwrap_or_else(|_| py.None()),
+                        target: poly_to_cfgtarget(target),
                         target_idx,
                     },
-                }),
+                },
                 StmtWire::ConditionalJump {
                     h,
                     condition,
@@ -2391,16 +2365,16 @@ mod serialize {
                     false_target,
                     true_target_idx,
                     false_target_idx,
-                } => pyo3::Python::attach(|py| AilStatement {
+                } => AilStatement {
                     header: rebuild_header(h),
                     inner: StmtInner::ConditionalJump {
                         condition: Box::new(condition.into_ail()),
-                        true_target: true_target.and_then(|pv| pv.into_pyany(py).ok()),
-                        false_target: false_target.and_then(|pv| pv.into_pyany(py).ok()),
+                        true_target: true_target.map(poly_to_cfgtarget),
+                        false_target: false_target.map(poly_to_cfgtarget),
                         true_target_idx,
                         false_target_idx,
                     },
-                }),
+                },
                 StmtWire::SideEffectStatement {
                     h,
                     expr,
