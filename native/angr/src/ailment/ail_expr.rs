@@ -21,7 +21,7 @@
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::base::CachedHash;
@@ -136,9 +136,11 @@ pub enum ExprInner {
     },
     Call {
         /// Expression (typically Const for direct calls) or str (for
-        /// symbolic targets). Kept opaque since the slot is
-        /// intentionally polymorphic.
-        target: Py<PyAny>,
+        /// symbolic SimProcedure targets). Promoted from ``Py<PyAny>`` to
+        /// a typed sum so ``likes`` / ``matches`` / ``replace_ail`` /
+        /// ``_hash_core`` can dispatch without re-extracting from
+        /// Python on every call.
+        target: CFGTarget,
         calling_convention: Option<Py<PyAny>>,
         prototype: Option<Py<PyAny>>,
         args: Option<Vec<AilExpression>>,
@@ -260,6 +262,121 @@ impl ExprInner {
             ExprInner::StringLiteral { .. } => "StringLiteral",
             ExprInner::BasePointerOffset { .. } => "BasePointerOffset",
             ExprInner::StackBaseOffset { .. } => "StackBaseOffset",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CFGTarget -- typed sum used by Jump.target,
+// ConditionalJump.{true,false}_target, and Call.target
+// ---------------------------------------------------------------------------
+
+/// A control-flow target slot. Three AIL constructs carry this shape:
+/// ``Jump.target``, ``ConditionalJump.{true,false}_target``, and
+/// ``Call.target``. Targets are either AIL expressions (typically a
+/// ``Const`` for resolved jumps/calls; ``Register`` / ``VirtualVariable``
+/// for indirect calls) or a plain string (SimProcedure name / symbolic
+/// label that doesn't bind to a concrete address).
+///
+/// Legacy AIL stored these as untyped ``Py<PyAny>``; promoting them to a
+/// typed enum encodes the polymorphism Rust-side so ``likes`` /
+/// ``matches`` / ``replace_ail`` / ``_hash_core`` dispatch without
+/// re-extracting from Python on every call, and removes the
+/// ``py_target_likes`` / ``py_slot_likes`` helper chains that previously
+/// sat in each comparison method.
+#[derive(Clone, Debug)]
+pub enum CFGTarget {
+    Expr(Box<AilExpression>),
+    Symbol(String),
+}
+
+impl CFGTarget {
+    /// Extract from a Python value. Accepts an ``Expression`` wrapper or
+    /// a ``str``; rejects everything else.
+    pub fn from_py(obj: &Bound<'_, PyAny>) -> PyResult<Self> {
+        if let Ok(s) = obj.extract::<String>() {
+            return Ok(CFGTarget::Symbol(s));
+        }
+        if let Ok(cell) = obj.cast::<Expression>() {
+            return Ok(CFGTarget::Expr(Box::new(cell.borrow().expr.clone())));
+        }
+        Err(PyTypeError::new_err(
+            "CFG target must be an Expression or str",
+        ))
+    }
+
+    /// Materialize as a Python object: an ``Expression`` wrapper for
+    /// ``Expr``, a ``str`` for ``Symbol``.
+    pub fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        match self {
+            CFGTarget::Expr(e) => {
+                let wrapper = Py::new(py, Expression::wrap((**e).clone()))?;
+                Ok(wrapper.into_any())
+            }
+            CFGTarget::Symbol(s) => {
+                Ok(PyString::new(py, s).into_any().unbind())
+            }
+        }
+    }
+
+    /// Structural-with-identity equality (idx-strict via inner
+    /// ``AilExpression::likes``).
+    pub fn likes(&self, other: &CFGTarget) -> bool {
+        match (self, other) {
+            (CFGTarget::Expr(a), CFGTarget::Expr(b)) => a.likes(b),
+            (CFGTarget::Symbol(a), CFGTarget::Symbol(b)) => a == b,
+            _ => false,
+        }
+    }
+
+    /// Structural-only equality (idx-agnostic via inner
+    /// ``AilExpression::matches``).
+    pub fn matches(&self, other: &CFGTarget) -> bool {
+        match (self, other) {
+            (CFGTarget::Expr(a), CFGTarget::Expr(b)) => a.matches(b),
+            (CFGTarget::Symbol(a), CFGTarget::Symbol(b)) => a == b,
+            _ => false,
+        }
+    }
+
+    /// Recursively substitute ``old`` with ``new`` inside an ``Expr``
+    /// target. Walks operand subtrees only -- the top-level target is
+    /// NOT checked against ``old``. This mirrors the legacy Jump /
+    /// ConditionalJump / Call target handling where the slot itself
+    /// isn't a substitution candidate; only nodes underneath it are.
+    /// Symbol targets are leaves.
+    pub fn replace_ail(
+        &self,
+        old: &AilExpression,
+        new: &AilExpression,
+    ) -> (bool, CFGTarget) {
+        match self {
+            CFGTarget::Expr(e) => {
+                let (c, r) = e.replace_ail(old, new);
+                if c {
+                    (true, CFGTarget::Expr(Box::new(r)))
+                } else {
+                    (false, self.clone())
+                }
+            }
+            CFGTarget::Symbol(_) => (false, self.clone()),
+        }
+    }
+
+    /// True iff this target is an expression that ``likes``-matches
+    /// ``atom`` or contains an inner sub-expression that does.
+    pub fn has_atom_ail(&self, atom: &AilExpression, identity: bool) -> bool {
+        match self {
+            CFGTarget::Expr(e) => e.has_atom_ail(atom, identity),
+            CFGTarget::Symbol(_) => false,
+        }
+    }
+
+    /// Stable hash item for inclusion in the parent statement's hash.
+    pub fn hash_item(&self) -> HashItem<'_> {
+        match self {
+            CFGTarget::Expr(e) => HashItem::U64Hash(e.cached_hash_or_compute() as u64),
+            CFGTarget::Symbol(s) => HashItem::Str(s.as_str()),
         }
     }
 }
@@ -557,9 +674,7 @@ impl AilExpression {
                 items.push(HashItem::U64Hash(expr.cached_hash_or_compute() as u64));
                 stable_hash(&items) as i64
             }
-            ExprInner::Call { target, args, .. } => Python::attach(|py| {
-                let th =
-                    crate::ailment::utils::py_object_hash_u64(target.bind(py)).unwrap_or(0);
+            ExprInner::Call { target, args, .. } => {
                 let args_h = match args {
                     Some(a) => {
                         let parts: Vec<HashItem> = a
@@ -573,10 +688,10 @@ impl AilExpression {
                 stable_hash(&[
                     HashItem::TypeName("Call"),
                     HashItem::Int(self.header.idx as i128),
-                    HashItem::U64Hash(th),
+                    target.hash_item(),
                     args_h,
                 ]) as i64
-            }),
+            }
             ExprInner::ITE {
                 cond,
                 iffalse,
@@ -881,28 +996,9 @@ impl AilExpression {
                 args,
                 arg_vvars,
             } => {
-                // Walk the polymorphic ``target`` slot. Call targets are
-                // typically AIL expressions (Const for resolved calls,
-                // VirtualVariable / Register for indirect calls) and the
-                // legacy ``Call.replace`` recurses into them. If the slot
-                // holds a non-Expression (e.g. ``str`` for SimProcedure
-                // names) leave it untouched.
-                let (ct, rt) = Python::attach(|py| {
-                    let bound = target.bind(py);
-                    if let Ok(expr_cell) = bound.cast::<Expression>() {
-                        let inner = expr_cell.borrow().expr.clone();
-                        let (c, r) = inner.replace_ail(old, new);
-                        if !c {
-                            return (false, target.clone_ref(py));
-                        }
-                        match Py::new(py, Expression::wrap(r)) {
-                            Ok(p) => (true, p.into_any()),
-                            Err(_) => (false, target.clone_ref(py)),
-                        }
-                    } else {
-                        (false, target.clone_ref(py))
-                    }
-                });
+                // Walk the polymorphic ``target`` slot. ``CFGTarget::replace_ail``
+                // recurses into the inner ``Expr`` and leaves ``Symbol`` alone.
+                let (ct, rt) = target.replace_ail(old, new);
                 let (ca, ra) = match args {
                     Some(v) => {
                         let (c, r) = walk_vec(v);
@@ -1388,6 +1484,13 @@ impl AilExpression {
             let copy_mod = py.import("copy")?;
             Ok(copy_mod.call_method1("deepcopy", (obj,))?.unbind())
         };
+        // Deep copy a CFGTarget: recursively deep-copy the inner expr.
+        let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
+            match t {
+                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Box::new(e.deep_copy_ail(py, manager)?))),
+                CFGTarget::Symbol(s) => Ok(CFGTarget::Symbol(s.clone())),
+            }
+        };
         let inner = match &self.inner {
             ExprInner::Const { value } => ExprInner::Const {
                 value: value.clone(),
@@ -1492,7 +1595,7 @@ impl AilExpression {
                 args,
                 arg_vvars,
             } => ExprInner::Call {
-                target: dc_pyany(target)?,
+                target: dc_target(target)?,
                 calling_convention: match calling_convention {
                     Some(c) => Some(dc_pyany(c)?),
                     None => None,
@@ -1670,26 +1773,6 @@ impl AilExpression {
     pub fn likes(&self, other: &AilExpression) -> bool {
         if self.kind() != other.kind() {
             return false;
-        }
-        // Helper: compare a polymorphic ``Py<PyAny>`` slot (typically an
-        // AIL Expression, occasionally a plain int/str) for structural
-        // equality. ``Expression.__eq__`` requires matching ``.idx`` --
-        // two structurally-identical-but-freshly-minted ``Const``s
-        // round-trip as not-equal -- so prefer the ``.likes()`` method
-        // when present and fall back to Python ``==`` for non-Expression
-        // shapes.
-        fn py_slot_likes(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
-            let ab = a.bind(py);
-            let bb = b.bind(py);
-            if ab.is(&bb) {
-                return true;
-            }
-            if let Ok(r) = ab.call_method1("likes", (&bb,)) {
-                if let Ok(t) = r.is_truthy() {
-                    return t;
-                }
-            }
-            ab.eq(bb).unwrap_or(false)
         }
         // Treat ``NaN`` as equal to ``NaN`` to mirror the legacy Python
         // ``Const.likes`` (which short-circuits via ``self.value is
@@ -2035,26 +2118,25 @@ impl AilExpression {
                     args: b_args,
                     ..
                 },
-            ) => Python::attach(|py| {
-                // Phase D: target is an Expression (usually Const);
-                // Python ``==`` would force matching ``.idx``, so use the
-                // structural slot helper.
-                if !py_slot_likes(py, a_t, b_t) {
+            ) => {
+                // ``CFGTarget::likes`` already dispatches structurally;
+                // for the Expr arm it routes through ``AilExpression::likes``.
+                if !a_t.likes(b_t) {
                     return false;
                 }
                 // calling_convention / prototype are non-AIL Python objects
                 // (SimCC, SimType) -- plain ``==`` is the right contract.
-                let opt_eq = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
-                    match (a, b) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
-                        _ => false,
-                    }
-                };
-                if !opt_eq(a_cc, b_cc) {
-                    return false;
-                }
-                if !opt_eq(a_p, b_p) {
+                let opt_eq = Python::attach(|py| {
+                    let f = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
+                        match (a, b) {
+                            (None, None) => true,
+                            (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
+                            _ => false,
+                        }
+                    };
+                    f(a_cc, b_cc) && f(a_p, b_p)
+                });
+                if !opt_eq {
                     return false;
                 }
                 match (a_args, b_args) {
@@ -2064,7 +2146,7 @@ impl AilExpression {
                     }
                     _ => false,
                 }
-            }),
+            }
             (
                 ExprInner::ITE {
                     cond: ac,
@@ -2162,24 +2244,6 @@ impl AilExpression {
     pub fn matches(&self, other: &AilExpression) -> bool {
         if self.kind() != other.kind() {
             return false;
-        }
-        // Polymorphic slot comparator that prefers structural ``matches``
-        // when the held object supports it. Same fallback chain as the
-        // ``likes`` variant, but routes through ``.matches()`` so the
-        // relaxation propagates into Python-side slots (e.g. a Call
-        // target wrapped as ``Expression``).
-        fn py_slot_matches(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> bool {
-            let ab = a.bind(py);
-            let bb = b.bind(py);
-            if ab.is(&bb) {
-                return true;
-            }
-            if let Ok(r) = ab.call_method1("matches", (&bb,)) {
-                if let Ok(t) = r.is_truthy() {
-                    return t;
-                }
-            }
-            ab.eq(bb).unwrap_or(false)
         }
         match (&self.inner, &other.inner) {
             // -- VirtualVariable: matches ignores ``varid``. This is the
@@ -2407,21 +2471,21 @@ impl AilExpression {
                     args: b_args,
                     ..
                 },
-            ) => Python::attach(|py| {
-                if !py_slot_matches(py, a_t, b_t) {
+            ) => {
+                if !a_t.matches(b_t) {
                     return false;
                 }
-                let opt_eq = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
-                    match (a, b) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
-                        _ => false,
-                    }
-                };
-                if !opt_eq(a_cc, b_cc) {
-                    return false;
-                }
-                if !opt_eq(a_p, b_p) {
+                let opt_eq = Python::attach(|py| {
+                    let f = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
+                        match (a, b) {
+                            (None, None) => true,
+                            (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
+                            _ => false,
+                        }
+                    };
+                    f(a_cc, b_cc) && f(a_p, b_p)
+                });
+                if !opt_eq {
                     return false;
                 }
                 match (a_args, b_args) {
@@ -2432,7 +2496,7 @@ impl AilExpression {
                     }
                     _ => false,
                 }
-            }),
+            }
             (
                 ExprInner::DirtyExpression {
                     callee: a_c,
@@ -3067,7 +3131,7 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Call {
-                target: target.unbind(),
+                target: CFGTarget::from_py(&target)?,
                 calling_convention: cc,
                 prototype: proto,
                 args: args_vec,
@@ -4332,7 +4396,7 @@ impl Expression {
     #[getter]
     fn target(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.expr.inner {
-            ExprInner::Call { target, .. } => Ok(target.clone_ref(py)),
+            ExprInner::Call { target, .. } => target.to_py(py),
             ExprInner::Macro { name, .. } | ExprInner::FunctionLikeMacro { name, .. } => {
                 Ok(pyo3::types::PyString::new(py, name).into_any().unbind())
             }
@@ -4341,10 +4405,11 @@ impl Expression {
     }
     #[setter]
     fn set_target(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+        let new_target = CFGTarget::from_py(&value)?;
         match &mut self.expr.inner {
             ExprInner::Call { target, .. } => {
                 self.expr.header.cached_hash.clear();
-                *target = value.unbind();
+                *target = new_target;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'target' on this Expression")),
@@ -5086,7 +5151,11 @@ impl Expression {
                         format!("{}: {}", cc, astr)
                     }
                 };
-                Ok(format!("Call({}, {})", target.bind(py).str()?, args_str))
+                let target_str = match target {
+                    CFGTarget::Expr(e) => Expression::wrap((**e).clone()).__str__(py)?,
+                    CFGTarget::Symbol(s) => s.clone(),
+                };
+                Ok(format!("Call({}, {})", target_str, args_str))
             }
             ExprInner::ITE { cond, iffalse, iftrue, .. } => {
                 let c = Expression::wrap((**cond).clone()).__str__(py)?;
@@ -5323,7 +5392,7 @@ pub fn extract_ail(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
 // ---------------------------------------------------------------------------
 
 pub mod serialize {
-    use super::{AilExpression, ConstValue, Expression, ExprHeader, ExprInner};
+    use super::{AilExpression, CFGTarget, ConstValue, Expression, ExprHeader, ExprInner};
     use crate::ailment::enums::ConvertType;
     use crate::ailment::tags::Tags;
     use pyo3::prelude::*;
@@ -5797,7 +5866,12 @@ pub mod serialize {
                     arg_vvars,
                 } => Python::attach(|py| Wire::Call {
                     h: hdr,
-                    target: PolyValue::from_pyany(target.bind(py)).unwrap_or(PolyValue::None),
+                    target: match target {
+                        CFGTarget::Expr(e) => {
+                            PolyValue::Expr(Box::new(Wire::from(e.as_ref())))
+                        }
+                        CFGTarget::Symbol(s) => PolyValue::Str(s.clone()),
+                    },
                     calling_convention: PolyValue::from_opt(calling_convention, py)
                         .unwrap_or(None),
                     prototype: PolyValue::from_opt(prototype, py).unwrap_or(None),
@@ -6116,7 +6190,13 @@ pub mod serialize {
                 } => Python::attach(|py| AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Call {
-                        target: target.into_pyany(py).unwrap_or_else(|_| py.None()),
+                        target: match target {
+                            PolyValue::Expr(wire) => CFGTarget::Expr(Box::new(wire.into_ail())),
+                            PolyValue::Str(s) => CFGTarget::Symbol(s),
+                            PolyValue::Int(i) => CFGTarget::Symbol(format!("{}", i)),
+                            PolyValue::BigInt(s) => CFGTarget::Symbol(format!("0x{}", s)),
+                            _ => CFGTarget::Symbol("<unsupported call target>".to_string()),
+                        },
                         calling_convention: PolyValue::into_opt(calling_convention, py)
                             .unwrap_or(None),
                         prototype: PolyValue::into_opt(prototype, py).unwrap_or(None),
