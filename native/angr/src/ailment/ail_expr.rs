@@ -84,12 +84,12 @@ pub enum ExprInner {
         registers: Vec<AilExpression>,
     },
     /// SSA phi node. ``src_and_vvars`` is a list of
-    /// ``((block_addr, block_idx), vvar | None)`` tuples; the vvar is an
-    /// AIL ``VirtualVariable``. Kept opaque as ``Py<PyList>`` until the
-    /// VirtualVariable variant lands and a typed (src, Option<AilExpression>)
-    /// shape can be used.
+    /// ``((block_addr, block_idx), vvar_id)`` triples; consumers only
+    /// ever read ``.varid`` from the second slot, so we store the
+    /// integer ``vvar_id`` directly rather than a full
+    /// ``VirtualVariable`` Expression.
     Phi {
-        src_and_vvars: Py<PyList>,
+        src_and_vvars: Vec<PhiEntry>,
     },
     VirtualVariable {
         varid: i64,
@@ -382,6 +382,27 @@ impl CFGTarget {
 }
 
 // ---------------------------------------------------------------------------
+// PhiEntry -- typed payload for ExprInner::Phi.src_and_vvars
+// ---------------------------------------------------------------------------
+
+/// One source-block / vvar pair in a phi node.
+///
+/// ``vvar`` is a ``VirtualVariable`` AilExpression (or ``None``).
+/// Downstream analyses (variable_recovery, dephication,
+/// ite_region_converter, return_duplicator) read the source vvar's
+/// ``.bits`` / ``.category`` / ``.oident`` / ``.reg_offset`` to drive
+/// register fallbacks, typevar propagation, and re-substitution, so
+/// storing only the varid loses too much information. The variant
+/// invariant -- the inner expression is always a ``VirtualVariable`` --
+/// is enforced by ``extract_phi_entries`` at construction time.
+#[derive(Clone, Debug)]
+pub struct PhiEntry {
+    pub src_addr: i64,
+    pub src_idx: Option<i64>,
+    pub vvar: Option<Box<AilExpression>>,
+}
+
+// ---------------------------------------------------------------------------
 // AilExpression -- pure Rust, not exposed
 // ---------------------------------------------------------------------------
 
@@ -426,15 +447,25 @@ impl AilExpression {
                     HashItem::Int(self.header.idx as i128),
                 ]) as i64
             }
-            ExprInner::Phi { src_and_vvars, .. } => Python::attach(|py| {
-                let h = crate::ailment::utils::py_object_hash_u64(src_and_vvars.bind(py).as_any())
-                    .unwrap_or(0);
+            ExprInner::Phi { src_and_vvars, .. } => {
+                let mut items: Vec<HashItem> = Vec::with_capacity(src_and_vvars.len() * 3);
+                for entry in src_and_vvars {
+                    items.push(HashItem::Int(entry.src_addr as i128));
+                    items.push(match entry.src_idx {
+                        Some(v) => HashItem::Int(v as i128),
+                        None => HashItem::None,
+                    });
+                    items.push(match &entry.vvar {
+                        Some(v) => HashItem::U64Hash(v.cached_hash_or_compute() as u64),
+                        None => HashItem::None,
+                    });
+                }
                 stable_hash(&[
                     HashItem::TypeName("Phi"),
-                    HashItem::U64Hash(h),
+                    HashItem::Tuple(items),
                     HashItem::Int(self.header.bits as i128),
                 ]) as i64
-            }),
+            }
             ExprInner::VirtualVariable {
                 varid,
                 category,
@@ -1287,64 +1318,29 @@ impl AilExpression {
                     },
                 )
             }),
-            ExprInner::Phi { src_and_vvars } => Python::attach(|py| {
-                // ``src_and_vvars`` is a list of ``((src_addr, block_idx),
-                // vvar_or_None)`` tuples. Walk each tuple's second item
-                // (the vvar) and recurse, but only substitute when the
-                // replacement is itself a VirtualVariable -- Phi
-                // semantics require those slots to hold either ``None``
-                // or a VirtualVariable, and callers (notably
-                // block_simplifier's propagator) routinely call
-                // ``stmt.replace(vvar, stack_base_offset_or_const)``
-                // expecting the phi vvar slots to be left alone.
+            ExprInner::Phi { src_and_vvars } => {
+                // Phi entries hold ``VirtualVariable`` expressions in
+                // the vvar slot; ``replace_ail(old, new)`` is meaningful
+                // only when ``new`` is itself a ``VirtualVariable`` (Phi
+                // semantics require the slot to stay a VVar or None).
                 if !matches!(new.inner, ExprInner::VirtualVariable { .. }) {
                     return (false, self.clone());
                 }
-                let bound = src_and_vvars.bind(py);
                 let mut changed = false;
-                let new_list = pyo3::types::PyList::empty(py);
-                for pair_obj in bound.iter() {
-                    let Ok(pair) = pair_obj.cast::<pyo3::types::PyTuple>() else {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    };
-                    if pair.len() != 2 {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    }
-                    let Ok(first) = pair.get_item(0) else {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    };
-                    let Ok(second) = pair.get_item(1) else {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    };
-                    if second.is_none() {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    }
-                    let Ok(e) = second.cast::<Expression>() else {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    };
-                    let (c, r) = e.borrow().expr.replace_ail(old, new);
-                    if !c {
-                        let _ = new_list.append(pair_obj);
-                        continue;
-                    }
-                    changed = true;
-                    let py_r = Py::new(py, Expression::wrap(r))
-                        .ok()
-                        .map(|p| p.into_any())
-                        .unwrap_or_else(|| py.None());
-                    let new_pair =
-                        match pyo3::types::PyTuple::new(py, [first.unbind(), py_r]) {
-                            Ok(t) => t.into_any().unbind(),
-                            Err(_) => pair_obj.unbind(),
-                        };
-                    let _ = new_list.append(new_pair);
-                }
+                let new_entries: Vec<PhiEntry> = src_and_vvars
+                    .iter()
+                    .map(|e| match &e.vvar {
+                        Some(v) if v.likes(old) => {
+                            changed = true;
+                            PhiEntry {
+                                src_addr: e.src_addr,
+                                src_idx: e.src_idx,
+                                vvar: Some(Box::new(new.clone())),
+                            }
+                        }
+                        _ => e.clone(),
+                    })
+                    .collect();
                 if !changed {
                     return (false, self.clone());
                 }
@@ -1353,11 +1349,11 @@ impl AilExpression {
                     AilExpression {
                         header: self.header.clone(),
                         inner: ExprInner::Phi {
-                            src_and_vvars: new_list.unbind(),
+                            src_and_vvars: new_entries,
                         },
                     },
                 )
-            }),
+            }
             // Leaf-like variants (no operand subtrees to recurse into).
             _ => (false, self.clone()),
         }
@@ -1503,8 +1499,7 @@ impl AilExpression {
                 registers: recurse_vec(registers)?,
             },
             ExprInner::Phi { src_and_vvars } => ExprInner::Phi {
-                src_and_vvars: dc_pyany(src_and_vvars.bind(py).as_any().as_unbound())?
-                    .extract::<Py<PyList>>(py)?,
+                src_and_vvars: src_and_vvars.clone(),
             },
             ExprInner::VirtualVariable {
                 varid,
@@ -1808,10 +1803,21 @@ impl AilExpression {
             (
                 ExprInner::Phi { src_and_vvars: a, .. },
                 ExprInner::Phi { src_and_vvars: b, .. },
-            ) => Python::attach(|py| {
-                self.header.bits == other.header.bits
-                    && a.bind(py).eq(b.bind(py)).unwrap_or(false)
-            }),
+            ) => {
+                if self.header.bits != other.header.bits || a.len() != b.len() {
+                    return false;
+                }
+                a.iter().zip(b.iter()).all(|(x, y)| {
+                    if x.src_addr != y.src_addr || x.src_idx != y.src_idx {
+                        return false;
+                    }
+                    match (&x.vvar, &y.vvar) {
+                        (None, None) => true,
+                        (Some(xv), Some(yv)) => xv.likes(yv),
+                        _ => false,
+                    }
+                })
+            }
             (
                 ExprInner::VirtualVariable {
                     varid: a_id,
@@ -2273,40 +2279,24 @@ impl AilExpression {
             (
                 ExprInner::Phi { src_and_vvars: a, .. },
                 ExprInner::Phi { src_and_vvars: b, .. },
-            ) => Python::attach(|py| {
-                if self.header.bits != other.header.bits {
+            ) => {
+                if self.header.bits != other.header.bits || a.len() != b.len() {
                     return false;
                 }
-                let la = a.bind(py);
-                let lb = b.bind(py);
-                if la.len() != lb.len() {
-                    return false;
-                }
-                // Collect ``src`` keys from each list-of-tuples and
-                // compare as sets. ``vvar`` payloads are intentionally
-                // ignored.
-                let collect_srcs = |lst: &Bound<'_, PyAny>| -> Option<Vec<Py<PyAny>>> {
-                    let mut out = Vec::with_capacity(lst.len().ok()?);
-                    for item in lst.try_iter().ok()? {
-                        let item = item.ok()?;
-                        let src = item.get_item(0).ok()?;
-                        out.push(src.unbind());
-                    }
-                    Some(out)
-                };
-                let Some(srcs_a) = collect_srcs(&la) else { return false; };
-                let Some(srcs_b) = collect_srcs(&lb) else { return false; };
-                // Order-insensitive: each ``src`` in a must appear in b.
-                'outer: for sa in &srcs_a {
-                    for sb in &srcs_b {
-                        if sa.bind(py).eq(sb.bind(py)).unwrap_or(false) {
+                // Order-insensitive: every ``src`` (src_addr, src_idx)
+                // in ``a`` must appear in ``b``. ``vvar_id`` payloads
+                // are intentionally ignored (mirrors master's
+                // ``Phi.matches``).
+                'outer: for ea in a.iter() {
+                    for eb in b.iter() {
+                        if ea.src_addr == eb.src_addr && ea.src_idx == eb.src_idx {
                             continue 'outer;
                         }
                     }
                     return false;
                 }
                 true
-            }),
+            }
             // -- Recursive variants: descend via ``matches`` so the
             // -- relaxation propagates.
             (
@@ -2702,20 +2692,11 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let list = if let Ok(l) = src_and_vvars.cast::<PyList>() {
-            l.to_owned()
-        } else {
-            let l = PyList::empty(py);
-            for x in src_and_vvars.try_iter()? {
-                l.append(x?)?;
-            }
-            l
-        };
-        validate_phi_src_and_vvars(py, &list)?;
+        let entries = extract_phi_entries(py, &src_and_vvars)?;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::Phi {
-                src_and_vvars: list.unbind(),
+                src_and_vvars: entries,
             },
         }))
     }
@@ -3663,17 +3644,34 @@ impl Expression {
     }
 
     /// Phi.src_and_vvars
+    ///
+    /// Returns a Python list of ``((src_addr, src_idx), vvar)`` tuples.
+    /// The ``vvar`` slot is a ``VirtualVariable`` Expression (or
+    /// ``None``).
     #[getter]
-    fn src_and_vvars(&self, py: Python<'_>) -> PyResult<Py<PyList>> {
+    fn src_and_vvars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         match &self.expr.inner {
             ExprInner::Phi { src_and_vvars, .. } => {
-                // Eager validation on read: in-place mutations through
-                // ``phi.src_and_vvars[idx] = ...`` or ``.append()`` bypass
-                // the factory / setter, so this catches the first reader
-                // that sees a non-VirtualVariable. The traceback in the
-                // error message points back to the producer chain.
-                validate_phi_src_and_vvars(py, src_and_vvars.bind(py))?;
-                Ok(src_and_vvars.clone_ref(py))
+                let list = PyList::empty(py);
+                for entry in src_and_vvars {
+                    let src_tuple = PyTuple::new(
+                        py,
+                        [
+                            entry.src_addr.into_py_any(py)?,
+                            match entry.src_idx {
+                                Some(v) => v.into_py_any(py)?,
+                                None => py.None(),
+                            },
+                        ],
+                    )?;
+                    let vvar_obj = match &entry.vvar {
+                        Some(v) => Py::new(py, Expression::wrap((**v).clone()))?.into_any(),
+                        None => py.None(),
+                    };
+                    let pair = PyTuple::new(py, [src_tuple.into_any().unbind(), vvar_obj])?;
+                    list.append(pair)?;
+                }
+                Ok(list)
             }
             _ => Err(PyAttributeError::new_err(
                 "no 'src_and_vvars' on this Expression",
@@ -3683,20 +3681,11 @@ impl Expression {
     #[setter]
     fn set_src_and_vvars(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         let py = value.py();
-        let list = if let Ok(l) = value.cast::<PyList>() {
-            l.to_owned()
-        } else {
-            let l = PyList::empty(py);
-            for x in value.try_iter()? {
-                l.append(x?)?;
-            }
-            l
-        };
-        validate_phi_src_and_vvars(py, &list)?;
+        let entries = extract_phi_entries(py, &value)?;
         match &mut self.expr.inner {
             ExprInner::Phi { src_and_vvars, .. } => {
                 self.expr.header.cached_hash.clear();
-                *src_and_vvars = list.unbind();
+                *src_and_vvars = entries;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -5054,8 +5043,23 @@ impl Expression {
                 Ok(format!("ComboRegister({})", parts.join(", ")))
             }
             ExprInner::Phi { src_and_vvars, .. } => {
-                let s = src_and_vvars.bind(py).str()?.to_string();
-                Ok(format!("Phi({})", s))
+                let parts: Vec<String> = src_and_vvars
+                    .iter()
+                    .map(|e| {
+                        let src_idx = match e.src_idx {
+                            Some(v) => v.to_string(),
+                            None => "None".into(),
+                        };
+                        let vv = match &e.vvar {
+                            Some(v) => Expression::wrap((**v).clone())
+                                .__str__(py)
+                                .unwrap_or_else(|_| "<err>".into()),
+                            None => "None".into(),
+                        };
+                        format!("(({}, {}), {})", e.src_addr, src_idx, vv)
+                    })
+                    .collect();
+                Ok(format!("Phi([{}])", parts.join(", ")))
             }
             ExprInner::VirtualVariable { varid, category, oident, .. } => {
                 use crate::ailment::enums::VirtualVariableCategory;
@@ -5294,7 +5298,11 @@ impl Expression {
 /// error message includes the offending kind/value plus a Python
 /// traceback (via ``traceback.format_stack``) so the upstream call site
 /// is easy to locate.
-fn validate_phi_src_and_vvars(py: Python<'_>, list: &Bound<'_, PyList>) -> PyResult<()> {
+/// Parse a Python iterable of ``((src_addr, src_idx), vvar)`` pairs into
+/// a typed ``Vec<PhiEntry>``. The ``vvar`` slot must be ``None`` or a
+/// ``VirtualVariable`` Expression -- anything else raises ``TypeError``
+/// with a Python traceback so the upstream producer is easy to find.
+fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<PhiEntry>> {
     let type_name = |obj: &Bound<'_, PyAny>| -> String {
         obj.get_type()
             .qualname()
@@ -5306,7 +5314,18 @@ fn validate_phi_src_and_vvars(py: Python<'_>, list: &Bound<'_, PyList>) -> PyRes
             .map(|s| s.to_string())
             .unwrap_or_else(|_| "<unrepresentable>".to_string())
     };
-    for (idx, item) in list.iter().enumerate() {
+    let iter = obj.try_iter().map_err(|_| {
+        phi_validation_error(
+            py,
+            &format!(
+                "Phi.src_and_vvars must be iterable, got type {}",
+                type_name(obj)
+            ),
+        )
+    })?;
+    let mut out: Vec<PhiEntry> = Vec::new();
+    for (idx, item_res) in iter.enumerate() {
+        let item = item_res?;
         let Ok(pair) = item.cast::<PyTuple>() else {
             return Err(phi_validation_error(
                 py,
@@ -5327,35 +5346,79 @@ fn validate_phi_src_and_vvars(py: Python<'_>, list: &Bound<'_, PyList>) -> PyRes
                 ),
             ));
         }
-        let second = pair.get_item(1)?;
-        if second.is_none() {
-            continue;
-        }
-        let Ok(e) = second.cast::<Expression>() else {
+        let src = pair.get_item(0)?;
+        let Ok(src_tuple) = src.cast::<PyTuple>() else {
             return Err(phi_validation_error(
                 py,
                 &format!(
-                    "Phi.src_and_vvars[{}] vvar slot is not an Expression (got type {}, repr {})",
+                    "Phi.src_and_vvars[{}] src is not a 2-tuple (got type {})",
                     idx,
-                    type_name(&second),
-                    repr(&second),
+                    type_name(&src)
                 ),
             ));
         };
-        let kind = e.borrow().expr.kind();
-        if kind != "VirtualVariable" {
+        if src_tuple.len() != 2 {
             return Err(phi_validation_error(
                 py,
                 &format!(
-                    "Phi.src_and_vvars[{}] vvar slot must be a VirtualVariable, got kind={:?} repr={}",
+                    "Phi.src_and_vvars[{}] src tuple has {} elements, expected 2",
                     idx,
-                    kind,
-                    repr(&second),
+                    src_tuple.len()
                 ),
             ));
         }
+        let src_addr: i64 = src_tuple.get_item(0)?.extract().map_err(|_| {
+            phi_validation_error(
+                py,
+                &format!("Phi.src_and_vvars[{}] src_addr must be int", idx),
+            )
+        })?;
+        let src_idx_obj = src_tuple.get_item(1)?;
+        let src_idx: Option<i64> = if src_idx_obj.is_none() {
+            None
+        } else {
+            Some(src_idx_obj.extract().map_err(|_| {
+                phi_validation_error(
+                    py,
+                    &format!("Phi.src_and_vvars[{}] src_idx must be int or None", idx),
+                )
+            })?)
+        };
+        let vvar_obj = pair.get_item(1)?;
+        let vvar: Option<Box<AilExpression>> = if vvar_obj.is_none() {
+            None
+        } else if let Ok(e) = vvar_obj.cast::<Expression>() {
+            let inner = e.borrow().expr.clone();
+            if !matches!(inner.inner, ExprInner::VirtualVariable { .. }) {
+                return Err(phi_validation_error(
+                    py,
+                    &format!(
+                        "Phi.src_and_vvars[{}] vvar slot must be a VirtualVariable, got kind={:?} repr={}",
+                        idx,
+                        inner.kind(),
+                        repr(&vvar_obj),
+                    ),
+                ));
+            }
+            Some(Box::new(inner))
+        } else {
+            return Err(phi_validation_error(
+                py,
+                &format!(
+                    "Phi.src_and_vvars[{}] vvar slot must be a VirtualVariable or None (got type {}, repr {})",
+                    idx,
+                    type_name(&vvar_obj),
+                    repr(&vvar_obj),
+                ),
+            ));
+        };
+        out.push(PhiEntry {
+            src_addr,
+            src_idx,
+            vvar,
+        });
     }
-    Ok(())
+    Ok(out)
 }
 
 /// Build a ``TypeError`` whose message includes a Python ``traceback.
@@ -5763,14 +5826,33 @@ pub mod serialize {
                     h: hdr,
                     registers: registers.iter().map(Wire::from).collect(),
                 },
-                ExprInner::Phi { src_and_vvars } => Python::attach(|py| {
-                    let sv = PolyValue::from_pyany(src_and_vvars.bind(py).as_any())
-                        .unwrap_or(PolyValue::None);
+                ExprInner::Phi { src_and_vvars } => {
+                    // Project the typed ``Vec<PhiEntry>`` into the
+                    // existing ``PolyValue`` wire shape -- each entry
+                    // becomes a 2-tuple
+                    // ``((src_addr, src_idx), VirtualVariable_wire | None)``.
+                    let items: Vec<PolyValue> = src_and_vvars
+                        .iter()
+                        .map(|e| {
+                            let src_tuple = PolyValue::Tuple(vec![
+                                PolyValue::Int(e.src_addr),
+                                match e.src_idx {
+                                    Some(v) => PolyValue::Int(v),
+                                    None => PolyValue::None,
+                                },
+                            ]);
+                            let vvar_value = match &e.vvar {
+                                Some(v) => PolyValue::Expr(Box::new(Wire::from(v.as_ref()))),
+                                None => PolyValue::None,
+                            };
+                            PolyValue::Tuple(vec![src_tuple, vvar_value])
+                        })
+                        .collect();
                     Wire::Phi {
                         h: hdr,
-                        src_and_vvars: sv,
+                        src_and_vvars: PolyValue::List(items),
                     }
-                }),
+                }
                 ExprInner::VirtualVariable {
                     varid,
                     category,
@@ -6037,35 +6119,59 @@ pub mod serialize {
                         registers: registers.into_iter().map(Wire::into_ail).collect(),
                     },
                 },
-                Wire::Phi { h, src_and_vvars } => Python::attach(|py| {
-                    let sv = src_and_vvars.into_pyany(py).ok();
-                    // The runtime expects ``src_and_vvars`` to be a list;
-                    // if PolyValue happened to materialize anything else
-                    // (Pickle fallback for example) coerce here.
-                    let list = match sv {
-                        Some(obj) => {
-                            let b = obj.into_bound(py);
-                            if let Ok(l) = b.cast::<pyo3::types::PyList>() {
-                                l.clone().unbind()
-                            } else {
-                                let l = pyo3::types::PyList::empty(py);
-                                if let Ok(it) = b.try_iter() {
-                                    for x in it.flatten() {
-                                        let _ = l.append(x);
+                Wire::Phi { h, src_and_vvars } => {
+                    // Inverse of the projection in ``Wire::from``: walk
+                    // the wire ``PolyValue::List`` of 2-tuples and
+                    // reconstruct typed ``PhiEntry``s.
+                    let entries: Vec<crate::ailment::ail_expr::PhiEntry> = match src_and_vvars {
+                        PolyValue::List(items) => items
+                            .into_iter()
+                            .map(|item| match item {
+                                PolyValue::Tuple(pair) => {
+                                    let mut it = pair.into_iter();
+                                    let src = it.next().unwrap_or(PolyValue::None);
+                                    let vvar_pv = it.next().unwrap_or(PolyValue::None);
+                                    let (src_addr, src_idx) = match src {
+                                        PolyValue::Tuple(srcs) => {
+                                            let mut sit = srcs.into_iter();
+                                            let a = match sit.next() {
+                                                Some(PolyValue::Int(v)) => v,
+                                                _ => 0,
+                                            };
+                                            let b = match sit.next() {
+                                                Some(PolyValue::Int(v)) => Some(v),
+                                                _ => None,
+                                            };
+                                            (a, b)
+                                        }
+                                        _ => (0, None),
+                                    };
+                                    let vvar = match vvar_pv {
+                                        PolyValue::Expr(wire) => Some(Box::new(wire.into_ail())),
+                                        _ => None,
+                                    };
+                                    crate::ailment::ail_expr::PhiEntry {
+                                        src_addr,
+                                        src_idx,
+                                        vvar,
                                     }
                                 }
-                                l.unbind()
-                            }
-                        }
-                        None => pyo3::types::PyList::empty(py).unbind(),
+                                _ => crate::ailment::ail_expr::PhiEntry {
+                                    src_addr: 0,
+                                    src_idx: None,
+                                    vvar: None,
+                                },
+                            })
+                            .collect(),
+                        _ => Vec::new(),
                     };
                     AilExpression {
                         header: rebuild_header(h),
                         inner: ExprInner::Phi {
-                            src_and_vvars: list,
+                            src_and_vvars: entries,
                         },
                     }
-                }),
+                }
                 Wire::VirtualVariable {
                     h,
                     varid,
