@@ -26,6 +26,7 @@ from .peephole_optimizations import (
 )
 from .utils import (
     _PeepholeExprsWalker,
+    build_stmt_opts_by_kind,
     peephole_optimize_exprs,
     peephole_optimize_multistmts,
     peephole_optimize_stmts,
@@ -106,6 +107,7 @@ class BlockSimplifier(Analysis):
                 cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in MULTI_STMT_OPTS
             ]
+            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
         else:
             self._expr_peephole_opts = [
                 cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
@@ -122,6 +124,7 @@ class BlockSimplifier(Analysis):
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
+            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
 
         self.result_block = None
 
@@ -424,7 +427,9 @@ class BlockSimplifier(Analysis):
         peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
         # run statement-level optimizations
-        statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
+        statements, stmts_updated = peephole_optimize_stmts(
+            block, self._stmt_peephole_opts, stmt_opts_by_kind=self._stmt_peephole_opts_by_kind
+        )
 
         new_block = block.copy(statements=statements) if stmts_updated else block
 

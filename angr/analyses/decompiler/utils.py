@@ -989,9 +989,33 @@ def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     return graph_copy
 
 
-def peephole_optimize_stmts(block, stmt_opts):
+def build_stmt_opts_by_kind(stmt_opts):
+    """Index statement-peephole optimizers by Phase-D ``kind`` string.
+
+    Each optimizer declares ``stmt_classes`` -- a class or tuple of
+    marker classes -- and the inner loop in ``peephole_optimize_stmts``
+    used to do ``isinstance(stmt, opt.stmt_classes)`` per opt per stmt.
+    Through the Phase-D marker metaclass that costs ~150 ns each, which
+    on the ``doit`` benchmark adds up to ~107 k calls / ~16 ms. Flipping
+    to a kind-keyed dict turns the inner loop into a single dict.get on
+    ``stmt.kind`` followed by an iteration over only the opts that
+    actually match.
+    """
+    by_kind: dict[str, list] = {}
+    for opt in stmt_opts:
+        classes = opt.stmt_classes if isinstance(opt.stmt_classes, tuple) else (opt.stmt_classes,)
+        for cls in classes:
+            tags = getattr(cls, "_kinds", None) or {getattr(cls, "_kind", cls.__name__)}
+            for tag in tags:
+                by_kind.setdefault(tag, []).append(opt)
+    return by_kind
+
+
+def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
     any_update = False
     statements = []
+    if stmt_opts_by_kind is None:
+        stmt_opts_by_kind = build_stmt_opts_by_kind(stmt_opts)
 
     # run statement optimizers
     # note that an optimizer may optionally edit or remove statements whose statement IDs are greater than stmt_idx
@@ -1002,17 +1026,20 @@ def peephole_optimize_stmts(block, stmt_opts):
         redo = True
         while redo:
             redo = False
-            for opt in stmt_opts:
-                if isinstance(stmt, opt.stmt_classes):
-                    r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
-                    if r is not None and r != stmt:
-                        stmt = r
-                        if r == ():
-                            # the statement is gone; no more redo
-                            redo = False
-                            break
-                        redo = True
+            kind = getattr(stmt, "kind", None) or type(stmt).__name__
+            opts_for_kind = stmt_opts_by_kind.get(kind)
+            if not opts_for_kind:
+                break
+            for opt in opts_for_kind:
+                r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
+                if r is not None and r != stmt:
+                    stmt = r
+                    if r == ():
+                        # the statement is gone; no more redo
+                        redo = False
                         break
+                    redo = True
+                    break
 
         if stmt is not None and stmt != old_stmt:
             if stmt != ():
