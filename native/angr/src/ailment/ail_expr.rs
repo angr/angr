@@ -94,8 +94,8 @@ pub enum ExprInner {
     VirtualVariable {
         varid: i64,
         category: crate::ailment::enums::VirtualVariableCategory,
-        /// May be int, str, or tuple. Kept opaque for round-trip fidelity.
-        oident: Py<PyAny>,
+        /// Per-category payload; see ``OIdent``.
+        oident: OIdent,
         reg_vvars: Py<PyDict>,
     },
     UnaryOp {
@@ -382,6 +382,219 @@ impl CFGTarget {
 }
 
 // ---------------------------------------------------------------------------
+// OIdent -- typed payload for ExprInner::VirtualVariable.oident
+// ---------------------------------------------------------------------------
+
+/// Typed payload for ``VirtualVariable.oident``. Shape depends on the
+/// surrounding ``category``:
+///
+/// | category        | OIdent variant                          |
+/// |-----------------|-----------------------------------------|
+/// | UNKNOWN         | ``OIdent::None``                        |
+/// | REGISTER        | ``OIdent::Int`` (reg_offset)            |
+/// | STACK           | ``OIdent::Int`` (signed stack_offset)   |
+/// | MEMORY          | ``OIdent::Int`` (memory address)        |
+/// | TMP             | ``OIdent::Int`` (tmp_idx)               |
+/// | COMBO_REGISTER  | ``OIdent::RegList`` (tuple of offsets)  |
+/// | PARAMETER       | ``OIdent::Parameter`` (nested)          |
+///
+/// The legacy AIL stored ``oident`` as an untyped Python object;
+/// promoting to a typed sum lets ``likes`` / ``matches`` /
+/// ``_hash_core`` / the accessor getters (``reg_offset``,
+/// ``stack_offset``, ``tmp_idx``, ``reg_offsets``, ``parameter_category``,
+/// etc.) dispatch on the variant without re-extracting from Python on
+/// every call. The constructor parses based on the surrounding
+/// ``category`` so callers keep passing the same shape they always did
+/// (``int``, ``tuple``, or ``None``).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OIdent {
+    /// UNKNOWN / explicit ``None``.
+    None,
+    /// REGISTER / STACK / MEMORY / TMP -- single integer payload. Stack
+    /// offsets are signed; the parser reinterprets large unsigned values
+    /// (e.g. ``2^64 - 8`` for ``-8``) as the corresponding ``i64``.
+    Int(i64),
+    /// COMBO_REGISTER -- tuple of reg_offsets.
+    RegList(Vec<i64>),
+    /// PARAMETER -- nested ``(inner_category, inner_payload)``. The
+    /// inner category may be REGISTER, STACK, or COMBO_REGISTER.
+    Parameter(ParameterOIdent),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ParameterOIdent {
+    Register(i64),
+    Stack(i64),
+    ComboRegister(Vec<i64>),
+}
+
+impl ParameterOIdent {
+    pub fn inner_category(&self) -> crate::ailment::enums::VirtualVariableCategory {
+        use crate::ailment::enums::VirtualVariableCategory;
+        match self {
+            Self::Register(_) => VirtualVariableCategory::REGISTER,
+            Self::Stack(_) => VirtualVariableCategory::STACK,
+            Self::ComboRegister(_) => VirtualVariableCategory::COMBO_REGISTER,
+        }
+    }
+}
+
+impl OIdent {
+    /// Extract from a Python value using the surrounding ``category`` as
+    /// the dispatch key. Stack offsets are sign-normalized: large
+    /// unsigned values (e.g. ``2^64 - 8``) are reinterpreted as the
+    /// corresponding ``i64`` (``-8``).
+    pub fn from_py(
+        py: Python<'_>,
+        obj: &Bound<'_, PyAny>,
+        category: crate::ailment::enums::VirtualVariableCategory,
+    ) -> PyResult<Self> {
+        use crate::ailment::enums::VirtualVariableCategory;
+        if obj.is_none() {
+            return Ok(Self::None);
+        }
+        // Helper: extract a signed i64 from a Python int that may have
+        // been stored as a large unsigned value (legacy stack offsets).
+        fn signed(obj: &Bound<'_, PyAny>) -> PyResult<i64> {
+            if let Ok(v) = obj.extract::<i64>() {
+                return Ok(v);
+            }
+            if let Ok(v) = obj.extract::<u64>() {
+                return Ok(v as i64);
+            }
+            let big: i128 = obj.extract()?;
+            Ok(big as i64)
+        }
+        fn extract_reg_list(t: &Bound<'_, PyTuple>) -> PyResult<Vec<i64>> {
+            let mut out = Vec::with_capacity(t.len());
+            for x in t.iter() {
+                out.push(x.extract::<i64>()?);
+            }
+            Ok(out)
+        }
+        let _ = py;
+        match category {
+            VirtualVariableCategory::REGISTER
+            | VirtualVariableCategory::MEMORY
+            | VirtualVariableCategory::TMP => Ok(Self::Int(obj.extract::<i64>()?)),
+            VirtualVariableCategory::STACK => Ok(Self::Int(signed(obj)?)),
+            VirtualVariableCategory::COMBO_REGISTER => {
+                let t = obj.cast::<PyTuple>().map_err(|_| {
+                    PyTypeError::new_err("COMBO_REGISTER oident must be a tuple of int")
+                })?;
+                Ok(Self::RegList(extract_reg_list(&t)?))
+            }
+            VirtualVariableCategory::PARAMETER => {
+                let t = obj.cast::<PyTuple>().map_err(|_| {
+                    PyTypeError::new_err(
+                        "PARAMETER oident must be a 2-tuple (inner_category, inner_payload)",
+                    )
+                })?;
+                if t.len() != 2 {
+                    return Err(PyTypeError::new_err(
+                        "PARAMETER oident tuple must have exactly 2 elements",
+                    ));
+                }
+                let inner_cat_obj = t.get_item(0)?;
+                let inner_cat = if let Ok(c) =
+                    inner_cat_obj.extract::<VirtualVariableCategory>()
+                {
+                    c
+                } else if let Ok(v) = inner_cat_obj.extract::<i64>() {
+                    VirtualVariableCategory::from_int(v).ok_or_else(|| {
+                        PyTypeError::new_err(format!(
+                            "PARAMETER oident inner category int {} is not a valid VirtualVariableCategory",
+                            v
+                        ))
+                    })?
+                } else {
+                    return Err(PyTypeError::new_err(
+                        "PARAMETER oident inner category must be a VirtualVariableCategory",
+                    ));
+                };
+                let inner_payload = t.get_item(1)?;
+                let inner = match inner_cat {
+                    VirtualVariableCategory::REGISTER => {
+                        ParameterOIdent::Register(inner_payload.extract::<i64>()?)
+                    }
+                    VirtualVariableCategory::STACK => {
+                        ParameterOIdent::Stack(signed(&inner_payload)?)
+                    }
+                    VirtualVariableCategory::COMBO_REGISTER => {
+                        let tt = inner_payload.cast::<PyTuple>().map_err(|_| {
+                            PyTypeError::new_err(
+                                "PARAMETER+COMBO_REGISTER inner payload must be a tuple of int",
+                            )
+                        })?;
+                        ParameterOIdent::ComboRegister(extract_reg_list(&tt)?)
+                    }
+                    _ => {
+                        return Err(PyTypeError::new_err(format!(
+                            "PARAMETER oident inner category {:?} is not supported",
+                            inner_cat
+                        )));
+                    }
+                };
+                Ok(Self::Parameter(inner))
+            }
+            VirtualVariableCategory::UNKNOWN => Ok(Self::None),
+        }
+    }
+
+    /// Materialize back to the Python representation. Inverse of
+    /// ``from_py``.
+    pub fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        match self {
+            Self::None => Ok(py.None()),
+            Self::Int(v) => Ok(v.into_py_any(py)?),
+            Self::RegList(v) => {
+                let items: Vec<Py<PyAny>> =
+                    v.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
+                Ok(PyTuple::new(py, items)?.into_any().unbind())
+            }
+            Self::Parameter(p) => {
+                let inner_cat = p.inner_category();
+                let cat_obj = Py::new(py, inner_cat)?.into_any();
+                let inner_obj: Py<PyAny> = match p {
+                    ParameterOIdent::Register(off) => off.into_py_any(py)?,
+                    ParameterOIdent::Stack(off) => off.into_py_any(py)?,
+                    ParameterOIdent::ComboRegister(offs) => {
+                        let items: Vec<Py<PyAny>> =
+                            offs.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
+                        PyTuple::new(py, items)?.into_any().unbind()
+                    }
+                };
+                Ok(PyTuple::new(py, [cat_obj, inner_obj])?.into_any().unbind())
+            }
+        }
+    }
+
+    /// Stable hash item for inclusion in the parent VirtualVariable's
+    /// hash.
+    pub fn hash_item<'a>(&'a self) -> HashItem<'a> {
+        match self {
+            Self::None => HashItem::None,
+            Self::Int(v) => HashItem::Int(*v as i128),
+            Self::RegList(v) => HashItem::Tuple(
+                v.iter().map(|x| HashItem::Int(*x as i128)).collect(),
+            ),
+            Self::Parameter(p) => {
+                let inner_cat = p.inner_category() as i64;
+                let inner_item = match p {
+                    ParameterOIdent::Register(off) | ParameterOIdent::Stack(off) => {
+                        HashItem::Int(*off as i128)
+                    }
+                    ParameterOIdent::ComboRegister(offs) => HashItem::Tuple(
+                        offs.iter().map(|x| HashItem::Int(*x as i128)).collect(),
+                    ),
+                };
+                HashItem::Tuple(vec![HashItem::Int(inner_cat as i128), inner_item])
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // PhiEntry -- typed payload for ExprInner::Phi.src_and_vvars
 // ---------------------------------------------------------------------------
 
@@ -471,16 +684,13 @@ impl AilExpression {
                 category,
                 oident,
                 ..
-            } => Python::attach(|py| {
-                let h = crate::ailment::utils::py_object_hash_u64(oident.bind(py)).unwrap_or(0);
-                stable_hash(&[
-                    HashItem::Str("var"),
-                    HashItem::Int(*varid as i128),
-                    HashItem::Int(self.header.bits as i128),
-                    HashItem::Int(*category as u8 as i128),
-                    HashItem::U64Hash(h),
-                ]) as i64
-            }),
+            } => stable_hash(&[
+                HashItem::Str("var"),
+                HashItem::Int(*varid as i128),
+                HashItem::Int(self.header.bits as i128),
+                HashItem::Int(*category as u8 as i128),
+                oident.hash_item(),
+            ]) as i64,
             ExprInner::UnaryOp { op, operand, .. } => {
                 let oh = operand.cached_hash_or_compute();
                 stable_hash(&[
@@ -1509,7 +1719,7 @@ impl AilExpression {
             } => ExprInner::VirtualVariable {
                 varid: *varid,
                 category: *category,
-                oident: dc_pyany(oident)?,
+                oident: oident.clone(),
                 reg_vvars: dc_pyany(reg_vvars.bind(py).as_any().as_unbound())?
                     .extract::<Py<PyDict>>(py)?,
             },
@@ -1831,12 +2041,12 @@ impl AilExpression {
                     oident: b_o,
                     ..
                 },
-            ) => Python::attach(|py| {
+            ) => {
                 a_id == b_id
                     && self.header.bits == other.header.bits
                     && a_c == b_c
-                    && a_o.bind(py).eq(b_o.bind(py)).unwrap_or(false)
-            }),
+                    && a_o == b_o
+            }
             (
                 ExprInner::UnaryOp { op: a_op, operand: a_op_, .. },
                 ExprInner::UnaryOp { op: b_op, operand: b_op_, .. },
@@ -2267,11 +2477,7 @@ impl AilExpression {
                     oident: b_o,
                     ..
                 },
-            ) => Python::attach(|py| {
-                self.header.bits == other.header.bits
-                    && a_c == b_c
-                    && a_o.bind(py).eq(b_o.bind(py)).unwrap_or(false)
-            }),
+            ) => self.header.bits == other.header.bits && a_c == b_c && a_o == b_o,
             // -- Phi: same shape, but per-source pairs only require the
             // -- *source* to match; the vvar id is ignored (per master's
             // -- ``Phi.matches``). The legacy contract walks the dicts
@@ -2661,8 +2867,8 @@ impl Expression {
             ));
         };
         let oident = match oident {
-            Some(o) => o.unbind(),
-            None => py.None(),
+            Some(o) if !o.is_none() => OIdent::from_py(py, &o, cat)?,
+            _ => OIdent::None,
         };
         let reg_vvars = match reg_vvars {
             Some(o) if !o.is_none() => o
@@ -3571,11 +3777,13 @@ impl Expression {
     /// when category is TMP).
     #[getter]
     fn tmp_idx(&self, py: Python<'_>) -> PyResult<Option<i64>> {
+        let _ = py;
         match &self.expr.inner {
             ExprInner::Tmp { tmp_idx, .. } => Ok(Some(*tmp_idx)),
-            ExprInner::VirtualVariable { oident, .. } if self.was_tmp() => {
-                Ok(Some(oident.bind(py).extract::<i64>()?))
-            }
+            ExprInner::VirtualVariable { oident, .. } if self.was_tmp() => match oident {
+                OIdent::Int(v) => Ok(Some(*v)),
+                _ => Ok(None),
+            },
             ExprInner::VirtualVariable { .. } => Ok(None),
             _ => Err(PyAttributeError::new_err("no 'tmp_idx' on this Expression")),
         }
@@ -3585,20 +3793,17 @@ impl Expression {
     /// REGISTER, or parameter with REGISTER inner category).
     #[getter]
     fn reg_offset(&self, py: Python<'_>) -> PyResult<i64> {
-        use crate::ailment::enums::VirtualVariableCategory;
+        let _ = py;
         match &self.expr.inner {
             ExprInner::Register { reg_offset, .. } => Ok(*reg_offset),
-            ExprInner::VirtualVariable { oident, .. } if self.was_reg() => {
-                oident.bind(py).extract::<i64>()
-            }
-            ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => {
-                let cat = self.parameter_category(py)?;
-                if cat == Some(VirtualVariableCategory::REGISTER) {
-                    let inner = oident.bind(py).get_item(1)?;
-                    return inner.extract::<i64>();
-                }
-                Err(PyTypeError::new_err("Is not a register"))
-            }
+            ExprInner::VirtualVariable { oident, .. } if self.was_reg() => match oident {
+                OIdent::Int(v) => Ok(*v),
+                _ => Err(PyTypeError::new_err("Is not a register")),
+            },
+            ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => match oident {
+                OIdent::Parameter(ParameterOIdent::Register(v)) => Ok(*v),
+                _ => Err(PyTypeError::new_err("Is not a register")),
+            },
             _ => Err(PyAttributeError::new_err(
                 "no 'reg_offset' on this Expression",
             )),
@@ -3716,7 +3921,7 @@ impl Expression {
     #[getter]
     fn oident(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } => Ok(oident.clone_ref(py)),
+            ExprInner::VirtualVariable { oident, .. } => oident.to_py(py),
             _ => Err(PyAttributeError::new_err("no 'oident' on this Expression")),
         }
     }
@@ -3778,28 +3983,12 @@ impl Expression {
         &self,
         py: Python<'_>,
     ) -> PyResult<Option<crate::ailment::enums::VirtualVariableCategory>> {
-        use crate::ailment::enums::VirtualVariableCategory;
+        let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable {
-                category, oident, ..
-            } if *category == VirtualVariableCategory::PARAMETER => {
-                let bound = oident.bind(py);
-                if !bound.is_instance_of::<PyTuple>() {
-                    return Ok(None);
-                }
-                let t = bound.cast::<PyTuple>()?;
-                if t.len() == 0 {
-                    return Ok(None);
-                }
-                let first = t.get_item(0)?;
-                if let Ok(c) = first.extract::<VirtualVariableCategory>() {
-                    return Ok(Some(c));
-                }
-                if let Ok(v) = first.extract::<i64>() {
-                    return Ok(VirtualVariableCategory::from_int(v));
-                }
-                Ok(None)
-            }
+            ExprInner::VirtualVariable { oident, .. } => match oident {
+                OIdent::Parameter(p) => Ok(Some(p.inner_category())),
+                _ => Ok(None),
+            },
             _ => Ok(None),
         }
     }
@@ -3807,18 +3996,12 @@ impl Expression {
     /// VirtualVariable.parameter_reg_offset
     #[getter]
     fn parameter_reg_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
-        use crate::ailment::enums::VirtualVariableCategory;
-        if !self.was_parameter() {
-            return Ok(None);
-        }
-        if self.parameter_category(py)? != Some(VirtualVariableCategory::REGISTER) {
-            return Ok(None);
-        }
+        let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } => {
-                let inner = oident.bind(py).get_item(1)?;
-                Ok(Some(inner.extract::<i64>()?))
-            }
+            ExprInner::VirtualVariable { oident, .. } => match oident {
+                OIdent::Parameter(ParameterOIdent::Register(v)) => Ok(Some(*v)),
+                _ => Ok(None),
+            },
             _ => Ok(None),
         }
     }
@@ -3826,29 +4009,12 @@ impl Expression {
     /// VirtualVariable.parameter_stack_offset
     #[getter]
     fn parameter_stack_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
-        use crate::ailment::enums::VirtualVariableCategory;
-        if !self.was_parameter() {
-            return Ok(None);
-        }
-        if self.parameter_category(py)? != Some(VirtualVariableCategory::STACK) {
-            return Ok(None);
-        }
+        let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } => {
-                let inner = oident.bind(py).get_item(1)?;
-                // Stack offsets are signed; some upstream sites store
-                // negative values as their u64 two's-complement form
-                // (e.g. ``-8`` as ``2^64-8``). Reinterpret-as-i64 round-
-                // trips both shapes to the signed representation.
-                if let Ok(v) = inner.extract::<i64>() {
-                    return Ok(Some(v));
-                }
-                if let Ok(v) = inner.extract::<u64>() {
-                    return Ok(Some(v as i64));
-                }
-                let big: i128 = inner.extract()?;
-                Ok(Some(big as i64))
-            }
+            ExprInner::VirtualVariable { oident, .. } => match oident {
+                OIdent::Parameter(ParameterOIdent::Stack(v)) => Ok(Some(*v)),
+                _ => Ok(None),
+            },
             _ => Ok(None),
         }
     }
@@ -3856,57 +4022,44 @@ impl Expression {
     /// VirtualVariable.stack_offset
     #[getter]
     fn stack_offset(&self, py: Python<'_>) -> PyResult<i64> {
-        use crate::ailment::enums::VirtualVariableCategory;
-        let extract_signed = |obj: &Bound<'_, PyAny>| -> PyResult<i64> {
-            if let Ok(v) = obj.extract::<i64>() {
-                return Ok(v);
-            }
-            // Python ints can be larger than i64 -- callers downstream
-            // treat stack offsets as signed register-width offsets, so
-            // try extracting via ``int.bit_length`` truncation. Reinterpret
-            // the low-order u64 bits as i64 to preserve negative offsets
-            // encoded as large unsigned values (e.g. -8 stored as 2^64-8).
-            if let Ok(v) = obj.extract::<u64>() {
-                return Ok(v as i64);
-            }
-            // Last-ditch: extract via ``__index__`` and mask to 64 bits.
-            let big: i128 = obj.extract()?;
-            Ok(big as i64)
-        };
-        if self.was_stack() {
-            if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
-                return extract_signed(oident.bind(py));
-            }
-        }
-        if self.was_parameter() {
-            let cat = self.parameter_category(py)?;
-            if cat == Some(VirtualVariableCategory::STACK) {
-                if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
-                    let inner = oident.bind(py).get_item(1)?;
-                    return extract_signed(&inner);
+        let _ = py;
+        match &self.expr.inner {
+            ExprInner::VirtualVariable { oident, .. } if self.was_stack() => match oident {
+                OIdent::Int(v) => Ok(*v),
+                _ => Err(PyTypeError::new_err("Is not a stack variable")),
+            },
+            ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => {
+                match oident {
+                    OIdent::Parameter(ParameterOIdent::Stack(v)) => Ok(*v),
+                    _ => Err(PyTypeError::new_err("Is not a stack variable")),
                 }
             }
+            _ => Err(PyTypeError::new_err("Is not a stack variable")),
         }
-        Err(PyTypeError::new_err("Is not a stack variable"))
     }
 
     /// VirtualVariable.reg_offsets (combo register)
     #[getter]
     fn reg_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        use crate::ailment::enums::VirtualVariableCategory;
+        let make_tuple = |offs: &[i64]| -> PyResult<Bound<'py, PyTuple>> {
+            let items: Vec<Py<PyAny>> =
+                offs.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
+            PyTuple::new(py, items)
+        };
         if self.was_combo_reg() {
-            if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
-                return Ok(oident.bind(py).cast::<PyTuple>()?.clone());
+            if let ExprInner::VirtualVariable { oident: OIdent::RegList(offs), .. } =
+                &self.expr.inner
+            {
+                return make_tuple(offs);
             }
         }
         if self.was_parameter() {
-            let cat = self.parameter_category(py)?;
-            if cat == Some(VirtualVariableCategory::COMBO_REGISTER) {
-                if let ExprInner::VirtualVariable { oident, .. } = &self.expr.inner {
-                    let outer = oident.bind(py).cast::<PyTuple>()?;
-                    let inner = outer.get_item(1)?.cast_into::<PyTuple>()?;
-                    return Ok(inner);
-                }
+            if let ExprInner::VirtualVariable {
+                oident: OIdent::Parameter(ParameterOIdent::ComboRegister(offs)),
+                ..
+            } = &self.expr.inner
+            {
+                return make_tuple(offs);
             }
         }
         Err(PyTypeError::new_err("Is not a combo register"))
@@ -5063,19 +5216,18 @@ impl Expression {
             }
             ExprInner::VirtualVariable { varid, category, oident, .. } => {
                 use crate::ailment::enums::VirtualVariableCategory;
+                let _ = py;
                 let size = self.expr.header.bits / 8;
-                let ori_str = match category {
-                    VirtualVariableCategory::REGISTER => {
-                        let off: i64 = oident.bind(py).extract().unwrap_or(0);
-                        format!("{{r{}|{}b}}", off, size)
+                let ori_str = match (category, oident) {
+                    (VirtualVariableCategory::REGISTER, OIdent::Int(v)) => {
+                        format!("{{r{}|{}b}}", v, size)
                     }
-                    VirtualVariableCategory::STACK => {
-                        let s = oident.bind(py).repr()?.to_string();
-                        format!("{{s{}|{}b}}", s, size)
+                    (VirtualVariableCategory::STACK, OIdent::Int(v)) => {
+                        format!("{{s{}|{}b}}", v, size)
                     }
-                    VirtualVariableCategory::COMBO_REGISTER => {
-                        let s = oident.bind(py).repr()?.to_string();
-                        format!("{{combo_reg {}}}", s)
+                    (VirtualVariableCategory::COMBO_REGISTER, OIdent::RegList(offs)) => {
+                        let parts: Vec<String> = offs.iter().map(|x| x.to_string()).collect();
+                        format!("{{combo_reg ({})}}", parts.join(", "))
                     }
                     _ => String::new(),
                 };
@@ -5455,7 +5607,10 @@ pub fn extract_ail(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
 // ---------------------------------------------------------------------------
 
 pub mod serialize {
-    use super::{AilExpression, CFGTarget, ConstValue, Expression, ExprHeader, ExprInner};
+    use super::{
+        AilExpression, CFGTarget, ConstValue, Expression, ExprHeader, ExprInner, OIdent,
+        ParameterOIdent,
+    };
     use crate::ailment::enums::ConvertType;
     use crate::ailment::tags::Tags;
     use pyo3::prelude::*;
@@ -5859,14 +6014,36 @@ pub mod serialize {
                     oident,
                     reg_vvars,
                 } => Python::attach(|py| {
-                    let o = PolyValue::from_pyany(oident.bind(py)).unwrap_or(PolyValue::None);
+                    // Project the typed ``OIdent`` into the existing
+                    // ``PolyValue`` wire shape so cached AIL blobs stay
+                    // compatible.
+                    fn ident_to_poly(o: &OIdent) -> PolyValue {
+                        match o {
+                            OIdent::None => PolyValue::None,
+                            OIdent::Int(v) => PolyValue::Int(*v),
+                            OIdent::RegList(offs) => PolyValue::Tuple(
+                                offs.iter().map(|x| PolyValue::Int(*x)).collect(),
+                            ),
+                            OIdent::Parameter(p) => {
+                                let inner_cat = p.inner_category() as i64;
+                                let inner = match p {
+                                    ParameterOIdent::Register(v)
+                                    | ParameterOIdent::Stack(v) => PolyValue::Int(*v),
+                                    ParameterOIdent::ComboRegister(offs) => PolyValue::Tuple(
+                                        offs.iter().map(|x| PolyValue::Int(*x)).collect(),
+                                    ),
+                                };
+                                PolyValue::Tuple(vec![PolyValue::Int(inner_cat), inner])
+                            }
+                        }
+                    }
                     let rv = PolyValue::from_pyany(reg_vvars.bind(py).as_any())
                         .unwrap_or(PolyValue::None);
                     Wire::VirtualVariable {
                         h: hdr,
                         varid: *varid,
                         category: *category as u8,
-                        oident: o,
+                        oident: ident_to_poly(oident),
                         reg_vvars: rv,
                     }
                 }),
@@ -6182,7 +6359,59 @@ pub mod serialize {
                     use crate::ailment::enums::VirtualVariableCategory;
                     let cat = VirtualVariableCategory::from_int(category as i64)
                         .unwrap_or(VirtualVariableCategory::UNKNOWN);
-                    let oident_py = oident.into_pyany(py).unwrap_or_else(|_| py.None());
+                    // Inverse of ``ident_to_poly`` in ``Wire::from``.
+                    fn poly_to_ident(
+                        pv: PolyValue,
+                        cat: VirtualVariableCategory,
+                    ) -> OIdent {
+                        use VirtualVariableCategory::*;
+                        match (cat, pv) {
+                            (UNKNOWN, _) | (_, PolyValue::None) => OIdent::None,
+                            (REGISTER | STACK | MEMORY | TMP, PolyValue::Int(v)) => {
+                                OIdent::Int(v)
+                            }
+                            (COMBO_REGISTER, PolyValue::Tuple(items)) => {
+                                let offs = items
+                                    .into_iter()
+                                    .filter_map(|x| match x {
+                                        PolyValue::Int(v) => Some(v),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                OIdent::RegList(offs)
+                            }
+                            (PARAMETER, PolyValue::Tuple(items)) => {
+                                let mut it = items.into_iter();
+                                let inner_cat_pv = it.next().unwrap_or(PolyValue::None);
+                                let inner_payload = it.next().unwrap_or(PolyValue::None);
+                                let inner_cat = match inner_cat_pv {
+                                    PolyValue::Int(v) => VirtualVariableCategory::from_int(v)
+                                        .unwrap_or(UNKNOWN),
+                                    _ => UNKNOWN,
+                                };
+                                let p = match (inner_cat, inner_payload) {
+                                    (REGISTER, PolyValue::Int(v)) => {
+                                        ParameterOIdent::Register(v)
+                                    }
+                                    (STACK, PolyValue::Int(v)) => ParameterOIdent::Stack(v),
+                                    (COMBO_REGISTER, PolyValue::Tuple(items)) => {
+                                        let offs = items
+                                            .into_iter()
+                                            .filter_map(|x| match x {
+                                                PolyValue::Int(v) => Some(v),
+                                                _ => None,
+                                            })
+                                            .collect();
+                                        ParameterOIdent::ComboRegister(offs)
+                                    }
+                                    _ => return OIdent::None,
+                                };
+                                OIdent::Parameter(p)
+                            }
+                            _ => OIdent::None,
+                        }
+                    }
+                    let oident_typed = poly_to_ident(oident, cat);
                     let reg_vvars_py = match reg_vvars.into_pyany(py) {
                         Ok(obj) => {
                             let b = obj.into_bound(py);
@@ -6197,7 +6426,7 @@ pub mod serialize {
                         inner: ExprInner::VirtualVariable {
                             varid,
                             category: cat,
-                            oident: oident_py,
+                            oident: oident_typed,
                             reg_vvars: reg_vvars_py,
                         },
                     }
