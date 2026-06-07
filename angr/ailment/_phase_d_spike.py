@@ -49,18 +49,27 @@ class _AilMarkerMeta(type):
 
     _kind: str
     _kinds: frozenset[str]
+    _match_kinds: frozenset[str]
+
+    def __init__(cls, name, bases, namespace, **kwargs):
+        super().__init__(name, bases, namespace, **kwargs)
+        # Precompute the kind-match set so ``__instancecheck__`` can do a
+        # single set-membership test instead of two ``getattr`` calls per
+        # check. Hot in the decompiler (~1.1M marker isinstance() calls
+        # per ``Decompiler(doit)``).
+        kinds = namespace.get("_kinds")
+        if kinds is None:
+            kind = namespace.get("_kind")
+            if kind is not None:
+                cls._match_kinds = frozenset({kind})
+        else:
+            cls._match_kinds = kinds if isinstance(kinds, frozenset) else frozenset(kinds)
 
     def __instancecheck__(cls, instance: Any) -> bool:
         # ``isinstance(x, Expression)`` (the rustlib class) goes through
         # the normal type machinery; only the marker classes use the
         # variant-tag dispatch.
-        if not isinstance(instance, _Expression):
-            return False
-        kind = getattr(instance, "kind", None)
-        kinds = getattr(cls, "_kinds", None)
-        if kinds is not None:
-            return kind in kinds
-        return kind == cls._kind
+        return isinstance(instance, _Expression) and instance.kind in cls._match_kinds
 
     def __subclasscheck__(cls, subclass: type) -> bool:
         # Markers don't support being subclassed. Reflexive equality
