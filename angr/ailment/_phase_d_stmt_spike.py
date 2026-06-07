@@ -31,15 +31,21 @@ class _AilStmtMarkerMeta(type):
 
     _kind: str
     _kinds: frozenset[str]
+    _match_kinds: frozenset[str]
+
+    def __init__(cls, name, bases, namespace, **kwargs):
+        super().__init__(name, bases, namespace, **kwargs)
+        # See ``_AilMarkerMeta.__init__`` for rationale.
+        kinds = namespace.get("_kinds")
+        if kinds is None:
+            kind = namespace.get("_kind")
+            if kind is not None:
+                cls._match_kinds = frozenset({kind})
+        else:
+            cls._match_kinds = kinds if isinstance(kinds, frozenset) else frozenset(kinds)
 
     def __instancecheck__(cls, instance: Any) -> bool:
-        if not isinstance(instance, _Statement):
-            return False
-        kind = getattr(instance, "kind", None)
-        kinds = getattr(cls, "_kinds", None)
-        if kinds is not None:
-            return kind in kinds
-        return kind == cls._kind
+        return isinstance(instance, _Statement) and instance.kind in cls._match_kinds
 
     def __subclasscheck__(cls, subclass: type) -> bool:
         return subclass is cls
