@@ -1497,16 +1497,22 @@ class Clinic(Analysis):
                 continue
 
             last_stmt = block.statements[-1]
+            # Phase D: enumerate (slot_name, target) pairs so we can route
+            # the call_block.addr rewrite through the statement's setter
+            # (legacy ``target.value = X`` mutated a fresh-wrapper clone).
             if isinstance(last_stmt, ailment.Stmt.Jump):
-                targets = [last_stmt.target]
+                slots = [("target", last_stmt.target)]
                 replace_last_stmt = True
             elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                targets = [last_stmt.true_target, last_stmt.false_target]
+                slots = [
+                    ("true_target", last_stmt.true_target),
+                    ("false_target", last_stmt.false_target),
+                ]
                 replace_last_stmt = False
             else:
                 continue
 
-            for target in targets:
+            for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
                     continue
 
@@ -1543,7 +1549,11 @@ class Clinic(Analysis):
                 else:
                     call_block = ailment.Block(self.new_block_addr(), 1, statements=[call_stmt])
                     ail_graph.add_edge(block, call_block)
-                    target.value = call_block.addr
+                    setattr(
+                        last_stmt,
+                        slot_name,
+                        ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags),
+                    )
 
                 if target_func.returning:
                     ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **last_stmt.tags)
@@ -3392,16 +3402,17 @@ class Clinic(Analysis):
             return None
 
         def patch_conditional_jump_target(cond_jump_stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int):
-            if (
-                isinstance(cond_jump_stmt.true_target, ailment.Expr.Const)
-                and cond_jump_stmt.true_target.value == old_addr
-            ):
-                cond_jump_stmt.true_target.value = new_addr
-            if (
-                isinstance(cond_jump_stmt.false_target, ailment.Expr.Const)
-                and cond_jump_stmt.false_target.value == old_addr
-            ):
-                cond_jump_stmt.false_target.value = new_addr
+            # Phase D: ``cond_jump_stmt.true_target`` mints a fresh
+            # ``Expression`` wrapper around a clone of the stored target.
+            # Legacy ``cond_jump_stmt.true_target.value = X`` mutated the
+            # throwaway clone; route the new Const through the
+            # ``true_target =`` setter so the rewrite persists.
+            tt = cond_jump_stmt.true_target
+            if isinstance(tt, ailment.Expr.Const) and tt.value == old_addr:
+                cond_jump_stmt.true_target = ailment.Expr.Const(tt.idx, new_addr, tt.bits, **tt.tags)
+            ft = cond_jump_stmt.false_target
+            if isinstance(ft, ailment.Expr.Const) and ft.value == old_addr:
+                cond_jump_stmt.false_target = ailment.Expr.Const(ft.idx, new_addr, ft.bits, **ft.tags)
 
         # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):
