@@ -6,6 +6,9 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any, cast
 
+from angr.rustylib.ailment import Expression as _PhaseDExpression
+from angr.rustylib.ailment import Statement as _PhaseDStatement
+
 from . import Block
 from .expression import (
     ITE,
@@ -90,6 +93,8 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
     StringLiteral,
 }
 
+_PHASE_D_FAT_ENUMS = (_PhaseDExpression, _PhaseDStatement)
+
 
 def _dispatch_key(obj):
     """Resolve a handler-dict key for ``obj``.
@@ -104,6 +109,14 @@ def _dispatch_key(obj):
     For legacy (pre-Phase-D) instances that don't expose ``kind``, fall
     back to ``type(obj)`` for backward compatibility.
     """
+    # Fast path: Phase-D fat-enum instances are the overwhelming majority
+    # of dispatches (~4M / decompile on ``doit``). Type-check + direct
+    # attribute access avoids the ~3.9M ``builtins.getattr`` calls (≈0.38 s)
+    # measured by cProfile, and reuses the already-resident ``kind``
+    # accessor instead of going through the generic getattr machinery.
+    if isinstance(obj, _PHASE_D_FAT_ENUMS):
+        return _KIND_TO_MARKER.get(obj.kind, type(obj))
+    # Slow path: legacy (non-Phase-D) instances may not expose ``kind``.
     kind = getattr(obj, "kind", None)
     if kind is None:
         return type(obj)
@@ -353,8 +366,10 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
+        # Phase D: ``expr.operands`` mints fresh wrappers per access; cache.
+        ops = expr.operands
+        self._handle_expr(0, ops[0], stmt_idx, stmt, block)
+        self._handle_expr(1, ops[1], stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_UnaryOp(
@@ -568,8 +583,10 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
+        # Phase D: ``expr.operands`` mints fresh wrappers per access; cache.
+        ops = expr.operands
+        self._handle_expr(0, ops[0], stmt_idx, stmt, block)
+        self._handle_expr(1, ops[1], stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
@@ -950,16 +967,20 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     ) -> Expression:
         changed = False
 
-        if isinstance(expr.target, str):
-            new_target = expr.target
+        # Phase D: cache slot accessors -- ``expr.target`` and ``expr.args``
+        # each mint fresh wrapper objects per call.
+        target_in = expr.target
+        if isinstance(target_in, str):
+            new_target = target_in
         else:
-            new_target = self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
-            changed |= new_target != expr.target
+            new_target = self._handle_expr(-1, target_in, stmt_idx, stmt, block)
+            changed |= new_target != target_in
 
+        args_in = expr.args
         new_args = None
-        if expr.args is not None:
-            new_args = [self._handle_expr(idx, arg, stmt_idx, stmt, block) for idx, arg in enumerate(expr.args)]
-            changed |= any(old is not new for new, old in zip(new_args, expr.args))
+        if args_in is not None:
+            new_args = [self._handle_expr(idx, arg, stmt_idx, stmt, block) for idx, arg in enumerate(args_in)]
+            changed |= any(old is not new for new, old in zip(new_args, args_in))
 
         if changed:
             expr = expr.copy()
@@ -971,11 +992,16 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        operand_0 = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        changed = operand_0 != expr.operands[0]
+        # Phase D: ``expr.operands`` mints a fresh 2-tuple of fresh wrappers
+        # per access; cache once so the recurse + compare pair costs one
+        # allocation instead of four.
+        ops = expr.operands
+        op0_in, op1_in = ops[0], ops[1]
+        operand_0 = self._handle_expr(0, op0_in, stmt_idx, stmt, block)
+        changed = operand_0 != op0_in
 
-        operand_1 = self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
-        changed |= operand_1 != expr.operands[1]
+        operand_1 = self._handle_expr(1, op1_in, stmt_idx, stmt, block)
+        changed |= operand_1 != op1_in
 
         if changed:
             new_expr = expr.copy()
