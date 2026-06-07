@@ -27,7 +27,7 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
+from angr.ailment.statement import Assignment, SideEffectStatement, Statement, Store
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 
@@ -108,24 +108,35 @@ def get_vvar_deflocs(
     walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                vvar_to_loc[stmt.dst.varid] = (
-                    stmt.dst,
-                    AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
-                )
-                if phi_vvars is not None and isinstance(stmt.src, Phi):
-                    phi_vvars[stmt.dst.varid] = {
-                        vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
-                    }
-            elif isinstance(stmt, SideEffectStatement):
-                if isinstance(stmt.ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.ret_expr.varid] = (
-                        stmt.ret_expr,
+            # Phase D: skip ``isinstance(stmt, MarkerCls)`` (~150 ns through
+            # the metaclass) in favor of direct ``stmt.kind`` compares
+            # (~50 ns). A few legacy Python subclasses of ``Statement``
+            # (e.g. ``IncompleteSwitchCaseHeadStatement``) don't have a
+            # ``kind`` slot, so use ``getattr`` to fall back to ``None``;
+            # neither of the branches below matches None.
+            kind = getattr(stmt, "kind", None)
+            if kind == "Assignment":
+                dst = stmt.dst
+                if dst.kind == "VirtualVariable":
+                    vvar_to_loc[dst.varid] = (
+                        dst,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
-                if isinstance(stmt.fp_ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.fp_ret_expr.varid] = (
-                        stmt.fp_ret_expr,
+                    if phi_vvars is not None and stmt.src.kind == "Phi":
+                        phi_vvars[dst.varid] = {
+                            vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
+                        }
+            elif kind == "SideEffectStatement":
+                ret = stmt.ret_expr
+                if ret is not None and ret.kind == "VirtualVariable":
+                    vvar_to_loc[ret.varid] = (
+                        ret,
+                        AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
+                    )
+                fp_ret = stmt.fp_ret_expr
+                if fp_ret is not None and fp_ret.kind == "VirtualVariable":
+                    vvar_to_loc[fp_ret.varid] = (
+                        fp_ret,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
 
@@ -153,13 +164,19 @@ def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, in
     for block in blocks:
         codeloc = (block.addr, block.idx)
         for stmt_idx, stmt in enumerate(block.statements):
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
-                tmp_to_loc[codeloc][atoms.Tmp(stmt.dst.tmp_idx, stmt.dst.bits)] = stmt_idx
-            if isinstance(stmt, CAS):
-                if isinstance(stmt.old_lo, Tmp):
-                    tmp_to_loc[codeloc][atoms.Tmp(stmt.old_lo.tmp_idx, stmt.old_lo.bits)] = stmt_idx
-                if stmt.old_hi is not None and isinstance(stmt.old_hi, Tmp):
-                    tmp_to_loc[codeloc][atoms.Tmp(stmt.old_hi.tmp_idx, stmt.old_hi.bits)] = stmt_idx
+            # See ``get_vvar_deflocs`` for the .kind vs isinstance() rationale.
+            kind = getattr(stmt, "kind", None)
+            if kind == "Assignment":
+                dst = stmt.dst
+                if dst.kind == "Tmp":
+                    tmp_to_loc[codeloc][atoms.Tmp(dst.tmp_idx, dst.bits)] = stmt_idx
+            elif kind == "CAS":
+                old_lo = stmt.old_lo
+                if old_lo.kind == "Tmp":
+                    tmp_to_loc[codeloc][atoms.Tmp(old_lo.tmp_idx, old_lo.bits)] = stmt_idx
+                old_hi = stmt.old_hi
+                if old_hi is not None and old_hi.kind == "Tmp":
+                    tmp_to_loc[codeloc][atoms.Tmp(old_hi.tmp_idx, old_hi.bits)] = stmt_idx
 
     return tmp_to_loc
 
