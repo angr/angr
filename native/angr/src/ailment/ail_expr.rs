@@ -181,8 +181,11 @@ pub enum ExprInner {
     },
     RustEnum {
         name: String,
-        /// list or tuple of Expression
-        fields: Py<PyAny>,
+        /// Variant fields. The marker class accepts a list or tuple of
+        /// ``Expression`` -- the constructor normalizes to a typed
+        /// ``Vec<Box<AilExpression>>`` so the data round-trips through
+        /// Rust without re-extracting via Python on every read.
+        fields: Vec<Box<AilExpression>>,
     },
     Array {
         elements: Vec<Box<AilExpression>>,
@@ -869,20 +872,17 @@ impl AilExpression {
                     HashItem::Int(self.header.bits as i128),
                 ]) as i64
             }),
-            ExprInner::RustEnum { name, fields } => Python::attach(|py| {
-                let mut items = vec![HashItem::Str(name.as_str())];
-                let mut inner = Vec::new();
-                if let Ok(it) = fields.bind(py).try_iter() {
-                    for f in it.flatten() {
-                        let h =
-                            crate::ailment::utils::py_object_hash_u64(&f).unwrap_or(0);
-                        inner.push(HashItem::U64Hash(h));
-                    }
-                }
-                items.push(HashItem::Tuple(inner));
-                items.push(HashItem::Int(self.header.bits as i128));
-                stable_hash(&items) as i64
-            }),
+            ExprInner::RustEnum { name, fields } => {
+                let inner: Vec<HashItem> = fields
+                    .iter()
+                    .map(|f| HashItem::U64Hash(f.cached_hash_or_compute() as u64))
+                    .collect();
+                stable_hash(&[
+                    HashItem::Str(name.as_str()),
+                    HashItem::Tuple(inner),
+                    HashItem::Int(self.header.bits as i128),
+                ]) as i64
+            }
             ExprInner::Array { elements } => {
                 let inner: Vec<HashItem> = elements
                     .iter()
@@ -1377,47 +1377,21 @@ impl AilExpression {
                     },
                 )
             }),
-            ExprInner::RustEnum { name, fields } => Python::attach(|py| {
-                let bound = fields.bind(py);
+            ExprInner::RustEnum { name, fields } => {
                 let mut changed = false;
-                // Preserve tuple-vs-list discriminator.
-                let is_tuple = bound.is_instance_of::<pyo3::types::PyTuple>();
-                let mut items: Vec<Py<PyAny>> = Vec::new();
-                let Ok(it) = bound.try_iter() else {
-                    return (false, self.clone());
-                };
-                for x in it.flatten() {
-                    if let Ok(e) = x.cast::<Expression>() {
-                        let (c, r) = e.borrow().expr.replace_ail(old, new);
-                        if c {
-                            changed = true;
-                            items.push(
-                                Py::new(py, Expression::wrap(r))
-                                    .ok()
-                                    .map(|p| p.into_any())
-                                    .unwrap_or_else(|| py.None()),
-                            );
-                        } else {
-                            items.push(x.unbind());
-                        }
+                let mut new_fields: Vec<Box<AilExpression>> = Vec::with_capacity(fields.len());
+                for f in fields {
+                    let (c, r) = f.replace_ail(old, new);
+                    if c {
+                        changed = true;
+                        new_fields.push(Box::new(r));
                     } else {
-                        items.push(x.unbind());
+                        new_fields.push(f.clone());
                     }
                 }
                 if !changed {
                     return (false, self.clone());
                 }
-                let new_fields: Py<PyAny> = if is_tuple {
-                    pyo3::types::PyTuple::new(py, items)
-                        .map(|t| t.into_any().unbind())
-                        .unwrap_or_else(|_| py.None())
-                } else {
-                    let l = pyo3::types::PyList::empty(py);
-                    for x in items {
-                        let _ = l.append(x);
-                    }
-                    l.into_any().unbind()
-                };
                 (
                     true,
                     AilExpression {
@@ -1428,7 +1402,7 @@ impl AilExpression {
                         },
                     },
                 )
-            }),
+            }
             ExprInner::Array { elements } => {
                 let mut changed = false;
                 let mut new_elements: Vec<Box<AilExpression>> = Vec::with_capacity(elements.len());
@@ -1629,6 +1603,7 @@ impl AilExpression {
             ExprInner::VEXCCallExpression { operands, .. } => any_vec(operands),
             ExprInner::ComboRegister { registers, .. } => any_vec(registers),
             ExprInner::Array { elements, .. } => elements.iter().any(|e| e.has_atom_ail(atom, identity)),
+            ExprInner::RustEnum { fields, .. } => fields.iter().any(|f| f.has_atom_ail(atom, identity)),
             ExprInner::BasePointerOffset { .. } | ExprInner::StackBaseOffset { .. } => false,
             _ => false,
         }
@@ -1867,7 +1842,7 @@ impl AilExpression {
             },
             ExprInner::RustEnum { name, fields } => ExprInner::RustEnum {
                 name: name.clone(),
-                fields: dc_pyany(fields)?,
+                fields: fields.iter().map(|f| recurse(f)).collect::<PyResult<Vec<_>>>()?,
             },
             ExprInner::Array { elements } => ExprInner::Array {
                 elements: elements.iter().map(|e| recurse(e)).collect::<PyResult<Vec<_>>>()?,
@@ -2160,11 +2135,12 @@ impl AilExpression {
                     name: b_n,
                     fields: b_f,
                 },
-            ) => Python::attach(|py| {
+            ) => {
                 a_n == b_n
-                    && a_f.bind(py).eq(b_f.bind(py)).unwrap_or(false)
                     && self.header.bits == other.header.bits
-            }),
+                    && a_f.len() == b_f.len()
+                    && a_f.iter().zip(b_f.iter()).all(|(a, b)| a.likes(b))
+            }
             (
                 ExprInner::Array { elements: a_e },
                 ExprInner::Array { elements: b_e },
@@ -3448,19 +3424,20 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
+        let mut decoded: Vec<Box<AilExpression>> = Vec::new();
         let mut depth: u32 = 0;
         for f in fields.try_iter()? {
             let f = f?;
-            if let Ok(e) = f.cast::<Expression>() {
-                depth = depth.max(e.borrow().expr.header.depth);
-            }
+            let ail = extract_ail(&f)?;
+            depth = depth.max(ail.header.depth);
+            decoded.push(Box::new(ail));
         }
         depth += 1;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::RustEnum {
                 name,
-                fields: fields.unbind(),
+                fields: decoded,
             },
         }))
     }
@@ -4288,12 +4265,18 @@ impl Expression {
         }
     }
 
-    /// Struct.fields (dict) / RustEnum.fields (list or tuple)
+    /// Struct.fields (dict) / RustEnum.fields (list)
     #[getter]
     fn fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
             ExprInner::Struct { fields, .. } => Ok(fields.bind(py).clone().into_any()),
-            ExprInner::RustEnum { fields, .. } => Ok(fields.bind(py).clone()),
+            ExprInner::RustEnum { fields, .. } => {
+                let items: Vec<Bound<'py, PyAny>> = fields
+                    .iter()
+                    .map(|b| Ok::<_, PyErr>(Py::new(py, Self::wrap((**b).clone()))?.into_bound(py).into_any()))
+                    .collect::<PyResult<_>>()?;
+                Ok(PyList::new(py, items)?.into_any())
+            }
             _ => Err(PyAttributeError::new_err("no 'fields' on this Expression")),
         }
     }
@@ -4309,8 +4292,13 @@ impl Expression {
                 Ok(())
             }
             ExprInner::RustEnum { fields, .. } => {
+                let mut decoded: Vec<Box<AilExpression>> = Vec::new();
+                for f in value.try_iter()? {
+                    let f = f?;
+                    decoded.push(Box::new(extract_ail(&f)?));
+                }
                 self.expr.header.cached_hash.clear();
-                *fields = value.unbind();
+                *fields = decoded;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'fields' on this Expression")),
@@ -5397,7 +5385,11 @@ impl Expression {
                 Ok(format!("{} {}", name, fields.bind(py).str()?))
             }
             ExprInner::RustEnum { name, fields } => {
-                Ok(format!("{}({})", name, fields.bind(py).str()?))
+                let parts: Vec<String> = fields
+                    .iter()
+                    .map(|f| Expression::wrap((**f).clone()).__str__(py))
+                    .collect::<PyResult<_>>()?;
+                Ok(format!("{}({})", name, parts.join(", ")))
             }
             ExprInner::Array { elements } => {
                 let parts: Vec<String> = elements
@@ -5950,7 +5942,7 @@ pub mod serialize {
         RustEnum {
             h: Hdr,
             name: String,
-            fields: PolyValue,
+            fields: Vec<Wire>,
         },
         Array {
             h: Hdr,
@@ -6251,11 +6243,11 @@ pub mod serialize {
                     field_offsets: PolyValue::from_pyany(field_offsets.bind(py).as_any())
                         .unwrap_or(PolyValue::None),
                 }),
-                ExprInner::RustEnum { name, fields } => Python::attach(|py| Wire::RustEnum {
+                ExprInner::RustEnum { name, fields } => Wire::RustEnum {
                     h: hdr,
                     name: name.clone(),
-                    fields: PolyValue::from_pyany(fields.bind(py)).unwrap_or(PolyValue::None),
-                }),
+                    fields: fields.iter().map(|b| Wire::from(b.as_ref())).collect(),
+                },
                 ExprInner::Array { elements } => Wire::Array {
                     h: hdr,
                     elements: elements.iter().map(|b| Wire::from(b.as_ref())).collect(),
@@ -6697,13 +6689,13 @@ pub mod serialize {
                         },
                     }
                 }),
-                Wire::RustEnum { h, name, fields } => Python::attach(|py| AilExpression {
+                Wire::RustEnum { h, name, fields } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::RustEnum {
                         name,
-                        fields: fields.into_pyany(py).unwrap_or_else(|_| py.None()),
+                        fields: fields.into_iter().map(|w| Box::new(w.into_ail())).collect(),
                     },
-                }),
+                },
                 Wire::Array { h, elements } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Array {
