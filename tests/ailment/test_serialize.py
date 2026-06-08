@@ -303,12 +303,6 @@ def test_string_literal_text():
     assert sl2.data == "hello"
 
 
-def test_string_literal_bytes():
-    sl = StringLiteral(9, b"\x00\x01\x02", 24)
-    sl2 = roundtrip(sl)
-    assert sl2.data == b"\x00\x01\x02"
-
-
 def test_struct():
     st = Struct(
         10,

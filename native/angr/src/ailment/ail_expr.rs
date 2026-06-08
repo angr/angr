@@ -227,9 +227,13 @@ pub enum ExprInner {
         endness: String,
     },
     StringLiteral {
-        /// ``str`` or ``bytes`` -- kept as a Python object to preserve
-        /// the original encoding for round-trip fidelity.
-        data: Py<PyAny>,
+        /// String content. In practice every in-tree caller passes a
+        /// Python ``str`` (decoded function names like ``"Vec::new"``,
+        /// outlined call targets, or the empty string sentinel); the
+        /// constructor enforces this with a ``str`` extract so the
+        /// data lives in native Rust without per-access Python
+        /// round-trips.
+        data: String,
     },
     BasePointerOffset {
         /// ``base`` and ``offset`` accept either a Python ``int`` or
@@ -975,14 +979,11 @@ impl AilExpression {
                 HashItem::U64Hash(value.cached_hash_or_compute() as u64),
                 HashItem::Str(endness.as_str()),
             ]) as i64,
-            ExprInner::StringLiteral { data } => Python::attach(|py| {
-                let h = crate::ailment::utils::py_object_hash_u64(data.bind(py)).unwrap_or(0);
-                stable_hash(&[
-                    HashItem::TypeName("StringLiteral"),
-                    HashItem::U64Hash(h),
-                    HashItem::Int(self.header.bits as i128),
-                ]) as i64
-            }),
+            ExprInner::StringLiteral { data } => stable_hash(&[
+                HashItem::TypeName("StringLiteral"),
+                HashItem::Str(data.as_str()),
+                HashItem::Int(self.header.bits as i128),
+            ]) as i64,
             ExprInner::BasePointerOffset { base, offset, .. } => Python::attach(|py| {
                 let bh = crate::ailment::utils::py_object_hash_u64(base.bind(py)).unwrap_or(0);
                 let oh = crate::ailment::utils::py_object_hash_u64(offset.bind(py)).unwrap_or(0);
@@ -1782,7 +1783,7 @@ impl AilExpression {
                 endness: endness.clone(),
             },
             ExprInner::StringLiteral { data } => ExprInner::StringLiteral {
-                data: dc_pyany(data)?,
+                data: data.clone(),
             },
             ExprInner::BasePointerOffset { base, offset } => ExprInner::BasePointerOffset {
                 base: dc_pyany(base)?,
@@ -2354,7 +2355,7 @@ impl AilExpression {
             (
                 ExprInner::StringLiteral { data: a },
                 ExprInner::StringLiteral { data: b },
-            ) => Python::attach(|py| a.bind(py).eq(b.bind(py)).unwrap_or(false)),
+            ) => a == b,
             (
                 ExprInner::BasePointerOffset { base: a_b, offset: a_o, .. },
                 ExprInner::BasePointerOffset { base: b_b, offset: b_o, .. },
@@ -3125,11 +3126,12 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
+        let data_str: String = data.extract().map_err(|_| {
+            PyTypeError::new_err("StringLiteral data must be a str")
+        })?;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
-            inner: ExprInner::StringLiteral {
-                data: data.unbind(),
-            },
+            inner: ExprInner::StringLiteral { data: data_str },
         }))
     }
 
@@ -5001,9 +5003,9 @@ impl Expression {
 
     /// StringLiteral.data
     #[getter]
-    fn data(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn data(&self) -> PyResult<String> {
         match &self.expr.inner {
-            ExprInner::StringLiteral { data } => Ok(data.clone_ref(py)),
+            ExprInner::StringLiteral { data } => Ok(data.clone()),
             _ => Err(PyAttributeError::new_err("no 'data' on this Expression")),
         }
     }
@@ -5341,10 +5343,10 @@ impl Expression {
                 let v = Expression::wrap((**value).clone()).__str__(py)?;
                 Ok(format!("Insert({}, {}, {})", b, o, v))
             }
-            ExprInner::StringLiteral { data } => Ok(format!(
-                "StringLiteral({})",
-                data.bind(py).repr()?
-            )),
+            ExprInner::StringLiteral { data } => {
+                let _ = py;
+                Ok(format!("StringLiteral({:?})", data))
+            }
             ExprInner::BasePointerOffset { base, offset, .. } => {
                 let bs = base.bind(py).str()?.to_string();
                 if offset.bind(py).is_none() {
@@ -5915,7 +5917,7 @@ pub mod serialize {
         },
         StringLiteral {
             h: Hdr,
-            data: PolyValue,
+            data: String,
         },
         BasePointerOffset {
             h: Hdr,
@@ -6198,10 +6200,10 @@ pub mod serialize {
                     value: Box::new(Wire::from(value)),
                     endness: endness.clone(),
                 },
-                ExprInner::StringLiteral { data } => Python::attach(|py| Wire::StringLiteral {
+                ExprInner::StringLiteral { data } => Wire::StringLiteral {
                     h: hdr,
-                    data: PolyValue::from_pyany(data.bind(py)).unwrap_or(PolyValue::None),
-                }),
+                    data: data.clone(),
+                },
                 ExprInner::BasePointerOffset { base, offset } => {
                     Python::attach(|py| Wire::BasePointerOffset {
                         h: hdr,
@@ -6600,12 +6602,10 @@ pub mod serialize {
                         endness,
                     },
                 },
-                Wire::StringLiteral { h, data } => Python::attach(|py| AilExpression {
+                Wire::StringLiteral { h, data } => AilExpression {
                     header: rebuild_header(h),
-                    inner: ExprInner::StringLiteral {
-                        data: data.into_pyany(py).unwrap_or_else(|_| py.None()),
-                    },
-                }),
+                    inner: ExprInner::StringLiteral { data },
+                },
                 Wire::BasePointerOffset { h, base, offset } => Python::attach(|py| AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::BasePointerOffset {
