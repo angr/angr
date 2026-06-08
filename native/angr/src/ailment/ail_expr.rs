@@ -27,6 +27,7 @@ use crate::ailment::const_value::ConstValue;
 use crate::ailment::base::CachedHash;
 use crate::ailment::enums::{ConvertType, RoundingMode};
 use crate::ailment::hash::{HashItem, stable_hash};
+use indexmap::IndexMap;
 use crate::ailment::tags::{Tags, TagsView};
 
 // ---------------------------------------------------------------------------
@@ -172,12 +173,14 @@ pub enum ExprInner {
     },
     Struct {
         name: String,
-        /// Polymorphic key/value Python dict; spike-level holds it as
-        /// ``Py<PyDict>``. Bulk migration revisits once Struct's field
-        /// shape is nailed down.
-        fields: Py<PyDict>,
-        field_offsets: Py<PyDict>,
-        field_names: Py<PyDict>,
+        /// Struct fields, keyed by byte offset, ordered by insertion
+        /// (matches the Python ``OrderedDict`` callers pass in).
+        fields: IndexMap<i64, Box<AilExpression>>,
+        /// Field name -> byte offset, ordered by insertion.
+        field_offsets: IndexMap<String, i64>,
+        /// Byte offset -> field name. Derived in the constructor as
+        /// the reverse of ``field_offsets`` and kept eagerly in sync.
+        field_names: IndexMap<i64, String>,
     },
     RustEnum {
         name: String,
@@ -853,38 +856,32 @@ impl AilExpression {
                 fields,
                 field_offsets,
                 ..
-            } => Python::attach(|py| {
-                let mut fi: Vec<HashItem> = Vec::new();
-                let f = fields.bind(py);
-                for (k, v) in f.iter() {
-                    fi.push(HashItem::Tuple(vec![
-                        HashItem::U64Hash(
-                            crate::ailment::utils::py_object_hash_u64(&k).unwrap_or(0),
-                        ),
-                        HashItem::U64Hash(
-                            crate::ailment::utils::py_object_hash_u64(&v).unwrap_or(0),
-                        ),
-                    ]));
-                }
-                let mut oi: Vec<HashItem> = Vec::new();
-                let off = field_offsets.bind(py);
-                for (k, v) in off.iter() {
-                    oi.push(HashItem::Tuple(vec![
-                        HashItem::U64Hash(
-                            crate::ailment::utils::py_object_hash_u64(&k).unwrap_or(0),
-                        ),
-                        HashItem::U64Hash(
-                            crate::ailment::utils::py_object_hash_u64(&v).unwrap_or(0),
-                        ),
-                    ]));
-                }
+            } => {
+                let fi: Vec<HashItem> = fields
+                    .iter()
+                    .map(|(off, e)| {
+                        HashItem::Tuple(vec![
+                            HashItem::Int(*off as i128),
+                            HashItem::U64Hash(e.cached_hash_or_compute() as u64),
+                        ])
+                    })
+                    .collect();
+                let oi: Vec<HashItem> = field_offsets
+                    .iter()
+                    .map(|(name, off)| {
+                        HashItem::Tuple(vec![
+                            HashItem::Str(name.as_str()),
+                            HashItem::Int(*off as i128),
+                        ])
+                    })
+                    .collect();
                 stable_hash(&[
                     HashItem::Str(name.as_str()),
                     HashItem::Tuple(fi),
                     HashItem::Tuple(oi),
                     HashItem::Int(self.header.bits as i128),
                 ]) as i64
-            }),
+            }
             ExprInner::RustEnum { name, fields } => {
                 let inner: Vec<HashItem> = fields
                     .iter()
@@ -1345,27 +1342,19 @@ impl AilExpression {
                 fields,
                 field_offsets,
                 field_names,
-            } => Python::attach(|py| {
-                // Walk the value-dict; rebuild only if any field needs
-                // replacement. Keep the offsets/names dicts as-is --
-                // they're scalar metadata.
+            } => {
+                // Walk the value map; rebuild only if any field needs
+                // replacement. Offsets/names are scalar metadata.
                 let mut changed = false;
-                let new_fields = pyo3::types::PyDict::new(py);
-                for (k, v) in fields.bind(py).iter() {
-                    if let Ok(e) = v.cast::<Expression>() {
-                        let (c, r) = e.borrow().expr.replace_ail(old, new);
-                        if c {
-                            changed = true;
-                            let py_r = Py::new(py, Expression::wrap(r))
-                                .ok()
-                                .map(|p| p.into_any())
-                                .unwrap_or_else(|| py.None());
-                            let _ = new_fields.set_item(k, py_r);
-                        } else {
-                            let _ = new_fields.set_item(k, v);
-                        }
+                let mut new_fields: IndexMap<i64, Box<AilExpression>> =
+                    IndexMap::with_capacity(fields.len());
+                for (off, e) in fields {
+                    let (c, r) = e.replace_ail(old, new);
+                    if c {
+                        changed = true;
+                        new_fields.insert(*off, Box::new(r));
                     } else {
-                        let _ = new_fields.set_item(k, v);
+                        new_fields.insert(*off, e.clone());
                     }
                 }
                 if !changed {
@@ -1377,13 +1366,13 @@ impl AilExpression {
                         header: self.header.clone(),
                         inner: ExprInner::Struct {
                             name: name.clone(),
-                            fields: new_fields.unbind(),
-                            field_offsets: field_offsets.clone_ref(py),
-                            field_names: field_names.clone_ref(py),
+                            fields: new_fields,
+                            field_offsets: field_offsets.clone(),
+                            field_names: field_names.clone(),
                         },
                     },
                 )
-            }),
+            }
             ExprInner::RustEnum { name, fields } => {
                 let mut changed = false;
                 let mut new_fields: Vec<Box<AilExpression>> = Vec::with_capacity(fields.len());
@@ -1827,12 +1816,12 @@ impl AilExpression {
                 field_names,
             } => ExprInner::Struct {
                 name: name.clone(),
-                fields: dc_pyany(fields.bind(py).as_any().as_unbound())?
-                    .extract::<Py<PyDict>>(py)?,
-                field_offsets: dc_pyany(field_offsets.bind(py).as_any().as_unbound())?
-                    .extract::<Py<PyDict>>(py)?,
-                field_names: dc_pyany(field_names.bind(py).as_any().as_unbound())?
-                    .extract::<Py<PyDict>>(py)?,
+                fields: fields
+                    .iter()
+                    .map(|(off, e)| Ok::<_, PyErr>((*off, recurse(e)?)))
+                    .collect::<PyResult<IndexMap<_, _>>>()?,
+                field_offsets: field_offsets.clone(),
+                field_names: field_names.clone(),
             },
             ExprInner::RustEnum { name, fields } => ExprInner::RustEnum {
                 name: name.clone(),
@@ -2095,28 +2084,20 @@ impl AilExpression {
                     field_offsets: b_o,
                     ..
                 },
-            ) => Python::attach(|py| {
-                if a_n != b_n {
+            ) => {
+                if a_n != b_n || a_f.len() != b_f.len() || a_o != b_o {
                     return false;
                 }
-                let f1 = a_f.bind(py);
-                let f2 = b_f.bind(py);
-                if f1.len() != f2.len() {
-                    return false;
-                }
-                for (k, v) in f1.iter() {
-                    let Ok(Some(v2)) = f2.get_item(&k) else {
+                for (off, e) in a_f {
+                    let Some(other_e) = b_f.get(off) else {
                         return false;
                     };
-                    let Ok(r) = v.call_method1("likes", (&v2,)) else {
-                        return false;
-                    };
-                    if !r.is_truthy().unwrap_or(false) {
+                    if !e.likes(other_e) {
                         return false;
                     }
                 }
-                a_o.bind(py).as_any().eq(b_o.bind(py)).unwrap_or(false)
-            }),
+                true
+            }
             (
                 ExprInner::RustEnum {
                     name: a_n,
@@ -3387,24 +3368,40 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let field_names = PyDict::new(py);
-        for (k, v) in field_offsets.iter() {
-            field_names.set_item(v, k)?;
-        }
+        let mut decoded_fields: IndexMap<i64, Box<AilExpression>> =
+            IndexMap::with_capacity(fields.len());
         let mut depth: u32 = 0;
-        for v in fields.values() {
-            if let Ok(e) = v.cast::<Expression>() {
-                depth = depth.max(e.borrow().expr.header.depth);
-            }
+        for (k, v) in fields.iter() {
+            let off: i64 = k.extract().map_err(|_| {
+                PyTypeError::new_err("Struct fields keys must be int offsets")
+            })?;
+            let ail = extract_ail(&v)?;
+            depth = depth.max(ail.header.depth);
+            decoded_fields.insert(off, Box::new(ail));
         }
         depth += 1;
+        let mut decoded_offsets: IndexMap<String, i64> =
+            IndexMap::with_capacity(field_offsets.len());
+        let mut decoded_names: IndexMap<i64, String> =
+            IndexMap::with_capacity(field_offsets.len());
+        for (k, v) in field_offsets.iter() {
+            let name: String = k.extract().map_err(|_| {
+                PyTypeError::new_err("Struct field_offsets keys must be str names")
+            })?;
+            let off: i64 = v.extract().map_err(|_| {
+                PyTypeError::new_err("Struct field_offsets values must be int offsets")
+            })?;
+            decoded_offsets.insert(name.clone(), off);
+            decoded_names.insert(off, name);
+        }
+        let _ = py;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Struct {
                 name,
-                fields: fields.unbind(),
-                field_offsets: field_offsets.unbind(),
-                field_names: field_names.unbind(),
+                fields: decoded_fields,
+                field_offsets: decoded_offsets,
+                field_names: decoded_names,
             },
         }))
     }
@@ -4264,7 +4261,14 @@ impl Expression {
     #[getter]
     fn fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
-            ExprInner::Struct { fields, .. } => Ok(fields.bind(py).clone().into_any()),
+            ExprInner::Struct { fields, .. } => {
+                let d = PyDict::new(py);
+                for (off, e) in fields {
+                    let val = Py::new(py, Self::wrap((**e).clone()))?;
+                    d.set_item(*off, val)?;
+                }
+                Ok(d.into_any())
+            }
             ExprInner::RustEnum { fields, .. } => {
                 let items: Vec<Bound<'py, PyAny>> = fields
                     .iter()
@@ -4279,11 +4283,19 @@ impl Expression {
     fn set_fields(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         match &mut self.expr.inner {
             ExprInner::Struct { fields, .. } => {
-                self.expr.header.cached_hash.clear();
-                *fields = value
+                let dict = value
                     .cast_into::<PyDict>()
-                    .map_err(|_| PyTypeError::new_err("fields must be a dict"))?
-                    .unbind();
+                    .map_err(|_| PyTypeError::new_err("fields must be a dict"))?;
+                let mut decoded: IndexMap<i64, Box<AilExpression>> =
+                    IndexMap::with_capacity(dict.len());
+                for (k, v) in dict.iter() {
+                    let off: i64 = k.extract().map_err(|_| {
+                        PyTypeError::new_err("Struct fields keys must be int offsets")
+                    })?;
+                    decoded.insert(off, Box::new(extract_ail(&v)?));
+                }
+                self.expr.header.cached_hash.clear();
+                *fields = decoded;
                 Ok(())
             }
             ExprInner::RustEnum { fields, .. } => {
@@ -4304,7 +4316,13 @@ impl Expression {
     #[getter]
     fn field_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         match &self.expr.inner {
-            ExprInner::Struct { field_offsets, .. } => Ok(field_offsets.bind(py).clone()),
+            ExprInner::Struct { field_offsets, .. } => {
+                let d = PyDict::new(py);
+                for (name, off) in field_offsets {
+                    d.set_item(name, *off)?;
+                }
+                Ok(d)
+            }
             _ => Err(PyAttributeError::new_err(
                 "no 'field_offsets' on this Expression",
             )),
@@ -4315,7 +4333,13 @@ impl Expression {
     #[getter]
     fn field_names<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         match &self.expr.inner {
-            ExprInner::Struct { field_names, .. } => Ok(field_names.bind(py).clone()),
+            ExprInner::Struct { field_names, .. } => {
+                let d = PyDict::new(py);
+                for (off, name) in field_names {
+                    d.set_item(*off, name)?;
+                }
+                Ok(d)
+            }
             _ => Err(PyAttributeError::new_err(
                 "no 'field_names' on this Expression",
             )),
@@ -4335,17 +4359,17 @@ impl Expression {
             ));
         };
         let parts: Vec<&str> = name.split('.').collect();
-        let off = field_offsets.bind(py).get_item(parts[0])?;
-        let Some(off) = off else { return Ok(None) };
-        let field = fields.bind(py).get_item(off)?;
-        let Some(field) = field else { return Ok(None) };
+        let Some(off) = field_offsets.get(parts[0]) else {
+            return Ok(None);
+        };
+        let Some(field) = fields.get(off) else {
+            return Ok(None);
+        };
         if parts.len() == 1 {
-            return Ok(Some(field.unbind()));
+            return Ok(Some(Py::new(py, Self::wrap((**field).clone()))?.into_any()));
         }
-        if let Ok(s) = field.cast::<Expression>() {
-            if matches!(s.borrow().expr.inner, ExprInner::Struct { .. }) {
-                return s.borrow().get_field(py, parts[1..].join("."));
-            }
+        if matches!(field.inner, ExprInner::Struct { .. }) {
+            return Self::wrap((**field).clone()).get_field(py, parts[1..].join("."));
         }
         Ok(None)
     }
@@ -5400,7 +5424,17 @@ impl Expression {
                 Ok(format!("({})", parts.join(", ")))
             }
             ExprInner::Struct { name, fields, .. } => {
-                Ok(format!("{} {}", name, fields.bind(py).str()?))
+                let parts: Vec<String> = fields
+                    .iter()
+                    .map(|(off, e)| {
+                        Ok::<_, PyErr>(format!(
+                            "{}: {}",
+                            off,
+                            Expression::wrap((**e).clone()).__str__(py)?
+                        ))
+                    })
+                    .collect::<PyResult<_>>()?;
+                Ok(format!("{} {{{}}}", name, parts.join(", ")))
             }
             ExprInner::RustEnum { name, fields } => {
                 let parts: Vec<String> = fields
@@ -5650,6 +5684,7 @@ pub mod serialize {
     };
     use crate::ailment::enums::{ConvertType, RoundingMode};
     use crate::ailment::tags::Tags;
+    use indexmap::IndexMap;
     use pyo3::prelude::*;
     use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
     use pyo3::IntoPyObjectExt;
@@ -5960,8 +5995,12 @@ pub mod serialize {
         Struct {
             h: Hdr,
             name: String,
-            fields: PolyValue,
-            field_offsets: PolyValue,
+            /// Insertion-ordered ``(offset, expression)`` pairs.
+            fields: Vec<(i64, Wire)>,
+            /// Insertion-ordered ``(name, offset)`` pairs. ``field_names``
+            /// is omitted -- it's derivable as the reverse of this map
+            /// during ``into_ail``.
+            field_offsets: Vec<(String, i64)>,
         },
         RustEnum {
             h: Hdr,
@@ -6257,14 +6296,18 @@ pub mod serialize {
                     fields,
                     field_offsets,
                     ..
-                } => Python::attach(|py| Wire::Struct {
+                } => Wire::Struct {
                     h: hdr,
                     name: name.clone(),
-                    fields: PolyValue::from_pyany(fields.bind(py).as_any())
-                        .unwrap_or(PolyValue::None),
-                    field_offsets: PolyValue::from_pyany(field_offsets.bind(py).as_any())
-                        .unwrap_or(PolyValue::None),
-                }),
+                    fields: fields
+                        .iter()
+                        .map(|(off, e)| (*off, Wire::from(e.as_ref())))
+                        .collect(),
+                    field_offsets: field_offsets
+                        .iter()
+                        .map(|(n, off)| (n.clone(), *off))
+                        .collect(),
+                },
                 ExprInner::RustEnum { name, fields } => Wire::RustEnum {
                     h: hdr,
                     name: name.clone(),
@@ -6665,47 +6708,27 @@ pub mod serialize {
                     name,
                     fields,
                     field_offsets,
-                } => Python::attach(|py| {
-                    // ``fields`` materializes as a PyDict; if the
-                    // PolyValue happens to be something else (Pickle
-                    // fallback), coerce to an empty dict so the variant
-                    // shape stays well-formed.
-                    let to_dict = |pv: PolyValue| -> Py<pyo3::types::PyDict> {
-                        match pv.into_pyany(py) {
-                            Ok(obj) => {
-                                let b = obj.into_bound(py);
-                                b.cast::<pyo3::types::PyDict>()
-                                    .map(|d| d.clone().unbind())
-                                    .unwrap_or_else(|_| pyo3::types::PyDict::new(py).unbind())
-                            }
-                            Err(_) => pyo3::types::PyDict::new(py).unbind(),
-                        }
-                    };
-                    let fields_d = to_dict(fields);
-                    let field_offsets_d = to_dict(field_offsets);
-                    // Rebuild ``field_names`` from ``field_offsets`` so
-                    // the inverse mapping stays consistent.
-                    let field_names = pyo3::types::PyDict::new(py);
-                    if let Ok(items) = field_offsets_d.bind(py).items().try_iter() {
-                        for it in items.flatten() {
-                            if let Ok(t) = it.cast::<pyo3::types::PyTuple>() {
-                                if t.len() == 2 {
-                                    let _ = field_names
-                                        .set_item(t.get_item(1).unwrap(), t.get_item(0).unwrap());
-                                }
-                            }
-                        }
+                } => {
+                    let fields_map: IndexMap<i64, Box<AilExpression>> = fields
+                        .into_iter()
+                        .map(|(off, w)| (off, Box::new(w.into_ail())))
+                        .collect();
+                    let mut offsets_map: IndexMap<String, i64> = IndexMap::new();
+                    let mut names_map: IndexMap<i64, String> = IndexMap::new();
+                    for (n, off) in field_offsets {
+                        offsets_map.insert(n.clone(), off);
+                        names_map.insert(off, n);
                     }
                     AilExpression {
                         header: rebuild_header(h),
                         inner: ExprInner::Struct {
                             name,
-                            fields: fields_d,
-                            field_offsets: field_offsets_d,
-                            field_names: field_names.unbind(),
+                            fields: fields_map,
+                            field_offsets: offsets_map,
+                            field_names: names_map,
                         },
                     }
-                }),
+                }
                 Wire::RustEnum { h, name, fields } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::RustEnum {
