@@ -24,7 +24,12 @@ from .peephole_optimizations import (
     PeepholeOptimizationMultiStmtBase,
     PeepholeOptimizationStmtBase,
 )
-from .utils import peephole_optimize_exprs, peephole_optimize_multistmts, peephole_optimize_stmts
+from .utils import (
+    _PeepholeExprsWalker,
+    peephole_optimize_exprs,
+    peephole_optimize_multistmts,
+    peephole_optimize_stmts,
+)
 
 if TYPE_CHECKING:
     from angr.ailment.block import Block
@@ -119,6 +124,9 @@ class BlockSimplifier(Analysis):
             ]
 
         self.result_block = None
+
+        # cached peephole expression walker
+        self._expr_peephole_walker = _PeepholeExprsWalker(expr_opts=self._expr_peephole_opts)
 
         # cached Propagator and ReachingDefinitions results. Clear them if the block is updated
         self._propagator = cached_propagator
@@ -408,7 +416,7 @@ class BlockSimplifier(Analysis):
 
     def _peephole_optimize(self, block):
         # expressions are updated in place
-        peephole_optimize_exprs(block, self._expr_peephole_opts)
+        peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)

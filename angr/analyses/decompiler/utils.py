@@ -898,9 +898,12 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         return expr
 
 
-def peephole_optimize_exprs(block, expr_opts):
+def peephole_optimize_exprs(block, expr_opts, walker=None):
     # run expression optimizers
-    walker = _PeepholeExprsWalker(expr_opts=expr_opts)
+    if walker is None:
+        walker = _PeepholeExprsWalker(expr_opts=expr_opts)
+    else:
+        walker.reset()
     walker.walk(block)
     return walker.any_update
 
