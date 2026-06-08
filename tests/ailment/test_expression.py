@@ -140,7 +140,11 @@ class TestExpression(unittest.TestCase):
 
         nested = Struct(6, "inner", OrderedDict([(0, old)]), OrderedDict([("value", 0)]), 32)
         outer = Struct(7, "outer", OrderedDict([(0, nested)]), OrderedDict([("inner", 0)]), 32)
-        assert outer.get_field("inner.value") is old
+        # Phase D: ``Struct.fields`` is stored as ``IndexMap<i64, Box<AilExpression>>``
+        # and ``get_field`` mints a fresh ``Expression`` wrapper per call --
+        # identity no longer survives the round-trip. Use ``likes`` for the
+        # structural compare instead.
+        assert outer.get_field("inner.value").likes(old)
         assert outer.get_field("missing") is None
         assert outer.size == 4
         assert "outer" in str(outer)
