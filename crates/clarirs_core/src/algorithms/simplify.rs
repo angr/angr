@@ -349,6 +349,23 @@ fn simplify<'c>(
                     work_stack.push(state);
                 }
                 Err(SimplifyError::ReRun(new_ast)) => {
+                    // Forward the rewritten node's relocatable annotations onto the
+                    // rewritten expression so they are not dropped across the rerun.
+                    let relocatable_annotations: Vec<Annotation> = state
+                        .expr
+                        .annotations()
+                        .iter()
+                        .filter(|a| a.relocatable())
+                        .cloned()
+                        .collect();
+                    let new_ast = if relocatable_annotations.is_empty() {
+                        new_ast
+                    } else {
+                        state
+                            .expr
+                            .context()
+                            .annotate_dyn(&new_ast, relocatable_annotations)?
+                    };
                     // Push a new state with the new_ast onto the stack
                     work_stack.push(SimplifyState::new(new_ast));
                 }
