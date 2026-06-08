@@ -13,10 +13,6 @@ class CallFinder(AILBlockViewer):
         self.call = None
         self.include_macro = include_macro
 
-    def _handle_Call(self, _stmt_idx: int, stmt: Call, _block: Block | None):
-        if not self.call:
-            self.call = stmt
-
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):  # pylint: disable=unused-argument
         if not self.call:
             self.call = expr
