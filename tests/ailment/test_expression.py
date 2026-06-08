@@ -126,16 +126,16 @@ class TestExpression(unittest.TestCase):
         old = Const(0, 1, 32)
         new = Const(1, 2, 32)
 
-        literal = StringLiteral(2, b"hello\n", 48, tag="literal")
+        literal = StringLiteral(2, "hello\n", 48, tag="literal")
         assert literal.size == 6
         assert "hello\\n" in repr(literal)
         assert str(literal).startswith("StringLiteral")
-        assert literal.likes(StringLiteral(3, b"hello\n", 48))
+        assert literal.likes(StringLiteral(3, "hello\n", 48))
         assert literal.copy().tags == literal.tags
         assert literal.deep_copy(manager).idx != literal.idx
-        replaced, replacement = literal.replace(StringLiteral(4, b"hello\n", 48), new)
+        replaced, replacement = literal.replace(StringLiteral(4, "hello\n", 48), new)
         assert replaced and replacement is new
-        replaced, replacement = literal.replace(StringLiteral(5, b"bye", 24), new)
+        replaced, replacement = literal.replace(StringLiteral(5, "bye", 24), new)
         assert not replaced and replacement is literal
 
         nested = Struct(6, "inner", OrderedDict([(0, old)]), OrderedDict([("value", 0)]), 32)
@@ -163,8 +163,11 @@ class TestExpression(unittest.TestCase):
         assert enum_expr.deep_copy(manager).fields[0].idx != old.idx
         replaced, new_enum = enum_expr.replace(old, new)
         assert replaced and new_enum.fields[0].likes(new)
+        # Phase D: ``RustEnum.fields`` is now stored as ``Vec<Box<AilExpression>>``
+        # internally; the getter always returns a list regardless of the
+        # iterable passed to the constructor.
         tuple_enum = RustEnum(10, "Tuple", (old,), 32)
-        assert isinstance(tuple_enum.deep_copy(manager).fields, tuple)
+        assert isinstance(tuple_enum.deep_copy(manager).fields, list)
 
         array_expr = Array(11, [old], 32)
         assert array_expr.length == 1
@@ -173,8 +176,11 @@ class TestExpression(unittest.TestCase):
         assert array_expr.deep_copy(manager).elements[0].idx != old.idx
         replaced, new_array = array_expr.replace(old, new)
         assert replaced and new_array.elements[0].likes(new)
+        # Phase D: ``Array.elements`` is now stored as ``Vec<Box<AilExpression>>``
+        # internally; the getter always returns a list regardless of the
+        # iterable passed to the constructor.
         tuple_array = Array(12, (old,), 32)
-        assert isinstance(tuple_array.deep_copy(manager).elements, tuple)
+        assert isinstance(tuple_array.deep_copy(manager).elements, list)
 
         # ``variant`` and ``returnty`` now live in the VariableMap, keyed by the expression's .idx.
         vmap = variable_map_of(manager)
