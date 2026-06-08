@@ -160,13 +160,13 @@ jobs:
           junit=$(find . -type f -name 'junit.xml' | paste -sd, -)
           echo "junit=$junit" >> "$GITHUB_OUTPUT"
       - name: Upload test coverage to Codecov
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v5
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v5
         with:
           use_oidc: true
           verbose: true
           files: ${{ steps.files.outputs.coverage }}
       - name: Upload test results to Codecov
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v5
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v5
         with:
           use_oidc: true
           fail_ci_if_error: true
