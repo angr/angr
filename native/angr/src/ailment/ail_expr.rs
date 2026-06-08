@@ -204,7 +204,11 @@ pub enum ExprInner {
         name: String,
         delimiter: String,
         returnty: Option<Py<PyAny>>,
-        args: Option<Py<PyList>>,
+        /// Macro call arguments. ``None`` means "no args list specified"
+        /// (distinct from ``Some(vec![])``, an empty argument list).
+        /// Each entry is an ``AilExpression``; the constructor accepts
+        /// any iterable of ``Expression``.
+        args: Option<Vec<Box<AilExpression>>>,
     },
     ITE {
         cond: Box<AilExpression>,
@@ -1438,31 +1442,18 @@ impl AilExpression {
                     return (false, self.clone());
                 };
                 let mut changed = false;
-                let mut items: Vec<Py<PyAny>> = Vec::new();
-                for x in l.bind(py).iter() {
-                    if let Ok(e) = x.cast::<Expression>() {
-                        let (c, r) = e.borrow().expr.replace_ail(old, new);
-                        if c {
-                            changed = true;
-                            items.push(
-                                Py::new(py, Expression::wrap(r))
-                                    .ok()
-                                    .map(|p| p.into_any())
-                                    .unwrap_or_else(|| py.None()),
-                            );
-                        } else {
-                            items.push(x.unbind());
-                        }
+                let mut new_args: Vec<Box<AilExpression>> = Vec::with_capacity(l.len());
+                for a in l {
+                    let (c, r) = a.replace_ail(old, new);
+                    if c {
+                        changed = true;
+                        new_args.push(Box::new(r));
                     } else {
-                        items.push(x.unbind());
+                        new_args.push(a.clone());
                     }
                 }
                 if !changed {
                     return (false, self.clone());
-                }
-                let new_list = pyo3::types::PyList::empty(py);
-                for x in items {
-                    let _ = new_list.append(x);
                 }
                 (
                     true,
@@ -1472,7 +1463,7 @@ impl AilExpression {
                             name: name.clone(),
                             delimiter: delimiter.clone(),
                             returnty: returnty.as_ref().map(|r| r.clone_ref(py)),
-                            args: Some(new_list.unbind()),
+                            args: Some(new_args),
                         },
                     },
                 )
@@ -1877,13 +1868,10 @@ impl AilExpression {
                     Some(r) => Some(dc_pyany(r)?),
                     None => None,
                 },
-                args: match args {
-                    Some(l) => Some(
-                        dc_pyany(l.bind(py).as_any().as_unbound())?
-                            .extract::<Py<PyList>>(py)?,
-                    ),
-                    None => None,
-                },
+                args: args
+                    .as_ref()
+                    .map(|vec| vec.iter().map(|a| recurse(a)).collect::<PyResult<Vec<_>>>())
+                    .transpose()?,
             },
         };
         Ok(AilExpression {
@@ -2195,13 +2183,14 @@ impl AilExpression {
                 {
                     return false;
                 }
-                Python::attach(|py| match (a_a, b_a) {
+                match (a_a, b_a) {
                     (None, None) => true,
                     (Some(x), Some(y)) => {
-                        x.bind(py).eq(y.bind(py)).unwrap_or(false)
+                        x.len() == y.len()
+                            && x.iter().zip(y.iter()).all(|(a, b)| a.likes(b))
                     }
                     _ => false,
-                })
+                }
             }
             (
                 ExprInner::DirtyExpression {
@@ -3538,24 +3527,24 @@ impl Expression {
         let tags = Tags::from_kwargs(kwargs)?;
         let bits = bits.unwrap_or(0);
         let rt = returnty.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
-        let args_list = if args.is_none() {
+        let args_decoded = if args.is_none() {
             None
-        } else if let Ok(l) = args.cast::<PyList>() {
-            Some(l.to_owned().unbind())
         } else {
-            let l = PyList::empty(py);
+            let mut decoded: Vec<Box<AilExpression>> = Vec::new();
             for x in args.try_iter()? {
-                l.append(x?)?;
+                let x = x?;
+                decoded.push(Box::new(extract_ail(&x)?));
             }
-            Some(l.unbind())
+            Some(decoded)
         };
+        let _ = py;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits, tags),
             inner: ExprInner::FunctionLikeMacro {
                 name,
                 delimiter,
                 returnty: rt,
-                args: args_list,
+                args: args_decoded,
             },
         }))
     }
@@ -4476,7 +4465,13 @@ impl Expression {
             },
             ExprInner::FunctionLikeMacro { args, .. } => match args {
                 None => Ok(None),
-                Some(l) => Ok(Some(l.bind(py).clone().into_any())),
+                Some(v) => {
+                    let items: Vec<Bound<'py, PyAny>> = v
+                        .iter()
+                        .map(|b| Ok::<_, PyErr>(Py::new(py, Expression::wrap((**b).clone()))?.into_bound(py).into_any()))
+                        .collect::<PyResult<_>>()?;
+                    Ok(Some(PyList::new(py, items)?.into_any()))
+                }
             },
             _ => Err(PyAttributeError::new_err("no 'args' on this Expression")),
         }
@@ -4500,15 +4495,18 @@ impl Expression {
                 Ok(())
             }
             ExprInner::FunctionLikeMacro { args, .. } => {
-                self.expr.header.cached_hash.clear();
-                *args = match value {
-                    Some(v) if !v.is_none() => Some(
-                        v.cast_into::<PyList>()
-                            .map_err(|_| PyTypeError::new_err("args must be a list or None"))?
-                            .unbind(),
-                    ),
+                let new_vec = match value {
+                    Some(v) if !v.is_none() => {
+                        let mut out = Vec::new();
+                        for item in v.try_iter()? {
+                            out.push(Box::new(extract_ail(&item?)?));
+                        }
+                        Some(out)
+                    }
                     _ => None,
                 };
+                self.expr.header.cached_hash.clear();
+                *args = new_vec;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'args' on this Expression")),
@@ -5171,7 +5169,17 @@ impl Expression {
         match &self.expr.inner {
             ExprInner::FunctionLikeMacro { name, args, .. } => {
                 let args_s = match args {
-                    Some(a) => a.bind(py).repr()?.to_string(),
+                    Some(v) => {
+                        let parts: Vec<String> = v
+                            .iter()
+                            .map(|a| {
+                                Py::new(py, Expression::wrap((**a).clone()))
+                                    .and_then(|p| Ok(p.bind(py).repr()?.to_string()))
+                                    .unwrap_or_default()
+                            })
+                            .collect();
+                        format!("[{}]", parts.join(", "))
+                    }
                     None => "None".into(),
                 };
                 Ok(format!("Macro(name={}, args={})", name, args_s))
@@ -5419,8 +5427,14 @@ impl Expression {
                 let open = chars.next().unwrap_or('(');
                 let close = chars.next().unwrap_or(')');
                 let args_s = match args {
-                    Some(a) => a.bind(py).repr()?.to_string(),
-                    None => "None".into(),
+                    Some(v) => {
+                        let parts: Vec<String> = v
+                            .iter()
+                            .map(|a| Expression::wrap((**a).clone()).__str__(py))
+                            .collect::<PyResult<_>>()?;
+                        parts.join(", ")
+                    }
+                    None => "".into(),
                 };
                 Ok(format!("{}!{}{}{}", name, open, args_s, close))
             }
@@ -5965,7 +5979,7 @@ pub mod serialize {
             name: String,
             delimiter: String,
             returnty: Option<PolyValue>,
-            args: Option<PolyValue>,
+            args: Option<Vec<Wire>>,
         },
     }
 
@@ -6279,9 +6293,9 @@ pub mod serialize {
                     name: name.clone(),
                     delimiter: delimiter.clone(),
                     returnty: PolyValue::from_opt(returnty, py).unwrap_or(None),
-                    args: args.as_ref().map(|l| {
-                        PolyValue::from_pyany(l.bind(py).as_any()).unwrap_or(PolyValue::None)
-                    }),
+                    args: args
+                        .as_ref()
+                        .map(|v| v.iter().map(|b| Wire::from(b.as_ref())).collect()),
                 }),
             }
         }
@@ -6751,16 +6765,8 @@ pub mod serialize {
                         name,
                         delimiter,
                         returnty: PolyValue::into_opt(returnty, py).unwrap_or(None),
-                        args: args.and_then(|pv| match pv.into_pyany(py) {
-                            Ok(obj) => {
-                                let b = obj.into_bound(py);
-                                b.cast::<pyo3::types::PyList>()
-                                    .map(|l| Some(l.clone().unbind()))
-                                    .ok()
-                                    .flatten()
-                            }
-                            Err(_) => None,
-                        }),
+                        args: args
+                            .map(|v| v.into_iter().map(|w| Box::new(w.into_ail())).collect()),
                     },
                 }),
             }
