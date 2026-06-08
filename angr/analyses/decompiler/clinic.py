@@ -3874,7 +3874,7 @@ class Clinic(Analysis):
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
 
         # pylint:disable=unused-argument
-        def _handle_CallExpr(
+        def _handle_Call(
             expr_idx: int,
             expr: ailment.Expr.Call,
             stmt_idx: int,
@@ -3933,7 +3933,7 @@ class Clinic(Analysis):
 
         def _visit_ail_node(node: ailment.Block):
             w = AILBlockViewer()
-            w.expr_handlers[ailment.Expr.Call] = _handle_CallExpr
+            w.expr_handlers[ailment.Expr.Call] = _handle_Call
             w.walk(node)
 
         AILGraphWalker(self._ail_graph, _visit_ail_node).walk()

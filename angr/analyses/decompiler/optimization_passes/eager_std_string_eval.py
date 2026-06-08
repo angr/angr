@@ -26,7 +26,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
         self.functions = kb.functions
         self.manager = manager
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         if isinstance(expr.target, Const) and self.functions.contains_addr(expr.target.value_int):
             func = self.functions.get_by_addr(expr.target.value_int)
             if "std::basic_string" in func.demangled_name:
@@ -58,7 +58,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
                             self.manager.variable_map.set_custom_string(const)
                             return const
 
-        return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class EagerStdStringEvalPass(OptimizationPass):

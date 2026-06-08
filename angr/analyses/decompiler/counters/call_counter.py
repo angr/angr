@@ -29,10 +29,10 @@ class AILBlockCallCounter(AILBlockViewer):
             return
         super()._handle_ConditionalJump(stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block: Block | None):
         self.calls += 1
         self.call_exprs.append((((block.addr, block.idx) if block is not None else None, stmt_idx), expr))
-        super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class AILCallCounter(SequenceWalker):

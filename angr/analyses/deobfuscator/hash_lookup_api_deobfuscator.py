@@ -140,7 +140,7 @@ class FindCallsTo(AILBlockViewer):
 
         return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self,
         expr_idx: int,
         expr: ailment.expression.Call,
@@ -155,4 +155,4 @@ class FindCallsTo(AILBlockViewer):
         ):
             assert block is not None
             self.found_calls.append((block, stmt_idx, expr))
-        return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)

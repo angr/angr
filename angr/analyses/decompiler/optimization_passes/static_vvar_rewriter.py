@@ -112,7 +112,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         if expr.target in {"strlen", "wcslen"} and expr.args:
             arg = expr.args[0]
             if isinstance(arg, VirtualVariable) and arg.varid in self._static_vvars:

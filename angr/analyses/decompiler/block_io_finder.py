@@ -210,7 +210,7 @@ class BlockIOFinder(AILBlockViewer):
             return load_loc
         return None
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         args = set()
