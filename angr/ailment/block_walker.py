@@ -47,57 +47,91 @@ from .statement import (
     WeakAssignment,
 )
 
+_DEFAULT_STMT_HANDLER_TYPES = {
+    Assignment,
+    WeakAssignment,
+    CAS,
+    SideEffectStatement,
+    Store,
+    ConditionalJump,
+    Jump,
+    Return,
+    DirtyStatement,
+}
+
+_DEFAULT_EXPR_HANDLER_TYPES = {
+    Call,
+    Load,
+    BinaryOp,
+    UnaryOp,
+    Convert,
+    ITE,
+    DirtyExpression,
+    VEXCCallExpression,
+    Tmp,
+    Register,
+    ComboRegister,
+    Reinterpret,
+    Const,
+    MultiStatementExpression,
+    VirtualVariable,
+    Phi,
+    Extract,
+    Insert,
+    RustEnum,
+    Struct,
+    Array,
+    FunctionLikeMacro,
+    StringLiteral,
+}
+
 
 class AILBlockWalker[ExprType, StmtType, BlockType]:
     """
     Walks all statements and expressions of an AIL node and construct arbitrary values based on them.
+
+    Note that we lazily initialize self._stmt_handlers and self._expr_handlers when they are accessed. This is to
+    support the existing pattern of updating stmt/expr handlers in-place after creating a block walker, and is slightly
+    slower. Overridding handler methods in a new class is the fastest approach.
     """
 
+    _default_stmt_funcs: dict[type, Callable]
+    _default_expr_funcs: dict[type, Callable]
+
     def __init__(self, stmt_handlers=None, expr_handlers=None):
-        _default_stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = {
-            Assignment: self._handle_Assignment,
-            WeakAssignment: self._handle_WeakAssignment,
-            CAS: self._handle_CAS,
-            SideEffectStatement: self._handle_SideEffectStatement,
-            Store: self._handle_Store,
-            ConditionalJump: self._handle_ConditionalJump,
-            Jump: self._handle_Jump,
-            Return: self._handle_Return,
-            DirtyStatement: self._handle_DirtyStatement,
-        }
-
-        _default_expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = {
-            Call: self._handle_CallExpr,
-            Load: self._handle_Load,
-            BinaryOp: self._handle_BinaryOp,
-            UnaryOp: self._handle_UnaryOp,
-            Convert: self._handle_Convert,
-            ITE: self._handle_ITE,
-            DirtyExpression: self._handle_DirtyExpression,
-            VEXCCallExpression: self._handle_VEXCCallExpression,
-            Tmp: self._handle_Tmp,
-            Register: self._handle_Register,
-            ComboRegister: self._handle_ComboRegister,
-            Reinterpret: self._handle_Reinterpret,
-            Const: self._handle_Const,
-            MultiStatementExpression: self._handle_MultiStatementExpression,
-            VirtualVariable: self._handle_VirtualVariable,
-            Phi: self._handle_Phi,
-            Extract: self._handle_Extract,
-            Insert: self._handle_Insert,
-            RustEnum: self._handle_RustEnum,
-            Struct: self._handle_Struct,
-            Array: self._handle_Array,
-            FunctionLikeMacro: self._handle_FunctionLikeMacro,
-            StringLiteral: self._handle_StringLiteral,
-        }
-
-        self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
-            stmt_handlers or _default_stmt_handlers
+        self._stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] | None = stmt_handlers or None
+        self._expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] | None = (
+            expr_handlers or None
         )
-        self.expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = (
-            expr_handlers or _default_expr_handlers
-        )
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._rebuild_default_handler_funcs()
+
+    @classmethod
+    def _rebuild_default_handler_funcs(cls) -> None:
+        cls._default_stmt_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
+        cls._default_expr_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
+
+    @property
+    def stmt_handlers(self) -> dict[type, Callable[[int, Any, Block | None], StmtType]]:
+        if self._stmt_handlers is None:
+            self._stmt_handlers = {t: getattr(self, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
+        return self._stmt_handlers
+
+    @stmt_handlers.setter
+    def stmt_handlers(self, value) -> None:
+        self._stmt_handlers = value
+
+    @property
+    def expr_handlers(self) -> dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]]:
+        if self._expr_handlers is None:
+            self._expr_handlers = {t: getattr(self, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
+        return self._expr_handlers
+
+    @expr_handlers.setter
+    def expr_handlers(self, value) -> None:
+        self._expr_handlers = value
 
     def reset(self) -> None:
         """
@@ -131,13 +165,29 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         return self._handle_expr(0, expr, stmt_idx or 0, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> StmtType:
-        handler = self.stmt_handlers.get(type(stmt), self._stmt_top)
+        handlers = self._stmt_handlers
+        if handlers is None:
+            func = self._default_stmt_funcs.get(type(stmt))
+            if func is None:
+                return self._stmt_top(stmt_idx, stmt, block)
+            return func(self, stmt_idx, stmt, block)
+        handler = handlers.get(type(stmt))
+        if handler is None:
+            return self._stmt_top(stmt_idx, stmt, block)
         return handler(stmt_idx, stmt, block)
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        handler = self.expr_handlers.get(type(expr), self._top)
+        handlers = self._expr_handlers
+        if handlers is None:
+            func = self._default_expr_funcs.get(type(expr))
+            if func is None:
+                return self._top(expr_idx, expr, stmt_idx, stmt, block)
+            return func(self, expr_idx, expr, stmt_idx, stmt, block)
+        handler = handlers.get(type(expr))
+        if handler is None:
+            return self._top(expr_idx, expr, stmt_idx, stmt, block)
         return handler(expr_idx, expr, stmt_idx, stmt, block)
 
     @abstractmethod
@@ -362,6 +412,10 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         for idx, reg in enumerate(expr.registers):
             self._handle_expr(idx, reg, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+
+# __init_subclass__ only runs for subclasses; build the base class's default handler tables explicitly.
+AILBlockWalker._rebuild_default_handler_funcs()
 
 
 class AILBlockViewer(AILBlockWalker[None, None, None]):
