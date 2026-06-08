@@ -194,8 +194,15 @@ pub enum ExprInner {
         elements: Vec<Box<AilExpression>>,
     },
     Let {
+        /// Externally-defined ``angr.rust.sim_type.EnumVariant`` (read
+        /// for ``.name`` / ``.type`` / ``.has_associated_data`` by the
+        /// Rust structured-codegen path). Stays ``Py<PyAny>`` until
+        /// ``EnumVariant`` gets its own Rust pyclass.
         variant: Py<PyAny>,
-        defs: Py<PyList>,
+        /// List of bound definitions -- each entry is an AIL
+        /// ``Statement`` (the test fixture and ``rust.py`` codegen
+        /// path use ``Assignment`` / ``Store``).
+        defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>>,
         src: Box<AilExpression>,
     },
     Macro {
@@ -1832,8 +1839,10 @@ impl AilExpression {
             },
             ExprInner::Let { variant, defs, src } => ExprInner::Let {
                 variant: dc_pyany(variant)?,
-                defs: dc_pyany(defs.bind(py).as_any().as_unbound())?
-                    .extract::<Py<PyList>>(py)?,
+                defs: defs
+                    .iter()
+                    .map(|s| Ok::<_, PyErr>(Box::new(s.deep_copy_ail_stmt(py, manager)?)))
+                    .collect::<PyResult<Vec<_>>>()?,
                 src: recurse(src)?,
             },
             ExprInner::Macro {
@@ -3474,20 +3483,17 @@ impl Expression {
         let src_ail = extract_ail(&src)?;
         let depth = src_ail.header.depth + 1;
         let bits = src_ail.header.bits;
-        let defs_list = if let Ok(l) = defs.cast::<PyList>() {
-            l.to_owned()
-        } else {
-            let l = PyList::empty(py);
-            for x in defs.try_iter()? {
-                l.append(x?)?;
-            }
-            l
-        };
+        let mut decoded_defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>> = Vec::new();
+        for x in defs.try_iter()? {
+            let x = x?;
+            decoded_defs.push(Box::new(crate::ailment::ail_stmt::extract_ail_stmt(&x)?));
+        }
+        let _ = py;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Let {
                 variant: variant.unbind(),
-                defs: defs_list.unbind(),
+                defs: decoded_defs,
                 src: Box::new(src_ail),
             },
         }))
@@ -4434,10 +4440,31 @@ impl Expression {
     }
 
     /// Let.defs
+    ///
+    /// Returns a fresh ``list[Statement]`` built from the inner
+    /// ``Vec<Box<AilStatement>>`` -- each call mints new
+    /// ``Py<Statement>`` wrappers around clones of the inner
+    /// statements, matching the wrapper-minting semantics of
+    /// ``.operands`` / ``Array.elements``.
     #[getter]
     fn defs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         match &self.expr.inner {
-            ExprInner::Let { defs, .. } => Ok(defs.bind(py).clone()),
+            ExprInner::Let { defs, .. } => {
+                let items: Vec<Bound<'py, PyAny>> = defs
+                    .iter()
+                    .map(|b| {
+                        Ok::<_, PyErr>(
+                            Py::new(
+                                py,
+                                crate::ailment::ail_stmt::Statement::wrap((**b).clone()),
+                            )?
+                            .into_bound(py)
+                            .into_any(),
+                        )
+                    })
+                    .collect::<PyResult<_>>()?;
+                PyList::new(py, items)
+            }
             _ => Err(PyAttributeError::new_err("no 'defs' on this Expression")),
         }
     }
@@ -6014,7 +6041,7 @@ pub mod serialize {
         Let {
             h: Hdr,
             variant: PolyValue,
-            defs: PolyValue,
+            defs: Vec<crate::ailment::ail_stmt::StmtWire>,
             src: Box<Wire>,
         },
         Macro {
@@ -6320,8 +6347,10 @@ pub mod serialize {
                 ExprInner::Let { variant, defs, src } => Python::attach(|py| Wire::Let {
                     h: hdr,
                     variant: PolyValue::from_pyany(variant.bind(py)).unwrap_or(PolyValue::None),
-                    defs: PolyValue::from_pyany(defs.bind(py).as_any())
-                        .unwrap_or(PolyValue::None),
+                    defs: defs
+                        .iter()
+                        .map(|b| crate::ailment::ail_stmt::StmtWire::from(b.as_ref()))
+                        .collect(),
                     src: Box::new(Wire::from(src)),
                 }),
                 ExprInner::Macro {
@@ -6747,24 +6776,16 @@ pub mod serialize {
                     variant,
                     defs,
                     src,
-                } => Python::attach(|py| {
-                    let defs_list = match defs.into_pyany(py) {
-                        Ok(obj) => {
-                            let b = obj.into_bound(py);
-                            b.cast::<pyo3::types::PyList>()
-                                .map(|l| l.clone().unbind())
-                                .unwrap_or_else(|_| pyo3::types::PyList::empty(py).unbind())
-                        }
-                        Err(_) => pyo3::types::PyList::empty(py).unbind(),
-                    };
-                    AilExpression {
-                        header: rebuild_header(h),
-                        inner: ExprInner::Let {
-                            variant: variant.into_pyany(py).unwrap_or_else(|_| py.None()),
-                            defs: defs_list,
-                            src: Box::new(src.into_ail()),
-                        },
-                    }
+                } => Python::attach(|py| AilExpression {
+                    header: rebuild_header(h),
+                    inner: ExprInner::Let {
+                        variant: variant.into_pyany(py).unwrap_or_else(|_| py.None()),
+                        defs: defs
+                            .into_iter()
+                            .map(|w| Box::new(w.into_ail()))
+                            .collect(),
+                        src: Box::new(src.into_ail()),
+                    },
                 }),
                 Wire::Macro {
                     h,
