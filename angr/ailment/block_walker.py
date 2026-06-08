@@ -266,7 +266,7 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         if not isinstance(expr.target, str):
@@ -484,7 +484,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if not isinstance(expr.target, str):
             self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
         if expr.args:
@@ -854,7 +854,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
         return expr
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         changed = False

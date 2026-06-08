@@ -45,7 +45,7 @@ class HasCallExprWalker(AILBlockViewer):
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):  # pylint:disable=unused-argument
         self.has_call_expr = True
 
-    def _handle_CallExpr(  # pylint:disable=unused-argument
+    def _handle_Call(  # pylint:disable=unused-argument
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         self.has_call_expr = True

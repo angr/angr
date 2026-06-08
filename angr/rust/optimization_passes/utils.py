@@ -73,7 +73,7 @@ class CallRewriter(AILBlockRewriter):
         super().__init__()
         self.callback = callback
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         new_stmt = self.callback(expr, block, stmt)
         if new_stmt and block is not None:
             block.statements[stmt_idx] = new_stmt

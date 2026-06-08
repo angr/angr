@@ -32,7 +32,7 @@ class CallExprFinder(ailment.AILBlockRewriter):
         self.has_call = False
 
     # pylint:disable=unused-argument
-    def _handle_CallExpr(
+    def _handle_Call(
         self,
         expr_idx: int,
         expr: ailment.Expr.Call,
