@@ -236,11 +236,16 @@ pub enum ExprInner {
         data: String,
     },
     BasePointerOffset {
-        /// ``base`` and ``offset`` accept either a Python ``int`` or
-        /// an ``Expression``; kept as Py<PyAny> until a typed BPOValue
-        /// sum lands.
-        base: Py<PyAny>,
-        offset: Py<PyAny>,
+        /// Named base pointer (e.g. ``"stack_base"``, ``"tls_base"``).
+        /// The original ``Py<PyAny>`` storage advertised
+        /// ``int or Expression`` flexibility but every in-tree caller
+        /// passes a string; the typed storage avoids per-access
+        /// Python round-trips for ``.base``.
+        base: String,
+        /// Signed numeric offset. Same story as ``base``: every
+        /// caller passes a Python ``int``; ``i64`` covers the range
+        /// safely.
+        offset: i64,
     },
     /// A ``BasePointerOffset`` specialized to the stack pointer. The
     /// ``offset`` lives in the variant; the base is implicit (sp).
@@ -984,15 +989,12 @@ impl AilExpression {
                 HashItem::Str(data.as_str()),
                 HashItem::Int(self.header.bits as i128),
             ]) as i64,
-            ExprInner::BasePointerOffset { base, offset, .. } => Python::attach(|py| {
-                let bh = crate::ailment::utils::py_object_hash_u64(base.bind(py)).unwrap_or(0);
-                let oh = crate::ailment::utils::py_object_hash_u64(offset.bind(py)).unwrap_or(0);
-                stable_hash(&[
-                    HashItem::Int(self.header.bits as i128),
-                    HashItem::U64Hash(bh),
-                    HashItem::U64Hash(oh),
-                ]) as i64
-            }),
+            ExprInner::BasePointerOffset { base, offset, .. } => stable_hash(&[
+                HashItem::TypeName("BasePointerOffset"),
+                HashItem::Int(self.header.bits as i128),
+                HashItem::Str(base.as_str()),
+                HashItem::Int(*offset as i128),
+            ]) as i64,
             ExprInner::StackBaseOffset { offset } => stable_hash(&[
                 HashItem::TypeName("StackBaseOffset"),
                 HashItem::Int(*offset),
@@ -1786,8 +1788,8 @@ impl AilExpression {
                 data: data.clone(),
             },
             ExprInner::BasePointerOffset { base, offset } => ExprInner::BasePointerOffset {
-                base: dc_pyany(base)?,
-                offset: dc_pyany(offset)?,
+                base: base.clone(),
+                offset: *offset,
             },
             ExprInner::StackBaseOffset { offset } => ExprInner::StackBaseOffset { offset: *offset },
             ExprInner::DirtyExpression {
@@ -2359,11 +2361,7 @@ impl AilExpression {
             (
                 ExprInner::BasePointerOffset { base: a_b, offset: a_o, .. },
                 ExprInner::BasePointerOffset { base: b_b, offset: b_o, .. },
-            ) => Python::attach(|py| {
-                self.header.bits == other.header.bits
-                    && a_b.bind(py).eq(b_b.bind(py)).unwrap_or(false)
-                    && a_o.bind(py).eq(b_o.bind(py)).unwrap_or(false)
-            }),
+            ) => self.header.bits == other.header.bits && a_b == b_b && a_o == b_o,
             (
                 ExprInner::StackBaseOffset { offset: a },
                 ExprInner::StackBaseOffset { offset: b },
@@ -3145,11 +3143,17 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
+        let base_str: String = base
+            .extract()
+            .map_err(|_| PyTypeError::new_err("BasePointerOffset base must be a str"))?;
+        let offset_i: i64 = offset
+            .extract()
+            .map_err(|_| PyTypeError::new_err("BasePointerOffset offset must be an int"))?;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits, tags),
             inner: ExprInner::BasePointerOffset {
-                base: base.unbind(),
-                offset: offset.unbind(),
+                base: base_str,
+                offset: offset_i,
             },
         }))
     }
@@ -4928,7 +4932,7 @@ impl Expression {
     }
 
     /// Extract.base (Expression) / Insert.base (Expression) /
-    /// BasePointerOffset.base (int or Expression) /
+    /// BasePointerOffset.base (str) /
     /// StackBaseOffset.base (== ``"stack_base"``, the legacy contract).
     #[getter]
     fn base(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
@@ -4936,7 +4940,9 @@ impl Expression {
             ExprInner::Extract { base, .. } | ExprInner::Insert { base, .. } => {
                 Ok(Py::new(py, Expression::wrap((**base).clone()))?.into_any())
             }
-            ExprInner::BasePointerOffset { base, .. } => Ok(base.clone_ref(py)),
+            ExprInner::BasePointerOffset { base, .. } => Ok(pyo3::types::PyString::new(py, base)
+                .into_any()
+                .unbind()),
             ExprInner::StackBaseOffset { .. } => Ok(pyo3::types::PyString::new(py, "stack_base")
                 .into_any()
                 .unbind()),
@@ -4953,8 +4959,11 @@ impl Expression {
                 Ok(())
             }
             ExprInner::BasePointerOffset { base, .. } => {
+                let s: String = value
+                    .extract()
+                    .map_err(|_| PyTypeError::new_err("BasePointerOffset base must be a str"))?;
                 self.expr.header.cached_hash.clear();
-                *base = value.unbind();
+                *base = s;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'base' on this Expression")),
@@ -4962,7 +4971,7 @@ impl Expression {
     }
 
     /// Extract.offset (Expression) / Insert.offset (Expression) /
-    /// BasePointerOffset.offset (int or Expression) /
+    /// BasePointerOffset.offset (int) /
     /// StackBaseOffset.offset (int).
     #[getter]
     fn offset(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
@@ -4970,7 +4979,10 @@ impl Expression {
             ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
                 Ok(Py::new(py, Expression::wrap((**offset).clone()))?.into_any())
             }
-            ExprInner::BasePointerOffset { offset, .. } => Ok(offset.clone_ref(py)),
+            ExprInner::BasePointerOffset { offset, .. } => {
+                let i = (*offset).into_bound_py_any(py)?;
+                Ok(i.unbind())
+            }
             ExprInner::StackBaseOffset { offset } => {
                 let i = (*offset).into_bound_py_any(py)?;
                 Ok(i.unbind())
@@ -4988,8 +5000,11 @@ impl Expression {
                 Ok(())
             }
             ExprInner::BasePointerOffset { offset, .. } => {
+                let i: i64 = value.extract().map_err(|_| {
+                    PyTypeError::new_err("BasePointerOffset offset must be an int")
+                })?;
                 self.expr.header.cached_hash.clear();
-                *offset = value.unbind();
+                *offset = i;
                 Ok(())
             }
             ExprInner::StackBaseOffset { offset } => {
@@ -5348,15 +5363,8 @@ impl Expression {
                 Ok(format!("StringLiteral({:?})", data))
             }
             ExprInner::BasePointerOffset { base, offset, .. } => {
-                let bs = base.bind(py).str()?.to_string();
-                if offset.bind(py).is_none() {
-                    return Ok(bs);
-                }
-                if let Ok(o) = offset.bind(py).extract::<i64>() {
-                    return Ok(format!("{}{:+}", bs, o));
-                }
-                let os = offset.bind(py).str()?.to_string();
-                Ok(format!("{}+{}", bs, os))
+                let _ = py;
+                Ok(format!("{}{:+}", base, offset))
             }
             ExprInner::StackBaseOffset { offset } => Ok(format!("sp{:+}", offset)),
             ExprInner::DirtyExpression { callee, operands, .. } => {
@@ -5921,8 +5929,8 @@ pub mod serialize {
         },
         BasePointerOffset {
             h: Hdr,
-            base: PolyValue,
-            offset: PolyValue,
+            base: String,
+            offset: i64,
         },
         StackBaseOffset {
             h: Hdr,
@@ -6204,13 +6212,11 @@ pub mod serialize {
                     h: hdr,
                     data: data.clone(),
                 },
-                ExprInner::BasePointerOffset { base, offset } => {
-                    Python::attach(|py| Wire::BasePointerOffset {
-                        h: hdr,
-                        base: PolyValue::from_pyany(base.bind(py)).unwrap_or(PolyValue::None),
-                        offset: PolyValue::from_pyany(offset.bind(py)).unwrap_or(PolyValue::None),
-                    })
-                }
+                ExprInner::BasePointerOffset { base, offset } => Wire::BasePointerOffset {
+                    h: hdr,
+                    base: base.clone(),
+                    offset: *offset,
+                },
                 ExprInner::StackBaseOffset { offset } => Wire::StackBaseOffset {
                     h: hdr,
                     offset: *offset,
@@ -6606,13 +6612,10 @@ pub mod serialize {
                     header: rebuild_header(h),
                     inner: ExprInner::StringLiteral { data },
                 },
-                Wire::BasePointerOffset { h, base, offset } => Python::attach(|py| AilExpression {
+                Wire::BasePointerOffset { h, base, offset } => AilExpression {
                     header: rebuild_header(h),
-                    inner: ExprInner::BasePointerOffset {
-                        base: base.into_pyany(py).unwrap_or_else(|_| py.None()),
-                        offset: offset.into_pyany(py).unwrap_or_else(|_| py.None()),
-                    },
-                }),
+                    inner: ExprInner::BasePointerOffset { base, offset },
+                },
                 Wire::StackBaseOffset { h, offset } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::StackBaseOffset { offset },
