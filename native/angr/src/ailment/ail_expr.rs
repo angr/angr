@@ -96,7 +96,15 @@ pub enum ExprInner {
         category: crate::ailment::enums::VirtualVariableCategory,
         /// Per-category payload; see ``OIdent``.
         oident: OIdent,
-        reg_vvars: Py<PyDict>,
+        /// Sub-register vvars for ``COMBO_REGISTER`` category. ``None``
+        /// for any other category (semantically "not applicable"); for
+        /// ``COMBO_REGISTER`` an empty ``Vec`` represents "not yet
+        /// populated", which is the initial state set by clinic's
+        /// COMBO_REGISTER parameter-vvar synthesis before sub-register
+        /// vvars are computed. Each element is invariantly an
+        /// ``AilExpression`` of variant ``VirtualVariable``; the
+        /// constructor enforces this once at construction.
+        reg_vvars: Option<Vec<Box<AilExpression>>>,
     },
     UnaryOp {
         op: String,
@@ -1716,8 +1724,10 @@ impl AilExpression {
                 varid: *varid,
                 category: *category,
                 oident: oident.clone(),
-                reg_vvars: dc_pyany(reg_vvars.bind(py).as_any().as_unbound())?
-                    .extract::<Py<PyDict>>(py)?,
+                reg_vvars: reg_vvars
+                    .as_ref()
+                    .map(|vec| vec.iter().map(|b| recurse(b)).collect::<PyResult<Vec<_>>>())
+                    .transpose()?,
             },
             ExprInner::UnaryOp { op, operand } => ExprInner::UnaryOp {
                 op: op.clone(),
@@ -2861,11 +2871,27 @@ impl Expression {
             _ => OIdent::None,
         };
         let reg_vvars = match reg_vvars {
-            Some(o) if !o.is_none() => o
-                .cast_into::<PyDict>()
-                .map_err(|_| PyTypeError::new_err("reg_vvars must be a dict or None"))?
-                .unbind(),
-            _ => PyDict::new(py).unbind(),
+            Some(o) if !o.is_none() => {
+                let items: Vec<Bound<'_, PyAny>> = o
+                    .try_iter()
+                    .map_err(|_| PyTypeError::new_err(
+                        "reg_vvars must be a list of VirtualVariable Expressions or None",
+                    ))?
+                    .collect::<PyResult<Vec<_>>>()?;
+                let mut decoded: Vec<Box<AilExpression>> = Vec::with_capacity(items.len());
+                for (i, item) in items.into_iter().enumerate() {
+                    let ail = extract_ail(&item)?;
+                    if !matches!(ail.inner, ExprInner::VirtualVariable { .. }) {
+                        return Err(PyTypeError::new_err(format!(
+                            "reg_vvars[{}] must be a VirtualVariable Expression",
+                            i
+                        )));
+                    }
+                    decoded.push(Box::new(ail));
+                }
+                Some(decoded)
+            }
+            _ => None,
         };
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
@@ -3914,10 +3940,25 @@ impl Expression {
     }
 
     /// VirtualVariable.reg_vvars
+    ///
+    /// Returns ``None`` for non-COMBO_REGISTER vvars, an empty list for
+    /// COMBO_REGISTER vvars whose sub-registers haven't been populated
+    /// yet, and a list of ``VirtualVariable`` Expression wrappers
+    /// otherwise. Each call mints fresh wrappers around clones of the
+    /// inner ``AilExpression`` nodes (same pattern as ``.operands``).
     #[getter]
-    fn reg_vvars(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+    fn reg_vvars<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyList>>> {
         match &self.expr.inner {
-            ExprInner::VirtualVariable { reg_vvars, .. } => Ok(reg_vvars.clone_ref(py)),
+            ExprInner::VirtualVariable { reg_vvars, .. } => match reg_vvars {
+                None => Ok(None),
+                Some(vec) => {
+                    let items: Vec<Bound<'py, PyAny>> = vec
+                        .iter()
+                        .map(|b| Ok::<_, PyErr>(Py::new(py, Self::wrap((**b).clone()))?.into_bound(py).into_any()))
+                        .collect::<PyResult<_>>()?;
+                    Ok(Some(PyList::new(py, items)?))
+                }
+            },
             _ => Err(PyAttributeError::new_err(
                 "no 'reg_vvars' on this Expression",
             )),
@@ -5800,7 +5841,7 @@ pub mod serialize {
             varid: i64,
             category: u8,
             oident: PolyValue,
-            reg_vvars: PolyValue,
+            reg_vvars: Option<Vec<Wire>>,
         },
         UnaryOp {
             h: Hdr,
@@ -5998,7 +6039,7 @@ pub mod serialize {
                     category,
                     oident,
                     reg_vvars,
-                } => Python::attach(|py| {
+                } => {
                     // Project the typed ``OIdent`` into the existing
                     // ``PolyValue`` wire shape so cached AIL blobs stay
                     // compatible.
@@ -6022,16 +6063,16 @@ pub mod serialize {
                             }
                         }
                     }
-                    let rv = PolyValue::from_pyany(reg_vvars.bind(py).as_any())
-                        .unwrap_or(PolyValue::None);
                     Wire::VirtualVariable {
                         h: hdr,
                         varid: *varid,
                         category: *category as u8,
                         oident: ident_to_poly(oident),
-                        reg_vvars: rv,
+                        reg_vvars: reg_vvars
+                            .as_ref()
+                            .map(|vec| vec.iter().map(|b| Wire::from(b.as_ref())).collect()),
                     }
-                }),
+                }
                 ExprInner::UnaryOp { op, operand } => Wire::UnaryOp {
                     h: hdr,
                     op: op.clone(),
@@ -6397,22 +6438,15 @@ pub mod serialize {
                         }
                     }
                     let oident_typed = poly_to_ident(oident, cat);
-                    let reg_vvars_py = match reg_vvars.into_pyany(py) {
-                        Ok(obj) => {
-                            let b = obj.into_bound(py);
-                            b.cast::<pyo3::types::PyDict>()
-                                .map(|d| d.clone().unbind())
-                                .unwrap_or_else(|_| pyo3::types::PyDict::new(py).unbind())
-                        }
-                        Err(_) => pyo3::types::PyDict::new(py).unbind(),
-                    };
+                    let _ = py;
                     AilExpression {
                         header: rebuild_header(h),
                         inner: ExprInner::VirtualVariable {
                             varid,
                             category: cat,
                             oident: oident_typed,
-                            reg_vvars: reg_vvars_py,
+                            reg_vvars: reg_vvars
+                                .map(|vec| vec.into_iter().map(|w| Box::new(w.into_ail())).collect()),
                         },
                     }
                 }),
