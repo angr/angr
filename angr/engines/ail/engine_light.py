@@ -43,6 +43,7 @@ def _claripy_rm(rm: RoundingMode | None) -> object:
         return claripy.fp.RM.default()
     return _AIL_RM_TO_CLARIPY[rm]
 
+
 type StateType = SimState[int, claripy.ast.BV]
 type DataType = claripy.ast.Bits | claripy.ast.Bool
 
