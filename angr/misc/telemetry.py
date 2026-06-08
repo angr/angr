@@ -44,6 +44,10 @@ except ImportError:
         def add_event(*args, **kwargs):
             pass
 
+        @staticmethod
+        def is_recording(*args, **kwargs):
+            return False
+
     get_current_span = Tracer.get_current_span
 
 

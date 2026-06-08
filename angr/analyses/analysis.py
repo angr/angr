@@ -14,7 +14,7 @@ from inspect import Signature
 from itertools import chain
 from traceback import format_exception
 from types import NoneType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import psutil
 from rich import progress
@@ -176,7 +176,7 @@ class AnalysisFactory[A: Analysis]:
     def __init__(self, project: Project, analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
-        self.__sig = Signature.from_callable(analysis_cls.__init__)
+        self.__sig: Signature | None = None  # will be computed upon first access
 
     def prep(
         self,
@@ -192,41 +192,44 @@ class AnalysisFactory[A: Analysis]:
         @t.start_as_current_span(self._analysis_cls.__name__)
         def wrapper(*args, **kwargs):
             span = telemetry.get_current_span()
-            sig = cast(Signature, self.__sig)
-            bound = sig.bind(None, *args, **kwargs)
-            for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
-                if name in ("kwargs", "self"):
-                    continue
-                if isinstance(val, (str, bytes, bool, int, float, NoneType)):
-                    if val is None:
-                        span.set_attribute(f"arg.{name}.is_none", True)
+            if span.is_recording():
+                if self.__sig is None:
+                    self.__sig = Signature.from_callable(self._analysis_cls.__init__)
+                sig = self.__sig
+                bound = sig.bind(None, *args, **kwargs)
+                for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
+                    if name in ("kwargs", "self"):
+                        continue
+                    if isinstance(val, (str, bytes, bool, int, float, NoneType)):
+                        if val is None:
+                            span.set_attribute(f"arg.{name}.is_none", True)
+                        else:
+                            span.set_attribute(f"arg.{name}", val)
+                    elif isinstance(val, (list, tuple, set, frozenset)):
+                        listval = list(val)
+                        if not listval or (
+                            isinstance(listval[0], (str, bytes, bool, int, float))
+                            and all(type(sval) is type(listval[0]) for sval in listval)
+                        ):
+                            span.set_attribute(f"arg.{name}", listval)
+                    elif isinstance(val, dict):
+                        listval_keys = list(val)
+                        listval_values = list(val.values())
+                        if not listval_keys or (
+                            isinstance(listval_keys[0], (str, bytes, bool, int, float))
+                            and all(type(sval) is type(listval_keys[0]) for sval in listval_keys)
+                        ):
+                            span.set_attribute(f"arg.{name}.keys", listval_keys)
+                        if not listval_values or (
+                            isinstance(listval_values[0], (str, bytes, bool, int, float))
+                            and all(type(sval) is type(listval_values[0]) for sval in listval_values)
+                        ):
+                            span.set_attribute(f"arg.{name}.values", listval_values)
                     else:
-                        span.set_attribute(f"arg.{name}", val)
-                elif isinstance(val, (list, tuple, set, frozenset)):
-                    listval = list(val)
-                    if not listval or (
-                        isinstance(listval[0], (str, bytes, bool, int, float))
-                        and all(type(sval) is type(listval[0]) for sval in listval)
-                    ):
-                        span.set_attribute(f"arg.{name}", listval)
-                elif isinstance(val, dict):
-                    listval_keys = list(val)
-                    listval_values = list(val.values())
-                    if not listval_keys or (
-                        isinstance(listval_keys[0], (str, bytes, bool, int, float))
-                        and all(type(sval) is type(listval_keys[0]) for sval in listval_keys)
-                    ):
-                        span.set_attribute(f"arg.{name}.keys", listval_keys)
-                    if not listval_values or (
-                        isinstance(listval_values[0], (str, bytes, bool, int, float))
-                        and all(type(sval) is type(listval_values[0]) for sval in listval_values)
-                    ):
-                        span.set_attribute(f"arg.{name}.values", listval_values)
-                else:
-                    span.set_attribute(f"arg.{name}.unrepresentable", True)
-            if self._project.filename is not None:
-                span.set_attribute("project.binary_name", self._project.filename)
-            span.set_attribute("project.arch_name", self._project.arch.name)
+                        span.set_attribute(f"arg.{name}.unrepresentable", True)
+                if self._project.filename is not None:
+                    span.set_attribute("project.binary_name", self._project.filename)
+                span.set_attribute("project.arch_name", self._project.arch.name)
 
             oself = object.__new__(self._analysis_cls)
             oself.named_errors = defaultdict(list)
