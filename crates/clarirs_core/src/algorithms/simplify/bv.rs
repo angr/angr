@@ -1243,19 +1243,70 @@ pub(crate) fn simplify_bv<'c>(
                 }
             }
 
-            // Merge adjacent constants
+            // Concat(If(c, a0, b0), If(c, a1, b1), ...)
+            //   -> If(c, Concat(a0, a1, ...), Concat(b0, b1, ...))
+            // when every piece is an ITE guarded by the same condition. This
+            // recombines values computed lane-by-lane (e.g. a word updated
+            // byte-wise in memory) back into a single conditional, which is what
+            // lets the surrounding arithmetic collapse.
+            if flattened.len() >= 2
+                && let BitVecOp::ITE(cond0, _, _) = flattened[0].op()
+            {
+                let cond_hash = cond0.hash();
+                let all_same_cond = flattened
+                    .iter()
+                    .all(|a| matches!(a.op(), BitVecOp::ITE(c, _, _) if c.hash() == cond_hash));
+                if all_same_cond {
+                    let cond = match flattened[0].op() {
+                        BitVecOp::ITE(c, _, _) => c.clone(),
+                        _ => unreachable!(),
+                    };
+                    let mut thens: Vec<BitVecAst<'c>> = Vec::with_capacity(flattened.len());
+                    let mut elses: Vec<BitVecAst<'c>> = Vec::with_capacity(flattened.len());
+                    for a in &flattened {
+                        if let BitVecOp::ITE(_, t, e) = a.op() {
+                            thens.push(t.clone());
+                            elses.push(e.clone());
+                        }
+                    }
+                    let then_concat = ctx.concat(thens)?;
+                    let else_concat = ctx.concat(elses)?;
+                    return state.rerun(ctx.ite(cond, then_concat, else_concat)?);
+                }
+            }
+
+            // Merge adjacent constants and adjacent extracts of the same source.
             let mut merged: Vec<BitVecAst<'c>> = Vec::new();
+            let mut merged_extracts = false;
             for arg in flattened {
+                // Concat(.., BVV(a), BVV(b)) -> Concat(.., BVV(a .. b))
                 if let (Some(last), BitVecOp::BVV(curr_val)) = (merged.last(), arg.op())
                     && let BitVecOp::BVV(last_val) = last.op()
                 {
-                    // Merge adjacent constants
                     let merged_val = last_val.concat(curr_val)?;
                     merged.pop();
                     merged.push(ctx.bvv(merged_val)?);
-                } else {
-                    merged.push(arg);
+                    continue;
                 }
+                // Concat(.., Extract(hi, mid + 1, x), Extract(mid, lo, x))
+                //   -> Concat(.., Extract(hi, lo, x))
+                // Reassembles a value that was split into adjacent pieces, e.g. a
+                // word stored/loaded byte-wise in memory. Without this, such
+                // split-then-recombined values survive to the solver and can make
+                // otherwise-trivial queries extremely hard.
+                if let Some(last) = merged.last()
+                    && let BitVecOp::Extract(hi_src, hi_high, hi_low) = last.op()
+                    && let BitVecOp::Extract(lo_src, lo_high, lo_low) = arg.op()
+                    && *hi_low == lo_high + 1
+                    && hi_src.hash() == lo_src.hash()
+                {
+                    let combined = ctx.extract(hi_src, *hi_high, *lo_low)?;
+                    merged.pop();
+                    merged.push(combined);
+                    merged_extracts = true;
+                    continue;
+                }
+                merged.push(arg);
             }
 
             // Concat(BVV(0, N), rest...) -> ZeroExt(N, Concat(rest...))
@@ -1273,12 +1324,21 @@ pub(crate) fn simplify_bv<'c>(
             }
 
             // Handle result based on merged length
-            match merged.len() {
-                0 => Err(SimplifyError::Error(ClarirsError::InvalidArguments(
-                    "Concat resulted in zero arguments".to_string(),
-                ))),
-                1 => Ok(merged.into_iter().next().unwrap()),
-                _ => Ok(ctx.concat(merged)?),
+            let result = match merged.len() {
+                0 => {
+                    return Err(SimplifyError::Error(ClarirsError::InvalidArguments(
+                        "Concat resulted in zero arguments".to_string(),
+                    )));
+                }
+                1 => merged.into_iter().next().unwrap(),
+                _ => ctx.concat(merged)?,
+            };
+            // Re-simplify when extracts were combined so that a now-full-range
+            // Extract(size - 1, 0, x) collapses back to x.
+            if merged_extracts {
+                state.rerun(result)
+            } else {
+                Ok(result)
             }
         }
         BitVecOp::ByteReverse(..) => {
