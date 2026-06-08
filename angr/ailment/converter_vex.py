@@ -7,6 +7,7 @@ import pyvex
 
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import UnsupportedIROpError
+from angr.rustylib.ailment import RoundingMode
 from angr.utils.constants import DEFAULT_STATEMENT
 
 from .block import Block
@@ -28,6 +29,23 @@ from .expression import (
 from .statement import CAS, Assignment, ConditionalJump, DirtyStatement, Jump, Return, SideEffectStatement, Store
 
 log = logging.getLogger(name=__name__)
+
+
+def _vex_rm_to_enum(rm: object) -> RoundingMode | None:
+    """Translate a VEX rounding-mode operand to the typed ``RoundingMode`` enum.
+
+    VEX encodes the rounding mode as a 2-bit integer (matching
+    ``claripy.fp.RM`` ordering) carried as the first operand of FP
+    triops / conversion ops. In practice ``rm`` is an AIL ``Const``
+    with value 0..=3; symbolic operands are rare and the engine falls
+    back to ``claripy.fp.RM.default()`` for them, so we drop to
+    ``None`` (with a one-shot log) on anything we can't decode.
+    """
+    if isinstance(rm, Const) and isinstance(rm.value, int):
+        decoded = RoundingMode._from_int_py(rm.value & 0b11)
+        return decoded
+    log.warning("Non-Const VEX rounding-mode operand (%r); dropping to None", rm)
+    return None
 
 
 class VEXExprConverter:
@@ -245,7 +263,7 @@ class VEXExprConverter:
             # TODO: Finish this
             if op._from_type == "I" and op._to_type == "F":
                 # integer to floating point
-                rm = operands[0]
+                rm = _vex_rm_to_enum(operands[0])
                 operand = operands[1]
                 return Convert(
                     manager.next_atom(),
@@ -265,7 +283,7 @@ class VEXExprConverter:
                 op_name = "Concat"
             elif op._from_type == "F" and op._to_type == "F":
                 # floating point to floating point
-                rm = operands[0]
+                rm = _vex_rm_to_enum(operands[0])
                 operand = operands[1]
                 return Convert(
                     manager.next_atom(),
@@ -283,7 +301,7 @@ class VEXExprConverter:
             elif op._from_type == "F" and op._to_type == "I":
                 # floating point to integer
                 # floating point to floating point
-                rm = operands[0]
+                rm = _vex_rm_to_enum(operands[0])
                 operand = operands[1]
                 return Convert(
                     manager.next_atom(),
@@ -388,7 +406,7 @@ class VEXExprConverter:
         if op._float:
             # this is a floating-point operation where the first argument is the rounding mode. in fact, we have a
             # BinaryOp here.
-            rm = operands[0]
+            rm = _vex_rm_to_enum(operands[0])
             return BinaryOp(
                 manager.next_atom(),
                 op_name,
