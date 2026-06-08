@@ -1,4 +1,4 @@
-# pylint:disable=unused-import
+# pylint:disable=unused-import,protected-access
 from __future__ import annotations
 
 import logging
@@ -196,6 +196,13 @@ class Decompiler(Analysis):
         self.region_identifier = None
         self.use_cache = use_cache
         self.update_cache = update_cache
+
+        self._variable_map = None
+        # structuring-specific parameters - will be reset in _decompile()
+        self._force_loop_single_exit = True
+        self._refine_loops_with_single_successor = False
+        self._complete_successors = False
+        self._recursive_structurer_params = {}
 
         # cache of reusable AILBlockWalker instances that are shared by all SPropagator instances created during
         # decompilation. Owned here so all walkers are released when this Decompiler instance is garbage-collected.
