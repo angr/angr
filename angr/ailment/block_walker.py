@@ -106,10 +106,10 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls._rebuild_default_handler_funcs()
+        cls.rebuild_default_handler_funcs()
 
     @classmethod
-    def _rebuild_default_handler_funcs(cls) -> None:
+    def rebuild_default_handler_funcs(cls) -> None:
         cls._default_stmt_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
         cls._default_expr_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
 
@@ -415,7 +415,7 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
 
 
 # __init_subclass__ only runs for subclasses; build the base class's default handler tables explicitly.
-AILBlockWalker._rebuild_default_handler_funcs()
+AILBlockWalker.rebuild_default_handler_funcs()
 
 
 class AILBlockViewer(AILBlockWalker[None, None, None]):
