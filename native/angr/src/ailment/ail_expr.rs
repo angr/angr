@@ -25,7 +25,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::base::CachedHash;
-use crate::ailment::enums::ConvertType;
+use crate::ailment::enums::{ConvertType, RoundingMode};
 use crate::ailment::hash::{HashItem, stable_hash};
 use crate::ailment::tags::{Tags, TagsView};
 
@@ -109,7 +109,7 @@ pub enum ExprInner {
         is_signed: bool,
         from_type: ConvertType,
         to_type: ConvertType,
-        rounding_mode: Option<Py<PyAny>>,
+        rounding_mode: Option<RoundingMode>,
     },
     Reinterpret {
         operand: Box<AilExpression>,
@@ -123,7 +123,7 @@ pub enum ExprInner {
         operands: [Box<AilExpression>; 2],
         signed: bool,
         floating_point: bool,
-        rounding_mode: Option<Py<PyAny>>,
+        rounding_mode: Option<RoundingMode>,
         vector_count: Option<i64>,
         vector_size: Option<i64>,
     },
@@ -711,7 +711,7 @@ impl AilExpression {
             } => {
                 let oh = operand.cached_hash_or_compute();
                 let rm = match rounding_mode {
-                    Some(_) => HashItem::Str("rm-present"),
+                    Some(r) => HashItem::Int(*r as u8 as i128),
                     None => HashItem::None,
                 };
                 stable_hash(&[
@@ -1069,9 +1069,7 @@ impl AilExpression {
                             is_signed: *is_signed,
                             from_type: *from_type,
                             to_type: *to_type,
-                            rounding_mode: rounding_mode.as_ref().map(|x| {
-                                Python::attach(|py| x.clone_ref(py))
-                            }),
+                            rounding_mode: *rounding_mode,
                         },
                     },
                 )
@@ -1124,9 +1122,7 @@ impl AilExpression {
                             operands: [rl, rr],
                             signed: *signed,
                             floating_point: *floating_point,
-                            rounding_mode: rounding_mode.as_ref().map(|x| {
-                                Python::attach(|py| x.clone_ref(py))
-                            }),
+                            rounding_mode: *rounding_mode,
                             vector_count: *vector_count,
                             vector_size: *vector_size,
                         },
@@ -1742,10 +1738,7 @@ impl AilExpression {
                 is_signed: *is_signed,
                 from_type: *from_type,
                 to_type: *to_type,
-                rounding_mode: match rounding_mode {
-                    Some(r) => Some(dc_pyany(r)?),
-                    None => None,
-                },
+                rounding_mode: *rounding_mode,
             },
             ExprInner::Reinterpret {
                 operand,
@@ -1773,10 +1766,7 @@ impl AilExpression {
                 operands: [recurse(&operands[0])?, recurse(&operands[1])?],
                 signed: *signed,
                 floating_point: *floating_point,
-                rounding_mode: match rounding_mode {
-                    Some(r) => Some(dc_pyany(r)?),
-                    None => None,
-                },
+                rounding_mode: *rounding_mode,
                 vector_count: *vector_count,
                 vector_size: *vector_size,
             },
@@ -2987,13 +2977,12 @@ impl Expression {
         operand: Bound<'_, PyAny>,
         from_type: Option<ConvertType>,
         to_type: Option<ConvertType>,
-        rounding_mode: Option<Bound<'_, PyAny>>,
+        rounding_mode: Option<RoundingMode>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
         let operand_ail = extract_ail(&operand)?;
         let depth = operand_ail.header.depth + 1;
-        let rm = rounding_mode.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, to_bits, tags),
             inner: ExprInner::Convert {
@@ -3003,7 +2992,7 @@ impl Expression {
                 is_signed,
                 from_type: from_type.unwrap_or(ConvertType::TYPE_INT),
                 to_type: to_type.unwrap_or(ConvertType::TYPE_INT),
-                rounding_mode: rm,
+                rounding_mode,
             },
         }))
     }
@@ -3051,7 +3040,7 @@ impl Expression {
         signed: bool,
         bits: Option<u32>,
         floating_point: bool,
-        rounding_mode: Option<Bound<'_, PyAny>>,
+        rounding_mode: Option<RoundingMode>,
         vector_count: Option<i64>,
         vector_size: Option<i64>,
         kwargs: Option<&Bound<'_, PyDict>>,
@@ -3072,8 +3061,6 @@ impl Expression {
         let depth = lhs_ail.header.depth.max(rhs_ail.header.depth) + 1;
         let final_bits = bits.unwrap_or(lhs_ail.header.bits);
 
-        let rm = rounding_mode.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
-
         let _ = py;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, final_bits, tags),
@@ -3082,7 +3069,7 @@ impl Expression {
                 operands: [Box::new(lhs_ail), Box::new(rhs_ail)],
                 signed,
                 floating_point,
-                rounding_mode: rm,
+                rounding_mode,
                 vector_count,
                 vector_size,
             },
@@ -4736,12 +4723,10 @@ impl Expression {
 
     /// Convert.rounding_mode / BinaryOp.rounding_mode
     #[getter]
-    fn rounding_mode<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+    fn rounding_mode(&self) -> Option<RoundingMode> {
         match &self.expr.inner {
             ExprInner::Convert { rounding_mode, .. }
-            | ExprInner::BinaryOp { rounding_mode, .. } => {
-                rounding_mode.as_ref().map(|r| r.bind(py).clone())
-            }
+            | ExprInner::BinaryOp { rounding_mode, .. } => *rounding_mode,
             _ => None,
         }
     }
@@ -5611,7 +5596,7 @@ pub mod serialize {
         AilExpression, CFGTarget, ConstValue, Expression, ExprHeader, ExprInner, OIdent,
         ParameterOIdent,
     };
-    use crate::ailment::enums::ConvertType;
+    use crate::ailment::enums::{ConvertType, RoundingMode};
     use crate::ailment::tags::Tags;
     use pyo3::prelude::*;
     use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
@@ -5830,7 +5815,7 @@ pub mod serialize {
             is_signed: bool,
             from_type: ConvertType,
             to_type: ConvertType,
-            rounding_mode: Option<PolyValue>,
+            rounding_mode: Option<RoundingMode>,
         },
         Reinterpret {
             h: Hdr,
@@ -5849,7 +5834,7 @@ pub mod serialize {
             floating_point: bool,
             vector_count: Option<i64>,
             vector_size: Option<i64>,
-            rounding_mode: Option<PolyValue>,
+            rounding_mode: Option<RoundingMode>,
         },
         Load {
             h: Hdr,
@@ -6060,7 +6045,7 @@ pub mod serialize {
                     from_type,
                     to_type,
                     rounding_mode,
-                } => Python::attach(|py| Wire::Convert {
+                } => Wire::Convert {
                     h: hdr,
                     operand: Box::new(Wire::from(operand)),
                     from_bits: *from_bits,
@@ -6068,8 +6053,8 @@ pub mod serialize {
                     is_signed: *is_signed,
                     from_type: *from_type,
                     to_type: *to_type,
-                    rounding_mode: PolyValue::from_opt(rounding_mode, py).unwrap_or(None),
-                }),
+                    rounding_mode: *rounding_mode,
+                },
                 ExprInner::Reinterpret {
                     operand,
                     from_bits,
@@ -6092,7 +6077,7 @@ pub mod serialize {
                     vector_count,
                     vector_size,
                     rounding_mode,
-                } => Python::attach(|py| Wire::BinaryOp {
+                } => Wire::BinaryOp {
                     h: hdr,
                     op: op.clone(),
                     lhs: Box::new(Wire::from(&operands[0])),
@@ -6101,8 +6086,8 @@ pub mod serialize {
                     floating_point: *floating_point,
                     vector_count: *vector_count,
                     vector_size: *vector_size,
-                    rounding_mode: PolyValue::from_opt(rounding_mode, py).unwrap_or(None),
-                }),
+                    rounding_mode: *rounding_mode,
+                },
                 ExprInner::Load {
                     addr,
                     size,
@@ -6447,7 +6432,7 @@ pub mod serialize {
                     from_type,
                     to_type,
                     rounding_mode,
-                } => Python::attach(|py| AilExpression {
+                } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Convert {
                         operand: Box::new(operand.into_ail()),
@@ -6456,9 +6441,9 @@ pub mod serialize {
                         is_signed,
                         from_type,
                         to_type,
-                        rounding_mode: PolyValue::into_opt(rounding_mode, py).unwrap_or(None),
+                        rounding_mode,
                     },
-                }),
+                },
                 Wire::Reinterpret {
                     h,
                     operand,
@@ -6486,18 +6471,18 @@ pub mod serialize {
                     vector_count,
                     vector_size,
                     rounding_mode,
-                } => Python::attach(|py| AilExpression {
+                } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::BinaryOp {
                         op,
                         operands: [Box::new(lhs.into_ail()), Box::new(rhs.into_ail())],
                         signed,
                         floating_point,
-                        rounding_mode: PolyValue::into_opt(rounding_mode, py).unwrap_or(None),
+                        rounding_mode,
                         vector_count,
                         vector_size,
                     },
-                }),
+                },
                 Wire::Load {
                     h,
                     addr,
