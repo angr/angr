@@ -108,13 +108,12 @@ def get_vvar_deflocs(
     walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
-            # Phase D: skip ``isinstance(stmt, MarkerCls)`` (~150 ns through
-            # the metaclass) in favor of direct ``stmt.kind`` compares
-            # (~50 ns). A few legacy Python subclasses of ``Statement``
-            # (e.g. ``IncompleteSwitchCaseHeadStatement``) don't have a
-            # ``kind`` slot, so use ``getattr`` to fall back to ``None``;
-            # neither of the branches below matches None.
-            kind = getattr(stmt, "kind", None)
+            # Phase D: dispatch on ``stmt.kind`` directly (~20 ns) instead
+            # of ``isinstance(stmt, MarkerCls)`` (~150 ns via the marker
+            # metaclass). The legacy ``IncompleteSwitchCaseHeadStatement``
+            # subclass declares its own class-level ``kind`` attribute
+            # (``"IncompleteSwitchCaseHead"``) so this read always works.
+            kind = stmt.kind
             if kind == "Assignment":
                 dst = stmt.dst
                 if dst.kind == "VirtualVariable":
@@ -165,7 +164,7 @@ def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, in
         codeloc = (block.addr, block.idx)
         for stmt_idx, stmt in enumerate(block.statements):
             # See ``get_vvar_deflocs`` for the .kind vs isinstance() rationale.
-            kind = getattr(stmt, "kind", None)
+            kind = stmt.kind
             if kind == "Assignment":
                 dst = stmt.dst
                 if dst.kind == "Tmp":

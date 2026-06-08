@@ -429,6 +429,13 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
 
     __slots__ = ("_case_addrs_str", "addr", "case_addrs", "switch_variable")
 
+    # Mirror the Phase-D ``Statement.kind`` slot so downstream code that
+    # dispatches on ``stmt.kind`` doesn't have to fall back to
+    # ``getattr(stmt, "kind", None)``. The chosen tag is distinct from
+    # every rustlib variant so the kind-keyed dispatch sites land in
+    # their default branch.
+    kind = "IncompleteSwitchCaseHead"
+
     def __init__(self, idx, switch_variable, case_addrs, **kwargs):
         super().__init__(idx, **kwargs)
         self.switch_variable = switch_variable
