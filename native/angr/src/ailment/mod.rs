@@ -32,6 +32,7 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Enums
     m.add_class::<enums::VirtualVariableCategory>()?;
     m.add_class::<enums::ConvertType>()?;
+    m.add_class::<enums::RoundingMode>()?;
 
     // Phase D fat-enum pyclasses. ``Expression`` wraps the ``AilExpression``
     // sum, ``Statement`` wraps the ``AilStatement`` sum. Per-variant
