@@ -11,20 +11,20 @@ from angr.ailment import Address, Block, Expression
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import (
     ITE,
+    BinaryOp,
     Call,
     Const,
     Convert,
     DirtyExpression,
     Extract,
-    FunctionLikeMacro,
     Insert,
     Load,
+    MultiStatementExpression,
     Phi,
-    Register,
+    Reinterpret,
     StackBaseOffset,
     Tmp,
     UnaryOp,
-    VEXCCallExpression,
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
@@ -136,16 +136,10 @@ def get_vvar_deflocs(
 
 
 def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
-    vvar_to_loc: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
+    collector = VVarUsesCollector()
     for block in blocks:
-        collector = VVarUsesCollector()
         collector.walk(block)
-        for vvar_idx, vvar_and_uselocs in collector.vvar_and_uselocs.items():
-            if vvar_idx not in vvar_to_loc:
-                vvar_to_loc[vvar_idx] = list(vvar_and_uselocs)
-            else:
-                vvar_to_loc[vvar_idx] += vvar_and_uselocs
-    return vvar_to_loc
+    return collector.vvar_and_uselocs
 
 
 def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, int]]:
@@ -167,9 +161,9 @@ def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, in
 
 def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]]:
     tmp_to_loc: dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
-
+    collector = TmpUsesCollector()
     for block in blocks:
-        collector = TmpUsesCollector()
+        collector.reset()
         collector.walk(block)
         block_loc = (block.addr, block.idx)
         for (tmp_idx, tmp_bits), tmp_and_stmtids in collector.tmp_and_uselocs.items():
@@ -230,42 +224,81 @@ class AILBlacklistExprTypeWalker(AILBlockViewer):
         return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
-def is_const_and_vvar_assignment(stmt: Statement) -> bool:
+class AILWhitelistExprTypeWalker(AILBlockViewer):
+    """
+    Walks an AIL expression or statement and determines if it is built *only* out of a whitelisted set of expression
+    types. ``has_nonwhitelisted_exprs`` is set to True as soon as any expression whose type is not in the whitelist is
+    encountered.
+
+    Note that the whitelist must include the operator/container types that the walker recurses through (e.g. BinaryOp,
+    UnaryOp), otherwise those nodes would be flagged as non-whitelisted.
+    """
+
+    def __init__(self, whitelist_expr_types: tuple[type, ...]):
+        super().__init__()
+        self.whitelist_expr_types = whitelist_expr_types
+        self.has_nonwhitelisted_exprs = False
+
+    def reset(self) -> None:
+        self.has_nonwhitelisted_exprs = False
+
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Any:
+        if not isinstance(expr, self.whitelist_expr_types):
+            self.has_nonwhitelisted_exprs = True
+            # the result is already determined; no need to recurse into this subtree
+            return None
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+_CONST_VVAR_OPERATORS: tuple[type, ...] = (
+    BinaryOp,
+    UnaryOp,
+    ITE,
+    Extract,
+    Insert,
+    MultiStatementExpression,
+    StackBaseOffset,
+    Convert,
+    Reinterpret,
+)
+CONST_VVAR_WHITELIST = (Const, VirtualVariable, *_CONST_VVAR_OPERATORS)
+CONST_VVAR_TMP_WHITELIST = (*CONST_VVAR_WHITELIST, Tmp)
+CONST_VVAR_LOAD_WHITELIST = (*CONST_VVAR_WHITELIST, Load)
+CONST_VVAR_LOAD_DIRTY_WHITELIST = (*CONST_VVAR_WHITELIST, Load, DirtyExpression)
+
+
+def _check_whitelisted_assignment_src(
+    stmt: Statement, whitelist: tuple[type, ...], walker_cached: AILWhitelistExprTypeWalker | None
+) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker(
-            (Tmp, Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro)
-        )
+        if walker_cached is None:
+            walker = AILWhitelistExprTypeWalker(whitelist)
+        else:
+            walker = walker_cached
+            walker.reset()
         walker.walk_expression(stmt.src)
-        return not walker.has_blacklisted_exprs
+        return not walker.has_nonwhitelisted_exprs
     return False
 
 
-def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
-    if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker(
-            (Load, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro)
-        )
-        walker.walk_expression(stmt.src)
-        return not walker.has_blacklisted_exprs
-    return False
+def is_const_and_vvar_assignment(stmt: Statement, walker_cached: AILWhitelistExprTypeWalker | None = None) -> bool:
+    return _check_whitelisted_assignment_src(stmt, CONST_VVAR_WHITELIST, walker_cached)
 
 
-def is_const_vvar_load_assignment(stmt: Statement) -> bool:
-    if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker(
-            (Tmp, Register, Phi, Call, DirtyExpression, VEXCCallExpression, FunctionLikeMacro)
-        )
-        walker.walk_expression(stmt.src)
-        return not walker.has_blacklisted_exprs
-    return False
+def is_const_vvar_tmp_assignment(stmt: Statement, walker_cached: AILWhitelistExprTypeWalker | None = None) -> bool:
+    return _check_whitelisted_assignment_src(stmt, CONST_VVAR_TMP_WHITELIST, walker_cached)
 
 
-def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
-    if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, VEXCCallExpression, FunctionLikeMacro))
-        walker.walk_expression(stmt.src)
-        return not walker.has_blacklisted_exprs
-    return False
+def is_const_vvar_load_assignment(stmt: Statement, walker_cached: AILWhitelistExprTypeWalker | None = None) -> bool:
+    return _check_whitelisted_assignment_src(stmt, CONST_VVAR_LOAD_WHITELIST, walker_cached)
+
+
+def is_const_vvar_load_dirty_assignment(
+    stmt: Statement, walker_cached: AILWhitelistExprTypeWalker | None = None
+) -> bool:
+    return _check_whitelisted_assignment_src(stmt, CONST_VVAR_LOAD_DIRTY_WHITELIST, walker_cached)
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
@@ -496,6 +529,11 @@ def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> b
 
 
 __all__ = (
+    "CONST_VVAR_LOAD_DIRTY_WHITELIST",
+    "CONST_VVAR_LOAD_WHITELIST",
+    "CONST_VVAR_TMP_WHITELIST",
+    "CONST_VVAR_WHITELIST",
+    "AILWhitelistExprTypeWalker",
     "VVarUsesCollector",
     "check_in_between_stmts",
     "get_tmp_deflocs",

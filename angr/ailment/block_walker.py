@@ -99,6 +99,12 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
             expr_handlers or _default_expr_handlers
         )
 
+    def reset(self) -> None:
+        """
+        Reset per-walk state variables so that this walker can be reused for another walk. Subclasses that updates
+        state across a walk must override this to clear that state.
+        """
+
     def walk(self, block: Block) -> BlockType:
         i = 0
         results = []

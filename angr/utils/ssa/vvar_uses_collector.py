@@ -21,6 +21,10 @@ class VVarUsesCollector(AILBlockViewer):
         self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
         self.vvars: set[int] = set()
 
+    def reset(self) -> None:
+        self.vvar_and_uselocs = defaultdict(list)
+        self.vvars = set()
+
     def _handle_expr(self, expr_idx: int, expr, stmt_idx: int, stmt, block: Block | None):
         if expr.tags.get("extra_def", False):
             return None

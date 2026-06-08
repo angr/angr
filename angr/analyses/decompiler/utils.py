@@ -868,6 +868,9 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
 
         super().__init__(*args, **kwargs)
 
+    def reset(self) -> None:
+        self.any_update = False
+
     def _handle_expr(
         self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expression:
