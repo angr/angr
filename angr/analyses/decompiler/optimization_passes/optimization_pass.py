@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import weakref
 from collections import namedtuple
 from collections.abc import Generator
 from enum import Enum
@@ -447,6 +448,9 @@ class StructuringOptimizationPass(OptimizationPass):
     STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
+    # Key under which the shared cross-pass structurability cache is stored in self._scratch.
+    _STRUCTURABILITY_CACHE_KEY = "structurability_cache"
+
     _initial_gotos: set[Goto]
     _goto_manager: GotoManager | None
     _prev_graph: networkx.DiGraph
@@ -594,13 +598,44 @@ class StructuringOptimizationPass(OptimizationPass):
         Checks weather the input graph is structurable under the Phoenix schema-matching structuring algorithm.
         As a side effect, this will also update the region identifier and goto manager of this optimization pass.
         Consequently, a true return guarantees up-to-date goto information in the goto manager.
+
+        The actual probe (region identification + structuring + region simplification) is expensive and only depends on
+        the input graph, yet it is frequently redundant: consecutive optimization passes repeatedly probe the very same
+        unchanged graph. We therefore cache the result on the shared scratch (see :meth:`_compute_structurability`),
+        keyed on the graph object so that a modified graph (always a fresh object) naturally misses the cache.
+        """
+        # Only the initial probe of an unmodified graph is cacheable: a non-empty edges_to_remove mutates the graph in
+        # place, and readd_labels probes a freshly built graph that is not the cache key.
+        cacheable = initial and not readd_labels and not self._edges_to_remove
+        cache = None
+        if cacheable:
+            cache = self._scratch.get(self._STRUCTURABILITY_CACHE_KEY)
+            if cache is None:
+                cache = weakref.WeakKeyDictionary()
+                self._scratch[self._STRUCTURABILITY_CACHE_KEY] = cache
+            cached = cache.get(graph)
+            if cached is not None:
+                self._apply_structurability_result(*cached, initial=initial)
+                return cached[0]
+
+        result = self._compute_structurability(graph, readd_labels)
+        if cacheable:
+            cache[graph] = result
+        self._apply_structurability_result(*result, initial=initial)
+        return result[0]
+
+    def _compute_structurability(self, graph, readd_labels):
+        """
+        Run region identification, structuring, and region simplification on ``graph`` to determine whether it is
+        structurable. Returns ``(structurable, region_identifier, goto_manager, simplified_region)``. This is the
+        expensive part of :meth:`_graph_is_structurable`; it is pure with respect to ``graph`` and is cached there.
         """
         if readd_labels:
             graph = add_labels(graph, self.manager)
 
         remove_edges_in_ailgraph(graph, self._edges_to_remove)
 
-        self._ri = self.project.analyses[angr.analyses.decompiler.RegionIdentifier].prep(kb=self.kb)(
+        ri = self.project.analyses[angr.analyses.decompiler.RegionIdentifier].prep(kb=self.kb)(
             self._func,
             graph=graph,
             ail_manager=self.manager,
@@ -611,15 +646,15 @@ class StructuringOptimizationPass(OptimizationPass):
             complete_successors=True,
             entry_node_addr=self.entry_node_addr,
         )
-        if self._ri is None:
-            return False
+        if ri is None:
+            return False, None, None, None
 
         # we should try-catch structuring here because we can often pass completely invalid graphs
         # that break the assumptions of the structuring algorithm
         try:
             rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-                self._ri.region,
-                cond_proc=self._ri.cond_proc,
+                ri.region,
+                cond_proc=ri.cond_proc,
                 ail_manager=self.manager,
                 func=self._func,
                 structurer_cls=SAILRStructurer,
@@ -630,17 +665,26 @@ class StructuringOptimizationPass(OptimizationPass):
             rs = None
 
         if not rs or not rs.result or is_empty_node(rs.result) or rs.result_incomplete:
-            return False
+            return False, ri, None, None
 
         rs = self.project.analyses.RegionSimplifier(
             self._func, rs.result, self.manager, arg_vvars=self._arg_vvars, kb=self.kb
         )
         if not rs or rs.goto_manager is None or rs.result is None:
-            return False
+            return False, ri, None, None
 
-        self._analyze_simplified_region(rs.result, initial=initial)
-        self._goto_manager = rs.goto_manager
-        return True
+        return True, ri, rs.goto_manager, rs.result
+
+    def _apply_structurability_result(self, structurable, ri, goto_manager, region, initial=False) -> None:
+        """
+        Apply a (possibly cached) structurability result to ``self``, reproducing the side effects that
+        :meth:`_graph_is_structurable` historically had: updating ``self._ri``, and on success updating
+        ``self._goto_manager`` and invoking :meth:`_analyze_simplified_region`.
+        """
+        self._ri = ri
+        if structurable:
+            self._goto_manager = goto_manager
+            self._analyze_simplified_region(region, initial=initial)
 
     # pylint:disable=no-self-use
     def _analyze_simplified_region(self, region, initial=False):
