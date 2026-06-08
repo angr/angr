@@ -56,6 +56,9 @@ class SLivenessAnalysis(Analysis):
         graph = self.func_graph
         entry = self.entry
 
+        # a single collector is reused for every statement (reset before each walk)
+        vvar_use_collector = VVarUsesCollector()
+
         # initialize the live_in and live_out sets
         live_ins = {}
         live_outs = {}
@@ -143,7 +146,7 @@ class SLivenessAnalysis(Analysis):
                         if src != (block.addr, block.idx) and vvar is not None:
                             live |= {vvar.varid}
                 else:
-                    vvar_use_collector = VVarUsesCollector()
+                    vvar_use_collector.reset()
                     vvar_use_collector.walk_statement(stmt)
                     live |= vvar_use_collector.vvars
 
@@ -177,6 +180,9 @@ class SLivenessAnalysis(Analysis):
 
         graph = networkx.Graph()
 
+        # a single collector is reused for every statement (reset before each walk)
+        vvar_use_collector = VVarUsesCollector()
+
         for block in self.func_graph.nodes():
             live = self.model.live_outs[(block.addr, block.idx)].copy()
 
@@ -198,7 +204,7 @@ class SLivenessAnalysis(Analysis):
                     def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
-                vvar_use_collector = VVarUsesCollector()
+                vvar_use_collector.reset()
                 vvar_use_collector.walk_statement(stmt)
 
                 for def_vvar in def_vvars:
@@ -222,6 +228,9 @@ class SLivenessAnalysis(Analysis):
         :return: A dictionary mapping statements to sets of live variable IDs.
         """
         live_vars = defaultdict(dict)
+
+        # a single collector is reused for every statement (reset before each walk)
+        vvar_use_collector = VVarUsesCollector()
 
         for block in self.func_graph.nodes():
             live = self.model.live_outs[(block.addr, block.idx)].copy()
@@ -247,7 +256,7 @@ class SLivenessAnalysis(Analysis):
                     def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
-                vvar_use_collector = VVarUsesCollector()
+                vvar_use_collector.reset()
                 vvar_use_collector.walk_statement(stmt)
 
                 live_vars[block_key][stmt_idx] = live.copy()

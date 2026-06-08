@@ -18,6 +18,9 @@ class TmpUsesCollector(AILBlockViewer):
 
         self.tmp_and_uselocs: dict[tuple[int, int], set[tuple[Tmp, int]]] = defaultdict(set)
 
+    def reset(self) -> None:
+        self.tmp_and_uselocs = defaultdict(set)
+
     def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Block | None):
         if isinstance(stmt, Assignment) and expr is stmt.dst:
             return

@@ -12,6 +12,7 @@ from cle import SymbolType
 from angr import ailment
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
+from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.errors import AngrAIError
@@ -196,6 +197,11 @@ class Decompiler(Analysis):
         self.use_cache = use_cache
         self.update_cache = update_cache
 
+        # cache of reusable AILBlockWalker instances that are shared by all SPropagator instances created during
+        # decompilation. Owned here so all walkers are released when this Decompiler instance is garbage-collected.
+        # SPropagator picks up this cache (see walker_cache_scope).
+        self._sprop_walker_cache: dict = {}
+
         self._codegen_cls = CStructuredCodeGenerator
         self._typehoon_cls = Typehoon
         if self._flavor == "rust":
@@ -204,7 +210,7 @@ class Decompiler(Analysis):
 
         if decompile:
             with self._resilience():
-                self._decompile()
+                self._decompile_with_cache()
             if self.errors:
                 if self.update_cache:
                     if (self.func.addr, self._flavor) not in self.kb.decompilations:
@@ -217,7 +223,7 @@ class Decompiler(Analysis):
                         self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
                             self.project.arch, self.project.simos.name
                         )
-                        self._decompile()
+                        self._decompile_with_cache()
                         if self.update_cache:
                             for error in self.errors:
                                 self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
@@ -242,6 +248,10 @@ class Decompiler(Analysis):
                 o = PARAM_TO_OPTION[o]
             converted_options.append((o, v))
         return converted_options
+
+    def _decompile_with_cache(self):
+        with sprop_cache_scope(self._sprop_walker_cache):
+            self._decompile()
 
     @timethis
     def _decompile(self):
