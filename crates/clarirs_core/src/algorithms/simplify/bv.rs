@@ -1283,10 +1283,40 @@ pub(crate) fn simplify_bv<'c>(
         }
         BitVecOp::ByteReverse(..) => {
             let arc = state.get_bv_simplified(0)?;
+            // Reversing a single byte (or smaller) is the identity.
+            if arc.size() <= 8 {
+                return Ok(arc);
+            }
             match arc.op() {
                 BitVecOp::BVV(value) => {
                     let reversed_bits = value.reverse_bytes()?;
                     Ok(ctx.bvv(reversed_bits)?)
+                }
+                // Reverse(Reverse(x)) -> x
+                BitVecOp::ByteReverse(inner) => Ok(inner.clone()),
+                // Reverse(If(c, a, b)) -> If(c, Reverse(a), Reverse(b)). Pushing
+                // the reverse into the branches lets it cancel/collapse there.
+                BitVecOp::ITE(cond, then_, else_) => {
+                    let new = ctx.ite(
+                        cond.clone(),
+                        ctx.byte_reverse(then_.clone())?,
+                        ctx.byte_reverse(else_.clone())?,
+                    )?;
+                    state.rerun(new)
+                }
+                // Reverse(Concat(a, .., z)) -> Concat(Reverse(z), .., Reverse(a)).
+                // Byte-order reversal commutes with Concat only when every piece
+                // is byte-aligned.
+                BitVecOp::Concat(args)
+                    if args.len() > 1 && args.iter().all(|a| a.size() % 8 == 0) =>
+                {
+                    let reversed = args
+                        .iter()
+                        .rev()
+                        .map(|a| ctx.byte_reverse(a.clone()))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let new = ctx.concat(reversed)?;
+                    state.rerun(new)
                 }
                 _ => Ok(ctx.byte_reverse(arc)?),
             }
