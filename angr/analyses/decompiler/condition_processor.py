@@ -81,7 +81,7 @@ class AILExprIdAnnotation(claripy.Annotation):
         return True
 
     @property
-    def relocateable(self):
+    def relocatable(self):
         return False
 
 
