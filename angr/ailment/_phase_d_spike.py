@@ -404,8 +404,6 @@ class Call(metaclass=_AilMarkerMeta):
         cls,
         idx,
         target,
-        calling_convention=None,
-        prototype=None,
         args=None,
         bits=None,
         arg_vvars=None,
@@ -414,8 +412,6 @@ class Call(metaclass=_AilMarkerMeta):
         return _Expression._new_call(
             idx,
             target,
-            calling_convention=calling_convention,
-            prototype=prototype,
             args=args,
             bits=bits,
             arg_vvars=arg_vvars,

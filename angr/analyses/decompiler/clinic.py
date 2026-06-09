@@ -1483,15 +1483,22 @@ class Clinic(Analysis):
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
                         old_call = new_last_stmt.expr
+                        # cc + prototype live in the VariableMap side
+                        # container now; carry them over from the old
+                        # Call to the rebuilt one.
+                        old_cc = self.variable_map.calling_convention(old_call)
+                        old_proto = self.variable_map.prototype(old_call)
                         new_call = ailment.Expr.Call(
                             old_call.idx,
                             ailment.Expr.Const(self._ail_manager.next_atom(), successors[0].addr, old_call.target.bits),
-                            calling_convention=old_call.calling_convention,
-                            prototype=old_call.prototype,
                             args=old_call.args,
                             bits=old_call.bits,
                             **old_call.tags,
                         )
+                        if old_cc is not None:
+                            self.variable_map.set_calling_convention(new_call, old_cc)
+                        if old_proto is not None:
+                            self.variable_map.set_prototype(new_call, old_proto)
                         new_last_stmt.expr = new_call
                         block.statements[-1] = new_last_stmt
 
@@ -2893,16 +2900,21 @@ class Clinic(Analysis):
                             64,
                             ins_addr=call_stmt.tags["ins_addr"],
                         )
+                        # cc + prototype live in VariableMap now; carry over.
+                        old_cc = self.variable_map.calling_convention(old_call)
+                        old_proto = self.variable_map.prototype(old_call)
                         call_stmt.expr = ailment.Expr.Call(
                             old_call.idx,
                             new_target,
-                            calling_convention=old_call.calling_convention,
-                            prototype=old_call.prototype,
                             args=old_call.args,
                             arg_vvars=old_call.arg_vvars,
                             bits=old_call.bits,
                             **old_call.tags,
                         )
+                        if old_cc is not None:
+                            self.variable_map.set_calling_convention(call_stmt.expr, old_cc)
+                        if old_proto is not None:
+                            self.variable_map.set_prototype(call_stmt.expr, old_proto)
                         block.statements[-1] = call_stmt
 
         return ail_graph
