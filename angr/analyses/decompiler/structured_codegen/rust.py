@@ -1762,8 +1762,13 @@ class RustLet(RustExpression):
         self.let_expr = let_expr
 
     @property
+    def variant(self):
+        # The bound enum variant lives in the VariableMap, keyed by the Let's .idx.
+        return self.codegen._variable_map.variant(self.let_expr)
+
+    @property
     def type(self):
-        return self.let_expr.variant.type
+        return self.variant.type
 
     def _get_rust_variable(self, def_):
         expr = None
@@ -1781,10 +1786,11 @@ class RustLet(RustExpression):
         return None
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        variant = self.variant
         yield "let ", self
-        yield self.let_expr.variant.name, self
+        yield variant.name, self
         paren = RustClosingObject("(")
-        if self.let_expr.variant.has_associated_data:
+        if variant.has_fields():
             yield "(", paren
             for idx, def_ in enumerate(self.let_expr.defs):
                 if var := self._get_rust_variable(def_):
@@ -3938,7 +3944,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             expr.args,
             expr.delimiter,
             is_expr=is_expr,
-            returnty=expr.returnty,
+            returnty=self._variable_map.returnty(expr),
             tags=expr.tags,
             codegen=self,
         )

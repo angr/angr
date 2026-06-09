@@ -34,8 +34,10 @@ class RustTypeHintsAnalysis(Analysis):
                             and is_composite_type(call_prototype.returnty)
                         ):
                             returnty = call_prototype.returnty
-                        elif isinstance(call, FunctionLikeMacro) and is_composite_type(call.returnty):
-                            returnty = call.returnty
+                        elif isinstance(call, FunctionLikeMacro) and self._variable_map is not None:
+                            macro_returnty = self._variable_map.returnty(call)
+                            if is_composite_type(macro_returnty):
+                                returnty = macro_returnty
                         if returnty:
                             self.project.kb.type_hints.add_type_hint(stmt.dst, returnty, self._func.addr)
                     elif isinstance(stmt.src, StringLiteral):

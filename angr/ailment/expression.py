@@ -2248,11 +2248,10 @@ class Array(Expression):
 
 
 class Let(Op):
-    __slots__ = ("defs", "src", "variant")
+    __slots__ = ("defs", "src")
 
-    def __init__(self, idx, variant, defs, src, **kwargs):
+    def __init__(self, idx, defs, src, **kwargs):
         super().__init__(idx, depth=src.depth + 1, op="let", **kwargs)
-        self.variant = variant
         self.defs = defs
         self.src = src
 
@@ -2262,29 +2261,31 @@ class Let(Op):
         return str(self)
 
     def __str__(self):
-        return f"let {self.variant.name}(_) = {self.src}"
+        # The bound enum variant lives in the VariableMap (keyed by .idx) and is not available here.
+        return f"let (_) = {self.src}"
 
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((self.variant, self.src))
+        return stable_hash((self.src,))
 
     def likes(self, other):
-        return type(self) is type(other) and self.variant == other.variant and self.src == other.src
+        return type(self) is type(other) and self.src == other.src
 
     matches = likes
 
     def copy(self):
-        return Let(self.idx, self.variant, self.defs, self.src, **self.tags)
+        return Let(self.idx, self.defs, self.src, **self.tags)
 
     def deep_copy(self, manager):
-        idx = manager.next_atom()
-        return Let(
-            idx,
-            self.variant,
-            [def_.deep_copy(manager) for def_ in self.defs],
-            self.src.deep_copy(manager),
-            **self.tags,
+        return self._transfer_varmap(
+            Let(
+                manager.next_atom(),
+                [def_.deep_copy(manager) for def_ in self.defs],
+                self.src.deep_copy(manager),
+                **self.tags,
+            ),
+            manager,
         )
 
 
@@ -2294,21 +2295,20 @@ class Let(Op):
 
 
 class Macro(Call, ABC):
-    __slots__ = ("delimiter", "name", "returnty")
+    __slots__ = ("delimiter", "name")
 
-    def __init__(self, idx, name: str, delimiter="()", returnty=None, **kwargs):
+    def __init__(self, idx, name: str, delimiter="()", **kwargs):
         # TODO: Update depth
         super().__init__(idx, target=name, **kwargs)
         self.name = name
         self.delimiter = delimiter
-        self.returnty = returnty
 
 
 class FunctionLikeMacro(Macro):
     __slots__ = ()
 
-    def __init__(self, idx, name: str, args, bits=None, delimiter="()", returnty=None, **kwargs):
-        super().__init__(idx, name, delimiter, returnty, bits=bits, **kwargs)
+    def __init__(self, idx, name: str, args, bits=None, delimiter="()", **kwargs):
+        super().__init__(idx, name, delimiter, bits=bits, **kwargs)
         self.args = args
 
     __hash__ = TaggedObject.__hash__
@@ -2341,17 +2341,19 @@ class FunctionLikeMacro(Macro):
     matches = likes
 
     def copy(self):
-        return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, self.returnty, **self.tags)
+        return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, **self.tags)
 
     def deep_copy(self, manager):
-        return FunctionLikeMacro(
-            manager.next_atom(),
-            self.name,
-            [arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
-            self.bits,
-            self.delimiter,
-            self.returnty,
-            **self.tags,
+        return self._transfer_varmap(
+            FunctionLikeMacro(
+                manager.next_atom(),
+                self.name,
+                [arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
+                self.bits,
+                self.delimiter,
+                **self.tags,
+            ),
+            manager,
         )
 
     @property

@@ -22,6 +22,7 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment
+from angr.analyses.decompiler.variable_map import variable_map_of
 
 
 class TestExpression(unittest.TestCase):
@@ -168,15 +169,25 @@ class TestExpression(unittest.TestCase):
         tuple_array = Array(12, (old,), 32)
         assert isinstance(tuple_array.deep_copy(manager).elements, tuple)
 
+        # ``variant`` and ``returnty`` now live in the VariableMap, keyed by the expression's .idx.
+        vmap = variable_map_of(manager)
+
         variant = SimpleNamespace(name="Some")
         let_expr = Let(
-            13, variant, [Assignment(14, VirtualVariable(15, 1, 32, VirtualVariableCategory.REGISTER, 16), old)], old
+            13, [Assignment(14, VirtualVariable(15, 1, 32, VirtualVariableCategory.REGISTER, 16), old)], old
         )
-        assert "Some" in str(let_expr)
+        vmap.set_variant(let_expr, variant)
+        assert vmap.variant(let_expr) is variant
+        assert "let (_)" in str(let_expr)
         assert let_expr.likes(let_expr.copy())
-        assert let_expr.deep_copy(manager).src is not old
+        let_dc = let_expr.deep_copy(manager)
+        assert let_dc.src is not old
+        assert vmap.variant(let_dc) is variant  # transferred to the new .idx
 
-        macro = FunctionLikeMacro(16, "format", [old], bits=64, delimiter="[]", returnty=None)
+        returnty = SimpleNamespace(name="usize")
+        macro = FunctionLikeMacro(16, "format", [old], bits=64, delimiter="[]")
+        vmap.set_returnty(macro, returnty)
+        assert vmap.returnty(macro) is returnty
         assert macro.size == 8
         assert macro.op == "macro_call"
         assert macro.verbose_op == "macro_call"
@@ -184,7 +195,9 @@ class TestExpression(unittest.TestCase):
         assert "Macro" in repr(macro)
         assert macro.likes(FunctionLikeMacro(17, "format", [old.copy()], bits=64, delimiter="[]"))
         assert macro.copy().args == macro.args
-        assert macro.deep_copy(manager).args[0] is not old
+        macro_dc = macro.deep_copy(manager)
+        assert macro_dc.args[0] is not old
+        assert vmap.returnty(macro_dc) is returnty  # transferred to the new .idx
         assert FunctionLikeMacro(18, "dbg", None).deep_copy(manager).args is None
 
 

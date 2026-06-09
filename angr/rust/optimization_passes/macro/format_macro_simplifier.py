@@ -342,14 +342,15 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         macro_args.insert(
                             0, StringLiteral(self.manager.next_atom(), fmt_str, self.project.arch.bits * 2)
                         )
-                        return FunctionLikeMacro(
+                        macro = FunctionLikeMacro(
                             self.manager.next_atom(),
                             macro_name,
                             macro_args,
                             bits=call.bits,
-                            returnty=returnty,
                             **call.tags,
                         )
+                        variable_map_of(self.manager).set_returnty(macro, returnty)
+                        return macro
         return call
 
     def _analyze(self, cache=None):
