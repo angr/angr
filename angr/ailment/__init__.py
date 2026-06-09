@@ -8,7 +8,7 @@ from .block_walker import AILBlockRewriter, AILBlockViewer, AILBlockWalker
 from .converter_common import Converter
 from .expression import BinaryOp, Const, Expression, Register, Tmp, UnaryOp
 from .manager import Manager
-from .statement import Assignment, Statement
+from .statement import Assignment, NoOp, Statement
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +71,7 @@ __all__ = [
     "Expression",
     "IRSBConverter",
     "Manager",
+    "NoOp",
     "PCodeIRSBConverter",
     "Register",
     "Statement",

@@ -100,7 +100,7 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
 
 
 def get_vvar_deflocs(
-    blocks, phi_vvars: dict[int, set[int | None]] | None = None
+    blocks, phi_vvars: dict[int, set[int | None]] | None = None, check_extra_defs: bool = True
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
     vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
     walker = FindExtraDefs()
@@ -130,7 +130,11 @@ def get_vvar_deflocs(
 
             if extra_defs := stmt.tags.get("extra_defs", None):
                 walker.walk_statement(stmt, block, stmt_idx)
-                assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
+                # When scanning only a subset of blocks (e.g. incremental updates), an extra-def varid may be defined
+                # in a block that is not part of the subset, so this consistency check is skipped there.
+                assert not check_extra_defs or all(varid in vvar_to_loc for varid in extra_defs), (
+                    "extra_def tag was dropped"
+                )
 
     return vvar_to_loc
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections import defaultdict
 from collections.abc import Container, Iterable
 from enum import Enum
@@ -32,6 +33,7 @@ from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
     DirtyStatement,
+    NoOp,
     Return,
     SideEffectStatement,
     Statement,
@@ -70,6 +72,10 @@ if TYPE_CHECKING:
 
 
 _l = logging.getLogger(__name__)
+
+# When enabled (env var VERIFY_INCREMENTAL_RD), every incremental reaching-definitions update is checked against a
+# full rebuild. Used to validate the incremental update; off by default because the full rebuild defeats its purpose.
+_VERIFY_INCREMENTAL_RD = os.environ.get("VERIFY_INCREMENTAL_RD", "").lower() not in {"", "0", "no", "false"}
 
 
 class HasCallNotification(Exception):
@@ -313,6 +319,12 @@ class AILSimplifier(Analysis):
         if r:
             _l.debug("... dead assignments removed")
             self.simplified = True
+
+        # Dead-assignment removal leaves NoOp placeholders in the graph (so reaching definitions could be updated
+        # incrementally instead of rebuilt between iterations). All simplification steps are done now, so compact them
+        # away. The reaching-definitions result is not needed past this point, so just invalidate it.
+        if self._compact_noop_statements():
+            self._clear_cache()
 
     def _rebuild_func_graph(self):
         def _handler(node):
@@ -1823,14 +1835,61 @@ class AILSimplifier(Analysis):
     def _iteratively_remove_dead_assignments(self) -> bool:
         anything_removed = False
         while True:
-            r = self._remove_dead_assignments()
+            r, changed_block_keys = self._remove_dead_assignments()
             if not r:
-                return anything_removed
+                break
+            anything_removed = True
             self._rebuild_func_graph()
-            self._clear_cache()
+            # Instead of discarding the reaching-definitions cache and recomputing it from scratch on every iteration,
+            # incrementally update it: removed statements were replaced in place by NoOp placeholders, so statement
+            # indices are stable and we only need to drop the removed vvar definitions and their now-eliminated uses.
+            if self._reaching_definitions is not None and changed_block_keys:
+                edited_blocks = [
+                    block for block in self.func_graph.nodes() if (block.addr, block.idx) in changed_block_keys
+                ]
+                self._reaching_definitions.update_after_block_edits(edited_blocks)
+                if _VERIFY_INCREMENTAL_RD:
+                    self._verify_incremental_reaching_definitions()
+            # propagation results are no longer reliable after removing statements
+            self._propagator = None
+
+        # NoOp placeholders are left in the graph and the reaching-definitions cache is kept valid: subsequent
+        # simplification steps reuse it instead of rebuilding from scratch. The placeholders are compacted away once,
+        # at the end of _simplify().
+        return anything_removed
+
+    def _compact_noop_statements(self) -> bool:
+        found = False
+        for block in list(self.func_graph.nodes()):
+            if any(isinstance(stmt, NoOp) for stmt in block.statements):
+                new_block = block.copy()
+                new_block.statements = [stmt for stmt in block.statements if not isinstance(stmt, NoOp)]
+                self.blocks[block] = new_block
+                found = True
+        if found:
+            self._rebuild_func_graph()
+        return found
+
+    def _verify_incremental_reaching_definitions(self) -> None:
+        # Debug-only (env var VERIFY_INCREMENTAL_RD): assert the incrementally-updated model is identical to a full
+        # rebuild on the current (NoOp-containing) graph.
+        assert self._reaching_definitions is not None
+        func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
+        reference = (
+            self.project.analyses[SReachingDefinitionsAnalysis]
+            .prep()(
+                subject=self.func,
+                func_graph=self.func_graph,
+                func_args=func_args,
+                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            )
+            .model
+        )
+        if self._reaching_definitions.canonical_form() != reference.canonical_form():
+            raise AssertionError("Incremental SRDA update diverged from a full rebuild")
 
     @timethis
-    def _remove_dead_assignments(self) -> bool:
+    def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int | None]]]:
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
         # cases where a statement defines more than one atom, e.g., a call statement that defines both the return
         # value and the floating-point return value.
@@ -1958,6 +2017,7 @@ class AILSimplifier(Analysis):
             stmts_to_remove_per_block[codeloc.block_addr, codeloc.block_idx].add(codeloc.stmt_idx)
 
         simplified = False
+        changed_block_keys: set[tuple[int, int | None]] = set()
 
         # Remove the statements
         for old_block in self.func_graph.nodes():
@@ -1970,7 +2030,7 @@ class AILSimplifier(Analysis):
             if (block.addr, block.idx) not in stmts_to_remove_per_block:
                 continue
 
-            new_statements = []
+            new_statements: list[Statement] = []
             stmts_to_remove = stmts_to_remove_per_block[(block.addr, block.idx)]
             stmts_to_keep = stmts_to_keep_per_block[(block.addr, block.idx)]
 
@@ -2007,12 +2067,14 @@ class AILSimplifier(Analysis):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                             simplified = True
                             continue
 
                         if self._statement_has_call_exprs(stmt):
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
+                                new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                                 simplified = True
                                 continue
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -2031,12 +2093,14 @@ class AILSimplifier(Analysis):
                                     pass
                         else:
                             # no calls. remove it
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                             simplified = True
                             continue
                     elif isinstance(stmt, SideEffectStatement):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                             simplified = True
                             continue
 
@@ -2057,13 +2121,14 @@ class AILSimplifier(Analysis):
             new_block = block.copy()
             new_block.statements = new_statements
             self.blocks[old_block] = new_block
+            changed_block_keys.add((new_block.addr, new_block.idx))
 
         # we can only use calls_to_remove and assignments_to_remove once; if any statements in blocks are removed, then
         # the statement IDs in calls_to_remove and assignments_to_remove no longer match!
         self._calls_to_remove.clear()
         self._assignments_to_remove.clear()
 
-        return simplified
+        return simplified, changed_block_keys
 
     @staticmethod
     def _get_vvar_used_by(
