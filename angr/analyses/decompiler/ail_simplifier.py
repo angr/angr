@@ -2020,7 +2020,7 @@ class AILSimplifier(Analysis):
             if (block.addr, block.idx) not in stmts_to_remove_per_block:
                 continue
 
-            new_statements = []
+            new_statements: list[Statement] = []
             stmts_to_remove = stmts_to_remove_per_block[(block.addr, block.idx)]
             stmts_to_keep = stmts_to_keep_per_block[(block.addr, block.idx)]
 
@@ -2057,18 +2057,14 @@ class AILSimplifier(Analysis):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
-                            new_statements.append(
-                                NoOp(stmt.idx, **{k: v for k, v in stmt.tags.items() if k != "extra_defs"})
-                            )
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                             simplified = True
                             continue
 
                         if self._statement_has_call_exprs(stmt):
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
-                                new_statements.append(
-                                    NoOp(stmt.idx, **{k: v for k, v in stmt.tags.items() if k != "extra_defs"})
-                                )
+                                new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                                 simplified = True
                                 continue
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -2087,18 +2083,14 @@ class AILSimplifier(Analysis):
                                     pass
                         else:
                             # no calls. remove it
-                            new_statements.append(
-                                NoOp(stmt.idx, **{k: v for k, v in stmt.tags.items() if k != "extra_defs"})
-                            )
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                             simplified = True
                             continue
                     elif isinstance(stmt, SideEffectStatement):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
-                            new_statements.append(
-                                NoOp(stmt.idx, **{k: v for k, v in stmt.tags.items() if k != "extra_defs"})
-                            )
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
                             simplified = True
                             continue
 

@@ -48,7 +48,8 @@ class SRDAModel:
         inserted or reordered, and removed vvars are dead (so they are never used elsewhere, including by phi nodes or
         implicit call-site uses). Tmp tracking is not updated (AILSimplifier does not track tmps).
         """
-        from angr.utils.ssa import get_vvar_deflocs, get_vvar_uselocs  # local import to avoid an import cycle
+
+        from angr.utils.ssa import get_vvar_deflocs, get_vvar_uselocs  # pylint:disable=import-outside-toplevel
 
         edited_blocks = list(edited_blocks)
         block_keys = {(b.addr, b.idx) for b in edited_blocks}
@@ -79,7 +80,7 @@ class SRDAModel:
                 src = new_phi[vid]
                 self.phi_vvar_ids.add(vid)
                 self.phivarid_to_varids_with_unknown[vid] = src
-                self.phivarid_to_varids[vid] = {x for x in src if x is not None} if None in src else set(src)
+                self.phivarid_to_varids[vid] = {x for x in src if x is not None} if None in src else set(src)  # type: ignore
             else:
                 self.phi_vvar_ids.discard(vid)
                 self.phivarid_to_varids.pop(vid, None)
