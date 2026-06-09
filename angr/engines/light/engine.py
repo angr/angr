@@ -710,7 +710,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
         # Phase D: every concrete Statement is the universal pyclass; the
         # variant tag is exposed as ``stmt.kind``. Legacy non-Phase-D
         # statements fall back to ``type(stmt).__name__``.
-        stmt_type_name = getattr(stmt, "kind", None) or type(stmt).__name__
+        stmt_type_name = getattr(stmt, "kind_name", None) or type(stmt).__name__
         return self._stmt_handlers[stmt_type_name](stmt)
 
     @abstractmethod
@@ -748,7 +748,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     #
 
     def _expr(self, expr: ailment.Expression) -> DataType_co:
-        expr_type_name = getattr(expr, "kind", None) or type(expr).__name__
+        expr_type_name = getattr(expr, "kind_name", None) or type(expr).__name__
         return self._expr_handlers[expr_type_name](expr)
 
     def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType_co:

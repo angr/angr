@@ -435,7 +435,7 @@ class CallSiteMaker(Analysis):
             return stmt.addr
         l.warning(
             "TODO: Unsupported statement type %s for definitions.",
-            getattr(stmt, "kind", None) or type(stmt).__name__,
+            getattr(stmt, "kind_name", None) or type(stmt).__name__,
         )
         return None
 
