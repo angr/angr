@@ -221,29 +221,14 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         return None
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
-        new_target = (
-            self._expr(stmt.expr.target)
-            if stmt.expr.target is not None and not isinstance(stmt.expr.target, str)
-            else None
-        )
+        new_expr = self._expr(stmt.expr)
         new_ret_expr = self._expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
-        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
-            new_call = Call(
-                stmt.idx,
-                stmt.expr.target if new_target is None else new_target,
-                args=stmt.expr.args,
-                bits=stmt.bits,
-                **stmt.tags,
-            )
-            if self.variable_map is not None:
-                # The new call uses a different idx than the source expr, so copy the call-site info explicitly.
-                self.variable_map.set_calling_convention(new_call, self.variable_map.calling_convention(stmt.expr))
-                self.variable_map.set_prototype(new_call, self.variable_map.prototype(stmt.expr))
+        if new_expr is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
             return SideEffectStatement(
                 stmt.idx,
-                new_call,
+                new_expr if new_expr is not None else stmt.expr,
                 ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
                 **stmt.tags,
@@ -487,7 +472,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         new_target = self._expr(expr.target) if expr.target is not None and not isinstance(expr.target, str) else None
 
         if new_target is not None:
-            # The new call reuses expr.idx, so its VariableMap entry (calling_convention/prototype) stays valid.
             return Call(
                 expr.idx,
                 new_target,

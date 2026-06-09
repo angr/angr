@@ -1897,7 +1897,6 @@ class Call(Expression):
             self.bits = 0
 
     def likes(self, other):
-        # Note: the calling convention and prototype now live in the VariableMap and are not compared here.
         return (
             type(other) is Call
             and is_none_or_likeable(self.target, other.target)
@@ -1905,7 +1904,6 @@ class Call(Expression):
         )
 
     def matches(self, other):
-        # Note: the calling convention and prototype now live in the VariableMap and are not compared here.
         return (
             type(other) is Call
             and is_none_or_matchable(self.target, other.target)
@@ -1919,7 +1917,6 @@ class Call(Expression):
         return f"Call (target: {self.target}, args: {self.args})"
 
     def __str__(self):
-        # Note: the calling convention and prototype now live in the VariableMap and are not shown here.
         return f"Call({self.target}, {self.args})"
 
     @property
@@ -1966,7 +1963,6 @@ class Call(Expression):
                 new_args.append(replaced_arg)
 
         if r:
-            # The new Call reuses self.idx, so its VariableMap entry (prototype/calling_convention) stays valid.
             return True, Call(
                 self.idx,
                 replaced_target,
@@ -1977,7 +1973,6 @@ class Call(Expression):
         return False, self
 
     def copy(self):
-        # The copy reuses self.idx, so its VariableMap entry (prototype/calling_convention) stays valid.
         return Call(
             self.idx,
             self.target,
