@@ -889,7 +889,12 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         redo = True
         while redo:
             redo = False
-            kind = getattr(expr, "kind", None) or type(expr).__name__
+            # ``expr.kind`` is now an int-backed ``ExpressionKind`` enum --
+            # use ``is None`` rather than truthiness because the
+            # ``ExpressionKind.Const`` value is ``0`` (falsy).
+            kind = getattr(expr, "kind", None)
+            if kind is None:
+                kind = type(expr).__name__
             expr_opts = self.expr_opts_by_kind.get(kind)
             if not expr_opts:
                 break
@@ -1026,7 +1031,10 @@ def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
         redo = True
         while redo:
             redo = False
-            kind = getattr(stmt, "kind", None) or type(stmt).__name__
+            # See expr peephole loop above for the ``is None`` rationale.
+            kind = getattr(stmt, "kind", None)
+            if kind is None:
+                kind = type(stmt).__name__
             opts_for_kind = stmt_opts_by_kind.get(kind)
             if not opts_for_kind:
                 break

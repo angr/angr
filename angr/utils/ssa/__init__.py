@@ -30,10 +30,22 @@ from angr.ailment.expression import (
 from angr.ailment.statement import Assignment, SideEffectStatement, Statement, Store
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.rustylib.ailment import ExpressionKind as _EK
+from angr.rustylib.ailment import StatementKind as _SK
 
 from .tmp_uses_collector import TmpUsesCollector
 from .vvar_extra_defs_collector import FindExtraDefs
 from .vvar_uses_collector import VVarUsesCollector
+
+# Module-level kind constants -- bound once at import so the hot SSA
+# loops do an int compare against a local instead of an attribute
+# lookup on the pyclass per iteration.
+_SK_ASSIGNMENT = _SK.Assignment
+_SK_SIDE_EFFECT_STATEMENT = _SK.SideEffectStatement
+_SK_CAS = _SK.CAS
+_EK_VIRTUAL_VARIABLE = _EK.VirtualVariable
+_EK_TMP = _EK.Tmp
+_EK_PHI = _EK.Phi
 
 DEPHI_VVAR_REG_OFFSET = 4096
 
@@ -113,26 +125,26 @@ def get_vvar_deflocs(
             # subclass declares its own class-level ``kind`` attribute
             # (``"IncompleteSwitchCaseHead"``) so this read always works.
             kind = stmt.kind
-            if kind == "Assignment":
+            if kind == _SK_ASSIGNMENT:
                 dst = stmt.dst
-                if dst.kind == "VirtualVariable":
+                if dst.kind == _EK_VIRTUAL_VARIABLE:
                     vvar_to_loc[dst.varid] = (
                         dst,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
-                    if phi_vvars is not None and stmt.src.kind == "Phi":
+                    if phi_vvars is not None and stmt.src.kind == _EK_PHI:
                         phi_vvars[dst.varid] = {
                             vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
                         }
-            elif kind == "SideEffectStatement":
+            elif kind == _SK_SIDE_EFFECT_STATEMENT:
                 ret = stmt.ret_expr
-                if ret is not None and ret.kind == "VirtualVariable":
+                if ret is not None and ret.kind == _EK_VIRTUAL_VARIABLE:
                     vvar_to_loc[ret.varid] = (
                         ret,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
                 fp_ret = stmt.fp_ret_expr
-                if fp_ret is not None and fp_ret.kind == "VirtualVariable":
+                if fp_ret is not None and fp_ret.kind == _EK_VIRTUAL_VARIABLE:
                     vvar_to_loc[fp_ret.varid] = (
                         fp_ret,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
@@ -164,16 +176,16 @@ def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, in
         for stmt_idx, stmt in enumerate(block.statements):
             # See ``get_vvar_deflocs`` for the .kind vs isinstance() rationale.
             kind = stmt.kind
-            if kind == "Assignment":
+            if kind == _SK_ASSIGNMENT:
                 dst = stmt.dst
-                if dst.kind == "Tmp":
+                if dst.kind == _EK_TMP:
                     tmp_to_loc[codeloc][atoms.Tmp(dst.tmp_idx, dst.bits)] = stmt_idx
-            elif kind == "CAS":
+            elif kind == _SK_CAS:
                 old_lo = stmt.old_lo
-                if old_lo.kind == "Tmp":
+                if old_lo.kind == _EK_TMP:
                     tmp_to_loc[codeloc][atoms.Tmp(old_lo.tmp_idx, old_lo.bits)] = stmt_idx
                 old_hi = stmt.old_hi
-                if old_hi is not None and old_hi.kind == "Tmp":
+                if old_hi is not None and old_hi.kind == _EK_TMP:
                     tmp_to_loc[codeloc][atoms.Tmp(old_hi.tmp_idx, old_hi.bits)] = stmt_idx
 
     return tmp_to_loc
