@@ -30,6 +30,7 @@ from typing import Any
 
 from angr.rustylib.ailment import ConvertType as _ConvertType
 from angr.rustylib.ailment import Expression as _Expression
+from angr.rustylib.ailment import ExpressionKind as EK
 
 
 class _AilMarkerMeta(type):
@@ -47,9 +48,10 @@ class _AilMarkerMeta(type):
     ``Expression`` whose ``kind`` is in ``_kinds``.
     """
 
-    _kind: str
-    _kinds: frozenset[str]
-    _match_kinds: frozenset[str]
+    _kind: EK
+    _kinds: frozenset[EK]
+    _match_kinds: frozenset[EK]
+    _match_kind_ints: frozenset[int]
 
     def __init__(cls, name, bases, namespace, **kwargs):
         super().__init__(name, bases, namespace, **kwargs)
@@ -64,12 +66,19 @@ class _AilMarkerMeta(type):
                 cls._match_kinds = frozenset({kind})
         else:
             cls._match_kinds = kinds if isinstance(kinds, frozenset) else frozenset(kinds)
+        # Mirror the match set as a frozenset of plain ints so
+        # ``__instancecheck__`` can do the membership test against
+        # ``instance.pykind`` (a cached ``Py<int>``) -- this skips the
+        # ``ExpressionKind`` pyclass allocation that ``instance.kind``
+        # otherwise mints on every read.
+        if hasattr(cls, "_match_kinds"):
+            cls._match_kind_ints = frozenset(int(k) for k in cls._match_kinds)
 
     def __instancecheck__(cls, instance: Any) -> bool:
         # ``isinstance(x, Expression)`` (the rustlib class) goes through
         # the normal type machinery; only the marker classes use the
         # variant-tag dispatch.
-        return isinstance(instance, _Expression) and instance.kind in cls._match_kinds
+        return isinstance(instance, _Expression) and instance.pykind in cls._match_kind_ints
 
     def __subclasscheck__(cls, subclass: type) -> bool:
         # Markers don't support being subclassed. Reflexive equality
@@ -94,7 +103,7 @@ class Const(metaclass=_AilMarkerMeta):
     the marker class is not in the instance's MRO.
     """
 
-    _kind = "Const"
+    _kind = EK.Const
 
     def __new__(cls, idx, value, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_const(idx, value, bits, **tags)
@@ -103,7 +112,7 @@ class Const(metaclass=_AilMarkerMeta):
 class Tmp(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Tmp``."""
 
-    _kind = "Tmp"
+    _kind = EK.Tmp
 
     def __new__(cls, idx, tmp_idx, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_tmp(idx, tmp_idx, bits, **tags)
@@ -112,7 +121,7 @@ class Tmp(metaclass=_AilMarkerMeta):
 class Register(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Register``."""
 
-    _kind = "Register"
+    _kind = EK.Register
 
     def __new__(cls, idx, reg_offset, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_register(idx, reg_offset, bits, **tags)
@@ -121,7 +130,7 @@ class Register(metaclass=_AilMarkerMeta):
 class ComboRegister(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``ComboRegister``."""
 
-    _kind = "ComboRegister"
+    _kind = EK.ComboRegister
 
     def __new__(cls, idx, registers, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_combo_register(idx, registers, **tags)
@@ -130,7 +139,7 @@ class ComboRegister(metaclass=_AilMarkerMeta):
 class Phi(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Phi``."""
 
-    _kind = "Phi"
+    _kind = EK.Phi
 
     def __new__(cls, idx, bits, src_and_vvars, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_phi(idx, bits, src_and_vvars, **tags)
@@ -139,7 +148,7 @@ class Phi(metaclass=_AilMarkerMeta):
 class VirtualVariable(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``VirtualVariable``."""
 
-    _kind = "VirtualVariable"
+    _kind = EK.VirtualVariable
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -165,7 +174,7 @@ class VirtualVariable(metaclass=_AilMarkerMeta):
 class UnaryOp(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``UnaryOp``."""
 
-    _kind = "UnaryOp"
+    _kind = EK.UnaryOp
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -181,7 +190,7 @@ class UnaryOp(metaclass=_AilMarkerMeta):
 class Convert(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Convert``."""
 
-    _kind = "Convert"
+    _kind = EK.Convert
 
     # Class-level sentinels mirroring the legacy per-class pyclass.
     # Analyses test ``expr.from_type == Convert.TYPE_INT`` so these need
@@ -217,7 +226,7 @@ class Convert(metaclass=_AilMarkerMeta):
 class Reinterpret(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Reinterpret``."""
 
-    _kind = "Reinterpret"
+    _kind = EK.Reinterpret
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -270,7 +279,7 @@ def _binop_bits_for(op, operands):
 class BinaryOp(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``BinaryOp``."""
 
-    _kind = "BinaryOp"
+    _kind = EK.BinaryOp
 
     # Ported from the legacy rustlib BinaryOp class attr. Analyses
     # (notably ``negate``) consult this to flip comparison ops.
@@ -316,7 +325,7 @@ class BinaryOp(metaclass=_AilMarkerMeta):
 class ITE(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``ITE``."""
 
-    _kind = "ITE"
+    _kind = EK.ITE
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -332,7 +341,7 @@ class ITE(metaclass=_AilMarkerMeta):
 class Extract(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Extract``."""
 
-    _kind = "Extract"
+    _kind = EK.Extract
 
     def __new__(cls, idx, bits, base, offset, endness, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_extract(idx, bits, base, offset, endness, **tags)
@@ -341,7 +350,7 @@ class Extract(metaclass=_AilMarkerMeta):
 class Insert(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Insert``."""
 
-    _kind = "Insert"
+    _kind = EK.Insert
 
     def __new__(cls, idx, base, offset, value, endness, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_insert(idx, base, offset, value, endness, **tags)
@@ -350,7 +359,7 @@ class Insert(metaclass=_AilMarkerMeta):
 class StringLiteral(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``StringLiteral``."""
 
-    _kind = "StringLiteral"
+    _kind = EK.StringLiteral
 
     def __new__(cls, idx, data, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_string_literal(idx, data, bits, **tags)
@@ -359,7 +368,7 @@ class StringLiteral(metaclass=_AilMarkerMeta):
 class BasePointerOffset(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``BasePointerOffset``."""
 
-    _kind = "BasePointerOffset"
+    _kind = EK.BasePointerOffset
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -375,7 +384,7 @@ class BasePointerOffset(metaclass=_AilMarkerMeta):
 class StackBaseOffset(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``StackBaseOffset``."""
 
-    _kind = "StackBaseOffset"
+    _kind = EK.StackBaseOffset
 
     def __new__(cls, idx, bits, offset, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_stack_base_offset(idx, bits, offset, **tags)
@@ -388,8 +397,8 @@ class Call(metaclass=_AilMarkerMeta):
     instances to preserve legacy subclass relationships.
     """
 
-    _kind = "Call"
-    _kinds = frozenset({"Call", "Macro", "FunctionLikeMacro"})
+    _kind = EK.Call
+    _kinds = frozenset({EK.Call, EK.Macro, EK.FunctionLikeMacro})
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -417,7 +426,7 @@ class Call(metaclass=_AilMarkerMeta):
 class Struct(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Struct``."""
 
-    _kind = "Struct"
+    _kind = EK.Struct
 
     def __new__(cls, idx, name, fields, field_offsets, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_struct(idx, name, fields, field_offsets, bits, **tags)
@@ -426,7 +435,7 @@ class Struct(metaclass=_AilMarkerMeta):
 class RustEnum(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``RustEnum``."""
 
-    _kind = "RustEnum"
+    _kind = EK.RustEnum
 
     def __new__(cls, idx, name, fields, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_rust_enum(idx, name, fields, bits, **tags)
@@ -435,7 +444,7 @@ class RustEnum(metaclass=_AilMarkerMeta):
 class Array(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Array``."""
 
-    _kind = "Array"
+    _kind = EK.Array
 
     def __new__(cls, idx, elements, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_array(idx, elements, bits, **tags)
@@ -444,7 +453,7 @@ class Array(metaclass=_AilMarkerMeta):
 class Let(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Let``."""
 
-    _kind = "Let"
+    _kind = EK.Let
 
     def __new__(cls, idx, variant, defs, src, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_let(idx, variant, defs, src, **tags)
@@ -457,8 +466,8 @@ class Macro(metaclass=_AilMarkerMeta):
     ``isinstance(x, Macro)`` -> True relationship.
     """
 
-    _kind = "Macro"
-    _kinds = frozenset({"Macro", "FunctionLikeMacro"})
+    _kind = EK.Macro
+    _kinds = frozenset({EK.Macro, EK.FunctionLikeMacro})
 
     def __new__(cls, idx, name, delimiter="()", returnty=None, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_macro(idx, name, delimiter=delimiter, returnty=returnty, **tags)
@@ -467,7 +476,7 @@ class Macro(metaclass=_AilMarkerMeta):
 class FunctionLikeMacro(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``FunctionLikeMacro``."""
 
-    _kind = "FunctionLikeMacro"
+    _kind = EK.FunctionLikeMacro
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -487,7 +496,7 @@ class FunctionLikeMacro(metaclass=_AilMarkerMeta):
 class DirtyExpression(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``DirtyExpression``."""
 
-    _kind = "DirtyExpression"
+    _kind = EK.DirtyExpression
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -518,7 +527,7 @@ class DirtyExpression(metaclass=_AilMarkerMeta):
 class VEXCCallExpression(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``VEXCCallExpression``."""
 
-    _kind = "VEXCCallExpression"
+    _kind = EK.VEXCCallExpression
 
     def __new__(cls, idx, callee, operands, bits, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_vex_ccall_expression(idx, callee, operands, bits, **tags)
@@ -527,7 +536,7 @@ class VEXCCallExpression(metaclass=_AilMarkerMeta):
 class MultiStatementExpression(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``MultiStatementExpression``."""
 
-    _kind = "MultiStatementExpression"
+    _kind = EK.MultiStatementExpression
 
     def __new__(cls, idx, stmts, expr, **tags) -> _Expression:  # type: ignore[misc]
         return _Expression._new_multi_statement_expression(idx, stmts, expr, **tags)
@@ -536,7 +545,7 @@ class MultiStatementExpression(metaclass=_AilMarkerMeta):
 class Load(metaclass=_AilMarkerMeta):
     """Marker for ``Expression`` instances whose variant is ``Load``."""
 
-    _kind = "Load"
+    _kind = EK.Load
 
     def __new__(  # type: ignore[misc]
         cls,
