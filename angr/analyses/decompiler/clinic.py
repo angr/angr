@@ -1664,6 +1664,7 @@ class Clinic(Analysis):
         cache: dict[ailment.Block, NamedTuple] | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        only_blocks: set[tuple[int, int | None]] | None = None,
     ):
         """
         Simplify all blocks in self._blocks.
@@ -1672,6 +1673,9 @@ class Clinic(Analysis):
         :param stack_pointer_tracker:   The RegisterDeltaTracker analysis instance.
         :param cache:                   A block-level cache that stores reaching definition analysis results and
                                         propagation results.
+        :param only_blocks:             If not None, only simplify blocks whose (addr, idx) is in this set; all other
+                                        blocks are left unchanged. Used to skip re-simplifying blocks that have not
+                                        changed since they were last simplified.
         :return:                        None
         """
 
@@ -1681,6 +1685,8 @@ class Clinic(Analysis):
             cache = {}
 
         for ail_block in ail_graph.nodes():
+            if only_blocks is not None and (ail_block.addr, ail_block.idx) not in only_blocks:
+                continue
             simplified = self._simplify_block(
                 ail_block,
                 stack_pointer_tracker=stack_pointer_tracker,
@@ -1841,12 +1847,15 @@ class Clinic(Analysis):
             return False
 
         if simplify_blocks:
-            # invoke BlockSimplifier to apply peephole optimizations if possible
+            # invoke BlockSimplifier to apply peephole optimizations if possible. Only the blocks that AILSimplifier
+            # actually modified can simplify any further (block simplification is idempotent), so we restrict the work
+            # to those instead of re-simplifying the entire graph.
             self._simplify_blocks(
                 ail_graph,
                 stack_pointer_tracker=self._spt,
                 preserve_vvar_ids=preserve_vvar_ids,
                 type_hints=self._type_hints,
+                only_blocks=simp.simplified_blocks,
             )
 
         return True

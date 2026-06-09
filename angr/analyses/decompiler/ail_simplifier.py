@@ -209,6 +209,9 @@ class AILSimplifier(Analysis):
         self.blocks: dict[Block, Block] = {}  # Mapping nodes to simplified blocks
 
         self.simplified: bool = False
+        # (addr, idx) of every block modified during simplification. Lets callers re-simplify only the blocks that
+        # actually changed instead of the whole graph.
+        self.simplified_blocks: set[tuple[int, int | None]] = set()
         self._simplify()
 
     def _simplify(self):
@@ -313,7 +316,11 @@ class AILSimplifier(Analysis):
 
     def _rebuild_func_graph(self):
         def _handler(node):
-            return self.blocks.get(node, None)
+            new_block = self.blocks.get(node, None)
+            if new_block is not None:
+                # every block modification funnels through here, so this captures all dirty blocks
+                self.simplified_blocks.add((new_block.addr, new_block.idx))
+            return new_block
 
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
