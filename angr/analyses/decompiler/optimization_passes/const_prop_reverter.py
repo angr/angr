@@ -10,6 +10,7 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Convert, Expression, Load, Register
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
@@ -162,6 +163,7 @@ class ConstPropOptReverter(OptimizationPass):
             observation_points=all_obs_points,
             dep_graph=None,
             track_liveness=False,
+            variable_map=variable_map_of(self.manager),
         )
 
         for (call0, blk0, call1, blk1, arg_conflicts), _ in self._call_pair_targets:

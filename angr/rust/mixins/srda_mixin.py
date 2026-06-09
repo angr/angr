@@ -1,18 +1,23 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from angr.ailment import Assignment, Expression
 from angr.ailment.expression import Call, FunctionLikeMacro, Phi, VirtualVariable
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.rust.sim_type import RustSimType, RustSimTypeFunction
 
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.variable_map import VariableMap
+
 
 class SRDAMixin:
     """Mixin providing SSA reaching definitions analysis access."""
 
-    def __init__(self, subject, graph, project):
+    def __init__(self, subject, graph, project, variable_map: VariableMap):
         self._graph = graph
-        self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph)
+        self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph, variable_map=variable_map)
         self.srda_view = SRDAView(self.srda.model)
         self._gtv_cache = {}  # varid -> terminal VirtualVariable
 
@@ -126,8 +131,10 @@ class SRDAMixin:
 
     def get_vvar_type(self, vvar) -> RustSimType | None:
         value = self.get_terminal_vvar_value(vvar)
-        if isinstance(value, Call) and isinstance(value.prototype, RustSimTypeFunction):
-            return value.prototype.returnty
+        if isinstance(value, Call):
+            proto = self.srda.model.variable_map.prototype(value) if self.srda.model.variable_map is not None else None
+            if isinstance(proto, RustSimTypeFunction):
+                return proto.returnty
         if isinstance(value, FunctionLikeMacro):
             return value.returnty
         return None

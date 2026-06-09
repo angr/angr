@@ -14,9 +14,6 @@ from .tagged_object import TaggedObject
 from .utils import get_bits, is_none_or_likeable, is_none_or_matchable, stable_hash
 
 if TYPE_CHECKING:
-    from angr.calling_conventions import SimCC
-    from angr.sim_type import SimTypeFunction
-
     from .manager import Manager
     from .statement import Statement
 
@@ -1879,8 +1876,6 @@ class Call(Expression):
 
     __slots__ = (
         "args",
-        "calling_convention",
-        "prototype",
         "target",
     )
 
@@ -1888,8 +1883,6 @@ class Call(Expression):
         self,
         idx: int,
         target: Expression | str,
-        calling_convention: SimCC | None = None,
-        prototype: SimTypeFunction | None = None,
         args: Sequence[Expression] | None = None,
         bits: int | None = None,
         **kwargs,
@@ -1897,8 +1890,6 @@ class Call(Expression):
         super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
 
         self.target = target
-        self.calling_convention = calling_convention
-        self.prototype = prototype
         self.args = args
         if bits is not None:
             self.bits = bits
@@ -1909,8 +1900,6 @@ class Call(Expression):
         return (
             type(other) is Call
             and is_none_or_likeable(self.target, other.target)
-            and self.calling_convention == other.calling_convention
-            and self.prototype == other.prototype
             and is_none_or_likeable(self.args, other.args, is_list=True)
         )
 
@@ -1918,8 +1907,6 @@ class Call(Expression):
         return (
             type(other) is Call
             and is_none_or_matchable(self.target, other.target)
-            and self.calling_convention == other.calling_convention
-            and self.prototype == other.prototype
             and is_none_or_matchable(self.args, other.args, is_list=True)
         )
 
@@ -1927,23 +1914,10 @@ class Call(Expression):
         return stable_hash((Call, self.idx, self.target))
 
     def __repr__(self):
-        return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
+        return f"Call (target: {self.target}, args: {self.args})"
 
     def __str__(self):
-        cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
-        if self.args is None:
-            if self.calling_convention is not None:
-                s = (
-                    (f"{cc}")
-                    if self.prototype is None
-                    else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
-                )
-            else:
-                s = (f"{cc}") if self.prototype is None else repr(self.prototype)
-        else:
-            s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
-
-        return f"Call({self.target}, {s})"
+        return f"Call({self.target}, {self.args})"
 
     @property
     def verbose_op(self) -> str:
@@ -1992,8 +1966,6 @@ class Call(Expression):
             return True, Call(
                 self.idx,
                 replaced_target,
-                calling_convention=self.calling_convention,
-                prototype=self.prototype,
                 args=new_args,
                 bits=self.bits,
                 **self.tags,
@@ -2004,22 +1976,21 @@ class Call(Expression):
         return Call(
             self.idx,
             self.target,
-            calling_convention=self.calling_convention,
-            prototype=self.prototype,
             args=self.args[::] if self.args is not None else None,
             bits=self.bits,
             **self.tags,
         )
 
     def deep_copy(self, manager):
-        return Call(
-            manager.next_atom(),
-            self.target.deep_copy(manager) if not isinstance(self.target, str) else self.target,
-            calling_convention=self.calling_convention,
-            prototype=self.prototype,
-            args=[arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
-            bits=self.bits,
-            **self.tags,
+        return self._transfer_varmap(
+            Call(
+                manager.next_atom(),
+                self.target.deep_copy(manager) if not isinstance(self.target, str) else self.target,
+                args=[arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
+                bits=self.bits,
+                **self.tags,
+            ),
+            manager,
         )
 
 

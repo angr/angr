@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from angr.ailment.expression import Call, Const, Load, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -87,21 +88,23 @@ class InlinedMemcpySimplifier(OptimizationPass):
 
         if should_replace:
             assert dst_offset is not None and src_offset is not None and store_size is not None
+            call = Call(
+                self.manager.next_atom(),
+                "memcpy",
+                args=[
+                    StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
+                    StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
+                    Const(self.manager.next_atom(), store_size, self.project.arch.bits),
+                ],
+                bits=None,
+                **stmt.tags,
+            )
+            variable_map_of(self.manager).set_prototype(
+                call, SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch)
+            )
             return SideEffectStatement(
                 self.manager.next_atom(),
-                Call(
-                    self.manager.next_atom(),
-                    "memcpy",
-                    calling_convention=None,
-                    args=[
-                        StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
-                        StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
-                        Const(self.manager.next_atom(), store_size, self.project.arch.bits),
-                    ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
-                    bits=None,
-                    **stmt.tags,
-                ),
+                call,
                 ret_expr=None,
                 fp_ret_expr=None,
                 **stmt.tags,

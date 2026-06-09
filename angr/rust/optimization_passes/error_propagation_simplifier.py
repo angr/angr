@@ -8,6 +8,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Seque
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import MultiNode, SequenceNode
 from angr.analyses.decompiler.utils import _flatten_structured_node
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.sim_type import RustSimTypeResult
 from angr.rust.structuring.structurer_nodes import PatternMatchNode
 from angr.utils.ssa import VVarUsesCollector
@@ -170,11 +171,12 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
         varid_to_assignment = {}
 
         def callback(_stmt_idx, stmt: Assignment, _block):
+            src_prototype = variable_map_of(self.manager).prototype(stmt.src) if isinstance(stmt.src, Call) else None
             if (
                 isinstance(stmt.dst, VirtualVariable)
                 and isinstance(stmt.src, Call)
-                and stmt.src.prototype
-                and isinstance(stmt.src.prototype.returnty, RustSimTypeResult)
+                and src_prototype
+                and isinstance(src_prototype.returnty, RustSimTypeResult)
             ):
                 varid_to_assignment[stmt.dst.varid] = stmt
 

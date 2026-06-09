@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
 from angr.ailment.expression import Load, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins.srda_mixin import SRDAMixin
 
 if TYPE_CHECKING:
@@ -36,7 +37,9 @@ class SSAVariableMixin:
         return vvar
 
     def fix_stack_vvar_uses(self):
-        srda = SRDAMixin(self.context._func, self.context._graph, self.context.project)
+        srda = SRDAMixin(
+            self.context._func, self.context._graph, self.context.project, variable_map_of(self.context.manager)
+        )
 
         rewriter = _StackVVarRewriter(srda, self._new_stack_vvars, self.context.project, self.context.manager)
         for block in self.context._graph.nodes:

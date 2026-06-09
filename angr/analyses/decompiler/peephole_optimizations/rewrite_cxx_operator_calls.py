@@ -6,6 +6,7 @@ from archinfo import Endness
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, Const, Load, UnaryOp, VirtualVariable
 from angr.ailment.statement import SideEffectStatement, WeakAssignment
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.sim_type import SimCppClass, SimTypeReference
 
@@ -46,12 +47,13 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             and isinstance(stmt.expr.args[0], UnaryOp)
             and stmt.expr.args[0].op == "Reference"
         ):
+            prototype = variable_map_of(self.manager).prototype(stmt.expr)
             dst = stmt.expr.args[0].operand
             if isinstance(dst, VirtualVariable):
                 self.preserve_vvar_ids.add(dst.varid)
                 atom = atoms.VirtualVariable(dst.varid, dst.size, dst.category, dst.oident)
-                if stmt.expr.prototype is not None and isinstance(stmt.expr.prototype.returnty, SimTypeReference):
-                    type_hint = self._type_hint_from_typeref(stmt.expr.prototype.returnty)
+                if prototype is not None and isinstance(prototype.returnty, SimTypeReference):
+                    type_hint = self._type_hint_from_typeref(prototype.returnty)
                     if type_hint is not None:
                         self.type_hints.append((atom, type_hint))
             arg1 = (
@@ -60,11 +62,11 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 else stmt.expr.args[1]
             )
             type_ = None
-            if stmt.expr.prototype is not None:
-                dst_ty = stmt.expr.prototype.returnty
+            if prototype is not None:
+                dst_ty = prototype.returnty
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
-                type_ = {"dst": dst_ty, "src": stmt.expr.prototype.args[1]}
+                type_ = {"dst": dst_ty, "src": prototype.args[1]}
             return WeakAssignment(stmt.idx, stmt.expr.args[0].operand, arg1, type=type_, **stmt.tags)  # type: ignore
         return None
 
@@ -81,11 +83,12 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             arg2 = Load(self.manager.next_atom(), stmt.expr.args[2], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
             addition = BinaryOp(self.manager.next_atom(), "Add", [stmt.expr.args[1].operand, arg2], **stmt.tags)
             type_ = None
-            if stmt.expr.prototype is not None:
-                dst_ty = stmt.expr.prototype.returnty
+            prototype = variable_map_of(self.manager).prototype(stmt.expr)
+            if prototype is not None:
+                dst_ty = prototype.returnty
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
-                type_ = {"dst": dst_ty, "src": stmt.expr.prototype.args[1]}
+                type_ = {"dst": dst_ty, "src": prototype.args[1]}
             return WeakAssignment(stmt.idx, stmt.ret_expr, addition, type=type_, **stmt.tags)
         return None
 

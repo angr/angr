@@ -6,6 +6,7 @@ from angr.ailment import AILBlockRewriter
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import CFAMixin, SRDAMixin
 
 DEREF_COERCION_FUNCTIONS = [
@@ -31,7 +32,7 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
-        SRDAMixin.__init__(self, func, self._graph, self.project)
+        SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
         CFAMixin.__init__(self, self._graph, self.project)
         AILBlockRewriter.__init__(self)
 

@@ -7,6 +7,7 @@ from typing import Any, Literal
 from angr.ailment.expression import BinaryOp, Call, Const, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement, Statement, Store
 from angr.ailment.utils import is_none_or_likeable
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -138,19 +139,22 @@ class InlinedMemsetSimplifier(OptimizationPass):
                         replaced_indices.add(k)
 
                     ref_stmt = statements[start_stmt_idx]
+                    call = Call(
+                        self.manager.next_atom(),
+                        "memset",
+                        args=[
+                            base_expr,
+                            Const(self.manager.next_atom(), candidate.value, 8),
+                            Const(self.manager.next_atom(), candidate.count, self.project.arch.bits),
+                        ],
+                        **ref_stmt.tags,
+                    )
+                    variable_map_of(self.manager).set_prototype(
+                        call, SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch)
+                    )
                     call_stmt = SideEffectStatement(
                         self.manager.next_atom(),
-                        Call(
-                            self.manager.next_atom(),
-                            "memset",
-                            args=[
-                                base_expr,
-                                Const(self.manager.next_atom(), candidate.value, 8),
-                                Const(self.manager.next_atom(), candidate.count, self.project.arch.bits),
-                            ],
-                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch),
-                            **ref_stmt.tags,
-                        ),
+                        call,
                         **ref_stmt.tags,
                     )
                     replacements[start_stmt_idx] = call_stmt

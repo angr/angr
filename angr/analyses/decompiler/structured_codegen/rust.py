@@ -3722,7 +3722,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=stmt.tags,
             is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,
-            callsite_prototype=stmt.expr.prototype,  # pyright: ignore[reportArgumentType]
+            callsite_prototype=self._variable_map.prototype(stmt.expr),  # pyright: ignore[reportArgumentType]
             codegen=self,
         )
 
@@ -3986,7 +3986,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=expr.tags,
             is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,
-            callsite_prototype=expr.prototype,  # pyright: ignore[reportArgumentType]
+            callsite_prototype=self._variable_map.prototype(expr),  # pyright: ignore[reportArgumentType]
             codegen=self,
         )
 

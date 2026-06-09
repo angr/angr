@@ -221,26 +221,14 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         return None
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
-        new_target = (
-            self._expr(stmt.expr.target)
-            if stmt.expr.target is not None and not isinstance(stmt.expr.target, str)
-            else None
-        )
+        new_expr = self._expr(stmt.expr)
         new_ret_expr = self._expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
-        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
+        if new_expr is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
             return SideEffectStatement(
                 stmt.idx,
-                Call(
-                    stmt.idx,
-                    stmt.expr.target if new_target is None else new_target,
-                    calling_convention=stmt.expr.calling_convention,
-                    prototype=stmt.expr.prototype,
-                    args=stmt.expr.args,
-                    bits=stmt.bits,
-                    **stmt.tags,
-                ),
+                new_expr if new_expr is not None else stmt.expr,
                 ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
                 **stmt.tags,
@@ -487,8 +475,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             return Call(
                 expr.idx,
                 new_target,
-                calling_convention=expr.calling_convention,
-                prototype=expr.prototype,
                 args=expr.args,
                 bits=expr.bits,
                 **expr.tags,

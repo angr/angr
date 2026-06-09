@@ -4,6 +4,7 @@ from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Call, Const, StringLiteral, Struct
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference
 
 
@@ -37,14 +38,17 @@ class VecOutliner(OptimizationPass):
                     call = Call(
                         self.manager.next_atom(),
                         StringLiteral(self.manager.next_atom(), "Vec::new", self.project.arch.bits),
-                        prototype=RustSimTypeFunction(
+                        args=[],
+                        ret_expr=None,
+                        **stmt.src.tags,
+                    )
+                    variable_map_of(self.manager).set_prototype(
+                        call,
+                        RustSimTypeFunction(
                             args=[RustSimTypeReference(stmt.src.tags["type"])], returnty=None, is_arg0_retbuf=True
                         )
                         .with_arch(self.project.arch)
                         .normalize(),
-                        args=[],
-                        ret_expr=None,
-                        **stmt.src.tags,
                     )
                     call.bits = 3 * self.project.arch.bits
                     new_stmt = stmt.copy()

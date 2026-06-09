@@ -4,11 +4,16 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+import archinfo
+
+import angr
 from angr.sim_type import SimType
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
     from angr.ailment.tagged_object import TaggedObject
+    from angr.calling_conventions import SimCC
+    from angr.sim_type import SimTypeFunction
     from angr.sim_variable import SimVariable
 
 
@@ -44,6 +49,9 @@ class VariableMap:
     - ``reference_variable`` (a :class:`SimVariable`) and ``reference_variable_offset`` (an ``int``): the variable
       that a constant expression references, and the offset into it. These are siblings of ``variable`` /
       ``variable_offset`` that are specifically used for constants that reference global/extern variables.
+    - ``prototype`` (a :class:`SimTypeFunction`) and ``calling_convention`` (a :class:`SimCC`): the call-site
+      prototype and calling convention associated with an AIL :class:`Call` expression. These used to live directly
+      on the ``Call`` object; they are heavy, non-serializable Python references, so they are tracked here instead.
 
     Keys are the integer ``.idx`` values of AIL Statement/Expression objects. Because :class:`Clinic` builds one
     :class:`ailment.Manager` per invocation, ``.idx`` values are unique within a single Clinic. So a VariableMap is
@@ -51,7 +59,9 @@ class VariableMap:
     """
 
     __slots__ = (
+        "_calling_conventions",
         "_custom_strings",
+        "_prototypes",
         "_reference_values",
         "_reference_variable_offsets",
         "_reference_variables",
@@ -66,6 +76,8 @@ class VariableMap:
         self._reference_values: dict[int, dict[SimType, Any]] = {}
         self._reference_variables: dict[int, SimVariable] = {}
         self._reference_variable_offsets: dict[int, int] = {}
+        self._prototypes: dict[int, SimTypeFunction] = {}
+        self._calling_conventions: dict[int, SimCC] = {}
 
     #
     # Key helper
@@ -99,6 +111,12 @@ class VariableMap:
 
     def has_variable(self, obj: TaggedObject | int) -> bool:
         return self._key(obj) in self._variables
+
+    def prototype(self, obj: TaggedObject | int) -> SimTypeFunction | None:
+        return self._prototypes.get(self._key(obj))
+
+    def calling_convention(self, obj: TaggedObject | int) -> SimCC | None:
+        return self._calling_conventions.get(self._key(obj))
 
     #
     # Setters
@@ -136,6 +154,26 @@ class VariableMap:
             self._reference_variables[key] = variable
             self._reference_variable_offsets[key] = offset
 
+    def set_prototype(self, obj: TaggedObject | int, prototype: SimTypeFunction | None) -> None:
+        """Set the call-site prototype for an AIL Call. If ``prototype`` is ``None``, the prototype information for
+        this atom is cleared."""
+
+        key = self._key(obj)
+        if prototype is None:
+            self._prototypes.pop(key, None)
+        else:
+            self._prototypes[key] = prototype
+
+    def set_calling_convention(self, obj: TaggedObject | int, cc: SimCC | None) -> None:
+        """Set the calling convention for an AIL Call. If ``cc`` is ``None``, the calling-convention information for
+        this atom is cleared."""
+
+        key = self._key(obj)
+        if cc is None:
+            self._calling_conventions.pop(key, None)
+        else:
+            self._calling_conventions[key] = cc
+
     def transfer(self, src: TaggedObject | int, dst: TaggedObject | int) -> None:
         """
         Copy all variable information associated with ``src`` to ``dst``. Used when an AIL atom is deep-copied to a new
@@ -153,6 +191,8 @@ class VariableMap:
             self._reference_values,
             self._reference_variables,
             self._reference_variable_offsets,
+            self._prototypes,
+            self._calling_conventions,
         ):
             if src_key in d:
                 d[dst_key] = d[src_key]  # type:ignore
@@ -180,6 +220,31 @@ class VariableMap:
             d[ty] = item.get("value")
         return d
 
+    @staticmethod
+    def _cc_to_json(cc: SimCC) -> dict[str, Any]:
+        # Calling conventions are serialized by class name + arch name and reconstructed from the arch on load.
+        # TODO: Preserve custom argument/return locations of SimCCUsercall.
+        return {"cls": type(cc).__name__, "arch": cc.arch.name if cc.arch is not None else None}
+
+    @staticmethod
+    def _cc_from_json(d: dict[str, Any]) -> SimCC | None:
+        CC_NAMES = angr.calling_conventions.CC_NAMES
+        cls_name = d.get("cls")
+        cls = CC_NAMES.get(cls_name) if cls_name else None
+        if cls is None or not isinstance(cls, type) or not issubclass(cls, angr.calling_conventions.SimCC):
+            _l.warning("Calling convention class %s could not be resolved during VariableMap deserialization", cls_name)
+            return None
+        arch_name = d.get("arch")
+        try:
+            arch = archinfo.arch_from_id(arch_name) if arch_name else None
+            if arch is None:
+                return None
+            return cls(arch)
+        except (TypeError, ValueError, KeyError):
+            # SimCCUsercall and friends require extra (unserialized) arguments; reconstruction is not possible.
+            _l.warning("Calling convention %s could not be reconstructed during VariableMap deserialization", cls_name)
+            return None
+
     def to_json(self) -> dict[str, Any]:
         """
         Serialize this VariableMap to a JSON-compatible object.
@@ -197,6 +262,8 @@ class VariableMap:
                 idx: (v.ident if v is not None else None) for idx, v in self._reference_variables.items()
             },
             "reference_variable_offsets": dict(self._reference_variable_offsets),
+            "prototypes": {idx: proto.to_json() for idx, proto in self._prototypes.items()},
+            "calling_conventions": {idx: self._cc_to_json(cc) for idx, cc in self._calling_conventions.items()},
         }
 
     @classmethod
@@ -236,5 +303,13 @@ class VariableMap:
                 )
         for idx, offset in data.get("reference_variable_offsets", {}).items():
             vm._reference_variable_offsets[int(idx)] = offset
+        for idx, proto_json in data.get("prototypes", {}).items():
+            proto = SimType.from_json(proto_json)
+            if proto is not None:
+                vm._prototypes[int(idx)] = proto  # type: ignore[assignment]
+        for idx, cc_json in data.get("calling_conventions", {}).items():
+            cc = cls._cc_from_json(cc_json)
+            if cc is not None:
+                vm._calling_conventions[int(idx)] = cc
 
         return vm

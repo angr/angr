@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment import Block, Statement
 from angr.ailment.expression import Call, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import SRDAMixin
 
 from .utils import CallRewriter, replace_argument_pairs
@@ -18,7 +19,7 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
-        SRDAMixin.__init__(self, func, self._graph, self.project)
+        SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
 
         self.analyze()
 

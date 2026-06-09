@@ -267,7 +267,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         vvar_to_vvar: dict[int, int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        variable_map=None,
     ):
+        self._variable_map = variable_map
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         func_graph_with_calls = func_graph or func.transition_graph
@@ -329,6 +331,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             type_lifter=self.type_lifter,
             func_ret_var=self._func_ret_var,
             tv_manager=self.tv_manager,
+            variable_map=self._variable_map,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -709,7 +712,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         return None if isinstance(lifted, (BottomType, TopType)) else lifted
 
     def _collect_rust_type_hints(self, graph):
-        self.project.analyses.RustTypeHints(self.function, graph)
+        self.project.analyses.RustTypeHints(self.function, graph, variable_map=self._variable_map)
         self.vvar_type_hints.update(self.project.kb.type_hints.get_type_hints(self.function.addr))
 
 

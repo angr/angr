@@ -37,6 +37,7 @@ class TraversalAnalysis:
         tmps: bool,
         func_args: set[ailment.Expr.VirtualVariable],
         functions: Callable[[int | str], Function | None] | None,
+        variable_map=None,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -56,6 +57,7 @@ class TraversalAnalysis:
             stackvars=self._stackvars,
             use_tmps=self._tmps,
             functions=functions,
+            variable_map=variable_map,
         )
 
         self._analyze()

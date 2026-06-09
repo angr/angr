@@ -5,6 +5,7 @@ from collections import defaultdict
 from angr.ailment.expression import BinaryOp, Call, Const, Load, StringLiteral, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin, DFAMixin, SRDAMixin, SSAVariableMixin
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeInt, RustSimTypeOption, RustSimTypeResult
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
@@ -75,7 +76,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
-        SRDAMixin.__init__(self, func, self._graph, self.project)
+        SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
         DFAMixin.__init__(self)
         CFGTransformationMixin.__init__(self, self._graph)
         SSAVariableMixin.__init__(self, self)
@@ -112,12 +113,14 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 and (cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition))
             ):
                 call = self.get_terminal_vvar_value(cmp_vvar)
+                vm = variable_map_of(self.manager)
+                call_prototype = vm.prototype(call) if isinstance(call, Call) else None
                 if (
                     isinstance(call, Call)
-                    and call.prototype is not None
-                    and isinstance(call.prototype.returnty, (RustSimTypeResult, RustSimTypeOption))
+                    and call_prototype is not None
+                    and isinstance(call_prototype.returnty, (RustSimTypeResult, RustSimTypeOption))
                 ):
-                    enum_ty = call.prototype.returnty
+                    enum_ty = call_prototype.returnty
                     variant = None
                     if (
                         isinstance(enum_ty, RustSimTypeResult)
@@ -139,15 +142,15 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                         replacement = Call(
                             idx=last_stmt.idx,
                             target=StringLiteral(self.manager.next_atom(), unwrap_func_name, self.project.arch.bits),
-                            prototype=RustSimTypeFunction(
-                                args=[RustSimTypeInt(cmp_vvar.bits)], returnty=variant.type
-                            ).with_arch(self.project.arch),
                             args=[cmp_vvar],
                             ret_expr=None,
                             **last_stmt.tags,
                         )
-                        if replacement.prototype is not None:
-                            replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
+                        replacement_prototype = RustSimTypeFunction(
+                            args=[RustSimTypeInt(cmp_vvar.bits)], returnty=variant.type
+                        ).with_arch(self.project.arch)
+                        replacement_prototype.returnty = variant.type.with_arch(self.project.arch)
+                        vm.set_prototype(replacement, replacement_prototype)
                         replacement.bits = dst_vvar.bits
                         if second_block is not None:
                             second_block.statements[-1] = Assignment(
@@ -161,12 +164,15 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 replacement = Call(
                     idx=last_stmt.idx,
                     target=StringLiteral(self.manager.next_atom(), unwrap_func_name, self.project.arch.bits),
-                    prototype=RustSimTypeFunction(args=[RustSimTypeInt(cmp_vvar.bits)], returnty=None).with_arch(
-                        self.project.arch
-                    ),
                     args=[cmp_vvar],
                     ret_expr=None,
                     **last_stmt.tags,
+                )
+                vm.set_prototype(
+                    replacement,
+                    RustSimTypeFunction(args=[RustSimTypeInt(cmp_vvar.bits)], returnty=None).with_arch(
+                        self.project.arch
+                    ),
                 )
                 if second_block is not None:
                     second_block.statements[-1] = SideEffectStatement(
