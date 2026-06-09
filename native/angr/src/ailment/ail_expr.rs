@@ -150,8 +150,6 @@ pub enum ExprInner {
         /// ``_hash_core`` can dispatch without re-extracting from
         /// Python on every call.
         target: CFGTarget,
-        calling_convention: Option<Py<PyAny>>,
-        prototype: Option<Py<PyAny>>,
         args: Option<Vec<AilExpression>>,
         arg_vvars: Option<Vec<AilExpression>>,
     },
@@ -1247,8 +1245,6 @@ impl AilExpression {
             }
             ExprInner::Call {
                 target,
-                calling_convention,
-                prototype,
                 args,
                 arg_vvars,
             } => {
@@ -1278,12 +1274,6 @@ impl AilExpression {
                         header: self.header.clone(),
                         inner: ExprInner::Call {
                             target: rt,
-                            calling_convention: calling_convention.as_ref().map(|x| {
-                                Python::attach(|py| x.clone_ref(py))
-                            }),
-                            prototype: prototype.as_ref().map(|x| {
-                                Python::attach(|py| x.clone_ref(py))
-                            }),
                             args: ra,
                             arg_vvars: rav,
                         },
@@ -1736,20 +1726,10 @@ impl AilExpression {
             },
             ExprInner::Call {
                 target,
-                calling_convention,
-                prototype,
                 args,
                 arg_vvars,
             } => ExprInner::Call {
                 target: dc_target(target)?,
-                calling_convention: match calling_convention {
-                    Some(c) => Some(dc_pyany(c)?),
-                    None => None,
-                },
-                prototype: match prototype {
-                    Some(p) => Some(dc_pyany(p)?),
-                    None => None,
-                },
                 args: match args {
                     Some(v) => Some(recurse_vec(v)?),
                     None => None,
@@ -2257,15 +2237,11 @@ impl AilExpression {
             (
                 ExprInner::Call {
                     target: a_t,
-                    calling_convention: a_cc,
-                    prototype: a_p,
                     args: a_args,
                     ..
                 },
                 ExprInner::Call {
                     target: b_t,
-                    calling_convention: b_cc,
-                    prototype: b_p,
                     args: b_args,
                     ..
                 },
@@ -2273,21 +2249,6 @@ impl AilExpression {
                 // ``CFGTarget::likes`` already dispatches structurally;
                 // for the Expr arm it routes through ``AilExpression::likes``.
                 if !a_t.likes(b_t) {
-                    return false;
-                }
-                // calling_convention / prototype are non-AIL Python objects
-                // (SimCC, SimType) -- plain ``==`` is the right contract.
-                let opt_eq = Python::attach(|py| {
-                    let f = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
-                        match (a, b) {
-                            (None, None) => true,
-                            (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
-                            _ => false,
-                        }
-                    };
-                    f(a_cc, b_cc) && f(a_p, b_p)
-                });
-                if !opt_eq {
                     return false;
                 }
                 match (a_args, b_args) {
@@ -2586,33 +2547,16 @@ impl AilExpression {
             (
                 ExprInner::Call {
                     target: a_t,
-                    calling_convention: a_cc,
-                    prototype: a_p,
                     args: a_args,
                     ..
                 },
                 ExprInner::Call {
                     target: b_t,
-                    calling_convention: b_cc,
-                    prototype: b_p,
                     args: b_args,
                     ..
                 },
             ) => {
                 if !a_t.matches(b_t) {
-                    return false;
-                }
-                let opt_eq = Python::attach(|py| {
-                    let f = |a: &Option<Py<PyAny>>, b: &Option<Py<PyAny>>| -> bool {
-                        match (a, b) {
-                            (None, None) => true,
-                            (Some(x), Some(y)) => x.bind(py).eq(y.bind(py)).unwrap_or(false),
-                            _ => false,
-                        }
-                    };
-                    f(a_cc, b_cc) && f(a_p, b_p)
-                });
-                if !opt_eq {
                     return false;
                 }
                 match (a_args, b_args) {
@@ -3255,17 +3199,11 @@ impl Expression {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (
-        idx, target, calling_convention=None, prototype=None,
-        args=None, bits=None, arg_vvars=None, **kwargs
-    ))]
-    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (idx, target, args=None, bits=None, arg_vvars=None, **kwargs))]
     fn _new_call(
         py: Python<'_>,
         idx: i64,
         target: Bound<'_, PyAny>,
-        calling_convention: Option<Bound<'_, PyAny>>,
-        prototype: Option<Bound<'_, PyAny>>,
         args: Option<Bound<'_, PyAny>>,
         bits: Option<u32>,
         arg_vvars: Option<Bound<'_, PyAny>>,
@@ -3301,15 +3239,11 @@ impl Expression {
             }
             _ => None,
         };
-        let cc = calling_convention.and_then(|c| if c.is_none() { None } else { Some(c.unbind()) });
-        let proto = prototype.and_then(|p| if p.is_none() { None } else { Some(p.unbind()) });
         let _ = py;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Call {
                 target: CFGTarget::from_py(&target)?,
-                calling_convention: cc,
-                prototype: proto,
                 args: args_vec,
                 arg_vvars: arg_vvars_vec,
             },
@@ -4673,59 +4607,6 @@ impl Expression {
         }
     }
 
-    /// Call.calling_convention / Macro.calling_convention (always None)
-    #[getter]
-    fn calling_convention<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        match &self.expr.inner {
-            ExprInner::Call { calling_convention, .. } => {
-                Ok(calling_convention.as_ref().map(|c| c.bind(py).clone()))
-            }
-            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => Ok(None),
-            _ => Err(PyAttributeError::new_err(
-                "no 'calling_convention' on this Expression",
-            )),
-        }
-    }
-    #[setter]
-    fn set_calling_convention(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
-        match &mut self.expr.inner {
-            ExprInner::Call { calling_convention, .. } => {
-                *calling_convention =
-                    value.and_then(|v| if v.is_none() { None } else { Some(v.unbind()) });
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'calling_convention' on this Expression",
-            )),
-        }
-    }
-
-    /// Call.prototype / Macro.prototype (always None)
-    #[getter]
-    fn prototype<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        match &self.expr.inner {
-            ExprInner::Call { prototype, .. } => {
-                Ok(prototype.as_ref().map(|c| c.bind(py).clone()))
-            }
-            ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => Ok(None),
-            _ => Err(PyAttributeError::new_err(
-                "no 'prototype' on this Expression",
-            )),
-        }
-    }
-    #[setter]
-    fn set_prototype(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
-        match &mut self.expr.inner {
-            ExprInner::Call { prototype, .. } => {
-                *prototype = value.and_then(|v| if v.is_none() { None } else { Some(v.unbind()) });
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'prototype' on this Expression",
-            )),
-        }
-    }
-
     /// Call.arg_vvars / Macro.arg_vvars (always None) -- tuple of
     /// VirtualVariable Expression instances
     #[getter]
@@ -5414,20 +5295,11 @@ impl Expression {
             }
             ExprInner::Call {
                 target,
-                calling_convention,
-                prototype,
                 args,
                 ..
             } => {
-                let cc = match calling_convention {
-                    None => "Unknown CC".to_string(),
-                    Some(c) => c.bind(py).str()?.to_string(),
-                };
                 let args_str = match args {
-                    None => match prototype {
-                        None => cc.clone(),
-                        Some(p) => p.bind(py).repr()?.to_string(),
-                    },
+                    None => String::new(),
                     Some(v) => {
                         let parts: Vec<String> = v
                             .iter()
@@ -5437,8 +5309,7 @@ impl Expression {
                                     .unwrap_or_default()
                             })
                             .collect();
-                        let astr = format!("({})", parts.join(", "));
-                        format!("{}: {}", cc, astr)
+                        format!("({})", parts.join(", "))
                     }
                 };
                 let target_str = match target {
@@ -6016,8 +5887,6 @@ pub mod serialize {
         Call {
             h: Hdr,
             target: PolyValue,
-            calling_convention: Option<PolyValue>,
-            prototype: Option<PolyValue>,
             args: Option<Vec<Wire>>,
             arg_vvars: Option<Vec<Wire>>,
         },
@@ -6277,11 +6146,9 @@ pub mod serialize {
                 },
                 ExprInner::Call {
                     target,
-                    calling_convention,
-                    prototype,
                     args,
                     arg_vvars,
-                } => Python::attach(|py| Wire::Call {
+                } => Wire::Call {
                     h: hdr,
                     target: match target {
                         CFGTarget::Expr(e) => {
@@ -6289,14 +6156,11 @@ pub mod serialize {
                         }
                         CFGTarget::Symbol(s) => PolyValue::Str(s.clone()),
                     },
-                    calling_convention: PolyValue::from_opt(calling_convention, py)
-                        .unwrap_or(None),
-                    prototype: PolyValue::from_opt(prototype, py).unwrap_or(None),
                     args: args.as_ref().map(|v| v.iter().map(Wire::from).collect()),
                     arg_vvars: arg_vvars
                         .as_ref()
                         .map(|v| v.iter().map(Wire::from).collect()),
-                }),
+                },
                 ExprInner::ITE {
                     cond,
                     iffalse,
@@ -6673,11 +6537,9 @@ pub mod serialize {
                 Wire::Call {
                     h,
                     target,
-                    calling_convention,
-                    prototype,
                     args,
                     arg_vvars,
-                } => Python::attach(|py| AilExpression {
+                } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Call {
                         target: match target {
@@ -6687,13 +6549,10 @@ pub mod serialize {
                             PolyValue::BigInt(s) => CFGTarget::Symbol(format!("0x{}", s)),
                             _ => CFGTarget::Symbol("<unsupported call target>".to_string()),
                         },
-                        calling_convention: PolyValue::into_opt(calling_convention, py)
-                            .unwrap_or(None),
-                        prototype: PolyValue::into_opt(prototype, py).unwrap_or(None),
                         args: args.map(|v| v.into_iter().map(Wire::into_ail).collect()),
                         arg_vvars: arg_vvars.map(|v| v.into_iter().map(Wire::into_ail).collect()),
                     },
-                }),
+                },
                 Wire::ITE {
                     h,
                     cond,
