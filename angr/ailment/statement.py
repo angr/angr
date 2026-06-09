@@ -983,3 +983,40 @@ class Label(Statement):
 
     def deep_copy(self, manager) -> Label:
         return Label(manager.next_atom(), self.name, **self.tags)
+
+
+class NoOp(Statement):
+    """
+    A statement that does nothing. It defines and uses no atoms. It is primarily used as an in-place placeholder for a
+    removed statement so that the indices of the surrounding statements (and code locations referencing them) remain
+    stable until the block is compacted.
+    """
+
+    __slots__ = ()
+
+    def likes(self, other):
+        return isinstance(other, NoOp)
+
+    def replace(self, old_expr, new_expr):
+        return False, self
+
+    @property
+    def depth(self) -> int:
+        return 0
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash((NoOp,))
+
+    def __repr__(self):
+        return "NoOp"
+
+    def __str__(self):
+        return "NoOp"
+
+    def copy(self) -> NoOp:
+        return NoOp(self.idx, **self.tags)
+
+    def deep_copy(self, manager) -> NoOp:
+        return NoOp(manager.next_atom(), **self.tags)

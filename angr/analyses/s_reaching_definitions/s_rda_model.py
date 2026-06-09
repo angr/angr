@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from typing import Any, Literal, overload
 
@@ -35,6 +35,125 @@ class SRDAModel:
         if loc not in self.vvar_uses_by_loc:
             self.vvar_uses_by_loc[loc] = []
         self.vvar_uses_by_loc[loc].append(vvar_id)
+
+    def update_after_block_edits(self, edited_blocks) -> None:
+        """
+        Incrementally update the model after the statements of ``edited_blocks`` were edited *in place* (statement
+        indices preserved, e.g. by replacing removed statements with ``NoOp`` placeholders). vvar definitions and
+        explicit vvar uses inside the edited blocks are recomputed from the edited blocks; implicit uses (``expr is
+        None``, e.g. call-site argument registers) and all unedited blocks are left untouched.
+
+        This is designed to be equivalent to a full SRDA rebuild on the edited graph for the kind of edits performed
+        by dead-assignment removal: statements are only removed (turned into NoOp) or rewritten in place, never
+        inserted or reordered, and removed vvars are dead (so they are never used elsewhere, including by phi nodes or
+        implicit call-site uses). Tmp tracking is not updated (AILSimplifier does not track tmps).
+        """
+        from angr.utils.ssa import get_vvar_deflocs, get_vvar_uselocs  # local import to avoid an import cycle
+
+        edited_blocks = list(edited_blocks)
+        block_keys = {(b.addr, b.idx) for b in edited_blocks}
+
+        def in_edited(loc: AILCodeLocation) -> bool:
+            return (loc.block_addr, loc.block_idx) in block_keys
+
+        # --- definitions ---
+        new_phi: dict[int, set[int | None]] = {}
+        # check_extra_defs is disabled because we scan only a subset of the graph's blocks here
+        new_deflocs = get_vvar_deflocs(edited_blocks, phi_vvars=new_phi, check_extra_defs=False)
+
+        old_def_vids = {vid for vid, loc in self.all_vvar_definitions.items() if in_edited(loc)}
+        for vid in old_def_vids - set(new_deflocs):
+            # this definition no longer exists; keep its uses for now (if the vvar is still used elsewhere it becomes
+            # a used-but-undefined extern vvar, reconciled below)
+            self.varid_to_vvar.pop(vid, None)
+            self.all_vvar_definitions.pop(vid, None)
+            self.phi_vvar_ids.discard(vid)
+            self.phivarid_to_varids.pop(vid, None)
+            self.phivarid_to_varids_with_unknown.pop(vid, None)
+
+        # surviving defs keep their (index-stable) location; refresh vvar and phi info from the rescan
+        for vid, (vvar, defloc) in new_deflocs.items():
+            self.varid_to_vvar[vid] = vvar
+            self.all_vvar_definitions[vid] = defloc
+            if vid in new_phi:
+                src = new_phi[vid]
+                self.phi_vvar_ids.add(vid)
+                self.phivarid_to_varids_with_unknown[vid] = src
+                self.phivarid_to_varids[vid] = {x for x in src if x is not None} if None in src else set(src)
+            else:
+                self.phi_vvar_ids.discard(vid)
+                self.phivarid_to_varids.pop(vid, None)
+                self.phivarid_to_varids_with_unknown.pop(vid, None)
+
+        # --- explicit uses ---
+        # drop explicit uses (expr is not None) located in edited blocks; keep implicit uses (expr is None)
+        for vid in list(self.all_vvar_uses):
+            entries = self.all_vvar_uses[vid]
+            kept = [(e, loc) for e, loc in entries if e is None or not in_edited(loc)]
+            if len(kept) != len(entries):
+                if kept:
+                    self.all_vvar_uses[vid] = kept
+                else:
+                    del self.all_vvar_uses[vid]
+        # re-add the recomputed explicit uses for the edited blocks
+        for vid, uses in get_vvar_uselocs(edited_blocks).items():
+            for expr, loc in uses:
+                self.all_vvar_uses[vid].append((expr, loc))
+
+        # --- rebuild vvar_uses_by_loc for affected locations from the updated all_vvar_uses ---
+        for loc in [loc for loc in self.vvar_uses_by_loc if in_edited(loc)]:
+            del self.vvar_uses_by_loc[loc]
+        for vid, entries in self.all_vvar_uses.items():
+            for _expr, loc in entries:
+                if in_edited(loc):
+                    if loc not in self.vvar_uses_by_loc:
+                        self.vvar_uses_by_loc[loc] = []
+                    self.vvar_uses_by_loc[loc].append(vid)
+
+        # --- reconcile extern (used-but-undefined) definitions to match a full rebuild ---
+        # A vvar that is explicitly used but has no real definition (e.g. its defining statement was just removed) gets
+        # a synthetic extern definition; an extern, non-argument vvar that is no longer explicitly used is dropped.
+        func_arg_ids = {vvar.varid for vvar in self.func_args} if self.func_args else set()
+        explicit_use_repr: dict[int, VirtualVariable] = {}
+        for vid, entries in self.all_vvar_uses.items():
+            for expr, _loc in entries:
+                if expr is not None:
+                    explicit_use_repr[vid] = expr
+                    break
+        for vid, expr in explicit_use_repr.items():
+            if vid not in self.all_vvar_definitions:
+                self.varid_to_vvar[vid] = expr
+                self.all_vvar_definitions[vid] = AILCodeLocation.make_extern(vid)
+        for vid in [
+            vid
+            for vid, loc in self.all_vvar_definitions.items()
+            if loc.is_extern and vid not in func_arg_ids and vid not in explicit_use_repr
+        ]:
+            self.varid_to_vvar.pop(vid, None)
+            self.all_vvar_definitions.pop(vid, None)
+            self.all_vvar_uses.pop(vid, None)
+            self.phi_vvar_ids.discard(vid)
+            self.phivarid_to_varids.pop(vid, None)
+            self.phivarid_to_varids_with_unknown.pop(vid, None)
+
+    def canonical_form(self):
+        """
+        An order-insensitive snapshot of the model's vvar-keyed data, for asserting equivalence between an
+        incrementally-updated model and a freshly-rebuilt one (used by the incremental-update verification harness).
+        """
+        return (
+            set(self.varid_to_vvar),
+            dict(self.all_vvar_definitions),
+            {
+                vid: Counter((e.varid if e is not None else None, loc) for e, loc in lst)
+                for vid, lst in self.all_vvar_uses.items()
+                if lst
+            },
+            set(self.phi_vvar_ids),
+            {k: frozenset(v) for k, v in self.phivarid_to_varids.items()},
+            {k: frozenset(v) for k, v in self.phivarid_to_varids_with_unknown.items()},
+            {loc: Counter(vids) for loc, vids in self.vvar_uses_by_loc.items() if vids},
+        )
 
     @property
     def all_definitions(self) -> Iterator[Definition[atoms.VirtualVariable, AILCodeLocation]]:
