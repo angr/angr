@@ -76,7 +76,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
-        SRDAMixin.__init__(self, func, self._graph, self.project)
+        SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
         DFAMixin.__init__(self)
         CFGTransformationMixin.__init__(self, self._graph)
         SSAVariableMixin.__init__(self, self)

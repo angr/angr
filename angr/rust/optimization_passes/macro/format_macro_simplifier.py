@@ -8,6 +8,7 @@ from angr.ailment.expression import Array, Call, Const, FunctionLikeMacro, Strin
 from angr.ailment.statement import Store
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins import KnowledgeBasePlugin
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
 from angr.rust.optimization_passes.utils import CallRewriter, extract_str_from_addr
@@ -99,7 +100,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         super().__init__(func, manager, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
         DFAMixin.__init__(self, self._graph)
-        SRDAMixin.__init__(self, func, self._graph, self.project)
+        SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
         SSAVariableMixin.__init__(self, self)
 
         self._stmts_to_remove = defaultdict(list)
@@ -158,7 +159,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 ):
                     func = self.project.kb.functions[arg_value.target.value]
                     clinic = self.project.kb.clinic_factory.get(func)
-                    srda_mixin = SRDAMixin(func, clinic.graph, self.project)
+                    srda_mixin = SRDAMixin(func, clinic.graph, self.project, variable_map_of(self.manager))
                     fields = {}
                     for block in clinic.graph.nodes:
                         for stmt in block.statements:

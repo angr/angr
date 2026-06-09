@@ -4,6 +4,9 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+import archinfo
+
+import angr
 from angr.sim_type import SimType
 
 if TYPE_CHECKING:
@@ -220,18 +223,15 @@ class VariableMap:
     @staticmethod
     def _cc_to_json(cc: SimCC) -> dict[str, Any]:
         # Calling conventions are serialized by class name + arch name and reconstructed from the arch on load.
-        # Custom argument/return locations of SimCCUsercall are not preserved (lossy).
+        # TODO: Preserve custom argument/return locations of SimCCUsercall.
         return {"cls": type(cc).__name__, "arch": cc.arch.name if cc.arch is not None else None}
 
     @staticmethod
     def _cc_from_json(d: dict[str, Any]) -> SimCC | None:
-        import archinfo
-
-        from angr import calling_conventions
-
+        CC_NAMES = angr.calling_conventions.CC_NAMES
         cls_name = d.get("cls")
-        cls = getattr(calling_conventions, cls_name, None) if cls_name else None
-        if cls is None or not isinstance(cls, type) or not issubclass(cls, calling_conventions.SimCC):
+        cls = CC_NAMES.get(cls_name) if cls_name else None
+        if cls is None or not isinstance(cls, type) or not issubclass(cls, angr.calling_conventions.SimCC):
             _l.warning("Calling convention class %s could not be resolved during VariableMap deserialization", cls_name)
             return None
         arch_name = d.get("arch")

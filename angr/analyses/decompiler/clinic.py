@@ -1516,7 +1516,6 @@ class Clinic(Analysis):
                     ailment.Expr.Call(
                         self._ail_manager.next_atom(),
                         target.copy(),
-                        # calling_convention / prototype (None here) now live in the VariableMap
                         **last_stmt.tags,
                     ),
                     ret_expr=ret_expr,

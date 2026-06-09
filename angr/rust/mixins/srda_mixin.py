@@ -1,20 +1,22 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from angr.ailment import Assignment, Expression
 from angr.ailment.expression import Call, FunctionLikeMacro, Phi, VirtualVariable
-from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.rust.sim_type import RustSimType, RustSimTypeFunction
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.variable_map import VariableMap
 
 
 class SRDAMixin:
     """Mixin providing SSA reaching definitions analysis access."""
 
-    def __init__(self, subject, graph, project):
+    def __init__(self, subject, graph, project, variable_map: VariableMap):
         self._graph = graph
-        manager = getattr(self, "manager", None)
-        variable_map = variable_map_of(manager) if manager is not None else None
         self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph, variable_map=variable_map)
         self.srda_view = SRDAView(self.srda.model)
         self._gtv_cache = {}  # varid -> terminal VirtualVariable

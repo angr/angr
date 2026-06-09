@@ -272,30 +272,10 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement:
-        new_args = None
-        if stmt.expr.args is not None:
-            new_args = []
-            for arg in stmt.expr.args:
-                new_arg = self._expr(arg)
-                if new_arg is not None:
-                    new_args.append(new_arg)
-                else:
-                    new_args.append(arg)
-
-        new_target = self._expr(stmt.expr.target) if not isinstance(stmt.expr.target, str) else None
-        replaced_call = Call(
-            stmt.idx,
-            stmt.expr.target if new_target is None else new_target,
-            args=new_args,
-            bits=stmt.bits,
-            **stmt.tags,
-        )
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+        new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
-        # The replaced call uses a different idx than the source expr, so copy the call-site info explicitly.
-        vm.set_calling_convention(replaced_call, cc)
-        vm.set_prototype(replaced_call, vm.prototype(stmt.expr))
 
         if cc is None:
             cc = self.project.factory.cc()
@@ -309,12 +289,16 @@ class SimEngineSSARewriting(
         new_stmt = None
         if stmt.ret_expr is not None:
             assert isinstance(stmt.ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.ret_expr, replaced_call, stmt)
+            new_stmt = self._replace_def_expr(stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+            # becomes an Assignment
         elif stmt.fp_ret_expr is not None:
             assert isinstance(stmt.fp_ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, replaced_call, stmt)
-        if new_stmt is None:
-            new_stmt = SideEffectStatement(self.ail_manager.next_atom(), replaced_call, **stmt.tags)
+            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+            # becomes an Assignment
+
+        if new_stmt is None and new_expr is not None:
+            # only create a new SideEffectStatement if we get a new inner expr
+            new_stmt = SideEffectStatement(self.ail_manager.next_atom(), new_expr, **stmt.tags)
 
         return new_stmt
 

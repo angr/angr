@@ -170,7 +170,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
-        SRDAMixin.__init__(self, func, self._graph, self.project)
+        SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
         CFAMixin.__init__(self, self._graph, self.project)
         DFAMixin.__init__(self, self._graph)
         SSAVariableMixin.__init__(self, self)

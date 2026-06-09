@@ -6,6 +6,7 @@ from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Call, Const, Tmp, VirtualVariable
 from angr.ailment.statement import Return, Statement, Store
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin
 from angr.rust.utils.ail import CallVisitor, unwrap_stack_vvar_reference
 
@@ -37,7 +38,9 @@ class MemoryWriteCollector(AILBlockViewer):
 
     def _walk_path(self, path):
         self._path = path
-        self._path_srda = SRDAMixin(self._fc.func, Pathfinder.path_to_graph(path), self._fc.project)
+        self._path_srda = SRDAMixin(
+            self._fc.func, Pathfinder.path_to_graph(path), self._fc.project, variable_map_of(self._fc.ail_manager)
+        )
         for block in path:
             self.walk(block)
 
@@ -257,7 +260,7 @@ class FactCollector(CFAMixin, SRDAMixin, DFAMixin):
         self.ail_manager = analysis.ail_manager
 
         CFAMixin.__init__(self, self.graph, self.project)
-        SRDAMixin.__init__(self, self.func, self.graph, self.project)
+        SRDAMixin.__init__(self, self.func, self.graph, self.project, variable_map_of(self.ail_manager))
         DFAMixin.__init__(self, self.graph)
 
         # Accumulated facts — sub-collectors write directly to these.
