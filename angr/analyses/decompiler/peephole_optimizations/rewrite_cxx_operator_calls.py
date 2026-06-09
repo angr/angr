@@ -6,10 +6,10 @@ from archinfo import Endness
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, Const, Load, UnaryOp, VirtualVariable
 from angr.ailment.statement import SideEffectStatement, WeakAssignment
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.sim_type import SimCppClass, SimTypeReference
 
-from ..variable_map import variable_map_of
 from .base import PeepholeOptimizationStmtBase
 
 

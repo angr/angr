@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 from angr.ailment.expression import Call, Convert, VirtualVariable
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 
-from ..variable_map import variable_map_of
 from .rewriter_base import CCallRewriterBase
 
 X86_CondTypes = data["X86"]["CondTypes"]

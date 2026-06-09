@@ -17,10 +17,10 @@ from angr.ailment.expression import (
 )
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.ailment.tagged_object import TagDict
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 
-from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = set(string.printable)

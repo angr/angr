@@ -3,8 +3,8 @@ from __future__ import annotations
 from angr import sim_type
 from angr.ailment.expression import Call, Const, DirtyExpression, Expression
 from angr.ailment.statement import DirtyStatement, SideEffectStatement, Statement
+from angr.analyses.decompiler.variable_map import variable_map_of
 
-from ..variable_map import variable_map_of
 from .rewriter_base import DirtyRewriterBase
 
 

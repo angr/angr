@@ -9,10 +9,10 @@ from angr.ailment import BinaryOp
 from angr.ailment.expression import Call, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.ailment.tagged_object import TagDict
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
 
-from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = {ord(x) for x in string.printable if ord(x) >= 0x20}

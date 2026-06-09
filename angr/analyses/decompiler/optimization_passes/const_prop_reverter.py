@@ -10,10 +10,10 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Convert, Expression, Load, Register
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
-from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)

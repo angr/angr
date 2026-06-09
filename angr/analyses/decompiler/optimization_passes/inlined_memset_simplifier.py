@@ -7,9 +7,9 @@ from typing import Any, Literal
 from angr.ailment.expression import BinaryOp, Call, Const, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement, Statement, Store
 from angr.ailment.utils import is_none_or_likeable
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 
-from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

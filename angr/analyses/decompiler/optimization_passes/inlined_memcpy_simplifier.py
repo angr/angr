@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from angr.ailment.expression import Call, Const, Load, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 
-from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from angr.ailment import Expr
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
 
-from ..variable_map import variable_map_of
 from .rewriter_base import CCallRewriterBase
 
 AMD64_CondTypes = data["AMD64"]["CondTypes"]

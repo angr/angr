@@ -44,9 +44,9 @@ from angr.ailment.statement import (
     WeakAssignment,
 )
 from angr.ailment.tagged_object import TaggedObject
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.engines.light.engine import SimEngineNostmtAIL
 
-from ..variable_map import variable_map_of
 from .consts import MAX_STACK_VAR_SIZE
 from .rewriting_state import RewritingState
 

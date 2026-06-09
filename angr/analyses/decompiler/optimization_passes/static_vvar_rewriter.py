@@ -7,10 +7,10 @@ from angr.ailment import Assignment, BinaryOp, Block, Statement
 from angr.ailment.block_walker import AILBlockRewriter, AILBlockViewer
 from angr.ailment.expression import Call, Const, Load, VirtualVariable
 from angr.ailment.statement import SideEffectStatement
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import SimTypeChar, SimTypePointer, SimTypeWideChar
 from angr.utils.graph import GraphUtils
 
-from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

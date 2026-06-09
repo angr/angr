@@ -14,10 +14,10 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
 
-from ..variable_map import variable_map_of
 from .rewriting import RewritingAnalysis
 from .traversal import TraversalAnalysis
 
