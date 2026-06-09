@@ -319,6 +319,7 @@ class OptimizationPass(BaseOptimizationPass):
         self,
         ail_graph: networkx.DiGraph,
         cache: dict | None = None,
+        only_blocks: set[tuple[int, int | None]] | None = None,
     ):
         """
         Simplify all blocks in self._blocks.
@@ -326,12 +327,17 @@ class OptimizationPass(BaseOptimizationPass):
         :param ail_graph:               The AIL function graph.
         :param cache:                   A block-level cache that stores reaching definition analysis results and
                                         propagation results.
+        :param only_blocks:             If not None, only simplify blocks whose (addr, idx) is in this set; all other
+                                        blocks are left unchanged. Used to skip re-simplifying blocks that have not
+                                        changed since they were last simplified.
         :return:                        None
         """
 
         blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = {}
 
         for ail_block in ail_graph.nodes():
+            if only_blocks is not None and (ail_block.addr, ail_block.idx) not in only_blocks:
+                continue
             simplified = self._simplify_block(
                 ail_block,
                 cache=cache,
@@ -385,8 +391,12 @@ class OptimizationPass(BaseOptimizationPass):
 
     def _simplify_graph(self, graph):
         MAX_SIMP_ITERATION = 8
+        # On the first iteration every block is simplified. Afterwards we only re-simplify the blocks that the previous
+        # AILSimplifier run actually modified: block-level simplification is idempotent, so unchanged blocks cannot
+        # simplify any further.
+        dirty_blocks: set[tuple[int, int | None]] | None = None
         for _ in range(MAX_SIMP_ITERATION):
-            self._simplify_blocks(graph)
+            self._simplify_blocks(graph, only_blocks=dirty_blocks)
             simp = self.project.analyses.AILSimplifier(
                 self._func,
                 func_graph=graph,
@@ -398,6 +408,7 @@ class OptimizationPass(BaseOptimizationPass):
             )
             if simp.simplified:
                 graph = simp.func_graph
+                dirty_blocks = simp.simplified_blocks
             else:
                 break
         else:
