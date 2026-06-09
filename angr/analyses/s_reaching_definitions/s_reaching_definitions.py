@@ -146,7 +146,9 @@ class SReachingDefinitionsAnalysis(Analysis):
                 assert isinstance(call, Call)
 
                 # conservatively add uses to all registers that are potentially used here
-                call_cc = self.model.variable_map.calling_convention(call) if self.model.variable_map is not None else None
+                call_cc = (
+                    self.model.variable_map.calling_convention(call) if self.model.variable_map is not None else None
+                )
                 if call_cc is not None:
                     cc = call_cc
                 else:

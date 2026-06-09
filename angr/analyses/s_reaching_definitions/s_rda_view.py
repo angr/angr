@@ -161,7 +161,9 @@ class SRDAView:
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map)
+        predicater = RegVVarPredicate(
+            reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map
+        )
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
         if not vvars:
@@ -240,7 +242,9 @@ class SRDAView:
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map)
+        predicater = RegVVarPredicate(
+            reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map
+        )
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 

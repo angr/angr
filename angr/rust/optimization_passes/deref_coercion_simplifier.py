@@ -91,9 +91,10 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
                         value = self.get_terminal_vvar_value(vvar)
                         if isinstance(value, FunctionLikeMacro):
                             returnty = value.returnty
-                        elif isinstance(value, Call) and (
-                            _proto := variable_map_of(self.manager).prototype(value)
-                        ) is not None:
+                        elif (
+                            isinstance(value, Call)
+                            and (_proto := variable_map_of(self.manager).prototype(value)) is not None
+                        ):
                             returnty = _proto.returnty
                         if isinstance(returnty, RustSimStruct) and returnty.name == string_ty.name:
                             arg1 = args.pop(0)

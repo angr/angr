@@ -7,8 +7,8 @@ from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes.optimization_pass import SequenceOptimizationPass
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import MultiNode, SequenceNode
-from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.decompiler.utils import _flatten_structured_node
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.sim_type import RustSimTypeResult
 from angr.rust.structuring.structurer_nodes import PatternMatchNode
 from angr.utils.ssa import VVarUsesCollector

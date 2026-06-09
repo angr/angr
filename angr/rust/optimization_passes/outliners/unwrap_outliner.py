@@ -170,7 +170,9 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 )
                 vm.set_prototype(
                     replacement,
-                    RustSimTypeFunction(args=[RustSimTypeInt(cmp_vvar.bits)], returnty=None).with_arch(self.project.arch),
+                    RustSimTypeFunction(args=[RustSimTypeInt(cmp_vvar.bits)], returnty=None).with_arch(
+                        self.project.arch
+                    ),
                 )
                 if second_block is not None:
                     second_block.statements[-1] = SideEffectStatement(

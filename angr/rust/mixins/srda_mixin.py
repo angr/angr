@@ -15,9 +15,7 @@ class SRDAMixin:
         self._graph = graph
         manager = getattr(self, "manager", None)
         variable_map = variable_map_of(manager) if manager is not None else None
-        self.srda = project.analyses.SReachingDefinitions(
-            subject=subject, func_graph=graph, variable_map=variable_map
-        )
+        self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph, variable_map=variable_map)
         self.srda_view = SRDAView(self.srda.model)
         self._gtv_cache = {}  # varid -> terminal VirtualVariable
 

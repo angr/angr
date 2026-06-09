@@ -239,9 +239,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
             if self.variable_map is not None:
                 # The new call uses a different idx than the source expr, so copy the call-site info explicitly.
-                self.variable_map.set_calling_convention(
-                    new_call, self.variable_map.calling_convention(stmt.expr)
-                )
+                self.variable_map.set_calling_convention(new_call, self.variable_map.calling_convention(stmt.expr))
                 self.variable_map.set_prototype(new_call, self.variable_map.prototype(stmt.expr))
             return SideEffectStatement(
                 stmt.idx,
