@@ -15,10 +15,11 @@ class SRDAModel:
     The model for SRDA.
     """
 
-    def __init__(self, func_graph, func_args, arch):
+    def __init__(self, func_graph, func_args, arch, variable_map=None):
         self.func_graph = func_graph
         self.func_args = func_args
         self.arch = arch
+        self.variable_map = variable_map
         self.varid_to_vvar: dict[int, VirtualVariable] = {}
         self.all_vvar_definitions: dict[int, AILCodeLocation] = {}
         self.all_vvar_uses: dict[int, list[tuple[VirtualVariable | None, AILCodeLocation]]] = defaultdict(list)

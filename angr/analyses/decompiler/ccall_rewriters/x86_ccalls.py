@@ -5,6 +5,7 @@ from angr.ailment.expression import Call, Convert, VirtualVariable
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 
+from ..variable_map import variable_map_of
 from .rewriter_base import CCallRewriterBase
 
 X86_CondTypes = data["X86"]["CondTypes"]
@@ -343,10 +344,10 @@ class X86CCallRewriter(CCallRewriterBase):
                     ccall.idx,
                     X86_Win32_TIB_Funcs[virtual_addr.value_int],
                     args=[],
-                    prototype=prototype,
                     bits=returnty_bits,
                     **ccall.tags,
                 )
+                variable_map_of(self.ail_manager).set_prototype(call_expr, prototype)
                 call_expr.tags["is_prototype_guessed"] = False
                 ref_expr = Expr.UnaryOp(self.ail_manager.next_atom(), "Reference", call_expr, **ccall.tags)
                 if returnty_bits == ccall.bits:

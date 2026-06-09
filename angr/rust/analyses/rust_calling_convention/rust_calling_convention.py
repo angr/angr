@@ -10,6 +10,7 @@ from angr.ailment.expression import Call, Const, VirtualVariable, VirtualVariabl
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import default_cc
 from angr.knowledge_plugins.functions import Function
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
@@ -398,15 +399,16 @@ class RustCallingConventionAnalysis(Analysis):
 
         return new_arg_types
 
-    @staticmethod
-    def _arg_idx_to_arg_ty(arg_idx, call: Call):
-        if call.prototype and call.calling_convention and call.args:
+    def _arg_idx_to_arg_ty(self, arg_idx, call: Call):
+        vm = variable_map_of(self.ail_manager)
+        call_prototype = vm.prototype(call)
+        if call_prototype and vm.calling_convention(call) and call.args:
             arg_offset = 0
             for i in range(arg_idx):
                 arg = call.args[i]
                 arg_offset += arg.bits
             cur_offset = 0
-            for arg_ty in call.prototype.args:
+            for arg_ty in call_prototype.args:
                 if cur_offset == arg_offset:
                     return arg_ty
                 cur_offset += arg_ty.size or 0

@@ -30,6 +30,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
         track_tmps: bool = False,
+        variable_map=None,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -52,7 +53,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         if self.func is not None:
             self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
 
-        self.model = SRDAModel(func_graph, func_args, self.project.arch)
+        self.model = SRDAModel(func_graph, func_args, self.project.arch, variable_map=variable_map)
 
         self._analyze()
 
@@ -145,8 +146,9 @@ class SReachingDefinitionsAnalysis(Analysis):
                 assert isinstance(call, Call)
 
                 # conservatively add uses to all registers that are potentially used here
-                if call.calling_convention is not None:
-                    cc = call.calling_convention
+                call_cc = self.model.variable_map.calling_convention(call) if self.model.variable_map is not None else None
+                if call_cc is not None:
+                    cc = call_cc
                 else:
                     # just use all registers in the default calling convention because we don't know anything about
                     # the calling convention yet

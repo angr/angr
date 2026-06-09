@@ -24,18 +24,19 @@ class RegVVarPredicate:
     Implements a predicate that is used in get_reg_vvar_by_stmt_idx and get_reg_vvar_by_insn.
     """
 
-    def __init__(self, reg_offset: int, min_size: int, vvars: list[VirtualVariable], arch):
+    def __init__(self, reg_offset: int, min_size: int, vvars: list[VirtualVariable], arch, variable_map=None):
         self.reg_offset = reg_offset
         self.min_size = min_size
         self.vvars = vvars
         self.arch = arch
+        self.variable_map = variable_map
 
     def _get_call_clobbered_regs(self, stmt: SideEffectStatement) -> set[int]:
         call = stmt.expr
         if isinstance(call.target, str):
             # pseudo calls do not clobber any registers
             return set()
-        cc = call.calling_convention
+        cc = self.variable_map.calling_convention(call) if self.variable_map is not None else None
         if cc is None:
             # get the default calling convention
             cc = default_cc(self.arch.name)  # TODO: platform and language
@@ -160,7 +161,7 @@ class SRDAView:
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
+        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map)
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
         if not vvars:
@@ -239,7 +240,7 @@ class SRDAView:
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
+        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map)
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 

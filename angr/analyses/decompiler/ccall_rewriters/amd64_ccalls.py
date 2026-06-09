@@ -4,6 +4,7 @@ from angr.ailment import Expr
 from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
 
+from ..variable_map import variable_map_of
 from .rewriter_base import CCallRewriterBase
 
 AMD64_CondTypes = data["AMD64"]["CondTypes"]
@@ -372,14 +373,17 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                         )
 
-                        return Expr.Call(
+                        cfadd_call = Expr.Call(
                             ccall.idx,
                             "__CFADD__",
-                            calling_convention=SimCCUsercall(self.project.arch, [], None),
                             args=[dep_1, dep_2],
                             bits=ccall.bits,
                             **ccall.tags,
                         )
+                        variable_map_of(self.ail_manager).set_calling_convention(
+                            cfadd_call, SimCCUsercall(self.project.arch, [], None)
+                        )
+                        return cfadd_call
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
                         AMD64_OpTypes["G_CC_OP_SUBW"],

@@ -12,6 +12,7 @@ from angr.ailment.tagged_object import TagDict
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
 
+from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = {ord(x) for x in string.printable if ord(x) >= 0x20}
@@ -141,21 +142,25 @@ class InlinedWcscpySimplifier(OptimizationPass):
             type=wstr_type,
         )
         self.manager.variable_map.set_custom_string(str_const)
+        call = Call(
+            self.manager.next_atom(),
+            "wcsncpy",
+            args=[
+                dst,
+                str_const,
+                Const(self.manager.next_atom(), len(s) // 2, self.project.arch.bits),
+            ],
+            **stmt.tags,
+        )
+        variable_map_of(self.manager).set_prototype(
+            call,
+            SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
+                self.project.arch
+            ),
+        )
         return SideEffectStatement(
             self.manager.next_atom(),
-            Call(
-                self.manager.next_atom(),
-                "wcsncpy",
-                args=[
-                    dst,
-                    str_const,
-                    Const(self.manager.next_atom(), len(s) // 2, self.project.arch.bits),
-                ],
-                prototype=SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
-                    self.project.arch
-                ),
-                **stmt.tags,
-            ),
+            call,
             **stmt.tags,
         )
 
@@ -406,10 +411,12 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     tags["extra_defs"] = [args[0].operand.varid]
                 else:
                     tags.pop("extra_defs", None)
+                call = Call(self.manager.next_atom(), call_name, args=args, **tags)
+                variable_map_of(self.manager).set_prototype(call, prototype)
                 return [
                     SideEffectStatement(
                         self.manager.next_atom(),
-                        Call(self.manager.next_atom(), call_name, args=args, prototype=prototype, **tags),
+                        call,
                         **tags,
                     )
                 ]

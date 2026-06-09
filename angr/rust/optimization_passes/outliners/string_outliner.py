@@ -4,6 +4,7 @@ from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Call, Const, StringLiteral, Struct
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 
 
 class StringOutliner(OptimizationPass):
@@ -30,12 +31,15 @@ class StringOutliner(OptimizationPass):
                     call = Call(
                         self.manager.next_atom(),
                         StringLiteral(self.manager.next_atom(), "String::new", self.project.arch.bits),
-                        prototype=self.kb.librust.get_prototype("alloc::string::String::new")
-                        .with_arch(self.project.arch)
-                        .normalize(),
                         args=[],
                         ret_expr=None,
                         **stmt.src.tags,
+                    )
+                    variable_map_of(self.manager).set_prototype(
+                        call,
+                        self.kb.librust.get_prototype("alloc::string::String::new")
+                        .with_arch(self.project.arch)
+                        .normalize(),
                     )
                     call.bits = 3 * self.project.arch.bits
                     new_stmt = stmt.copy()

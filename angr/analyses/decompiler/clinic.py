@@ -1516,8 +1516,7 @@ class Clinic(Analysis):
                     ailment.Expr.Call(
                         self._ail_manager.next_atom(),
                         target.copy(),
-                        calling_convention=None,  # target_func.calling_convention,
-                        prototype=None,  # target_func.prototype,
+                        # calling_convention / prototype (None here) now live in the VariableMap
                         **last_stmt.tags,
                     ),
                     ret_expr=ret_expr,
@@ -1567,18 +1566,20 @@ class Clinic(Analysis):
                 )
                 IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
                 call_tags = {**last_stmt.tags, "is_prototype_guessed": False}
+                new_call = ailment.Expr.Call(
+                    self._ail_manager.next_atom(),
+                    last_stmt.expr.target.copy(),
+                    args=[arg_expr],
+                    **call_tags,
+                )
+                self.variable_map.set_calling_convention(new_call, SimCCUsercall(self.project.arch, [arg], []))
+                self.variable_map.set_prototype(
+                    new_call,
+                    SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(self.project.arch),
+                )
                 call_stmt = ailment.Stmt.SideEffectStatement(
                     self._ail_manager.next_atom(),
-                    ailment.Expr.Call(
-                        self._ail_manager.next_atom(),
-                        last_stmt.expr.target.copy(),
-                        calling_convention=SimCCUsercall(self.project.arch, [arg], []),
-                        prototype=SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(
-                            self.project.arch
-                        ),
-                        args=[arg_expr],
-                        **call_tags,
-                    ),
+                    new_call,
                     ret_expr=None,
                     **last_stmt.tags,
                 )
@@ -1595,8 +1596,8 @@ class Clinic(Analysis):
             if not isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
                 continue
 
-            cc = last_stmt.expr.calling_convention
-            prototype = last_stmt.expr.prototype
+            cc = self.variable_map.calling_convention(last_stmt.expr)
+            prototype = self.variable_map.prototype(last_stmt.expr)
             if cc and prototype:
                 continue
 
@@ -1641,8 +1642,8 @@ class Clinic(Analysis):
 
             assert prototype is None or isinstance(prototype, SimTypeFunction)
             new_last_stmt = last_stmt.copy()
-            new_last_stmt.expr.calling_convention = cc
-            new_last_stmt.expr.prototype = prototype
+            self.variable_map.set_calling_convention(new_last_stmt.expr, cc)
+            self.variable_map.set_prototype(new_last_stmt.expr, prototype)
             new_last_stmt.tags["is_prototype_guessed"] = True
             new_last_stmt.expr.tags["is_prototype_guessed"] = True
             if func is not None:
@@ -2278,6 +2279,7 @@ class Clinic(Analysis):
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
+            variable_map=self.variable_map,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]

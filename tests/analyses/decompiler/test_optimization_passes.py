@@ -141,7 +141,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
             0x400037,
             1,
             [
-                Call(4, "always_called", None, None, [r(0)]),  # Must not be moved
+                Call(4, "always_called", [r(0)]),  # Must not be moved
                 Return(5, []),
             ],
         )

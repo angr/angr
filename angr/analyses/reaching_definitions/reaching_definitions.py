@@ -73,6 +73,7 @@ class ReachingDefinitionsAnalysis(
         func_addr: int | None = None,
         element_limit: int = 5,
         merge_into_tops: bool = True,
+        variable_map=None,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -197,6 +198,7 @@ class ReachingDefinitionsAnalysis(
             stack_pointer_tracker=stack_pointer_tracker,
             use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
             bp_as_gpr=bp_as_gpr,
+            variable_map=variable_map,
         )
 
         self._visited_blocks: set[Any] = visited_blocks or set()

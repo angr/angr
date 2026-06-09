@@ -85,6 +85,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         stackvars: bool = False,
         use_tmps: bool = False,
         functions: Callable[[int | str], Function | None] | None = None,
+        variable_map=None,
     ):
         super().__init__(project)
         self.simos = simos
@@ -93,6 +94,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.stackvars = stackvars
         self.use_tmps = use_tmps
         self.functions = functions
+        self.variable_map = variable_map
         self.def_info: dict[Def, DefInfo] = {}
         self.pending_ptr_defines_nonlocal: dict[
             int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool]
@@ -522,8 +524,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if isinstance(target, Const) and isinstance(target.value, int):
             target = target.value
         target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
-        if expr.prototype is not None:
-            proto = expr.prototype
+        expr_prototype = self.variable_map.prototype(expr) if self.variable_map is not None else None
+        if expr_prototype is not None:
+            proto = expr_prototype
         elif target is not None and target.prototype is not None:
             proto = target.prototype
         else:
@@ -571,8 +574,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 self._expr(argexpr)
 
         # kill caller-saved registers
-        if expr.calling_convention is not None:
-            cc = expr.calling_convention
+        expr_cc = self.variable_map.calling_convention(expr) if self.variable_map is not None else None
+        if expr_cc is not None:
+            cc = expr_cc
         elif target is not None and target.calling_convention is not None:
             cc = target.calling_convention
         else:

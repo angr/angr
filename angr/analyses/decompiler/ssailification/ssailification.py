@@ -17,6 +17,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
 
+from ..variable_map import variable_map_of
 from .rewriting import RewritingAnalysis
 from .traversal import TraversalAnalysis
 
@@ -87,6 +88,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             ssa_tmps,
             set(),
             self.kb.functions.get,
+            variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
         )
 
         # calculate virtual variables and phi nodes

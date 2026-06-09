@@ -20,6 +20,7 @@ from angr.ailment.tagged_object import TagDict
 from angr.procedures import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 
+from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = set(string.printable)
@@ -132,21 +133,23 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                 str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
                 self.manager.variable_map.set_custom_string(str_const)
+                call = Call(
+                    self.manager.next_atom(),
+                    "strncpy",
+                    args=[
+                        strcpy_dst,
+                        str_const,
+                        Const(self.manager.next_atom(), len(s), self.project.arch.bits),
+                    ],
+                    bits=None,
+                    **stmt.tags,
+                )
+                variable_map_of(self.manager).set_prototype(
+                    call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
+                )
                 return SideEffectStatement(
                     self.manager.next_atom(),
-                    Call(
-                        self.manager.next_atom(),
-                        "strncpy",
-                        calling_convention=None,
-                        args=[
-                            strcpy_dst,
-                            str_const,
-                            Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                        ],
-                        prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
-                        bits=None,
-                        **stmt.tags,
-                    ),
+                    call,
                     ret_expr=None,
                     fp_ret_expr=None,
                     **stmt.tags,
@@ -191,21 +194,23 @@ class InlinedStrcpySimplifier(OptimizationPass):
                     str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                     str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
                     self.manager.variable_map.set_custom_string(str_const)
+                    call = Call(
+                        self.manager.next_atom(),
+                        "strncpy",
+                        args=[
+                            strcpy_dst,
+                            str_const,
+                            Const(self.manager.next_atom(), len(s), self.project.arch.bits),
+                        ],
+                        bits=None,
+                        **stmt.tags,
+                    )
+                    variable_map_of(self.manager).set_prototype(
+                        call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
+                    )
                     return SideEffectStatement(
                         self.manager.next_atom(),
-                        Call(
-                            self.manager.next_atom(),
-                            "strncpy",
-                            calling_convention=None,
-                            args=[
-                                strcpy_dst,
-                                str_const,
-                                Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                            ],
-                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
-                            bits=None,
-                            **stmt.tags,
-                        ),
+                        call,
                         ret_expr=None,
                         fp_ret_expr=None,
                         **stmt.tags,
@@ -292,10 +297,12 @@ class InlinedStrcpySimplifier(OptimizationPass):
             else:
                 tags.pop("extra_defs", None)
 
+            call = Call(self.manager.next_atom(), call_name, args=args, **tags)
+            variable_map_of(self.manager).set_prototype(call, prototype)
             return [
                 SideEffectStatement(
                     self.manager.next_atom(),
-                    Call(self.manager.next_atom(), call_name, args=args, prototype=prototype, **tags),
+                    call,
                     **tags,
                 )
             ]

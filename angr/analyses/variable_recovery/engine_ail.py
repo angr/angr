@@ -45,6 +45,7 @@ class SimEngineVRAIL(
         vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
         func_ret_var: SimVariable | None = None,
         tv_manager: typevars.TypeVariableManager | None = None,
+        variable_map=None,
         **kwargs,
     ):
         super().__init__(*args, vvar_type_hints=vvar_type_hints, tv_manager=tv_manager, **kwargs)
@@ -54,6 +55,7 @@ class SimEngineVRAIL(
         self.vvar_to_vvar = vvar_to_vvar
         self.type_lifter = type_lifter
         self.func_ret_var = func_ret_var
+        self._variable_map = variable_map
 
     def _mapped_vvarid(self, vvar_id: int) -> int | None:
         if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
@@ -228,8 +230,9 @@ class SimEngineVRAIL(
         prototype: SimTypeFunction | None = None
         prototype_libname: str | None = None
         func = None
-        if expr.prototype is not None:
-            prototype = expr.prototype
+        expr_prototype = self._variable_map.prototype(expr) if self._variable_map is not None else None
+        if expr_prototype is not None:
+            prototype = expr_prototype
         if isinstance(expr.target, ailment.Expr.Const):
             func_addr = expr.target.value
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
@@ -299,8 +302,9 @@ class SimEngineVRAIL(
         prototype: SimTypeFunction | None = None
         prototype_libname: str | None = None
         func = None
-        if stmt.expr.prototype is not None:
-            prototype = stmt.expr.prototype
+        stmt_expr_prototype = self._variable_map.prototype(stmt.expr) if self._variable_map is not None else None
+        if stmt_expr_prototype is not None:
+            prototype = stmt_expr_prototype
         if isinstance(stmt.expr.target, ailment.Expr.Const):
             func_addr = stmt.expr.target.value
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:

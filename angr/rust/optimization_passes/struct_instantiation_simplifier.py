@@ -9,6 +9,7 @@ from angr.ailment import UnaryOp
 from angr.ailment.expression import Array, BinaryOp, Call, Const, Load, Struct, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
 from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import (
@@ -359,7 +360,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
     def _align_prototype_and_args(self):
         def callback(expr: Call, _block, _stmt):
             args = list(expr.args or [])
-            prototype = expr.prototype
+            prototype = variable_map_of(self.manager).prototype(expr)
             if prototype and len(args) > len(prototype.args):
                 new_args = []
                 changed = False
@@ -407,9 +408,10 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         for block in self._graph.nodes:
             # Recover structs by function calls
             call = self.terminal_call(block)
-            if call and call.args and call.prototype and call.prototype.args:
-                if len(call.args) == len(call.prototype.args):
-                    for arg, arg_ty in zip(call.args, call.prototype.args):
+            call_prototype = variable_map_of(self.manager).prototype(call) if call is not None else None
+            if call and call.args and call_prototype and call_prototype.args:
+                if len(call.args) == len(call_prototype.args):
+                    for arg, arg_ty in zip(call.args, call_prototype.args):
                         if isinstance(arg_ty, RustSimTypeReference):
                             arg_ty = arg_ty.pts_to
                         if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
@@ -423,7 +425,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                         #         if isinstance(element, VirtualVariable):
                         #             self._simplify_callsite_struct_instantiation(block, element, arg_ty.ele_ty)
 
-                elif len(call.args) > len(call.prototype.args):
+                elif len(call.args) > len(call_prototype.args):
                     # Handle possible struct flattening
                     offset_to_arg = {}
                     offset_to_arg_ty = {}
@@ -432,7 +434,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                         offset_to_arg[cur_offset] = arg
                         cur_offset += arg.size
                     cur_offset = 0
-                    for arg_ty in call.prototype.args:
+                    for arg_ty in call_prototype.args:
                         offset_to_arg_ty[cur_offset] = arg_ty
                         cur_offset += (arg_ty.size or 0) // 8
                     for offset in set(offset_to_arg) & set(offset_to_arg_ty):

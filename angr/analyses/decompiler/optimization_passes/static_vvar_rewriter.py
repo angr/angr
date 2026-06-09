@@ -10,6 +10,7 @@ from angr.ailment.statement import SideEffectStatement
 from angr.sim_type import SimTypeChar, SimTypePointer, SimTypeWideChar
 from angr.utils.graph import GraphUtils
 
+from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -133,9 +134,9 @@ class VVarRewritingVisitor(AILBlockRewriter):
                         str_len += 1
                     return Const(self.manager.next_atom(), str_len, expr.bits, **expr.tags)
 
-        elif expr.args and expr.prototype is not None:
+        elif expr.args and (prototype := variable_map_of(self.manager).prototype(expr)) is not None:
             new_args: list | None = None
-            for arg_idx, (arg_type, arg) in enumerate(zip(expr.prototype.args, expr.args)):
+            for arg_idx, (arg_type, arg) in enumerate(zip(prototype.args, expr.args)):
                 if (  # noqa:SIM102
                     isinstance(arg, VirtualVariable)
                     and arg.varid in self._static_vvars
@@ -196,11 +197,10 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     new_args.append(arg)
 
             if new_args is not None:
+                # The new call reuses expr.idx, so its VariableMap entry (calling_convention/prototype) stays valid.
                 return Call(
                     expr.idx,
                     expr.target,
-                    calling_convention=expr.calling_convention,
-                    prototype=expr.prototype,
                     args=new_args,
                     bits=expr.bits,
                     **expr.tags,

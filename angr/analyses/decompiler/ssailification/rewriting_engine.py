@@ -46,6 +46,7 @@ from angr.ailment.statement import (
 from angr.ailment.tagged_object import TaggedObject
 from angr.engines.light.engine import SimEngineNostmtAIL
 
+from ..variable_map import variable_map_of
 from .consts import MAX_STACK_VAR_SIZE
 from .rewriting_state import RewritingState
 
@@ -286,14 +287,18 @@ class SimEngineSSARewriting(
         replaced_call = Call(
             stmt.idx,
             stmt.expr.target if new_target is None else new_target,
-            calling_convention=stmt.expr.calling_convention,
-            prototype=stmt.expr.prototype,
             args=new_args,
             bits=stmt.bits,
             **stmt.tags,
         )
+        vm = variable_map_of(self.ail_manager)
+        cc = vm.calling_convention(stmt.expr)
+        # The replaced call uses a different idx than the source expr, so copy the call-site info explicitly.
+        vm.set_calling_convention(replaced_call, cc)
+        vm.set_prototype(replaced_call, vm.prototype(stmt.expr))
 
-        cc = stmt.expr.calling_convention if stmt.expr.calling_convention is not None else self.project.factory.cc()
+        if cc is None:
+            cc = self.project.factory.cc()
         if cc is not None:
             # clean up all caller-saved registers (and their subregisters)
             for reg_name in cc.CALLER_SAVED_REGS:
@@ -480,11 +485,10 @@ class SimEngineSSARewriting(
 
         new_target = self._expr(expr.target) if not isinstance(expr.target, str) else None
         if new_target is not None or new_args is not None:
+            # The new call reuses expr.idx, so its VariableMap entry (calling_convention/prototype) stays valid.
             return Call(
                 expr.idx,
                 expr.target if new_target is None else new_target,
-                calling_convention=expr.calling_convention,
-                prototype=expr.prototype,
                 args=new_args if new_args is not None else expr.args,
                 bits=expr.bits,
                 **expr.tags,

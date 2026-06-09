@@ -139,10 +139,9 @@ class SimplifierAILEngine(
         return ailment.statement.SideEffectStatement(
             stmt.idx,
             ailment.expression.Call(
-                stmt.idx,
+                # Reuse the original Call's idx so its VariableMap entry (calling_convention/prototype) is preserved.
+                stmt.expr.idx,
                 target,
-                calling_convention=stmt.expr.calling_convention,
-                prototype=stmt.expr.prototype,
                 args=new_args,
                 bits=stmt.expr.bits,
                 **stmt.tags,

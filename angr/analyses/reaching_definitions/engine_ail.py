@@ -41,6 +41,7 @@ class SimEngineRDAIL(
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
         bp_as_gpr: bool = False,
+        variable_map=None,
     ):
         super().__init__(project)
         self._function_handler = function_handler
@@ -49,6 +50,7 @@ class SimEngineRDAIL(
         self._stack_pointer_tracker = stack_pointer_tracker
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self.bp_as_gpr = bp_as_gpr
+        self._variable_map = variable_map
 
     def _is_top(self, expr):
         """
@@ -264,8 +266,8 @@ class SimEngineRDAIL(
                 target, self.state.codeloc, self.state.analysis.model.func_addr
             ),
             target,
-            cc=call.calling_convention,
-            prototype=call.prototype,
+            cc=self._variable_map.calling_convention(call) if self._variable_map is not None else None,
+            prototype=self._variable_map.prototype(call) if self._variable_map is not None else None,
             name=func_name,
             args_values=[self._expr(arg) for arg in call.args] if call.args is not None else None,
             redefine_locals=call.args is None and not is_expr,

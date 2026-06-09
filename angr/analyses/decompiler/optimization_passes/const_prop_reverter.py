@@ -13,6 +13,7 @@ from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructure
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
+from ..variable_map import variable_map_of
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)
@@ -162,6 +163,7 @@ class ConstPropOptReverter(OptimizationPass):
             observation_points=all_obs_points,
             dep_graph=None,
             track_liveness=False,
+            variable_map=variable_map_of(self.manager),
         )
 
         for (call0, blk0, call1, blk1, arg_conflicts), _ in self._call_pair_targets:
