@@ -17,7 +17,7 @@ class MultiwriteAnnotation(claripy.Annotation):
         return False
 
     @property
-    def relocateable(self):
+    def relocatable(self):
         return True
 
 
