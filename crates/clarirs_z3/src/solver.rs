@@ -3,9 +3,34 @@ use crate::rc::{RcModel, RcOptimize, RcParamSet, RcSolver};
 use clarirs_core::ast::bitvec::BitVecOpExt;
 use clarirs_core::prelude::*;
 use clarirs_z3_sys as z3;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-#[derive(Clone, Debug)]
+/// A persistent z3 solver, incrementally extended as constraints are added.
+///
+/// Kept in thread-local storage keyed by [`Z3Solver::cache_id`], since z3 objects
+/// are bound to the thread-local `Z3_CONTEXT`. `Z3Solver` stores only the id, so
+/// it stays `Send`; first use on a new thread rebuilds there.
+struct CachedSolver {
+    solver: RcSolver,
+    /// Number of `Z3Solver::assertions` already pushed into `solver`.
+    asserted: usize,
+    timeout: Option<u32>,
+    unsat_core: bool,
+}
+
+thread_local! {
+    static SOLVER_CACHE: RefCell<HashMap<u64, CachedSolver>> = RefCell::new(HashMap::new());
+}
+
+static NEXT_SOLVER_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_solver_id() -> u64 {
+    NEXT_SOLVER_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+#[derive(Debug)]
 pub struct Z3Solver<'c> {
     ctx: &'c Context<'c>,
     assertions: Vec<BoolAst<'c>>,
@@ -13,6 +38,31 @@ pub struct Z3Solver<'c> {
     unsat_core: bool,
     // Maps constraint index to tracking variable
     tracking_vars: HashMap<usize, BoolAst<'c>>,
+    /// Identifies this solver's incremental z3 solver in [`SOLVER_CACHE`].
+    cache_id: u64,
+}
+
+impl<'c> Clone for Z3Solver<'c> {
+    fn clone(&self) -> Self {
+        Z3Solver {
+            ctx: self.ctx,
+            assertions: self.assertions.clone(),
+            timeout: self.timeout,
+            unsat_core: self.unsat_core,
+            tracking_vars: self.tracking_vars.clone(),
+            cache_id: next_solver_id(),
+        }
+    }
+}
+
+impl Drop for Z3Solver<'_> {
+    fn drop(&mut self) {
+        let _ = SOLVER_CACHE.try_with(|cell| {
+            if let Ok(mut map) = cell.try_borrow_mut() {
+                map.remove(&self.cache_id);
+            }
+        });
+    }
 }
 
 impl<'c> Z3Solver<'c> {
@@ -23,6 +73,7 @@ impl<'c> Z3Solver<'c> {
             timeout: None,
             unsat_core: false,
             tracking_vars: HashMap::new(),
+            cache_id: next_solver_id(),
         }
     }
 
@@ -33,6 +84,7 @@ impl<'c> Z3Solver<'c> {
             timeout,
             unsat_core: false,
             tracking_vars: HashMap::new(),
+            cache_id: next_solver_id(),
         }
     }
 
@@ -43,6 +95,7 @@ impl<'c> Z3Solver<'c> {
             timeout,
             unsat_core,
             tracking_vars: HashMap::new(),
+            cache_id: next_solver_id(),
         }
     }
 
@@ -59,41 +112,41 @@ impl<'c> Z3Solver<'c> {
             ));
         }
 
-        let mut z3_solver = self.make_filled_solver()?;
-
-        // Check if UNSAT
-        if z3_solver.check()? != z3::Lbool::False {
-            return Err(ClarirsError::UnsupportedOperation(
-                "Can only get unsat core after an UNSAT result".to_string(),
-            ));
-        }
-
-        let core_vector = z3_solver.get_unsat_core()?;
-        let core_size = core_vector.size();
-
-        let mut core_indices = Vec::new();
-
-        // Build a reverse map from tracking variable to index
-        let mut track_to_idx: HashMap<String, usize> = HashMap::new();
-        for (idx, track_var) in &self.tracking_vars {
-            // Extract the variable name
-            if let Some(vars) = track_var.variables().iter().next() {
-                track_to_idx.insert(vars.to_string(), *idx);
+        self.with_cached_solver(|z3_solver| {
+            // Check if UNSAT
+            if z3_solver.check()? != z3::Lbool::False {
+                return Err(ClarirsError::UnsupportedOperation(
+                    "Can only get unsat core after an UNSAT result".to_string(),
+                ));
             }
-        }
 
-        for i in 0..core_size {
-            let core_ast = core_vector.get(i)?;
-            // Convert the Z3 AST back to a BoolAst to get its variable name
-            let bool_ast = BoolAst::from_z3(self.ctx, &core_ast)?;
-            if let Some(vars) = bool_ast.variables().iter().next()
-                && let Some(idx) = track_to_idx.get(&vars.to_string())
-            {
-                core_indices.push(*idx);
+            let core_vector = z3_solver.get_unsat_core()?;
+            let core_size = core_vector.size();
+
+            let mut core_indices = Vec::new();
+
+            // Build a reverse map from tracking variable to index
+            let mut track_to_idx: HashMap<String, usize> = HashMap::new();
+            for (idx, track_var) in &self.tracking_vars {
+                // Extract the variable name
+                if let Some(vars) = track_var.variables().iter().next() {
+                    track_to_idx.insert(vars.to_string(), *idx);
+                }
             }
-        }
 
-        Ok(core_indices)
+            for i in 0..core_size {
+                let core_ast = core_vector.get(i)?;
+                // Convert the Z3 AST back to a BoolAst to get its variable name
+                let bool_ast = BoolAst::from_z3(self.ctx, &core_ast)?;
+                if let Some(vars) = bool_ast.variables().iter().next()
+                    && let Some(idx) = track_to_idx.get(&vars.to_string())
+                {
+                    core_indices.push(*idx);
+                }
+            }
+
+            Ok(core_indices)
+        })
     }
 }
 
@@ -104,7 +157,9 @@ impl<'c> HasContext<'c> for Z3Solver<'c> {
 }
 
 impl<'c> Z3Solver<'c> {
-    fn make_filled_solver(&self) -> Result<RcSolver, ClarirsError> {
+    /// Build a fresh z3 solver configured with this solver's params (timeout,
+    /// unsat_core) but with no assertions yet.
+    fn new_z3_solver(&self) -> Result<RcSolver, ClarirsError> {
         let mut z3_solver = RcSolver::new()?;
 
         let mut params = RcParamSet::new()?;
@@ -115,23 +170,80 @@ impl<'c> Z3Solver<'c> {
             params.set_bool("unsat_core", true)?;
         }
         z3_solver.set_params(params)?;
-
-        for (idx, assertion) in self.assertions.iter().enumerate() {
-            let converted = assertion.to_z3()?;
-            if self.unsat_core {
-                // Use assert_and_track with a tracking variable
-                if let Some(track_var) = self.tracking_vars.get(&idx) {
-                    let track_z3 = track_var.to_z3()?;
-                    z3_solver.assert_and_track(&converted, &track_z3)?;
-                } else {
-                    z3_solver.assert(&converted)?;
-                }
-            } else {
-                z3_solver.assert(&converted)?;
-            }
-        }
-
         Ok(z3_solver)
+    }
+
+    /// Assert `self.assertions[idx]` into `z3_solver`, using assert-and-track
+    /// when unsat-core extraction is enabled.
+    fn assert_at(&self, z3_solver: &mut RcSolver, idx: usize) -> Result<(), ClarirsError> {
+        let converted = self.assertions[idx].to_z3()?;
+        if self.unsat_core
+            && let Some(track_var) = self.tracking_vars.get(&idx)
+        {
+            let track_z3 = track_var.to_z3()?;
+            z3_solver.assert_and_track(&converted, &track_z3)?;
+            return Ok(());
+        }
+        z3_solver.assert(&converted)?;
+        Ok(())
+    }
+
+    /// Run `f` against this solver's cached z3 solver (per thread), pushing only
+    /// the assertions added since the previous call rather than rebuilding and
+    /// re-asserting the whole set each time.
+    fn with_cached_solver<T>(
+        &self,
+        f: impl FnOnce(&mut RcSolver) -> Result<T, ClarirsError>,
+    ) -> Result<T, ClarirsError> {
+        SOLVER_CACHE.with(|cell| {
+            // Reusable only if built with the same params and its asserted
+            // constraints are still a prefix of the current set.
+            let reusable = match cell.borrow().get(&self.cache_id) {
+                Some(c) => {
+                    c.timeout == self.timeout
+                        && c.unsat_core == self.unsat_core
+                        && c.asserted <= self.assertions.len()
+                }
+                None => false,
+            };
+
+            if !reusable {
+                // Build outside the cache borrow.
+                let mut solver = self.new_z3_solver()?;
+                for idx in 0..self.assertions.len() {
+                    self.assert_at(&mut solver, idx)?;
+                }
+                cell.borrow_mut().insert(
+                    self.cache_id,
+                    CachedSolver {
+                        solver,
+                        asserted: self.assertions.len(),
+                        timeout: self.timeout,
+                        unsat_core: self.unsat_core,
+                    },
+                );
+            }
+
+            let mut map = cell.borrow_mut();
+            let cached = map
+                .get_mut(&self.cache_id)
+                .expect("cache entry just ensured");
+            // Push any assertions added since the last call.
+            while cached.asserted < self.assertions.len() {
+                let idx = cached.asserted;
+                self.assert_at(&mut cached.solver, idx)?;
+                cached.asserted = idx + 1;
+            }
+            f(&mut cached.solver)
+        })
+    }
+
+    /// Drop this solver's cached z3 solver, forcing a rebuild on next use.
+    /// Required whenever the assertion set changes other than by appending.
+    fn invalidate_cache(&self) {
+        SOLVER_CACHE.with(|cell| {
+            cell.borrow_mut().remove(&self.cache_id);
+        });
     }
 
     fn mk_filled_optimize(&self) -> Result<RcOptimize, ClarirsError> {
@@ -146,12 +258,12 @@ impl<'c> Z3Solver<'c> {
     }
 
     fn make_model(&self) -> Result<RcModel, ClarirsError> {
-        let mut z3_solver = self.make_filled_solver()?;
-        if z3_solver.check()? != z3::Lbool::True {
-            return Err(ClarirsError::Unsat);
-        }
-
-        z3_solver.model()
+        self.with_cached_solver(|z3_solver| {
+            if z3_solver.check()? != z3::Lbool::True {
+                return Err(ClarirsError::Unsat);
+            }
+            z3_solver.model()
+        })
     }
 
     fn simplify_dynast(expr: &DynAst<'c>) -> Result<DynAst<'c>, ClarirsError> {
@@ -197,6 +309,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     fn clear(&mut self) -> Result<(), ClarirsError> {
         self.assertions.clear();
         self.tracking_vars.clear();
+        self.invalidate_cache();
         Ok(())
     }
 
@@ -217,12 +330,13 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
                 }
             })
             .collect::<Result<Vec<_>, ClarirsError>>()?;
+        // The assertion set changed in place; the cached solver is now stale.
+        self.invalidate_cache();
         Ok(())
     }
 
     fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
-        let mut z3_solver = self.make_filled_solver()?;
-        Ok(z3_solver.check()? == z3::Lbool::True)
+        self.with_cached_solver(|z3_solver| Ok(z3_solver.check()? == z3::Lbool::True))
     }
 
     fn eval_bool(&mut self, expr: &BoolAst<'c>) -> Result<BoolAst<'c>, ClarirsError> {
