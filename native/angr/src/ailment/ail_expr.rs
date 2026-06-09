@@ -25,7 +25,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::base::CachedHash;
-use crate::ailment::enums::{ConvertType, RoundingMode};
+use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode};
 use crate::ailment::hash::{HashItem, stable_hash};
 use indexmap::IndexMap;
 use crate::ailment::tags::{Tags, TagsView};
@@ -265,37 +265,37 @@ pub enum ExprInner {
 }
 
 impl ExprInner {
-    /// Tag string used for ``isinstance`` dispatch on the Python side.
+    /// Variant tag used for ``isinstance`` dispatch on the Python side.
     /// Keep in sync with the marker classes' ``_kind`` attribute.
-    pub fn kind(&self) -> &'static str {
+    pub fn kind(&self) -> ExpressionKind {
         match self {
-            ExprInner::Const { .. } => "Const",
-            ExprInner::Tmp { .. } => "Tmp",
-            ExprInner::Register { .. } => "Register",
-            ExprInner::ComboRegister { .. } => "ComboRegister",
-            ExprInner::Phi { .. } => "Phi",
-            ExprInner::VirtualVariable { .. } => "VirtualVariable",
-            ExprInner::UnaryOp { .. } => "UnaryOp",
-            ExprInner::Convert { .. } => "Convert",
-            ExprInner::Reinterpret { .. } => "Reinterpret",
-            ExprInner::BinaryOp { .. } => "BinaryOp",
-            ExprInner::Load { .. } => "Load",
-            ExprInner::Call { .. } => "Call",
-            ExprInner::DirtyExpression { .. } => "DirtyExpression",
-            ExprInner::VEXCCallExpression { .. } => "VEXCCallExpression",
-            ExprInner::MultiStatementExpression { .. } => "MultiStatementExpression",
-            ExprInner::Struct { .. } => "Struct",
-            ExprInner::RustEnum { .. } => "RustEnum",
-            ExprInner::Array { .. } => "Array",
-            ExprInner::Let { .. } => "Let",
-            ExprInner::Macro { .. } => "Macro",
-            ExprInner::FunctionLikeMacro { .. } => "FunctionLikeMacro",
-            ExprInner::ITE { .. } => "ITE",
-            ExprInner::Extract { .. } => "Extract",
-            ExprInner::Insert { .. } => "Insert",
-            ExprInner::StringLiteral { .. } => "StringLiteral",
-            ExprInner::BasePointerOffset { .. } => "BasePointerOffset",
-            ExprInner::StackBaseOffset { .. } => "StackBaseOffset",
+            ExprInner::Const { .. } => ExpressionKind::Const,
+            ExprInner::Tmp { .. } => ExpressionKind::Tmp,
+            ExprInner::Register { .. } => ExpressionKind::Register,
+            ExprInner::ComboRegister { .. } => ExpressionKind::ComboRegister,
+            ExprInner::Phi { .. } => ExpressionKind::Phi,
+            ExprInner::VirtualVariable { .. } => ExpressionKind::VirtualVariable,
+            ExprInner::UnaryOp { .. } => ExpressionKind::UnaryOp,
+            ExprInner::Convert { .. } => ExpressionKind::Convert,
+            ExprInner::Reinterpret { .. } => ExpressionKind::Reinterpret,
+            ExprInner::BinaryOp { .. } => ExpressionKind::BinaryOp,
+            ExprInner::Load { .. } => ExpressionKind::Load,
+            ExprInner::Call { .. } => ExpressionKind::Call,
+            ExprInner::DirtyExpression { .. } => ExpressionKind::DirtyExpression,
+            ExprInner::VEXCCallExpression { .. } => ExpressionKind::VEXCCallExpression,
+            ExprInner::MultiStatementExpression { .. } => ExpressionKind::MultiStatementExpression,
+            ExprInner::Struct { .. } => ExpressionKind::Struct,
+            ExprInner::RustEnum { .. } => ExpressionKind::RustEnum,
+            ExprInner::Array { .. } => ExpressionKind::Array,
+            ExprInner::Let { .. } => ExpressionKind::Let,
+            ExprInner::Macro { .. } => ExpressionKind::Macro,
+            ExprInner::FunctionLikeMacro { .. } => ExpressionKind::FunctionLikeMacro,
+            ExprInner::ITE { .. } => ExpressionKind::ITE,
+            ExprInner::Extract { .. } => ExpressionKind::Extract,
+            ExprInner::Insert { .. } => ExpressionKind::Insert,
+            ExprInner::StringLiteral { .. } => ExpressionKind::StringLiteral,
+            ExprInner::BasePointerOffset { .. } => ExpressionKind::BasePointerOffset,
+            ExprInner::StackBaseOffset { .. } => ExpressionKind::StackBaseOffset,
         }
     }
 }
@@ -660,8 +660,12 @@ pub struct AilExpression {
 }
 
 impl AilExpression {
-    pub fn kind(&self) -> &'static str {
+    pub fn kind(&self) -> ExpressionKind {
         self.inner.kind()
+    }
+
+    pub fn kind_str(&self) -> &'static str {
+        self.inner.kind().as_str()
     }
 
     /// Compute the structural hash. Cached on [`ExprHeader::cached_hash`].
@@ -2706,14 +2710,52 @@ impl AilExpression {
 // ---------------------------------------------------------------------------
 
 #[pyclass(name = "Expression", module = "angr.rustylib.ailment", skip_from_py_object)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Expression {
     pub expr: AilExpression,
+    /// Cached Python int holding the variant tag, materialized once
+    /// at construction so ``Expression.pykind`` reads are a single
+    /// ``clone_ref`` (refcount bump) rather than a fresh PyObject
+    /// allocation per access.
+    pykind: Py<pyo3::types::PyAny>,
+}
+
+impl Clone for Expression {
+    fn clone(&self) -> Self {
+        Python::attach(|py| Self {
+            expr: self.expr.clone(),
+            pykind: self.pykind.clone_ref(py),
+        })
+    }
+}
+
+/// Interned ``Py<int>`` objects for every ``ExpressionKind`` value.
+/// Built lazily on first ``Expression::wrap`` (which is always called
+/// under the GIL via PyO3); per-instance construction is then a
+/// single array index + ``clone_ref`` instead of an ``into_pyobject``
+/// + boundary trip. CPython interns small ints anyway, but PyO3
+/// still pays the boundary on every call -- skipping that recovers
+/// the ~50-75 ms construction tax seen in the per-instance
+/// ``Py<int>`` cache.
+static EXPR_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 27]> =
+    pyo3::sync::PyOnceLock::new();
+
+fn expr_pykind_for(py: Python<'_>, kind: ExpressionKind) -> Py<pyo3::types::PyAny> {
+    use pyo3::IntoPyObjectExt;
+    let arr = EXPR_PYKINDS.get_or_init(py, || {
+        std::array::from_fn(|i| {
+            (i as u8)
+                .into_py_any(py)
+                .expect("u8 -> Py<int> cannot fail")
+        })
+    });
+    arr[kind as usize].clone_ref(py)
 }
 
 impl Expression {
     pub fn wrap(expr: AilExpression) -> Self {
-        Self { expr }
+        let pykind = Python::attach(|py| expr_pykind_for(py, expr.kind()));
+        Self { expr, pykind }
     }
 
     /// Public stringifier used by the Statement-side spike's ``__str__``
@@ -3611,8 +3653,21 @@ impl Expression {
     /// Variant discriminator. Python-side metaclass uses this for
     /// ``isinstance(load, Load)`` dispatch.
     #[getter]
-    fn kind(&self) -> &'static str {
+    fn kind(&self) -> ExpressionKind {
         self.expr.kind()
+    }
+
+    /// String name of the variant, for repr/debug.
+    #[getter]
+    fn kind_name(&self) -> &'static str {
+        self.expr.kind_str()
+    }
+
+    /// Cached ``Py<int>`` form of the kind tag. Pre-materialized at
+    /// construction; access is a single ``clone_ref``.
+    #[getter]
+    fn pykind(&self, py: Python<'_>) -> Py<pyo3::types::PyAny> {
+        self.pykind.clone_ref(py)
     }
 
     fn clear_hash(&self) {
