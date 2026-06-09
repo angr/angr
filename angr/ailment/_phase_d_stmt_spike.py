@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from angr.rustylib.ailment import Statement as _Statement
+from angr.rustylib.ailment import StatementKind as SK
 
 
 class _AilStmtMarkerMeta(type):
@@ -29,9 +30,10 @@ class _AilStmtMarkerMeta(type):
     of variants (e.g. an abstract ``Statement`` parent marker).
     """
 
-    _kind: str
-    _kinds: frozenset[str]
-    _match_kinds: frozenset[str]
+    _kind: SK
+    _kinds: frozenset[SK]
+    _match_kinds: frozenset[SK]
+    _match_kind_ints: frozenset[int]
 
     def __init__(cls, name, bases, namespace, **kwargs):
         super().__init__(name, bases, namespace, **kwargs)
@@ -43,9 +45,13 @@ class _AilStmtMarkerMeta(type):
                 cls._match_kinds = frozenset({kind})
         else:
             cls._match_kinds = kinds if isinstance(kinds, frozenset) else frozenset(kinds)
+        # Mirror as a plain-int frozenset; see ``_AilMarkerMeta`` for
+        # rationale.
+        if hasattr(cls, "_match_kinds"):
+            cls._match_kind_ints = frozenset(int(k) for k in cls._match_kinds)
 
     def __instancecheck__(cls, instance: Any) -> bool:
-        return isinstance(instance, _Statement) and instance.kind in cls._match_kinds
+        return isinstance(instance, _Statement) and instance.pykind in cls._match_kind_ints
 
     def __subclasscheck__(cls, subclass: type) -> bool:
         return subclass is cls
@@ -61,7 +67,7 @@ class _AilStmtMarkerMeta(type):
 class Assignment(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``Assignment``."""
 
-    _kind = "Assignment"
+    _kind = SK.Assignment
 
     def __new__(cls, idx, dst, src, **tags) -> _Statement:  # type: ignore[misc]
         return _Statement._new_assignment(idx, dst, src, **tags)
@@ -70,7 +76,7 @@ class Assignment(metaclass=_AilStmtMarkerMeta):
 class WeakAssignment(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``WeakAssignment``."""
 
-    _kind = "WeakAssignment"
+    _kind = SK.WeakAssignment
 
     def __new__(cls, idx, dst, src, **tags) -> _Statement:  # type: ignore[misc]
         return _Statement._new_weak_assignment(idx, dst, src, **tags)
@@ -79,7 +85,7 @@ class WeakAssignment(metaclass=_AilStmtMarkerMeta):
 class Label(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``Label``."""
 
-    _kind = "Label"
+    _kind = SK.Label
 
     def __new__(cls, idx, name, **tags) -> _Statement:  # type: ignore[misc]
         return _Statement._new_label(idx, name, **tags)
@@ -88,7 +94,7 @@ class Label(metaclass=_AilStmtMarkerMeta):
 class Store(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``Store``."""
 
-    _kind = "Store"
+    _kind = SK.Store
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -106,7 +112,7 @@ class Store(metaclass=_AilStmtMarkerMeta):
 class Jump(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``Jump``."""
 
-    _kind = "Jump"
+    _kind = SK.Jump
 
     def __new__(cls, idx, target, target_idx=None, **tags) -> _Statement:  # type: ignore[misc]
         return _Statement._new_jump(idx, target, target_idx=target_idx, **tags)
@@ -115,7 +121,7 @@ class Jump(metaclass=_AilStmtMarkerMeta):
 class ConditionalJump(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``ConditionalJump``."""
 
-    _kind = "ConditionalJump"
+    _kind = SK.ConditionalJump
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -142,7 +148,7 @@ class ConditionalJump(metaclass=_AilStmtMarkerMeta):
 class SideEffectStatement(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``SideEffectStatement``."""
 
-    _kind = "SideEffectStatement"
+    _kind = SK.SideEffectStatement
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -158,7 +164,7 @@ class SideEffectStatement(metaclass=_AilStmtMarkerMeta):
 class Return(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``Return``."""
 
-    _kind = "Return"
+    _kind = SK.Return
 
     def __new__(cls, idx, ret_exprs, **tags) -> _Statement:  # type: ignore[misc]
         return _Statement._new_return(idx, ret_exprs, **tags)
@@ -167,7 +173,7 @@ class Return(metaclass=_AilStmtMarkerMeta):
 class CAS(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``CAS``."""
 
-    _kind = "CAS"
+    _kind = SK.CAS
 
     def __new__(  # type: ignore[misc]
         cls,
@@ -188,7 +194,7 @@ class CAS(metaclass=_AilStmtMarkerMeta):
 class DirtyStatement(metaclass=_AilStmtMarkerMeta):
     """Marker for ``Statement`` instances whose variant is ``DirtyStatement``."""
 
-    _kind = "DirtyStatement"
+    _kind = SK.DirtyStatement
 
     def __new__(cls, idx, dirty, **tags) -> _Statement:  # type: ignore[misc]
         return _Statement._new_dirty_statement(idx, dirty, **tags)

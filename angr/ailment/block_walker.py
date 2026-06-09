@@ -110,12 +110,15 @@ def _dispatch_key(obj):
     back to ``type(obj)`` for backward compatibility.
     """
     # Fast path: Phase-D fat-enum instances are the overwhelming majority
-    # of dispatches (~4M / decompile on ``doit``). Type-check + direct
-    # attribute access avoids the ~3.9M ``builtins.getattr`` calls (≈0.38 s)
-    # measured by cProfile, and reuses the already-resident ``kind``
-    # accessor instead of going through the generic getattr machinery.
-    if isinstance(obj, _PHASE_D_FAT_ENUMS):
-        return _KIND_TO_MARKER.get(obj.kind, type(obj))
+    # of dispatches (~4M / decompile on ``doit``). Dispatch on the
+    # cached ``pykind`` (a ``Py<int>``) instead of ``kind`` (a fresh
+    # ``ExpressionKind`` / ``StatementKind`` pyclass per access).
+    # Expression / Statement integer tag spaces overlap (both start at
+    # 0), so route through per-side tables.
+    if isinstance(obj, _PhaseDExpression):
+        return _EXPR_KIND_TO_MARKER.get(obj.pykind, type(obj))
+    if isinstance(obj, _PhaseDStatement):
+        return _STMT_KIND_TO_MARKER.get(obj.pykind, type(obj))
     # Slow path: legacy (non-Phase-D) instances may not expose ``kind``.
     kind = getattr(obj, "kind", None)
     if kind is None:
@@ -123,53 +126,37 @@ def _dispatch_key(obj):
     return _KIND_TO_MARKER.get(kind, type(obj))
 
 
-# Build a lookup ``kind -> marker class`` once. Each marker class declares
-# either ``_kind`` (single tag) or ``_kinds`` (union of tags, e.g.
-# ``Call`` matches ``"Call" | "Macro" | "FunctionLikeMacro"``). Single-tag
-# markers take precedence so dispatch lands on the most specific class.
-_KIND_TO_MARKER: dict[str, type] = {}
-for _marker in (
-    Const,
-    Tmp,
-    Register,
-    ComboRegister,
-    VirtualVariable,
-    Phi,
-    UnaryOp,
-    BinaryOp,
-    Convert,
-    Reinterpret,
-    Load,
-    ITE,
-    Extract,
-    Insert,
-    Call,
-    DirtyExpression,
-    VEXCCallExpression,
-    MultiStatementExpression,
-    StringLiteral,
-    Struct,
-    RustEnum,
-    Array,
-    Let,
-    Macro,
-    FunctionLikeMacro,
-    BasePointerOffset,
-    StackBaseOffset,
-    Assignment,
-    WeakAssignment,
-    Store,
-    Jump,
-    ConditionalJump,
-    SideEffectStatement,
-    Return,
-    CAS,
-    DirtyStatement,
-    Label,
-):
+# Build per-side lookups ``kind -> marker class``. Expression and
+# Statement integer tag spaces overlap (both start at 0) so the dicts
+# can't be merged when keyed on ``ExpressionKind`` / ``StatementKind``
+# values (or their integer aliases via ``pykind``). The combined
+# ``_KIND_TO_MARKER`` is preserved for the legacy non-Phase-D slow path.
+_EXPR_MARKERS = (
+    Const, Tmp, Register, ComboRegister, VirtualVariable, Phi, UnaryOp,
+    BinaryOp, Convert, Reinterpret, Load, ITE, Extract, Insert, Call,
+    DirtyExpression, VEXCCallExpression, MultiStatementExpression,
+    StringLiteral, Struct, RustEnum, Array, Let, Macro, FunctionLikeMacro,
+    BasePointerOffset, StackBaseOffset,
+)
+_STMT_MARKERS = (
+    Assignment, WeakAssignment, Store, Jump, ConditionalJump,
+    SideEffectStatement, Return, CAS, DirtyStatement, Label,
+)
+_EXPR_KIND_TO_MARKER: dict = {}
+_STMT_KIND_TO_MARKER: dict = {}
+_KIND_TO_MARKER: dict = {}
+for _marker in _EXPR_MARKERS:
     _kind_attr = _marker.__dict__.get("_kind")
     if _kind_attr is not None:
+        _EXPR_KIND_TO_MARKER.setdefault(_kind_attr, _marker)
         _KIND_TO_MARKER.setdefault(_kind_attr, _marker)
+for _marker in _STMT_MARKERS:
+    _kind_attr = _marker.__dict__.get("_kind")
+    if _kind_attr is not None:
+        _STMT_KIND_TO_MARKER.setdefault(_kind_attr, _marker)
+        # _KIND_TO_MARKER may have an EK collision here -- skip if so.
+        if _kind_attr not in _KIND_TO_MARKER:
+            _KIND_TO_MARKER.setdefault(_kind_attr, _marker)
 del _marker, _kind_attr
 
 
