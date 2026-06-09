@@ -18,6 +18,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
 use crate::ailment::base::CachedHash;
+use crate::ailment::enums::StatementKind;
 use crate::ailment::hash::{HashItem, stable_hash};
 use crate::ailment::tags::{Tags, TagsView};
 
@@ -117,18 +118,18 @@ pub enum StmtInner {
 }
 
 impl StmtInner {
-    pub fn kind(&self) -> &'static str {
+    pub fn kind(&self) -> StatementKind {
         match self {
-            StmtInner::Assignment { .. } => "Assignment",
-            StmtInner::WeakAssignment { .. } => "WeakAssignment",
-            StmtInner::Label { .. } => "Label",
-            StmtInner::Store { .. } => "Store",
-            StmtInner::Jump { .. } => "Jump",
-            StmtInner::ConditionalJump { .. } => "ConditionalJump",
-            StmtInner::SideEffectStatement { .. } => "SideEffectStatement",
-            StmtInner::Return { .. } => "Return",
-            StmtInner::CAS { .. } => "CAS",
-            StmtInner::DirtyStatement { .. } => "DirtyStatement",
+            StmtInner::Assignment { .. } => StatementKind::Assignment,
+            StmtInner::WeakAssignment { .. } => StatementKind::WeakAssignment,
+            StmtInner::Label { .. } => StatementKind::Label,
+            StmtInner::Store { .. } => StatementKind::Store,
+            StmtInner::Jump { .. } => StatementKind::Jump,
+            StmtInner::ConditionalJump { .. } => StatementKind::ConditionalJump,
+            StmtInner::SideEffectStatement { .. } => StatementKind::SideEffectStatement,
+            StmtInner::Return { .. } => StatementKind::Return,
+            StmtInner::CAS { .. } => StatementKind::CAS,
+            StmtInner::DirtyStatement { .. } => StatementKind::DirtyStatement,
         }
     }
 }
@@ -144,8 +145,12 @@ pub struct AilStatement {
 }
 
 impl AilStatement {
-    pub fn kind(&self) -> &'static str {
+    pub fn kind(&self) -> StatementKind {
         self.inner.kind()
+    }
+
+    pub fn kind_str(&self) -> &'static str {
+        self.inner.kind().as_str()
     }
 
     pub fn _hash_core(&self) -> i64 {
@@ -987,14 +992,42 @@ impl AilStatement {
 // ---------------------------------------------------------------------------
 
 #[pyclass(name = "Statement", module = "angr.rustylib.ailment", skip_from_py_object)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Statement {
     pub stmt: AilStatement,
+    /// Cached ``Py<int>``. See ``Expression::pykind``.
+    pykind: Py<pyo3::types::PyAny>,
+}
+
+impl Clone for Statement {
+    fn clone(&self) -> Self {
+        Python::attach(|py| Self {
+            stmt: self.stmt.clone(),
+            pykind: self.pykind.clone_ref(py),
+        })
+    }
+}
+
+/// See ``ail_expr::EXPR_PYKINDS`` for rationale.
+static STMT_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 10]> =
+    pyo3::sync::PyOnceLock::new();
+
+fn stmt_pykind_for(py: Python<'_>, kind: StatementKind) -> Py<pyo3::types::PyAny> {
+    use pyo3::IntoPyObjectExt;
+    let arr = STMT_PYKINDS.get_or_init(py, || {
+        std::array::from_fn(|i| {
+            (i as u8)
+                .into_py_any(py)
+                .expect("u8 -> Py<int> cannot fail")
+        })
+    });
+    arr[kind as usize].clone_ref(py)
 }
 
 impl Statement {
     pub fn wrap(stmt: AilStatement) -> Self {
-        Self { stmt }
+        let pykind = Python::attach(|py| stmt_pykind_for(py, stmt.kind()));
+        Self { stmt, pykind }
     }
 
     /// Public stringifier used by stmt-bearing expressions (e.g.
@@ -1283,8 +1316,21 @@ impl Statement {
     /// Variant discriminator. Python-side metaclass uses this for
     /// ``isinstance(x, Assignment)`` dispatch.
     #[getter]
-    fn kind(&self) -> &'static str {
+    fn kind(&self) -> StatementKind {
         self.stmt.kind()
+    }
+
+    /// String name of the variant, for repr/debug.
+    #[getter]
+    fn kind_name(&self) -> &'static str {
+        self.stmt.kind_str()
+    }
+
+    /// Cached ``Py<int>`` form of the kind tag. Pre-materialized at
+    /// construction; access is a single ``clone_ref``.
+    #[getter]
+    fn pykind(&self, py: Python<'_>) -> Py<pyo3::types::PyAny> {
+        self.pykind.clone_ref(py)
     }
 
     fn clear_hash(&self) {
