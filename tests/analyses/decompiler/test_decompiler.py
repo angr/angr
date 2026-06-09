@@ -3853,6 +3853,32 @@ class TestDecompiler(unittest.TestCase):
         for case_no in [63, 65, 70, 73, 86, 97, 98, 100, 102, 104, 105, 115, 121]:
             assert f"case {case_no}:" in d.codegen.text
 
+    def test_call_with_pointer_write_side_effect_not_folded(self, decompiler_options=None):
+        # Regression test: a call that fills a stack buffer through a pointer argument (a side-effect write captured
+        # as an "extra_def") whose return value is unused must not be folded into its return-value use site. Folding
+        # it would move the call (and its buffer write) away, leaving the buffer reads referencing a stack variable
+        # that is never written -- a used-but-undefined value.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "hostname")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.clinic is not None
+
+        rd = proj.analyses.SReachingDefinitions(subject=f, func_graph=d.clinic.graph, func_args=set()).model
+        used_but_undefined_stack_vars = [
+            str(rd.varid_to_vvar[vid])
+            for vid, loc in rd.all_vvar_definitions.items()
+            if loc.is_extern
+            and getattr(rd.varid_to_vvar.get(vid), "was_stack", False)
+            and any(expr is not None for expr, _ in rd.all_vvar_uses.get(vid, []))
+        ]
+        assert not used_but_undefined_stack_vars, (
+            "Stack variables are read without ever being written (a side-effecting call was likely folded away): "
+            f"{used_but_undefined_stack_vars}"
+        )
+
     @structuring_algo("sailr")
     def test_incorrect_function_argument_unification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "liblzma.so.5.6.1")

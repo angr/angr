@@ -1630,6 +1630,16 @@ class AILSimplifier(Analysis):
                 assert the_def.codeloc.block_addr is not None
                 assert the_def.codeloc.stmt_idx is not None
 
+                # Do not fold a call whose defining statement carries extra_defs (side-effect writes through pointer
+                # arguments, e.g. a call that fills a stack buffer). Folding moves the call to its single return-value
+                # use site, which would move the side-effect write as well and leave other uses of the written-through
+                # vvars reading an undefined value.
+                def_block = addr_and_idx_to_block.get((the_def.codeloc.block_addr, the_def.codeloc.block_idx))
+                if def_block is not None:
+                    def_block = self.blocks.get(def_block, def_block)
+                    if def_block.statements[the_def.codeloc.stmt_idx].tags.get("extra_defs"):
+                        continue
+
                 all_uses = rd.get_vvar_uses_with_expr(the_def.atom)
                 if eq.is_weakassignment:
                     # eliminate the "use" at the weak assignment site
