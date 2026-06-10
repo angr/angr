@@ -323,11 +323,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
         # Conv(NI->MI, Call<returns_float>) => Conv(NF->MF, Call)
         # SSA may insert integer Convs to reconcile Call result width with the
         # x87 fpreg register; retype to FP when the prototype says float.
-        if (
-            expr.from_type == Convert.TYPE_INT
-            and expr.to_type == Convert.TYPE_INT
-            and isinstance(operand_expr, Call)
-        ):
+        if expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT and isinstance(operand_expr, Call):
             call_proto = variable_map_of(self.manager).prototype(operand_expr)
             if call_proto is not None and isinstance(call_proto.returnty, SimTypeFloat):
                 return Convert(
