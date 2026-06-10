@@ -1418,6 +1418,29 @@ class SimCCMicrosoftFastcall(SimCC):
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
 
+    def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+
+        byte_size = arg_type.size // self.arch.byte_width if arg_type.size is not None else self.arch.bytes
+        # Per the Microsoft __fastcall ABI, only the first two DWORD-or-smaller integer/pointer
+        # arguments are passed in ECX/EDX. Floating-point values, __int64, and aggregates are
+        # passed on the stack and do NOT consume a register slot (so a later small integer
+        # argument can still land in a register).
+        reg_eligible = not isinstance(arg_type, (SimTypeFloat, SimStruct, SimUnion)) and byte_size <= self.arch.bytes
+        if reg_eligible:
+            try:
+                return next(session.int_iter).refine(byte_size, is_fp=False, arch=self.arch)
+            except StopIteration:
+                pass  # registers exhausted -> fall through to the stack
+
+        locs = []
+        locs_size = 0
+        while locs_size < byte_size:
+            locs.append(next(session.both_iter))
+            locs_size += locs[-1].size
+        return refine_locs_with_struct_type(self.arch, locs, arg_type)
+
 
 class MicrosoftAMD64ArgSession(ArgSession):
     pass
