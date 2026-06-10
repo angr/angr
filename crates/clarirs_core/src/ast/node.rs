@@ -31,6 +31,8 @@ pub struct AstNode<'c, O: Op<'c>> {
     pub(crate) size: u32,
     #[serde(skip)]
     symbolic: bool,
+    #[serde(skip)]
+    simplifiable: bool,
 }
 
 impl<'c, O> Drop for AstNode<'c, O>
@@ -96,6 +98,12 @@ impl<'c, O: Op<'c> + Serialize + SupportsAnnotate<'c>> AstNode<'c, O> {
             || op.is_inherently_symbolic()
             || op.child_iter().any(|c| c.symbolic());
 
+        let simplifiable = (symbolic
+            || !annotations
+                .iter()
+                .any(|a| !a.eliminatable() && !a.relocatable()))
+            && op.child_iter().all(|c| c.simplifiable());
+
         Self {
             op,
             ctx,
@@ -105,7 +113,12 @@ impl<'c, O: Op<'c> + Serialize + SupportsAnnotate<'c>> AstNode<'c, O> {
             size,
             annotations,
             symbolic,
+            simplifiable,
         }
+    }
+
+    pub fn simplifiable(&self) -> bool {
+        self.simplifiable
     }
 
     pub fn op(&self) -> &O {
@@ -265,6 +278,15 @@ impl DynAst<'_> {
             DynAst::BitVec(ast) => ast.symbolic(),
             DynAst::Float(ast) => ast.symbolic(),
             DynAst::String(ast) => ast.symbolic(),
+        }
+    }
+
+    pub fn simplifiable(&self) -> bool {
+        match self {
+            DynAst::Boolean(ast) => ast.simplifiable(),
+            DynAst::BitVec(ast) => ast.simplifiable(),
+            DynAst::Float(ast) => ast.simplifiable(),
+            DynAst::String(ast) => ast.simplifiable(),
         }
     }
 }

@@ -283,12 +283,13 @@ fn simplify<'c>(
             state.last_missed_child = None;
         }
 
-        let has_blocking_annotations = state
+        let blocked = state
             .expr
             .annotations()
             .iter()
-            .any(|a| !a.eliminatable() && !a.relocatable());
-        let should_simplify = !respect_annotations || !has_blocking_annotations;
+            .any(|a| !a.eliminatable() && !a.relocatable())
+            || !state.expr.simplifiable();
+        let should_simplify = !respect_annotations || !blocked;
         if should_simplify {
             let inner_result = simplify_inner(&mut state, error_on_dbz);
             match inner_result {
