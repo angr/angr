@@ -11,6 +11,7 @@ from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+from angr.analyses.decompiler.region_overlay import RegionOverlay
 from angr.analyses.decompiler.structurer_nodes import BaseNode
 from angr.utils.graph import GraphUtils
 
@@ -53,9 +54,88 @@ class RecursiveStructurer(Analysis):
         self._analyze()
 
     def _analyze(self):
-        region = self._region.recursive_copy()
         self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
         self.result_incomplete = False
+
+        if isinstance(self._region, RegionOverlay) and getattr(self.structurer_cls, "SUPPORTS_OVERLAYS", False):
+            self._structure_overlay_tree()
+        else:
+            self._structure_region_tree()
+        self._post_process_result()
+
+    def _structure_overlay_tree(self):
+        """
+        Structure an overlay tree natively and destructively: structuring algorithms mutate the shared graph
+        through the region overlay, so a structured region becomes a single node of its parent without any
+        region replacement step (and a failed region simply dissolves into its parent). The whole shared graph
+        and the overlay tree are restored from the undo log afterwards, keeping the region identifier's result
+        intact for later consumers.
+        """
+        root = self._region
+        manager = root.manager
+        checkpoint = manager.checkpoint()
+
+        try:
+            parent_map = {}
+            stack = [root]
+
+            while stack:
+                current_region = stack[-1]
+
+                has_region = False
+                for node in GraphUtils.dfs_postorder_nodes_deterministic(current_region.graph, current_region.head):
+                    if isinstance(node, RegionOverlay):
+                        if node in stack:
+                            stack.remove(node)
+                        stack.append(node)
+                        parent_map[node] = current_region
+                        has_region = True
+
+                if not has_region:
+                    # pop this region from the stack
+                    stack.pop()
+
+                    parent_region = parent_map.get(current_region)
+                    current_region.begin_structuring()
+                    # structure this region
+                    st: StructurerBase = self.project.analyses[self.structurer_cls].prep(
+                        kb=self.kb, fail_fast=self._fail_fast
+                    )(
+                        current_region,
+                        parent_map=parent_map,
+                        condition_processor=self.cond_proc,
+                        case_entry_to_switch_head=self._case_entry_to_switch_head,
+                        func=self.function,
+                        parent_region=parent_region,
+                        jump_tables=self.kb.cfgs["CFGFast"].jump_tables,
+                        ail_manager=self.ail_manager,
+                        **self.structurer_options,
+                    )
+                    if not parent_region:
+                        # this is the top-level region. we are done!
+                        if st.result is None:
+                            # take the partial result out of the graph
+                            _l.warning(
+                                "Structuring failed to complete (most likely due to bugs in structuring). The "
+                                "output will miss code blocks."
+                            )
+                            self.result = self._pick_incomplete_result_from_region(current_region)
+                            self.result_incomplete = True
+                        else:
+                            self.result = st.result
+                        break
+
+                    if st.result is None:
+                        current_region.dissolve()
+                    else:
+                        current_region.finalize(st.result)
+        finally:
+            # restore the shared graph and the overlay tree for post-structuring consumers of the region tree
+            manager.rollback(checkpoint)
+            manager.commit(checkpoint)
+
+    def _structure_region_tree(self):
+        region = self._region.recursive_copy()
 
         # visit the region in post-order DFS
         parent_map = {}
@@ -122,6 +202,7 @@ class RecursiveStructurer(Analysis):
                         parent_region, current_region, st._region, st.result, st.virtualized_edges
                     )
 
+    def _post_process_result(self):
         if self.structurer_cls is DreamStructurer:
             # rewrite conditions in the result to remove all jump table entry conditions
             rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))

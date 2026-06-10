@@ -172,6 +172,9 @@ class RegionOverlay(GraphRegion):
     """
 
     __slots__ = (
+        "_active_graph",
+        "_active_gws",
+        "_active_succs",
         "_cache_graph",
         "_cache_gws",
         "_cache_succs",
@@ -212,6 +215,12 @@ class RegionOverlay(GraphRegion):
         self._cache_graph: tuple[int, networkx.DiGraph] | None = None
         self._cache_gws: tuple[int, networkx.DiGraph, set] | None = None
         self._cache_succs: tuple[int, set] | None = None
+
+        # active (structuring) mode: working copies of the views, updated incrementally by mutations so that
+        # structuring algorithms do not pay a full view re-derivation after every graph change
+        self._active_graph: networkx.DiGraph | None = None
+        self._active_gws: networkx.DiGraph | None = None
+        self._active_succs: set | None = None
 
     def __repr__(self):
         if not self._members:
@@ -403,6 +412,8 @@ class RegionOverlay(GraphRegion):
         leaving the region (plus, in complete-successors mode, the restricted one-hop targets; see
         _successor_hop_edges).
         """
+        if self._active_succs is not None:
+            return self._active_succs
         cached = self._cache_succs
         if cached is not None and cached[0] == self._mgr.version:
             return cached[1]
@@ -472,8 +483,10 @@ class RegionOverlay(GraphRegion):
     def view(self) -> networkx.DiGraph:
         """
         Materialize the region graph (members only). The result is cached until the next mutation; treat it as
-        read-only.
+        read-only. In active (structuring) mode, the incrementally-maintained working graph is returned instead.
         """
+        if self._active_graph is not None:
+            return self._active_graph
         cached = self._cache_graph
         if cached is not None and cached[0] == self._mgr.version:
             return cached[1]
@@ -488,8 +501,11 @@ class RegionOverlay(GraphRegion):
     def view_with_successors(self) -> networkx.DiGraph:
         """
         Materialize the region graph including successor nodes. The result is cached until the next mutation;
-        treat it as read-only.
+        treat it as read-only. In active (structuring) mode, the incrementally-maintained working graph is
+        returned instead.
         """
+        if self._active_gws is not None:
+            return self._active_gws
         cached = self._cache_gws
         if cached is not None and cached[0] == self._mgr.version:
             return cached[1]
@@ -607,6 +623,115 @@ class RegionOverlay(GraphRegion):
         return mapping[self]
 
     #
+    # Active (structuring) mode
+    #
+
+    @property
+    def active(self) -> bool:
+        return self._active_graph is not None
+
+    def begin_structuring(self) -> None:
+        """
+        Enter active mode: the region views are materialized once into working graphs that subsequent mutations
+        update incrementally (mirroring how structuring algorithms used to maintain their own region graph
+        copies), instead of re-deriving views from the shared graph after every change.
+        """
+        assert self._active_graph is None
+        self._active_graph = networkx.DiGraph(self.view())
+        self._active_gws = networkx.DiGraph(self.view_with_successors())
+        self._active_succs = set(self.successor_nodes())
+
+        def inverse():
+            self._active_graph = None
+            self._active_gws = None
+            self._active_succs = None
+
+        self._mgr._record(inverse)
+
+    def end_structuring(self) -> None:
+        active = (self._active_graph, self._active_gws, self._active_succs)
+        self._active_graph = None
+        self._active_gws = None
+        self._active_succs = None
+
+        def inverse():
+            self._active_graph, self._active_gws, self._active_succs = active
+
+        self._mgr._record(inverse)
+        self._invalidate()
+
+    def _active_add_node(self, g: networkx.DiGraph, n) -> None:
+        if n in g:
+            return
+        g.add_node(n)
+        self._mgr._record(lambda: g.remove_node(n))
+
+    def _active_remove_node(self, g: networkx.DiGraph, n) -> None:
+        if n not in g:
+            return
+        in_edges = [(src, dict(data)) for src, _, data in g.in_edges(n, data=True)]
+        out_edges = [(dst, dict(data)) for _, dst, data in g.out_edges(n, data=True)]
+        g.remove_node(n)
+
+        def inverse():
+            g.add_node(n)
+            for src, data in in_edges:
+                g.add_edge(src, n, **data)
+            for dst, data in out_edges:
+                g.add_edge(n, dst, **data)
+
+        self._mgr._record(inverse)
+
+    def _active_add_edge(self, g: networkx.DiGraph, u, v, **data) -> None:
+        existed = g.has_edge(u, v)
+        old_data = dict(g[u][v]) if existed else None
+        g.add_edge(u, v, **data)
+
+        if existed:
+
+            def inverse():
+                g[u][v].clear()
+                g[u][v].update(old_data)
+
+        else:
+
+            def inverse():
+                g.remove_edge(u, v)
+
+        self._mgr._record(inverse)
+
+    def _active_remove_edge(self, g: networkx.DiGraph, u, v) -> None:
+        if not g.has_edge(u, v):
+            return
+        old_data = dict(g[u][v])
+        g.remove_edge(u, v)
+        self._mgr._record(lambda: g.add_edge(u, v, **old_data))
+
+    def _active_replace_nodes(self, g: networkx.DiGraph, old_node_0, new_node, old_node_1, self_loop: bool) -> None:
+        """Apply StructurerBase.replace_nodes semantics to an active working graph, undoably."""
+        if old_node_0 not in g:
+            return
+        in_edges = list(g.in_edges(old_node_0, data=True))
+        out_edges = list(g.out_edges(old_node_0, data=True))
+        if old_node_1 is not None and old_node_1 in g:
+            out_edges += list(g.out_edges(old_node_1, data=True))
+
+        self._active_remove_node(g, old_node_0)
+        if old_node_1 is not None:
+            self._active_remove_node(g, old_node_1)
+        self._active_add_node(g, new_node)
+        for src, dst, data in in_edges:
+            if src is not old_node_0 and src is not old_node_1:
+                self._active_add_edge(g, src, new_node, **data)
+            elif src is old_node_1 and dst is old_node_0 and self_loop:
+                self._active_add_edge(g, new_node, new_node, **data)
+        for src, dst, data in out_edges:
+            if dst is not old_node_0 and dst is not old_node_1:
+                self._active_add_edge(g, new_node, dst, **data)
+            elif src is old_node_1 and dst is old_node_0 and self_loop:
+                self._active_add_edge(g, new_node, new_node, **data)
+
+    #
     # Mutations
     #
 
@@ -655,6 +780,9 @@ class RegionOverlay(GraphRegion):
         assert node not in self._mgr.graph
         self._mgr._graph_add_node(node)
         self._on_node_added(node)
+        if self.active:
+            self._active_add_node(self._active_graph, node)
+            self._active_add_node(self._active_gws, node)
         self._invalidate()
 
     def remove_node(self, node) -> None:
@@ -669,6 +797,9 @@ class RegionOverlay(GraphRegion):
             return
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
+        if self.active:
+            self._active_remove_node(self._active_graph, node)
+            self._active_remove_node(self._active_gws, node)
         self._invalidate()
 
     def hide_edge_to_successor(self, succ) -> None:
@@ -684,6 +815,13 @@ class RegionOverlay(GraphRegion):
                     added.append((u, v))
         if added:
             self._mgr._record(lambda: self._hidden.difference_update(added))
+        if self.active:
+            assert self._active_succs is not None
+            self._active_remove_node(self._active_gws, succ)
+            if succ in self._active_succs:
+                self._active_succs.discard(succ)
+                self._mgr._record(lambda: self._active_succs.add(succ) if self._active_succs is not None else None)
+        if added or self.active:
             self._invalidate()
 
     def _underlying_edge_pairs(self, src, dst) -> list[tuple[Any, Any]]:
@@ -702,16 +840,30 @@ class RegionOverlay(GraphRegion):
     def add_edge(self, src, dst, **data) -> None:
         """
         Add a real edge to the shared graph. Overlay endpoints are resolved to underlying nodes: the destination
-        resolves to its entry (head chain); overlay sources are not supported.
+        resolves to its entry (head chain); overlay sources are not supported. Endpoints that are not in the
+        shared graph yet become members of this region (mirroring networkx's implicit node creation).
         """
         assert not isinstance(src, RegionOverlay), "edges from a region object are ambiguous; use a concrete node"
         dst_ = dst
         while isinstance(dst_, RegionOverlay):
             dst_ = dst_.head
+        if src not in self._mgr.graph:
+            self.add_node(src)
+        if dst_ not in self._mgr.graph:
+            self.add_node(dst_)
         self._mgr._graph_add_edge(src, dst_, **data)
         if (src, dst_) in self._hidden:
             self._hidden.discard((src, dst_))
             self._mgr._record(lambda: self._hidden.add((src, dst_)))
+        if self.active:
+            assert self._active_graph is not None and self._active_gws is not None and self._active_succs is not None
+            if src in self._active_graph and dst in self._active_graph:
+                self._active_add_edge(self._active_graph, src, dst, **data)
+            if dst not in self._active_gws:
+                self._active_add_node(self._active_gws, dst)
+                self._active_succs.add(dst)
+                self._mgr._record(lambda: self._active_succs.discard(dst) if self._active_succs is not None else None)
+            self._active_add_edge(self._active_gws, src, dst, **data)
         self._invalidate()
 
     def detach_edge(self, src, dst) -> None:
@@ -721,6 +873,31 @@ class RegionOverlay(GraphRegion):
         """
         for u, v in self._underlying_edge_pairs(src, dst):
             self._mgr._graph_remove_edge(u, v)
+        if self.active:
+            self._active_remove_edge(self._active_graph, src, dst)
+            self._active_remove_edge(self._active_gws, src, dst)
+        self._invalidate()
+
+    def mark_edge(self, src, dst, **attrs) -> None:
+        """
+        Set scratch edge attributes (e.g., cyclic_refinement_outgoing) on this overlay's active working graphs,
+        undoably. Marks never reach the shared graph and die with the working graphs.
+        """
+        assert self.active
+        for g in (self._active_graph, self._active_gws):
+            assert g is not None
+            if g.has_edge(src, dst):
+                self._active_add_edge(g, src, dst, **{**g[src][dst], **attrs})
+        self._invalidate()
+
+    def remove_edge_with_successors_only(self, src, dst) -> None:
+        """
+        Remove an edge from the active with-successors working graph only, leaving the member view and the shared
+        graph alone (a rare asymmetric bookkeeping pattern in Phoenix's switch-case structuring).
+        """
+        assert self.active
+        assert self._active_gws is not None
+        self._active_remove_edge(self._active_gws, src, dst)
         self._invalidate()
 
     def hide_edge(self, src, dst) -> None:
@@ -734,6 +911,10 @@ class RegionOverlay(GraphRegion):
                 added.append((u, v))
         if added:
             self._mgr._record(lambda: self._hidden.difference_update(added))
+        if self.active:
+            self._active_remove_edge(self._active_graph, src, dst)
+            self._active_remove_edge(self._active_gws, src, dst)
+        if added or self.active:
             self._invalidate()
 
     def replace_nodes(self, old_node_0, new_node, old_node_1=None, self_loop: bool = True) -> None:
@@ -793,6 +974,10 @@ class RegionOverlay(GraphRegion):
 
         self._remap_bookkeeping(old_nodes, new_node)
 
+        if self.active:
+            self._active_replace_nodes(self._active_graph, old_node_0, new_node, old_node_1, self_loop)
+            self._active_replace_nodes(self._active_gws, old_node_0, new_node, old_node_1, self_loop)
+
         if self.head in old_nodes:
             old_head = self.head
             self.head = new_node
@@ -831,6 +1016,8 @@ class RegionOverlay(GraphRegion):
         """
         parent = self.parent
         assert parent is not None, "cannot finalize the root overlay"
+        if self.active:
+            self.end_structuring()
         if result_node is None:
             assert len(self._members) == 1
             (result_node,) = self._members
@@ -876,6 +1063,8 @@ class RegionOverlay(GraphRegion):
         """
         parent = self.parent
         assert parent is not None, "cannot dissolve the root overlay"
+        if self.active:
+            self.end_structuring()
 
         members = set(self._members)
         for m in members:
