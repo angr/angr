@@ -139,7 +139,7 @@ class GraphRegion:
                 nodes_map[node] = node
             else:
                 # make recursive copies
-                if type(node) is GraphRegion:
+                if isinstance(node, GraphRegion):
                     new_node = node.recursive_copy(nodes_map=nodes_map)
                     nodes_map[node] = new_node
                 elif type(node) is MultiNode:
@@ -162,7 +162,7 @@ class GraphRegion:
 
     @staticmethod
     def dbg_get_repr(obj, ident=0):
-        return obj.dbg_print(ident=ident) if type(obj) is GraphRegion else " " * ident + str(obj)
+        return obj.dbg_print(ident=ident) if isinstance(obj, GraphRegion) else " " * ident + str(obj)
 
     def dbg_print(self, ident=0):
         s = self.dbg_get_repr(self.head, ident=ident) + "\n"
