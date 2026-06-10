@@ -326,21 +326,82 @@ class RegionOverlay(GraphRegion):
     def _is_hidden(self, src, dst) -> bool:
         return (src, dst) in self._hidden
 
+    def _hidden_context_head_under(self) -> frozenset | set:
+        """
+        Crossing edges that target the head of the region's processing context (the nearest cyclic ancestor, or
+        the root region) were invisible during region identification: in-edges of the head are stripped before
+        acyclic analysis. RegionIdentifier's complete_successors mode used to re-add them from the secondary
+        graph, so they are only hidden when that mode is off. Cyclic regions themselves are identified before any
+        stripping, so their views are unaffected.
+        """
+        if self.cyclic or self._mgr.complete_successors:
+            return frozenset()
+        anc = self.parent
+        while anc is not None and not anc.cyclic and anc.parent is not None:
+            anc = anc.parent
+        if anc is None or anc.head is None or anc.head in self._under:
+            return frozenset()
+        return self._underlying(anc.head)
+
     def _crossing_out_edges(self) -> Iterator[tuple[Any, Any, dict]]:
         """All shared-graph edges leaving this region, except hidden ones."""
         graph = self._mgr.graph
         under = self._under
+        hidden_head = self._hidden_context_head_under()
         for u in under:
             if u not in graph:
                 continue
             for v, data in graph.adj[u].items():
-                if v not in under and not self._is_hidden(u, v):
+                if v not in under and v not in hidden_head and not self._is_hidden(u, v):
                     yield u, v, data
+
+    @property
+    def _in_loop(self) -> bool:
+        return self.cyclic or self.cyclic_ancestor
+
+    @property
+    def _complete_mode(self) -> bool:
+        # RegionIdentifier's complete_successors mode only ever applied to acyclic regions nested inside cyclic
+        # regions (it required a secondary graph)
+        return self._mgr.complete_successors and self.cyclic_ancestor and not self.cyclic
+
+    def _enclosing_loop(self) -> RegionOverlay | None:
+        loop = self.parent
+        while loop is not None and not loop.cyclic:
+            loop = loop.parent
+        return loop
+
+    def _successor_hop_edges(self, direct_succs: set) -> Iterator[tuple[Any, Any, dict]]:
+        """
+        In complete-successors mode, a region inside a loop sees one extra hop of edges from its successors, but
+        only when the hop target is the loop's continue target (the loop head): "this successor goes back to the
+        loop head" is the control-flow fact that break/continue placement during structuring relies on. Successor
+        edges to other loop-body nodes (or onward from the loop head) are sibling-structure details and stay
+        hidden.
+        """
+        loop = self._enclosing_loop()
+        if loop is None:
+            return
+        head_under = self._underlying(loop.head)
+        graph = self._mgr.graph
+        for s in direct_succs:
+            under_s = self._underlying(s)
+            for u in under_s:
+                if u not in graph:
+                    continue
+                for v, data in graph.adj[u].items():
+                    if v in under_s or v in self._under or v not in head_under:
+                        continue
+                    rep_v = self._representative_outside(v)
+                    if rep_v is None or rep_v is s:
+                        continue
+                    yield s, rep_v, data
 
     def successor_nodes(self) -> set:
         """
         The derived successor set of this region: representatives of all shared-graph nodes targeted by edges
-        leaving the region.
+        leaving the region (plus, in complete-successors mode, the restricted one-hop targets; see
+        _successor_hop_edges).
         """
         cached = self._cache_succs
         if cached is not None and cached[0] == self._mgr.version:
@@ -350,6 +411,9 @@ class RegionOverlay(GraphRegion):
             rep = self._representative_outside(v)
             if rep is not None:
                 succs.add(rep)
+        if self._complete_mode:
+            for _, rep_v, _ in self._successor_hop_edges(set(succs)):
+                succs.add(rep_v)
         self._cache_succs = (self._mgr.version, succs)
         return succs
 
@@ -366,6 +430,7 @@ class RegionOverlay(GraphRegion):
                 member_of[n] = m
 
         succs = self.successor_nodes() if with_successors else None
+        hidden_head = self._hidden_context_head_under()
 
         for u in under:
             if u not in graph:
@@ -382,14 +447,15 @@ class RegionOverlay(GraphRegion):
                         # edge internal to a child overlay
                         continue
                     yield rep_u, rep_v, data
-                elif with_successors:
+                elif with_successors and v not in hidden_head:
                     rep_v = self._representative_outside(v)
                     if rep_v is not None:
                         yield rep_u, rep_v, data
 
-        if with_successors:
+        if with_successors and self._in_loop:
+            # successor -> successor edges: RegionIdentifier only added these for cyclic regions and for acyclic
+            # regions nested inside cyclic regions
             assert succs is not None
-            # successor -> successor edges
             for s0 in succs:
                 under_s0 = self._underlying(s0)
                 for u in under_s0:
@@ -434,25 +500,10 @@ class RegionOverlay(GraphRegion):
         for u, v, data in self._quotient_edges(with_successors=True):
             if not g.has_edge(u, v):
                 g.add_edge(u, v, **data)
-        if self._mgr.complete_successors:
-            # one extra hop: all out-edges of successor nodes, mirroring RegionIdentifier's complete_successors mode
-            extra_succs = set()
-            for s in succs:
-                under_s = self._underlying(s)
-                for u in under_s:
-                    if u not in self._mgr.graph:
-                        continue
-                    for v, data in self._mgr.graph.adj[u].items():
-                        if v in under_s:
-                            continue
-                        rep_v = self._representative_in(v) if v in self._under else self._representative_outside(v)
-                        if rep_v is None or rep_v is s:
-                            continue
-                        if not g.has_edge(s, rep_v):
-                            g.add_edge(s, rep_v, **data)
-                        if rep_v not in self._members and rep_v not in succs:
-                            extra_succs.add(rep_v)
-            g.add_nodes_from(extra_succs)
+        if self._complete_mode:
+            for s, rep_v, data in self._successor_hop_edges(succs):
+                if not g.has_edge(s, rep_v):
+                    g.add_edge(s, rep_v, **data)
         self._cache_gws = (self._mgr.version, g, succs)
         return g
 
@@ -495,45 +546,65 @@ class RegionOverlay(GraphRegion):
         """
         Convert this overlay subtree into an independent tree of plain GraphRegion objects (the pre-overlay data
         structure), for consumers that destructively restructure the region tree.
-        """
-        if nodes_map is None:
-            nodes_map = {}
-        return self._to_graph_region(nodes_map)
 
-    def _to_graph_region(self, mapping: dict) -> GraphRegion:
-        if self in mapping:
-            return mapping[self]
-        region = GraphRegion(None, None, None, None, self.cyclic, None, cyclic_ancestor=self.cyclic_ancestor)
-        mapping[self] = region
+        The conversion is iterative: overlays can form arbitrarily long sibling chains through their successor
+        references (consecutive regions), which would blow the stack if converted recursively.
+        """
+        mapping: dict = nodes_map if nodes_map is not None else {}
+
+        # phase 1: collect every overlay reachable through membership and successor references
+        worklist: list[RegionOverlay] = [self]
+        seen: set[RegionOverlay] = {self}
+        overlays: list[RegionOverlay] = []
+        while worklist:
+            o = worklist.pop()
+            overlays.append(o)
+            referenced: list = [m for m in o._members if isinstance(m, RegionOverlay)]
+            if o.parent is not None:
+                referenced += [s for s in o.successor_nodes() if isinstance(s, RegionOverlay)]
+            for t in referenced:
+                if t not in seen:
+                    seen.add(t)
+                    worklist.append(t)
+
+        # phase 2: create one GraphRegion shell per overlay so that cross-references can be resolved
+        for o in overlays:
+            if o not in mapping:
+                mapping[o] = GraphRegion(None, None, None, None, o.cyclic, None, cyclic_ancestor=o.cyclic_ancestor)
 
         def conv(x):
-            if isinstance(x, RegionOverlay):
-                return x._to_graph_region(mapping)
-            return x
+            return mapping.get(x, x)
 
-        graph = networkx.DiGraph()
-        for m in self._members:
-            graph.add_node(conv(m))
-        for u, v, data in self._quotient_edges(with_successors=False):
-            graph.add_edge(conv(u), conv(v), **data)
+        # phase 3: fill in graphs, heads, and successors
+        for o in overlays:
+            region = mapping[o]
+            if region.graph is not None:
+                # already converted in a previous call that shared nodes_map
+                continue
+            graph: networkx.DiGraph = networkx.DiGraph()
+            for m in o._members:
+                graph.add_node(conv(m))
+            for u, v, data in o._quotient_edges(with_successors=False):
+                graph.add_edge(conv(u), conv(v), **data)
 
-        if self.parent is None:
-            # the root region carries no successor information, matching RegionIdentifier's top-level GraphRegion
-            successors = None
-            gws = None
-        else:
-            successors = {conv(s) for s in self.successor_nodes()}
-            gws = networkx.DiGraph()
-            for n in self.view_with_successors().nodes:
-                gws.add_node(conv(n))
-            for u, v, data in self._quotient_edges(with_successors=True):
-                gws.add_edge(conv(u), conv(v), **data)
+            if o.parent is None:
+                # the root region carries no successor information, matching RegionIdentifier's top-level region
+                successors = None
+                gws = None
+            else:
+                successors = {conv(s) for s in o.successor_nodes()}
+                gws = networkx.DiGraph()
+                for n in o.view_with_successors().nodes:
+                    gws.add_node(conv(n))
+                for u, v, data in o._quotient_edges(with_successors=True):
+                    gws.add_edge(conv(u), conv(v), **data)
 
-        region.head = conv(self.head)
-        region.graph = graph
-        region.successors = successors
-        region.graph_with_successors = gws
-        return region
+            region.head = conv(o.head)
+            region.graph = graph
+            region.successors = successors
+            region.graph_with_successors = gws
+
+        return mapping[self]
 
     #
     # Mutations

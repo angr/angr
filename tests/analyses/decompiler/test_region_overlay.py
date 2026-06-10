@@ -355,20 +355,23 @@ class TestGraphRegionConversion(unittest.TestCase):
         assert outer_r.successors == {n[6]}
         assert (inner_r, n[6]) in outer_r.graph_with_successors.edges
 
-    def test_complete_successors_extra_hop(self):
+    def test_successor_successor_edges_inside_loops(self):
         nodes = {i: Node(i) for i in range(1, 8)}
         g = networkx.DiGraph()
-        # 1 -> 2 -> 3 (region: {2}), 3 -> 4 (successor's successor)
-        g.add_edges_from([(nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[3], nodes[4])])
-        mgr = OverlayManager(g, complete_successors=True)
+        # 1 -> 2 -> {3, 4}, 3 -> 4 (an edge between two successors of region {2})
+        g.add_edges_from([(nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[2], nodes[4]), (nodes[3], nodes[4])])
+        mgr = OverlayManager(g)
         mgr.root.head = nodes[1]
-        sub = mgr.root.create_subregion(nodes[2], [nodes[2]], cyclic=False)
+        # inside a loop, edges between successors are part of the with-successors view
+        sub = mgr.root.create_subregion(nodes[2], [nodes[2]], cyclic=False, cyclic_ancestor=True)
+        assert sub.successor_nodes() == {nodes[3], nodes[4]}
+        assert (nodes[3], nodes[4]) in edge_set(sub.view_with_successors())
 
-        gws = sub.view_with_successors()
-        assert (nodes[3], nodes[4]) in edge_set(gws)
-        assert nodes[4] in gws
-        # but the derived successor set still only contains direct successors
-        assert sub.successor_nodes() == {nodes[3]}
+        # outside loops, successor-successor edges are not included (matching RegionIdentifier)
+        mgr2 = OverlayManager(networkx.DiGraph(g))
+        sub2 = mgr2.root.create_subregion(nodes[2], [nodes[2]], cyclic=False)
+        assert sub2.successor_nodes() == {nodes[3], nodes[4]}
+        assert (nodes[3], nodes[4]) not in edge_set(sub2.view_with_successors())
 
 
 if __name__ == "__main__":

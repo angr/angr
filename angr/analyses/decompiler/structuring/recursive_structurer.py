@@ -67,7 +67,7 @@ class RecursiveStructurer(Analysis):
             has_region = False
             for node in GraphUtils.dfs_postorder_nodes_deterministic(current_region.graph, current_region.head):
                 subnodes = []
-                if type(node) is GraphRegion:
+                if isinstance(node, GraphRegion):
                     if node.cyclic:
                         subnodes.append(node)
                     else:

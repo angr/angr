@@ -645,7 +645,7 @@ class ConditionProcessor:
             return None
         if type(block) is IncompleteSwitchCaseNode:
             return None
-        if type(block) is GraphRegion:
+        if isinstance(block, GraphRegion):
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
 
@@ -737,7 +737,7 @@ class ConditionProcessor:
             for case in block.cases:
                 s.extend(cls.get_last_statements(case))
             return s
-        if type(block) is GraphRegion:
+        if isinstance(block, GraphRegion):
             # normally this should not happen. however, we have test cases that trigger this case.
             return []
 
@@ -773,7 +773,7 @@ class ConditionProcessor:
                 return bool_var
             return claripy.Not(bool_var)
 
-        if type(src_block) is GraphRegion:
+        if isinstance(src_block, GraphRegion):
             return claripy.true()
 
         # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
