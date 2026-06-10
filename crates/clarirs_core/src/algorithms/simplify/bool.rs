@@ -225,8 +225,8 @@ pub(crate) fn simplify_bool<'c>(
 
             match (early_lhs.op(), early_rhs.op()) {
                 (BooleanOp::BoolV(lhs), BooleanOp::BoolV(rhs)) => Ok(ctx.boolv(*lhs ^ *rhs)?),
-                (BooleanOp::BoolV(true), _) => Ok(ctx.not(state.get_bool_simplified(1)?)?),
-                (_, BooleanOp::BoolV(true)) => Ok(ctx.not(state.get_bool_simplified(0)?)?),
+                (BooleanOp::BoolV(true), _) => state.rerun(ctx.not(&early_rhs)?),
+                (_, BooleanOp::BoolV(true)) => state.rerun(ctx.not(&early_lhs)?),
                 (BooleanOp::BoolV(false), _) => Ok(state.get_bool_simplified(1)?),
                 (_, BooleanOp::BoolV(false)) => Ok(state.get_bool_simplified(0)?),
                 (BooleanOp::Not(lhs), rhs) if lhs.op() == rhs => Ok(ctx.true_()?),
@@ -244,8 +244,8 @@ pub(crate) fn simplify_bool<'c>(
                 (BooleanOp::BoolV(arc), BooleanOp::BoolV(arc1)) => Ok(ctx.boolv(arc == arc1)?),
                 (BooleanOp::BoolV(true), _) => Ok(state.get_bool_simplified(1)?),
                 (_, BooleanOp::BoolV(true)) => Ok(state.get_bool_simplified(0)?),
-                (BooleanOp::BoolV(false), _) => Ok(ctx.not(state.get_bool_simplified(1)?)?),
-                (_, BooleanOp::BoolV(false)) => Ok(ctx.not(state.get_bool_simplified(0)?)?),
+                (BooleanOp::BoolV(false), _) => state.rerun(ctx.not(&early_rhs)?),
+                (_, BooleanOp::BoolV(false)) => state.rerun(ctx.not(&early_lhs)?),
                 // a == a -> true. Even when floats are involved, this is a boolean
                 // identity: both sides are the same expression and evaluate to the same
                 // value (NaN only affects fp== itself, not bool== of two equal booleans).
@@ -259,8 +259,8 @@ pub(crate) fn simplify_bool<'c>(
 
             match (early_lhs.op(), early_rhs.op()) {
                 (BooleanOp::BoolV(arc), BooleanOp::BoolV(arc1)) => Ok(ctx.boolv(arc != arc1)?),
-                (BooleanOp::BoolV(true), _) => Ok(ctx.not(state.get_bool_simplified(1)?)?),
-                (_, BooleanOp::BoolV(true)) => Ok(ctx.not(state.get_bool_simplified(0)?)?),
+                (BooleanOp::BoolV(true), _) => state.rerun(ctx.not(&early_rhs)?),
+                (_, BooleanOp::BoolV(true)) => state.rerun(ctx.not(&early_lhs)?),
                 (BooleanOp::BoolV(false), _) => Ok(state.get_bool_simplified(1)?),
                 (_, BooleanOp::BoolV(false)) => Ok(state.get_bool_simplified(0)?),
                 // a != a -> false. Even when floats are involved, this is a boolean
@@ -1551,7 +1551,7 @@ pub(crate) fn simplify_bool<'c>(
 
                 // Known then/else cases
                 (_, BooleanOp::BoolV(true), BooleanOp::BoolV(false)) => Ok(cond.clone()),
-                (_, BooleanOp::BoolV(false), BooleanOp::BoolV(true)) => Ok(ctx.not(cond)?),
+                (_, BooleanOp::BoolV(false), BooleanOp::BoolV(true)) => state.rerun(ctx.not(cond)?),
 
                 // When condition equals one branch with concrete other branch
                 (cond_op, BooleanOp::BoolV(true), else_op) if else_op == cond_op => {
