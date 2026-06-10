@@ -76,6 +76,16 @@ class RecursiveStructurer(Analysis):
         checkpoint = manager.checkpoint()
 
         try:
+            # freeze every region's working graphs up front: regions must see their structure as it was at region
+            # identification time, not the live shared graph as siblings restructure it (finalize/dissolve patch
+            # the parent's frozen graphs, the way region replacement used to)
+            activate_worklist = [root]
+            while activate_worklist:
+                region_ = activate_worklist.pop()
+                if not region_.active:
+                    region_.begin_structuring()
+                activate_worklist.extend(region_.children)
+
             parent_map = {}
             stack = [root]
 
@@ -96,7 +106,8 @@ class RecursiveStructurer(Analysis):
                     stack.pop()
 
                     parent_region = parent_map.get(current_region)
-                    current_region.begin_structuring()
+                    if not current_region.active:
+                        current_region.begin_structuring()
                     # structure this region
                     st: StructurerBase = self.project.analyses[self.structurer_cls].prep(
                         kb=self.kb, fail_fast=self._fail_fast
@@ -128,7 +139,7 @@ class RecursiveStructurer(Analysis):
                     if st.result is None:
                         current_region.dissolve()
                     else:
-                        current_region.finalize(st.result)
+                        current_region.finalize(st.result, virtualized_edges=st.virtualized_edges)
         finally:
             # restore the shared graph and the overlay tree for post-structuring consumers of the region tree
             manager.rollback(checkpoint)
