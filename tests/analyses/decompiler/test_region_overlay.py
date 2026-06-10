@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+# pylint: disable=missing-class-docstring,no-self-use
+from __future__ import annotations
+
+__package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
+
+import unittest
+
+import networkx
+
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.region_overlay import OverlayManager
+
+
+class Node:
+    def __init__(self, n):
+        self.n = n
+
+    @property
+    def addr(self):
+        return self.n
+
+    def __repr__(self):
+        return f"<Node {self.n}>"
+
+
+def diamond():
+    """1 -> 2 -> {3, 4} -> 5 -> 6, returns (graph, nodes-by-index)."""
+    nodes = {i: Node(i) for i in range(1, 7)}
+    g = networkx.DiGraph()
+    g.add_edges_from(
+        [
+            (nodes[1], nodes[2], {"type": "transition"}),
+            (nodes[2], nodes[3], {}),
+            (nodes[2], nodes[4], {}),
+            (nodes[3], nodes[5], {}),
+            (nodes[4], nodes[5], {}),
+            (nodes[5], nodes[6], {}),
+        ]
+    )
+    return g, nodes
+
+
+def edge_set(graph):
+    return set(graph.edges())
+
+
+class TestRegionOverlayViews(unittest.TestCase):
+    def test_flat_root(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+
+        assert set(mgr.root.members) == set(n.values())
+        assert mgr.root.successor_nodes() == set()
+        view = mgr.root.view()
+        assert set(view.nodes) == set(n.values())
+        assert edge_set(view) == edge_set(g)
+        # edge data passes through
+        assert view[n[1]][n[2]]["type"] == "transition"
+        # the with-successors view of the root equals the member view
+        assert edge_set(mgr.root.view_with_successors()) == edge_set(g)
+
+    def test_subregion_views(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        assert sub.successor_nodes() == {n[6]}
+        assert set(sub.view().nodes) == {n[2], n[3], n[4], n[5]}
+        assert (n[5], n[6]) not in edge_set(sub.view())
+        gws = sub.view_with_successors()
+        assert set(gws.nodes) == {n[2], n[3], n[4], n[5], n[6]}
+        assert (n[5], n[6]) in edge_set(gws)
+        # external in-edge of the head is invisible in both views
+        assert n[1] not in gws
+
+        # parent view shows the subregion as a single node
+        root_view = mgr.root.view()
+        assert set(root_view.nodes) == {n[1], sub, n[6]}
+        assert edge_set(root_view) == {(n[1], sub), (sub, n[6])}
+        # quotient in-edge keeps underlying edge data
+        assert root_view[n[1]][sub]["type"] == "transition"
+
+        # GraphRegion-compatible properties
+        assert isinstance(sub, GraphRegion)
+        assert sub.graph is sub.view()
+        assert sub.successors == {n[6]}
+        assert sub.addr == 2
+
+    def test_nested_subregions(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        outer = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        inner = outer.create_subregion(n[3], [n[3], n[5]], cyclic=False)
+
+        assert inner.parent is outer
+        assert outer.children == [inner]
+        assert mgr.owner_of(n[3]) is inner
+        assert mgr.owner_of(n[2]) is outer
+
+        # inner region: successor 6 is found through the ancestor chain
+        assert inner.successor_nodes() == {n[6]}
+        # outer region view: inner is a single node; two underlying edges (2->3 via inner, 4->5 via inner)
+        outer_view = outer.view()
+        assert set(outer_view.nodes) == {n[2], n[4], inner}
+        assert edge_set(outer_view) == {(n[2], inner), (n[2], n[4]), (n[4], inner)}
+        # outer successors derived through inner's nodes
+        assert outer.successor_nodes() == {n[6]}
+        assert (inner, n[6]) in edge_set(outer.view_with_successors())
+        # root sees only the outer region
+        assert set(mgr.root.view().nodes) == {n[1], outer, n[6]}
+
+    def test_cyclic_region_no_self_loop_in_parent(self):
+        nodes = {i: Node(i) for i in range(1, 5)}
+        g = networkx.DiGraph()
+        g.add_edges_from([(nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[3], nodes[2]), (nodes[3], nodes[4])])
+        mgr = OverlayManager(g)
+        mgr.root.head = nodes[1]
+        loop = mgr.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
+
+        assert edge_set(loop.view()) == {(nodes[2], nodes[3]), (nodes[3], nodes[2])}
+        assert loop.successor_nodes() == {nodes[4]}
+        root_view = mgr.root.view()
+        # the loop's internal back edge must not become a self-loop on the region node
+        assert edge_set(root_view) == {(nodes[1], loop), (loop, nodes[4])}
+
+
+class TestRegionOverlayMutation(unittest.TestCase):
+    def test_replace_nodes_rewires_external_edges(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        seq = Node(0x20)
+        sub.replace_nodes(n[2], seq, old_node_1=n[3])
+        assert sub.head is seq
+        assert set(sub.members) == {seq, n[4], n[5]}
+        # the external in-edge 1 -> 2 has been rewired to the new node in the shared graph
+        assert g.has_edge(n[1], seq)
+        assert n[2] not in g and n[3] not in g
+        assert mgr.owner_of(seq) is sub
+        # the parent view still shows a single region node with the same connectivity
+        assert edge_set(mgr.root.view()) == {(n[1], sub), (sub, n[6])}
+        assert edge_set(sub.view()) == {(seq, n[4]), (seq, n[5]), (n[4], n[5])}
+
+    def test_hide_vs_detach(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        sub.hide_edge(n[5], n[6])
+        assert sub.successor_nodes() == set()
+        assert n[6] not in sub.view_with_successors()
+        # the parent still sees the region exit
+        assert (sub, n[6]) in edge_set(mgr.root.view())
+        assert g.has_edge(n[5], n[6])
+
+        sub.detach_edge(n[5], n[6])
+        assert not g.has_edge(n[5], n[6])
+        assert (sub, n[6]) not in edge_set(mgr.root.view())
+
+    def test_remove_successor_node_is_intercepted(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        sub.remove_node(n[6])  # n[6] is a successor: must only be hidden from this region's views
+        assert sub.successor_nodes() == set()
+        assert n[6] in g
+        assert (sub, n[6]) in edge_set(mgr.root.view())
+
+    def test_remove_member_node(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        sub.remove_node(n[4])
+        assert n[4] not in g
+        assert mgr.owner_of(n[4]) is None
+        assert set(sub.members) == {n[2], n[3], n[5]}
+        assert n[4] not in sub.underlying_nodes()
+
+    def test_add_edge_to_region_destination_resolves_to_entry(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        new = Node(0x10)
+        mgr.root.add_node(new)
+        mgr.root.add_edge(new, sub)
+        assert g.has_edge(new, n[2])
+        assert (new, sub) in edge_set(mgr.root.view())
+
+
+class TestRegionOverlayLifecycle(unittest.TestCase):
+    def _structure_to_single_node(self, sub, n):
+        n1 = Node(0x21)
+        sub.replace_nodes(n[2], n1, old_node_1=n[3])
+        n2 = Node(0x22)
+        sub.replace_nodes(n1, n2, old_node_1=n[4])
+        n3 = Node(0x23)
+        sub.replace_nodes(n2, n3, old_node_1=n[5])
+        return n3
+
+    def test_finalize(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        result = self._structure_to_single_node(sub, n)
+        assert set(sub.members) == {result}
+        sub.finalize(result)
+
+        assert sub.replacement is result
+        assert mgr.owner_of(result) is mgr.root
+        assert sub not in mgr.root.children
+        assert set(mgr.root.members) == {n[1], result, n[6]}
+        assert edge_set(mgr.root.view()) == {(n[1], result), (result, n[6])}
+
+    def test_finalize_updates_parent_head(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        sub = mgr.root.create_subregion(n[1], [n[1], n[2], n[3], n[4], n[5]], cyclic=False)
+        mgr.root.head = sub
+
+        m1 = Node(0x31)
+        sub.replace_nodes(n[1], m1, old_node_1=n[2])
+        m2 = Node(0x32)
+        sub.replace_nodes(m1, m2, old_node_1=n[3])
+        m3 = Node(0x33)
+        sub.replace_nodes(m2, m3, old_node_1=n[4])
+        m4 = Node(0x34)
+        sub.replace_nodes(m3, m4, old_node_1=n[5])
+        sub.finalize(m4)
+        assert mgr.root.head is m4
+
+    def test_dissolve(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        sub.hide_edge(n[3], n[5])
+
+        sub.dissolve()
+        assert sub not in mgr.root.children
+        assert set(mgr.root.members) == set(n.values())
+        assert mgr.owner_of(n[2]) is mgr.root
+        # edges hidden in the dissolved region stay hidden in the parent
+        assert (n[3], n[5]) not in edge_set(mgr.root.view())
+        assert g.has_edge(n[3], n[5])
+
+    def test_undo_rollback(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        before_edges = set(g.edges())
+        before_members = set(sub.members)
+        before_view = edge_set(sub.view())
+        before_owner = dict(mgr._owner)
+
+        chk = mgr.checkpoint()
+        seq = Node(0x40)
+        sub.replace_nodes(n[2], seq, old_node_1=n[3])
+        sub.detach_edge(n[4], n[5])
+        sub.hide_edge(seq, n[5])
+        inner = sub.create_subregion(n[4], [n[4]], cyclic=False)
+        assert set(sub.members) != before_members
+        mgr.rollback(chk)
+
+        assert set(g.edges()) == before_edges
+        assert set(sub.members) == before_members
+        assert edge_set(sub.view()) == before_view
+        assert dict(mgr._owner) == before_owner
+        assert sub.head is n[2]
+        assert inner not in sub.children
+
+    def test_undo_rollback_finalize_and_dissolve(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        chk = mgr.checkpoint()
+        n1 = Node(0x21)
+        sub.replace_nodes(n[2], n1, old_node_1=n[3])
+        n2 = Node(0x22)
+        sub.replace_nodes(n1, n2, old_node_1=n[4])
+        n3 = Node(0x23)
+        sub.replace_nodes(n2, n3, old_node_1=n[5])
+        sub.finalize(n3)
+        mgr.rollback(chk)
+
+        assert sub in mgr.root.children
+        assert sub.replacement is None
+        assert set(sub.members) == {n[2], n[3], n[4], n[5]}
+        assert mgr.owner_of(n[2]) is sub
+        assert edge_set(sub.view()) == {(n[2], n[3]), (n[2], n[4]), (n[3], n[5]), (n[4], n[5])}
+
+        chk2 = mgr.checkpoint()
+        sub.dissolve()
+        mgr.rollback(chk2)
+        assert sub in mgr.root.children
+        assert set(sub.members) == {n[2], n[3], n[4], n[5]}
+        assert mgr.owner_of(n[3]) is sub
+
+
+class TestGraphRegionConversion(unittest.TestCase):
+    def test_copy_returns_plain_graph_region(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+
+        region = sub.copy()
+        assert type(region) is GraphRegion
+        assert region.head is n[2]
+        assert set(region.graph.nodes) == {n[2], n[3], n[4], n[5]}
+        assert region.successors == {n[6]}
+        assert (n[5], n[6]) in region.graph_with_successors.edges
+        # mutating the copy does not affect the overlay
+        region.graph.remove_node(n[4])
+        assert n[4] in sub.view()
+
+    def test_recursive_copy_builds_graph_region_tree(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        outer = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        inner = outer.create_subregion(n[3], [n[3], n[5]], cyclic=False)
+
+        tree = mgr.root.recursive_copy()
+        assert type(tree) is GraphRegion
+        assert tree.successors is None and tree.graph_with_successors is None
+        outer_r = next(x for x in tree.graph.nodes if isinstance(x, GraphRegion))
+        assert type(outer_r) is GraphRegion and outer_r is not outer
+        assert tree.head is n[1]
+        assert set(tree.graph.nodes) == {n[1], outer_r, n[6]}
+
+        inner_r = next(x for x in outer_r.graph.nodes if isinstance(x, GraphRegion))
+        assert type(inner_r) is GraphRegion and inner_r is not inner
+        assert outer_r.head is n[2]
+        assert inner_r.head is n[3]
+        assert inner_r.successors == {n[6]}
+        assert outer_r.successors == {n[6]}
+        assert (inner_r, n[6]) in outer_r.graph_with_successors.edges
+
+    def test_complete_successors_extra_hop(self):
+        nodes = {i: Node(i) for i in range(1, 8)}
+        g = networkx.DiGraph()
+        # 1 -> 2 -> 3 (region: {2}), 3 -> 4 (successor's successor)
+        g.add_edges_from([(nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[3], nodes[4])])
+        mgr = OverlayManager(g, complete_successors=True)
+        mgr.root.head = nodes[1]
+        sub = mgr.root.create_subregion(nodes[2], [nodes[2]], cyclic=False)
+
+        gws = sub.view_with_successors()
+        assert (nodes[3], nodes[4]) in edge_set(gws)
+        assert nodes[4] in gws
+        # but the derived successor set still only contains direct successors
+        assert sub.successor_nodes() == {nodes[3]}
+
+
+if __name__ == "__main__":
+    unittest.main()
