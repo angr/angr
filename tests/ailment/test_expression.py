@@ -173,9 +173,7 @@ class TestExpression(unittest.TestCase):
         vmap = variable_map_of(manager)
 
         variant = SimpleNamespace(name="Some")
-        let_expr = Let(
-            13, [Assignment(14, VirtualVariable(15, 1, 32, VirtualVariableCategory.REGISTER, 16), old)], old
-        )
+        let_expr = Let(13, [Assignment(14, VirtualVariable(15, 1, 32, VirtualVariableCategory.REGISTER, 16), old)], old)
         vmap.set_variant(let_expr, variant)
         assert vmap.variant(let_expr) is variant
         assert "let (_)" in str(let_expr)
