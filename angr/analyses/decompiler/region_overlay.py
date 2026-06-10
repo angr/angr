@@ -847,13 +847,11 @@ class RegionOverlay(GraphRegion):
         for dst, data in external_out_edges:
             self._mgr._graph_add_edge(absorbed_into, dst, **data)
         if self.active:
+            # note: the rewired crossing out-edges are deliberately not re-added to the working graphs; the
+            # region's own view loses them (as it always did when absorbed nodes were removed from the region
+            # graphs), while enclosing regions keep seeing the region lead to its successors via the shared graph
             self._active_remove_node(self._active_graph, node)
             self._active_remove_node(self._active_gws, node)
-            if absorbed_into is not None:
-                assert self._active_gws is not None
-                for dst, data in external_out_edges:
-                    if dst in self._active_gws and absorbed_into in self._active_gws:
-                        self._active_add_edge(self._active_gws, absorbed_into, dst, **data)
         self._invalidate()
 
     def hide_edge_to_successor(self, succ) -> None:
