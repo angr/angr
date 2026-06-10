@@ -15,6 +15,7 @@ from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, U
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
+from angr.analyses.decompiler.region_overlay import RegionOverlay
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
@@ -98,6 +99,7 @@ class PhoenixStructurer(StructurerBase):
     """
 
     NAME = "phoenix"
+    SUPPORTS_OVERLAYS = True
 
     def __init__(
         self,
@@ -184,9 +186,9 @@ class PhoenixStructurer(StructurerBase):
         if len(self._region.graph.nodes) == 1 and has_cycle:
             self._analyze_cyclic()
 
-        # backup the region prior to conducting a cyclic refinement because we may not be able to structure a cycle out
-        # of the refined graph. in that case, we restore the original region and return.
-        pre_refinement_region = None
+        # checkpoint the region prior to conducting a cyclic refinement because we may not be able to structure a
+        # cycle out of the refined graph. in that case, we roll the region back and return.
+        pre_refinement_checkpoint: int | None = None
 
         while len(self._region.graph.nodes) > 1:
             progressed = self._analyze_acyclic()
@@ -199,14 +201,14 @@ class PhoenixStructurer(StructurerBase):
             if has_cycle:
                 progressed |= self._analyze_cyclic()
                 if progressed:
-                    pre_refinement_region = None
+                    pre_refinement_checkpoint = None
                     if self._region.head not in self._region.graph:
                         # update the loop head
                         self._region.head = next(
                             iter(node for node in self._region.graph.nodes if node.addr == self._region.head.addr)
                         )
-                elif pre_refinement_region is None:
-                    pre_refinement_region = self._region.copy()
+                elif pre_refinement_checkpoint is None:
+                    pre_refinement_checkpoint = self._region.manager.checkpoint()
                     refined = self._refine_cyclic()
                     if refined:
                         if self._region.head not in self._region.graph:
@@ -229,11 +231,7 @@ class PhoenixStructurer(StructurerBase):
                 removed_edge = self._last_resort_refinement(
                     self._region.head,
                     self._region.graph,
-                    (
-                        self._region.graph_with_successors
-                        if self._region.graph_with_successors is not None
-                        else networkx.DiGraph(self._region.graph)
-                    ),
+                    self._region.graph_with_successors,
                 )
                 self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
                 if not removed_edge:
@@ -244,10 +242,10 @@ class PhoenixStructurer(StructurerBase):
             # successfully structured
             self.result = next(iter(self._region.graph.nodes))
         else:
-            if pre_refinement_region is not None:
+            if pre_refinement_checkpoint is not None:
                 # we could not make a loop after the last cycle refinement. restore the graph
                 l.debug("Could not structure the cyclic graph. Restoring the region to the pre-refinement state.")
-                self._region = pre_refinement_region
+                self._region.manager.rollback(pre_refinement_checkpoint)
 
             self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
 
@@ -264,11 +262,7 @@ class PhoenixStructurer(StructurerBase):
                 node,
                 self._region.head,
                 self._region.graph,
-                (
-                    self._region.graph_with_successors
-                    if self._region.graph_with_successors is not None
-                    else networkx.DiGraph(self._region.graph)
-                ),
+                self._region.graph_with_successors,
             )
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
@@ -374,19 +368,10 @@ class PhoenixStructurer(StructurerBase):
                             remove_last_statement(head_block)
                         seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
                         loop_node = LoopNode(loop_type, edge_cond_left, seq_node, addr=seq_node.addr)
-                        self.replace_nodes(graph_raw, node, loop_node, self_loop=False, drop_refinement_marks=True)
-                        self.replace_nodes(
-                            full_graph_raw,
-                            node,
-                            loop_node,
-                            self_loop=False,
-                            update_node_order=True,
-                            drop_refinement_marks=True,
-                        )
+                        self.replace_nodes_both(node, loop_node, self_loop=False, drop_refinement_marks=True)
 
                         # ensure the loop has only one successor: the right node
-                        self._remove_edges_except(graph_raw, loop_node, right)
-                        self._remove_edges_except(full_graph_raw, loop_node, right)
+                        self._remove_edges_except_overlay(loop_node, right)
 
                         return True, loop_node, right
             elif (
@@ -408,23 +393,12 @@ class PhoenixStructurer(StructurerBase):
                             new_node = SequenceNode(node.addr, nodes=[left])
                             loop_node = LoopNode("while", edge_cond_left, new_node, addr=node.addr)
 
-                            # on the original graph
-                            self.replace_nodes(
-                                graph_raw, node, loop_node, old_node_1=left, self_loop=False, drop_refinement_marks=True
-                            )
-                            # on the graph with successors
-                            self.replace_nodes(
-                                full_graph_raw,
-                                node,
-                                loop_node,
-                                old_node_1=left,
-                                self_loop=False,
-                                update_node_order=True,
+                            self.replace_nodes_both(
+                                node, loop_node, old_node_1=left, self_loop=False, drop_refinement_marks=True
                             )
 
                             # ensure the loop has only one successor: the right node
-                            self._remove_edges_except(graph_raw, loop_node, right)
-                            self._remove_edges_except(full_graph_raw, loop_node, right)
+                            self._remove_edges_except_overlay(loop_node, right)
 
                             return True, loop_node, right
                         # we generate a while-true loop instead
@@ -442,24 +416,12 @@ class PhoenixStructurer(StructurerBase):
                         new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
                         loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
-                        # on the original graph
-                        self.replace_nodes(
-                            graph_raw, node, loop_node, old_node_1=left, self_loop=False, drop_refinement_marks=True
-                        )
-                        # on the graph with successors
-                        self.replace_nodes(
-                            full_graph_raw,
-                            node,
-                            loop_node,
-                            old_node_1=left,
-                            self_loop=False,
-                            update_node_order=True,
-                            drop_refinement_marks=True,
+                        self.replace_nodes_both(
+                            node, loop_node, old_node_1=left, self_loop=False, drop_refinement_marks=True
                         )
 
                         # ensure the loop has only one successor: the right node
-                        self._remove_edges_except(graph_raw, loop_node, right)
-                        self._remove_edges_except(full_graph_raw, loop_node, right)
+                        self._remove_edges_except_overlay(loop_node, right)
 
                         return True, loop_node, right
 
@@ -475,24 +437,12 @@ class PhoenixStructurer(StructurerBase):
                             new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
                             loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
-                            # on the original graph
-                            self.replace_nodes(
-                                graph_raw, node, loop_node, old_node_1=left, self_loop=False, drop_refinement_marks=True
-                            )
-                            # on the graph with successors
-                            self.replace_nodes(
-                                full_graph_raw,
-                                node,
-                                loop_node,
-                                old_node_1=left,
-                                self_loop=False,
-                                update_node_order=True,
-                                drop_refinement_marks=True,
+                            self.replace_nodes_both(
+                                node, loop_node, old_node_1=left, self_loop=False, drop_refinement_marks=True
                             )
 
                             # ensure the loop has only one successor: the right node
-                            self._remove_edges_except(graph_raw, loop_node, right)
-                            self._remove_edges_except(full_graph_raw, loop_node, right)
+                            self._remove_edges_except_overlay(loop_node, right)
 
                             return True, loop_node, right
 
@@ -566,21 +516,11 @@ class PhoenixStructurer(StructurerBase):
 
         loop_node = LoopNode("while", loop_cond, seq_node, addr=node.addr)
 
-        # on the original graph
         for node_ in seq_node.nodes:
-            if node_ is not node_copy:
-                graph_raw.remove_node(node_)
-        self.replace_nodes(graph_raw, node, loop_node, self_loop=False, drop_refinement_marks=True)
-        graph_raw.add_edge(loop_node, successor_node)
-
-        # on the graph with successors
-        for node_ in seq_node.nodes:
-            if node_ is not node_copy:
-                full_graph_raw.remove_node(node_)
-        self.replace_nodes(
-            full_graph_raw, node, loop_node, self_loop=False, update_node_order=True, drop_refinement_marks=True
-        )
-        full_graph_raw.add_edge(loop_node, successor_node)
+            if node_ is not node_copy and node_ is not node:
+                self._region.remove_node(node_, absorbed_into=node, absorb_out_edges=True)
+        self.replace_nodes_both(node, loop_node, self_loop=False, drop_refinement_marks=True)
+        self._region.add_edge(loop_node, successor_node)
 
         if self._node_order is not None:
             self._node_order[loop_node] = self._node_order[node]
@@ -650,19 +590,8 @@ class PhoenixStructurer(StructurerBase):
                             new_node = SequenceNode(node.addr, nodes=[node] if drop_succ else [node, succ])
                             loop_node = LoopNode("do-while", edge_cond_succhead, new_node, addr=node.addr)
 
-                            # on the original graph
-                            self.replace_nodes(
-                                graph_raw, node, loop_node, old_node_1=succ, self_loop=False, drop_refinement_marks=True
-                            )
-                            # on the graph with successors
-                            self.replace_nodes(
-                                full_graph_raw,
-                                node,
-                                loop_node,
-                                old_node_1=succ,
-                                self_loop=False,
-                                update_node_order=True,
-                                drop_refinement_marks=True,
+                            self.replace_nodes_both(
+                                node, loop_node, old_node_1=succ, self_loop=False, drop_refinement_marks=True
                             )
 
                             return True, loop_node, out_node
@@ -679,17 +608,7 @@ class PhoenixStructurer(StructurerBase):
                     seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
                     loop_node = LoopNode("do-while", edge_cond_head, seq_node, addr=seq_node.addr)
 
-                    # on the original graph
-                    self.replace_nodes(graph_raw, node, loop_node, self_loop=False, drop_refinement_marks=True)
-                    # on the graph with successors
-                    self.replace_nodes(
-                        full_graph_raw,
-                        node,
-                        loop_node,
-                        self_loop=False,
-                        update_node_order=True,
-                        drop_refinement_marks=True,
-                    )
+                    self.replace_nodes_both(node, loop_node, self_loop=False, drop_refinement_marks=True)
 
                     return True, loop_node, succ
         return False, None, None
@@ -744,26 +663,14 @@ class PhoenixStructurer(StructurerBase):
 
         loop_node = LoopNode("while", claripy.true(), seq_node, addr=node.addr)
 
-        # on the original graph
         for node_ in seq_node.nodes:
             if node_ is not node:
-                graph_raw.remove_node(node_)
-        self.replace_nodes(graph_raw, node, loop_node, self_loop=False, drop_refinement_marks=True)
-
-        # on the graph with successors
-        for node_ in seq_node.nodes:
-            if node_ is not node:
-                full_graph_raw.remove_node(node_)
-        self.replace_nodes(
-            full_graph_raw, node, loop_node, self_loop=False, update_node_order=True, drop_refinement_marks=True
-        )
+                self._region.remove_node(node_, absorbed_into=node, absorb_out_edges=True)
+        self.replace_nodes_both(node, loop_node, self_loop=False, drop_refinement_marks=True)
 
         successor = None if not loop_successor_candidates else next(iter(loop_successor_candidates))
-        if successor is not None:
-            if successor in graph:
-                graph_raw.add_edge(loop_node, successor)
-            if successor in full_graph:
-                full_graph_raw.add_edge(loop_node, successor)
+        if successor is not None and (successor in graph or successor in full_graph):
+            self._region.add_edge(loop_node, successor)
 
         return True, loop_node, successor
 
@@ -784,11 +691,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _refine_cyclic_core(self, loop_head) -> bool:
         graph_raw: networkx.DiGraph = self._region.graph
-        fullgraph_raw: networkx.DiGraph = (
-            self._region.graph_with_successors
-            if self._region.graph_with_successors is not None
-            else networkx.DiGraph(self._region.graph)
-        )
+        fullgraph_raw: networkx.DiGraph = self._region.graph_with_successors
 
         graph = _f(graph_raw)
         fullgraph = _f(fullgraph_raw)
@@ -899,15 +802,11 @@ class PhoenixStructurer(StructurerBase):
                     if src_block is None:
                         # we can't find the source block, which is probably because the source block is within another
                         # loop. keep that goto and remove the edge anyway
-                        fullgraph_raw[src][dst]["cyclic_refinement_outgoing"] = True
-                        if graph.has_edge(src, dst):
-                            graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
+                        self._region.mark_edge(src, dst, cyclic_refinement_outgoing=True)
                     elif not isinstance(src_block, (Block, MultiNode)):
                         # it has probably been structured into BreakNode or ConditionalBreakNode
                         # just remove the edge
-                        fullgraph_raw[src][dst]["cyclic_refinement_outgoing"] = True
-                        if graph.has_edge(src, dst):
-                            graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
+                        self._region.mark_edge(src, dst, cyclic_refinement_outgoing=True)
                     else:
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
                         # rewritten to break nodes after (if possible). directly creating break nodes may lead to
@@ -992,11 +891,8 @@ class PhoenixStructurer(StructurerBase):
                         # we cannot modify the original src_block because loop refinement may fail and we must restore
                         # the original graph
                         new_src = NodeReplacer(src, {src_block: new_node}).result
-                        if graph.has_edge(src, dst):
-                            graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
-                        self.replace_nodes(graph_raw, src, new_src)
-                        fullgraph_raw[src][dst]["cyclic_refinement_outgoing"] = True
-                        self.replace_nodes(fullgraph_raw, src, new_src, update_node_order=True)
+                        self._region.mark_edge(src, dst, cyclic_refinement_outgoing=True)
+                        self.replace_nodes_both(src, new_src)
                         if src is loop_head:
                             loop_head = new_src
                         if src is continue_node:
@@ -1007,14 +903,10 @@ class PhoenixStructurer(StructurerBase):
 
                 else:
                     self.virtualized_edges.add((src, dst))
-                    fullgraph_raw.remove_edge(src, dst)
-                    if graph.has_edge(src, dst):
-                        graph_raw.remove_edge(src, dst)
-                    if fullgraph.in_degree[dst] == 0:
+                    self._region.detach_edge(src, dst)
+                    if dst in fullgraph and fullgraph.in_degree[dst] == 0:
                         # drop this node
-                        fullgraph_raw.remove_node(dst)
-                        if self._region.successors and dst in self._region.successors:
-                            self._region.successors.remove(dst)
+                        self._region.remove_node(dst)
 
         if len(continue_edges) > 1:
             # convert all but one (the one that is the farthest from the head, topological-wise) head-going edges into
@@ -1050,13 +942,10 @@ class PhoenixStructurer(StructurerBase):
                             src,
                             continue_node,
                         )
-                    if graph.has_edge(src, continue_node):
-                        graph_raw.remove_edge(src, continue_node)
-                    fullgraph_raw.remove_edge(src, continue_node)
+                    self._region.detach_edge(src, continue_node)
                 else:
                     # remove the edge.
-                    graph_raw.remove_edge(src, continue_node)
-                    fullgraph_raw.remove_edge(src, continue_node)
+                    self._region.detach_edge(src, continue_node)
                     # replace it with the original node plus the continue node
                     try:
                         last_stmt = self.cond_proc.get_last_statement(cont_block)
@@ -1089,8 +978,7 @@ class PhoenixStructurer(StructurerBase):
                             new_node = NodeReplacer(src, {cont_block: new_cont_block}).result
                             new_src = SequenceNode(new_node.addr, nodes=[new_node, new_cont_node])
                             replacements[src] = new_src
-                            self.replace_nodes(graph_raw, src, new_src)
-                            self.replace_nodes(fullgraph_raw, src, new_src, update_node_order=True)
+                            self.replace_nodes_both(src, new_src)
 
                             if continue_node is src:
                                 # set continue_node to the new node
@@ -1265,11 +1153,7 @@ class PhoenixStructurer(StructurerBase):
             try:
                 any_matches_this_iteration = self._match_acyclic_schemas(
                     self._region.graph,
-                    (
-                        self._region.graph_with_successors
-                        if self._region.graph_with_successors is not None
-                        else networkx.DiGraph(self._region.graph)
-                    ),
+                    self._region.graph_with_successors,
                     self._region.head,
                 )
             except GraphChangedNotification:
@@ -1425,8 +1309,7 @@ class PhoenixStructurer(StructurerBase):
                 ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
             )
             node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
-            graph_raw.add_edge(node, node_default)
-            full_graph_raw.add_edge(node, node_default)
+            self._region.add_edge(node, node_default)
             if self._node_order is not None:
                 self._node_order[node_default] = self._node_order[node]
         r = self._make_switch_cases_core(
@@ -1449,9 +1332,7 @@ class PhoenixStructurer(StructurerBase):
             other_out_nodes = list(self._region.graph.successors(node))
             for o in other_out_nodes:
                 if o.addr == node_default.addr and o is not node_default:
-                    self._region.graph.remove_node(o)
-                    if self._region.graph_with_successors is not None:
-                        self._region.graph_with_successors.remove_node(o)
+                    self._region.remove_node(o, absorbed_into=node_default, absorb_out_edges=True)
 
         switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
         if switch_end_addr is not None:
@@ -1599,10 +1480,9 @@ class PhoenixStructurer(StructurerBase):
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
-            _, new_seq_node = self._unpack_sequencenode_head(graph_raw, node_a)
+            _, new_seq_node = self._unpack_sequencenode_head_overlay(node_a)
             if new_seq_node is not None and self._node_order is not None:
                 self._node_order[new_seq_node] = self._node_order[node_a]
-            self._unpack_sequencenode_head(full_graph_raw, node_a, new_seq=new_seq_node)
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
@@ -1618,12 +1498,9 @@ class PhoenixStructurer(StructurerBase):
             ):
                 return False
 
-            r = self._unpack_incompleteswitchcasenode(graph_raw, node_a, jump_table.jumptable_entries)
+            r = self._unpack_incompleteswitchcasenode_overlay(node_a, jump_table.jumptable_entries)
             if not r:
                 return False
-            self._unpack_incompleteswitchcasenode(
-                full_graph_raw, node_a, jump_table.jumptable_entries
-            )  # this shall not fail
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
             if self._node_order is not None:
@@ -1653,18 +1530,19 @@ class PhoenixStructurer(StructurerBase):
                 # if node_a and default_node have different successors we need to bail
                 return False
 
-            for pgraph in (graph_raw, full_graph_raw):
-                all_preds = set(pgraph.pred[node])
-                all_succs = set(pgraph.succ[node_a])
-                if node_default is not None:
-                    pgraph.remove_node(node_default)
-                pgraph.remove_node(node)
-                pgraph.remove_node(node_a)
-                pgraph.add_node(newsc)
-                for pred in all_preds:
-                    pgraph.add_edge(pred, newsc)
-                for succ in all_succs:
-                    pgraph.add_edge(newsc, succ)
+            region = self._region
+            gws = region.graph_with_successors
+            all_preds = set(gws.pred[node])
+            all_succs = set(gws.succ[node_a])
+            region.add_node(newsc)
+            if node_default is not None:
+                region.remove_node(node_default, absorbed_into=newsc)
+            region.remove_node(node, absorbed_into=newsc)
+            region.remove_node(node_a, absorbed_into=newsc)
+            for pred in all_preds:
+                region.add_edge(pred, newsc)
+            for succ in all_succs:
+                region.add_edge(newsc, succ)
 
             if self._node_order is not None:
                 self._node_order[newsc] = self._node_order[better_node_a]
@@ -1763,12 +1641,9 @@ class PhoenixStructurer(StructurerBase):
                 # it has a missing default case node! we cannot structure it as a no-default switch-case
                 return False
 
-            r = self._unpack_incompleteswitchcasenode(graph_raw, node, jump_table.jumptable_entries)
+            r = self._unpack_incompleteswitchcasenode_overlay(node, jump_table.jumptable_entries)
             if not r:
                 return False
-            self._unpack_incompleteswitchcasenode(
-                full_graph_raw, node, jump_table.jumptable_entries
-            )  # this shall not fail
             # update node
             node = next(iter(nn for nn in graph.nodes if nn.addr == jump_table.addr))
 
@@ -2008,14 +1883,11 @@ class PhoenixStructurer(StructurerBase):
                 ) and node.addr not in self._matched_incomplete_switch_case_addrs:
                     self._matched_incomplete_switch_case_addrs.add(node.addr)
                     new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
-                    graph_raw.remove_nodes_from(successors)
-                    self.replace_nodes(graph_raw, node, new_node)
-                    if out_nodes and out_nodes[0] in graph:
-                        graph_raw.add_edge(new_node, out_nodes[0])
-                    full_graph_raw.remove_nodes_from(successors)
-                    self.replace_nodes(full_graph_raw, node, new_node, update_node_order=True)
+                    self.replace_nodes_both(node, new_node)
+                    for succ_node in successors:
+                        self._region.remove_node(succ_node, absorbed_into=new_node)
                     if out_nodes:
-                        full_graph_raw.add_edge(new_node, out_nodes[0])
+                        self._region.add_edge(new_node, out_nodes[0])
                     if self._node_order:
                         self._node_order[new_node] = self._node_order[node]
                     return True
@@ -2044,8 +1916,7 @@ class PhoenixStructurer(StructurerBase):
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
-            self.replace_nodes(graph_raw, node_default, new_node)
-            self.replace_nodes(full_graph_raw, node_default, new_node, update_node_order=True)
+            self.replace_nodes_both(node_default, new_node)
             node_default = new_node
 
         converted_nodes: dict[tuple[int, int | None], Any] = {}
@@ -2195,23 +2066,18 @@ class PhoenixStructurer(StructurerBase):
 
         if node_default is not None:
             # the head no longer goes to the default case
-            if graph.has_edge(head, node_default):
-                pass
-            graph.remove_edge(head, node_default)
-            full_graph.remove_edge(head, node_default)
+            self._region.detach_edge(head, node_default)
         elif node_default_addr is not None:
             # the default node is not in the current graph, but it might be in the full graph
             node_default_in_full_graph = next(iter(nn for nn in full_graph if nn.addr == node_default_addr), None)
             if node_default_in_full_graph is not None and full_graph.has_edge(head, node_default_in_full_graph):
                 # the head no longer jumps to the default node - the switch jumps to it
-                full_graph.remove_edge(head, node_default_in_full_graph)
+                self._region.hide_edge(head, node_default_in_full_graph)
 
+        self._region.add_edge(head, scnode)
         for nn in to_remove:
-            graph.remove_node(nn)
-            full_graph.remove_node(nn)
+            self._region.remove_node(nn, absorbed_into=scnode)
 
-        graph.add_edge(head, scnode)
-        full_graph.add_edge(head, scnode)
         if self._node_order is not None:
             self._node_order[scnode] = self._node_order[head]
 
@@ -2285,14 +2151,13 @@ class PhoenixStructurer(StructurerBase):
                     )
 
             if out_dst_succ is not None:
-                graph.add_edge(scnode, out_dst_succ)
-                full_graph.add_edge(scnode, out_dst_succ)
+                self._region.add_edge(scnode, out_dst_succ)
                 if full_graph.has_edge(head, out_dst_succ):
-                    full_graph.remove_edge(head, out_dst_succ)
+                    self._region.remove_edge_with_successors_only(head, out_dst_succ)
             if out_dst_succ_fullgraph is not None:
-                full_graph.add_edge(scnode, out_dst_succ_fullgraph)
+                self._region.add_edge(scnode, out_dst_succ_fullgraph)
                 if full_graph.has_edge(head, out_dst_succ_fullgraph):
-                    full_graph.remove_edge(head, out_dst_succ_fullgraph)
+                    self._region.remove_edge_with_successors_only(head, out_dst_succ_fullgraph)
 
             # fix full_graph if needed: remove successors that are no longer needed
             for _out_src, out_dst in other_out_edges:
@@ -2302,10 +2167,7 @@ class PhoenixStructurer(StructurerBase):
                     and out_dst not in graph
                     and full_graph.in_degree[out_dst] == 0
                 ):
-                    full_graph.remove_node(out_dst)
-                    assert self._region.successors is not None
-                    if out_dst in self._region.successors:
-                        self._region.successors.remove(out_dst)
+                    self._region.remove_node(out_dst)
 
         # remove the last statement (conditional jump) in the head node
         self._remove_last_statement_if_jump_or_schead(head)
@@ -2412,10 +2274,7 @@ class PhoenixStructurer(StructurerBase):
                 new_seq = end_node
 
             if new_seq is not None:
-                # on the original graph
-                self.replace_nodes(graph_raw, start_node, new_seq, old_node_1=end_node if end_node in graph else None)
-                # on the graph with successors
-                self.replace_nodes(full_graph_raw, start_node, new_seq, old_node_1=end_node, update_node_order=True)
+                self.replace_nodes_both(start_node, new_seq, old_node_1=end_node)
                 return True
         return False
 
@@ -2472,25 +2331,11 @@ class PhoenixStructurer(StructurerBase):
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         if not left_succs:
-                            # on the original graph
-                            if left in graph:
-                                graph_raw.remove_node(left)
-                            self.replace_nodes(graph_raw, start_node, new_node, old_node_1=right)
-                            # on the graph with successors
-                            full_graph_raw.remove_node(left)
-                            self.replace_nodes(
-                                full_graph_raw, start_node, new_node, old_node_1=right, update_node_order=True
-                            )
+                            self.replace_nodes_both(start_node, new_node, old_node_1=right)
+                            self._region.remove_node(left, absorbed_into=new_node, absorb_out_edges=True)
                         else:
-                            # on the original graph
-                            if right in graph:
-                                graph_raw.remove_node(right)
-                            self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left)
-                            # on the graph with successors
-                            full_graph_raw.remove_node(right)
-                            self.replace_nodes(
-                                full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True
-                            )
+                            self.replace_nodes_both(start_node, new_node, old_node_1=left)
+                            self._region.remove_node(right, absorbed_into=new_node, absorb_out_edges=True)
 
                         return True
 
@@ -2516,12 +2361,7 @@ class PhoenixStructurer(StructurerBase):
                         )
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-                        # on the original graph
-                        self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left)
-                        # on the graph with successors
-                        self.replace_nodes(
-                            full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True
-                        )
+                        self.replace_nodes_both(start_node, new_node, old_node_1=left)
 
                         return True
 
@@ -2550,10 +2390,7 @@ class PhoenixStructurer(StructurerBase):
                     )
                     new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-                    # on the original graph
-                    self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left)
-                    # on the graph with successors
-                    self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True)
+                    self.replace_nodes_both(start_node, new_node, old_node_1=left)
 
                     return True
 
@@ -2604,10 +2441,7 @@ class PhoenixStructurer(StructurerBase):
                         new_nodes.append(new_jump_node)
                     new_node = SequenceNode(start_node.addr, nodes=new_nodes)
 
-                    # on the original graph
-                    self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left)
-                    # on the graph with successors
-                    self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True)
+                    self.replace_nodes_both(start_node, new_node, old_node_1=left)
 
                     return True
 
@@ -2752,8 +2586,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left if left in graph else None)
-            self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True)
+            self.replace_nodes_both(start_node, new_node, old_node_1=left)
 
             return True
 
@@ -2793,8 +2626,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph_raw, start_node, new_node, old_node_1=right if right in graph else None)
-            self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=right, update_node_order=True)
+            self.replace_nodes_both(start_node, new_node, old_node_1=right)
 
             return True
 
@@ -2837,8 +2669,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left if left in graph else None)
-            self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True)
+            self.replace_nodes_both(start_node, new_node, old_node_1=left)
             return True
 
         r = self._match_acyclic_short_circuit_conditions_type_d(graph, full_graph, start_node)
@@ -2877,8 +2708,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph_raw, start_node, new_node, old_node_1=left if left in graph else None)
-            self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True)
+            self.replace_nodes_both(start_node, new_node, old_node_1=left)
             return True
 
         return False
@@ -3065,7 +2895,7 @@ class PhoenixStructurer(StructurerBase):
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
                 if _f(graph_raw).has_edge(src, dst):
-                    self._virtualize_edge(graph_raw, full_graph_raw, src, dst)
+                    self._virtualize_edge(src, dst)
                     l.debug("last_resort: Removed edge %r -> %r (type 3)", src, dst)
                     return True
 
@@ -3137,7 +2967,7 @@ class PhoenixStructurer(StructurerBase):
             all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
-            self._virtualize_edge(graph_raw, full_graph_raw, src, dst)
+            self._virtualize_edge(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 1)", src, dst)
             return True
 
@@ -3145,14 +2975,14 @@ class PhoenixStructurer(StructurerBase):
             secondary_edges = self._order_virtualizable_edges(full_graph, secondary_edges, node_seq)
             # virtualize the first edge
             src, dst = secondary_edges[0]
-            self._virtualize_edge(graph_raw, full_graph_raw, src, dst)
+            self._virtualize_edge(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
 
         l.debug("last_resort: No edge to remove")
         return False
 
-    def _virtualize_edge(self, graph, full_graph, src, dst):
+    def _virtualize_edge(self, src, dst):
         # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
         try:
             last_stmt = self.cond_proc.get_last_statement(src)
@@ -3218,18 +3048,10 @@ class PhoenixStructurer(StructurerBase):
             )
             new_src = SequenceNode(src.addr, nodes=[src, goto_node])
 
-        if graph.has_edge(src, dst):
-            graph.remove_edge(src, dst)
-            self.virtualized_edges.add((src, dst))
+        self.virtualized_edges.add((src, dst))
+        self._region.detach_edge(src, dst)
         if new_src is not None:
-            self.replace_nodes(graph, src, new_src)
-            if self._node_order is not None:
-                self._node_order[new_src] = self._node_order[src]
-        if full_graph is not None:
-            self.virtualized_edges.add((src, dst))
-            full_graph.remove_edge(src, dst)
-            if new_src is not None:
-                self.replace_nodes(full_graph, src, new_src, update_node_order=True)
+            self.replace_nodes_both(src, new_src)
         if remove_src_last_stmt:
             remove_last_statements(src)
 
@@ -3388,52 +3210,57 @@ class PhoenixStructurer(StructurerBase):
             return _Holder.parent_and_block[-1]
         return _Holder.parent_and_block[0]
 
-    @staticmethod
-    def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):
+    def _unpack_sequencenode_head_overlay(self, seq: SequenceNode):
         if not seq.nodes:
             return False, None
         node = seq.nodes[0]
-        if new_seq is None:
-            # create the new sequence node if no prior-created sequence node is passed in
-            new_seq = seq.copy()
-            new_seq.nodes = new_seq.nodes[1:]
-            if new_seq.nodes:
-                new_seq.addr = new_seq.nodes[0].addr
-
-        preds = list(graph.predecessors(seq))
-        succs = list(graph.successors(seq))
-        graph.remove_node(seq)
-        for pred in preds:
-            graph.add_edge(pred, node)
+        new_seq = seq.copy()
+        new_seq.nodes = new_seq.nodes[1:]
         if new_seq.nodes:
-            graph.add_edge(node, new_seq)
+            new_seq.addr = new_seq.nodes[0].addr
+
+        region: RegionOverlay = self._region
+        gws = region.graph_with_successors
+        preds = list(gws.predecessors(seq))
+        succs = list(gws.successors(seq))
+        region.add_node(node)
+        region.remove_node(seq, absorbed_into=node)
+        for pred in preds:
+            region.add_edge(pred, node)
+        if new_seq.nodes:
+            region.add_edge(node, new_seq)
         for succ in succs:
             if succ is seq:
-                graph.add_edge(new_seq, new_seq)
+                region.add_edge(new_seq, new_seq)
             else:
-                graph.add_edge(new_seq, succ)
+                region.add_edge(new_seq, succ)
         return True, new_seq
 
-    @staticmethod
-    def _unpack_incompleteswitchcasenode(
-        graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode, jumptable_entries: list[int]
+    def _unpack_incompleteswitchcasenode_overlay(
+        self, incscnode: IncompleteSwitchCaseNode, jumptable_entries: list[int]
     ) -> bool:
-        preds = list(graph.predecessors(incscnode))
-        succs = list(graph.successors(incscnode))
+        region: RegionOverlay = self._region
+        graph = region.graph
+        gws = region.graph_with_successors
+        # gate on the member view, matching the original member-graph unpacking
+        member_non_case_succs = [succ for succ in graph.successors(incscnode) if succ.addr not in jumptable_entries]
+        if len(member_non_case_succs) > 1:
+            return False
+        preds = list(gws.predecessors(incscnode))
+        succs = list(gws.successors(incscnode))
         non_case_succs = [succ for succ in succs if succ.addr not in jumptable_entries]
-        if len(non_case_succs) <= 1:
-            graph.remove_node(incscnode)
-            for pred in preds:
-                graph.add_edge(pred, incscnode.head)
-            for succ in succs:
-                if succ not in non_case_succs:
-                    graph.add_edge(incscnode.head, succ)
-            for case_node in incscnode.cases:
-                graph.add_edge(incscnode.head, case_node)
-                if non_case_succs:
-                    graph.add_edge(case_node, non_case_succs[0])
-            return True
-        return False
+        region.add_node(incscnode.head)
+        region.remove_node(incscnode, absorbed_into=incscnode.head)
+        for pred in preds:
+            region.add_edge(pred, incscnode.head)
+        for succ in succs:
+            if succ not in non_case_succs:
+                region.add_edge(incscnode.head, succ)
+        for case_node in incscnode.cases:
+            region.add_edge(incscnode.head, case_node)
+            if non_case_succs:
+                region.add_edge(case_node, non_case_succs[0])
+        return True
 
     @staticmethod
     def _count_statements(node: BaseNode | Block) -> int:
@@ -3510,12 +3337,6 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     @staticmethod
-    def _remove_edges_except(graph: networkx.DiGraph, src, dst):
-        for succ in list(graph.successors(src)):
-            if succ is not src and succ is not dst:
-                graph.remove_edge(src, succ)
-
-    @staticmethod
     def _remove_first_statement_if_jump(node: BaseNode | Block | MultiNode) -> Jump | ConditionalJump | None:
         if isinstance(node, Block):
             if node.statements:
@@ -3569,9 +3390,7 @@ class PhoenixStructurer(StructurerBase):
         return sorted(edges, key=_sort_edge, reverse=True)
 
     def _generate_node_order(self):
-        the_graph = (
-            self._region.graph_with_successors if self._region.graph_with_successors is not None else self._region.graph
-        )
+        the_graph = self._region.graph_with_successors
         the_head = self._region.head
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(
             the_graph,
@@ -3579,26 +3398,48 @@ class PhoenixStructurer(StructurerBase):
         )
         self._node_order = {n: i for i, n in enumerate(ordered_nodes)}
 
-    def replace_nodes(
+    def replace_nodes_both(
         self,
-        graph,
         old_node_0,
         new_node,
         old_node_1=None,
         self_loop=True,
-        update_node_order: bool = False,
         drop_refinement_marks: bool = False,
     ):
-        super().replace_nodes(graph, old_node_0, new_node, old_node_1=old_node_1, self_loop=self_loop)
+        """
+        Replace one or two nodes with a new node in the region: the member view, the with-successors view, and
+        the shared graph are all updated by the single overlay operation. If ``old_node_1`` is a successor of the
+        region rather than a member, it is absorbed into the new node in this region's views only.
+        """
+        region: RegionOverlay = self._region
+        member_old_1 = old_node_1 if old_node_1 is None or old_node_1 in region.graph else None
+        region.replace_nodes(old_node_0, new_node, old_node_1=member_old_1, self_loop=self_loop)
+        if old_node_1 is not None and member_old_1 is None:
+            # the absorbed node is a successor of the region
+            region.absorb_successor_into(old_node_1, new_node)
         if drop_refinement_marks:
-            for _, dst in list(graph.out_edges(new_node)):
-                if "cyclic_refinement_outgoing" in graph[new_node][dst]:
-                    del graph[new_node][dst]["cyclic_refinement_outgoing"]
-        if self._node_order is not None and update_node_order:
-            if old_node_1 is not None:
+            region.drop_edge_marks_from(new_node)
+        if self._node_order is not None:
+            if old_node_1 is not None and old_node_1 in self._node_order:
                 self._node_order[new_node] = min(self._node_order[old_node_0], self._node_order[old_node_1])
             else:
                 self._node_order[new_node] = self._node_order[old_node_0]
+
+    def _remove_edges_except_overlay(self, src, dst) -> None:
+        """
+        Remove all out-edges of a member node except the one to ``dst``: edges to fellow members are removed for
+        real, while edges to region successors are only removed from this region's views (enclosing regions keep
+        them, as they always have).
+        """
+        region: RegionOverlay = self._region
+        graph = region.graph
+        gws = region.graph_with_successors
+        for succ in list(gws.successors(src)):
+            if succ is not src and succ is not dst:
+                if succ in graph:
+                    region.detach_edge(src, succ)
+                else:
+                    region.hide_edge(src, succ)
 
     @staticmethod
     def _replace_node_in_edge_list(edge_list: list[tuple], old_node, new_node) -> None:
