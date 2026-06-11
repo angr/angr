@@ -1046,11 +1046,29 @@ class RegionOverlay(GraphRegion):
     # Region lifecycle
     #
 
-    def finalize(self, result_node=None):
+    def snapshot_successors(self) -> dict:
+        """
+        Capture this region's structural successors and how many member edges reach each, taken before the region
+        is structured. finalize() uses it to re-establish the region-to-successor edges that structuring removes
+        when it virtualizes/refines the corresponding control-flow edges into gotos or breaks.
+        """
+        return set(self.successor_nodes())
+
+    def _resolve_entry(self, node):
+        while isinstance(node, RegionOverlay):
+            node = node.head
+        return node
+
+    def finalize(self, result_node=None, succ_snapshot=None, virtualized_edges=None):
         """
         Collapse this fully-structured region into its parent: the region must consist of a single member node
         (the structuring result), which takes the region's place among the parent's members. Returns that node.
 
+        ``succ_snapshot`` (from snapshot_successors() before structuring) and ``virtualized_edges`` are used to
+        re-establish the edges from result_node to the region's successors: structuring may have removed the live
+        control-flow edges (refining them into breaks/gotos), but the structured region still flows to those
+        successors and enclosing regions must see that. A successor whose every member edge was virtualized is a
+        pure goto target and is not reconnected.
         """
         parent = self.parent
         assert parent is not None, "cannot finalize the root overlay"
@@ -1065,6 +1083,13 @@ class RegionOverlay(GraphRegion):
         # a structured-away back edge) must not surface as a parent-level edge
         if self._mgr.graph.has_edge(result_node, result_node):
             self._mgr._graph_remove_edge(result_node, result_node)
+
+        # re-establish the region-to-successor edges (see docstring)
+        if succ_snapshot:
+            for s in succ_snapshot:
+                s_entry = self._resolve_entry(s)
+                if s_entry is not result_node and not self._mgr.graph.has_edge(result_node, s_entry):
+                    self._mgr._graph_add_edge(result_node, s_entry)
 
         self._members.discard(result_node)
         self._under.discard(result_node)

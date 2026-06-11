@@ -96,6 +96,9 @@ class RecursiveStructurer(Analysis):
                     stack.pop()
 
                     parent_region = parent_map.get(current_region)
+                    # capture the region's successors before structuring mutates the shared graph, so finalize can
+                    # re-establish the region-to-successor edges that refinement/virtualization removes
+                    succ_snapshot = current_region.snapshot_successors()
                     # structure this region
                     st: StructurerBase = self.project.analyses[self.structurer_cls].prep(
                         kb=self.kb, fail_fast=self._fail_fast
@@ -127,7 +130,9 @@ class RecursiveStructurer(Analysis):
                     if st.result is None:
                         current_region.dissolve()
                     else:
-                        current_region.finalize(st.result)
+                        current_region.finalize(
+                            st.result, succ_snapshot=succ_snapshot, virtualized_edges=st.virtualized_edges
+                        )
         finally:
             # restore the shared graph and the overlay tree for post-structuring consumers of the region tree
             manager.rollback(checkpoint)
