@@ -238,13 +238,17 @@ class AILSimplifier(Analysis):
 
         if self._fold_expressions:
             _l.debug("Folding expressions")
-            folded_exprs = self._fold_exprs()
-            self.simplified |= folded_exprs
-            if folded_exprs:
-                _l.debug("... expressions folded")
-                self._rebuild_func_graph()
-                # reaching definition analysis results are no longer reliable
-                self._clear_cache()
+            # we fold expressions twice (instead of once) to ensure
+            for _ in range(2):
+                folded_exprs = self._fold_exprs()
+                self.simplified |= folded_exprs
+                if folded_exprs:
+                    _l.debug("... expressions folded")
+                    self._rebuild_func_graph()
+                    # reaching definition analysis results are no longer reliable
+                    self._clear_cache()
+                else:
+                    break
 
         _l.debug("Propagating partial-constant expressions")
         pconst_propagated = self._propagate_partial_constant_exprs()
