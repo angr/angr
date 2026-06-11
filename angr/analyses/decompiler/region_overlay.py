@@ -25,14 +25,14 @@ class OverlayManager:
         "_owner",
         "_undo_log",
         "_version",
-        "complete_successors",
+        "expose_loop_head_backedges",
         "graph",
         "root",
     )
 
-    def __init__(self, graph: networkx.DiGraph, complete_successors: bool = False):
+    def __init__(self, graph: networkx.DiGraph, expose_loop_head_backedges: bool = False):
         self.graph = graph
-        self.complete_successors = complete_successors
+        self.expose_loop_head_backedges = expose_loop_head_backedges
         self._version: int = 0
         # per-node topology version: bumped when an edge incident to a node changes (in the shared graph or in the
         # overlay-visibility state). RegionOverlayGraph's adjacency cache keys on this so an unrelated mutation no
@@ -254,7 +254,7 @@ class RegionOverlay:
         # the node this overlay was finalized into, if any
         self.replacement = None
 
-        self._cache_succs: tuple[int, set, set] | None = None
+        self._cache_succs: tuple[int, set] | None = None
         # cached RegionOverlayGraph view objects, keyed by (full, include_marked)
         self._rog_cache: dict[tuple[bool, bool], RegionOverlayGraph] = {}
 
@@ -381,11 +381,12 @@ class RegionOverlay:
         """
         Crossing edges that target the head of the region's processing context (the nearest cyclic ancestor, or
         the root region) were invisible during region identification: in-edges of the head are stripped before
-        acyclic analysis. RegionIdentifier's complete_successors mode used to re-add them from the secondary
-        graph, so they are only hidden when that mode is off. Cyclic regions themselves are identified before any
-        stripping, so their views are unaffected.
+        acyclic analysis. With ``expose_loop_head_backedges`` (used by Phoenix-based structuring, which forms
+        breaks/continues from these back-edges), the views expose them anyway; without it (Dream), they stay
+        hidden so the views match what region identification saw. Cyclic regions themselves are identified before
+        any stripping, so their views are unaffected.
         """
-        if self.cyclic or self._mgr.complete_successors:
+        if self.cyclic or self._mgr.expose_loop_head_backedges:
             return frozenset()
         anc = self.parent
         while anc is not None and not anc.cyclic and anc.parent is not None:
@@ -410,49 +411,10 @@ class RegionOverlay:
     def _in_loop(self) -> bool:
         return self.cyclic or self.cyclic_ancestor
 
-    @property
-    def _complete_mode(self) -> bool:
-        # RegionIdentifier's complete_successors mode only ever applied to acyclic regions nested inside cyclic
-        # regions (it required a secondary graph)
-        return self._mgr.complete_successors and self.cyclic_ancestor and not self.cyclic
-
-    def _enclosing_loop(self) -> RegionOverlay | None:
-        loop = self.parent
-        while loop is not None and not loop.cyclic:
-            loop = loop.parent
-        return loop
-
-    def _successor_hop_edges(self, direct_succs: set) -> Iterator[tuple[Any, Any, dict]]:
-        """
-        In complete-successors mode, a region inside a loop sees one extra hop of edges from its successors, but
-        only when the hop target is the loop's continue target (the loop head): "this successor goes back to the
-        loop head" is the control-flow fact that break/continue placement during structuring relies on. Successor
-        edges to other loop-body nodes (or onward from the loop head) are sibling-structure details and stay
-        hidden.
-        """
-        loop = self._enclosing_loop()
-        if loop is None:
-            return
-        head_under = self._underlying(loop.head)
-        graph = self._mgr.graph
-        for s in direct_succs:
-            under_s = self._underlying(s)
-            for u in under_s:
-                if u not in graph:
-                    continue
-                for v, data in graph.adj[u].items():
-                    if v in under_s or v in self._under or v not in head_under:
-                        continue
-                    rep_v = self._representative_outside(v)
-                    if rep_v is None or rep_v is s:
-                        continue
-                    yield s, rep_v, data
-
     def successor_nodes(self) -> set:
         """
         The derived successor set of this region: representatives of all shared-graph nodes targeted by edges
-        leaving the region (plus, in complete-successors mode, the restricted one-hop targets; see
-        _successor_hop_edges).
+        leaving the region.
         """
         cached = self._cache_succs
         if cached is not None and cached[0] == self._mgr.version:
@@ -462,17 +424,8 @@ class RegionOverlay:
             rep = self._representative_outside(v)
             if rep is not None:
                 succs.add(rep)
-        direct = set(succs)
-        if self._complete_mode:
-            for _, rep_v, _ in self._successor_hop_edges(direct):
-                succs.add(rep_v)
-        self._cache_succs = (self._mgr.version, succs, direct)
+        self._cache_succs = (self._mgr.version, succs)
         return succs
-
-    def _direct_successor_set(self) -> set:
-        self.successor_nodes()
-        assert self._cache_succs is not None
-        return self._cache_succs[2]
 
     def _quotient_edges(self, with_successors: bool) -> Iterator[tuple[Any, Any, dict]]:
         """
@@ -599,11 +552,6 @@ class RegionOverlay:
                                 seen.add(s1)
                                 yield s1, data
                             break
-        if self._complete_mode and n in self._direct_successor_set():
-            for _, rep_v, data in self._successor_hop_edges({n}):
-                if rep_v not in seen:
-                    seen.add(rep_v)
-                    yield rep_v, data
         for u, v in self._extra_full_edges:
             if u is n and v not in seen:
                 seen.add(v)
@@ -664,12 +612,6 @@ class RegionOverlay:
                     if rep_p is not None and rep_p is not n and rep_p in succs and rep_p not in seen:
                         seen.add(rep_p)
                         yield rep_p, data
-        if self._complete_mode:
-            # hop edges targeting this successor
-            for s, rep_v, data in self._successor_hop_edges(self._direct_successor_set()):
-                if rep_v is n and s not in seen:
-                    seen.add(s)
-                    yield s, data
         for u, v in self._extra_full_edges:
             if v is n and u not in seen:
                 seen.add(u)
@@ -764,7 +706,7 @@ class RegionOverlay:
         self._on_node_added(node)
         self._invalidate()
 
-    def remove_node(self, node, absorbed_into=None, absorb_out_edges: bool = False) -> None:
+    def remove_node(self, node, absorbed_into=None, absorb_out_edges: bool = True) -> None:
         """
         Remove a node. If ``node`` is a member (or a member overlay's node), it is removed from the shared graph
         for real. If it is a successor of this region, the removal is interpreted as hiding all edges from this
@@ -772,9 +714,10 @@ class RegionOverlay:
 
         When the node's content has been absorbed into another node during structuring, pass that node as
         ``absorbed_into``: in-edges from outside this region (e.g. abnormal loop entries) are then rewired to it
-        instead of being dropped, so enclosing regions keep their entry edges. With ``absorb_out_edges``,
-        out-edges crossing the region boundary (e.g. loop exits) are rewired to it as well; leave it off when the
-        caller re-establishes successor edges explicitly.
+        instead of being dropped, so enclosing regions keep their entry edges. With ``absorb_out_edges`` (the
+        default), out-edges crossing the region boundary (e.g. loop exits) are rewired to it as well, so the
+        shared graph never loses the region's exit flow; pass False only when the caller re-establishes every
+        successor edge explicitly.
         """
         if isinstance(node, RegionOverlay) or node not in self._under:
             # successor removal: hide all crossing edges into it
