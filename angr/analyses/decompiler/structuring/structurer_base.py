@@ -171,9 +171,15 @@ class StructurerBase(Analysis):
         if not goto_addrs:
             # there is no Goto statement - perfect, we don't need a switch-end node
             return None
-        if len(goto_addrs) > 1 and any(a in region_node_addrs for a in goto_addrs):
-            goto_addrs = {a: times for a, times in goto_addrs.items() if a in region_node_addrs}
-        return sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+        if len(goto_addrs) > 1:
+            # prefer in-region candidates, but only among the top-voted ones: a minority in-region target may
+            # just be one case falling through to the construct's in-region sibling (a jump that sequencing
+            # makes redundant), while the majority target is the real end of the switch
+            max_votes = max(goto_addrs.values())
+            top = {a: times for a, times in goto_addrs.items() if times == max_votes}
+            top_in_region = {a: times for a, times in top.items() if a in region_node_addrs}
+            goto_addrs = top_in_region or top
+        return sorted(goto_addrs.items(), key=lambda x: (-x[1], x[0]))[0][0]
 
     def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
         """
