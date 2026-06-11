@@ -1084,25 +1084,22 @@ class RegionOverlay(GraphRegion):
         if self._mgr.graph.has_edge(result_node, result_node):
             self._mgr._graph_remove_edge(result_node, result_node)
 
-        # re-establish the region-to-successor edges (see docstring). only forward exits are reconnected: a
-        # snapshot successor that is the head of an enclosing loop region is a back-edge / continue target (the
-        # region structured a continue into that loop), and reconnecting it would add a spurious predecessor that
-        # breaks do-while / loop detection in the enclosing region.
+        # re-establish the region-to-successor edges (see docstring). forward exits are reconnected; the one
+        # exception is the immediate enclosing loop head: an edge to it is this region's continue (back) edge,
+        # which structuring turns into a continue rather than a graph edge, so reconnecting it would add a
+        # spurious predecessor that breaks the enclosing loop's do-while / loop detection.
         if succ_snapshot:
             graph = self._mgr.graph
-            ancestor_loop_head_addrs: set = set()
-            anc: RegionOverlay | None = self.parent
-            while anc is not None:
-                if anc.cyclic and anc.head is not None:
-                    ancestor_loop_head_addrs.add(getattr(self._resolve_entry(anc.head), "addr", None))
-                anc = anc.parent
+            parent_loop_head = None
+            if self.parent is not None and self.parent.cyclic and self.parent.head is not None:
+                parent_loop_head = self._resolve_entry(self.parent.head)
             for s in succ_snapshot:
                 s_entry = self._resolve_entry(s)
                 if (
                     s_entry is not result_node
+                    and s_entry is not parent_loop_head
                     and s_entry in graph
                     and not graph.has_edge(result_node, s_entry)
-                    and getattr(s_entry, "addr", None) not in ancestor_loop_head_addrs
                 ):
                     self._mgr._graph_add_edge(result_node, s_entry)
 
