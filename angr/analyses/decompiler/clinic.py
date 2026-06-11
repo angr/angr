@@ -13,7 +13,7 @@ import capstone
 import networkx
 
 from angr import ailment
-from angr.ailment import AILBlockRewriter, Block, Statement
+from angr.ailment import AILBlockRewriter, Block, Statement, Manager
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
@@ -241,8 +241,6 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
 
-    _ail_manager: ailment.Manager
-
     def __init__(
         self,
         func: Function,
@@ -289,6 +287,7 @@ class Clinic(Analysis):
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
+        ail_manager: Manager | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -349,6 +348,7 @@ class Clinic(Analysis):
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
         self._typehoon_cls = typehoon_cls
+        self._ail_manager = ail_manager or Manager(arch=self.project.arch)
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -456,10 +456,11 @@ class Clinic(Analysis):
     #
 
     def _analyze_for_decompiling(self):
-        # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
         # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
         self._ail_manager.variable_map = self.variable_map
+        # initialize the AIL conversion manager
+        if self._ail_manager is not None:
+            self._ail_manager = Manager(arch=self.project.arch)
 
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
@@ -1063,7 +1064,8 @@ class Clinic(Analysis):
             return
 
         # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
+        if self._ail_manager is not None:
+            self._ail_manager = Manager(arch=self.project.arch)
         self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers

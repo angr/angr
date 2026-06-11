@@ -10,6 +10,7 @@ import networkx
 from cle import SymbolType
 
 from angr import ailment
+from angr.ailment import Manager
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
 from angr.analyses.s_propagator import sprop_cache_scope
@@ -21,7 +22,7 @@ from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_type import parse_type
-from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
 from angr.utils import timethis
 
 from .ailgraph_walker import AILGraphWalker
@@ -94,11 +95,12 @@ class Decompiler(Analysis):
         clinic: Clinic | None = None,
         clinic_graph=None,
         clinic_entry_node_addr=None,
-        clinic_arg_vvars=None,
+        clinic_arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         clinic_vvar_id_start=0,
         clinic_start_stage=None,
         clinic_end_stage=None,
         clinic_skip_stages=(),
+        ail_manager: Manager | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
@@ -186,6 +188,7 @@ class Decompiler(Analysis):
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
+        self._ail_manager = ail_manager or Manager(arch=self.project.arch)
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
@@ -379,6 +382,7 @@ class Decompiler(Analysis):
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                ail_manager=self._ail_manager,
                 flavor=self._flavor,
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
@@ -409,7 +413,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph = (
             clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
         )
-        cond_proc = ConditionProcessor(self.project.arch, clinic._ail_manager)
+        cond_proc = ConditionProcessor(self.project.arch, self._ail_manager)
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,

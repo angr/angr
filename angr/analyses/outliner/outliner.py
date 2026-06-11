@@ -150,7 +150,7 @@ class Outliner(Analysis):
 
     def cleanup_interface(
         self, g: networkx.DiGraph[Block], func: Function
-    ) -> tuple[list[VirtualVariable], list[Assignment]]:
+    ) -> tuple[list[VirtualVariable], list[tuple[AILCodeLocation | None, Assignment]]]:
         """
         Recover the and clean interface from a function AIL graph.
 
@@ -194,7 +194,7 @@ class Outliner(Analysis):
                 else:
                     undef_vvars.add(vvar_id)
 
-        new_callsite_phis: list[Assignment] = []
+        new_callsite_phis: list[tuple[AILCodeLocation | None, Assignment]] = []
         new_vvars: list[VirtualVariable] = []
         new_blocks: dict[Address, Block] = {}
         for loc, external_vvars in external_phis.items():
@@ -236,7 +236,7 @@ class Outliner(Analysis):
                 phi_block.statements[loc.stmt_idx] = Label(
                     self._next_atom(), "placeholder", ins_addr=loc.ins_addr, outliner_artifact=True
                 )
-                new_callsite_phis.append(phi_assignment)
+                new_callsite_phis.append((loc, phi_assignment))
                 continue
 
             new_varid = self._next_vvar_id()
@@ -260,7 +260,7 @@ class Outliner(Analysis):
                     [(src, vvar) for src, vvar in phi_assignment.src.src_and_vvars if src not in child_locs],
                 )
             new_callsite_phi = Assignment(self._next_atom(), new_vvar, new_callsite_src, outliner_artifact=True)
-            new_callsite_phis.append(new_callsite_phi)
+            new_callsite_phis.append((None, new_callsite_phi))
 
             # update callee head
             if external_vvars == {vvar.varid for _, vvar in phi_assignment.src.src_and_vvars if vvar is not None}:
@@ -424,6 +424,8 @@ class Outliner(Analysis):
         self.parent_graph.remove_nodes_from(subgraph)
         self.novel_child_addrs.update((b.addr, b.idx) for b in subgraph)
 
+        new_src_addr = self._next_block_addr()
+
         # generate or reuse the child's Function object
         if self.duplicate:
             callee_func = self.duplicate.child_func
@@ -433,9 +435,11 @@ class Outliner(Analysis):
 
         # figure out the interface of the new callee
         callee_arg_vvars, new_assignments = self.cleanup_interface(subgraph, callee_func)
-        for stmt in new_assignments:
+        for idx, (loc, stmt) in enumerate(new_assignments):
             stmt.tags["ins_addr"] = self.src_loc[0]
-        self.frontier_vars -= {cast(VirtualVariable, stmt.dst).varid for stmt in new_assignments}
+            if loc is not None:
+                self.stmt_updates[loc] = AILCodeLocation(new_src_addr, None, idx)
+        self.frontier_vars -= {cast(VirtualVariable, stmt.dst).varid for _, stmt in new_assignments}
 
         # generate return vvar expressions
         if self.frontier_vars:
@@ -495,9 +499,9 @@ class Outliner(Analysis):
             self._next_atom(), tuple_vvar, call_expr, ins_addr=self.src_loc[0], outliner_artifact=True
         )
         new_src_node = Block(
-            self._next_block_addr(),
+            new_src_addr,
             0,
-            [*cast("list[Statement]", new_assignments), call_stmt],
+            [*(cast("Statement", stmt) for _, stmt in new_assignments), call_stmt],
         )
         self.blocks[new_src_node.addr, new_src_node.idx] = new_src_node
         self.novel_parent_addrs.add((new_src_node.addr, new_src_node.idx))
@@ -660,6 +664,9 @@ class Outliner(Analysis):
             frontier_node = self.blocks[frontier_loc]
             self.parent_graph.add_edge(new_src_node, frontier_node)
             self._update_phi_stmts(frontier_node)
+        else:
+            # uh oh....
+            self.parent_graph.add_node(new_src_node)
 
         for pred in list(self.parent_graph.pred[new_src_node]):
             self._update_jmp_stmts(pred)
@@ -756,7 +763,10 @@ class Outliner(Analysis):
                 continue
 
             return_vars = {v for _, v in stmt.src.src_and_vvars if v in self.child_retvars}
-            assert len(return_vars) <= 1, "This retsite runs Phi on multiple return values"
+            if len(return_vars) > 1:
+                raise AngrOutlinerError(
+                    "This retsite runs Phi on multiple return values - we can maybe handle this but not right now"
+                )
             exemplar_return_var = next(iter(return_vars), None)
             passthru_vars = {
                 (v.varid if v is not None else None): v
