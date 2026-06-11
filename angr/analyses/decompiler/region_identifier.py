@@ -53,7 +53,7 @@ class RegionIdentifier(Analysis):
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
         refine_loops_with_single_successor=False,
-        complete_successors=False,
+        expose_loop_head_backedges=False,
         entry_node_addr: tuple[int, int | None] | None = None,
     ):
         self.function = func
@@ -86,7 +86,7 @@ class RegionIdentifier(Analysis):
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
-        self._complete_successors = complete_successors
+        self._expose_loop_head_backedges = expose_loop_head_backedges
         # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
         # dictionary as we update the graph
         self._node_order: dict[Any, tuple[int, int]] = {}
@@ -121,7 +121,7 @@ class RegionIdentifier(Analysis):
 
         # the shared graph stays intact from here on (except for in-place block-statement rewrites); regions are
         # overlays on it. region identification collapses a separate working graph.
-        self.overlay_manager = OverlayManager(shared_graph, complete_successors=self._complete_successors)
+        self.overlay_manager = OverlayManager(shared_graph, expose_loop_head_backedges=self._expose_loop_head_backedges)
         graph = cast(TGraph, networkx.DiGraph(shared_graph))
 
         self._start_node = self._get_start_node(graph)

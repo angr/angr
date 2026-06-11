@@ -220,7 +220,7 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
-        complete_successors: bool = False,
+        expose_loop_head_backedges: bool = False,
         typehoon_cls=Typehoon,
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
@@ -322,7 +322,7 @@ class Clinic(Analysis):
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
-        self._complete_successors = complete_successors
+        self._expose_loop_head_backedges = expose_loop_head_backedges
 
         self._register_save_areas_removed: bool = False
         self.edges_to_remove: list[tuple[ailment.Address, ailment.Address]] = []
@@ -1903,7 +1903,7 @@ class Clinic(Analysis):
                 scratch=self.optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-                complete_successors=self._complete_successors,
+                expose_loop_head_backedges=self._expose_loop_head_backedges,
                 fold_expressions=self._fold_expressions,
                 stack_pointer_tracker=stack_pointer_tracker,
                 notes=self.notes,
