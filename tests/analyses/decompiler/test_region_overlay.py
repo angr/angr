@@ -315,46 +315,7 @@ class TestRegionOverlayLifecycle(unittest.TestCase):
         assert mgr.owner_of(n[3]) is sub
 
 
-class TestGraphRegionConversion(unittest.TestCase):
-    def test_copy_returns_plain_graph_region(self):
-        g, n = diamond()
-        mgr = OverlayManager(g)
-        mgr.root.head = n[1]
-        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
-
-        region = sub.copy()
-        assert type(region) is GraphRegion
-        assert region.head is n[2]
-        assert set(region.graph.nodes) == {n[2], n[3], n[4], n[5]}
-        assert region.successors == {n[6]}
-        assert (n[5], n[6]) in region.graph_with_successors.edges
-        # mutating the copy does not affect the overlay
-        region.graph.remove_node(n[4])
-        assert n[4] in sub.view()
-
-    def test_recursive_copy_builds_graph_region_tree(self):
-        g, n = diamond()
-        mgr = OverlayManager(g)
-        mgr.root.head = n[1]
-        outer = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
-        inner = outer.create_subregion(n[3], [n[3], n[5]], cyclic=False)
-
-        tree = mgr.root.recursive_copy()
-        assert type(tree) is GraphRegion
-        assert tree.successors is None and tree.graph_with_successors is None
-        outer_r = next(x for x in tree.graph.nodes if isinstance(x, GraphRegion))
-        assert type(outer_r) is GraphRegion and outer_r is not outer
-        assert tree.head is n[1]
-        assert set(tree.graph.nodes) == {n[1], outer_r, n[6]}
-
-        inner_r = next(x for x in outer_r.graph.nodes if isinstance(x, GraphRegion))
-        assert type(inner_r) is GraphRegion and inner_r is not inner
-        assert outer_r.head is n[2]
-        assert inner_r.head is n[3]
-        assert inner_r.successors == {n[6]}
-        assert outer_r.successors == {n[6]}
-        assert (inner_r, n[6]) in outer_r.graph_with_successors.edges
-
+class TestRegionOverlayViewEdgeCases(unittest.TestCase):
     def test_successor_successor_edges_inside_loops(self):
         nodes = {i: Node(i) for i in range(1, 8)}
         g = networkx.DiGraph()

@@ -679,10 +679,6 @@ class RegionOverlay(GraphRegion):
         """The region graph including successor nodes: a zero-copy view; treat it as read-only."""
         return self.view_graph(full=True)
 
-    def materialize_view(self, full: bool) -> networkx.DiGraph:
-        """An independent networkx.DiGraph copy of one of the region views."""
-        return self.view_graph(full=full).materialize()
-
     @property
     def raw_graph(self) -> RegionOverlayGraph:
         """The member view including marked edges (the old graph with cyclic_refinement_outgoing attrs present)."""
@@ -712,85 +708,6 @@ class RegionOverlay(GraphRegion):
     @property
     def full_graph(self) -> None:  # type: ignore[override]
         return None
-
-    def copy(self) -> GraphRegion:
-        """
-        Snapshot this overlay into a plain GraphRegion with independent graphs (for consumers that mutate region
-        graphs in place).
-        """
-        return GraphRegion(
-            self.head,
-            networkx.DiGraph(self.view()),
-            set(self.successor_nodes()),
-            networkx.DiGraph(self.view_with_successors()),
-            self.cyclic,
-            None,
-            cyclic_ancestor=self.cyclic_ancestor,
-        )
-
-    def recursive_copy(self, nodes_map=None) -> GraphRegion:
-        """
-        Convert this overlay subtree into an independent tree of plain GraphRegion objects (the pre-overlay data
-        structure), for consumers that destructively restructure the region tree.
-
-        The conversion is iterative: overlays can form arbitrarily long sibling chains through their successor
-        references (consecutive regions), which would blow the stack if converted recursively.
-        """
-        mapping: dict = nodes_map if nodes_map is not None else {}
-
-        # phase 1: collect every overlay reachable through membership and successor references
-        worklist: list[RegionOverlay] = [self]
-        seen: set[RegionOverlay] = {self}
-        overlays: list[RegionOverlay] = []
-        while worklist:
-            o = worklist.pop()
-            overlays.append(o)
-            referenced: list = [m for m in o._members if isinstance(m, RegionOverlay)]
-            if o.parent is not None:
-                referenced += [s for s in o.successor_nodes() if isinstance(s, RegionOverlay)]
-            for t in referenced:
-                if t not in seen:
-                    seen.add(t)
-                    worklist.append(t)
-
-        # phase 2: create one GraphRegion shell per overlay so that cross-references can be resolved
-        for o in overlays:
-            if o not in mapping:
-                mapping[o] = GraphRegion(None, None, None, None, o.cyclic, None, cyclic_ancestor=o.cyclic_ancestor)
-
-        def conv(x):
-            return mapping.get(x, x)
-
-        # phase 3: fill in graphs, heads, and successors
-        for o in overlays:
-            region = mapping[o]
-            if region.graph is not None:
-                # already converted in a previous call that shared nodes_map
-                continue
-            graph: networkx.DiGraph = networkx.DiGraph()
-            for m in o._members:
-                graph.add_node(conv(m))
-            for u, v, data in o._quotient_edges(with_successors=False):
-                graph.add_edge(conv(u), conv(v), **data)
-
-            if o.parent is None:
-                # the root region carries no successor information, matching RegionIdentifier's top-level region
-                successors = None
-                gws = None
-            else:
-                successors = {conv(s) for s in o.successor_nodes()}
-                gws = networkx.DiGraph()
-                for n in o.view_with_successors().nodes:
-                    gws.add_node(conv(n))
-                for u, v, data in o._quotient_edges(with_successors=True):
-                    gws.add_edge(conv(u), conv(v), **data)
-
-            region.head = conv(o.head)
-            region.graph = graph
-            region.successors = successors
-            region.graph_with_successors = gws
-
-        return mapping[self]
 
     #
     # Mutations
@@ -1327,16 +1244,6 @@ class RegionOverlay(GraphRegion):
         # reparenting members flips their representatives for the parent/enclosing views
         self._mgr._bump_epoch()
         self._invalidate()
-
-    #
-    # Disabled GraphRegion mutation API
-    #
-
-    def replace_region(self, *args, **kwargs):
-        raise NotImplementedError("RegionOverlay does not support replace_region; use finalize() instead")
-
-    def replace_region_with_region(self, *args, **kwargs):
-        raise NotImplementedError("RegionOverlay does not support replace_region_with_region; use dissolve() instead")
 
 
 # When True, every adjacency-cache HIT is re-derived and asserted equal to the cached value. This is the
