@@ -161,6 +161,11 @@ class PhoenixStructurer(StructurerBase):
     def _analyze(self):
         # iterate until there is only one node in the region
 
+        # the region's identified successors (its loop-exit / break targets). these must be captured before
+        # structuring begins: structuring removes the live exit edges as it forms breaks/gotos, which would empty
+        # the region's derived successor set, but the break-rewrite logic still needs the original exit targets.
+        self._initial_successors = set(self._region.successors) if self._region.successors is not None else set()
+
         self._assert_graph_ok(self._region.graph, "Incorrect region graph")
 
         has_cycle = self._has_cycle()
@@ -290,10 +295,10 @@ class PhoenixStructurer(StructurerBase):
             if successor_node is not None:
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
-            elif self._region.successors is not None and len(self._region.successors) == 1:
+            elif len(self._initial_successors) == 1:
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(
-                    loop_node.sequence_node, [succ.addr for succ in self._region.successors]
+                    loop_node.sequence_node, [succ.addr for succ in self._initial_successors]
                 )
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
@@ -434,7 +439,7 @@ class PhoenixStructurer(StructurerBase):
     def _match_cyclic_while_with_single_successor(
         self, node, head, graph_raw, full_graph_raw
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
-        if self._region.successors:
+        if self._initial_successors:
             return False, None, None
         if node is not head:
             return False, None, None
