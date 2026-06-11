@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
@@ -57,10 +56,8 @@ class RecursiveStructurer(Analysis):
         self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
         self.result_incomplete = False
 
-        if isinstance(self._region, RegionOverlay) and getattr(self.structurer_cls, "SUPPORTS_OVERLAYS", False):
-            self._structure_overlay_tree()
-        else:
-            self._structure_region_tree()
+        assert isinstance(self._region, RegionOverlay), "RecursiveStructurer requires a RegionOverlay region"
+        self._structure_overlay_tree()
         self._post_process_result()
 
     def _structure_overlay_tree(self):
@@ -146,74 +143,6 @@ class RecursiveStructurer(Analysis):
             manager.rollback(checkpoint)
             manager.commit(checkpoint)
 
-    def _structure_region_tree(self):
-        region = self._region.recursive_copy()
-
-        # visit the region in post-order DFS
-        parent_map = {}
-        stack = [region]
-
-        while stack:
-            current_region = stack[-1]
-
-            has_region = False
-            for node in GraphUtils.dfs_postorder_nodes_deterministic(current_region.graph, current_region.head):
-                subnodes = []
-                if isinstance(node, GraphRegion):
-                    if node.cyclic:
-                        subnodes.append(node)
-                    else:
-                        subnodes.insert(0, node)
-                    parent_map[node] = current_region
-                    has_region = True
-                # remove existing regions
-                for subnode in subnodes:
-                    if subnode in stack:
-                        stack.remove(subnode)
-                stack.extend(subnodes)
-
-            if not has_region:
-                # pop this region from the stack
-                stack.pop()
-
-                # Get the parent region
-                parent_region = parent_map.get(current_region)
-                # structure this region
-                st: StructurerBase = self.project.analyses[self.structurer_cls].prep(
-                    kb=self.kb, fail_fast=self._fail_fast
-                )(
-                    current_region.copy(),
-                    parent_map=parent_map,
-                    condition_processor=self.cond_proc,
-                    case_entry_to_switch_head=self._case_entry_to_switch_head,
-                    func=self.function,
-                    parent_region=parent_region,
-                    jump_tables=self.kb.cfgs["CFGFast"].jump_tables,
-                    ail_manager=self.ail_manager,
-                    **self.structurer_options,
-                )
-                # replace this region with the resulting node in its parent region... if it's not an orphan
-                if not parent_region:
-                    # this is the top-level region. we are done!
-                    if st.result is None:
-                        # take the partial result out of the graph
-                        _l.warning(
-                            "Structuring failed to complete (most likely due to bugs in structuring). The "
-                            "output will miss code blocks."
-                        )
-                        self.result = self._pick_incomplete_result_from_region(st._region)
-                        self.result_incomplete = True
-                    else:
-                        self.result = st.result
-                    break
-
-                if st.result is None:
-                    self._replace_region_with_region(parent_region, current_region, st._region)
-                else:
-                    self._replace_region_with_node(
-                        parent_region, current_region, st._region, st.result, st.virtualized_edges
-                    )
-
     def _post_process_result(self):
         if self.structurer_cls is DreamStructurer:
             # rewrite conditions in the result to remove all jump table entry conditions
@@ -239,14 +168,6 @@ class RecursiveStructurer(Analysis):
             StructurerBase._remove_conditional_jumps(self.result)
 
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
-
-    @staticmethod
-    def _replace_region_with_node(parent_region, sub_region, updated_sub_region, node, virtualized_edges):
-        parent_region.replace_region(sub_region, updated_sub_region, node, virtualized_edges)
-
-    @staticmethod
-    def _replace_region_with_region(parent_region, sub_region, new_region):
-        parent_region.replace_region_with_region(sub_region, new_region)
 
     def _get_switch_case_entries(self) -> dict[int, int]:
         if self.function is None:
