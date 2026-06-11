@@ -2378,6 +2378,30 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         assert "goto " not in d.codegen.text
 
+    @structuring_algo("sailr")
+    def test_decompiling_ls_ubuntu2204_sub_414cb0(self, decompiler_options=None):
+        # sub_414cb0 is a 363-block quoting routine (part of gnulib's quotearg machinery) with a large,
+        # hard-to-structure loop. When a switch-case construct inside that loop drops real case-exit edges during
+        # structuring ("Multiple in-region successors detected ... dropping others"), the region tree can collapse
+        # to a tiny prologue ending in abort() while still reporting structuring success - silently discarding
+        # ~95% of the function body. Guard against that: the multibyte/quoting logic must survive into the output.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_ubuntu2204")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x414CB0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        code = d.codegen.text
+        for needed in ("iswprint(", "mbsinit(", "memcmp(", "dcgettext(", "strlen("):
+            assert needed in code, (
+                f"sub_414cb0 decompilation is missing {needed!r}; structuring likely discarded most of the "
+                f"function body."
+            )
+        # the truncated output reduces the whole function to a prologue followed by abort(); the complete
+        # function never calls abort
+        assert "abort(" not in code, "sub_414cb0 decompilation collapsed to the abort() stub."
+
     @for_all_structuring_algos
     def test_decompiling_functions_with_unknown_simprocedures(self, decompiler_options=None):
         # angr does not have function signatures for cgc_allocate (and other cgc_*) functions, which means we will never
