@@ -1285,6 +1285,7 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
             full_graph_raw,
         )
+        fake_node_default = False
         if node_default_addr is not None and node_default is None:
             # the default node is not found. it's likely the node has been structured and is part of another construct
             # (e.g., inside another switch-case). we need to create a default node that jumps to the other node
@@ -1296,6 +1297,7 @@ class PhoenixStructurer(StructurerBase):
             )
             node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
             self._region.add_edge(node, node_default)
+            fake_node_default = True
             if self._node_order is not None:
                 self._node_order[node_default] = self._node_order[node]
         r = self._make_switch_cases_core(
@@ -1311,6 +1313,12 @@ class PhoenixStructurer(StructurerBase):
             bail_on_nonhead_outedges=True,
         )
         if not r:
+            if fake_node_default:
+                # a failed match must leave the graph unchanged: drop the fake default node we just inserted, or it
+                # accumulates as a phantom successor and blocks cyclic matchers on later rounds
+                self._region.remove_node(node_default)
+                if self._node_order is not None:
+                    self._node_order.pop(node_default, None)
             return False
 
         # special handling of duplicated default nodes
@@ -2010,6 +2018,7 @@ class PhoenixStructurer(StructurerBase):
         if node_default is not None:
             to_remove.add(node_default)
 
+        edge_marked = getattr(full_graph, "edge_marked", None)
         for nn in to_remove:
             if nn is head or (node_a is not None and nn is node_a):
                 continue
@@ -2018,6 +2027,11 @@ class PhoenixStructurer(StructurerBase):
                     other_nodes_inedges.append((src, nn))
             for dst in full_graph.successors(nn):
                 if dst not in to_remove:
+                    if edge_marked is not None and edge_marked(nn, dst):
+                        # cyclic refinement already turned this edge into a break inside the case node; it is not
+                        # an unresolved out-edge of the switch and must not pick the switch's successor (or block
+                        # the construction via the convergence checks below)
+                        continue
                     out_edges.append((nn, dst))
 
         if bail_on_nonhead_outedges:
@@ -2026,7 +2040,13 @@ class PhoenixStructurer(StructurerBase):
                 # not ready to be structured yet - do it later
                 return False
 
-        # check if structuring will create any dangling nodes
+        # check if structuring will create any dangling nodes. a successor whose only predecessors are absorbed
+        # case nodes is not dangling when it is the switch's unique successor: the construction below re-attaches
+        # it via the scnode -> out_dst_succ edge.
+        unique_out_target = None
+        nonhead_out_targets = {dst for _, dst in out_edges if dst is not head}
+        if len(nonhead_out_targets) == 1:
+            unique_out_target = next(iter(nonhead_out_targets))
         for case_node in to_remove:
             if case_node is not node_default and case_node is not node_a and case_node is not head:
                 for succ in graph.successors(case_node):
@@ -2034,6 +2054,7 @@ class PhoenixStructurer(StructurerBase):
                         succ is not case_node
                         and succ is not head
                         and succ is not self._region.head
+                        and succ is not unique_out_target
                         and graph.in_degree[succ] == 1
                     ):
                         # succ will be dangling - not ready to be structured yet - do it later
@@ -2154,6 +2175,17 @@ class PhoenixStructurer(StructurerBase):
                     and full_graph.in_degree[out_dst] == 0
                 ):
                     self._region.remove_node(out_dst)
+
+        # the head's own out-of-region case targets (e.g., the region successor when a case continues to the
+        # enclosing loop head) are represented as goto-cases inside scnode, but the head's direct edges to them
+        # remain and would prevent the head+scnode chain from ever collapsing. shift those edges onto the switch
+        # node, mirroring the out_dst_succ handling above.
+        for t in list(full_graph.successors(head)):
+            if t is scnode or t in graph or (node_a is not None and t is node_a):
+                continue
+            self._region.remove_edge_with_successors_only(head, t)
+            if not full_graph.has_edge(scnode, t):
+                self._region.add_edge(scnode, t)
 
         # remove the last statement (conditional jump) in the head node
         self._remove_last_statement_if_jump_or_schead(head)
@@ -2964,6 +2996,36 @@ class PhoenixStructurer(StructurerBase):
             self._virtualize_edge(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
+
+        if (
+            self._region.parent is None
+            and not self._region.cyclic
+            and not networkx.is_directed_acyclic_graph(full_graph)
+        ):
+            # an acyclic region must not contain cycles; one can appear as debris when an inner cyclic region
+            # fails to structure and dissolves its partially-refined body into this region. the cycle-closing
+            # edges are excluded from the candidate lists above (to_acyclic_by_order dropped them from
+            # acyclic_graph), so without this fallback the region can never become structurable. only the root
+            # region recovers this way (a goto): anywhere else, failing and dissolving into an enclosing region
+            # gives a cyclic ancestor the chance to structure the loop properly first.
+            # virtualize one cycle edge to recover.
+            cycle_edges = []
+            for src, dst in full_graph.edges:
+                if src is dst or acyclic_graph.has_edge(src, dst) or src not in graph:
+                    continue
+                if (
+                    isinstance(src, Block)
+                    and src.statements
+                    and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
+                ):
+                    continue
+                cycle_edges.append((src, dst))
+            if cycle_edges:
+                cycle_edges = sorted(cycle_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+                src, dst = cycle_edges[0]
+                self._virtualize_edge(src, dst)
+                l.debug("last_resort: Removed cycle edge %r -> %r in an acyclic region (type 4)", src, dst)
+                return True
 
         l.debug("last_resort: No edge to remove")
         return False
