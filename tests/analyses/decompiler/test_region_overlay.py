@@ -476,3 +476,184 @@ class TestGraphRegionConversion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRegionOverlayGraph(unittest.TestCase):
+    def _assert_equivalent(self, rog, materialized):
+        assert set(rog.nodes) == set(materialized.nodes)
+        assert set(rog.edges) == set(materialized.edges)
+        for n in materialized.nodes:
+            assert rog.in_degree[n] == materialized.in_degree[n], n
+            assert rog.out_degree[n] == materialized.out_degree[n], n
+            assert set(rog.successors(n)) == set(materialized.successors(n))
+            assert set(rog.predecessors(n)) == set(materialized.predecessors(n))
+        assert len(rog) == len(materialized)
+        assert rog.number_of_nodes() == materialized.number_of_nodes()
+
+    def _fixtures(self):
+        """Yield (overlay, description) pairs covering the existing view fixtures."""
+        # diamond with a flat subregion
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        yield sub, "diamond-sub"
+        yield mgr.root, "diamond-root"
+
+        # nested subregions
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        outer = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        inner = outer.create_subregion(n[3], [n[3], n[5]], cyclic=False)
+        yield inner, "nested-inner"
+        yield outer, "nested-outer"
+        yield mgr.root, "nested-root"
+
+        # cyclic region with successor-successor edge potential
+        nodes = {i: Node(i) for i in range(1, 6)}
+        g2 = networkx.DiGraph()
+        g2.add_edges_from(
+            [
+                (nodes[1], nodes[2]),
+                (nodes[2], nodes[3]),
+                (nodes[3], nodes[2]),
+                (nodes[3], nodes[4]),
+                (nodes[3], nodes[5]),
+                (nodes[4], nodes[5]),
+            ]
+        )
+        mgr2 = OverlayManager(g2)
+        mgr2.root.head = nodes[1]
+        loop = mgr2.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
+        yield loop, "cyclic"
+
+        # region with hidden edges
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        sub.hide_edge(n[3], n[5])
+        sub.hide_edge(n[5], n[6])
+        yield sub, "hidden"
+
+    def test_equivalence_with_materialized_views(self):
+        for overlay, desc in self._fixtures():
+            for full in (False, True):
+                rog = overlay.view_graph(full=full)
+                materialized = overlay.view_with_successors() if full else overlay.view()
+                try:
+                    self._assert_equivalent(rog, materialized)
+                except AssertionError as ex:
+                    raise AssertionError(f"fixture {desc} full={full}: {ex}") from ex
+
+    def test_networkx_algorithm_smoke(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        rog = sub.view_graph()
+        full = sub.view_graph(full=True)
+
+        from angr.utils.graph import GraphUtils, dfs_back_edges
+
+        assert networkx.is_directed_acyclic_graph(rog)
+        assert networkx.descendants(rog, n[2]) == {n[3], n[4], n[5]}
+        assert networkx.has_path(rog, n[2], n[5])
+        assert set(networkx.dfs_postorder_nodes(rog, n[2])) == {n[2], n[3], n[4], n[5]}
+        assert list(GraphUtils.dfs_postorder_nodes_deterministic(rog, n[2]))[-1] is n[2]
+        order = GraphUtils.quasi_topological_sort_nodes(rog)
+        assert order.index(n[2]) < order.index(n[5])
+        assert not list(dfs_back_edges(rog, n[2]))
+        assert networkx.immediate_dominators(rog, n[2])[n[5]] is n[2]
+        assert list(networkx.strongly_connected_components(rog))
+        assert dict(networkx.bfs_successors(rog, n[2]))
+        # constructing a real DiGraph from the view
+        copied = networkx.DiGraph(full)
+        assert set(copied.edges) == set(full.edges)
+        # dfs_tree and subgraph
+        assert set(networkx.dfs_tree(rog, n[2]).nodes) == {n[2], n[3], n[4], n[5]}
+        assert set(networkx.subgraph(rog, [n[2], n[3]]).nodes) == {n[2], n[3]}
+        # mutations are frozen
+        try:
+            rog.add_node(Node(99))
+            raise AssertionError("expected frozen graph")
+        except networkx.NetworkXError:
+            pass
+
+    def test_cyclic_region_view_graph(self):
+        nodes = {i: Node(i) for i in range(1, 5)}
+        g = networkx.DiGraph()
+        g.add_edges_from([(nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[3], nodes[2]), (nodes[3], nodes[4])])
+        mgr = OverlayManager(g)
+        mgr.root.head = nodes[1]
+        loop = mgr.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
+        rog = loop.view_graph()
+        assert not networkx.is_directed_acyclic_graph(rog)
+        from angr.utils.graph import dfs_back_edges
+
+        assert list(dfs_back_edges(rog, nodes[2]))
+
+    def test_marks_filtering(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        sub.edge_marks.add((n[3], n[5]))
+
+        rog = sub.view_graph()
+        assert not rog.has_edge(n[3], n[5])
+        assert (n[3], n[5]) not in set(rog.edges)
+        assert rog.out_degree[n[3]] == 0
+        assert rog.edge_marked(n[3], n[5])
+        # all_edges variants include the marked edge
+        assert rog.has_edge(n[3], n[5], all_edges=True)
+        assert rog.with_all_edges().has_edge(n[3], n[5])
+        assert set(rog.with_all_edges().successors(n[3])) == {n[5]}
+        # the underlying shared graph data is untouched
+        assert g.has_edge(n[3], n[5])
+
+    def test_to_acyclic(self):
+        nodes = {i: Node(i) for i in range(1, 5)}
+        g = networkx.DiGraph()
+        g.add_edges_from([(nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[3], nodes[2]), (nodes[3], nodes[4])])
+        mgr = OverlayManager(g)
+        mgr.root.head = nodes[1]
+        loop = mgr.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
+        rog = loop.view_graph()
+        acyclic = rog.to_acyclic([(nodes[3], nodes[2])])
+        assert networkx.is_directed_acyclic_graph(acyclic)
+        assert not acyclic.has_edge(nodes[3], nodes[2])
+        assert acyclic.has_edge(nodes[2], nodes[3])
+        # the source view is unaffected
+        assert rog.has_edge(nodes[3], nodes[2])
+
+    def test_full_view_and_kwargs(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        rog = sub.view_graph()
+        assert n[6] not in rog
+        assert n[6] in rog.full_view
+        assert rog.full_view.has_edge(n[5], n[6])
+        assert rog.has_edge(n[5], n[6], fullgraph=True)
+        assert set(rog.successors(n[5], fullgraph=True)) == {n[6]}
+        assert set(rog.successors(n[5])) == set()
+        assert rog.full_view.member_view is rog
+        # hidden-full hides from the full view only
+        sub._hidden_full.add((n[5], n[6]))
+        assert not rog.full_view.has_edge(n[5], n[6])
+        assert n[6] in rog.full_view  # the node is still a successor
+        sub._hidden_full.clear()
+
+    def test_materialize_independence(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
+        rog = sub.view_graph()
+        m = rog.materialize()
+        m.remove_node(n[4])
+        assert n[4] in rog
+        assert g.has_edge(n[2], n[4])
