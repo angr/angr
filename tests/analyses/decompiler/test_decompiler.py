@@ -238,6 +238,28 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
     @for_all_structuring_algos
+    def test_decompiling_dir_gcc_O0_quote_name(self, decompiler_options=None):
+        # quote_name has a multibyte-character handling branch. A structuring regression (e.g. a phantom
+        # finalize edge collapsing the region) silently produces a much shorter, incomplete result that drops
+        # that branch and the output write. Guard against the body shrinking by requiring the calls that vanish
+        # when it does -- the full result is ~5.5k chars; the regressed one is ~2.2k.
+        bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+
+        f = cfg.functions["quote_name"]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        for needed in ("mbrtowc(", "mbsinit(", "wcwidth(", "fwrite_unlocked("):
+            assert needed in code, (
+                f"quote_name decompilation is missing {needed!r}; structuring likely produced an incomplete "
+                f"(too short) result."
+            )
+
+    @for_all_structuring_algos
     def test_decompiling_dir_gcc_O0_main(self, decompiler_options=None):
         # tests loop structuring
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
