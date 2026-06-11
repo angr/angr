@@ -7,8 +7,6 @@ from typing import Any
 
 import networkx
 
-from .graph_region import GraphRegion
-
 l = logging.getLogger(name=__name__)
 
 
@@ -188,15 +186,18 @@ class OverlayManager:
         self._record(inverse)
 
 
-class RegionOverlay(GraphRegion):
+class RegionOverlay:
     """
-    A single-entry region marked over the shared graph held by an OverlayManager, replacing per-region graph copies
-    of GraphRegion.
+    A single-entry region marked over the shared graph held by an OverlayManager. The region tree is built out of
+    RegionOverlay objects (RegionIdentifier emits them) and they are the only region type the decompiler uses.
 
     Overlays form a tree (nested, never overlapping). An overlay's *members* are either shared-graph nodes it owns
     directly or child overlays. The region graph and the region graph-with-successors are derived on demand from the
     shared graph by quotienting child overlays into single nodes; *successors* are likewise derived from edges that
     cross the region boundary, so they can never go stale.
+
+    Read-only API (``head``, ``graph``, ``graph_with_successors``, ``successors``, ``cyclic``, ``addr``) mirrors the
+    region container consumers expect; ``graph``/``graph_with_successors``/``successors`` are lazy zero-copy views.
 
     Mutation verbs:
 
@@ -206,9 +207,6 @@ class RegionOverlay(GraphRegion):
       the parent edge" pattern);
     - ``finalize(result_node)`` collapses a fully-structured region into a single node of its parent;
     - ``dissolve()`` merges an unsuccessfully-structured region back into its parent.
-
-    This class subclasses GraphRegion only so that isinstance checks in existing consumers keep working during the
-    migration; ``graph``/``graph_with_successors``/``successors`` are materialized lazily and cached.
     """
 
     __slots__ = (
@@ -221,7 +219,10 @@ class RegionOverlay(GraphRegion):
         "_rog_cache",
         "_under",
         "children",
+        "cyclic",
+        "cyclic_ancestor",
         "edge_marks",
+        "head",
         "parent",
         "replacement",
     )
@@ -234,7 +235,6 @@ class RegionOverlay(GraphRegion):
         cyclic_ancestor: bool = False,
         parent: RegionOverlay | None = None,
     ):
-        # do not call GraphRegion.__init__: graph/graph_with_successors/successors are shadowed by properties here
         self._mgr = mgr
         self.head = head
         self.cyclic = cyclic
@@ -262,6 +262,10 @@ class RegionOverlay(GraphRegion):
         if not self._members:
             return f"<RegionOverlay {self.head!r} (empty)>"
         return f"<RegionOverlay {self.head!r} of {len(self._members)} members, {len(self._under)} nodes>"
+
+    @property
+    def addr(self):
+        return self.head.addr
 
     #
     # Tree and membership
@@ -690,23 +694,23 @@ class RegionOverlay(GraphRegion):
         return self.view_graph(full=True, include_marked=True)
 
     #
-    # GraphRegion-compatible read-only API
+    # Region-container read-only API
     #
 
     @property
-    def graph(self) -> networkx.DiGraph:  # type: ignore[override]
+    def graph(self) -> networkx.DiGraph:
         return self.view()
 
     @property
-    def graph_with_successors(self) -> networkx.DiGraph:  # type: ignore[override]
+    def graph_with_successors(self) -> networkx.DiGraph:
         return self.view_with_successors()
 
     @property
-    def successors(self) -> set:  # type: ignore[override]
+    def successors(self) -> set:
         return self.successor_nodes()
 
     @property
-    def full_graph(self) -> None:  # type: ignore[override]
+    def full_graph(self) -> None:
         return None
 
     #

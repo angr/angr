@@ -31,7 +31,7 @@ class MultiNode:
         self.nodes: list[Block] = []
 
         for node in nodes:
-            if isinstance(node, (MultiNode, angr.analyses.decompiler.GraphRegion)):
+            if isinstance(node, (MultiNode, angr.analyses.decompiler.RegionOverlay)):
                 self.nodes += node.nodes
             else:
                 self.nodes.append(node)

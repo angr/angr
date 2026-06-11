@@ -19,7 +19,6 @@ from angr.utils.doms import IncrementalDominators
 from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
 
 from .condition_processor import ConditionProcessor
-from .graph_region import GraphRegion
 from .region_overlay import OverlayManager, RegionOverlay
 from .structurer_nodes import ConditionNode, IncompleteSwitchCaseHeadStatement, MultiNode
 from .utils import copy_graph, first_nonlabel_nonphi_statement, replace_last_statement
@@ -30,15 +29,15 @@ l = logging.getLogger(name=__name__)
 # an ever-incrementing counter
 CONDITIONNODE_ADDR = count(0xFF000000)
 
-type TNode = Block | GraphRegion | MultiNode | ConditionNode
+type TNode = Block | RegionOverlay | MultiNode | ConditionNode
 type TGraph = "networkx.DiGraph[TNode]"
 
 
 class RegionIdentifier(Analysis):
     """
     A region is a single-entry-single-exit subgraph of control flow. The region identifier recursively identifies the
-    smallest possible regions within a function graph and creates a GraphRegion object whose nodes are either Blocks
-    or GraphRegions.
+    smallest possible regions within a function graph and creates a RegionOverlay object whose nodes are either Blocks
+    or RegionOverlays.
 
     Note, that the analysis may modify the graph in-place. If you want to keep the original graph,
     set the `update_graph` parameter to False.
@@ -195,7 +194,7 @@ class RegionIdentifier(Analysis):
                         children_blocks.append((node.addr, node.idx))
                     elif isinstance(node, MultiNode):
                         children_blocks += [(n.addr, node.idx) for n in node.nodes]
-                    elif isinstance(node, GraphRegion):
+                    elif isinstance(node, RegionOverlay):
                         if node not in seen_regions:
                             children_regions.append(node)
                             children_blocks.append(
@@ -790,7 +789,7 @@ class RegionIdentifier(Analysis):
             if out_degree == 0:
                 # the root element of the region hierarchy should always be a region,
                 # so we transform it into one, if necessary
-                if graph_copy.in_degree(node) == 0 and not isinstance(node, GraphRegion):
+                if graph_copy.in_degree(node) == 0 and not isinstance(node, RegionOverlay):
                     region = parent_region.create_subregion(node, {node}, cyclic=False, cyclic_ancestor=cyclic)
                     self._abstract_acyclic_region(
                         graph,
@@ -852,7 +851,7 @@ class RegionIdentifier(Analysis):
         return region_created
 
     @staticmethod
-    def _update_graph(graph: TGraph, new_region: GraphRegion, replaced_nodes: set[TNode]) -> None:
+    def _update_graph(graph: TGraph, new_region: RegionOverlay, replaced_nodes: set[TNode]) -> None:
         region_in_edges = RegionIdentifier._region_in_edges(graph, new_region, data=True)
         region_out_edges = RegionIdentifier._region_out_edges(graph, new_region, data=True)
         for node in replaced_nodes:
@@ -1025,12 +1024,12 @@ class RegionIdentifier(Analysis):
     @overload
     @staticmethod
     def _region_in_edges(
-        graph: TGraph, region: GraphRegion, data: Literal[True]
+        graph: TGraph, region: RegionOverlay, data: Literal[True]
     ) -> list[tuple[TNode, TNode, dict[str, Any]]]: ...
 
     @overload
     @staticmethod
-    def _region_in_edges(graph: TGraph, region: GraphRegion, data: Literal[False]) -> list[tuple[TNode, TNode]]: ...
+    def _region_in_edges(graph: TGraph, region: RegionOverlay, data: Literal[False]) -> list[tuple[TNode, TNode]]: ...
 
     @staticmethod
     def _region_in_edges(graph, region, data=False):
