@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
@@ -21,6 +22,8 @@ class OverlayManager:
     """
 
     __slots__ = (
+        "_adj_epoch",
+        "_node_version",
         "_owner",
         "_undo_log",
         "_version",
@@ -33,6 +36,14 @@ class OverlayManager:
         self.graph = graph
         self.complete_successors = complete_successors
         self._version: int = 0
+        # per-node topology version: bumped when an edge incident to a node changes (in the shared graph or in the
+        # overlay-visibility state). RegionOverlayGraph's adjacency cache keys on this so an unrelated mutation no
+        # longer evicts a node's cached adjacency. _adj_epoch is a coarse counter bumped by the lifecycle ops that
+        # flip node ownership/representatives broadly (create_subregion/dissolve/finalize) and by rollback (whose
+        # inverse closures mutate the graph outside the touch-instrumented primitives); a change forces a full
+        # cache clear.
+        self._node_version: dict[Any, int] = {}
+        self._adj_epoch: int = 0
         self._undo_log: list[Callable[[], None]] | None = None
 
         self.root = RegionOverlay(self, None, cyclic=False)
@@ -49,6 +60,21 @@ class OverlayManager:
 
     def _bump(self) -> None:
         self._version += 1
+
+    def _touch(self, node) -> None:
+        """Bump a node's topology version (its cached view-adjacency must be rebuilt). Also bump every enclosing
+        overlay: in an enclosing region's view the node is represented by the child overlay that contains it, so a
+        change to the node's edges changes that representative's adjacency too. Monotonic; not undone on rollback,
+        which bumps _adj_epoch to clear everything instead."""
+        nv = self._node_version
+        nv[node] = nv.get(node, 0) + 1
+        o = self._owner.get(node)
+        while o is not None:
+            nv[o] = nv.get(o, 0) + 1
+            o = o.parent
+
+    def _bump_epoch(self) -> None:
+        self._adj_epoch += 1
 
     #
     # Undo log
@@ -71,6 +97,9 @@ class OverlayManager:
         while len(self._undo_log) > to:
             self._undo_log.pop()()
         self._bump()
+        # inverse closures mutate self.graph directly, bypassing the per-node touch instrumentation; force a full
+        # adjacency-cache clear
+        self._bump_epoch()
 
     def commit(self, to: int) -> None:
         """
@@ -90,6 +119,7 @@ class OverlayManager:
         if node not in self.graph:
             self.graph.add_node(node)
             self._record(lambda: self.graph.remove_node(node))
+        self._touch(node)
         self._bump()
 
     def _graph_remove_node(self, node) -> None:
@@ -105,6 +135,12 @@ class OverlayManager:
                 self.graph.add_edge(node, dst, **data)
 
         self._record(inverse)
+        # the node and every former neighbor lose an incident edge
+        self._touch(node)
+        for src, _ in in_edges:
+            self._touch(src)
+        for dst, _ in out_edges:
+            self._touch(dst)
         self._bump()
 
     def _graph_add_edge(self, src, dst, **data) -> None:
@@ -124,12 +160,16 @@ class OverlayManager:
                 self.graph.remove_edge(src, dst)
 
         self._record(inverse)
+        self._touch(src)
+        self._touch(dst)
         self._bump()
 
     def _graph_remove_edge(self, src, dst) -> None:
         old_data = dict(self.graph[src][dst])
         self.graph.remove_edge(src, dst)
         self._record(lambda: self.graph.add_edge(src, dst, **old_data))
+        self._touch(src)
+        self._touch(dst)
         self._bump()
 
     def _set_owner(self, node, new_owner: RegionOverlay | None) -> None:
@@ -278,6 +318,8 @@ class RegionOverlay(GraphRegion):
         self.children.append(sub)
         # sub._under is a subset of self._under (and of all ancestors); no _under updates needed upward
         self._mgr._record(lambda: self._undo_create_subregion(sub))
+        # reparenting flips the representatives of the moved nodes for enclosing views
+        self._mgr._bump_epoch()
         self._mgr._bump()
         return sub
 
@@ -863,6 +905,11 @@ class RegionOverlay(GraphRegion):
                     added.append((u, v))
         if added:
             self._mgr._record(lambda: self._hidden.difference_update(added))
+            self._mgr._touch(succ)
+            for u, _ in added:
+                rep = self._representative_in(u)
+                if rep is not None:
+                    self._mgr._touch(rep)
             self._invalidate()
 
     def _underlying_edge_pairs(self, src, dst) -> list[tuple[Any, Any]]:
@@ -915,6 +962,8 @@ class RegionOverlay(GraphRegion):
         if (src, dst) not in self.edge_marks:
             self.edge_marks.add((src, dst))
             self._mgr._record(lambda: self.edge_marks.discard((src, dst)))
+            self._mgr._touch(src)
+            self._mgr._touch(dst)
             self._invalidate()
 
     def absorb_successor_into(self, succ, new_node) -> None:
@@ -930,6 +979,9 @@ class RegionOverlay(GraphRegion):
                 added.append((new_node, dst))
         if added:
             self._mgr._record(lambda: self._extra_full_edges.difference_update(added))
+            self._mgr._touch(new_node)
+            for _, dst in added:
+                self._mgr._touch(dst)
         self.hide_edge_to_successor(succ)
 
     def drop_edge_marks_from(self, node, key: str = "cyclic_refinement_outgoing") -> None:
@@ -938,6 +990,9 @@ class RegionOverlay(GraphRegion):
         if removed:
             self.edge_marks.difference_update(removed)
             self._mgr._record(lambda: self.edge_marks.update(removed))
+            self._mgr._touch(node)
+            for _, v in removed:
+                self._mgr._touch(v)
             self._invalidate()
 
     def remove_edge_with_successors_only(self, src, dst) -> None:
@@ -948,6 +1003,8 @@ class RegionOverlay(GraphRegion):
         if (src, dst) not in self._hidden_full:
             self._hidden_full.add((src, dst))
             self._mgr._record(lambda: self._hidden_full.discard((src, dst)))
+            self._mgr._touch(src)
+            self._mgr._touch(dst)
             self._invalidate()
 
     def hide_edge(self, src, dst) -> None:
@@ -961,6 +1018,8 @@ class RegionOverlay(GraphRegion):
                 added.append((u, v))
         if added:
             self._mgr._record(lambda: self._hidden.difference_update(added))
+            self._mgr._touch(src)
+            self._mgr._touch(dst)
             self._invalidate()
 
     def replace_nodes(self, old_node_0, new_node, old_node_1=None, self_loop: bool = True) -> None:
@@ -1136,6 +1195,8 @@ class RegionOverlay(GraphRegion):
             self._under.add(result_node)
 
         self._mgr._record(inverse)
+        # result_node's ownership moves child -> parent, flipping its representative for the parent/enclosing views
+        self._mgr._bump_epoch()
         self._invalidate()
         return result_node
 
@@ -1180,6 +1241,8 @@ class RegionOverlay(GraphRegion):
                 parent._members.discard(m)
 
         self._mgr._record(inverse)
+        # reparenting members flips their representatives for the parent/enclosing views
+        self._mgr._bump_epoch()
         self._invalidate()
 
     #
@@ -1191,6 +1254,12 @@ class RegionOverlay(GraphRegion):
 
     def replace_region_with_region(self, *args, **kwargs):
         raise NotImplementedError("RegionOverlay does not support replace_region_with_region; use dissolve() instead")
+
+
+# When True, every adjacency-cache HIT is re-derived and asserted equal to the cached value. This is the
+# verifier for the per-node invalidation: if any mutation fails to touch a node whose adjacency it changed, a
+# stale hit will mismatch and raise. Expensive; off by default, opt in with ANGR_PARANOID_ADJ=1 for validation.
+_PARANOID_ADJ_CHECK = bool(os.environ.get("ANGR_PARANOID_ADJ"))
 
 
 class _OverlayNodeAtlas(Mapping):
@@ -1249,17 +1318,17 @@ class _OverlayAdjInner(Mapping):
 class _OverlayAdjAtlas(Mapping):
     """Outer adjacency mapping of a RegionOverlayGraph: view node -> _OverlayAdjInner."""
 
-    __slots__ = ("_cache", "_cache_version", "_pred", "_rog")
+    __slots__ = ("_cache", "_epoch", "_pred", "_rog")
 
     def __init__(self, rog: RegionOverlayGraph, pred: bool):
         self._rog = rog
         self._pred = pred
         # Phoenix queries the same node's adjacency repeatedly (.successors/.predecessors/.in_degree/.out_degree/
-        # .has_edge all route through here); cache the derived _OverlayAdjInner per node, keyed by the manager's
-        # version so any overlay/shared-graph mutation transparently invalidates it (the same dirty-flag the
-        # node-set cache uses). ~80% of constructions on /bin/ls:0x414cb0 are repeats at the same version.
-        self._cache: dict[Any, _OverlayAdjInner] = {}
-        self._cache_version: int | None = None
+        # .has_edge all route through here); cache the derived _OverlayAdjInner per node, keyed by that node's
+        # topology version so an unrelated mutation does not evict it. _epoch tracks the manager's coarse epoch
+        # (bumped by lifecycle ops / rollback) and forces a full clear when it changes.
+        self._cache: dict[Any, tuple[int, _OverlayAdjInner]] = {}
+        self._epoch: int | None = None
 
     def __len__(self):
         return len(self._rog._node_set())
@@ -1276,15 +1345,31 @@ class _OverlayAdjAtlas(Mapping):
     def __getitem__(self, n):
         if n not in self._rog._node_set():
             raise KeyError(n)
-        version = self._rog.overlay.manager.version
-        if self._cache_version != version:
+        overlay = self._rog.overlay
+        # Only member nodes are cached: their view-adjacency is a function of graph.adj[n] (plus this overlay's
+        # own visibility state), all of which bump n's node version when they change, so the cached order and
+        # keyset stay correct. A successor node's adjacency instead depends on the whole region's successor set
+        # (which can change without touching that node), so it is always rebuilt fresh. Members are the hot path.
+        if n not in overlay.members:
+            return _OverlayAdjInner(self._rog, n, self._pred)
+        mgr = overlay.manager
+        if self._epoch != mgr._adj_epoch:
             self._cache.clear()
-            self._cache_version = version
-        inner = self._cache.get(n)
-        if inner is None:
+            self._epoch = mgr._adj_epoch
+        nv = mgr._node_version.get(n, 0)
+        entry = self._cache.get(n)
+        if entry is None or entry[0] != nv:
             inner = _OverlayAdjInner(self._rog, n, self._pred)
-            self._cache[n] = inner
-        return inner
+            self._cache[n] = (nv, inner)
+            return inner
+        if _PARANOID_ADJ_CHECK:
+            fresh = _OverlayAdjInner(self._rog, n, self._pred)
+            # order-sensitive: Phoenix structuring depends on neighbor iteration order, not just the set
+            assert list(fresh._d.items()) == list(entry[1]._d.items()), (
+                f"stale adjacency for node {n!r} (pred={self._pred}) in overlay {overlay!r}: "
+                f"a mutation changed its neighbors (or their order) without bumping its node version"
+            )
+        return entry[1]
 
 
 class RegionOverlayGraph(networkx.DiGraph):
