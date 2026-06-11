@@ -201,7 +201,7 @@ class Decompiler(Analysis):
         # structuring-specific parameters - will be reset in _decompile()
         self._force_loop_single_exit = True
         self._refine_loops_with_single_successor = False
-        self._complete_successors = False
+        self._expose_loop_head_backedges = False
         self._recursive_structurer_params = {}
 
         # cache of reusable AILBlockWalker instances that are shared by all SPropagator instances created during
@@ -312,7 +312,7 @@ class Decompiler(Analysis):
         fold_callexprs_into_conditions = False
         self._force_loop_single_exit = True
         self._refine_loops_with_single_successor = False
-        self._complete_successors = False
+        self._expose_loop_head_backedges = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
@@ -323,7 +323,7 @@ class Decompiler(Analysis):
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
             # self._refine_loops_with_single_successor = True
-            self._complete_successors = True
+            self._expose_loop_head_backedges = True
             fold_callexprs_into_conditions = True
 
         cache = DecompilationCache(self.func.addr)
@@ -361,7 +361,7 @@ class Decompiler(Analysis):
                 optimization_scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-                complete_successors=self._complete_successors,
+                expose_loop_head_backedges=self._expose_loop_head_backedges,
                 typehoon_cls=self._typehoon_cls,
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
@@ -546,7 +546,7 @@ class Decompiler(Analysis):
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-            complete_successors=self._complete_successors,
+            expose_loop_head_backedges=self._expose_loop_head_backedges,
             entry_node_addr=self.clinic.entry_node_addr,
             **self.options_to_params(self.options_by_class["region_identifier"]),
         )
@@ -597,7 +597,7 @@ class Decompiler(Analysis):
                 scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-                complete_successors=self._complete_successors,
+                expose_loop_head_backedges=self._expose_loop_head_backedges,
                 **kwargs,
             )
 
@@ -665,7 +665,7 @@ class Decompiler(Analysis):
                 scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-                complete_successors=self._complete_successors,
+                expose_loop_head_backedges=self._expose_loop_head_backedges,
                 peephole_optimizations=self._peephole_optimizations,
                 avoid_vvar_ids=self._copied_var_ids,
                 **kwargs,
