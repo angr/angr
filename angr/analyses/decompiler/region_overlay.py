@@ -798,7 +798,9 @@ class RegionOverlay:
                     # leaving the region (external exits, kept by enclosing regions) and edges to the region's
                     # processing-context head (stripped during region identification). edges to fellow members
                     # stay visible (the loop's exit to its in-region successor).
-                    rewire_out_edges.append((dst, data, dst not in self._under or dst in hidden_head))
+                    rewire_out_edges.append(
+                        (dst, data, dst not in self._members and (dst not in self._under or dst in hidden_head))
+                    )
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
         for src, data in external_in_edges:
