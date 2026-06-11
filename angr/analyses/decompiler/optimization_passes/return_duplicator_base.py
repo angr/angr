@@ -10,8 +10,8 @@ from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
-from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
+from angr.analyses.decompiler.region_overlay import RegionOverlay
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, MultiNode
 from angr.analyses.decompiler.utils import calls_in_graph, remove_labels, to_ail_supergraph
 from angr.utils.ail import is_phi_assignment
@@ -327,7 +327,7 @@ class ReturnDuplicatorBase:
     ):
         updated_regions = endnode_regions.copy()
         assert self._ri is not None
-        assert isinstance(self._ri.region, GraphRegion)
+        assert isinstance(self._ri.region, RegionOverlay)
         all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
@@ -568,7 +568,7 @@ class ReturnDuplicatorBase:
         return True
 
     @staticmethod
-    def _find_block_sets_in_all_regions(top_region: GraphRegion):
+    def _find_block_sets_in_all_regions(top_region: RegionOverlay):
         def _unpack_block_type_to_addrs(node):
             if isinstance(node, Block):
                 return {node.addr}
@@ -578,17 +578,17 @@ class ReturnDuplicatorBase:
                 return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
             return set()
 
-        def _unpack_region_to_block_addrs(region: GraphRegion):
+        def _unpack_region_to_block_addrs(region: RegionOverlay):
             region_addrs = set()
             for node in region.graph.nodes:
                 if isinstance(node, (Block, MultiNode, ConditionNode)):
                     region_addrs |= _unpack_block_type_to_addrs(node)
-                elif isinstance(node, GraphRegion):
+                elif isinstance(node, RegionOverlay):
                     region_addrs |= _unpack_region_to_block_addrs(node)
 
             return region_addrs
 
-        def _unpack_every_region(region: GraphRegion, addrs_by_region: dict):
+        def _unpack_every_region(region: RegionOverlay, addrs_by_region: dict):
             addrs_by_region[region] = set()
             for node in region.graph.nodes:
                 if isinstance(node, Block):

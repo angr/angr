@@ -16,8 +16,8 @@ from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
-from .graph_region import GraphRegion
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
+from .region_overlay import RegionOverlay
 from .structurer_nodes import (
     BreakNode,
     CascadingConditionNode,
@@ -645,7 +645,7 @@ class ConditionProcessor:
             return None
         if type(block) is IncompleteSwitchCaseNode:
             return None
-        if isinstance(block, GraphRegion):
+        if isinstance(block, RegionOverlay):
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
 
@@ -737,7 +737,7 @@ class ConditionProcessor:
             for case in block.cases:
                 s.extend(cls.get_last_statements(case))
             return s
-        if isinstance(block, GraphRegion):
+        if isinstance(block, RegionOverlay):
             # normally this should not happen. however, we have test cases that trigger this case.
             return []
 
@@ -773,7 +773,7 @@ class ConditionProcessor:
                 return bool_var
             return claripy.Not(bool_var)
 
-        if isinstance(src_block, GraphRegion):
+        if isinstance(src_block, RegionOverlay):
             return claripy.true()
 
         # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block

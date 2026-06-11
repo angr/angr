@@ -8,8 +8,7 @@ import unittest
 
 import networkx
 
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.region_overlay import OverlayManager
+from angr.analyses.decompiler.region_overlay import OverlayManager, RegionOverlay
 
 
 class Node:
@@ -83,8 +82,8 @@ class TestRegionOverlayViews(unittest.TestCase):
         # quotient in-edge keeps underlying edge data
         assert root_view[n[1]][sub]["type"] == "transition"
 
-        # GraphRegion-compatible properties
-        assert isinstance(sub, GraphRegion)
+        # region-container properties
+        assert isinstance(sub, RegionOverlay)
         assert sub.graph is sub.view()
         assert sub.successors == {n[6]}
         assert sub.addr == 2

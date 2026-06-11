@@ -40,7 +40,7 @@ from angr.errors import AngrDecompilationError
 from angr.knowledge_plugins.cfg import IndirectJump
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.graph_region import GraphRegion
+    from angr.analyses.decompiler.region_overlay import RegionOverlay
     from angr.knowledge_plugins.functions import Function
 
 _l = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class StructurerBase(Analysis):
         ail_manager: Manager | None = None,
         **kwargs,
     ):
-        self._region: GraphRegion = region
+        self._region: RegionOverlay = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
