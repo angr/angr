@@ -1249,11 +1249,17 @@ class _OverlayAdjInner(Mapping):
 class _OverlayAdjAtlas(Mapping):
     """Outer adjacency mapping of a RegionOverlayGraph: view node -> _OverlayAdjInner."""
 
-    __slots__ = ("_pred", "_rog")
+    __slots__ = ("_cache", "_cache_version", "_pred", "_rog")
 
     def __init__(self, rog: RegionOverlayGraph, pred: bool):
         self._rog = rog
         self._pred = pred
+        # Phoenix queries the same node's adjacency repeatedly (.successors/.predecessors/.in_degree/.out_degree/
+        # .has_edge all route through here); cache the derived _OverlayAdjInner per node, keyed by the manager's
+        # version so any overlay/shared-graph mutation transparently invalidates it (the same dirty-flag the
+        # node-set cache uses). ~80% of constructions on /bin/ls:0x414cb0 are repeats at the same version.
+        self._cache: dict[Any, _OverlayAdjInner] = {}
+        self._cache_version: int | None = None
 
     def __len__(self):
         return len(self._rog._node_set())
@@ -1270,7 +1276,15 @@ class _OverlayAdjAtlas(Mapping):
     def __getitem__(self, n):
         if n not in self._rog._node_set():
             raise KeyError(n)
-        return _OverlayAdjInner(self._rog, n, self._pred)
+        version = self._rog.overlay.manager.version
+        if self._cache_version != version:
+            self._cache.clear()
+            self._cache_version = version
+        inner = self._cache.get(n)
+        if inner is None:
+            inner = _OverlayAdjInner(self._rog, n, self._pred)
+            self._cache[n] = inner
+        return inner
 
 
 class RegionOverlayGraph(networkx.DiGraph):

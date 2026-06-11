@@ -541,11 +541,12 @@ class TestRegionOverlayGraph(unittest.TestCase):
         assert set(rog.successors(n[5], fullgraph=True)) == {n[6]}
         assert set(rog.successors(n[5])) == set()
         assert rog.full_view.member_view is rog
-        # hidden-full hides from the full view only
-        sub._hidden_full.add((n[5], n[6]))
+        # hidden-full hides from the full view only (via the real API, which invalidates the view caches)
+        sub.remove_edge_with_successors_only(n[5], n[6])
         assert not rog.full_view.has_edge(n[5], n[6])
         assert n[6] in rog.full_view  # the node is still a successor
         sub._hidden_full.clear()
+        mgr._bump()
 
     def test_materialize_independence(self):
         g, n = diamond()
