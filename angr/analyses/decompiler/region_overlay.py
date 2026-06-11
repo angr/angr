@@ -1200,6 +1200,89 @@ class RegionOverlay(GraphRegion):
         self._invalidate()
         return result_node
 
+    def collapse_to(self, result_node, succ_snapshot=None, virtualized_edges=None):
+        """
+        Collapse this region into its parent by replacing all of its member nodes with a single external result
+        node (the structuring result). Used by structurers that compute their result without destructively
+        reducing the shared graph (e.g. DreamStructurer): the region's members are still present, so their
+        crossing in/out edges are rewired onto ``result_node`` and the members are removed. Returns result_node.
+
+        This is the non-self-collapsing counterpart of finalize(); the legacy GraphRegion path called
+        replace_region() for the same purpose. ``succ_snapshot``/``virtualized_edges`` are accepted for a uniform
+        call site but are unused: the crossing edges are read directly from the (unmutated) shared graph.
+        """
+        parent = self.parent
+        assert parent is not None, "cannot collapse the root overlay"
+        graph = self._mgr.graph
+        assert result_node not in graph, "collapse result node must not already be in the shared graph"
+
+        under = list(self._under)
+        underset = self._under
+
+        # capture crossing edges (one endpoint inside the region, the other outside) before removing the members
+        in_edges: list[tuple[Any, dict]] = []
+        out_edges: list[tuple[Any, dict]] = []
+        seen_in: set = set()
+        seen_out: set = set()
+        for u in under:
+            if u not in graph:
+                continue
+            for src, _, data in graph.in_edges(u, data=True):
+                if src not in underset and src not in seen_in:
+                    seen_in.add(src)
+                    in_edges.append((src, data))
+            for _, dst, data in graph.out_edges(u, data=True):
+                if dst not in underset and dst not in seen_out:
+                    seen_out.add(dst)
+                    out_edges.append((dst, data))
+
+        # remove every member node from the shared graph (region-internal edges vanish with them)
+        for u in under:
+            if u in graph:
+                self._mgr._graph_remove_node(u)
+            self._on_node_removed(u)
+
+        # insert the result node in the region's place and rewire its crossing edges onto it
+        self._mgr._graph_add_node(result_node)
+        parent._on_node_added(result_node)
+        for src, data in in_edges:
+            if src in graph and not graph.has_edge(src, result_node):
+                self._mgr._graph_add_edge(src, result_node, **data)
+        for dst, data in out_edges:
+            if dst in graph and not graph.has_edge(result_node, dst):
+                self._mgr._graph_add_edge(result_node, dst, **data)
+
+        # reparent: drop this overlay from its parent, leaving result_node in its place
+        parent._members.discard(self)
+        parent.children.remove(self)
+        self.replacement = result_node
+        old_hidden = self._hidden
+        old_hidden_full = self._hidden_full
+        old_extra_full = self._extra_full_edges
+        old_marks = self.edge_marks
+        self._hidden = set()
+        self._hidden_full = set()
+        self._extra_full_edges = set()
+        self.edge_marks = set()
+        if parent.head is self:
+            parent.head = result_node
+
+        def inverse():
+            if parent.head is result_node:
+                parent.head = self
+            self.replacement = None
+            self._hidden = old_hidden
+            self._hidden_full = old_hidden_full
+            self._extra_full_edges = old_extra_full
+            self.edge_marks = old_marks
+            parent.children.append(self)
+            parent._members.add(self)
+
+        self._mgr._record(inverse)
+        self._mgr._bump_epoch()
+        self._invalidate()
+        return result_node
+
     def dissolve(self) -> None:
         """
         Merge this region back into its parent (the failure path of structuring): members are reparented, and

@@ -129,8 +129,16 @@ class RecursiveStructurer(Analysis):
 
                     if st.result is None:
                         current_region.dissolve()
-                    else:
+                    elif st.result in current_region.members:
+                        # the structurer destructively reduced the region to a single member node (e.g. Phoenix):
+                        # that node is the result and takes the region's place in the parent
                         current_region.finalize(
+                            st.result, succ_snapshot=succ_snapshot, virtualized_edges=st.virtualized_edges
+                        )
+                    else:
+                        # the structurer produced an external result without reducing the shared graph (e.g. Dream):
+                        # collapse all member nodes onto the result node
+                        current_region.collapse_to(
                             st.result, succ_snapshot=succ_snapshot, virtualized_edges=st.virtualized_edges
                         )
         finally:

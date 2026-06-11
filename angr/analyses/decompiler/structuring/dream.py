@@ -63,6 +63,9 @@ class DreamStructurer(StructurerBase):
     """
 
     NAME = "dream"
+    # DreamStructurer reads the region's graph and produces its result without destructively reducing the shared
+    # graph, so RecursiveStructurer collapses the region onto the result via RegionOverlay.collapse_to().
+    SUPPORTS_OVERLAYS = True
 
     def __init__(
         self,
