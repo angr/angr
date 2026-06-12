@@ -348,6 +348,7 @@ pub enum StatementKind {
     Return = 7,
     CAS = 8,
     DirtyStatement = 9,
+    NoOp = 10,
 }
 
 #[pymethods]
@@ -413,6 +414,7 @@ impl StatementKind {
             Self::Return => "Return",
             Self::CAS => "CAS",
             Self::DirtyStatement => "DirtyStatement",
+            Self::NoOp => "NoOp",
         }
     }
 
@@ -428,6 +430,7 @@ impl StatementKind {
             7 => Self::Return,
             8 => Self::CAS,
             9 => Self::DirtyStatement,
+            10 => Self::NoOp,
             _ => return None,
         })
     }

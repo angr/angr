@@ -200,6 +200,21 @@ class DirtyStatement(metaclass=_AilStmtMarkerMeta):
         return _Statement._new_dirty_statement(idx, dirty, **tags)
 
 
+class NoOp(metaclass=_AilStmtMarkerMeta):
+    """Marker for ``Statement`` instances whose variant is ``NoOp``.
+
+    Placeholder for a removed statement; defines and uses no atoms.
+    Primarily used by the AIL simplifier's dead-assignment removal
+    so the indices of surrounding statements stay stable until the
+    block is compacted.
+    """
+
+    _kind = SK.NoOp
+
+    def __new__(cls, idx, **tags) -> _Statement:  # type: ignore[misc]
+        return _Statement._new_no_op(idx, **tags)
+
+
 __all__ = [
     "CAS",
     "Assignment",
@@ -207,6 +222,7 @@ __all__ = [
     "DirtyStatement",
     "Jump",
     "Label",
+    "NoOp",
     "Return",
     "SideEffectStatement",
     "Store",

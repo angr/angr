@@ -48,6 +48,7 @@ from .statement import (
     DirtyStatement,
     Jump,
     Label,
+    NoOp,
     Return,
     SideEffectStatement,
     Statement,
@@ -171,6 +172,7 @@ _STMT_MARKERS = (
     CAS,
     DirtyStatement,
     Label,
+    NoOp,
 )
 _EXPR_KIND_TO_MARKER: dict = {}
 _STMT_KIND_TO_MARKER: dict = {}
