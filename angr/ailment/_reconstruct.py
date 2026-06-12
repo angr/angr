@@ -25,10 +25,13 @@ def reconstruct_with_kwargs(cls: type, args: tuple, kwargs: dict[str, Any]):
 class _DeepcopyManager:
     """Minimal stand-in for ``ailment.Manager`` -- supplies fresh atom ids."""
 
-    __slots__ = ("atom_ctr",)
+    __slots__ = ("atom_ctr", "variable_map")
 
     def __init__(self):
         self.atom_ctr = itertools.count(start=10**9)
+        # No side-container -- ``Rust deep_copy`` will skip the
+        # ``variable_map.transfer`` step when this attribute is ``None``.
+        self.variable_map = None
 
     def next_atom(self):
         return next(self.atom_ctr)
