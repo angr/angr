@@ -7,8 +7,6 @@ import gc
 import os
 import unittest
 
-import claripy
-
 import angr
 from angr.exploration_techniques.spiller import Spiller
 from tests.common import bin_location
@@ -33,14 +31,6 @@ def priority_key(state):
 
 
 class TestSpiller(unittest.TestCase):
-    @classmethod
-    def setUp(self):
-        # clean up AST cache in claripy, because a cached AST might believe it
-        # has been stored in ana after we clean up the ana storage
-
-        claripy.ast.bv._bvv_cache.clear()
-        claripy.ast.bv.BV._hash_cache.clear()
-
     def test_basic(self):
         project = angr.Project(_bin("cgc", "sc2_0b32aa01_01"), auto_load_libs=False)
         state = project.factory.entry_state()
