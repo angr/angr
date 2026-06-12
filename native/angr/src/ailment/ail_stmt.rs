@@ -115,6 +115,11 @@ pub enum StmtInner {
         /// Wraps a DirtyExpression AIL expression.
         dirty: Box<AilExpression>,
     },
+    /// In-place placeholder for a removed statement. Defines and uses
+    /// no atoms; primarily used by the AIL simplifier's dead-assignment
+    /// removal so the indices of surrounding statements stay stable
+    /// until the block is compacted.
+    NoOp,
 }
 
 impl StmtInner {
@@ -130,6 +135,7 @@ impl StmtInner {
             StmtInner::Return { .. } => StatementKind::Return,
             StmtInner::CAS { .. } => StatementKind::CAS,
             StmtInner::DirtyStatement { .. } => StatementKind::DirtyStatement,
+            StmtInner::NoOp => StatementKind::NoOp,
         }
     }
 }
@@ -253,6 +259,7 @@ impl AilStatement {
                 HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(dirty.cached_hash_or_compute() as u64),
             ]) as i64,
+            StmtInner::NoOp => stable_hash(&[HashItem::TypeName("NoOp")]) as i64,
         }
     }
 
@@ -376,6 +383,7 @@ impl AilStatement {
             StmtInner::DirtyStatement { dirty } => StmtInner::DirtyStatement {
                 dirty: recurse(dirty)?,
             },
+            StmtInner::NoOp => StmtInner::NoOp,
         };
         Ok(AilStatement {
             header: new_header,
@@ -678,7 +686,7 @@ impl AilStatement {
             // the legacy contract returns False here, and several passes
             // (e.g. propagation) depend on it not pulling Const-typed
             // jump targets into the "uses ``atom``" set.
-            StmtInner::Label { .. } | StmtInner::Jump { .. } => false,
+            StmtInner::Label { .. } | StmtInner::Jump { .. } | StmtInner::NoOp => false,
         }
     }
 
@@ -1009,7 +1017,7 @@ impl Clone for Statement {
 }
 
 /// See ``ail_expr::EXPR_PYKINDS`` for rationale.
-static STMT_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 10]> =
+static STMT_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 11]> =
     pyo3::sync::PyOnceLock::new();
 
 fn stmt_pykind_for(py: Python<'_>, kind: StatementKind) -> Py<pyo3::types::PyAny> {
@@ -1284,6 +1292,19 @@ impl Statement {
             inner: StmtInner::DirtyStatement {
                 dirty: Box::new(dirty_ail),
             },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, **kwargs))]
+    fn _new_no_op(
+        idx: i64,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let tags = Tags::from_kwargs(kwargs)?;
+        Ok(Self::wrap(AilStatement {
+            header: StmtHeader::new(idx, tags),
+            inner: StmtInner::NoOp,
         }))
     }
 
@@ -2088,6 +2109,7 @@ impl Statement {
             StmtInner::DirtyStatement { dirty } => {
                 Ok(Expression::wrap((**dirty).clone()).render(py)?)
             }
+            StmtInner::NoOp => Ok("NoOp".to_string()),
         }
     }
 
@@ -2256,6 +2278,9 @@ mod serialize {
             h: Hdr,
             dirty: expr_serialize::Wire,
         },
+        NoOp {
+            h: Hdr,
+        },
     }
 
     impl StmtWire {
@@ -2350,6 +2375,7 @@ mod serialize {
                     h,
                     dirty: expr_serialize::Wire::from(dirty),
                 },
+                StmtInner::NoOp => StmtWire::NoOp { h },
             }
         }
 
@@ -2471,6 +2497,10 @@ mod serialize {
                     inner: StmtInner::DirtyStatement {
                         dirty: Box::new(dirty.into_ail()),
                     },
+                },
+                StmtWire::NoOp { h } => AilStatement {
+                    header: rebuild_header(h),
+                    inner: StmtInner::NoOp,
                 },
             }
         }
