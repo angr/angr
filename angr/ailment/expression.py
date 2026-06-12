@@ -2343,7 +2343,7 @@ class FunctionLikeMacro(Macro):
     def copy(self):
         return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, **self.tags)
 
-    def deep_copy(self, manager):
+    def deep_copy(self, manager) -> FunctionLikeMacro:
         return self._transfer_varmap(
             FunctionLikeMacro(
                 manager.next_atom(),

@@ -62,7 +62,7 @@ class TaggedObject:
     def deep_copy(self, manager: Manager) -> Self:
         raise NotImplementedError
 
-    def _transfer_varmap(self, new: TaggedObject, manager: Manager):
+    def _transfer_varmap[T: TaggedObject](self, new: T, manager: Manager) -> T:
         """
         Helper for deep_copy: when a manager carries a VariableMap, transfer this object's variable information to the
         freshly deep-copied object ``new`` (which has a new .idx). Returns ``new`` for convenient chaining.

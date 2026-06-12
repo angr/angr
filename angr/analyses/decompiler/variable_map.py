@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import archinfo
 
 import angr
+from angr.rust.sim_type import EnumVariant
 from angr.sim_type import SimType
 
 if TYPE_CHECKING:
@@ -315,8 +316,6 @@ class VariableMap:
         :param resolve_variable: A callable that maps a variable ident (``str``) to a :class:`SimVariable` (or
                                  ``None`` if it cannot be resolved).
         """
-
-        from angr.rust.sim_type import EnumVariant  # local import to avoid a circular import at module load
 
         vm = cls()
 

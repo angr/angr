@@ -23,6 +23,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.sim_type import SimTypeBottom
 
 
 class TestExpression(unittest.TestCase):
@@ -179,10 +180,10 @@ class TestExpression(unittest.TestCase):
         assert "let (_)" in str(let_expr)
         assert let_expr.likes(let_expr.copy())
         let_dc = let_expr.deep_copy(manager)
-        assert let_dc.src is not old
+        assert let_dc.src is not old  # type:ignore
         assert vmap.variant(let_dc) is variant  # transferred to the new .idx
 
-        returnty = SimpleNamespace(name="usize")
+        returnty = SimTypeBottom(label="usize")
         macro = FunctionLikeMacro(16, "format", [old], bits=64, delimiter="[]")
         vmap.set_returnty(macro, returnty)
         assert vmap.returnty(macro) is returnty
@@ -194,7 +195,7 @@ class TestExpression(unittest.TestCase):
         assert macro.likes(FunctionLikeMacro(17, "format", [old.copy()], bits=64, delimiter="[]"))
         assert macro.copy().args == macro.args
         macro_dc = macro.deep_copy(manager)
-        assert macro_dc.args[0] is not old
+        assert macro_dc.args[0] is not old  # type:ignore
         assert vmap.returnty(macro_dc) is returnty  # transferred to the new .idx
         assert FunctionLikeMacro(18, "dbg", None).deep_copy(manager).args is None
 
