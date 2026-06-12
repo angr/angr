@@ -192,26 +192,21 @@ pub enum ExprInner {
         elements: Vec<Box<AilExpression>>,
     },
     Let {
-        /// Externally-defined ``angr.rust.sim_type.EnumVariant`` (read
-        /// for ``.name`` / ``.type`` / ``.has_associated_data`` by the
-        /// Rust structured-codegen path). Stays ``Py<PyAny>`` until
-        /// ``EnumVariant`` gets its own Rust pyclass.
-        variant: Py<PyAny>,
         /// List of bound definitions -- each entry is an AIL
         /// ``Statement`` (the test fixture and ``rust.py`` codegen
-        /// path use ``Assignment`` / ``Store``).
+        /// path use ``Assignment`` / ``Store``). The bound
+        /// ``EnumVariant`` itself lives in the ``VariableMap`` side
+        /// container keyed by the ``Let`` expression's ``.idx``.
         defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>>,
         src: Box<AilExpression>,
     },
     Macro {
         name: String,
         delimiter: String,
-        returnty: Option<Py<PyAny>>,
     },
     FunctionLikeMacro {
         name: String,
         delimiter: String,
-        returnty: Option<Py<PyAny>>,
         /// Macro call arguments. ``None`` means "no args list specified"
         /// (distinct from ``Some(vec![])``, an empty argument list).
         /// Each entry is an ``AilExpression``; the constructor accepts
@@ -912,14 +907,11 @@ impl AilExpression {
                     HashItem::Int(self.header.bits as i128),
                 ]) as i64
             }
-            ExprInner::Let { variant, src, .. } => Python::attach(|py| {
-                let vh = crate::ailment::utils::py_object_hash_u64(variant.bind(py))
-                    .unwrap_or(0);
-                stable_hash(&[
-                    HashItem::U64Hash(vh),
-                    HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-                ]) as i64
-            }),
+            ExprInner::Let { src, .. } => stable_hash(&[
+                HashItem::TypeName("Let"),
+                HashItem::Int(self.header.idx as i128),
+                HashItem::U64Hash(src.cached_hash_or_compute() as u64),
+            ]) as i64,
             ExprInner::Macro { name, .. } => stable_hash(&[
                 HashItem::TypeName("Macro"),
                 HashItem::Int(self.header.idx as i128),
@@ -1428,9 +1420,8 @@ impl AilExpression {
             ExprInner::FunctionLikeMacro {
                 name,
                 delimiter,
-                returnty,
                 args,
-            } => Python::attach(|py| {
+            } => {
                 let Some(l) = args else {
                     return (false, self.clone());
                 };
@@ -1455,12 +1446,11 @@ impl AilExpression {
                         inner: ExprInner::FunctionLikeMacro {
                             name: name.clone(),
                             delimiter: delimiter.clone(),
-                            returnty: returnty.as_ref().map(|r| r.clone_ref(py)),
                             args: Some(new_args),
                         },
                     },
                 )
-            }),
+            }
             ExprInner::Phi { src_and_vvars } => {
                 // Phi entries hold ``VirtualVariable`` expressions in
                 // the vvar slot; ``replace_ail(old, new)`` is meaningful
@@ -1603,6 +1593,15 @@ impl AilExpression {
         manager: &Bound<'_, PyAny>,
     ) -> PyResult<AilExpression> {
         let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
+        // Mirror master's TaggedObject._transfer_varmap: when the
+        // manager carries a VariableMap, copy any side-container entries
+        // (variable, variable_offset, variant, returnty, ...) from the
+        // old idx to the new one so deep-copied atoms keep their
+        // associations.
+        let vmap = manager.getattr("variable_map")?;
+        if !vmap.is_none() {
+            vmap.call_method1("transfer", (self.header.idx, new_idx))?;
+        }
         let new_header = ExprHeader::new(
             new_idx,
             self.header.depth,
@@ -1821,8 +1820,7 @@ impl AilExpression {
             ExprInner::Array { elements } => ExprInner::Array {
                 elements: elements.iter().map(|e| recurse(e)).collect::<PyResult<Vec<_>>>()?,
             },
-            ExprInner::Let { variant, defs, src } => ExprInner::Let {
-                variant: dc_pyany(variant)?,
+            ExprInner::Let { defs, src } => ExprInner::Let {
                 defs: defs
                     .iter()
                     .map(|s| Ok::<_, PyErr>(Box::new(s.deep_copy_ail_stmt(py, manager)?)))
@@ -1832,27 +1830,17 @@ impl AilExpression {
             ExprInner::Macro {
                 name,
                 delimiter,
-                returnty,
             } => ExprInner::Macro {
                 name: name.clone(),
                 delimiter: delimiter.clone(),
-                returnty: match returnty {
-                    Some(r) => Some(dc_pyany(r)?),
-                    None => None,
-                },
             },
             ExprInner::FunctionLikeMacro {
                 name,
                 delimiter,
-                returnty,
                 args,
             } => ExprInner::FunctionLikeMacro {
                 name: name.clone(),
                 delimiter: delimiter.clone(),
-                returnty: match returnty {
-                    Some(r) => Some(dc_pyany(r)?),
-                    None => None,
-                },
                 args: args
                     .as_ref()
                     .map(|vec| vec.iter().map(|a| recurse(a)).collect::<PyResult<Vec<_>>>())
@@ -2115,19 +2103,9 @@ impl AilExpression {
                     && a_e.iter().zip(b_e.iter()).all(|(a, b)| a.likes(b))
             }
             (
-                ExprInner::Let {
-                    variant: a_v,
-                    src: a_s,
-                    ..
-                },
-                ExprInner::Let {
-                    variant: b_v,
-                    src: b_s,
-                    ..
-                },
-            ) => Python::attach(|py| {
-                a_v.bind(py).eq(b_v.bind(py)).unwrap_or(false) && a_s.likes(b_s)
-            }),
+                ExprInner::Let { src: a_s, .. },
+                ExprInner::Let { src: b_s, .. },
+            ) => a_s.likes(b_s),
             (
                 ExprInner::Macro {
                     name: a_n,
@@ -3446,11 +3424,10 @@ impl Expression {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, variant, defs, src, **kwargs))]
+    #[pyo3(signature = (idx, defs, src, **kwargs))]
     fn _new_let(
         py: Python<'_>,
         idx: i64,
-        variant: Bound<'_, PyAny>,
         defs: Bound<'_, PyAny>,
         src: Bound<'_, PyAny>,
         kwargs: Option<&Bound<'_, PyDict>>,
@@ -3468,7 +3445,6 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Let {
-                variant: variant.unbind(),
                 defs: decoded_defs,
                 src: Box::new(src_ail),
             },
@@ -3476,29 +3452,22 @@ impl Expression {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, name, delimiter=String::from("()"), returnty=None, **kwargs))]
+    #[pyo3(signature = (idx, name, delimiter=String::from("()"), **kwargs))]
     fn _new_macro(
         idx: i64,
         name: String,
         delimiter: String,
-        returnty: Option<Bound<'_, PyAny>>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let rt = returnty.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, 0, tags),
-            inner: ExprInner::Macro {
-                name,
-                delimiter,
-                returnty: rt,
-            },
+            inner: ExprInner::Macro { name, delimiter },
         }))
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, name, args, bits=None, delimiter=String::from("()"), returnty=None, **kwargs))]
-    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (idx, name, args, bits=None, delimiter=String::from("()"), **kwargs))]
     fn _new_function_like_macro(
         py: Python<'_>,
         idx: i64,
@@ -3506,12 +3475,10 @@ impl Expression {
         args: Bound<'_, PyAny>,
         bits: Option<u32>,
         delimiter: String,
-        returnty: Option<Bound<'_, PyAny>>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
         let bits = bits.unwrap_or(0);
-        let rt = returnty.and_then(|r| if r.is_none() { None } else { Some(r.unbind()) });
         let args_decoded = if args.is_none() {
             None
         } else {
@@ -3528,7 +3495,6 @@ impl Expression {
             inner: ExprInner::FunctionLikeMacro {
                 name,
                 delimiter,
-                returnty: rt,
                 args: args_decoded,
             },
         }))
@@ -4419,15 +4385,6 @@ impl Expression {
         }
     }
 
-    /// Let.variant
-    #[getter]
-    fn variant<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        match &self.expr.inner {
-            ExprInner::Let { variant, .. } => Ok(variant.bind(py).clone()),
-            _ => Err(PyAttributeError::new_err("no 'variant' on this Expression")),
-        }
-    }
-
     /// Let.defs
     ///
     /// Returns a fresh ``list[Statement]`` built from the inner
@@ -4477,20 +4434,6 @@ impl Expression {
             | ExprInner::FunctionLikeMacro { delimiter, .. } => Ok(delimiter.clone()),
             _ => Err(PyAttributeError::new_err(
                 "no 'delimiter' on this Expression",
-            )),
-        }
-    }
-
-    /// Macro.returnty / FunctionLikeMacro.returnty
-    #[getter]
-    fn returnty<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        match &self.expr.inner {
-            ExprInner::Macro { returnty, .. }
-            | ExprInner::FunctionLikeMacro { returnty, .. } => {
-                Ok(returnty.as_ref().map(|r| r.bind(py).clone()))
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'returnty' on this Expression",
             )),
         }
     }
@@ -5403,14 +5346,10 @@ impl Expression {
                     .collect::<PyResult<_>>()?;
                 Ok(format!("[{}]", parts.join(", ")))
             }
-            ExprInner::Let { variant, src, .. } => {
-                let vname = variant.bind(py).getattr("name")?.str()?.to_string();
-                Ok(format!(
-                    "let {}(_) = {}",
-                    vname,
-                    Expression::wrap((**src).clone()).__str__(py)?
-                ))
-            }
+            ExprInner::Let { src, .. } => Ok(format!(
+                "let (_) = {}",
+                Expression::wrap((**src).clone()).__str__(py)?
+            )),
             ExprInner::Macro { name, delimiter, .. } => {
                 let mut chars = delimiter.chars();
                 let open = chars.next().unwrap_or('(');
@@ -5964,7 +5903,6 @@ pub mod serialize {
         },
         Let {
             h: Hdr,
-            variant: PolyValue,
             defs: Vec<crate::ailment::ail_stmt::StmtWire>,
             src: Box<Wire>,
         },
@@ -5972,13 +5910,11 @@ pub mod serialize {
             h: Hdr,
             name: String,
             delimiter: String,
-            returnty: Option<PolyValue>,
         },
         FunctionLikeMacro {
             h: Hdr,
             name: String,
             delimiter: String,
-            returnty: Option<PolyValue>,
             args: Option<Vec<Wire>>,
         },
     }
@@ -6263,39 +6199,31 @@ pub mod serialize {
                     h: hdr,
                     elements: elements.iter().map(|b| Wire::from(b.as_ref())).collect(),
                 },
-                ExprInner::Let { variant, defs, src } => Python::attach(|py| Wire::Let {
+                ExprInner::Let { defs, src } => Wire::Let {
                     h: hdr,
-                    variant: PolyValue::from_pyany(variant.bind(py)).unwrap_or(PolyValue::None),
                     defs: defs
                         .iter()
                         .map(|b| crate::ailment::ail_stmt::StmtWire::from(b.as_ref()))
                         .collect(),
                     src: Box::new(Wire::from(src)),
-                }),
-                ExprInner::Macro {
-                    name,
-                    delimiter,
-                    returnty,
-                } => Python::attach(|py| Wire::Macro {
+                },
+                ExprInner::Macro { name, delimiter } => Wire::Macro {
                     h: hdr,
                     name: name.clone(),
                     delimiter: delimiter.clone(),
-                    returnty: PolyValue::from_opt(returnty, py).unwrap_or(None),
-                }),
+                },
                 ExprInner::FunctionLikeMacro {
                     name,
                     delimiter,
-                    returnty,
                     args,
-                } => Python::attach(|py| Wire::FunctionLikeMacro {
+                } => Wire::FunctionLikeMacro {
                     h: hdr,
                     name: name.clone(),
                     delimiter: delimiter.clone(),
-                    returnty: PolyValue::from_opt(returnty, py).unwrap_or(None),
                     args: args
                         .as_ref()
                         .map(|v| v.iter().map(|b| Wire::from(b.as_ref())).collect()),
-                }),
+                },
             }
         }
 
@@ -6685,51 +6613,38 @@ pub mod serialize {
                         elements: elements.into_iter().map(|w| Box::new(w.into_ail())).collect(),
                     },
                 },
-                Wire::Let {
-                    h,
-                    variant,
-                    defs,
-                    src,
-                } => Python::attach(|py| AilExpression {
+                Wire::Let { h, defs, src } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Let {
-                        variant: variant.into_pyany(py).unwrap_or_else(|_| py.None()),
                         defs: defs
                             .into_iter()
                             .map(|w| Box::new(w.into_ail()))
                             .collect(),
                         src: Box::new(src.into_ail()),
                     },
-                }),
+                },
                 Wire::Macro {
                     h,
                     name,
                     delimiter,
-                    returnty,
-                } => Python::attach(|py| AilExpression {
+                } => AilExpression {
                     header: rebuild_header(h),
-                    inner: ExprInner::Macro {
-                        name,
-                        delimiter,
-                        returnty: PolyValue::into_opt(returnty, py).unwrap_or(None),
-                    },
-                }),
+                    inner: ExprInner::Macro { name, delimiter },
+                },
                 Wire::FunctionLikeMacro {
                     h,
                     name,
                     delimiter,
-                    returnty,
                     args,
-                } => Python::attach(|py| AilExpression {
+                } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::FunctionLikeMacro {
                         name,
                         delimiter,
-                        returnty: PolyValue::into_opt(returnty, py).unwrap_or(None),
                         args: args
                             .map(|v| v.into_iter().map(|w| Box::new(w.into_ail())).collect()),
                     },
-                }),
+                },
             }
         }
     }
