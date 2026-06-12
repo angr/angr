@@ -30,12 +30,14 @@ from .evaluate_const_conversions import EvaluateConstConversions
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .modulo_simplifier import ModuloSimplifier
+from .narrow_fp_ops import NarrowFPOperations
 from .one_sub_bool import OneSubBool
 from .optimized_div_simplifier import OptimizedDivisionSimplifier
 from .remove_cascading_conversions import RemoveCascadingConversions
 from .remove_const_insert import RemoveConstInsert
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .remove_empty_if_body import RemoveEmptyIfBody
+from .remove_fptag_nan_ite import RemoveFptagNanITE
 from .remove_noop_conversions import RemoveNoopConversions
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
 from .remove_redundant_conversions import RemoveRedundantConversions
@@ -57,9 +59,13 @@ from .shl_to_mul import ShlToMul
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .single_bit_xor import SingleBitXor
+from .sse_bitwise_select import SSEBitwiseSelect
+from .sse_scalar_lowering import SSEScalarLowering
 from .tidy_stack_addr import TidyStackAddr
+from .x87_cmpf import X87CmpF
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
+    RemoveFptagNanITE,
     ADivConstAddAMulNDivConst,
     AMulConstDivShrConst,
     AShlConstSubA,
@@ -68,6 +74,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     ModuloSimplifier,
     ASubAShrConstShrConst,
     ARMCmpF,
+    X87CmpF,
     Bswap,
     CASIntrinsics,
     CoalesceSameCascadingIfs,
@@ -115,6 +122,9 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RewriteConvMul,
     EvaluateConstConversions,
     RemoveRedundantInsert,
+    NarrowFPOperations,
+    SSEScalarLowering,
+    SSEBitwiseSelect,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [

@@ -128,7 +128,7 @@ T = TypeVar("T")
 
 
 def longest_prefix_lookup[T](haystack: str, mapping: dict[str, T]) -> T | None:
-    for l in reversed(range(len(haystack))):
+    for l in reversed(range(len(haystack) + 1)):
         handler = mapping.get(haystack[:l])
         if handler is not None:
             return handler
@@ -420,7 +420,9 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
         assert expr.op.startswith("Iop_")
 
         # vector information
-        m = re.match(r"Iop_[^\d]+(\d+)[SU]{0,1}x(\d+)", expr.op)
+        # Matches integer vectors (Add32x4, CmpLT32Sx4), packed float vectors
+        # (Add32Fx4), and scalar-in-vector float ops (Add32F0x4, CmpLT32F0x4).
+        m = re.match(r"Iop_[^\d]+(\d+)(?:[SU]|F0?)?x(\d+)", expr.op)
         if m is not None:
             vector_size = int(m.group(1))
             vector_count = int(m.group(2))
@@ -553,6 +555,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "Reinterpret": self._handle_expr_Reinterpret,
             "Load": self._handle_expr_Load,
             "Register": self._handle_expr_Register,
+            "IRegister": self._handle_expr_IRegister,
             "ITE": self._handle_expr_ITE,
             "Extract": self._handle_expr_Extract,
             "Insert": self._handle_expr_Insert,
@@ -637,6 +640,8 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "CmpLTV": self._handle_binop_CmpLEV,
             "MinV": self._handle_binop_MinV,
             "MaxV": self._handle_binop_MaxV,
+            "MinF": self._handle_binop_MinF,
+            "MaxF": self._handle_binop_MaxF,
             "QAddV": self._handle_binop_QAddV,
             "QNarrowBinV": self._handle_binop_QNarrowBinV,
             "PermV": self._handle_binop_PermV,
@@ -782,6 +787,10 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
 
     @abstractmethod
     def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType_co: ...
+
+    def _handle_expr_IRegister(self, expr: ailment.expression.IRegister) -> DataType_co | None:
+        self._expr(expr.reg_offset)
+        return None
 
     @abstractmethod
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co: ...
@@ -1042,6 +1051,12 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     @abstractmethod
     def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    def _handle_binop_MinF(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        return self._handle_binop_MinV(expr)
+
+    def _handle_binop_MaxF(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        return self._handle_binop_MaxV(expr)
+
     @abstractmethod
     def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
@@ -1128,6 +1143,9 @@ class SimEngineNoexprAIL[StateType, DataType_co, StmtDataType, ResultType](
 
     def _handle_expr_Register(self, expr: ailment.expression.Register) -> DataType_co | None:
         pass
+
+    def _handle_expr_IRegister(self, expr: ailment.expression.IRegister) -> DataType_co | None:
+        self._expr(expr.reg_offset)
 
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co | None:
         pass

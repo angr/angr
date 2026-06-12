@@ -20,6 +20,7 @@ from angr.ailment.expression import (
     Expression,
     Extract,
     Insert,
+    IRegister,
     Load,
     Register,
     Reinterpret,
@@ -328,6 +329,13 @@ class SimEngineSSARewriting(
         vvar = self._expr_to_vvar(expr, True)
         return self._vvar_extract(vvar, expr.size, expr.reg_offset - vvar.reg_offset, expr)
 
+    def _handle_expr_IRegister(self, expr: IRegister) -> VirtualVariable | Expression | None:
+        offset = expr.concrete_reg_offset()
+        if offset is not None:
+            reg = Register(expr.idx, offset, expr.bits, **expr.tags)
+            return self._handle_expr_Register(reg)
+        return None
+
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         if not self.rewrite_tmps:
             return None
@@ -349,6 +357,18 @@ class SimEngineSSARewriting(
             # vvar assignment
             vvar = self._expr_to_vvar(expr.addr, True)
             assert isinstance(expr.addr.offset, int)
+            # If the state has a wider VVar (e.g. an 8-byte parameter) covering
+            # this load, prefer it so that sub-reads produce Extract operations
+            # rather than creating independent narrow VVars.
+            if vvar is not None and isinstance(expr.addr.offset, int):
+                state_vvar = self.state.stackvars.get(expr.addr.offset)
+                if (
+                    state_vvar is not None
+                    and state_vvar.was_parameter
+                    and state_vvar.size > vvar.size
+                    and state_vvar.stack_offset + state_vvar.size >= expr.addr.offset + expr.size
+                ):
+                    vvar = state_vvar
             if vvar.stack_offset + vvar.size >= expr.addr.offset + expr.size:
                 return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
 
@@ -584,6 +604,12 @@ class SimEngineSSARewriting(
         """
         if isinstance(thing, Register):
             return self._replace_def_reg(thing, value, orig_tags)
+        if isinstance(thing, IRegister):
+            offset = thing.concrete_reg_offset()
+            if offset is None:
+                return None
+            reg = Register(thing.idx, offset, thing.bits, **thing.tags)
+            return self._replace_def_reg(reg, value, orig_tags)
         if isinstance(thing, Tmp) and self.rewrite_tmps:
             return self._replace_def_tmp(thing, value, orig_tags)
         if isinstance(thing, ComboRegister):
@@ -732,6 +758,22 @@ class SimEngineSSARewriting(
                 order,
                 bits=size * 8,
             )
+        # When reading a standard FP width from offset 0 of an 80-bit variable,
+        # emit an FP truncation Convert instead of a raw bit Extract.
+        # 80-bit variables only arise from x87 long double (fstpt/fldt), so
+        # extracting 32 or 64 bits at offset 0 is always an FP narrowing
+        # (e.g. fstpl truncating long double to double).
+        if vvar.bits == 80 and offset == 0 and size in (8, 4):
+            return Convert(
+                self.ail_manager.next_atom(),
+                vvar.bits,
+                size * 8,
+                False,
+                vvar,
+                from_type=Convert.TYPE_FP,
+                to_type=Convert.TYPE_FP,
+                **orig_tags.tags,
+            )
         return Extract(
             self.ail_manager.next_atom(),
             size * 8,
@@ -776,13 +818,34 @@ class SimEngineSSARewriting(
                     Const(self.ail_manager.next_atom(), offset, 64),
                     endness,
                 )
-            combined = Insert(
-                self.ail_manager.next_atom(),
-                base,
-                Const(self.ail_manager.next_atom(), offset, 64),
-                value,
-                endness,
-            )
+            # When storing a standard FP width at offset 0 into an 80-bit variable
+            # whose base is uninitialized, emit FP widening Convert instead of
+            # Insert.  80-bit variables only arise from x87 long double, so this
+            # is always an FP promotion (e.g. tmp = (long double)x).
+            if (
+                vvar.bits == 80
+                and offset == 0
+                and value.bits in (32, 64)
+                and (base is None or (isinstance(base, Const) and base.tags.get("uninitialized")))
+            ):
+                combined = Convert(
+                    self.ail_manager.next_atom(),
+                    value.bits,
+                    vvar.bits,
+                    False,
+                    value,
+                    from_type=Convert.TYPE_FP,
+                    to_type=Convert.TYPE_FP,
+                    **orig_tags.tags,
+                )
+            else:
+                combined = Insert(
+                    self.ail_manager.next_atom(),
+                    base,
+                    Const(self.ail_manager.next_atom(), offset, 64),
+                    value,
+                    endness,
+                )
 
         if vvar.category == VirtualVariableCategory.STACK:
             self.state.stackvars = self.state.stackvars.clean()
