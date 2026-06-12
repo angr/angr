@@ -1592,6 +1592,10 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         node_default = self._switch_find_default_node(graph, node, node_b_addr)
+        if node_default is None and self._switch_find_default_node(full_graph, node, node_b_addr) is not None:
+            # the default node is not in the current graph, but it's in the full graph. this means the default node is
+            # in a parent region, and we cannot structure this switch-case right now.
+            return False
         if node_default is not None:
             # ensure we have successfully structured node_default
             if full_graph.out_degree[node_default] > 1:
@@ -1937,6 +1941,10 @@ class PhoenixStructurer(StructurerBase):
         full_graph = _f(full_graph_raw)
 
         node_default = self._switch_find_default_node(graph, node, default_addr)
+        if node_default is None and self._switch_find_default_node(full_graph, node, default_addr) is not None:
+            # the default node is not in the current graph, but it's in the full graph. this means the default node is
+            # in a parent region, and we cannot structure this switch-case right now.
+            return False
         if node_default is not None:
             # ensure we have successfully structured node_default
             if full_graph.out_degree[node_default] > 1:
