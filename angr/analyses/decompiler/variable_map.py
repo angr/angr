@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import archinfo
 
 import angr
+from angr.rust.sim_type import EnumVariant
 from angr.sim_type import SimType
 
 if TYPE_CHECKING:
@@ -52,6 +53,8 @@ class VariableMap:
     - ``prototype`` (a :class:`SimTypeFunction`) and ``calling_convention`` (a :class:`SimCC`): the call-site
       prototype and calling convention associated with an AIL :class:`Call` expression. These used to live directly
       on the ``Call`` object; they are heavy, non-serializable Python references, so they are tracked here instead.
+    - ``variant`` (an ``EnumVariant``): the enum variant that a Rust ``Let`` expression binds.
+    - ``returnty`` (a :class:`SimType`): the return type of a Rust ``FunctionLikeMacro`` call.
 
     Keys are the integer ``.idx`` values of AIL Statement/Expression objects. Because :class:`Clinic` builds one
     :class:`ailment.Manager` per invocation, ``.idx`` values are unique within a single Clinic. So a VariableMap is
@@ -65,8 +68,10 @@ class VariableMap:
         "_reference_values",
         "_reference_variable_offsets",
         "_reference_variables",
+        "_returntys",
         "_variable_offsets",
         "_variables",
+        "_variants",
     )
 
     def __init__(self):
@@ -78,6 +83,10 @@ class VariableMap:
         self._reference_variable_offsets: dict[int, int] = {}
         self._prototypes: dict[int, SimTypeFunction] = {}
         self._calling_conventions: dict[int, SimCC] = {}
+        # ``variant`` (an ``EnumVariant``): the enum variant a Rust ``Let`` expression binds.
+        self._variants: dict[int, Any] = {}
+        # ``returnty`` (a :class:`SimType`): the return type of a Rust ``FunctionLikeMacro`` call.
+        self._returntys: dict[int, SimType] = {}
 
     #
     # Key helper
@@ -117,6 +126,12 @@ class VariableMap:
 
     def calling_convention(self, obj: TaggedObject | int) -> SimCC | None:
         return self._calling_conventions.get(self._key(obj))
+
+    def variant(self, obj: TaggedObject | int) -> Any:
+        return self._variants.get(self._key(obj))
+
+    def returnty(self, obj: TaggedObject | int) -> SimType | None:
+        return self._returntys.get(self._key(obj))
 
     #
     # Setters
@@ -174,6 +189,26 @@ class VariableMap:
         else:
             self._calling_conventions[key] = cc
 
+    def set_variant(self, obj: TaggedObject | int, variant: Any) -> None:
+        """Set the enum variant for a Rust ``Let`` expression. If ``variant`` is ``None``, the variant information for
+        this atom is cleared."""
+
+        key = self._key(obj)
+        if variant is None:
+            self._variants.pop(key, None)
+        else:
+            self._variants[key] = variant
+
+    def set_returnty(self, obj: TaggedObject | int, returnty: SimType | None) -> None:
+        """Set the return type for a Rust ``FunctionLikeMacro`` call. If ``returnty`` is ``None``, the return-type
+        information for this atom is cleared."""
+
+        key = self._key(obj)
+        if returnty is None:
+            self._returntys.pop(key, None)
+        else:
+            self._returntys[key] = returnty
+
     def transfer(self, src: TaggedObject | int, dst: TaggedObject | int) -> None:
         """
         Copy all variable information associated with ``src`` to ``dst``. Used when an AIL atom is deep-copied to a new
@@ -193,6 +228,8 @@ class VariableMap:
             self._reference_variable_offsets,
             self._prototypes,
             self._calling_conventions,
+            self._variants,
+            self._returntys,
         ):
             if src_key in d:
                 d[dst_key] = d[src_key]  # type:ignore
@@ -264,6 +301,10 @@ class VariableMap:
             "reference_variable_offsets": dict(self._reference_variable_offsets),
             "prototypes": {idx: proto.to_json() for idx, proto in self._prototypes.items()},
             "calling_conventions": {idx: self._cc_to_json(cc) for idx, cc in self._calling_conventions.items()},
+            "variants": {
+                idx: variant.to_json() for idx, variant in self._variants.items() if hasattr(variant, "to_json")
+            },
+            "returntys": {idx: ty.to_json() for idx, ty in self._returntys.items() if isinstance(ty, SimType)},
         }
 
     @classmethod
@@ -311,5 +352,13 @@ class VariableMap:
             cc = cls._cc_from_json(cc_json)
             if cc is not None:
                 vm._calling_conventions[int(idx)] = cc
+        for idx, variant_json in data.get("variants", {}).items():
+            variant = EnumVariant.from_json(variant_json)
+            if variant is not None:
+                vm._variants[int(idx)] = variant
+        for idx, ty_json in data.get("returntys", {}).items():
+            ty = SimType.from_json(ty_json)
+            if ty is not None:
+                vm._returntys[int(idx)] = ty
 
         return vm
