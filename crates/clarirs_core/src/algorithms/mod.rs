@@ -10,8 +10,5 @@ pub mod replace;
 pub mod simplify;
 
 pub use canonicalize::{canonicalize, structurally_match};
-pub use excavate_ite::ExcavateIte;
 pub use post_order::walk_post_order;
 pub use pre_order::walk_pre_order;
-pub use replace::Replace;
-pub use simplify::Simplify;

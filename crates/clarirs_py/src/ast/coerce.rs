@@ -7,10 +7,10 @@ use crate::prelude::*;
 
 /// Coerce a BV into a Bool: concrete BVVs resolve to true/false directly,
 /// symbolic BVs become `bv != 0`.
-fn bv_to_bool(bv: &BV) -> Result<BoolAst<'static>, ClaripyError> {
+fn bv_to_bool(bv: &BV) -> Result<AstRef<'static>, ClaripyError> {
     let inner = &bv.inner;
     if let Ok(simplified) = inner.simplify()
-        && let BitVecOp::BVV(v) = simplified.op()
+        && let AstOp::BVV(v) = simplified.op()
     {
         return Ok(if v.is_zero() {
             GLOBAL_CONTEXT.false_()?
@@ -56,7 +56,7 @@ impl<'py> From<CoerceBool<'py>> for Bound<'py, Bool> {
     }
 }
 
-impl<'py> From<CoerceBool<'py>> for BoolAst<'static> {
+impl<'py> From<CoerceBool<'py>> for AstRef<'static> {
     fn from(val: CoerceBool<'py>) -> Self {
         val.0.get().inner.clone()
     }
@@ -314,7 +314,7 @@ impl<'py> TryFrom<CoerceFP<'py>> for Bound<'py, FP> {
     }
 }
 
-impl<'py> TryFrom<CoerceFP<'py>> for FloatAst<'static> {
+impl<'py> TryFrom<CoerceFP<'py>> for AstRef<'static> {
     type Error = ClaripyError;
 
     fn try_from(val: CoerceFP<'py>) -> Result<Self, Self::Error> {
@@ -348,7 +348,7 @@ impl<'py> From<CoerceString<'py>> for Bound<'py, PyAstString> {
     }
 }
 
-impl<'py> From<CoerceString<'py>> for StringAst<'static> {
+impl<'py> From<CoerceString<'py>> for AstRef<'static> {
     fn from(val: CoerceString<'py>) -> Self {
         val.0.get().inner.clone()
     }

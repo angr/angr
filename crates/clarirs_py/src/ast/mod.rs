@@ -59,7 +59,7 @@ pub fn and<'py>(
         let (lhs, rhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
         return BV::new(
             py,
-            &GLOBAL_CONTEXT.bv_and(&lhs.get().inner, &rhs.get().inner)?,
+            &GLOBAL_CONTEXT.and2(&lhs.get().inner, &rhs.get().inner)?,
         )
         .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
@@ -94,11 +94,8 @@ pub fn or<'py>(
         && let Some(rhs) = args[1].extract::<CoerceBV>().ok()
     {
         let (lhs, rhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
-        return BV::new(
-            py,
-            &GLOBAL_CONTEXT.bv_or(&lhs.get().inner, &rhs.get().inner)?,
-        )
-        .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+        return BV::new(py, &GLOBAL_CONTEXT.or2(&lhs.get().inner, &rhs.get().inner)?)
+            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
     Err(ClaripyError::TypeError(
         "Or: expected Bools or exactly two BVs".to_string(),
@@ -116,7 +113,7 @@ pub fn xor<'py>(
         if let Ok(b_bool) = b.clone().into_any().cast::<Bool>() {
             return Bool::new(
                 py,
-                &GLOBAL_CONTEXT.xor(&a_bool.get().inner, &b_bool.get().inner)?,
+                &GLOBAL_CONTEXT.xor2(&a_bool.get().inner, &b_bool.get().inner)?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
         } else {
@@ -127,7 +124,7 @@ pub fn xor<'py>(
             let (a_bv, b_bv) = CoerceBV::unpack_pair(py, &a_bv, &b_bv)?;
             return BV::new(
                 py,
-                &GLOBAL_CONTEXT.bv_xor(&a_bv.get().inner, &b_bv.get().inner)?,
+                &GLOBAL_CONTEXT.xor2(&a_bv.get().inner, &b_bv.get().inner)?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
         } else {

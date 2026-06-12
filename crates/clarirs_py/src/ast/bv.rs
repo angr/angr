@@ -1,44 +1,39 @@
 #![allow(non_snake_case)]
 
-use std::collections::{BTreeSet, HashMap};
 use std::iter::once;
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use clarirs_core::algorithms::{canonicalize, structurally_match};
-use clarirs_core::ast::bitvec::{BitVecAstExt, BitVecOpExt};
 use clarirs_vsa::cardinality::Cardinality;
-use clarirs_vsa::reduce::Reduce;
 use dashmap::DashMap;
 use num_bigint::{BigInt, BigUint, Sign};
 use pyo3::exceptions::{PyTypeError, PyValueError};
-use pyo3::types::{PyFrozenSet, PySlice, PyWeakrefReference};
+use pyo3::types::{PySlice, PyWeakrefReference};
 
 use crate::ast::fp::{PyFSort, PyRM};
 use crate::ast::{and, not, or, xor};
 use crate::prelude::*;
 use crate::pyslicemethodsext::PySliceMethodsExt;
-use clarirs_core::smtlib::ToSmtLib;
 
 static BVS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PY_BV_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> = LazyLock::new(DashMap::new);
 
 #[pyclass(extends=Bits, subclass, frozen, weakref, module="claripy.ast.bv")]
 pub struct BV {
-    pub(crate) inner: BitVecAst<'static>,
+    pub(crate) inner: AstRef<'static>,
 }
 
 impl BV {
     pub fn new<'py>(
         py: Python<'py>,
-        inner: &BitVecAst<'static>,
+        inner: &AstRef<'static>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         Self::new_with_name(py, inner, None)
     }
 
     pub fn new_with_name<'py>(
         py: Python<'py>,
-        inner: &BitVecAst<'static>,
+        inner: &AstRef<'static>,
         name: Option<String>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         let inner = &inner.simplify_ext(true, true)?;
@@ -52,7 +47,7 @@ impl BV {
         } else {
             let this = Bound::new(
                 py,
-                PyClassInitializer::from(Base::new_with_name(py, name))
+                PyClassInitializer::from(Base::new_with_name(py, inner, name))
                     .add_subclass(Bits::new())
                     .add_subclass(BV {
                         inner: inner.clone(),
@@ -80,15 +75,15 @@ impl BV {
             "BVS" => GLOBAL_CONTEXT.bvs(args[0].extract::<String>(py)?, args[1].extract(py)?)?,
             "BVV" => GLOBAL_CONTEXT
                 .bvv_from_biguint_with_size(&args[0].extract(py)?, args[1].extract(py)?)?,
-            "__and__" => GLOBAL_CONTEXT.bv_and(
+            "__and__" => GLOBAL_CONTEXT.and2(
                 &args[0].cast_bound::<BV>(py)?.get().inner,
                 &args[1].cast_bound::<BV>(py)?.get().inner,
             )?,
-            "__or__" => GLOBAL_CONTEXT.bv_or(
+            "__or__" => GLOBAL_CONTEXT.or2(
                 &args[0].cast_bound::<BV>(py)?.get().inner,
                 &args[1].cast_bound::<BV>(py)?.get().inner,
             )?,
-            "__xor__" => GLOBAL_CONTEXT.bv_xor(
+            "__xor__" => GLOBAL_CONTEXT.xor2(
                 &args[0].cast_bound::<BV>(py)?.get().inner,
                 &args[1].cast_bound::<BV>(py)?.get().inner,
             )?,
@@ -199,122 +194,10 @@ impl BV {
         Ok(BV::new(py, &inner_with_annotations)?.unbind())
     }
 
-    #[getter]
-    pub fn op(&self) -> String {
-        self.inner.to_opstring()
-    }
-
-    #[getter]
-    pub fn args<'py>(&self, py: Python<'py>) -> Result<Vec<Bound<'py, PyAny>>, ClaripyError> {
-        self.inner.extract_py_args(py)
-    }
-
-    #[getter]
-    pub fn variables<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyFrozenSet>, ClaripyError> {
-        Ok(PyFrozenSet::new(
-            py,
-            self.inner
-                .variables()
-                .iter()
-                .map(|v| v.as_str().into_py_any(py))
-                .collect::<Result<Vec<_>, _>>()?
-                .iter(),
-        )?)
-    }
-
-    #[getter]
-    pub fn symbolic(&self) -> bool {
-        self.inner.symbolic()
-    }
-
-    #[getter]
-    pub fn concrete(&self) -> bool {
-        !self.inner.symbolic()
-    }
-
-    #[getter]
-    pub fn annotations(&self) -> PyResult<Vec<PyAnnotation>> {
-        Ok(self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .map(PyAnnotation::from)
-            .collect())
-    }
-
-    pub fn hash(&self) -> u64 {
-        self.inner.hash()
-    }
-
-    pub fn __hash__(&self) -> usize {
-        self.hash() as usize
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.inner.to_smtlib()
-    }
-
-    #[pyo3(signature = (max_depth=2))]
-    pub fn shallow_repr(&self, max_depth: usize) -> String {
-        self.inner.to_smtlib_shallow(max_depth)
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn canonicalize<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> Result<(HashMap<u64, Bound<'py, PyAny>>, usize, Bound<'py, BV>), ClaripyError> {
-        let (replacement_map, counter, canonical) = canonicalize(&self.inner.clone().into())?;
-        let canonical_bv = BV::new(
-            py,
-            &canonical
-                .into_bitvec()
-                .ok_or(ClaripyError::InvalidOperation(
-                    "Canonicalization did not produce a BitVec".to_string(),
-                ))?,
-        )?;
-
-        let mut py_map = HashMap::new();
-        for (hash, dynast) in replacement_map {
-            let py_ast = Base::from_dynast(py, dynast)?;
-            py_map.insert(hash, py_ast.into_any());
-        }
-
-        Ok((py_map, counter, canonical_bv))
-    }
-
-    pub fn identical(&self, other: Bound<'_, Base>) -> Result<bool, ClaripyError> {
-        let structural = structurally_match(
-            &DynAst::BitVec(self.inner.clone()),
-            &Base::to_dynast(other.clone())?,
-        )?;
-        if structural {
-            return Ok(true);
-        }
-        // Fall back to VSA reduction comparison
-        if let Ok(other_bv) = other.into_any().cast::<BV>()
-            && let (Ok(a_reduced), Ok(b_reduced)) =
-                (self.inner.reduce(), other_bv.get().inner.reduce())
-        {
-            return Ok(a_reduced == b_reduced);
-        }
-        Ok(false)
-    }
-
-    #[getter]
-    pub fn depth(&self) -> u32 {
-        self.inner.depth()
-    }
-
-    pub fn is_leaf(&self) -> bool {
-        self.inner.depth() == 1
-    }
-
     pub fn is_true(&self) -> bool {
         // A BV is "true" if it's a concrete non-zero value
         if let Ok(simplified) = self.inner.simplify()
-            && let BitVecOp::BVV(bv) = simplified.op()
+            && let AstOp::BVV(bv) = simplified.op()
         {
             return !bv.is_zero();
         }
@@ -324,33 +207,11 @@ impl BV {
     pub fn is_false(&self) -> bool {
         // A BV is "false" if it's a concrete zero value
         if let Ok(simplified) = self.inner.simplify()
-            && let BitVecOp::BVV(bv) = simplified.op()
+            && let AstOp::BVV(bv) = simplified.op()
         {
             return bv.is_zero();
         }
         false
-    }
-
-    #[pyo3(signature = (respect_annotations=true))]
-    pub fn simplify<'py>(
-        &self,
-        py: Python<'py>,
-        respect_annotations: bool,
-    ) -> Result<Bound<'py, BV>, ClaripyError> {
-        BV::new(py, &self.inner.simplify_ext(respect_annotations, false)?)
-    }
-
-    pub fn replace<'py>(
-        &self,
-        py: Python<'py>,
-        from: Bound<'py, Base>,
-        to: Bound<'py, Base>,
-    ) -> Result<Bound<'py, BV>, ClaripyError> {
-        use clarirs_core::algorithms::Replace;
-        let from_ast = Base::to_dynast(from)?;
-        let to_ast = Base::to_dynast(to)?;
-        let replaced = self.inner.replace(&from_ast, &to_ast)?;
-        BV::new(py, &replaced)
     }
 
     pub fn size(&self) -> usize {
@@ -369,7 +230,7 @@ impl BV {
     #[getter]
     pub fn concrete_value(&self) -> Result<Option<BigUint>, ClaripyError> {
         Ok(match self.inner.simplify_ext(false, false)?.op() {
-            BitVecOp::BVV(bv) => Some(bv.to_biguint()),
+            AstOp::BVV(bv) => Some(bv.to_biguint()),
             _ => None,
         })
     }
@@ -424,9 +285,13 @@ impl BV {
                 });
             }
 
-            Extract(self_.py(), start as u32, stop as u32, self_)?
-                .get()
-                .simplify(py, true)
+            BV::new(
+                py,
+                &Extract(self_.py(), start as u32, stop as u32, self_)?
+                    .get()
+                    .inner
+                    .simplify_ext(true, false)?,
+            )
         } else if let Ok(int_val) = range.extract::<u32>() {
             let size = self_.get().size() as u32;
             if int_val >= size {
@@ -440,176 +305,6 @@ impl BV {
         } else {
             Err(ClaripyError::FailedToExtractArg(range.unbind()))
         }
-    }
-
-    pub fn has_annotation_type(
-        &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<bool, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .iter()
-            .any(|annotation| annotation_type.matches(annotation.0.type_())))
-    }
-
-    pub fn get_annotations_by_type(
-        &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Vec<PyAnnotation>, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .into_iter()
-            .filter(|annotation| annotation_type.matches(annotation.0.type_()))
-            .collect())
-    }
-
-    pub fn get_annotation(
-        &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Option<PyAnnotation>, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .into_iter()
-            .find(|annotation| annotation_type.matches(annotation.0.type_())))
-    }
-
-    pub fn append_annotation<'py>(
-        &self,
-        py: Python<'py>,
-        annotation: PyAnnotation,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let new_annotations = self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .chain([annotation.0.clone()]);
-        Self::new(py, &GLOBAL_CONTEXT.annotate(&self.inner, new_annotations)?)
-    }
-
-    pub fn append_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let new_annotations = self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .chain(annotations.into_iter().map(|a| a.0));
-        Self::new(py, &GLOBAL_CONTEXT.annotate(&self.inner, new_annotations)?)
-    }
-
-    #[pyo3(signature = (*annotations, remove_annotations = None))]
-    pub fn annotate<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-        remove_annotations: Option<Vec<PyAnnotation>>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let new_annotations = self
-            .annotations()?
-            .iter()
-            .filter(|a| {
-                if let Some(remove_annotations) = &remove_annotations {
-                    !remove_annotations.iter().any(|ra| ra.0 == a.0)
-                } else {
-                    true
-                }
-            })
-            .map(|a| a.0.clone())
-            .chain(annotations.into_iter().map(|a| a.0))
-            .collect();
-        let inner = self
-            .inner
-            .context()
-            .make_bitvec_annotated(self.inner.op().clone(), new_annotations)?;
-        Self::new(py, &inner)
-    }
-
-    pub fn insert_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        Self::new(
-            py,
-            &GLOBAL_CONTEXT.annotate(&self.inner, annotations.into_iter().map(|a| a.0))?,
-        )
-    }
-
-    /// This actually just removes all annotations and adds the new ones.
-    pub fn replace_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_bitvec_annotated(
-            self.inner.op().clone(),
-            annotations.into_iter().map(|a| a.0).collect(),
-        )?;
-        Self::new(py, &inner)
-    }
-
-    pub fn remove_annotation<'py>(
-        &self,
-        py: Python<'py>,
-        annotation: PyAnnotation,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_bitvec_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| **a != annotation.0)
-                .cloned()
-                .collect(),
-        )?;
-        Self::new(py, &inner)
-    }
-
-    pub fn remove_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let annotations_set: BTreeSet<_> = annotations.into_iter().map(|a| a.0).collect();
-        let inner = self.inner.context().make_bitvec_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| !annotations_set.contains(a))
-                .cloned()
-                .collect(),
-        )?;
-        Self::new(py, &inner)
-    }
-
-    pub fn clear_annotations<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_bitvec(self.inner.op().clone())?;
-        Self::new(py, &inner)
-    }
-
-    pub fn clear_annotation_type<'py>(
-        &self,
-        py: Python<'py>,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_bitvec_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| !annotation_type.matches(a.type_()))
-                .cloned()
-                .collect(),
-        )?;
-        Self::new(py, &inner)
     }
 
     pub fn raw_to_bv(self_: Bound<'_, BV>) -> Result<Bound<'_, BV>, ClaripyError> {
@@ -818,7 +513,7 @@ impl BV {
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         BV::new(
             py,
-            &GLOBAL_CONTEXT.bv_and(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT.and2(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
         )
     }
 
@@ -837,7 +532,7 @@ impl BV {
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         BV::new(
             py,
-            &GLOBAL_CONTEXT.bv_or(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT.or2(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
         )
     }
 
@@ -856,7 +551,7 @@ impl BV {
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         BV::new(
             py,
-            &GLOBAL_CONTEXT.bv_xor(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT.xor2(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
         )
     }
 
@@ -955,6 +650,12 @@ impl BV {
             py,
             &GLOBAL_CONTEXT.neq(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
         )
+    }
+
+    // `Base` defines `__hash__`, but Python makes a class unhashable if it
+    // defines `__eq__` without its own `__hash__`, so it must be repeated here.
+    pub fn __hash__(&self) -> usize {
+        self.inner.hash() as usize
     }
 
     pub fn __lt__<'py>(
@@ -1320,9 +1021,15 @@ impl BV {
         ClaripyError,
     > {
         let class = py.get_type::<BV>();
-        let op = self.op();
-        let args = self.args(py)?;
-        let annotations = self.annotations()?;
+        let op = self.inner.to_opstring();
+        let args = self.inner.extract_py_args(py)?;
+        let annotations: Vec<PyAnnotation> = self
+            .inner
+            .annotations()
+            .iter()
+            .cloned()
+            .map(PyAnnotation::from)
+            .collect();
         Ok((class.into_any(), (op, args, annotations)))
     }
 }

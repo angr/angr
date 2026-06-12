@@ -61,7 +61,7 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> HasContext<'c> for HybridSolver<'c, A, E>
 }
 
 impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
-    fn add(&mut self, constraint: &BoolAst<'c>) -> Result<(), ClarirsError> {
+    fn add(&mut self, constraint: &AstRef<'c>) -> Result<(), ClarirsError> {
         // Add constraints to both backends. The approximate solver may ignore
         // them (as VSA does), but the exact solver tracks them.
         let _ = self.approximate.add(constraint);
@@ -73,7 +73,7 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         self.exact.clear()
     }
 
-    fn constraints(&self) -> Result<Vec<BoolAst<'c>>, ClarirsError> {
+    fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         self.exact.constraints()
     }
 
@@ -95,7 +95,7 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         self.exact.satisfiable()
     }
 
-    fn is_true(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.is_true(expr);
         }
@@ -103,14 +103,14 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         self.exact.is_true(expr)
     }
 
-    fn is_false(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn is_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.is_false(expr);
         }
         self.exact.is_false(expr)
     }
 
-    fn has_true(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn has_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.has_true(expr);
         }
@@ -121,7 +121,7 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         }
     }
 
-    fn has_false(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn has_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.has_false(expr);
         }
@@ -131,109 +131,56 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         }
     }
 
-    fn min_unsigned(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
+    fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.min_unsigned(expr);
         }
         self.exact.min_unsigned(expr)
     }
 
-    fn max_unsigned(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
+    fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.max_unsigned(expr);
         }
         self.exact.max_unsigned(expr)
     }
 
-    fn min_signed(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
+    fn min_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.min_signed(expr);
         }
         self.exact.min_signed(expr)
     }
 
-    fn max_signed(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
+    fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.max_signed(expr);
         }
         self.exact.max_signed(expr)
     }
 
-    fn eval_bool_n(
-        &mut self,
-        expr: &BoolAst<'c>,
-        n: u32,
-    ) -> Result<Vec<BoolAst<'c>>, ClarirsError> {
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         if n == 0 {
             return Ok(Vec::new());
         }
+        // Try the approximate solver first; verify symbolic results against
+        // the exact solver, and fall back to it whenever the approximate
+        // solver fails or produces nothing.
         if !expr.symbolic() {
-            return self.approximate.eval_bool_n(expr, n);
-        }
-        // Try approximate first, fall back to exact for symbolic
-        match self.approximate.eval_bool_n(expr, n) {
-            Ok(approx_results) if !approx_results.is_empty() => {
-                match self.exact.eval_bool_n(expr, n) {
-                    Ok(exact) => Ok(exact),
-                    Err(_) => Ok(approx_results),
-                }
+            if let Ok(result) = self.approximate.eval_n(expr, n)
+                && !result.is_empty()
+            {
+                return Ok(result);
             }
-            _ => self.exact.eval_bool_n(expr, n),
+            return self.exact.eval_n(expr, n);
         }
-    }
-
-    fn eval_bitvec_n(
-        &mut self,
-        expr: &BitVecAst<'c>,
-        n: u32,
-    ) -> Result<Vec<BitVecAst<'c>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
+        match self.approximate.eval_n(expr, n) {
+            Ok(approx_results) if !approx_results.is_empty() => match self.exact.eval_n(expr, n) {
+                Ok(exact) => Ok(exact),
+                Err(_) => Ok(approx_results),
+            },
+            _ => self.exact.eval_n(expr, n),
         }
-        if !expr.symbolic() {
-            return self.approximate.eval_bitvec_n(expr, n);
-        }
-        match self.approximate.eval_bitvec_n(expr, n) {
-            Ok(approx_results) if !approx_results.is_empty() => {
-                match self.exact.eval_bitvec_n(expr, n) {
-                    Ok(exact) => Ok(exact),
-                    Err(_) => Ok(approx_results),
-                }
-            }
-            _ => self.exact.eval_bitvec_n(expr, n),
-        }
-    }
-
-    fn eval_float_n(
-        &mut self,
-        expr: &FloatAst<'c>,
-        n: u32,
-    ) -> Result<Vec<FloatAst<'c>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        if !expr.symbolic()
-            && let Ok(result) = self.approximate.eval_float_n(expr, n)
-        {
-            return Ok(result);
-        }
-        self.exact.eval_float_n(expr, n)
-    }
-
-    fn eval_string_n(
-        &mut self,
-        expr: &StringAst<'c>,
-        n: u32,
-    ) -> Result<Vec<StringAst<'c>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        if !expr.symbolic()
-            && let Ok(result) = self.approximate.eval_string_n(expr, n)
-        {
-            return Ok(result);
-        }
-        self.exact.eval_string_n(expr, n)
     }
 }
 
@@ -259,7 +206,7 @@ mod tests {
         let a = ctx.bvv_prim(10u8)?;
         let b = ctx.bvv_prim(20u8)?;
         let sum = ctx.add(&a, &b)?;
-        let result = solver.eval_bitvec(&sum)?;
+        let result = solver.eval(&sum)?;
         assert_eq!(result, ctx.bvv_prim(30u8)?);
 
         assert!(solver.satisfiable()?);

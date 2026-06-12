@@ -4,11 +4,8 @@ use clarirs_z3_sys as z3;
 use super::AstExtZ3;
 use crate::{Z3_CONTEXT, rc::RcAst};
 
-fn round_trip<'c>(
-    ctx: &'c Context<'c>,
-    ast: &BitVecAst<'c>,
-) -> Result<BitVecAst<'c>, ClarirsError> {
-    BitVecAst::from_z3(ctx, ast.to_z3()?)
+fn round_trip<'c>(ctx: &'c Context<'c>, ast: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+    AstRef::from_z3(ctx, ast.to_z3()?)
 }
 
 // ---------------------------------------------------------------
@@ -84,7 +81,7 @@ mod to_z3 {
         let ctx = Context::new();
         let x = ctx.bvs("x", 8).unwrap();
         let y = ctx.bvs("y", 8).unwrap();
-        let ast = ctx.bv_and(x, y).unwrap();
+        let ast = ctx.and2(x, y).unwrap();
         let z3_ast = ast.to_z3().unwrap();
 
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Band);
@@ -97,7 +94,7 @@ mod to_z3 {
         let ctx = Context::new();
         let x = ctx.bvs("x", 8).unwrap();
         let y = ctx.bvs("y", 8).unwrap();
-        let ast = ctx.bv_or(x, y).unwrap();
+        let ast = ctx.or2(x, y).unwrap();
         let z3_ast = ast.to_z3().unwrap();
 
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Bor);
@@ -110,7 +107,7 @@ mod to_z3 {
         let ctx = Context::new();
         let x = ctx.bvs("x", 8).unwrap();
         let y = ctx.bvs("y", 8).unwrap();
-        let ast = ctx.bv_xor(x, y).unwrap();
+        let ast = ctx.xor2(x, y).unwrap();
         let z3_ast = ast.to_z3().unwrap();
 
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Bxor);
@@ -400,7 +397,7 @@ mod from_z3 {
     fn symbol() {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv("x", 32);
-        let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+        let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
         assert_eq!(result, ctx.bvs("x", 32).unwrap());
     }
 
@@ -408,7 +405,7 @@ mod from_z3 {
     fn value_8bit() {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv_val("42", 8);
-        let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+        let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
         assert_eq!(result, ctx.bvv_prim(42u8).unwrap());
     }
 
@@ -416,7 +413,7 @@ mod from_z3 {
     fn value_32bit() {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv_val("3735928559", 32); // 0xDEADBEEF
-        let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+        let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
         assert_eq!(result, ctx.bvv_prim(0xDEADBEEFu32).unwrap());
     }
 
@@ -424,7 +421,7 @@ mod from_z3 {
     fn value_64bit() {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv_val("81985529216486895", 64); // 0x0123456789ABCDEF
-        let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+        let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
         assert_eq!(result, ctx.bvv_prim(0x0123456789ABCDEFu64).unwrap());
     }
 
@@ -437,7 +434,7 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvnot(*z3_ctx, *x)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.not(ctx.bvs("x", 8).unwrap()).unwrap();
             assert_eq!(result, expected);
         });
@@ -450,7 +447,7 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvneg(*z3_ctx, *x)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.neg(ctx.bvs("x", 8).unwrap()).unwrap();
             assert_eq!(result, expected);
         });
@@ -466,9 +463,9 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvand(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
-                .bv_and(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
+                .and2(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
         });
@@ -482,9 +479,9 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvor(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
-                .bv_or(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
+                .or2(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
         });
@@ -498,9 +495,9 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvxor(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
-                .bv_xor(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
+                .xor2(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
         });
@@ -514,7 +511,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvadd(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .add(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -530,7 +527,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvsub(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .sub(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -546,7 +543,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvmul(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .mul(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -562,7 +559,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvudiv(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .udiv(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -578,7 +575,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvsdiv(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .sdiv(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -594,7 +591,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvurem(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .urem(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -610,7 +607,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvsrem(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .srem(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -628,7 +625,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvshl(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .shl(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -644,7 +641,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvlshr(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .lshr(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -660,7 +657,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_bvashr(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .ashr(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -676,7 +673,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_ext_rotate_left(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .rotate_left(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -692,7 +689,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_ext_rotate_right(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .rotate_right(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -709,7 +706,7 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let z3_ast = RcAst::try_from(z3::mk_zero_ext(*z3_ctx, 8, *x)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.zero_ext(ctx.bvs("x", 8).unwrap(), 8).unwrap();
             assert_eq!(result, expected);
         });
@@ -722,7 +719,7 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let z3_ast = RcAst::try_from(z3::mk_sign_ext(*z3_ctx, 8, *x)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.sign_ext(ctx.bvs("x", 8).unwrap(), 8).unwrap();
             assert_eq!(result, expected);
         });
@@ -735,7 +732,7 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let z3_ast = RcAst::try_from(z3::mk_extract(*z3_ctx, 6, 2, *x)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.extract(ctx.bvs("x", 8).unwrap(), 6, 2).unwrap();
             assert_eq!(result, expected);
         });
@@ -751,7 +748,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_concat(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .concat2(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
@@ -770,7 +767,7 @@ mod from_z3 {
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(z3::mk_ite(*z3_ctx, *c, *x, *y)).unwrap();
 
-            let result = BitVecAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .ite(
                     ctx.bools("c").unwrap(),
@@ -844,7 +841,7 @@ mod roundtrip {
         let ctx = Context::new();
         let x = ctx.bvs("x", 8).unwrap();
         let y = ctx.bvs("y", 8).unwrap();
-        let ast = ctx.bv_and(x, y).unwrap();
+        let ast = ctx.and2(x, y).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
@@ -853,7 +850,7 @@ mod roundtrip {
         let ctx = Context::new();
         let x = ctx.bvs("x", 8).unwrap();
         let y = ctx.bvs("y", 8).unwrap();
-        let ast = ctx.bv_or(x, y).unwrap();
+        let ast = ctx.or2(x, y).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
@@ -862,7 +859,7 @@ mod roundtrip {
         let ctx = Context::new();
         let x = ctx.bvs("x", 8).unwrap();
         let y = ctx.bvs("y", 8).unwrap();
-        let ast = ctx.bv_xor(x, y).unwrap();
+        let ast = ctx.xor2(x, y).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 

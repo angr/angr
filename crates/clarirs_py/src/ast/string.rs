@@ -1,21 +1,14 @@
 #![allow(non_snake_case)]
 
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::{
-        LazyLock,
-        atomic::{AtomicUsize, Ordering},
-    },
+use std::sync::{
+    LazyLock,
+    atomic::{AtomicUsize, Ordering},
 };
 
 use dashmap::DashMap;
-use pyo3::types::{PyFrozenSet, PyWeakrefReference};
+use pyo3::types::PyWeakrefReference;
 
 use crate::prelude::*;
-use clarirs_core::{
-    algorithms::{canonicalize, structurally_match},
-    smtlib::ToSmtLib,
-};
 
 static STRINGS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PY_STRING_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> =
@@ -23,20 +16,20 @@ static PY_STRING_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> =
 
 #[pyclass(name="String", extends=Base, subclass, frozen, module="claripy.ast.strings")]
 pub struct PyAstString {
-    pub(crate) inner: StringAst<'static>,
+    pub(crate) inner: AstRef<'static>,
 }
 
 impl PyAstString {
     pub fn new<'py>(
         py: Python<'py>,
-        inner: &StringAst<'static>,
+        inner: &AstRef<'static>,
     ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
         Self::new_with_name(py, inner, None)
     }
 
     pub fn new_with_name<'py>(
         py: Python<'py>,
-        inner: &StringAst<'static>,
+        inner: &AstRef<'static>,
         name: Option<String>,
     ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
         let inner = &inner.simplify()?;
@@ -50,9 +43,11 @@ impl PyAstString {
         } else {
             let this = Py::new(
                 py,
-                PyClassInitializer::from(Base::new_with_name(py, name)).add_subclass(PyAstString {
-                    inner: inner.clone(),
-                }),
+                PyClassInitializer::from(Base::new_with_name(py, inner, name)).add_subclass(
+                    PyAstString {
+                        inner: inner.clone(),
+                    },
+                ),
             )?;
             let weakref = PyWeakrefReference::new(this.bind(py))?;
             PY_STRING_CACHE.insert(inner.hash(), weakref.unbind());
@@ -108,312 +103,11 @@ impl PyAstString {
     }
 
     #[getter]
-    pub fn op(&self) -> String {
-        self.inner.to_opstring()
-    }
-
-    #[getter]
-    pub fn args<'py>(&self, py: Python<'py>) -> Result<Vec<Bound<'py, PyAny>>, ClaripyError> {
-        self.inner.extract_py_args(py)
-    }
-
-    #[getter]
-    pub fn variables<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyFrozenSet>, ClaripyError> {
-        Ok(PyFrozenSet::new(
-            py,
-            self.inner
-                .variables()
-                .iter()
-                .map(|v| v.as_str().into_py_any(py))
-                .collect::<Result<Vec<_>, _>>()?
-                .iter(),
-        )?)
-    }
-
-    #[getter]
-    pub fn symbolic(&self) -> bool {
-        self.inner.symbolic()
-    }
-
-    #[getter]
-    pub fn concrete(&self) -> bool {
-        !self.inner.symbolic()
-    }
-
-    #[getter]
-    pub fn annotations(&self) -> PyResult<Vec<PyAnnotation>> {
-        Ok(self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .map(PyAnnotation::from)
-            .collect())
-    }
-
-    pub fn hash(&self) -> u64 {
-        self.inner.hash()
-    }
-
-    pub fn __hash__(&self) -> usize {
-        self.hash() as usize
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.inner.to_smtlib()
-    }
-
-    #[pyo3(signature = (max_depth=2))]
-    pub fn shallow_repr(&self, max_depth: usize) -> String {
-        self.inner.to_smtlib_shallow(max_depth)
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn canonicalize<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> Result<
-        (
-            HashMap<u64, Bound<'py, PyAny>>,
-            usize,
-            Bound<'py, PyAstString>,
-        ),
-        ClaripyError,
-    > {
-        let (replacement_map, counter, canonical) = canonicalize(&self.inner.clone().into())?;
-        let canonical_string = PyAstString::new(
-            py,
-            &canonical
-                .into_string()
-                .ok_or(ClaripyError::InvalidOperation(
-                    "Canonicalization did not produce a String".to_string(),
-                ))?,
-        )?;
-
-        let mut py_map = HashMap::new();
-        for (hash, dynast) in replacement_map {
-            let py_ast = Base::from_dynast(py, dynast)?;
-            py_map.insert(hash, py_ast.into_any());
-        }
-
-        Ok((py_map, counter, canonical_string))
-    }
-
-    pub fn identical(&self, other: Bound<'_, Base>) -> Result<bool, ClaripyError> {
-        let other_dyn = Base::to_dynast(other)?;
-        Ok(structurally_match(
-            &DynAst::String(self.inner.clone()),
-            &other_dyn,
-        )?)
-    }
-
-    #[getter]
-    pub fn depth(&self) -> u32 {
-        self.inner.depth()
-    }
-
-    pub fn is_leaf(&self) -> bool {
-        self.inner.depth() == 1
-    }
-
-    #[pyo3(signature = (respect_annotations=true))]
-    pub fn simplify<'py>(
-        &self,
-        py: Python<'py>,
-        respect_annotations: bool,
-    ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-        PyAstString::new(py, &self.inner.simplify_ext(respect_annotations, false)?)
-    }
-
-    pub fn replace<'py>(
-        &self,
-        py: Python<'py>,
-        from: Bound<'py, Base>,
-        to: Bound<'py, Base>,
-    ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-        use clarirs_core::algorithms::Replace;
-        let from_ast = Base::to_dynast(from)?;
-        let to_ast = Base::to_dynast(to)?;
-        let replaced = self.inner.replace(&from_ast, &to_ast)?;
-        PyAstString::new(py, &replaced)
-    }
-
-    #[getter]
     pub fn concrete_value(&self) -> Result<Option<String>, ClaripyError> {
         Ok(match self.inner.simplify_ext(false, false)?.op() {
-            StringOp::StringV(value) => Some(value.clone()),
+            AstOp::StringV(value) => Some(value.clone()),
             _ => None,
         })
-    }
-
-    pub fn has_annotation_type(
-        &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<bool, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .iter()
-            .any(|annotation| annotation_type.matches(annotation.0.type_())))
-    }
-
-    pub fn get_annotations_by_type(
-        &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Vec<PyAnnotation>, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .into_iter()
-            .filter(|annotation| annotation_type.matches(annotation.0.type_()))
-            .collect())
-    }
-
-    pub fn get_annotation(
-        &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Option<PyAnnotation>, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .into_iter()
-            .find(|annotation| annotation_type.matches(annotation.0.type_())))
-    }
-
-    pub fn append_annotation<'py>(
-        &self,
-        py: Python<'py>,
-        annotation: PyAnnotation,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let new_annotations = self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .chain([annotation.0.clone()]);
-        Self::new(py, &GLOBAL_CONTEXT.annotate(&self.inner, new_annotations)?)
-    }
-
-    pub fn append_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let new_annotations = self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .chain(annotations.into_iter().map(|a| a.0));
-        Self::new(py, &GLOBAL_CONTEXT.annotate(&self.inner, new_annotations)?)
-    }
-
-    #[pyo3(signature = (*annotations, remove_annotations = None))]
-    pub fn annotate<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-        remove_annotations: Option<Vec<PyAnnotation>>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let new_annotations = self
-            .annotations()?
-            .iter()
-            .filter(|a| {
-                if let Some(remove_annotations) = &remove_annotations {
-                    !remove_annotations.iter().any(|ra| ra.0 == a.0)
-                } else {
-                    true
-                }
-            })
-            .map(|a| a.0.clone())
-            .chain(annotations.into_iter().map(|a| a.0))
-            .collect();
-        let inner = self
-            .inner
-            .context()
-            .make_string_annotated(self.inner.op().clone(), new_annotations)?;
-        Self::new(py, &inner)
-    }
-
-    pub fn insert_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        Self::new(
-            py,
-            &GLOBAL_CONTEXT.annotate(&self.inner, annotations.into_iter().map(|a| a.0))?,
-        )
-    }
-
-    /// This actually just removes all annotations and adds the new ones.
-    pub fn replace_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_string_annotated(
-            self.inner.op().clone(),
-            annotations.into_iter().map(|a| a.0).collect(),
-        )?;
-        Self::new(py, &inner)
-    }
-
-    pub fn remove_annotation<'py>(
-        &self,
-        py: Python<'py>,
-        annotation: PyAnnotation,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_string_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| **a != annotation.0)
-                .cloned()
-                .collect(),
-        )?;
-        Self::new(py, &inner)
-    }
-
-    pub fn remove_annotations<'py>(
-        &self,
-        py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let annotations_set: BTreeSet<_> = annotations.into_iter().map(|a| a.0).collect();
-        let inner = self.inner.context().make_string_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| !annotations_set.contains(a))
-                .cloned()
-                .collect(),
-        )?;
-        Self::new(py, &inner)
-    }
-
-    pub fn clear_annotations<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_string(self.inner.op().clone())?;
-        Self::new(py, &inner)
-    }
-
-    pub fn clear_annotation_type<'py>(
-        &self,
-        py: Python<'py>,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Bound<'py, Self>, ClaripyError> {
-        let inner = self.inner.context().make_string_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| !annotation_type.matches(a.type_()))
-                .cloned()
-                .collect(),
-        )?;
-        Self::new(py, &inner)
     }
 
     pub fn __add__<'py>(
@@ -446,6 +140,12 @@ impl PyAstString {
         )
     }
 
+    // `Base` defines `__hash__`, but Python makes a class unhashable if it
+    // defines `__eq__` without its own `__hash__`, so it must be repeated here.
+    pub fn __hash__(&self) -> usize {
+        self.inner.hash() as usize
+    }
+
     #[allow(clippy::type_complexity)]
     pub fn __reduce__<'py>(
         &self,
@@ -458,9 +158,15 @@ impl PyAstString {
         ClaripyError,
     > {
         let class = py.get_type::<PyAstString>();
-        let op = self.op();
-        let args = self.args(py)?;
-        let annotations = self.annotations()?;
+        let op = self.inner.to_opstring();
+        let args = self.inner.extract_py_args(py)?;
+        let annotations: Vec<PyAnnotation> = self
+            .inner
+            .annotations()
+            .iter()
+            .cloned()
+            .map(PyAnnotation::from)
+            .collect();
         Ok((class.into_any(), (op, args, annotations)))
     }
 }

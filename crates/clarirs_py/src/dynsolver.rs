@@ -64,8 +64,8 @@ impl DynSolver {
     /// Add a replacement (only supported for Replacement solver)
     pub(crate) fn add_replacement(
         &mut self,
-        old: DynAst<'static>,
-        new: DynAst<'static>,
+        old: AstRef<'static>,
+        new: AstRef<'static>,
     ) -> Result<(), ClarirsError> {
         match self {
             DynSolver::Replacement(solver) => {
@@ -106,7 +106,7 @@ macro_rules! dispatch {
 }
 
 impl Solver<'static> for DynSolver {
-    fn add(&mut self, constraint: &BoolAst<'static>) -> Result<(), ClarirsError> {
+    fn add(&mut self, constraint: &AstRef<'static>) -> Result<(), ClarirsError> {
         dispatch!(self, add, constraint)
     }
 
@@ -114,7 +114,7 @@ impl Solver<'static> for DynSolver {
         dispatch!(self, clear)
     }
 
-    fn constraints(&self) -> Result<Vec<BoolAst<'static>>, ClarirsError> {
+    fn constraints(&self) -> Result<Vec<AstRef<'static>>, ClarirsError> {
         dispatch!(self, constraints)
     }
 
@@ -126,101 +126,43 @@ impl Solver<'static> for DynSolver {
         dispatch!(self, satisfiable)
     }
 
-    fn eval_bool(&mut self, expr: &BoolAst<'static>) -> Result<BoolAst<'static>, ClarirsError> {
-        dispatch!(self, eval_bool, expr)
-    }
-
-    fn eval_bitvec(
-        &mut self,
-        expr: &BitVecAst<'static>,
-    ) -> Result<BitVecAst<'static>, ClarirsError> {
-        dispatch!(self, eval_bitvec, expr)
-    }
-
-    fn eval_float(&mut self, expr: &FloatAst<'static>) -> Result<FloatAst<'static>, ClarirsError> {
-        dispatch!(self, eval_float, expr)
-    }
-
-    fn eval_string(
-        &mut self,
-        expr: &StringAst<'static>,
-    ) -> Result<StringAst<'static>, ClarirsError> {
-        dispatch!(self, eval_string, expr)
-    }
-
-    fn is_true(&mut self, expr: &BoolAst<'static>) -> Result<bool, ClarirsError> {
+    fn is_true(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, is_true, expr)
     }
 
-    fn is_false(&mut self, expr: &BoolAst<'static>) -> Result<bool, ClarirsError> {
+    fn is_false(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, is_false, expr)
     }
 
-    fn has_true(&mut self, expr: &BoolAst<'static>) -> Result<bool, ClarirsError> {
+    fn has_true(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, has_true, expr)
     }
 
-    fn has_false(&mut self, expr: &BoolAst<'static>) -> Result<bool, ClarirsError> {
+    fn has_false(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, has_false, expr)
     }
 
-    fn min_unsigned(
-        &mut self,
-        expr: &BitVecAst<'static>,
-    ) -> Result<BitVecAst<'static>, ClarirsError> {
+    fn min_unsigned(&mut self, expr: &AstRef<'static>) -> Result<AstRef<'static>, ClarirsError> {
         dispatch!(self, min_unsigned, expr)
     }
 
-    fn max_unsigned(
-        &mut self,
-        expr: &BitVecAst<'static>,
-    ) -> Result<BitVecAst<'static>, ClarirsError> {
+    fn max_unsigned(&mut self, expr: &AstRef<'static>) -> Result<AstRef<'static>, ClarirsError> {
         dispatch!(self, max_unsigned, expr)
     }
 
-    fn min_signed(
-        &mut self,
-        expr: &BitVecAst<'static>,
-    ) -> Result<BitVecAst<'static>, ClarirsError> {
+    fn min_signed(&mut self, expr: &AstRef<'static>) -> Result<AstRef<'static>, ClarirsError> {
         dispatch!(self, min_signed, expr)
     }
 
-    fn max_signed(
-        &mut self,
-        expr: &BitVecAst<'static>,
-    ) -> Result<BitVecAst<'static>, ClarirsError> {
+    fn max_signed(&mut self, expr: &AstRef<'static>) -> Result<AstRef<'static>, ClarirsError> {
         dispatch!(self, max_signed, expr)
     }
 
-    fn eval_bool_n(
+    fn eval_n(
         &mut self,
-        expr: &BoolAst<'static>,
+        expr: &AstRef<'static>,
         n: u32,
-    ) -> Result<Vec<BoolAst<'static>>, ClarirsError> {
-        dispatch!(self, eval_bool_n, expr, n)
-    }
-
-    fn eval_bitvec_n(
-        &mut self,
-        expr: &BitVecAst<'static>,
-        n: u32,
-    ) -> Result<Vec<BitVecAst<'static>>, ClarirsError> {
-        dispatch!(self, eval_bitvec_n, expr, n)
-    }
-
-    fn eval_float_n(
-        &mut self,
-        expr: &FloatAst<'static>,
-        n: u32,
-    ) -> Result<Vec<FloatAst<'static>>, ClarirsError> {
-        dispatch!(self, eval_float_n, expr, n)
-    }
-
-    fn eval_string_n(
-        &mut self,
-        expr: &StringAst<'static>,
-        n: u32,
-    ) -> Result<Vec<StringAst<'static>>, ClarirsError> {
-        dispatch!(self, eval_string_n, expr, n)
+    ) -> Result<Vec<AstRef<'static>>, ClarirsError> {
+        dispatch!(self, eval_n, expr, n)
     }
 }

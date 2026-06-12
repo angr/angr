@@ -21,7 +21,7 @@ pub fn reduce<'py>(
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
     if let Ok(bool_expr) = expr.clone().into_any().cast::<Bool>() {
-        let reduced = bool_expr.get().inner.reduce()?;
+        let reduced = bool_expr.get().inner.reduce()?.into_bool()?;
         let result = match reduced {
             ComparisonResult::True => Bool::new(py, &GLOBAL_CONTEXT.true_()?)?,
             ComparisonResult::False => Bool::new(py, &GLOBAL_CONTEXT.false_()?)?,
@@ -34,7 +34,7 @@ pub fn reduce<'py>(
     }
 
     if let Ok(bv_expr) = expr.clone().into_any().cast::<BV>() {
-        let reduced = bv_expr.get().inner.reduce()?;
+        let reduced = bv_expr.get().inner.reduce()?.into_bv()?;
         let result = match reduced {
             StridedInterval::Empty { .. } => bv_expr.clone(),
             StridedInterval::Normal {
@@ -68,7 +68,7 @@ pub fn reduce<'py>(
 #[pyfunction]
 pub fn is_true(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
     Ok(matches!(
-        expr.get().inner.simplify()?.reduce()?,
+        expr.get().inner.simplify()?.reduce()?.into_bool()?,
         ComparisonResult::True
     ))
 }
@@ -77,7 +77,7 @@ pub fn is_true(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
 #[pyfunction]
 pub fn is_false(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
     Ok(matches!(
-        expr.get().inner.simplify()?.reduce()?,
+        expr.get().inner.simplify()?.reduce()?.into_bool()?,
         ComparisonResult::False
     ))
 }
@@ -86,7 +86,7 @@ pub fn is_false(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
 #[pyfunction]
 pub fn has_true(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
     Ok(matches!(
-        expr.get().inner.simplify()?.reduce()?,
+        expr.get().inner.simplify()?.reduce()?.into_bool()?,
         ComparisonResult::True | ComparisonResult::Maybe
     ))
 }
@@ -95,7 +95,7 @@ pub fn has_true(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
 #[pyfunction]
 pub fn has_false(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
     Ok(matches!(
-        expr.get().inner.simplify()?.reduce()?,
+        expr.get().inner.simplify()?.reduce()?.into_bool()?,
         ComparisonResult::False | ComparisonResult::Maybe
     ))
 }
@@ -104,7 +104,7 @@ pub fn has_false(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
 #[pyfunction]
 #[pyo3(signature = (expr, signed = false))]
 pub fn min(expr: Bound<'_, BV>, signed: bool) -> Result<BigInt, ClaripyError> {
-    let si = expr.get().inner.simplify()?.reduce()?;
+    let si = expr.get().inner.simplify()?.reduce()?.into_bv()?;
     if signed {
         let (min_bound, _) = si.get_signed_bounds();
         Ok(min_bound)
@@ -118,7 +118,7 @@ pub fn min(expr: Bound<'_, BV>, signed: bool) -> Result<BigInt, ClaripyError> {
 #[pyfunction]
 #[pyo3(signature = (expr, signed = false))]
 pub fn max(expr: Bound<'_, BV>, signed: bool) -> Result<BigInt, ClaripyError> {
-    let si = expr.get().inner.simplify()?.reduce()?;
+    let si = expr.get().inner.simplify()?.reduce()?.into_bv()?;
     if signed {
         let (_, max_bound) = si.get_signed_bounds();
         Ok(max_bound)
@@ -131,14 +131,14 @@ pub fn max(expr: Bound<'_, BV>, signed: bool) -> Result<BigInt, ClaripyError> {
 /// Evaluate a BV expression via VSA, returning up to `n` concrete values as Python ints.
 #[pyfunction]
 pub fn eval<'py>(expr: Bound<'py, BV>, n: u32) -> Result<Vec<BigUint>, ClaripyError> {
-    let si = expr.get().inner.simplify()?.reduce()?;
+    let si = expr.get().inner.simplify()?.reduce()?.into_bv()?;
     Ok(si.eval(n))
 }
 
 /// Get the cardinality (number of possible concrete values) of a BV expression via VSA.
 #[pyfunction]
 pub fn cardinality(expr: Bound<'_, BV>) -> Result<num_bigint::BigUint, ClaripyError> {
-    let si = expr.get().inner.simplify()?.reduce()?;
+    let si = expr.get().inner.simplify()?.reduce()?.into_bv()?;
     Ok(si.cardinality())
 }
 
@@ -151,8 +151,8 @@ pub fn identical(a: Bound<'_, Base>, b: Bound<'_, Base>) -> Result<bool, Claripy
     if let Ok(a_bv) = a.clone().into_any().cast::<BV>()
         && let Ok(b_bv) = b.clone().into_any().cast::<BV>()
     {
-        let reduced_a = a_bv.get().inner.reduce()?;
-        let reduced_b = b_bv.get().inner.reduce()?;
+        let reduced_a = a_bv.get().inner.reduce()?.into_bv()?;
+        let reduced_b = b_bv.get().inner.reduce()?.into_bv()?;
         return Ok(reduced_a == reduced_b);
     }
 
@@ -160,8 +160,8 @@ pub fn identical(a: Bound<'_, Base>, b: Bound<'_, Base>) -> Result<bool, Claripy
     if let Ok(a_bool) = a.clone().into_any().cast::<Bool>()
         && let Ok(b_bool) = b.clone().into_any().cast::<Bool>()
     {
-        let reduced_a = a_bool.get().inner.reduce()?;
-        let reduced_b = b_bool.get().inner.reduce()?;
+        let reduced_a = a_bool.get().inner.reduce()?.into_bool()?;
+        let reduced_b = b_bool.get().inner.reduce()?.into_bool()?;
         return Ok(reduced_a == reduced_b);
     }
 

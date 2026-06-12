@@ -2966,7 +2966,7 @@ impl StridedInterval {
 
     /// Zero-extend the interval by `extra_bits` additional bits.
     ///
-    /// This matches the semantics of `BitVecOp::ZeroExt(_, amount)` where
+    /// This matches the semantics of `AstOp::ZeroExt(_, amount)` where
     /// `amount` is the number of bits to add, not the total target width.
     pub fn zero_extend(&self, extra_bits: u32) -> Self {
         let new_bits = self.bits() + extra_bits;
@@ -2993,7 +2993,7 @@ impl StridedInterval {
 
     /// Sign-extend the interval by `extra_bits` additional bits.
     ///
-    /// This matches the semantics of `BitVecOp::SignExt(_, amount)` where
+    /// This matches the semantics of `AstOp::SignExt(_, amount)` where
     /// `amount` is the number of bits to add, not the total target width.
     pub fn sign_extend(&self, extra_bits: u32) -> Self {
         let new_bits = self.bits() + extra_bits;

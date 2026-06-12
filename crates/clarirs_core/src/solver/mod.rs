@@ -12,11 +12,11 @@ use crate::prelude::*;
 
 pub trait Solver<'c>: Clone + HasContext<'c> {
     // Constraint management
-    fn add(&mut self, constraint: &BoolAst<'c>) -> Result<(), ClarirsError>;
+    fn add(&mut self, constraint: &AstRef<'c>) -> Result<(), ClarirsError>;
 
     fn clear(&mut self) -> Result<(), ClarirsError>;
 
-    fn constraints(&self) -> Result<Vec<BoolAst<'c>>, ClarirsError>;
+    fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError>;
 
     /// Simplify the constraints held internally by the solver
     fn simplify(&mut self) -> Result<(), ClarirsError>;
@@ -34,80 +34,48 @@ pub trait Solver<'c>: Clone + HasContext<'c> {
     /// Check if the current set of constraints is satisfiable
     fn satisfiable(&mut self) -> Result<bool, ClarirsError>;
 
-    /// Evaluate an expression in the current model.
+    /// Evaluate an expression in the current model. The result has the same
+    /// sort as the input expression.
     ///
     /// If the constraints are unsatisfiable, an error is returned.
-    fn eval_bool(&mut self, expr: &BoolAst<'c>) -> Result<BoolAst<'c>, ClarirsError> {
-        let mut results = self.eval_bool_n(expr, 1)?;
-        results.pop().ok_or(ClarirsError::Unsat)
-    }
-    fn eval_bitvec(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
-        let mut results = self.eval_bitvec_n(expr, 1)?;
-        results.pop().ok_or(ClarirsError::Unsat)
-    }
-    fn eval_float(&mut self, expr: &FloatAst<'c>) -> Result<FloatAst<'c>, ClarirsError> {
-        let mut results = self.eval_float_n(expr, 1)?;
-        results.pop().ok_or(ClarirsError::Unsat)
-    }
-    fn eval_string(&mut self, expr: &StringAst<'c>) -> Result<StringAst<'c>, ClarirsError> {
-        let mut results = self.eval_string_n(expr, 1)?;
+    fn eval(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        let mut results = self.eval_n(expr, 1)?;
         results.pop().ok_or(ClarirsError::Unsat)
     }
 
     /// Check if an expression is true in the current model. If the constraints are unsatisfiable, an
     /// error is returned. Equivalent to `eval(expr) == ctx.true_()`
-    fn is_true(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError>;
+    fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError>;
 
     /// Check if an expression is false in the current model. If the constraints are unsatisfiable, an
     /// error is returned. Equivalent to `eval(expr) == ctx.false_()`
-    fn is_false(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError>;
+    fn is_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError>;
 
     /// Check if an expression could be true in the current model. If the constraints are unsatisfiable, an
     /// error is returned. Equivalent to `eval(expr) == ctx.true_()`
-    fn has_true(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError>;
+    fn has_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError>;
 
     /// Check if an expression could be false in the current model. If the constraints are unsatisfiable, an
     /// error is returned. Equivalent to `eval(expr) == ctx.false_()`
-    fn has_false(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError>;
+    fn has_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError>;
 
     /// Get the minimum value of an expression in the current model, interpreting the bitvector as unsigned.
     /// If the constraints are unsatisfiable, an error is returned.
-    fn min_unsigned(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError>;
+    fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError>;
 
     /// Get the maximum value of an expression in the current model, interpreting the bitvector as unsigned.
     /// If the constraints are unsatisfiable, an error is returned.
-    fn max_unsigned(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError>;
+    fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError>;
 
     /// Get the minimum value of an expression in the current model, interpreting the bitvector as signed.
     /// If the constraints are unsatisfiable, an error is returned.
-    fn min_signed(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError>;
+    fn min_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError>;
 
     /// Get the maximum value of an expression in the current model, interpreting the bitvector as signed.
     /// If the constraints are unsatisfiable, an error is returned.
-    fn max_signed(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError>;
+    fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError>;
 
-    /// Find multiple solutions for a boolean expression
-    fn eval_bool_n(&mut self, expr: &BoolAst<'c>, n: u32)
-    -> Result<Vec<BoolAst<'c>>, ClarirsError>;
-
-    /// Find multiple solutions for a bitvector expression
-    fn eval_bitvec_n(
-        &mut self,
-        expr: &BitVecAst<'c>,
-        n: u32,
-    ) -> Result<Vec<BitVecAst<'c>>, ClarirsError>;
-
-    /// Find multiple solutions for a float expression
-    fn eval_float_n(
-        &mut self,
-        expr: &FloatAst<'c>,
-        n: u32,
-    ) -> Result<Vec<FloatAst<'c>>, ClarirsError>;
-
-    /// Find multiple solutions for a string expression
-    fn eval_string_n(
-        &mut self,
-        expr: &StringAst<'c>,
-        n: u32,
-    ) -> Result<Vec<StringAst<'c>>, ClarirsError>;
+    /// Find up to `n` solutions for an expression. The results have the same
+    /// sort as the input expression.
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError>;
 }

@@ -5,9 +5,9 @@ use crate::prelude::*;
 use super::dfs::{DfsResult, walk_dfs};
 
 #[allow(clippy::mutable_key_type)]
-pub fn collect_vars<'c>(ast: &DynAst<'c>) -> Result<HashSet<DynAst<'c>>, ClarirsError> {
-    let mut vars: HashSet<DynAst<'c>> = HashSet::new();
-    let mut interesting: BTreeSet<InternedString> = ast.variables();
+pub fn collect_vars<'c>(ast: &AstRef<'c>) -> Result<HashSet<AstRef<'c>>, ClarirsError> {
+    let mut vars: HashSet<AstRef<'c>> = HashSet::new();
+    let mut interesting: BTreeSet<InternedString> = ast.variables().clone();
 
     walk_dfs(ast, |node| {
         if interesting.is_empty() {
@@ -54,7 +54,7 @@ mod tests {
             &ctx.bvs("a", 64)?,
             &ctx.mul(&ctx.bvs("b", 64)?, &ctx.bvs("c", 64)?)?,
         )?;
-        let var_ast = DynAst::from(&ast);
+        let var_ast = ast.clone();
 
         let vars = collect_vars(&var_ast)?;
 
@@ -72,7 +72,7 @@ mod tests {
             &ctx.bvs("a", 64)?,
             &ctx.mul(&ctx.bvs("a", 64)?, &ctx.bvs("c", 64)?)?,
         )?;
-        let var_ast = DynAst::from(&ast);
+        let var_ast = ast.clone();
 
         let vars = collect_vars(&var_ast)?;
 

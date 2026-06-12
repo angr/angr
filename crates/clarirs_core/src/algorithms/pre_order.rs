@@ -12,22 +12,22 @@ use crate::prelude::*;
 ///   Receives the original node and the transformed children. Only called when
 ///   `pre_visit` returned `None`.
 ///
-/// Shared subtrees (same `inner_hash`) are only processed once; subsequent
+/// Shared subtrees (same `hash`) are only processed once; subsequent
 /// encounters reuse the cached result.
 pub fn walk_pre_order<'c>(
-    ast: DynAst<'c>,
-    mut pre_visit: impl FnMut(&DynAst<'c>) -> Result<Option<DynAst<'c>>, ClarirsError>,
-    mut post_visit: impl FnMut(DynAst<'c>, &[DynAst<'c>]) -> Result<DynAst<'c>, ClarirsError>,
-) -> Result<DynAst<'c>, ClarirsError> {
+    ast: AstRef<'c>,
+    mut pre_visit: impl FnMut(&AstRef<'c>) -> Result<Option<AstRef<'c>>, ClarirsError>,
+    mut post_visit: impl FnMut(AstRef<'c>, &[AstRef<'c>]) -> Result<AstRef<'c>, ClarirsError>,
+) -> Result<AstRef<'c>, ClarirsError> {
     struct NodeState<'c> {
-        node: DynAst<'c>,
+        node: AstRef<'c>,
         num_children: usize,
-        child_results: Vec<DynAst<'c>>,
+        child_results: Vec<AstRef<'c>>,
     }
 
-    let mut cache: HashMap<u64, DynAst<'c>> = HashMap::default();
+    let mut cache: HashMap<u64, AstRef<'c>> = HashMap::default();
     let mut stack: Vec<NodeState<'c>> = Vec::new();
-    let mut last_result: Option<DynAst<'c>> = None;
+    let mut last_result: Option<AstRef<'c>> = None;
 
     let num_children = ast.child_iter().len();
     stack.push(NodeState {
@@ -46,21 +46,21 @@ pub fn walk_pre_order<'c>(
 
         if children_done == 0 {
             // First visit — check cache, then pre_visit
-            if let Some(cached) = cache.get(&state.node.inner_hash()) {
+            if let Some(cached) = cache.get(&state.node.hash()) {
                 last_result = Some(cached.clone());
                 continue;
             }
 
             match pre_visit(&state.node)? {
                 Some(result) => {
-                    cache.insert(state.node.inner_hash(), result.clone());
+                    cache.insert(state.node.hash(), result.clone());
                     last_result = Some(result);
                     continue;
                 }
                 None if state.num_children == 0 => {
                     // Leaf node — call post_visit immediately
                     let result = post_visit(state.node.clone(), &[])?;
-                    cache.insert(state.node.inner_hash(), result.clone());
+                    cache.insert(state.node.hash(), result.clone());
                     last_result = Some(result);
                     continue;
                 }
@@ -92,7 +92,7 @@ pub fn walk_pre_order<'c>(
         } else {
             // All children done — call post_visit
             let result = post_visit(state.node.clone(), &state.child_results)?;
-            cache.insert(state.node.inner_hash(), result.clone());
+            cache.insert(state.node.hash(), result.clone());
             last_result = Some(result);
         }
     }
@@ -109,9 +109,9 @@ mod tests {
         let ctx = Context::new();
         let x = ctx.bvs("x", 64)?;
 
-        let result = walk_pre_order(DynAst::from(&x), |_| Ok(None), |node, _children| Ok(node))?;
+        let result = walk_pre_order(x.clone(), |_| Ok(None), |node, _children| Ok(node))?;
 
-        assert_eq!(result, DynAst::from(&x));
+        assert_eq!(result, x.clone());
         Ok(())
     }
 
@@ -122,11 +122,11 @@ mod tests {
         let y = ctx.bvs("y", 64)?;
         let add = ctx.add(&x, &y)?;
 
-        let replacement = DynAst::from(&ctx.bvv_prim(99u64)?);
+        let replacement = ctx.bvv_prim(99u64)?.clone();
 
         // Short-circuit the entire tree
         let result = walk_pre_order(
-            DynAst::from(&add),
+            add.clone(),
             |_| Ok(Some(replacement.clone())),
             |_, _| panic!("post_visit should not be called"),
         )?;
@@ -146,7 +146,7 @@ mod tests {
         let mut post_visit_count = 0;
 
         walk_pre_order(
-            DynAst::from(&add),
+            add.clone(),
             |_| {
                 pre_visit_count += 1;
                 Ok(None) // descend into all children
@@ -170,12 +170,12 @@ mod tests {
         let z = ctx.bvs("z", 64)?;
         let add = ctx.add(&x, &y)?;
 
-        let from = DynAst::from(&x);
-        let to = DynAst::from(&z);
+        let from = x.clone();
+        let to = z.clone();
 
         // Replace x with z in add(x, y)
         let result = walk_pre_order(
-            DynAst::from(&add),
+            add.clone(),
             |node| {
                 if *node == from {
                     Ok(Some(to.clone()))
@@ -188,14 +188,14 @@ mod tests {
                     Ok(node)
                 } else {
                     // Rebuild add with new children
-                    let lhs = children[0].clone().into_bitvec().unwrap();
-                    let rhs = children[1].clone().into_bitvec().unwrap();
-                    Ok(DynAst::from(&ctx.add(&lhs, &rhs)?))
+                    let lhs = children[0].clone();
+                    let rhs = children[1].clone();
+                    Ok(ctx.add(&lhs, &rhs)?.clone())
                 }
             },
         )?;
 
-        let expected = DynAst::from(&ctx.add(&z, &y)?);
+        let expected = ctx.add(&z, &y)?.clone();
         assert_eq!(result, expected);
         Ok(())
     }
@@ -213,7 +213,7 @@ mod tests {
         let mut pre_visit_count = 0;
 
         walk_pre_order(
-            DynAst::from(&mul),
+            mul.clone(),
             |_| {
                 pre_visit_count += 1;
                 Ok(None)

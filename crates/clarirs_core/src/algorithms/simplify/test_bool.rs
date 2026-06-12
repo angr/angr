@@ -1,7 +1,6 @@
 use anyhow::Result;
 
 use crate::{
-    algorithms::Simplify,
     ast::{
         AstFactory,
         annotation::{Annotation, AnnotationType},
@@ -33,8 +32,8 @@ fn test_xor_double_negation() -> Result<()> {
     let not_y = ctx.not(&y)?;
 
     // Test: ¬x ⊕ ¬y = x ⊕ y
-    let xor_not_not = ctx.xor(&not_x, &not_y)?.simplify()?;
-    let xor_plain = ctx.xor(&x, &y)?.simplify()?;
+    let xor_not_not = ctx.xor2(&not_x, &not_y)?.simplify()?;
+    let xor_plain = ctx.xor2(&x, &y)?.simplify()?;
     assert_eq!(xor_not_not, xor_plain);
 
     // Verify with concrete values
@@ -43,20 +42,20 @@ fn test_xor_double_negation() -> Result<()> {
 
     // ¬T ⊕ ¬T = F ⊕ F = F, and T ⊕ T = F
     let not_true = ctx.not(&true_ast)?;
-    let result = ctx.xor(&not_true, &not_true)?.simplify()?;
+    let result = ctx.xor2(&not_true, &not_true)?.simplify()?;
     assert_eq!(result, false_ast);
 
     // ¬T ⊕ ¬F = F ⊕ T = T, and T ⊕ F = T
     let not_false = ctx.not(&false_ast)?;
-    let result2 = ctx.xor(&not_true, &not_false)?.simplify()?;
+    let result2 = ctx.xor2(&not_true, &not_false)?.simplify()?;
     assert_eq!(result2, true_ast);
 
     // ¬F ⊕ ¬T = T ⊕ F = T, and F ⊕ T = T
-    let result3 = ctx.xor(&not_false, &not_true)?.simplify()?;
+    let result3 = ctx.xor2(&not_false, &not_true)?.simplify()?;
     assert_eq!(result3, true_ast);
 
     // ¬F ⊕ ¬F = T ⊕ T = F, and F ⊕ F = F
-    let result4 = ctx.xor(&not_false, &not_false)?.simplify()?;
+    let result4 = ctx.xor2(&not_false, &not_false)?.simplify()?;
     assert_eq!(result4, false_ast);
 
     Ok(())
@@ -147,7 +146,7 @@ fn test_xor() -> Result<()> {
 
     for (lhs, rhs, expected) in table {
         assert_eq!(
-            &ctx.xor(lhs, rhs)?.simplify()?,
+            &ctx.xor2(lhs, rhs)?.simplify()?,
             expected,
             "lhs: {lhs:?}, rhs: {rhs:?}"
         );
@@ -476,10 +475,10 @@ fn test_boolean_identity_simplifications() -> Result<()> {
     assert_eq!(simplified, ctx.true_()?);
 
     // x ^ !x == true
-    let simplified = ctx.xor(&x, &not_x)?.simplify()?;
+    let simplified = ctx.xor2(&x, &not_x)?.simplify()?;
     assert_eq!(simplified, ctx.true_()?);
 
-    let simplified = ctx.xor(&not_x, &x)?.simplify()?;
+    let simplified = ctx.xor2(&not_x, &x)?.simplify()?;
     assert_eq!(simplified, ctx.true_()?);
 
     Ok(())
@@ -497,7 +496,7 @@ fn test_booleq_identity_simplification_without_floats() -> Result<()> {
     let simplified = eq_check.simplify()?;
 
     assert!(
-        matches!(simplified.op(), crate::ast::bool::BooleanOp::BoolV(true)),
+        matches!(simplified.op(), crate::ast::AstOp::BoolV(true)),
         "BoolEq(x, x) should simplify to true when no floats are involved, got: {:?}",
         simplified.op()
     );
@@ -519,7 +518,7 @@ fn test_booleq_identity_simplification_with_floats() -> Result<()> {
     let simplified = eq_check.simplify()?;
 
     assert!(
-        matches!(simplified.op(), crate::ast::bool::BooleanOp::BoolV(true)),
+        matches!(simplified.op(), crate::ast::AstOp::BoolV(true)),
         "BoolEq(x, x) should simplify to true even when floats are involved, got: {:?}",
         simplified.op()
     );

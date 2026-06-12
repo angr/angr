@@ -1,126 +1,65 @@
-use crate::prelude::*;
+use std::sync::Arc;
 
-use super::walk_post_order;
+use crate::{
+    algorithms::{reconstruct::reconstruct_node, walk_post_order},
+    ast::op::AstOp,
+    prelude::*,
+};
 
-fn extract_bool_child<'c>(
-    children: &[DynAst<'c>],
-    index: usize,
-) -> Result<BoolAst<'c>, ClarirsError> {
-    children
-        .get(index)
-        .and_then(|child| child.clone().into_bool())
-        .ok_or(ClarirsError::InvalidArguments(format!(
-            "missing or invalid bool child at index {index}"
-        )))
-}
-
-fn extract_bitvec_child<'c>(
-    children: &[DynAst<'c>],
-    index: usize,
-) -> Result<BitVecAst<'c>, ClarirsError> {
-    children
-        .get(index)
-        .and_then(|child| child.clone().into_bitvec())
-        .ok_or(ClarirsError::InvalidArguments(format!(
-            "missing or invalid bitvec child at index {index}"
-        )))
-}
-
-fn extract_float_child<'c>(
-    children: &[DynAst<'c>],
-    index: usize,
-) -> Result<FloatAst<'c>, ClarirsError> {
-    children
-        .get(index)
-        .and_then(|child| child.clone().into_float())
-        .ok_or(ClarirsError::InvalidArguments(format!(
-            "missing or invalid float child at index {index}"
-        )))
-}
-
-fn extract_string_child<'c>(
-    children: &[DynAst<'c>],
-    index: usize,
-) -> Result<StringAst<'c>, ClarirsError> {
-    children
-        .get(index)
-        .and_then(|child| child.clone().into_string())
-        .ok_or(ClarirsError::InvalidArguments(format!(
-            "missing or invalid string child at index {index}"
-        )))
-}
-
-/// Trait for excavating if-then-else expressions to the top level of an AST.
-///
-/// This transformation takes an AST containing nested ITE expressions and returns
-/// an equivalent AST where the ITE expressions have been "excavated" (moved up) to the top level.
-///
-/// For example, if we have an expression like: `a + (if cond then b else c)`
-///
-/// After excavation, it would become: `if cond then (a + b) else (a + c)``
-pub trait ExcavateIte<'c>: Sized {
-    /// Transforms the AST by moving ITE expressions to the top level.
+impl<'c> AstNode<'c> {
+    /// Excavates if-then-else expressions to the top level of the AST.
     ///
-    /// Returns a new AST that is semantically equivalent to the original,
-    /// but with ITE expressions moved to the top level where possible.
-    fn excavate_ite(&self) -> Result<Self, ClarirsError>;
-}
-
-impl<'c> ExcavateIte<'c> for DynAst<'c> {
-    fn excavate_ite(&self) -> Result<Self, ClarirsError> {
+    /// Returns a semantically equivalent AST where nested ITE expressions have
+    /// been "excavated" (moved up) to the top level where possible. For
+    /// example, `a + (if cond then b else c)` becomes
+    /// `if cond then (a + b) else (a + c)`.
+    pub fn excavate_ite(self: &Arc<Self>) -> Result<AstRef<'c>, ClarirsError> {
         walk_post_order(
             self.clone(),
-            |node, children| match node {
-                DynAst::Boolean(ast) => bool::excavate_ite(&ast, children).map(DynAst::Boolean),
-                DynAst::BitVec(ast) => bitvec::excavate_ite(&ast, children).map(DynAst::BitVec),
-                DynAst::Float(ast) => float::excavate_ite(&ast, children).map(DynAst::Float),
-                DynAst::String(ast) => string::excavate_ite(&ast, children).map(DynAst::String),
-            },
+            |node, children| excavate_node(&node, children),
             &self.context().excavate_ite_cache,
         )
     }
 }
 
-impl<'c> ExcavateIte<'c> for BoolAst<'c> {
-    fn excavate_ite(&self) -> Result<Self, ClarirsError> {
-        DynAst::Boolean(self.clone())
-            .excavate_ite()?
-            .into_bool()
-            .ok_or(ClarirsError::TypeError("Expected BoolAst".to_string()))
+/// Hoists `ITE`s out of a single node whose children have already been
+/// excavated. Because every operation now shares one op enum and children are
+/// rebuilt uniformly via [`reconstruct_node`], the per-sort distribution rules
+/// (`op(.., ITE(c, t, e), ..) -> ITE(c, op(.., t, ..), op(.., e, ..))`) collapse
+/// into this single routine.
+///
+/// An `ITE` is already in excavated form, so its branches are left in place;
+/// for any other op we distribute over its first `ITE` child and recurse to
+/// hoist any remaining ones, yielding the fully expanded decision tree.
+fn excavate_node<'c>(
+    ast: &AstRef<'c>,
+    children: &[AstRef<'c>],
+) -> Result<AstRef<'c>, ClarirsError> {
+    let ctx = ast.context();
+
+    if matches!(ast.op(), AstOp::ITE(..)) {
+        return reconstruct_node(ctx, ast, children);
+    }
+
+    match children
+        .iter()
+        .position(|c| matches!(c.op(), AstOp::ITE(..)))
+    {
+        Some(idx) => {
+            let (cond, then_, else_) = match children[idx].op() {
+                AstOp::ITE(cond, then_, else_) => (cond.clone(), then_.clone(), else_.clone()),
+                _ => unreachable!(),
+            };
+            let mut branch = children.to_vec();
+            branch[idx] = then_;
+            let then_branch = excavate_node(ast, &branch)?;
+            branch[idx] = else_;
+            let else_branch = excavate_node(ast, &branch)?;
+            ctx.ite(cond, then_branch, else_branch)
+        }
+        None => reconstruct_node(ctx, ast, children),
     }
 }
-
-impl<'c> ExcavateIte<'c> for BitVecAst<'c> {
-    fn excavate_ite(&self) -> Result<Self, ClarirsError> {
-        DynAst::BitVec(self.clone())
-            .excavate_ite()?
-            .into_bitvec()
-            .ok_or(ClarirsError::TypeError("Expected BvAst".to_string()))
-    }
-}
-
-impl<'c> ExcavateIte<'c> for FloatAst<'c> {
-    fn excavate_ite(&self) -> Result<Self, ClarirsError> {
-        DynAst::Float(self.clone())
-            .excavate_ite()?
-            .into_float()
-            .ok_or(ClarirsError::TypeError("Expected FloatAst".to_string()))
-    }
-}
-
-impl<'c> ExcavateIte<'c> for StringAst<'c> {
-    fn excavate_ite(&self) -> Result<Self, ClarirsError> {
-        DynAst::String(self.clone())
-            .excavate_ite()?
-            .into_string()
-            .ok_or(ClarirsError::TypeError("Expected StringAst".to_string()))
-    }
-}
-
-mod bitvec;
-mod bool;
-mod float;
-mod string;
 
 #[cfg(test)]
 mod tests;

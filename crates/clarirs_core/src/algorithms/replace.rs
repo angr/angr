@@ -1,41 +1,26 @@
 use std::collections::HashMap;
-use std::mem::discriminant;
+use std::sync::Arc;
 
 use crate::{
     algorithms::{pre_order::walk_pre_order, reconstruct::reconstruct_node},
-    ast::{bitvec::BitVecOpExt, float::FloatOpExt},
     prelude::*,
 };
 
-pub trait Replace<'c>: Sized {
-    fn replace<T: Clone + Into<DynAst<'c>>>(&self, from: &T, to: &T) -> Result<Self, ClarirsError>;
-    fn replace_many(&self, replacements: &HashMap<u64, DynAst<'c>>) -> Result<Self, ClarirsError>;
-}
-
-impl<'c> Replace<'c> for DynAst<'c> {
-    fn replace<T: Clone + Into<DynAst<'c>>>(&self, from: &T, to: &T) -> Result<Self, ClarirsError> {
+impl<'c> AstNode<'c> {
+    /// Replaces every occurrence of `from` in this AST with `to`.
+    pub fn replace<T: Clone + Into<AstRef<'c>>>(
+        self: &Arc<Self>,
+        from: &T,
+        to: &T,
+    ) -> Result<AstRef<'c>, ClarirsError> {
         let from = from.clone().into();
         let to = to.clone().into();
 
-        if discriminant(&from) != discriminant(&to) {
+        // The replacement must preserve the sort, including bitvector width
+        // and float format; comparing the cached types covers all of that.
+        if from.ast_type() != to.ast_type() {
             return Err(ClarirsError::TypeError(
                 "Replace types must match!".to_string(),
-            ));
-        }
-        if let Some(from_bv) = from.as_bitvec()
-            && let Some(to_bv) = to.as_bitvec()
-            && from_bv.size() != to_bv.size()
-        {
-            return Err(ClarirsError::TypeError(
-                "BitVec sizes must match for replacement!".to_string(),
-            ));
-        }
-        if let Some(from_fp) = from.as_float()
-            && let Some(to_fp) = to.as_float()
-            && from_fp.sort() != to_fp.sort()
-        {
-            return Err(ClarirsError::TypeError(
-                "Float sorts must match for replacement!".to_string(),
             ));
         }
 
@@ -53,7 +38,11 @@ impl<'c> Replace<'c> for DynAst<'c> {
         )
     }
 
-    fn replace_many(&self, replacements: &HashMap<u64, DynAst<'c>>) -> Result<Self, ClarirsError> {
+    /// Replaces subtrees by hash, using the given hash-to-replacement map.
+    pub fn replace_many(
+        self: &Arc<Self>,
+        replacements: &HashMap<u64, AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
         if replacements.is_empty() {
             return Ok(self.clone());
         }
@@ -62,7 +51,7 @@ impl<'c> Replace<'c> for DynAst<'c> {
         walk_pre_order(
             self.clone(),
             |node| {
-                if let Some(replacement) = replacements.get(&node.inner_hash()) {
+                if let Some(replacement) = replacements.get(&node.hash()) {
                     Ok(Some(replacement.clone()))
                 } else {
                     Ok(None)
@@ -72,41 +61,3 @@ impl<'c> Replace<'c> for DynAst<'c> {
         )
     }
 }
-
-macro_rules! impl_replace_for_ast {
-    ($ast_type:ident, $variant:ident, $into_method:ident, $label:expr) => {
-        impl<'c> Replace<'c> for $ast_type<'c> {
-            fn replace<T: Clone + Into<DynAst<'c>>>(
-                &self,
-                from: &T,
-                to: &T,
-            ) -> Result<Self, ClarirsError> {
-                DynAst::$variant(self.clone())
-                    .replace(from, to)
-                    .and_then(|replaced| {
-                        replaced.$into_method().ok_or(ClarirsError::TypeError(
-                            concat!("Expected ", $label, " after replacement").to_string(),
-                        ))
-                    })
-            }
-
-            fn replace_many(
-                &self,
-                replacements: &HashMap<u64, DynAst<'c>>,
-            ) -> Result<Self, ClarirsError> {
-                DynAst::$variant(self.clone())
-                    .replace_many(replacements)
-                    .and_then(|replaced| {
-                        replaced.$into_method().ok_or(ClarirsError::TypeError(
-                            concat!("Expected ", $label, " after replacement").to_string(),
-                        ))
-                    })
-            }
-        }
-    };
-}
-
-impl_replace_for_ast!(BoolAst, Boolean, into_bool, "Boolean");
-impl_replace_for_ast!(BitVecAst, BitVec, into_bitvec, "BitVec");
-impl_replace_for_ast!(FloatAst, Float, into_float, "Float");
-impl_replace_for_ast!(StringAst, String, into_string, "String");

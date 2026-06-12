@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub fn find_variable<'c>(ast: DynAst<'c>, name: &InternedString) -> Option<DynAst<'c>> {
+pub fn find_variable<'c>(ast: AstRef<'c>, name: &InternedString) -> Option<AstRef<'c>> {
     if !ast.variables().contains(name) {
         return None;
     }
@@ -32,7 +32,7 @@ mod tests {
         let x_name = ctx.intern_string("x");
         let result = find_variable(x.clone().into(), &x_name);
         assert!(result.is_some());
-        assert_eq!(&result.unwrap().variables(), x.variables());
+        assert_eq!(result.unwrap().variables(), x.variables());
         Ok(())
     }
 

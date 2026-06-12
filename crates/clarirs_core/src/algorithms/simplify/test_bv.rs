@@ -1,4 +1,4 @@
-use crate::{ast::bitvec::BitVecOpExt, prelude::*};
+use crate::prelude::*;
 use anyhow::Result;
 use smallvec::SmallVec;
 
@@ -389,7 +389,7 @@ fn test_and() -> Result<()> {
         let b = ctx.bvv_prim(b).unwrap();
         let expected = ctx.bvv_prim(expected).unwrap();
 
-        let result = ctx.bv_and(&a, &b)?.simplify()?;
+        let result = ctx.and2(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
     }
 
@@ -422,7 +422,7 @@ fn test_or() -> Result<()> {
         let b = ctx.bvv_prim(b).unwrap();
         let expected = ctx.bvv_prim(expected).unwrap();
 
-        let result = ctx.bv_or(&a, &b)?.simplify()?;
+        let result = ctx.or2(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
     }
 
@@ -455,7 +455,7 @@ fn test_xor() -> Result<()> {
         let b = ctx.bvv_prim(b).unwrap();
         let expected = ctx.bvv_prim(expected).unwrap();
 
-        let result = ctx.bv_xor(&a, &b)?.simplify()?;
+        let result = ctx.xor2(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
     }
 
@@ -942,43 +942,43 @@ fn test_identity_simplifications() -> anyhow::Result<()> {
     let all_ones = ctx.bvv_prim(u64::MAX)?;
 
     // AND identities
-    let simplified = ctx.bv_and(&x, &zero)?.simplify()?;
+    let simplified = ctx.and2(&x, &zero)?.simplify()?;
     assert_eq!(simplified, zero);
 
-    let simplified = ctx.bv_and(&zero, &x)?.simplify()?;
+    let simplified = ctx.and2(&zero, &x)?.simplify()?;
     assert_eq!(simplified, zero);
 
-    let simplified = ctx.bv_and(&x, &all_ones)?.simplify()?;
+    let simplified = ctx.and2(&x, &all_ones)?.simplify()?;
     assert_eq!(simplified, x);
 
-    let simplified = ctx.bv_and(&all_ones, &x)?.simplify()?;
+    let simplified = ctx.and2(&all_ones, &x)?.simplify()?;
     assert_eq!(simplified, x);
 
     // OR identities
-    let simplified = ctx.bv_or(&x, &zero)?.simplify()?;
+    let simplified = ctx.or2(&x, &zero)?.simplify()?;
     assert_eq!(simplified, x);
 
-    let simplified = ctx.bv_or(&zero, &x)?.simplify()?;
+    let simplified = ctx.or2(&zero, &x)?.simplify()?;
     assert_eq!(simplified, x);
 
-    let simplified = ctx.bv_or(&x, &all_ones)?.simplify()?;
+    let simplified = ctx.or2(&x, &all_ones)?.simplify()?;
     assert_eq!(simplified, all_ones);
 
-    let simplified = ctx.bv_or(&all_ones, &x)?.simplify()?;
+    let simplified = ctx.or2(&all_ones, &x)?.simplify()?;
     assert_eq!(simplified, all_ones);
 
     // XOR identities
-    let simplified = ctx.bv_xor(&x, &zero)?.simplify()?;
+    let simplified = ctx.xor2(&x, &zero)?.simplify()?;
     assert_eq!(simplified, x);
 
-    let simplified = ctx.bv_xor(&zero, &x)?.simplify()?;
+    let simplified = ctx.xor2(&zero, &x)?.simplify()?;
     assert_eq!(simplified, x);
 
-    let simplified = ctx.bv_xor(&x, &all_ones)?.simplify()?;
+    let simplified = ctx.xor2(&x, &all_ones)?.simplify()?;
     let not_x = ctx.not(&x)?.simplify()?;
     assert_eq!(simplified, not_x);
 
-    let simplified = ctx.bv_xor(&all_ones, &x)?.simplify()?;
+    let simplified = ctx.xor2(&all_ones, &x)?.simplify()?;
     assert_eq!(simplified, not_x);
 
     // ADD identities
@@ -1029,17 +1029,17 @@ fn test_bitvec_not_identities() -> Result<()> {
     let all_ones = ctx.bvv_prim(u64::MAX)?;
 
     // x & ¬x = 0
-    let simplified = ctx.bv_and(&x, &not_x)?.simplify()?;
+    let simplified = ctx.and2(&x, &not_x)?.simplify()?;
     assert_eq!(simplified, zero);
 
-    let simplified = ctx.bv_and(&not_x, &x)?.simplify()?;
+    let simplified = ctx.and2(&not_x, &x)?.simplify()?;
     assert_eq!(simplified, zero);
 
     // x | ¬x = -1 (all ones)
-    let simplified = ctx.bv_or(&x, &not_x)?.simplify()?;
+    let simplified = ctx.or2(&x, &not_x)?.simplify()?;
     assert_eq!(simplified, all_ones);
 
-    let simplified = ctx.bv_or(&not_x, &x)?.simplify()?;
+    let simplified = ctx.or2(&not_x, &x)?.simplify()?;
     assert_eq!(simplified, all_ones);
 
     Ok(())

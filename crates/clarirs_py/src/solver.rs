@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use crate::ast::{and, or};
 use crate::{dynsolver::DynSolver, prelude::*};
-use clarirs_core::ast::bitvec::BitVecOpExt;
 use clarirs_core::solver::HybridSolver;
 use clarirs_core::solver_mixins::{ConcreteEarlyResolutionMixin, SimplificationMixin};
 use clarirs_vsa::VSASolver;
@@ -332,7 +331,7 @@ impl PySolver {
         self.with_extra_constraints(extra_constraints, exact, |solver| {
             // Get multiple solutions based on expression type
             if let Ok(bv_value) = expr.clone().into_any().cast::<BV>() {
-                let solutions = solver.eval_bitvec_n(&bv_value.get().inner, n)?;
+                let solutions = solver.eval_n(&bv_value.get().inner, n)?;
                 let py_solutions = solutions
                     .into_iter()
                     .map(|sol| BV::new(py, &sol))
@@ -342,7 +341,7 @@ impl PySolver {
                     .map(|sol| sol.into_any().cast::<Base>().unwrap().clone())
                     .collect())
             } else if let Ok(bool_value) = expr.clone().into_any().cast::<Bool>() {
-                let solutions = solver.eval_bool_n(&bool_value.get().inner, n)?;
+                let solutions = solver.eval_n(&bool_value.get().inner, n)?;
                 let py_solutions = solutions
                     .into_iter()
                     .map(|sol| Bool::new(py, &sol))
@@ -352,7 +351,7 @@ impl PySolver {
                     .map(|sol| sol.into_any().cast::<Base>().unwrap().clone())
                     .collect())
             } else if let Ok(fp_value) = expr.clone().into_any().cast::<FP>() {
-                let solutions = solver.eval_float_n(&fp_value.get().inner, n)?;
+                let solutions = solver.eval_n(&fp_value.get().inner, n)?;
                 let py_solutions = solutions
                     .into_iter()
                     .map(|sol| FP::new(py, &sol))
@@ -362,7 +361,7 @@ impl PySolver {
                     .map(|sol| sol.into_any().cast::<Base>().unwrap().clone())
                     .collect())
             } else if let Ok(string_value) = expr.clone().into_any().cast::<PyAstString>() {
-                let solutions = solver.eval_string_n(&string_value.get().inner, n)?;
+                let solutions = solver.eval_n(&string_value.get().inner, n)?;
                 let py_solutions = solutions
                     .into_iter()
                     .map(|sol| PyAstString::new(py, &sol))
@@ -391,25 +390,25 @@ impl PySolver {
                 .into_iter()
                 .filter_map(|r| {
                     if let Ok(bv_value) = r.clone().into_any().cast::<BV>() {
-                        if let BitVecOp::BVV(bv) = bv_value.get().inner.op() {
+                        if let AstOp::BVV(bv) = bv_value.get().inner.op() {
                             Some(bv.to_biguint().into_bound_py_any(py))
                         } else {
                             None
                         }
                     } else if let Ok(bool_value) = r.clone().into_any().cast::<Bool>() {
-                        if let BooleanOp::BoolV(b) = bool_value.get().inner.op() {
+                        if let AstOp::BoolV(b) = bool_value.get().inner.op() {
                             Some(b.into_bound_py_any(py))
                         } else {
                             None
                         }
                     } else if let Ok(fp_value) = r.clone().into_any().cast::<FP>() {
-                        if let FloatOp::FPV(fp) = fp_value.get().inner.op() {
+                        if let AstOp::FPV(fp) = fp_value.get().inner.op() {
                             fp.to_f64().map(|f| f.into_bound_py_any(py))
                         } else {
                             None
                         }
                     } else if let Ok(string_value) = r.clone().into_any().cast::<PyAstString>() {
-                        if let StringOp::StringV(s) = string_value.get().inner.op() {
+                        if let AstOp::StringV(s) = string_value.get().inner.op() {
                             Some(s.into_bound_py_any(py))
                         } else {
                             None
@@ -541,12 +540,12 @@ impl PySolver {
             // Handle different expression types
             if let Ok(bool_expr) = expr.cast::<Bool>() {
                 match bool_expr.get().inner.op() {
-                    BooleanOp::BoolV(b) => Ok(*b),
+                    AstOp::BoolV(b) => Ok(*b),
                     _ => Ok(solver.is_true(&bool_expr.get().inner)?),
                 }
             } else if let Ok(bv_expr) = expr.cast::<BV>() {
                 // For bitvectors, check if it's concrete and non-zero
-                if let BitVecOp::BVV(bv) = bv_expr.get().inner.op() {
+                if let AstOp::BVV(bv) = bv_expr.get().inner.op() {
                     Ok(!bv.is_zero())
                 } else {
                     // For symbolic BVs, check if it can be non-zero
@@ -587,7 +586,7 @@ impl PySolver {
                 Ok(solver.is_false(&bool_expr.get().inner)?)
             } else if let Ok(bv_expr) = expr.cast::<BV>() {
                 // For bitvectors, check if it's concrete and zero
-                if let BitVecOp::BVV(bv) = bv_expr.get().inner.op() {
+                if let AstOp::BVV(bv) = bv_expr.get().inner.op() {
                     Ok(bv.is_zero())
                 } else {
                     // For symbolic BVs, check if it must be zero
@@ -647,7 +646,7 @@ impl PySolver {
                 solver.min_unsigned(&expr.get().inner)?
             };
 
-            if let BitVecOp::BVV(bv) = result.op() {
+            if let AstOp::BVV(bv) = result.op() {
                 Ok(BigInt::from(bv.to_biguint()))
             } else {
                 Err(ClaripyError::TypeError(
@@ -673,7 +672,7 @@ impl PySolver {
                 solver.max_unsigned(&expr.get().inner)?
             };
 
-            if let BitVecOp::BVV(bv) = result.op() {
+            if let AstOp::BVV(bv) = result.op() {
                 Ok(BigInt::from(bv.to_biguint()))
             } else {
                 Err(ClaripyError::TypeError(
@@ -691,8 +690,8 @@ impl PySolver {
         old: Bound<'py, Base>,
         new: Bound<'py, Base>,
     ) -> Result<(), ClaripyError> {
-        let old_dyn = Base::to_dynast(old)?;
-        let new_dyn = Base::to_dynast(new)?;
+        let old_dyn = Base::to_ast(old)?;
+        let new_dyn = Base::to_ast(new)?;
         self.inner.add_replacement(old_dyn, new_dyn)?;
         Ok(())
     }

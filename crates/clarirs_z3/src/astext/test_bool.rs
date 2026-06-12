@@ -4,8 +4,8 @@ use clarirs_z3_sys as z3;
 use super::AstExtZ3;
 use crate::{Z3_CONTEXT, rc::RcAst};
 
-fn round_trip<'c>(ctx: &'c Context<'c>, ast: &BoolAst<'c>) -> Result<BoolAst<'c>, ClarirsError> {
-    BoolAst::from_z3(ctx, ast.to_z3()?)
+fn round_trip<'c>(ctx: &'c Context<'c>, ast: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+    AstRef::from_z3(ctx, ast.to_z3()?)
 }
 
 // ---------------------------------------------------------------
@@ -117,7 +117,7 @@ mod to_z3 {
         let ctx = Context::new();
         let x = ctx.bools("x").unwrap();
         let y = ctx.bools("y").unwrap();
-        let xor = ctx.xor(x, y).unwrap();
+        let xor = ctx.xor2(x, y).unwrap();
         let z3_ast = xor.to_z3().unwrap();
 
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Xor);
@@ -287,7 +287,10 @@ mod to_z3 {
         let b = ctx.fps("b", FSort::f32()).unwrap();
         let r = ctx.fp_neq(a, b).unwrap();
         let z3_ast = r.to_z3().unwrap();
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Distinct);
+        // IEEE inequality lowers to not(fp.eq), not object-level `distinct`
+        // (under which NaN would equal itself and +0 would differ from -0).
+        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Not);
+        assert_eq!(z3_ast.arg(0).unwrap().decl_kind(), z3::DeclKind::FpaEq);
     }
 
     #[test]
@@ -413,7 +416,7 @@ mod from_z3 {
     fn symbol() {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bool("x");
-        let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+        let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
         assert_eq!(result, ctx.bools("x").unwrap());
     }
 
@@ -422,7 +425,7 @@ mod from_z3 {
         let ctx = Context::new();
         Z3_CONTEXT.with(|z3_ctx| unsafe {
             let z3_ast = RcAst::try_from(z3::mk_true(*z3_ctx)).unwrap();
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             assert_eq!(result, ctx.true_().unwrap());
         });
     }
@@ -432,7 +435,7 @@ mod from_z3 {
         let ctx = Context::new();
         Z3_CONTEXT.with(|z3_ctx| unsafe {
             let z3_ast = RcAst::try_from(z3::mk_false(*z3_ctx)).unwrap();
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             assert_eq!(result, ctx.false_().unwrap());
         });
     }
@@ -446,7 +449,7 @@ mod from_z3 {
             let x = RcAst::mk_bool("x");
             let not_z3 = RcAst::try_from(z3::mk_not(*z3_ctx, *x)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, not_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, not_z3).unwrap();
             let expected = ctx.not(ctx.bools("x").unwrap()).unwrap();
             assert_eq!(result, expected);
         });
@@ -461,7 +464,7 @@ mod from_z3 {
             let args = [*x, *y];
             let and_z3 = RcAst::try_from(z3::mk_and(*z3_ctx, 2, args.as_ptr())).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, and_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, and_z3).unwrap();
             let expected = ctx
                 .and2(ctx.bools("x").unwrap(), ctx.bools("y").unwrap())
                 .unwrap();
@@ -478,7 +481,7 @@ mod from_z3 {
             let args = [*x, *y];
             let or_z3 = RcAst::try_from(z3::mk_or(*z3_ctx, 2, args.as_ptr())).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, or_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, or_z3).unwrap();
             let expected = ctx
                 .or2(ctx.bools("x").unwrap(), ctx.bools("y").unwrap())
                 .unwrap();
@@ -494,9 +497,9 @@ mod from_z3 {
             let y = RcAst::mk_bool("y");
             let xor_z3 = RcAst::try_from(z3::mk_xor(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, xor_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, xor_z3).unwrap();
             let expected = ctx
-                .xor(ctx.bools("x").unwrap(), ctx.bools("y").unwrap())
+                .xor2(ctx.bools("x").unwrap(), ctx.bools("y").unwrap())
                 .unwrap();
             assert_eq!(result, expected);
         });
@@ -510,7 +513,7 @@ mod from_z3 {
             let y = RcAst::mk_bool("y");
             let eq_z3 = RcAst::try_from(z3::mk_eq(*z3_ctx, *x, *y)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, eq_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, eq_z3).unwrap();
             let expected = ctx
                 .eq_(ctx.bools("x").unwrap(), ctx.bools("y").unwrap())
                 .unwrap();
@@ -527,7 +530,7 @@ mod from_z3 {
             let args = [*x, *y];
             let neq_z3 = RcAst::try_from(z3::mk_distinct(*z3_ctx, 2, args.as_ptr())).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, neq_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, neq_z3).unwrap();
             let expected = ctx
                 .neq(ctx.bools("x").unwrap(), ctx.bools("y").unwrap())
                 .unwrap();
@@ -544,7 +547,7 @@ mod from_z3 {
             let e = RcAst::try_from(z3::mk_false(*z3_ctx)).unwrap();
             let ite_z3 = RcAst::try_from(z3::mk_ite(*z3_ctx, *c, *t, *e)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, ite_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, ite_z3).unwrap();
             let expected = ctx
                 .ite(
                     ctx.bools("c").unwrap(),
@@ -566,7 +569,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let eq_z3 = RcAst::try_from(z3::mk_eq(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, eq_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, eq_z3).unwrap();
             let expected = ctx
                 .eq_(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -583,7 +586,7 @@ mod from_z3 {
             let args = [*a, *b];
             let neq_z3 = RcAst::try_from(z3::mk_distinct(*z3_ctx, 2, args.as_ptr())).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, neq_z3).unwrap();
+            let result = AstRef::from_z3(&ctx, neq_z3).unwrap();
             let expected = ctx
                 .neq(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -599,7 +602,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvult(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .ult(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -615,7 +618,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvule(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .ule(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -631,7 +634,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvugt(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .ugt(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -647,7 +650,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvuge(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .uge(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -663,7 +666,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvslt(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .slt(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -679,7 +682,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvsle(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .sle(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -695,7 +698,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvsgt(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .sgt(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -711,7 +714,7 @@ mod from_z3 {
             let b = RcAst::mk_bv("b", 32);
             let z3_ast = RcAst::try_from(z3::mk_bvsge(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .sge(ctx.bvs("a", 32).unwrap(), ctx.bvs("b", 32).unwrap())
                 .unwrap();
@@ -729,7 +732,7 @@ mod from_z3 {
             let b = RcAst::mk_fp("b", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_eq(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .fp_eq(
                     ctx.fps("a", FSort::f32()).unwrap(),
@@ -749,7 +752,7 @@ mod from_z3 {
             let args = [*a, *b];
             let z3_ast = RcAst::try_from(z3::mk_distinct(*z3_ctx, 2, args.as_ptr())).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .neq(
                     ctx.fps("a", FSort::f32()).unwrap(),
@@ -768,7 +771,7 @@ mod from_z3 {
             let b = RcAst::mk_fp("b", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_lt(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .fp_lt(
                     ctx.fps("a", FSort::f32()).unwrap(),
@@ -787,7 +790,7 @@ mod from_z3 {
             let b = RcAst::mk_fp("b", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_leq(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .fp_leq(
                     ctx.fps("a", FSort::f32()).unwrap(),
@@ -806,7 +809,7 @@ mod from_z3 {
             let b = RcAst::mk_fp("b", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_gt(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .fp_gt(
                     ctx.fps("a", FSort::f32()).unwrap(),
@@ -825,7 +828,7 @@ mod from_z3 {
             let b = RcAst::mk_fp("b", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_geq(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .fp_geq(
                     ctx.fps("a", FSort::f32()).unwrap(),
@@ -843,7 +846,7 @@ mod from_z3 {
             let a = RcAst::mk_fp("a", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_is_nan(*z3_ctx, *a)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.fp_is_nan(ctx.fps("a", FSort::f32()).unwrap()).unwrap();
             assert_eq!(result, expected);
         });
@@ -856,7 +859,7 @@ mod from_z3 {
             let a = RcAst::mk_fp("a", FSort::f32());
             let z3_ast = RcAst::try_from(z3::mk_fpa_is_infinite(*z3_ctx, *a)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx.fp_is_inf(ctx.fps("a", FSort::f32()).unwrap()).unwrap();
             assert_eq!(result, expected);
         });
@@ -872,7 +875,7 @@ mod from_z3 {
             let b = RcAst::mk_string("b");
             let z3_ast = RcAst::try_from(z3::mk_seq_contains(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .str_contains(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
                 .unwrap();
@@ -888,7 +891,7 @@ mod from_z3 {
             let b = RcAst::mk_string("b");
             let z3_ast = RcAst::try_from(z3::mk_seq_prefix(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .str_prefix_of(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
                 .unwrap();
@@ -904,7 +907,7 @@ mod from_z3 {
             let b = RcAst::mk_string("b");
             let z3_ast = RcAst::try_from(z3::mk_seq_suffix(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .str_suffix_of(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
                 .unwrap();
@@ -920,7 +923,7 @@ mod from_z3 {
             let b = RcAst::mk_string("b");
             let z3_ast = RcAst::try_from(z3::mk_eq(*z3_ctx, *a, *b)).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .eq_(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
                 .unwrap();
@@ -937,7 +940,7 @@ mod from_z3 {
             let args = [*a, *b];
             let z3_ast = RcAst::try_from(z3::mk_distinct(*z3_ctx, 2, args.as_ptr())).unwrap();
 
-            let result = BoolAst::from_z3(&ctx, z3_ast).unwrap();
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .neq(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
                 .unwrap();
@@ -1030,7 +1033,7 @@ mod roundtrip {
         let ctx = Context::new();
         let x = ctx.bools("x").unwrap();
         let y = ctx.bools("y").unwrap();
-        let ast = ctx.xor(x, y).unwrap();
+        let ast = ctx.xor2(x, y).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 

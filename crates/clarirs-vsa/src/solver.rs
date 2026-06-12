@@ -1,4 +1,4 @@
-use clarirs_core::{ast::bitvec::BitVecOpExt, prelude::*};
+use clarirs_core::prelude::*;
 use num_traits::Signed;
 
 use crate::{reduce::Reduce, strided_interval::ComparisonResult};
@@ -23,7 +23,7 @@ impl<'c> HasContext<'c> for VSASolver<'c> {
 }
 
 impl<'c> Solver<'c> for VSASolver<'c> {
-    fn add(&mut self, _: &BoolAst<'c>) -> Result<(), ClarirsError> {
+    fn add(&mut self, _: &AstRef<'c>) -> Result<(), ClarirsError> {
         Ok(())
     }
 
@@ -31,7 +31,7 @@ impl<'c> Solver<'c> for VSASolver<'c> {
         Ok(())
     }
 
-    fn constraints(&self) -> Result<Vec<BoolAst<'c>>, ClarirsError> {
+    fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         Ok(vec![])
     }
 
@@ -43,106 +43,85 @@ impl<'c> Solver<'c> for VSASolver<'c> {
         Ok(true)
     }
 
-    fn eval_bool_n(
-        &mut self,
-        expr: &BoolAst<'c>,
-        n: u32,
-    ) -> Result<Vec<BoolAst<'c>>, ClarirsError> {
-        expr.simplify()?
-            .reduce()
-            .and_then(|comp_result| match comp_result {
-                ComparisonResult::True => Ok(vec![self.context().boolv(true)?]),
-                ComparisonResult::False => Ok(vec![self.context().boolv(false)?]),
-                ComparisonResult::Maybe => match n {
-                    0 => Ok(vec![]),
-                    1 => Ok(vec![self.context().boolv(true)?]),
-                    _ => Ok(vec![
-                        self.context().boolv(true)?,
-                        self.context().boolv(false)?,
-                    ]),
-                },
-            })
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        match expr.ast_type() {
+            AstType::Bool => expr
+                .simplify()?
+                .reduce()?
+                .into_bool()
+                .and_then(|comp_result| match comp_result {
+                    ComparisonResult::True => Ok(vec![self.context().boolv(true)?]),
+                    ComparisonResult::False => Ok(vec![self.context().boolv(false)?]),
+                    ComparisonResult::Maybe => match n {
+                        0 => Ok(vec![]),
+                        1 => Ok(vec![self.context().boolv(true)?]),
+                        _ => Ok(vec![
+                            self.context().boolv(true)?,
+                            self.context().boolv(false)?,
+                        ]),
+                    },
+                }),
+            AstType::BitVec(_) => expr.simplify()?.reduce()?.into_bv().and_then(|si| {
+                if si.is_empty() {
+                    return Ok(vec![]);
+                }
+                si.eval(n)
+                    .into_iter()
+                    .map(|bv| self.context().bvv_from_biguint_with_size(&bv, expr.size()))
+                    .collect()
+            }),
+            AstType::Float(_) | AstType::String => Err(ClarirsError::UnsupportedOperation(
+                "Only boolean and bitvector evaluation is supported in VSASolver".to_string(),
+            )),
+        }
     }
 
-    fn eval_bitvec_n(
-        &mut self,
-        expr: &BitVecAst<'c>,
-        n: u32,
-    ) -> Result<Vec<BitVecAst<'c>>, ClarirsError> {
-        expr.simplify()?.reduce().and_then(|si| {
-            if si.is_empty() {
-                return Ok(vec![]);
-            }
-            si.eval(n)
-                .into_iter()
-                .map(|bv| self.context().bvv_from_biguint_with_size(&bv, expr.size()))
-                .collect()
-        })
-    }
-
-    fn eval_float_n(
-        &mut self,
-        _expr: &FloatAst<'c>,
-        _n: u32,
-    ) -> Result<Vec<FloatAst<'c>>, ClarirsError> {
-        Err(ClarirsError::UnsupportedOperation(
-            "Floating-point evaluation is not supported in VSASolver".to_string(),
-        ))
-    }
-
-    fn eval_string_n(
-        &mut self,
-        _expr: &StringAst<'c>,
-        _n: u32,
-    ) -> Result<Vec<StringAst<'c>>, ClarirsError> {
-        Err(ClarirsError::UnsupportedOperation(
-            "String evaluation is not supported in VSASolver".to_string(),
-        ))
-    }
-
-    fn is_true(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
-        Ok(matches!(expr.simplify()?.reduce()?, ComparisonResult::True))
-    }
-
-    fn is_false(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         Ok(matches!(
-            expr.simplify()?.reduce()?,
+            expr.simplify()?.reduce()?.into_bool()?,
+            ComparisonResult::True
+        ))
+    }
+
+    fn is_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
+        Ok(matches!(
+            expr.simplify()?.reduce()?.into_bool()?,
             ComparisonResult::False
         ))
     }
 
-    fn has_true(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn has_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         Ok(matches!(
-            expr.simplify()?.reduce()?,
+            expr.simplify()?.reduce()?.into_bool()?,
             ComparisonResult::True | ComparisonResult::Maybe
         ))
     }
 
-    fn has_false(&mut self, expr: &BoolAst<'c>) -> Result<bool, ClarirsError> {
+    fn has_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         Ok(matches!(
-            expr.simplify()?.reduce()?,
+            expr.simplify()?.reduce()?.into_bool()?,
             ComparisonResult::False | ComparisonResult::Maybe
         ))
     }
 
-    fn min_unsigned(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
-        expr.simplify()?.reduce().and_then(|si| {
+    fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        expr.simplify()?.reduce()?.into_bv().and_then(|si| {
             let (min_bound, _) = si.get_unsigned_bounds();
             expr.context()
                 .bvv_from_biguint_with_size(&min_bound, expr.size())
         })
     }
 
-    fn max_unsigned(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
-        expr.simplify()?.reduce().and_then(|si| {
+    fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        expr.simplify()?.reduce()?.into_bv().and_then(|si| {
             let (_, max_bound) = si.get_unsigned_bounds();
             expr.context()
                 .bvv_from_biguint_with_size(&max_bound, expr.size())
         })
     }
 
-    fn min_signed(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
-        expr.simplify()?.reduce().and_then(|si| {
+    fn min_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        expr.simplify()?.reduce()?.into_bv().and_then(|si| {
             let (min_bound, _) = si.get_signed_bounds();
             // Convert BigInt back to unsigned representation for two's complement
             let unsigned_min = if min_bound.is_negative() {
@@ -157,8 +136,8 @@ impl<'c> Solver<'c> for VSASolver<'c> {
         })
     }
 
-    fn max_signed(&mut self, expr: &BitVecAst<'c>) -> Result<BitVecAst<'c>, ClarirsError> {
-        expr.simplify()?.reduce().and_then(|si| {
+    fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        expr.simplify()?.reduce()?.into_bv().and_then(|si| {
             let (_, max_bound) = si.get_signed_bounds();
             // Convert BigInt back to unsigned representation for two's complement
             let unsigned_max = if max_bound.is_negative() {

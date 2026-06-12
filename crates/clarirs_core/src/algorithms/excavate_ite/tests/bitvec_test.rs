@@ -1,4 +1,4 @@
-use crate::{algorithms::ExcavateIte, prelude::*};
+use crate::prelude::*;
 
 #[test]
 fn test_bitvec_not_with_ite() {

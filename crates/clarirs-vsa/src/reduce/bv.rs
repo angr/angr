@@ -26,13 +26,13 @@ fn child_si(children: &[ReduceResult], index: usize) -> Result<StridedInterval, 
     }
 }
 
-/// Reduce a BitVecAst to a StridedInterval
+/// Reduce a AstRef to a StridedInterval
 pub(crate) fn reduce_bv(
-    ast: &BitVecAst<'_>,
+    ast: &AstRef<'_>,
     children: &[ReduceResult],
 ) -> Result<StridedInterval, ClarirsError> {
     Ok(match ast.op() {
-        BitVecOp::BVS(_, bits) => {
+        AstOp::BVS(_, bits) => {
             // If there is an SI or ESI annotation, use it. Otherwise, return top.
             ast.annotations()
                 .iter()
@@ -57,30 +57,28 @@ pub(crate) fn reduce_bv(
                 })
                 .unwrap_or_else(|| StridedInterval::top(*bits))
         }
-        BitVecOp::BVV(bv) => StridedInterval::constant(bv.len(), bv.to_biguint()),
-        BitVecOp::Not(..) => child_si(children, 0)?.bitnot(),
-        BitVecOp::And(..) => child_si(children, 0)?.bitand(&child_si(children, 1)?),
-        BitVecOp::Or(..) => child_si(children, 0)?.bitor(&child_si(children, 1)?),
-        BitVecOp::Xor(..) => child_si(children, 0)?.bitxor(&child_si(children, 1)?),
-        BitVecOp::Neg(..) => child_si(children, 0)?.neg(),
-        BitVecOp::Add(..) => child_si(children, 0)?.add(&child_si(children, 1)?),
-        BitVecOp::Sub(..) => child_si(children, 0)?.sub(&child_si(children, 1)?),
-        BitVecOp::Mul(..) => child_si(children, 0)?.mul(&child_si(children, 1)?),
-        BitVecOp::UDiv(..) => child_si(children, 0)?.udiv(&child_si(children, 1)?)?,
-        BitVecOp::SDiv(..) => child_si(children, 0)?.sdiv(&child_si(children, 1)?)?,
-        BitVecOp::URem(..) => child_si(children, 0)?.urem(&child_si(children, 1)?)?,
-        BitVecOp::SRem(..) => child_si(children, 0)?.srem(&child_si(children, 1)?)?,
-        BitVecOp::ShL(..) => child_si(children, 0)?.shl(&child_si(children, 1)?)?,
-        BitVecOp::LShR(..) => child_si(children, 0)?.lshr(&child_si(children, 1)?)?,
-        BitVecOp::AShR(..) => child_si(children, 0)?.ashr(&child_si(children, 1)?)?,
-        BitVecOp::RotateLeft(..) => child_si(children, 0)?.rotate_left(&child_si(children, 1)?)?,
-        BitVecOp::RotateRight(..) => {
-            child_si(children, 0)?.rotate_right(&child_si(children, 1)?)?
-        }
-        BitVecOp::ZeroExt(_, amount) => child_si(children, 0)?.zero_extend(*amount),
-        BitVecOp::SignExt(_, amount) => child_si(children, 0)?.sign_extend(*amount),
-        BitVecOp::Extract(_, high, low) => child_si(children, 0)?.extract(*high, *low),
-        BitVecOp::Concat(args) => {
+        AstOp::BVV(bv) => StridedInterval::constant(bv.len(), bv.to_biguint()),
+        AstOp::Not(..) => child_si(children, 0)?.bitnot(),
+        AstOp::And(..) => child_si(children, 0)?.bitand(&child_si(children, 1)?),
+        AstOp::Or(..) => child_si(children, 0)?.bitor(&child_si(children, 1)?),
+        AstOp::Xor(..) => child_si(children, 0)?.bitxor(&child_si(children, 1)?),
+        AstOp::Neg(..) => child_si(children, 0)?.neg(),
+        AstOp::Add(..) => child_si(children, 0)?.add(&child_si(children, 1)?),
+        AstOp::Sub(..) => child_si(children, 0)?.sub(&child_si(children, 1)?),
+        AstOp::Mul(..) => child_si(children, 0)?.mul(&child_si(children, 1)?),
+        AstOp::UDiv(..) => child_si(children, 0)?.udiv(&child_si(children, 1)?)?,
+        AstOp::SDiv(..) => child_si(children, 0)?.sdiv(&child_si(children, 1)?)?,
+        AstOp::URem(..) => child_si(children, 0)?.urem(&child_si(children, 1)?)?,
+        AstOp::SRem(..) => child_si(children, 0)?.srem(&child_si(children, 1)?)?,
+        AstOp::ShL(..) => child_si(children, 0)?.shl(&child_si(children, 1)?)?,
+        AstOp::LShR(..) => child_si(children, 0)?.lshr(&child_si(children, 1)?)?,
+        AstOp::AShR(..) => child_si(children, 0)?.ashr(&child_si(children, 1)?)?,
+        AstOp::RotateLeft(..) => child_si(children, 0)?.rotate_left(&child_si(children, 1)?)?,
+        AstOp::RotateRight(..) => child_si(children, 0)?.rotate_right(&child_si(children, 1)?)?,
+        AstOp::ZeroExt(_, amount) => child_si(children, 0)?.zero_extend(*amount),
+        AstOp::SignExt(_, amount) => child_si(children, 0)?.sign_extend(*amount),
+        AstOp::Extract(_, high, low) => child_si(children, 0)?.extract(*high, *low),
+        AstOp::Concat(args) => {
             // Fold over all children with concat
             let mut result = child_si(children, 0)?;
             for i in 1..args.len() {
@@ -88,24 +86,25 @@ pub(crate) fn reduce_bv(
             }
             result
         }
-        BitVecOp::ByteReverse(..) => child_si(children, 0)?.reverse_bytes()?,
-        BitVecOp::FpToIEEEBV(..) | BitVecOp::FpToUBV(..) | BitVecOp::FpToSBV(..) => {
+        AstOp::ByteReverse(..) => child_si(children, 0)?.reverse_bytes()?,
+        AstOp::FpToIEEEBV(..) | AstOp::FpToUBV(..) | AstOp::FpToSBV(..) => {
             return Err(ClarirsError::UnsupportedOperation(
                 "Floating point operations are not supported".to_string(),
             ));
         }
-        BitVecOp::StrLen(..) | BitVecOp::StrIndexOf(..) | BitVecOp::StrToBV(..) => {
+        AstOp::StrLen(..) | AstOp::StrIndexOf(..) | AstOp::StrToBV(..) => {
             return Err(ClarirsError::UnsupportedOperation(
                 "String operations are not supported".to_string(),
             ));
         }
-        BitVecOp::ITE(..) => match child(children, 0)? {
+        AstOp::ITE(..) => match child(children, 0)? {
             ComparisonResult::True => child_si(children, 1)?,
             ComparisonResult::False => child_si(children, 2)?,
             ComparisonResult::Maybe => child_si(children, 1)?.union(&child_si(children, 2)?),
         },
-        BitVecOp::Union(..) => child_si(children, 0)?.union(&child_si(children, 1)?),
-        BitVecOp::Intersection(..) => child_si(children, 0)?.intersection(&child_si(children, 1)?),
-        BitVecOp::Widen(..) => child_si(children, 0)?.widen(&child_si(children, 1)?),
+        AstOp::Union(..) => child_si(children, 0)?.union(&child_si(children, 1)?),
+        AstOp::Intersection(..) => child_si(children, 0)?.intersection(&child_si(children, 1)?),
+        AstOp::Widen(..) => child_si(children, 0)?.widen(&child_si(children, 1)?),
+        _ => unreachable!("non-bitvector op dispatched to reduce_bv"),
     })
 }

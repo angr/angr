@@ -1,4 +1,4 @@
-use crate::{algorithms::ExcavateIte, prelude::*};
+use crate::prelude::*;
 
 #[test]
 fn test_bool_not_with_ite() {
@@ -89,11 +89,11 @@ fn test_bool_xor_with_ite() {
 
     // Create expression: d ^ (if c then a else b)
     let ite = ctx.ite(&c, &a, &b).unwrap();
-    let expr = ctx.xor(&d, &ite).unwrap();
+    let expr = ctx.xor2(&d, &ite).unwrap();
 
     // Expected result: if c then (d ^ a) else (d ^ b)
-    let d_xor_a = ctx.xor(&d, &a).unwrap();
-    let d_xor_b = ctx.xor(&d, &b).unwrap();
+    let d_xor_a = ctx.xor2(&d, &a).unwrap();
+    let d_xor_b = ctx.xor2(&d, &b).unwrap();
     let expected = ctx.ite(&c, &d_xor_a, &d_xor_b).unwrap();
 
     // Excavate ITEs
