@@ -362,7 +362,20 @@ class Outliner(Analysis):
         if seen2 - seen:
             raise AngrOutlinerMultiEntranceError("Request for outlining function with multiple entrances")
 
-        subgraph = self.parent_graph.subgraph(seen2).copy()
+        # might be some additional nodes we need to include if the head of the child is the head of a loop
+        queue = set(seen2)
+        seen3 = set(seen2)
+        while queue:
+            node = queue.pop()
+            if (node.addr, node.idx) in frontier or (node.addr, node.idx) == self.src_loc:
+                continue
+            for succ in self.parent_graph.succ[node]:
+                if succ in seen3:
+                    continue
+                queue.add(succ)
+                seen3.add(succ)
+
+        subgraph = self.parent_graph.subgraph(seen3).copy()
 
         # normalize the frontier, making it so that we only use an inclusive node if we reach the end of the function
         for loc in list(frontier):
