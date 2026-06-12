@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import BinaryOp, Const, Convert, Insert
+from angr.ailment.utils import is_lsb_overwrite
 
 from .base import PeepholeOptimizationExprBase
 
@@ -161,7 +162,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             expr.from_type == expr.to_type == Convert.TYPE_INT
             and isinstance(operand_expr, Insert)
             and self.project is not None
-            and operand_expr.is_lsb_overwrite()
+            and is_lsb_overwrite(operand_expr)
             and expr.bits <= operand_expr.value.bits
         ):
             if expr.bits == operand_expr.value.bits:

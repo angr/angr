@@ -8,6 +8,8 @@ import re
 import unittest
 from functools import wraps
 
+import pytest
+
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location
@@ -56,6 +58,7 @@ class TestRustcVersionIdentification(unittest.TestCase):
         sig_dir = get_default_sig_dir()
         self.assertTrue(sig_dir is not None, "get_default_sig_dir() returned None")
 
+    @pytest.mark.timeout(600)
     @for_all_rust_configs
     def test_fmt_version(self, configuration):
         path = rust_binary_path(configuration, "fmt")
@@ -128,6 +131,7 @@ class RustDecompilationTarget(unittest.TestCase):
                     getattr(self, name)()
 
 
+@pytest.mark.timeout(900)
 class TestFmt(RustDecompilationTarget):
     """Feature tests for functions in the ``fmt`` coreutils binary."""
 

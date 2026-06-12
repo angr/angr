@@ -6,11 +6,15 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any, cast
 
+from angr.rustylib.ailment import Expression as _PhaseDExpression
+from angr.rustylib.ailment import Statement as _PhaseDStatement
+
 from . import Block
 from .expression import (
     ITE,
     Array,
     Atom,
+    BasePointerOffset,
     BinaryOp,
     Call,
     ComboRegister,
@@ -21,12 +25,15 @@ from .expression import (
     Extract,
     FunctionLikeMacro,
     Insert,
+    Let,
     Load,
+    Macro,
     MultiStatementExpression,
     Phi,
     Register,
     Reinterpret,
     RustEnum,
+    StackBaseOffset,
     StringLiteral,
     Struct,
     Tmp,
@@ -40,6 +47,8 @@ from .statement import (
     ConditionalJump,
     DirtyStatement,
     Jump,
+    Label,
+    NoOp,
     Return,
     SideEffectStatement,
     Statement,
@@ -84,6 +93,103 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
     FunctionLikeMacro,
     StringLiteral,
 }
+
+_PHASE_D_FAT_ENUMS = (_PhaseDExpression, _PhaseDStatement)
+
+
+def _dispatch_key(obj):
+    """Resolve a handler-dict key for ``obj``.
+
+    Phase D: every AIL Expression/Statement is the universal ``Expression``
+    or ``Statement`` pyclass; ``type(obj)`` returns the same class for all
+    variants and dispatch keyed on per-class types breaks. The fat-enum
+    surfaces the variant tag as ``obj.kind`` (a string), and this module's
+    marker classes are stored in the handler dict keyed by class; we map
+    ``kind`` -> marker class via the per-class ``_kinds``/``_kind`` attrs.
+
+    For legacy (pre-Phase-D) instances that don't expose ``kind``, fall
+    back to ``type(obj)`` for backward compatibility.
+    """
+    # Fast path: Phase-D fat-enum instances are the overwhelming majority
+    # of dispatches (~4M / decompile on ``doit``). Dispatch on the
+    # cached ``pykind`` (a ``Py<int>``) instead of ``kind`` (a fresh
+    # ``ExpressionKind`` / ``StatementKind`` pyclass per access).
+    # Expression / Statement integer tag spaces overlap (both start at
+    # 0), so route through per-side tables.
+    if isinstance(obj, _PhaseDExpression):
+        return _EXPR_KIND_TO_MARKER.get(obj.pykind, type(obj))
+    if isinstance(obj, _PhaseDStatement):
+        return _STMT_KIND_TO_MARKER.get(obj.pykind, type(obj))
+    # Slow path: legacy (non-Phase-D) instances may not expose ``kind``.
+    kind = getattr(obj, "kind", None)
+    if kind is None:
+        return type(obj)
+    return _KIND_TO_MARKER.get(kind, type(obj))
+
+
+# Build per-side lookups ``kind -> marker class``. Expression and
+# Statement integer tag spaces overlap (both start at 0) so the dicts
+# can't be merged when keyed on ``ExpressionKind`` / ``StatementKind``
+# values (or their integer aliases via ``pykind``). The combined
+# ``_KIND_TO_MARKER`` is preserved for the legacy non-Phase-D slow path.
+_EXPR_MARKERS = (
+    Const,
+    Tmp,
+    Register,
+    ComboRegister,
+    VirtualVariable,
+    Phi,
+    UnaryOp,
+    BinaryOp,
+    Convert,
+    Reinterpret,
+    Load,
+    ITE,
+    Extract,
+    Insert,
+    Call,
+    DirtyExpression,
+    VEXCCallExpression,
+    MultiStatementExpression,
+    StringLiteral,
+    Struct,
+    RustEnum,
+    Array,
+    Let,
+    Macro,
+    FunctionLikeMacro,
+    BasePointerOffset,
+    StackBaseOffset,
+)
+_STMT_MARKERS = (
+    Assignment,
+    WeakAssignment,
+    Store,
+    Jump,
+    ConditionalJump,
+    SideEffectStatement,
+    Return,
+    CAS,
+    DirtyStatement,
+    Label,
+    NoOp,
+)
+_EXPR_KIND_TO_MARKER: dict = {}
+_STMT_KIND_TO_MARKER: dict = {}
+_KIND_TO_MARKER: dict = {}
+for _marker in _EXPR_MARKERS:
+    _kind_attr = _marker.__dict__.get("_kind")
+    if _kind_attr is not None:
+        _EXPR_KIND_TO_MARKER.setdefault(_kind_attr, _marker)
+        _KIND_TO_MARKER.setdefault(_kind_attr, _marker)
+for _marker in _STMT_MARKERS:
+    _kind_attr = _marker.__dict__.get("_kind")
+    if _kind_attr is not None:
+        _STMT_KIND_TO_MARKER.setdefault(_kind_attr, _marker)
+        # _KIND_TO_MARKER may have an EK collision here -- skip if so.
+        if _kind_attr not in _KIND_TO_MARKER:
+            _KIND_TO_MARKER.setdefault(_kind_attr, _marker)
+del _marker, _kind_attr
 
 
 class AILBlockWalker[ExprType, StmtType, BlockType]:
@@ -167,11 +273,11 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> StmtType:
         handlers = self._stmt_handlers
         if handlers is None:
-            func = self._default_stmt_funcs.get(type(stmt))
+            func = self._default_stmt_funcs.get(_dispatch_key(stmt))
             if func is None:
                 return self._stmt_top(stmt_idx, stmt, block)
             return func(self, stmt_idx, stmt, block)
-        handler = handlers.get(type(stmt))
+        handler = handlers.get(_dispatch_key(stmt))
         if handler is None:
             return self._stmt_top(stmt_idx, stmt, block)
         return handler(stmt_idx, stmt, block)
@@ -181,11 +287,11 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     ) -> ExprType:
         handlers = self._expr_handlers
         if handlers is None:
-            func = self._default_expr_funcs.get(type(expr))
+            func = self._default_expr_funcs.get(_dispatch_key(expr))
             if func is None:
                 return self._top(expr_idx, expr, stmt_idx, stmt, block)
             return func(self, expr_idx, expr, stmt_idx, stmt, block)
-        handler = handlers.get(type(expr))
+        handler = handlers.get(_dispatch_key(expr))
         if handler is None:
             return self._top(expr_idx, expr, stmt_idx, stmt, block)
         return handler(expr_idx, expr, stmt_idx, stmt, block)
@@ -279,8 +385,10 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
+        # Phase D: ``expr.operands`` mints fresh wrappers per access; cache.
+        ops = expr.operands
+        self._handle_expr(0, ops[0], stmt_idx, stmt, block)
+        self._handle_expr(1, ops[1], stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_UnaryOp(
@@ -494,8 +602,10 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
+        # Phase D: ``expr.operands`` mints fresh wrappers per access; cache.
+        ops = expr.operands
+        self._handle_expr(0, ops[0], stmt_idx, stmt, block)
+        self._handle_expr(1, ops[1], stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
@@ -641,10 +751,10 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
         assert isinstance(dst, Atom)
-        changed = dst is not stmt.dst
+        changed = dst != stmt.dst
 
         src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        changed |= src is not stmt.src
+        changed |= src != stmt.src
 
         if changed:
             return Assignment(stmt.idx, dst, src, **stmt.tags)
@@ -653,10 +763,10 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_WeakAssignment(self, stmt_idx: int, stmt: WeakAssignment, block: Block | None) -> Statement:
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
         assert isinstance(dst, Atom)
-        changed = dst is not stmt.dst
+        changed = dst != stmt.dst
 
         src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        changed |= src is not stmt.src
+        changed |= src != stmt.src
 
         if changed:
             return WeakAssignment(stmt.idx, dst, src, **stmt.tags)
@@ -664,33 +774,33 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
     def _handle_CAS(self, stmt_idx: int, stmt: CAS, block: Block | None) -> Statement:
         addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
-        changed = addr is not stmt.addr
+        changed = addr != stmt.addr
 
         data_lo = self._handle_expr(1, stmt.data_lo, stmt_idx, stmt, block)
-        changed |= data_lo is not stmt.data_lo
+        changed |= data_lo != stmt.data_lo
 
         data_hi = None
         if stmt.data_hi is not None:
             data_hi = self._handle_expr(2, stmt.data_hi, stmt_idx, stmt, block)
-            changed |= data_hi is not stmt.data_hi
+            changed |= data_hi != stmt.data_hi
 
         expd_lo = self._handle_expr(3, stmt.expd_lo, stmt_idx, stmt, block)
-        changed |= expd_lo is not stmt.expd_lo
+        changed |= expd_lo != stmt.expd_lo
 
         expd_hi = None
         if stmt.expd_hi is not None:
             expd_hi = self._handle_expr(4, stmt.expd_hi, stmt_idx, stmt, block)
-            changed |= expd_hi is not stmt.expd_hi
+            changed |= expd_hi != stmt.expd_hi
 
         old_lo = self._handle_expr(5, stmt.old_lo, stmt_idx, stmt, block)
         assert isinstance(old_lo, Atom)
-        changed |= old_lo is not stmt.old_lo
+        changed |= old_lo != stmt.old_lo
 
         old_hi = None
         if stmt.old_hi is not None:
             old_hi = self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
             assert isinstance(old_hi, Atom)
-            changed |= old_hi is not stmt.old_hi
+            changed |= old_hi != stmt.old_hi
 
         if changed:
             return CAS(
@@ -709,16 +819,23 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> Statement:
         new_expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
-        changed = new_expr is not stmt.expr
+        changed = new_expr != stmt.expr
 
         new_ret_expr = None
         if stmt.ret_expr is not None:
             new_ret_expr = self._handle_expr(-1, stmt.ret_expr, stmt_idx, stmt, block)
-            if new_ret_expr is not None and new_ret_expr is not stmt.ret_expr:
+            if new_ret_expr is not None and new_ret_expr != stmt.ret_expr:
                 changed = True
 
         if changed:
-            side_effect_expr: Call = new_expr if isinstance(new_expr, Call) else stmt.expr
+            # ``FunctionLikeMacro`` is included because it is a Call-shaped
+            # expression that may legitimately replace a Call inside a
+            # SideEffectStatement (e.g. format_macro_simplifier rewrites
+            # ``stmt.expr`` from a Call to ``format!(...)``). Before the
+            # ailment Rust flatten, FunctionLikeMacro inherited from Call
+            # via the pyclass hierarchy and matched ``isinstance(_, Call)``
+            # automatically; after the flatten the union must be explicit.
+            side_effect_expr: Call = new_expr if isinstance(new_expr, (Call, FunctionLikeMacro)) else stmt.expr
             return SideEffectStatement(
                 stmt.idx,
                 side_effect_expr,
@@ -730,13 +847,13 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None) -> Statement:
         addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
-        changed = addr is not stmt.addr
+        changed = addr != stmt.addr
 
         data = self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
-        changed |= data is not stmt.data
+        changed |= data != stmt.data
 
         guard = None if stmt.guard is None else self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
-        changed |= guard is not stmt.guard
+        changed |= guard != stmt.guard
 
         if changed:
             return Store(
@@ -752,7 +869,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
     def _handle_Jump(self, stmt_idx: int, stmt: Jump, block: Block | None) -> Statement:
         target = self._handle_expr(0, stmt.target, stmt_idx, stmt, block)
-        changed = target is not stmt.target
+        changed = target != stmt.target
 
         if changed:
             return Jump(
@@ -765,17 +882,17 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None) -> Statement:
         condition = self._handle_expr(0, stmt.condition, stmt_idx, stmt, block)
-        changed = condition is not stmt.condition
+        changed = condition != stmt.condition
 
         true_target = None
         if stmt.true_target is not None:
             true_target = self._handle_expr(1, stmt.true_target, stmt_idx, stmt, block)
-            changed |= true_target is not stmt.true_target
+            changed |= true_target != stmt.true_target
 
         false_target = None
         if stmt.false_target is not None:
             false_target = self._handle_expr(2, stmt.false_target, stmt_idx, stmt, block)
-            changed |= false_target is not stmt.false_target
+            changed |= false_target != stmt.false_target
 
         if changed:
             return ConditionalJump(
@@ -803,7 +920,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_DirtyStatement(self, stmt_idx: int, stmt: DirtyStatement, block: Block | None) -> Statement:
         dirty = self._handle_expr(0, stmt.dirty, stmt_idx, stmt, block)
         assert isinstance(dirty, DirtyExpression)
-        changed = dirty is not stmt.dirty
+        changed = dirty != stmt.dirty
 
         if changed:
             return DirtyStatement(stmt.idx, dirty, **stmt.tags)
@@ -813,11 +930,21 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     # Expression handlers
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        # reach a fixed point
-        while True:
+        # Reach a fixed point. Handlers return the input ``expr`` Python
+        # object when nothing changed (legacy convention), so ``is`` is
+        # the right termination check. Phase D adds the wrinkle that
+        # ``expr.X`` accessors mint fresh wrappers each time, so handlers
+        # that compare ``new_X != expr.X`` for ``changed`` may produce
+        # a structurally-equal-but-different-identity replacement even
+        # when no rewrite happened. Cap the iteration at a few rounds and
+        # fall back to a structural ``likes`` check to avoid infinite
+        # loops in that corner case.
+        for _ in range(8):
             result = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
             if result is expr:
-                break
+                return expr
+            if isinstance(result, Expression) and isinstance(expr, Expression) and result.likes(expr):
+                return result
             expr = result
         return expr
 
@@ -825,7 +952,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         addr = self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
-        changed = addr is not expr.addr
+        changed = addr != expr.addr
 
         if changed:
             new_expr = expr.copy()
@@ -859,16 +986,20 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     ) -> Expression:
         changed = False
 
-        if isinstance(expr.target, str):
-            new_target = expr.target
+        # Phase D: cache slot accessors -- ``expr.target`` and ``expr.args``
+        # each mint fresh wrapper objects per call.
+        target_in = expr.target
+        if isinstance(target_in, str):
+            new_target = target_in
         else:
-            new_target = self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
-            changed |= new_target is not expr.target
+            new_target = self._handle_expr(-1, target_in, stmt_idx, stmt, block)
+            changed |= new_target != target_in
 
+        args_in = expr.args
         new_args = None
-        if expr.args is not None:
-            new_args = [self._handle_expr(idx, arg, stmt_idx, stmt, block) for idx, arg in enumerate(expr.args)]
-            changed |= any(old is not new for new, old in zip(new_args, expr.args))
+        if args_in is not None:
+            new_args = [self._handle_expr(idx, arg, stmt_idx, stmt, block) for idx, arg in enumerate(args_in)]
+            changed |= any(old is not new for new, old in zip(new_args, args_in))
 
         if changed:
             expr = expr.copy()
@@ -880,11 +1011,16 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        operand_0 = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        changed = operand_0 is not expr.operands[0]
+        # Phase D: ``expr.operands`` mints a fresh 2-tuple of fresh wrappers
+        # per access; cache once so the recurse + compare pair costs one
+        # allocation instead of four.
+        ops = expr.operands
+        op0_in, op1_in = ops[0], ops[1]
+        operand_0 = self._handle_expr(0, op0_in, stmt_idx, stmt, block)
+        changed = operand_0 != op0_in
 
-        operand_1 = self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
-        changed |= operand_1 is not expr.operands[1]
+        operand_1 = self._handle_expr(1, op1_in, stmt_idx, stmt, block)
+        changed |= operand_1 != op1_in
 
         if changed:
             new_expr = expr.copy()
@@ -898,7 +1034,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operand = self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
-        changed = new_operand is not expr.operand
+        changed = new_operand != expr.operand
 
         if changed:
             new_expr = expr.copy()
@@ -910,7 +1046,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
-        changed = new_operand is not expr.operand
+        changed = new_operand != expr.operand
 
         if changed:
             return Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **expr.tags)
@@ -920,7 +1056,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
-        changed = new_operand is not expr.operand
+        changed = new_operand != expr.operand
 
         if changed:
             return Reinterpret(
@@ -932,13 +1068,13 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         cond = self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
-        changed = cond is not expr.cond
+        changed = cond != expr.cond
 
         iftrue = self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
-        changed |= iftrue is not expr.iftrue
+        changed |= iftrue != expr.iftrue
 
         iffalse = self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
-        changed |= iffalse is not expr.iffalse
+        changed |= iffalse != expr.iffalse
 
         if changed:
             new_expr = expr.copy()
@@ -984,7 +1120,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         new_guard = None
         if expr.guard is not None:
             new_guard = self._handle_expr(2, expr.guard, stmt_idx, stmt, block)
-            changed |= new_guard is not expr.guard
+            changed |= new_guard != expr.guard
 
         if changed:
             return DirtyExpression(
@@ -1021,7 +1157,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         changed = any(new is not old for new, old in zip(new_statements, expr.stmts))
 
         new_expr = self._handle_expr(0, expr.expr, stmt_idx, stmt, block)
-        changed |= new_expr is not expr.expr
+        changed |= new_expr != expr.expr
 
         if changed:
             expr_ = expr.copy()
@@ -1036,7 +1172,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
 
-        if new_base is not expr.base or new_offset is not expr.offset:
+        if new_base != expr.base or new_offset != expr.offset:
             result = expr.copy()
             result.base = new_base
             result.offset = new_offset
@@ -1050,7 +1186,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         new_value = self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
-        if new_base is not expr.base or new_offset is not expr.offset or new_value is not expr.value:
+        if new_base != expr.base or new_offset != expr.offset or new_value != expr.value:
             result = expr.copy()
             result.base = new_base
             result.offset = new_offset

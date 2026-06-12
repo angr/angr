@@ -65,9 +65,12 @@ class CallSiteMaker(Analysis):
 
         last_stmt = self.block.statements[-1]
 
-        if type(last_stmt) is Stmt.SideEffectStatement:
+        # Phase D: ``type(x) is Cls`` identity checks no longer
+        # discriminate (every variant shares one pyclass). ``isinstance``
+        # dispatches through the marker metaclass.
+        if isinstance(last_stmt, Stmt.SideEffectStatement):
             call_expr = last_stmt.expr
-        elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Expr.Call:
+        elif isinstance(last_stmt, Stmt.Assignment) and isinstance(last_stmt.src, Expr.Call):
             call_expr = last_stmt.src
         elif (
             isinstance(last_stmt, Stmt.Assignment)
@@ -418,11 +421,14 @@ class CallSiteMaker(Analysis):
             return None
 
         stmt = self.block.statements[def_.codeloc.stmt_idx]
-        if type(stmt) is Stmt.Assignment:
+        if isinstance(stmt, Stmt.Assignment):
             return stmt.dst
-        if type(stmt) is Stmt.Store:
+        if isinstance(stmt, Stmt.Store):
             return stmt.addr
-        l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
+        l.warning(
+            "TODO: Unsupported statement type %s for definitions.",
+            getattr(stmt, "kind_name", None) or type(stmt).__name__,
+        )
         return None
 
     def _resolve_register_argument(self, arg_loc) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
@@ -521,7 +527,7 @@ class CallSiteMaker(Analysis):
         :return:
         """
 
-        if type(stmt.target) is Expr.Const:
+        if isinstance(stmt.target, Expr.Const):
             return stmt.target.value
 
         return None

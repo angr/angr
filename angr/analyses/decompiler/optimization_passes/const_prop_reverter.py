@@ -218,8 +218,19 @@ class ConstPropOptReverter(OptimizationPass):
 
                 _l.debug("Constant argument at position %d was resolved to symbolic arg %s", i, sym_arg)
                 const_call = calls[const_arg]
+                # Capture the containing block before mutating ``const_call``
+                # below -- the in-place ``.args =`` assignment clears
+                # ``const_call``'s cached hash and invalidates the
+                # ``blks`` dict lookup that's keyed on it.
+                const_call_blk = blks[const_call]
                 const_arg_i = const_call.args.index(const_arg)
-                const_call.args[const_arg_i] = sym_arg
+                const_call.args = (*const_call.args[:const_arg_i], sym_arg, *const_call.args[const_arg_i + 1 :])
+                # Phase D: mutating ``const_call.args`` writes to the fresh
+                # wrapper materialized by ``stmt.expr`` -- the actual stored
+                # ``Call`` keeps its original args and the reverter no-ops.
+                # Rebuild the containing statement's call expression
+                # explicitly so the new args land in the block.
+                self._rewrite_call_in_block(const_call_blk, const_call)
                 self.resolution = True
 
     #
@@ -376,6 +387,74 @@ class ConstPropOptReverter(OptimizationPass):
 
         # zip args of call 0 and 1 conflict if they are not like each other
         return {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
+
+    def _rewrite_call_in_block(self, blk: Block, updated_call: Call) -> None:
+        """Phase D: find the statement in ``blk`` whose call expression has
+        the same ``idx`` as ``updated_call`` and rebuild it with the
+        mutated call. Identity through ``.idx`` is necessary because
+        ``stmt.expr`` materializes a fresh ``Expression`` wrapper each
+        access, so we can't compare statement-side calls to
+        ``updated_call`` by Python identity.
+        """
+        target_idx = updated_call.idx
+        for i, stmt in enumerate(blk.statements):
+            existing_call = self._get_callexpr_from_stmt(stmt)
+            if existing_call is None or existing_call.idx != target_idx:
+                continue
+            if isinstance(stmt, SideEffectStatement):
+                new_stmt = SideEffectStatement(
+                    stmt.idx,
+                    updated_call,
+                    ret_expr=stmt.ret_expr,
+                    fp_ret_expr=stmt.fp_ret_expr,
+                    **stmt.tags,
+                )
+            elif isinstance(stmt, Assignment):
+                src = stmt.src
+                if isinstance(src, Convert):
+                    new_inner = Convert(
+                        src.idx,
+                        src.from_bits,
+                        src.to_bits,
+                        src.is_signed,
+                        updated_call,
+                        from_type=src.from_type,
+                        to_type=src.to_type,
+                        rounding_mode=src.rounding_mode,
+                        **src.tags,
+                    )
+                else:
+                    new_inner = updated_call
+                new_stmt = Assignment(stmt.idx, stmt.dst, new_inner, **stmt.tags)
+            elif isinstance(stmt, Store):
+                data = stmt.data
+                if isinstance(data, Convert):
+                    new_data = Convert(
+                        data.idx,
+                        data.from_bits,
+                        data.to_bits,
+                        data.is_signed,
+                        updated_call,
+                        from_type=data.from_type,
+                        to_type=data.to_type,
+                        rounding_mode=data.rounding_mode,
+                        **data.tags,
+                    )
+                else:
+                    new_data = updated_call
+                new_stmt = Store(
+                    stmt.idx,
+                    stmt.addr,
+                    new_data,
+                    stmt.size,
+                    stmt.endness,
+                    guard=stmt.guard,
+                    **stmt.tags,
+                )
+            else:
+                continue
+            blk.statements[i] = new_stmt
+            return
 
     @staticmethod
     def _get_callexpr_from_stmt(stmt: SideEffectStatement | Assignment | Store) -> Call | None:

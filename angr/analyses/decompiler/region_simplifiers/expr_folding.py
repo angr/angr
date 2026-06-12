@@ -229,7 +229,13 @@ class ExpressionUseFinder(AILBlockRewriter):
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg:
-            if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
+            # Phase D: ``stmt.dst`` materializes a fresh wrapper, so ``is``
+            # no longer catches the def-side atom. Identity is recovered via
+            # ``.idx``, which is unique per AIL expression and survives the
+            # wrapper clone. Otherwise the def is silently counted as a use,
+            # making the one-use expression folder skip otherwise foldable
+            # ``vvar = call`` patterns.
+            if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst.idx == expr.idx):
                 if block is not None:
                     self.uses[expr.varid].add(
                         (
@@ -470,7 +476,7 @@ class InterferenceChecker(SequenceWalker):
             elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and not isinstance(stmt.expr.target, str):
                 the_call = stmt.expr
             if the_call is not None:
-                assert isinstance(the_call.target, ailment.Stmt.Expression)
+                assert isinstance(the_call.target, ailment.Expr.Expression)
                 spotter.walk_expression(the_call.target)
                 if the_call.args:
                     for arg in the_call.args:

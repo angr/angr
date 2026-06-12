@@ -328,8 +328,13 @@ class TestARMCCallRewriterFlagHelpers(unittest.TestCase):
         dep2 = Expr.Register(0, 4, 32)
         ccall = _make_flag_ccall("armg_calculate_flag_c", ARMG_CC_OP_LOGIC, dep2=dep2)
         result = _rewrite(ccall)
-        # Should return dep2 directly (shifter carry out)
-        assert result is dep2
+        # Should return dep2 directly (shifter carry out). Under Phase D
+        # operand access mints a fresh ``Expression`` wrapper around the
+        # stored ``AilExpression``, so legacy Python ``is`` no longer
+        # discriminates "returned the operand verbatim". Use structural
+        # ``likes`` instead -- it ignores ``.idx`` mismatches between
+        # equivalent wrappers and is the contract Phase D guarantees.
+        assert result is not None and result.likes(dep2)
 
     def test_flag_c_unknown_op_returns_none(self):
         ccall = _make_flag_ccall("armg_calculate_flag_c", ARMG_CC_OP_MUL)

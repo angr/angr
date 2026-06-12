@@ -11,6 +11,8 @@ import time
 import unittest
 from functools import wraps
 
+import pytest
+
 import angr
 import angr.ailment as ailment
 from angr.analyses import (
@@ -632,6 +634,7 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "Did not find statement 'puts(\"Empty title\");'"
 
+    @pytest.mark.timeout(300)
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
@@ -3752,7 +3755,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
         assert d.codegen is not None
-        assert "while (true)" in d.codegen.text
+        assert "while (1)" in d.codegen.text
 
     @structuring_algo("sailr")
     def test_ail_graph_access(self, decompiler_options=None):

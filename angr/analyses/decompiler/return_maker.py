@@ -37,6 +37,10 @@ class ReturnMaker(AILGraphWalker):
             and type(self.function.prototype.returnty) is not SimTypeBottom
         ):
             new_stmt = stmt.copy()
+            # Phase D: ``new_stmt.ret_exprs`` materializes a fresh list each
+            # access, so mutating via ``.append`` is silently dropped. Build
+            # the new list locally and assign via the setter.
+            new_ret_exprs = list(new_stmt.ret_exprs)
             returnty = (
                 dereference_simtype_by_lib(self.function.prototype.returnty, self.function.prototype_libname)
                 if self.function.prototype_libname
@@ -45,7 +49,7 @@ class ReturnMaker(AILGraphWalker):
             ret_val = self.function.calling_convention.return_val(returnty)
             if isinstance(ret_val, SimRegArg):
                 reg = self.arch.registers[ret_val.reg_name]
-                new_stmt.ret_exprs.append(
+                new_ret_exprs.append(
                     ailment.Expr.Register(
                         self._next_atom(),
                         reg[0],
@@ -71,7 +75,7 @@ class ReturnMaker(AILGraphWalker):
                 for ret_val_loc in ret_val.locations:
                     if isinstance(ret_val_loc, SimRegArg):
                         reg = self.arch.registers[ret_val_loc.reg_name]
-                        new_stmt.ret_exprs.append(
+                        new_ret_exprs.append(
                             ailment.Expr.Register(
                                 self._next_atom(),
                                 reg[0],
@@ -84,6 +88,7 @@ class ReturnMaker(AILGraphWalker):
                         l.warning("Unsupported type of return expression %s.", type(ret_val_loc))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
+            new_stmt.ret_exprs = new_ret_exprs
             return new_stmt
         return stmt
 
