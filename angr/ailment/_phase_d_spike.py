@@ -451,8 +451,8 @@ class Let(metaclass=_AilMarkerMeta):
 
     _kind = EK.Let
 
-    def __new__(cls, idx, variant, defs, src, **tags) -> _Expression:  # type: ignore[misc]
-        return _Expression._new_let(idx, variant, defs, src, **tags)
+    def __new__(cls, idx, defs, src, **tags) -> _Expression:  # type: ignore[misc]
+        return _Expression._new_let(idx, defs, src, **tags)
 
 
 class Macro(metaclass=_AilMarkerMeta):
@@ -465,8 +465,8 @@ class Macro(metaclass=_AilMarkerMeta):
     _kind = EK.Macro
     _kinds = frozenset({EK.Macro, EK.FunctionLikeMacro})
 
-    def __new__(cls, idx, name, delimiter="()", returnty=None, **tags) -> _Expression:  # type: ignore[misc]
-        return _Expression._new_macro(idx, name, delimiter=delimiter, returnty=returnty, **tags)
+    def __new__(cls, idx, name, delimiter="()", **tags) -> _Expression:  # type: ignore[misc]
+        return _Expression._new_macro(idx, name, delimiter=delimiter, **tags)
 
 
 class FunctionLikeMacro(metaclass=_AilMarkerMeta):
@@ -481,12 +481,9 @@ class FunctionLikeMacro(metaclass=_AilMarkerMeta):
         args,
         bits=None,
         delimiter="()",
-        returnty=None,
         **tags,
     ) -> _Expression:
-        return _Expression._new_function_like_macro(
-            idx, name, args, bits=bits, delimiter=delimiter, returnty=returnty, **tags
-        )
+        return _Expression._new_function_like_macro(idx, name, args, bits=bits, delimiter=delimiter, **tags)
 
 
 class DirtyExpression(metaclass=_AilMarkerMeta):

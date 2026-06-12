@@ -282,6 +282,10 @@ impl AilStatement {
         manager: &Bound<'_, PyAny>,
     ) -> PyResult<AilStatement> {
         let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
+        let vmap = manager.getattr("variable_map")?;
+        if !vmap.is_none() {
+            vmap.call_method1("transfer", (self.header.idx, new_idx))?;
+        }
         let new_header = StmtHeader::new(new_idx, self.header.tags.clone());
         let recurse = |child: &Box<AilExpression>| -> PyResult<Box<AilExpression>> {
             Ok(Box::new(child.deep_copy_ail(py, manager)?))

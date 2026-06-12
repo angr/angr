@@ -28,12 +28,15 @@ class RecordingWalker(AILBlockWalker[None, None, list[str]]):
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         del expr_idx, stmt_idx, stmt, block
         # Phase D: ``type(expr).__name__`` is the universal ``Expression`` for
-        # every variant; the variant tag is exposed as ``expr.kind``.
-        self.seen.append(getattr(expr, "kind", type(expr).__name__))
+        # every variant; the variant tag is exposed as ``expr.kind``. Use
+        # the kind's ``.name`` for string-based assertions.
+        kind = getattr(expr, "kind", None)
+        self.seen.append(kind.name if kind is not None else type(expr).__name__)
 
     def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
         del stmt_idx, block
-        self.seen.append(getattr(stmt, "kind", type(stmt).__name__))
+        kind = getattr(stmt, "kind", None)
+        self.seen.append(kind.name if kind is not None else type(stmt).__name__)
 
     def _handle_block_end(self, stmt_results: list[None], block: Block):
         del stmt_results, block
