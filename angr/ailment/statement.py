@@ -17,6 +17,7 @@ from angr.ailment._phase_d_stmt_spike import (
     DirtyStatement,
     Jump,
     Label,
+    NoOp,
     Return,
     SideEffectStatement,
     Store,
@@ -38,6 +39,7 @@ class _StatementMeta(type):
         CAS,
         DirtyStatement,
         Label,
+        NoOp,
     )
 
     def __instancecheck__(cls, instance):
@@ -75,6 +77,7 @@ __all__ = [
     "DirtyStatement",
     "Jump",
     "Label",
+    "NoOp",
     "Return",
     "SideEffectStatement",
     "Statement",
