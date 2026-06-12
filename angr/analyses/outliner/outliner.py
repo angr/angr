@@ -4,29 +4,28 @@ import logging
 from collections import defaultdict
 from typing import cast
 
-from angr.code_location import AILCodeLocation
-from archinfo import Endness
 import networkx
+from archinfo import Endness
 
-from angr.ailment import Block, Address, Manager
-from angr.ailment.statement import Assignment, ConditionalJump, Label, Return, Jump, Statement
+from angr.ailment import Address, Block, Manager
 from angr.ailment.expression import (
+    BinaryOp,
     Call,
     Const,
-    BinaryOp,
     Extract,
     Insert,
     Phi,
     VirtualVariable,
     VirtualVariableCategory,
 )
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
-from angr.errors import AngrOutlinerEmptySubgraphError, AngrOutlinerMultiEntranceError
+from angr.code_location import AILCodeLocation
 from angr.errors import AngrOutlinerEmptySubgraphError, AngrOutlinerError, AngrOutlinerMultiEntranceError
-from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimTemporaryVariable, SimVariable
 from angr.knowledge_plugins.functions import Function
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimTemporaryVariable, SimVariable
 from angr.utils.graph import Dominators, compute_dominance_frontier
 from angr.utils.ssa import is_phi_assignment
 
@@ -275,14 +274,17 @@ class Outliner(Analysis):
                     new_head = Block(
                         new_src[0],
                         0,
-                        cast(list[Statement], [
-                            Jump(
-                                self._next_atom(),
-                                Const(self._next_atom(), new_src[0], self.project.arch.bits),
-                                new_src[1],
-                                ins_addr=new_src[0],
-                            )
-                        ]),
+                        cast(
+                            list[Statement],
+                            [
+                                Jump(
+                                    self._next_atom(),
+                                    Const(self._next_atom(), new_src[0], self.project.arch.bits),
+                                    new_src[1],
+                                    ins_addr=new_src[0],
+                                )
+                            ],
+                        ),
                         new_src[1],
                     )
                     self.blocks[new_src] = new_head
@@ -360,7 +362,20 @@ class Outliner(Analysis):
         if seen2 - seen:
             raise AngrOutlinerMultiEntranceError("Request for outlining function with multiple entrances")
 
-        subgraph = self.parent_graph.subgraph(seen2).copy()
+        # might be some additional nodes we need to include if the head of the child is the head of a loop
+        queue = set(seen2)
+        seen3 = set(seen2)
+        while queue:
+            node = queue.pop()
+            if (node.addr, node.idx) in frontier or (node.addr, node.idx) == self.src_loc:
+                continue
+            for succ in self.parent_graph.succ[node]:
+                if succ in seen3:
+                    continue
+                queue.add(succ)
+                seen3.add(succ)
+
+        subgraph = self.parent_graph.subgraph(seen3).copy()
 
         # normalize the frontier, making it so that we only use an inclusive node if we reach the end of the function
         for loc in list(frontier):
