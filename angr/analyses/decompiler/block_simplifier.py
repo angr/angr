@@ -5,7 +5,6 @@ import logging
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
-from angr.ailment import AILBlockViewer
 from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
@@ -16,6 +15,7 @@ from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.utils.ssa import has_reference_to_vvar
 
+from .block_walkers import HasCallExprWalker, HasCallNotification
 from .peephole_optimizations import (
     EXPR_OPTS,
     MULTI_STMT_OPTS,
@@ -38,22 +38,7 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-class HasCallExprWalker(AILBlockViewer):
-    """
-    Test if an expression contains a call expression inside.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.has_call_expr = False
-
-    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):  # pylint:disable=unused-argument
-        self.has_call_expr = True
-
-    def _handle_Call(  # pylint:disable=unused-argument
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ):
-        self.has_call_expr = True
+_HAS_CALL_EXPR_WALKER = HasCallExprWalker()
 
 
 class BlockSimplifier(Analysis):
@@ -347,17 +332,21 @@ class BlockSimplifier(Analysis):
             """
             Check if a statement has any Call expressions.
             """
-            walker = HasCallExprWalker()
-            walker.walk_statement(stmt)
-            return walker.has_call_expr
+            try:
+                _HAS_CALL_EXPR_WALKER.walk_statement(stmt)
+            except HasCallNotification:
+                return True
+            return False
 
         def _expression_has_calls(expr: Expression) -> bool:
             """
             Check if an expression has any Call expressions.
             """
-            walker = HasCallExprWalker()
-            walker.walk_expression(expr)
-            return walker.has_call_expr
+            try:
+                _HAS_CALL_EXPR_WALKER.walk_expression(expr)
+            except HasCallNotification:
+                return True
+            return False
 
         new_statements = []
         if not block.statements:

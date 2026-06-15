@@ -62,6 +62,7 @@ from angr.utils.timing import timethis
 
 from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
+from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
@@ -78,16 +79,13 @@ _l = logging.getLogger(__name__)
 _VERIFY_INCREMENTAL_RD = os.environ.get("VERIFY_INCREMENTAL_RD", "").lower() not in {"", "0", "no", "false"}
 
 
-class HasCallNotification(Exception):
-    """
-    Notifies the existence of a call statement.
-    """
-
-
 class HasVVarNotification(Exception):
     """
     Notifies the existence of a VirtualVariable.
     """
+
+
+_HAS_CALL_EXPRS_WALKER = HasCallExprWalker()
 
 
 class HasRefVVarNotification(Exception):
@@ -2329,34 +2327,18 @@ class AILSimplifier(Analysis):
 
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
-        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-            raise HasCallNotification
-
-        def _handle_macroexpr(expr_idx, expr, stmt_idx, stmt, block):
-            raise HasCallNotification
-
-        walker = AILBlockViewer()
-        walker.expr_handlers[Call] = _handle_callexpr
-        walker.expr_handlers[FunctionLikeMacro] = _handle_macroexpr
         try:
-            walker.walk_statement(stmt)
+            _HAS_CALL_EXPRS_WALKER.walk_statement(stmt)
         except HasCallNotification:
             return True
-
         return False
 
     @staticmethod
     def _expression_has_call_exprs(expr: Expression) -> bool:
-        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-            raise HasCallNotification
-
-        walker = AILBlockViewer()
-        walker.expr_handlers[Call] = _handle_callexpr
         try:
-            walker.walk_expression(expr)
+            _HAS_CALL_EXPRS_WALKER.walk_expression(expr)
         except HasCallNotification:
             return True
-
         return False
 
     @staticmethod
