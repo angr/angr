@@ -152,22 +152,28 @@ class TraversalState:
         merge_occurred = False
 
         for o in others:
+            # live_registers (and other dict-like data structures) is a ChainMapCOW, which means each lookup is
+            # N-times more expensive than a single dict lookup (where N is the chain map depth). Caching the
+            # lookups is important.
             for k, v in o.live_registers.items():
-                old_len = len(self.live_registers[k])
-                self.live_registers[k].update(v)
-                merge_occurred |= len(self.live_registers[k]) > old_len
+                dst = self.live_registers[k]
+                old_len = len(dst)
+                dst.update(v)
+                merge_occurred |= len(dst) > old_len
 
             self.live_stackvars = self.live_stackvars.clean()
             for k, v in o.live_stackvars.items():
-                old_len = len(self.live_stackvars[k])
-                self.live_stackvars[k].update(v)
-                merge_occurred |= len(self.live_stackvars[k]) > old_len
+                dst = self.live_stackvars[k]
+                old_len = len(dst)
+                dst.update(v)
+                merge_occurred |= len(dst) > old_len
 
             self.live_vvars = self.live_vvars.clean()
             for k, v in o.live_vvars.items():
-                old_len = len(self.live_vvars[k])
-                self.live_vvars[k].update(v)
-                merge_occurred |= len(self.live_vvars[k]) > old_len
+                dst = self.live_vvars[k]
+                old_len = len(dst)
+                dst.update(v)
+                merge_occurred |= len(dst) > old_len
 
             self.stackvar_bases = self.stackvar_bases.clean()
             for k0, (k1, s1) in o.stackvar_bases.items():
@@ -188,14 +194,16 @@ class TraversalState:
 
             self.stackvar_defs = self.stackvar_defs.clean()
             for k, d in o.stackvar_defs.items():
-                old_len = len(self.stackvar_defs[k])
-                self.stackvar_defs[k].update(d)
-                merge_occurred |= len(self.stackvar_defs[k]) > old_len
+                dst = self.stackvar_defs[k]
+                old_len = len(dst)
+                dst.update(d)
+                merge_occurred |= len(dst) > old_len
 
             for k, d in o.register_defs.items():
-                old_len = len(self.register_defs[k])
-                self.register_defs[k].update(d)
-                merge_occurred |= len(self.register_defs[k]) > old_len
+                dst = self.register_defs[k]
+                old_len = len(dst)
+                dst.update(d)
+                merge_occurred |= len(dst) > old_len
 
             old_len = len(self.pending_ptr_defines_nonlocal_live)
             self.pending_ptr_defines_nonlocal_live.update(o.pending_ptr_defines_nonlocal_live)
