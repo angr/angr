@@ -190,18 +190,9 @@ def get_uses_defs(
     dict[Address, dict[atoms.Tmp, int]],
     dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]],
 ]:
-    """Combined ``get_{vvar,tmp}_{def,use}locs`` -- one pass over the
-    block list, one walker pass per block (instead of two).
+    """Combined ``get_{vvar,tmp}_{def,use}locs``.
 
-    Drop-in replacement for SPropagator's four separate helper calls.
-    Each block's expression tree is now visited once by
-    ``VVarAndTmpUsesCollector`` (instead of once by ``VVarUsesCollector``
-    and again by ``TmpUsesCollector``), and the def loops over the
-    statement list are fused into a single pass that touches each
-    ``stmt.dst`` / ``stmt.ret_expr`` exactly once.
-
-    Returns ``(vvar_deflocs, vvar_uselocs, tmp_deflocs, tmp_uselocs)``
-    matching the original four-function shapes.
+    Return: ``(vvar_deflocs, vvar_uselocs, tmp_deflocs, tmp_uselocs)`` matching the original four-function shapes.
     """
     vvar_deflocs: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
     tmp_deflocs: dict[Address, dict[atoms.Tmp, int]] = defaultdict(dict)

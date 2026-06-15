@@ -208,6 +208,7 @@ class SPropagatorAnalysis(Analysis):
                 # if this is not acceptable, just make sure we don't proagate inserts into the base of other inserts...
                 continue
             if is_phi_assignment(stmt):
+                assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
                 phi_varids[vvar_id] = {
                     src_vvar.varid if src_vvar is not None else None for _, src_vvar in stmt.src.src_and_vvars
                 }
@@ -361,6 +362,11 @@ class SPropagatorAnalysis(Analysis):
                                 vvar_useloc.stmt_idx
                             ]
                             if is_phi_assignment(useloc_stmt):
+                                assert (
+                                    isinstance(useloc_stmt, Assignment)
+                                    and isinstance(useloc_stmt.dst, VirtualVariable)
+                                    and isinstance(useloc_stmt.src, Phi)
+                                )
                                 if (
                                     isinstance(stmt.src, VirtualVariable)
                                     and stmt.src.oident == useloc_stmt.dst.oident
