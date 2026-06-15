@@ -31,6 +31,7 @@ from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Stateme
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 
+from .combined_uses_collector import VVarAndTmpUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
 from .vvar_extra_defs_collector import FindExtraDefs
 from .vvar_uses_collector import VVarUsesCollector
@@ -177,6 +178,99 @@ def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, se
                 tmp_to_loc[block_loc][atoms.Tmp(tmp_idx, tmp_bits)] |= tmp_and_stmtids
 
     return tmp_to_loc
+
+
+def get_uses_defs(
+    blocks,
+    phi_vvars: dict[int, set[int | None]] | None = None,
+    check_extra_defs: bool = True,
+) -> tuple[
+    dict[int, tuple[VirtualVariable, AILCodeLocation]],
+    dict[int, list[tuple[VirtualVariable, AILCodeLocation]]],
+    dict[Address, dict[atoms.Tmp, int]],
+    dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]],
+]:
+    """Combined ``get_{vvar,tmp}_{def,use}locs`` -- one pass over the
+    block list, one walker pass per block (instead of two).
+
+    Drop-in replacement for SPropagator's four separate helper calls.
+    Each block's expression tree is now visited once by
+    ``VVarAndTmpUsesCollector`` (instead of once by ``VVarUsesCollector``
+    and again by ``TmpUsesCollector``), and the def loops over the
+    statement list are fused into a single pass that touches each
+    ``stmt.dst`` / ``stmt.ret_expr`` exactly once.
+
+    Returns ``(vvar_deflocs, vvar_uselocs, tmp_deflocs, tmp_uselocs)``
+    matching the original four-function shapes.
+    """
+    vvar_deflocs: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
+    tmp_deflocs: dict[Address, dict[atoms.Tmp, int]] = defaultdict(dict)
+    tmp_uselocs: dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
+
+    extra_defs_walker = FindExtraDefs()
+    extra_defs_walker.found = vvar_deflocs
+
+    collector = VVarAndTmpUsesCollector()
+
+    for block in blocks:
+        block_loc = (block.addr, block.idx)
+        block_addr = block.addr
+        block_idx = block.idx
+
+        # tmp uses are per-block; vvar uses accumulate across blocks.
+        collector.reset_tmp_uses_only()
+
+        for stmt_idx, stmt in enumerate(block.statements):
+            stmt_ins_addr = stmt.tags.get("ins_addr")
+            if isinstance(stmt, Assignment):
+                dst = stmt.dst
+                if isinstance(dst, VirtualVariable):
+                    vvar_deflocs[dst.varid] = (
+                        dst,
+                        AILCodeLocation(block_addr, block_idx, stmt_idx, stmt_ins_addr),
+                    )
+                    if phi_vvars is not None and isinstance(stmt.src, Phi):
+                        phi_vvars[dst.varid] = {
+                            vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
+                        }
+                elif isinstance(dst, Tmp):
+                    tmp_deflocs[block_loc][atoms.Tmp(dst.tmp_idx, dst.bits)] = stmt_idx
+            elif isinstance(stmt, SideEffectStatement):
+                if isinstance(stmt.ret_expr, VirtualVariable):
+                    vvar_deflocs[stmt.ret_expr.varid] = (
+                        stmt.ret_expr,
+                        AILCodeLocation(block_addr, block_idx, stmt_idx, stmt_ins_addr),
+                    )
+                if isinstance(stmt.fp_ret_expr, VirtualVariable):
+                    vvar_deflocs[stmt.fp_ret_expr.varid] = (
+                        stmt.fp_ret_expr,
+                        AILCodeLocation(block_addr, block_idx, stmt_idx, stmt_ins_addr),
+                    )
+            elif isinstance(stmt, CAS):
+                if isinstance(stmt.old_lo, Tmp):
+                    tmp_deflocs[block_loc][atoms.Tmp(stmt.old_lo.tmp_idx, stmt.old_lo.bits)] = stmt_idx
+                if stmt.old_hi is not None and isinstance(stmt.old_hi, Tmp):
+                    tmp_deflocs[block_loc][atoms.Tmp(stmt.old_hi.tmp_idx, stmt.old_hi.bits)] = stmt_idx
+
+            if extra_defs := stmt.tags.get("extra_defs", None):
+                extra_defs_walker.walk_statement(stmt, block, stmt_idx)
+                assert not check_extra_defs or all(varid in vvar_deflocs for varid in extra_defs), (
+                    "extra_def tag was dropped"
+                )
+
+        collector.walk(block)
+
+        # Extract this block's tmp uses into the block-keyed map.
+        block_tmp_map = tmp_uselocs[block_loc]
+        for (tmp_idx, tmp_bits), tmp_and_stmtids in collector.tmp_and_uselocs.items():
+            key = atoms.Tmp(tmp_idx, tmp_bits)
+            existing = block_tmp_map.get(key)
+            if existing is None:
+                block_tmp_map[key] = tmp_and_stmtids
+            else:
+                existing |= tmp_and_stmtids
+
+    return vvar_deflocs, collector.vvar_and_uselocs, tmp_deflocs, tmp_uselocs
 
 
 def is_const_assignment(stmt: Statement, only_consts: bool = False) -> tuple[bool, Const | StackBaseOffset | None]:

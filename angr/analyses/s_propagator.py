@@ -31,10 +31,7 @@ from angr.utils.ssa import (
     CONST_VVAR_TMP_WHITELIST,
     CONST_VVAR_WHITELIST,
     AILWhitelistExprTypeWalker,
-    get_tmp_deflocs,
-    get_tmp_uselocs,
-    get_vvar_deflocs,
-    get_vvar_uselocs,
+    get_uses_defs,
     has_ite_expr,
     has_ite_stmt,
     has_store_stmt_in_between_stmts,
@@ -165,10 +162,11 @@ class SPropagatorAnalysis(Analysis):
             case _:
                 raise NotImplementedError
 
-        # find all vvar definitions
-        vvar_deflocs = get_vvar_deflocs(blocks.values())
-        # find all vvar uses
-        vvar_uselocs = get_vvar_uselocs(blocks.values())
+        # Combined pass: vvar deflocs + vvar uselocs + tmp deflocs +
+        # tmp uselocs in a single walker traversal per block (vs the
+        # legacy 4 separate helper calls, two of which spun their own
+        # AILBlockViewer to walk the same blocks).
+        vvar_deflocs, vvar_uselocs, _tmp_deflocs_cached, _tmp_uselocs_cached = get_uses_defs(blocks.values())
 
         # update vvar_deflocs using function arguments
         if self.func_args:
@@ -473,10 +471,9 @@ class SPropagatorAnalysis(Analysis):
                             self.replace(replacements, useloc, vvar_at_use, v)
                     continue
 
-        # find all tmp definitions
-        tmp_deflocs = get_tmp_deflocs(blocks.values())
-        # find all tmp uses
-        tmp_uselocs = get_tmp_uselocs(blocks.values())
+        # tmp def/use locs were collected by the combined pass above.
+        tmp_deflocs = _tmp_deflocs_cached
+        tmp_uselocs = _tmp_uselocs_cached
 
         for block_loc, tmp_and_uses in tmp_uselocs.items():
             for tmp_atom, tmp_uses in tmp_and_uses.items():
