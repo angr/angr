@@ -13,12 +13,19 @@ use crate::prelude::*;
 pub trait Cache<K, V> {
     fn get_or_insert<E>(&self, key: K, value_cv: impl FnMut() -> Result<V, E>) -> Result<V, E>;
 
+    /// Probe the cache without computing a value on miss.
+    fn get(&self, key: &K) -> Option<V>;
+
     fn drop(&self, key: K);
 }
 
 impl<K, V> Cache<K, V> for () {
     fn get_or_insert<E>(&self, _: K, mut value_cv: impl FnMut() -> Result<V, E>) -> Result<V, E> {
         value_cv()
+    }
+
+    fn get(&self, _key: &K) -> Option<V> {
+        None
     }
 
     fn drop(&self, _key: K) {
@@ -54,6 +61,10 @@ impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
         let value = value_cv()?;
         locked.insert(key, value.clone());
         Ok(value)
+    }
+
+    fn get(&self, key: &K) -> Option<V> {
+        self.0.read().unwrap().get(key).cloned()
     }
 
     fn drop(&self, key: K) {
@@ -122,6 +133,10 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
 
             Ok(arc)
         }
+    }
+
+    fn get(&self, key: &u64) -> Option<AstRef<'c>> {
+        self.0.read().unwrap().get(key).and_then(Weak::upgrade)
     }
 
     fn drop(&self, key: u64) {
