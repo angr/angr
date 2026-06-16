@@ -16,10 +16,6 @@ from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
 
-from .errors import IdentifierException
-from .functions import Functions
-from .runner import Runner
-
 l = logging.getLogger(name=__name__)
 
 
