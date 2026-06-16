@@ -21,6 +21,8 @@ pub enum ClarirsError {
     TypeError(String),
     #[error("BitVector not byte-sized: {length:?} is not a multiple of 8")]
     BitVectorNotByteSized { length: u32 },
+    #[error("BitVector lengths must match: {left} != {right}")]
+    MismatchedLengths { left: u32, right: u32 },
     #[error("Conversion error: {:?}", .0)]
     ConversionError(String),
     #[error("UNSAT")]
@@ -60,6 +62,9 @@ impl From<BitVecError> for ClarirsError {
             BitVecError::DivisionByZero => ClarirsError::DivisionByZero,
             BitVecError::ConversionError => {
                 ClarirsError::ConversionError("BitVec conversion error".to_string())
+            }
+            BitVecError::MismatchedLengths { left, right } => {
+                ClarirsError::MismatchedLengths { left, right }
             }
         }
     }

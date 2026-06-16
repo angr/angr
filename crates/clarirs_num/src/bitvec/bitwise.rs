@@ -1,20 +1,35 @@
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use smallvec::SmallVec;
+use num_bigint::BigUint;
+use num_traits::One;
 
 use super::{BitVec, BitVecError};
+
+impl BitVec {
+    /// Applies a per-word binary operation to two equal-length bitvectors.
+    /// `new` re-canonicalizes the result (masking the final word).
+    fn zip_words<F>(&self, rhs: &Self, op: F) -> Result<Self, BitVecError>
+    where
+        F: Fn(u64, u64) -> u64,
+    {
+        self.check_same_length(rhs)?;
+        let words = self
+            .words
+            .iter()
+            .zip(rhs.words.iter())
+            .map(|(l, r)| op(*l, *r))
+            .collect();
+        BitVec::new(words, self.length)
+    }
+}
 
 impl Not for BitVec {
     type Output = Result<Self, BitVecError>;
 
     fn not(self) -> Self::Output {
-        let mut new_bv: SmallVec<[u64; 1]> = self.words.iter().map(|w| !w).collect();
-        if !self.length.is_multiple_of(64)
-            && let Some(w) = new_bv.last_mut()
-        {
-            *w &= self.final_word_mask();
-        }
-        BitVec::new(new_bv, self.length)
+        // `new` masks the bits above `length` in the final word.
+        let words = self.words.iter().map(|w| !w).collect();
+        BitVec::new(words, self.length)
     }
 }
 
@@ -22,13 +37,7 @@ impl BitAnd for BitVec {
     type Output = Result<Self, BitVecError>;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        let new_bv = self
-            .words
-            .iter()
-            .zip(rhs.words.iter())
-            .map(|(l, r)| l & r)
-            .collect();
-        BitVec::new(new_bv, self.length)
+        self.zip_words(&rhs, |l, r| l & r)
     }
 }
 
@@ -36,13 +45,7 @@ impl BitOr for BitVec {
     type Output = Result<Self, BitVecError>;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        let new_bv = self
-            .words
-            .iter()
-            .zip(rhs.words.iter())
-            .map(|(l, r)| l | r)
-            .collect();
-        BitVec::new(new_bv, self.length)
+        self.zip_words(&rhs, |l, r| l | r)
     }
 }
 
@@ -50,13 +53,7 @@ impl BitXor for BitVec {
     type Output = Result<Self, BitVecError>;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        let new_bv = self
-            .words
-            .iter()
-            .zip(rhs.words.iter())
-            .map(|(l, r)| l ^ r)
-            .collect();
-        BitVec::new(new_bv, self.length)
+        self.zip_words(&rhs, |l, r| l ^ r)
     }
 }
 
@@ -64,72 +61,62 @@ impl Shl<u32> for BitVec {
     type Output = Result<Self, BitVecError>;
 
     fn shl(self, rhs: u32) -> Self::Output {
-        BitVec::new(
-            self.words
-                .iter()
-                .scan(0, |carry, w| {
-                    let new_carry = w >> (64 - rhs as usize);
-                    let new_word = (w << rhs as usize) | *carry;
-                    *carry = new_carry;
-                    Some(new_word)
-                })
-                .collect(),
+        // Shifting by at least the width zeros out the whole vector.
+        if rhs >= self.length {
+            return Ok(BitVec::zeros(self.length));
+        }
+        // `from_biguint` truncates to `length`, discarding bits shifted past the top.
+        Ok(BitVec::from_biguint(
+            &(self.to_biguint() << rhs),
             self.length,
-        )
+        ))
     }
 }
 
 impl Shr<u32> for BitVec {
     type Output = Result<Self, BitVecError>;
 
+    /// Logical shift right (zero-fill).
     fn shr(self, rhs: u32) -> Self::Output {
-        BitVec::new(
-            self.words
-                .iter()
-                .rev()
-                .scan(0, |carry, w| {
-                    let new_carry = w << (64 - rhs as usize);
-                    let new_word = (w >> rhs as usize) | *carry;
-                    *carry = new_carry;
-                    Some(new_word)
-                })
-                .collect(),
+        if rhs >= self.length {
+            return Ok(BitVec::zeros(self.length));
+        }
+        Ok(BitVec::from_biguint(
+            &(self.to_biguint() >> rhs),
             self.length,
-        )
+        ))
     }
 }
 
 impl BitVec {
-    pub fn rotate_left(&self, rotate_amount: u32) -> Result<Self, BitVecError> {
-        use num_bigint::BigUint;
-        use num_traits::One;
-
-        let rotate = rotate_amount % self.len();
+    fn rotate(&self, rotate_amount: u32, left: bool) -> Result<Self, BitVecError> {
         let bit_length = self.len();
-        let value_biguint = self.to_biguint();
+        if bit_length == 0 {
+            return Ok(self.clone());
+        }
+        let rotate = rotate_amount % bit_length;
+        if rotate == 0 {
+            return Ok(self.clone());
+        }
+
+        let value = self.to_biguint();
         let mask = (BigUint::one() << bit_length) - BigUint::one();
+        let (left_amount, right_amount) = if left {
+            (rotate, bit_length - rotate)
+        } else {
+            (bit_length - rotate, rotate)
+        };
 
-        let left_shifted = (&value_biguint << rotate) & &mask;
-        let right_shifted = &value_biguint >> (bit_length - rotate);
-        let rotated_biguint = left_shifted | right_shifted;
+        let rotated = ((&value << left_amount) | (&value >> right_amount)) & &mask;
+        Ok(BitVec::from_biguint(&rotated, bit_length))
+    }
 
-        BitVec::from_biguint(&rotated_biguint, bit_length)
+    pub fn rotate_left(&self, rotate_amount: u32) -> Result<Self, BitVecError> {
+        self.rotate(rotate_amount, true)
     }
 
     pub fn rotate_right(&self, rotate_amount: u32) -> Result<Self, BitVecError> {
-        use num_bigint::BigUint;
-        use num_traits::One;
-
-        let rotate = rotate_amount % self.len();
-        let bit_length = self.len();
-        let value_biguint = self.to_biguint();
-        let mask = (BigUint::one() << bit_length) - BigUint::one();
-
-        let right_shifted = &value_biguint >> rotate;
-        let left_shifted = (&value_biguint << (bit_length - rotate)) & &mask;
-        let rotated_biguint = (right_shifted | left_shifted) & &mask;
-
-        BitVec::from_biguint(&rotated_biguint, bit_length)
+        self.rotate(rotate_amount, false)
     }
 }
 

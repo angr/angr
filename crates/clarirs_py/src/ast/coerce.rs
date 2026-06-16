@@ -84,7 +84,7 @@ impl<'py> CoerceBV<'py> {
                 }
             }
             CoerceBV::Int(int) => {
-                let bv = BitVec::from_bigint_trunc(int, size);
+                let bv = BitVec::from_bigint(int, size);
                 BV::new(py, &GLOBAL_CONTEXT.bvv(bv)?)
             }
             CoerceBV::Bool(bool_val) => {
@@ -382,7 +382,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase<'py> {
         } else if let Ok(int_val) = val.cast::<PyInt>() {
             // Handle Python int literals by wrapping in BVV (64-bit default)
             let int: BigInt = int_val.extract()?;
-            let bv = BitVec::from_bigint_trunc(&int, 64);
+            let bv = BitVec::from_bigint(&int, 64);
             let bv_ast = BV::new(
                 val.py(),
                 &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,

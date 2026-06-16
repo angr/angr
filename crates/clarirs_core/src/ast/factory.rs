@@ -763,7 +763,7 @@ pub trait AstFactory<'c>: Sized {
         value: &BigUint,
         length: u32,
     ) -> Result<AstRef<'c>, ClarirsError> {
-        self.bvv(BitVec::from_biguint(value, length)?)
+        self.bvv(BitVec::from_biguint(value, length))
     }
 
     fn fpv_from_f64(&'c self, value: f64) -> Result<AstRef<'c>, ClarirsError> {

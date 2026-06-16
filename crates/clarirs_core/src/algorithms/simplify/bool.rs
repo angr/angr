@@ -1494,7 +1494,7 @@ pub(crate) fn simplify_bool<'c>(
             );
             match (arc.op(), arc1.op()) {
                 (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_lt(arc1))?),
+                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_lt(arc1)?)?),
                 _ => Ok(ctx.slt(arc, arc1)?),
             }
         }
@@ -1505,7 +1505,7 @@ pub(crate) fn simplify_bool<'c>(
             );
             match (arc.op(), arc1.op()) {
                 (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_le(arc1))?),
+                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_le(arc1)?)?),
                 _ => Ok(ctx.sle(arc, arc1)?),
             }
         }
@@ -1516,7 +1516,7 @@ pub(crate) fn simplify_bool<'c>(
             );
             match (arc.op(), arc1.op()) {
                 (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_gt(arc1))?),
+                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_gt(arc1)?)?),
                 _ => Ok(ctx.sgt(arc, arc1)?),
             }
         }
@@ -1527,7 +1527,7 @@ pub(crate) fn simplify_bool<'c>(
             );
             match (arc.op(), arc1.op()) {
                 (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_ge(arc1))?),
+                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_ge(arc1)?)?),
                 _ => Ok(ctx.sge(arc, arc1)?),
             }
         }
