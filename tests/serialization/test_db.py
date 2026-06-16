@@ -5,8 +5,8 @@ from __future__ import annotations
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
 import os
-import tempfile
 import shutil
+import tempfile
 import unittest
 
 import archinfo
@@ -15,7 +15,6 @@ import cle
 import angr
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
-
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")

@@ -1,61 +1,61 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, overload, Literal
 
-from collections.abc import Callable
 import logging
 from collections import defaultdict
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, overload
 
+import archinfo
 import networkx
-from sortedcontainers import SortedDict
-
 import pyvex
+from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from cle import (
     ELF,
     PE,
+    XBE,
     Blob,
-    PEStubs,
-    TLSObject,
-    MachO,
+    Coff,
     ExternObject,
-    KernelObject,
     FunctionHintSource,
     Hex,
-    Coff,
+    KernelObject,
+    MachO,
+    PEStubs,
     SRec,
-    XBE,
+    TLSObject,
 )
 from cle.backends import NamedRegion
-import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
-from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
+from sortedcontainers import SortedDict
 
-from angr.knowledge_plugins.functions.function_manager import FunctionManager
-from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, get_block_key, block_key_to_size
-from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.analyses.analysis import Analysis
+from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.engines.vex.lifter import VEX_IRSB_MAX_INST, VEX_IRSB_MAX_SIZE
 from angr.errors import (
     AngrCFGError,
-    SimTranslationError,
-    SimMemoryError,
-    SimIRSBError,
-    SimEngineError,
     AngrUnsupportedSyscallError,
+    SimEngineError,
     SimError,
+    SimIRSBError,
+    SimMemoryError,
+    SimTranslationError,
 )
-from angr.codenode import HookNode, BlockNode, FuncNode
-from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
-from angr.analyses import Analysis
-from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump  # pylint:disable=unused-import
+from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
+
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 if TYPE_CHECKING:
-    from angr.sim_state import SimState
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import K
+    from angr.sim_state import SimState
 
     AddressType = int | SootAddressDescriptor
     MethodType = int | SootMethodDescriptor
@@ -636,6 +636,24 @@ class CFGBase(Analysis):
         else:
             return address < self._regions[start_addr]
 
+    def _inside_regions_and_region_end(self, address: int | None) -> tuple[bool, int | None]:
+        """
+        Check if the address is inside any existing region, and return the end of that region.
+
+        :param int address: Address to check.
+        :return:            A tuple (True, region_end) if the address is within one of the memory regions, where
+                            region_end is the end of that memory region; (False, None) otherwise.
+        """
+
+        try:
+            start_addr = next(self._regions.irange(maximum=address, reverse=True))
+        except StopIteration:
+            return False, None
+        else:
+            if address < self._regions[start_addr]:
+                return True, self._regions[start_addr]
+        return False, None
+
     def _get_min_addr(self) -> int | None:
         """
         Get the minimum address out of all regions. We assume self._regions is sorted.
@@ -779,17 +797,18 @@ class CFGBase(Analysis):
                         max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
                         tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
-                if force_segment:
+                if (not b.sections and segments) or force_segment:
+                    # Use segments directly when force_segment is True or when the ELF has no section headers
+                    # at all.
                     memory_regions += segments
-                else:
-                    if sections and segments:
-                        # are there executable segments with no sections inside?
-                        for segment in segments:
-                            for section in sections:
-                                if segment[0] <= section[0] < segment[1]:
-                                    break
-                            else:
-                                memory_regions.append(segment)
+                elif sections and segments:
+                    # are there executable segments with no sections inside?
+                    for segment in segments:
+                        for section in sections:
+                            if segment[0] <= section[0] < segment[1]:
+                                break
+                        else:
+                            memory_regions.append(segment)
 
             elif isinstance(b, (Coff, PE)):
                 has_executable = True
@@ -2508,17 +2527,19 @@ class CFGBase(Analysis):
                         stack.add(dst_key)
 
     def _is_likely_function_thunk(self, src: CFGNode, src_funcaddr: int, all_edges: list | None) -> bool:
-        # A single-instruction block at function entry with a single Ijk_Boring successor is a thunk
-        # (e.g. jmp <target>). During initial scanning, this pattern may not have been detected by
-        # _is_branching_to_outside (case 2) because the block was incorrectly assigned to a different
-        # function (src_addr != current_function_addr). Now that make_functions() has corrected the
-        # function assignment, re-evaluate: the jump target should be a separate function.
-        return (
-            src.addr == src_funcaddr
-            and len(src.instruction_addrs) == 1
-            and all_edges is not None
-            and sum(1 for _, _, d in all_edges if d["jumpkind"] != "Ijk_FakeRet") == 1
-        )
+        # A single-instruction block at function entry with a single Ijk_Boring successor that does not
+        # jump to the next instruction is a thunk (e.g. jmp <target>).
+        # Note that "nop" (or any other instruction that does not change the control flow) is not a thunk.
+        # During initial scanning, this pattern may not have been detected by _is_branching_to_outside (case 2)
+        # because the block was incorrectly assigned to a different function (src_addr != current_function_addr). Now
+        # that make_functions() has corrected the function assignment, re-evaluate: the jump target should be a
+        # separate function.
+        if src.addr == src_funcaddr and len(src.instruction_addrs) == 1 and all_edges is not None:
+            non_ret_edges = [dst for _, dst, d in all_edges if d["jumpkind"] != "Ijk_FakeRet"]
+            if len(non_ret_edges) == 1:
+                dst = non_ret_edges[0]
+                return src.addr + src.size != dst.addr
+        return False
 
     def _graph_traversal_handler(
         self,

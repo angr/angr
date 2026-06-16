@@ -1,10 +1,10 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
+
 import os
 import unittest
 
 import angr
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

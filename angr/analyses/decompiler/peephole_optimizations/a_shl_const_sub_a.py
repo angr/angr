@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -26,7 +27,10 @@ class AShlConstSubA(PeepholeOptimizationExprBase):
                 return BinaryOp(
                     expr.idx,
                     "Mul",
-                    [a, Const(None, None, 2**N - 1, expr.bits, **expr.operands[0].operands[1].tags)],
+                    [
+                        a,
+                        Const(self.manager.next_atom(), 2**N - 1, expr.bits, **expr.operands[0].operands[1].tags),
+                    ],
                     expr.signed,
                     **expr.tags,
                 )

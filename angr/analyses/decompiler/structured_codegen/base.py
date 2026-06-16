@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
 from enum import Enum
 from itertools import count
 

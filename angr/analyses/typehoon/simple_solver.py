@@ -1,39 +1,28 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
+
 import enum
+import logging
 from collections import defaultdict
 from contextlib import suppress
-import logging
+from typing import TYPE_CHECKING
 
 import networkx
 from sortedcontainers import SortedDict
 
+import angr
 from angr.utils.constants import MAX_POINTSTO_BITS
-from .typevars import (
-    Existence,
-    Subtype,
-    Equivalence,
-    Add,
-    Sub,
-    TypeVariable,
-    DerivedTypeVariable,
-    HasField,
-    AddN,
-    SubN,
-    IsArray,
-    TypeConstraint,
-    Load,
-    Store,
-    BaseLabel,
-    FuncIn,
-    FuncOut,
-    ConvertTo,
-    new_dtv,
-)
+
+from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
 from .typeconsts import (
+    Array,
     BottomType,
-    TopType,
-    TypeConstant,
+    Enum,
+    Fd,
+    Float,
+    Float32,
+    Float64,
+    Function,
     Int,
     Int8,
     Int16,
@@ -42,29 +31,50 @@ from .typeconsts import (
     Int128,
     Int256,
     Int512,
-    SInt8,
-    UInt8,
-    SInt16,
-    UInt16,
-    SInt32,
-    UInt32,
-    SInt64,
-    UInt64,
     Pointer,
     Pointer32,
     Pointer64,
+    RustEnum,
+    SInt8,
+    SInt16,
+    SInt32,
+    SInt64,
     Struct,
-    Array,
-    Function,
+    TopType,
+    TypeConstant,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
     int_type,
-    Float,
-    Float32,
-    Float64,
-    Enum,
-    Fd,
+)
+from .typevars import (
+    Add,
+    AddN,
+    BaseLabel,
+    ConvertTo,
+    DerivedTypeVariable,
+    Equivalence,
+    Existence,
+    FuncIn,
+    FuncOut,
+    HasField,
+    IsArray,
+    Load,
+    Store,
+    Sub,
+    SubN,
+    Subtype,
+    TypeConstraint,
+    TypeVariable,
+    TypeVariableManager,
 )
 from .variance import Variance
-from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
+
+if TYPE_CHECKING:
+    import archinfo
+
+    from angr.sim_type import SimType
 
 _l = logging.getLogger(__name__)
 
@@ -96,6 +106,7 @@ SInt32_ = SInt32()
 UInt32_ = UInt32()
 SInt64_ = SInt64()
 UInt64_ = UInt64()
+RustEnum_ = RustEnum()
 
 
 PRIMITIVE_TYPES = {
@@ -126,6 +137,7 @@ PRIMITIVE_TYPES = {
     Float64_,
     Enum_,
     Fd_,
+    RustEnum_,
 }
 
 
@@ -213,6 +225,16 @@ BASE_LATTICES = {
     32: BASE_LATTICE_32,
     64: BASE_LATTICE_64,
 }
+
+
+def _invert_lattice(lattice: networkx.DiGraph) -> networkx.DiGraph:
+    inverted = networkx.DiGraph()
+    for src, dst in lattice.edges:
+        inverted.add_edge(dst, src)
+    return inverted
+
+
+BASE_LATTICES_INVERTED = {bits: _invert_lattice(lattice) for bits, lattice in BASE_LATTICES.items()}
 
 
 #
@@ -545,6 +567,7 @@ class SimpleSolver:
         typevars: dict[TypeVariable, set[TypeVariable]],
         constraint_set_degradation_threshold: int = 150,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
+        tv_manager: TypeVariableManager | None = None,
     ):
         if bits not in (32, 64):
             raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
@@ -552,6 +575,7 @@ class SimpleSolver:
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
         self._typevars: dict[TypeVariable, set[TypeVariable]] = typevars
+        self.tv_manager = tv_manager if tv_manager is not None else TypeVariableManager(0x1337)
         self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._base_lattice = BASE_LATTICES[bits]
@@ -734,7 +758,7 @@ class SimpleSolver:
                         tvs, filtered_constraint_subset, primitive_constraints
                     )
                 tvs_with_primitive_constraints = set()
-                for primitive_constraint in primitive_constraints:
+                for primitive_constraint in sorted(primitive_constraints, key=repr):
                     tv = self._typevar_from_primitive_constraint(primitive_constraint)
                     tvs_with_primitive_constraints.add(tv)
                     assert tv is not None, f"Cannot find type variable in primitive constraint {primitive_constraint}"
@@ -770,7 +794,8 @@ class SimpleSolver:
                 constraint_subset = self._filter_constraints(new_constraint_subset)
 
         # set the solution for missing type vars to TOP
-        self.determine(sketches, set(sketches).difference(set(self.solution)), equiv_classes, self.solution)
+        pending = sorted(set(sketches).difference(set(self.solution)), key=repr)
+        self.determine(sketches, pending, equiv_classes, self.solution)
 
         # set solutions for non-representative type variables
         for tv, reptv in equiv_classes.items():
@@ -876,8 +901,9 @@ class SimpleSolver:
         non_primitive_endpoints: set[TypeVariable | DerivedTypeVariable],
         constraint_graph,
     ) -> set[TypeConstraint]:
-        constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
-        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
+        endpoints: set[TypeConstant | TypeVariable | DerivedTypeVariable] = set(non_primitive_endpoints)
+        constraints_0 = self._solve_constraints_between(constraint_graph, endpoints, PRIMITIVE_TYPES)
+        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, endpoints)
         return constraints_0 | constraints_1
 
     @staticmethod
@@ -956,8 +982,8 @@ class SimpleSolver:
                 return constraint.super_type
         return None
 
-    @staticmethod
     def _get_all_paths(
+        self,
         graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
         sketch: Sketch,
         node: TypeVariable,
@@ -978,14 +1004,15 @@ class SimpleSolver:
                 else:
                     raise TypeError("Unexpected")
                 labels += (label,)
-                succ_derived_typevar = new_dtv(
+                succ_derived_typevar = self.tv_manager.new_dtv_with_merged_labels(
                     base_typevar,
                     labels=labels,
                 )
+                assert not isinstance(succ_derived_typevar, TypeConstant)
                 succ_node = SketchNode(succ_derived_typevar)
                 sketch.add_edge(curr_node, succ_node, label)
                 visited[succ] = succ_node
-                SimpleSolver._get_all_paths(graph, sketch, succ, visited)
+                self._get_all_paths(graph, sketch, succ, visited)
                 del visited[succ]
             else:
                 # a cycle exists
@@ -1012,7 +1039,7 @@ class SimpleSolver:
         if isinstance(t, DerivedTypeVariable):
             base = t.type_var
             level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
-            return base, level
+            return base, level  # pyright: ignore[reportReturnType]
         return t, 0
 
     @staticmethod
@@ -1084,12 +1111,11 @@ class SimpleSolver:
             elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
-                rep_cls = next(
-                    iter(
-                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
-                    ),
-                    cls0,
+                candidates = sorted(
+                    (elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))),
+                    key=repr,
                 )
+                rep_cls = candidates[0] if candidates else cls0
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls
             # the logic below refers to the retypd reference implementation. it is different from Algorithm E.1
@@ -1590,11 +1616,10 @@ class SimpleSolver:
         """
 
         graph = networkx.DiGraph()
+        interesting: set[TypeVariable | DerivedTypeVariable | TypeConstant] = set(interesting_variables)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
-                self._constraint_graph_add_edges(
-                    graph, constraint.sub_type, constraint.super_type, interesting_variables
-                )
+                self._constraint_graph_add_edges(graph, constraint.sub_type, constraint.super_type, interesting)
         self._constraint_graph_saturate(graph)
         self._constraint_graph_remove_self_loops(graph)
         self._constraint_graph_recall_forget_split(graph)
@@ -1742,6 +1767,8 @@ class SimpleSolver:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
             return True
+        if isinstance(typevar, RustEnum) and RustEnum_ in typevar_set:
+            return True
         if isinstance(typevar, Enum) and Enum_ in typevar_set:
             return True
         if isinstance(typevar, Array) and Array_ in typevar_set:
@@ -1784,11 +1811,26 @@ class SimpleSolver:
     # Type lattice
     #
 
-    def join(self, t1: TypeConstant | TypeVariable, t2: TypeConstant | TypeVariable) -> TypeConstant:
-        abstract_t1 = self.abstract(t1)
-        abstract_t2 = self.abstract(t2)
-        if abstract_t1 in self._base_lattice and abstract_t2 in self._base_lattice:
-            ancestor = networkx.lowest_common_ancestor(self._base_lattice, abstract_t1, abstract_t2)
+    @staticmethod
+    def _lattice_op(
+        t1: TypeConstant,
+        t2: TypeConstant,
+        lattice: networkx.DiGraph,
+        unit: TypeConstant,
+    ) -> TypeConstant:
+        """
+        The shared core of :meth:`join` and :meth:`meet`. Walk ``lattice`` to find the lowest common ancestor of the
+        two (abstracted) type constants.
+
+        :param lattice: The lattice to walk: the base lattice for join, or the inverted base lattice for meet.
+        :param unit:    The unit element of the operation: ``BottomType`` for join and ``TopType`` for meet. It acts as
+                        the identity element and is returned when the two types have no common ancestor in the lattice.
+        """
+
+        abstract_t1 = SimpleSolver.abstract(t1)
+        abstract_t2 = SimpleSolver.abstract(t2)
+        if abstract_t1 in lattice and abstract_t2 in lattice:
+            ancestor = networkx.lowest_common_ancestor(lattice, abstract_t1, abstract_t2)
 
             if (
                 isinstance(ancestor, Pointer)
@@ -1797,7 +1839,7 @@ class SimpleSolver:
                 and isinstance(t1, Pointer)
                 and isinstance(t2, Pointer)
             ):
-                return ancestor.__class__(self.join(t1.basetype, t2.basetype))
+                return ancestor.__class__(SimpleSolver._lattice_op(t1.basetype, t2.basetype, lattice, unit))  # type: ignore
 
             if ancestor == abstract_t1:
                 return t1
@@ -1806,39 +1848,59 @@ class SimpleSolver:
             return ancestor
         if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
             return t1
-        if t1 == Bottom_:
+        if t1 == unit:
             return t2
-        if t2 == Bottom_:
+        if t2 == unit:
             return t1
-        return Bottom_
+        return unit
 
-    def meet(self, t1: TypeConstant | TypeVariable, t2: TypeConstant | TypeVariable) -> TypeConstant:
-        abstract_t1 = self.abstract(t1)
-        abstract_t2 = self.abstract(t2)
-        if abstract_t1 in self._base_lattice_inverted and abstract_t2 in self._base_lattice_inverted:
-            ancestor = networkx.lowest_common_ancestor(self._base_lattice_inverted, abstract_t1, abstract_t2)
+    def join(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        return self._lattice_op(t1, t2, self._base_lattice, Bottom_)
 
-            if (
-                isinstance(ancestor, Pointer)
-                and isinstance(abstract_t1, Pointer)
-                and isinstance(abstract_t2, Pointer)
-                and isinstance(t1, Pointer)
-                and isinstance(t2, Pointer)
-            ):
-                return ancestor.__class__(self.meet(t1.basetype, t2.basetype))
+    def meet(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        return self._lattice_op(t1, t2, self._base_lattice_inverted, Top_)
 
-            if ancestor == abstract_t1:
-                return t1
-            if ancestor == abstract_t2:
-                return t2
-            return ancestor
-        if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
-            return t1
-        if t1 == Top_:
-            return t2
-        if t2 == Top_:
-            return t1
-        return Top_
+    @classmethod
+    def join_simtypes(cls, t1: SimType, t2: SimType, arch: archinfo.Arch) -> SimType:
+        """
+        Compute the join (the least general common supertype) of two SimTypes on the type lattice.
+
+        The two types are lifted to internal type constants, joined on the base lattice for ``arch.bits``, and the
+        result is translated back into a SimType. When the two types have no meaningful common supertype, the result is
+        a ``SimTypeBottom``.
+
+        :param t1:      The first SimType.
+        :param t2:      The second SimType.
+        :param arch:    The architecture, used to determine the pointer size and to build the resulting SimType.
+        :return:        The join of ``t1`` and ``t2`` as a SimType.
+        """
+
+        return cls._simtype_lattice_op(t1, t2, arch, BASE_LATTICES, Bottom_)
+
+    @classmethod
+    def meet_simtypes(cls, t1: SimType, t2: SimType, arch: archinfo.Arch) -> SimType:
+        """
+        Compute the meet (the greatest common subtype) of two SimTypes on the type lattice.
+
+        See :meth:`join_simtypes` for details. When the two types have no meaningful common subtype, the result is a
+        ``SimTypeBottom``.
+        """
+
+        return cls._simtype_lattice_op(t1, t2, arch, BASE_LATTICES_INVERTED, Top_)
+
+    @classmethod
+    def _simtype_lattice_op(
+        cls, t1: SimType, t2: SimType, arch: archinfo.Arch, lattices: dict[int, networkx.DiGraph], unit: TypeConstant
+    ) -> SimType:
+        if arch.bits not in lattices:
+            raise ValueError(f"Pointer size {arch.bits} is not supported. Expect 32 or 64.")
+
+        translator = angr.analyses.typehoon.TypeTranslator(arch)
+        tc1 = translator.simtype2tc(t1)
+        tc2 = translator.simtype2tc(t2)
+        result_tc = cls._lattice_op(tc1, tc2, lattices[arch.bits], unit)
+        result_simtype, _ = translator.tc2simtype(result_tc)
+        return result_simtype
 
     @staticmethod
     def abstract(t: TypeConstant | TypeVariable) -> TypeConstant | TypeVariable:
@@ -2094,7 +2156,7 @@ class SimpleSolver:
                             # missing field at this offset
                             fields[off] = Int8_  # not sure how it's accessed
 
-            if not fields:
+            if not fields or any(field is None for field in fields.values()):
                 result = Top_
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)

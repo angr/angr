@@ -6,7 +6,7 @@ import unittest
 
 import claripy
 
-from angr import SimState, SimFile
+from angr import SimFile, SimState
 
 
 class TestPosix(unittest.TestCase):

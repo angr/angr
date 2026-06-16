@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from collections.abc import Generator
 
 from claripy.ast import BV

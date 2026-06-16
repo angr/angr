@@ -12,8 +12,8 @@ import angr
 from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
+    default_cc,
 )
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -61,7 +61,6 @@ class TestFactCollector(unittest.TestCase):
 
     def _check_caller_saved_excluded(self, arch_dir):
         """Helper: no caller-saved register offset may appear in callee_restored_regs."""
-        from angr.calling_conventions import default_cc  # pylint:disable=import-outside-toplevel
 
         binary_path = os.path.join(test_location, arch_dir, "fauxware")
         proj = angr.Project(binary_path, auto_load_libs=False)

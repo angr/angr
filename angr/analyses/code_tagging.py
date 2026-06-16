@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import pyvex
 
-from angr.utils import looks_like_sql
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.knowledge_plugins.xrefs import XRef
-from . import Analysis, AnalysesHub
+from angr.utils import looks_like_sql
 
 
 class CodeTags:

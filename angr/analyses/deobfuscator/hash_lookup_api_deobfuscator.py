@@ -1,14 +1,13 @@
 from __future__ import annotations
-from collections.abc import Callable, Sequence
-from collections.abc import Iterator
+
+from collections.abc import Callable, Iterator, Sequence
 
 import claripy
 
 import angr
-from angr import sim_type
-from angr.analyses import Analysis
-from angr import ailment
+from angr import ailment, sim_type
 from angr.ailment.block_walker import AILBlockViewer
+from angr.analyses.analysis import Analysis
 from angr.errors import AngrCallableError
 from angr.knowledge_plugins.functions.function import Function
 
@@ -58,7 +57,7 @@ class HashLookupAPIDeobfuscator(Analysis):
             return False
         clinic = self.lifter(function)
         assert clinic.graph is not None
-        walker0 = FindCallsTo(target="NtGetCurrentPeb")
+        walker0 = FindCallsTo(target="NtGetCurrentPeb", variable_map=clinic.variable_map)
         for node in clinic.graph:
             walker0.walk(node)
         return bool(walker0.found_calls)
@@ -113,10 +112,11 @@ class FindCallsTo(AILBlockViewer):
     Walker which stores calls with a given target.
     """
 
-    def __init__(self, *args, target: str | int, **kwargs):
+    def __init__(self, *args, target: str | int, variable_map=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.found_calls: list[tuple[ailment.Block, int, ailment.expression.Call]] = []
         self.target = target
+        self.variable_map = variable_map
 
     def _handle_SideEffectStatement(
         self, stmt_idx: int, stmt: ailment.statement.SideEffectStatement, block: ailment.Block | None
@@ -132,8 +132,9 @@ class FindCallsTo(AILBlockViewer):
             )
             or (
                 isinstance(self.target, sim_type.SimType)
-                and stmt.expr.prototype is not None
-                and stmt.expr.prototype.returnty == self.target
+                and self.variable_map is not None
+                and (_proto := self.variable_map.prototype(stmt.expr)) is not None
+                and _proto.returnty == self.target
             )
         ):
             assert block is not None
@@ -141,7 +142,7 @@ class FindCallsTo(AILBlockViewer):
 
         return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self,
         expr_idx: int,
         expr: ailment.expression.Call,
@@ -156,4 +157,4 @@ class FindCallsTo(AILBlockViewer):
         ):
             assert block is not None
             self.found_calls.append((block, stmt_idx, expr))
-        return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)

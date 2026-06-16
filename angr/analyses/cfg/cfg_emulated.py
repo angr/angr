@@ -1,51 +1,55 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+import contextlib
 import itertools
 import logging
 import sys
 from collections import defaultdict
 from functools import reduce
-import contextlib
+from typing import TYPE_CHECKING
 
-import angr
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
-from angr.analyses import ForwardAnalysis
-from angr.utils.graph import GraphUtils
-from angr.analyses import AnalysesHub
-from angr import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
-from angr import options as o
+import angr
+from angr import procedures
+from angr import sim_options as o
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.backward_slice import BackwardSlice
+from angr.analyses.cdg import CDG
+from angr.analyses.ddg import DDG
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.analyses.loopfinder import Loop, LoopFinder
 from angr.codenode import BlockNode, FuncNode
 from angr.engines.procedure import ProcedureEngine
-from angr.exploration_techniques.loop_seer import LoopSeer
-from angr.exploration_techniques.slicecutor import Slicecutor
-from angr.exploration_techniques.explorer import Explorer
-from angr.exploration_techniques.lengthlimiter import LengthLimiter
 from angr.errors import (
     AngrCFGError,
     AngrError,
+    AngrExitError,
     AngrSkipJobNotice,
     AngrSyscallError,
+    SimEmptyCallStackError,
     SimError,
-    SimValueError,
-    SimSolverModeError,
     SimFastPathError,
     SimIRSBError,
-    AngrExitError,
-    SimEmptyCallStackError,
+    SimSolverModeError,
+    SimValueError,
 )
+from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.lengthlimiter import LengthLimiter
+from angr.exploration_techniques.loop_seer import LoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.knowledge_plugins.cfg import BlockID, CFGENode, IndirectJump
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_state import SimState
 from angr.state_plugins.callstack import CallStack
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action import SimActionData
-from angr.knowledge_plugins.cfg import CFGENode, IndirectJump, BlockID
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.cdg import CDG
-from angr.analyses.ddg import DDG
-from angr.analyses.backward_slice import BackwardSlice
-from angr.analyses.loopfinder import LoopFinder, Loop
+from angr.utils.graph import GraphUtils
+
 from .cfg_base import CFGBase
 from .cfg_job_base import CFGJobBase
 
@@ -1245,11 +1249,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # Increment tracing count for this block
         self._traced_addrs[job.call_stack_suffix][addr] += 1
 
-        if self._keep_state:
-            # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
-            # TODO: should save them all, which, unfortunately, requires some redesigning :-(
-            cfg_node.input_state = sim_successors.initial_state
-
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
         # in the CFG or function transition graphs.
@@ -1295,6 +1294,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             # We are good. Raise the exception and leave
             raise AngrSkipJobNotice
+
+        if self._keep_state:
+            # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
+            # TODO: should save them all, which, unfortunately, requires some redesigning :-(
+            cfg_node.input_state = sim_successors.initial_state
 
         self._update_thumb_addrs(sim_successors, job.state)
 
@@ -2668,12 +2672,12 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
                 :param SimSuccessors state_: state to update registers for
                 """
-                if state_.inspect.address is None:
-                    l.error("state.inspect.address is None. It will be fixed by Yan later.")
+                if state_.inspect.attrs.address is None:
+                    l.error("state.inspect.attrs.address is None. It will be fixed by Yan later.")
                     return
 
                 if state_.registers.load(self._reg_offset).symbolic:
-                    current_run = state_.inspect.address
+                    current_run = state_.inspect.attrs.address
                     if current_run in self._info_collection and not state_.solver.symbolic(
                         self._info_collection[current_run][self._reg_offset]
                     ):

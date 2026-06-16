@@ -11,15 +11,15 @@ from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (
     ArchSoot,
     SootAddressDescriptor,
-    SootMethodDescriptor,
-    SootArgument,
     SootAddressTerminator,
+    SootArgument,
+    SootMethodDescriptor,
 )
 
 import angr
-from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
-from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
 from angr.engines.soot.method_dispatcher import resolve_method
+from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
+from angr.storage.memory_mixins import DefaultMemory, JavaVmMemory, KeyValueMemory
 
 try:
     import pysoot

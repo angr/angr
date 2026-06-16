@@ -1,15 +1,17 @@
-# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
+# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions,unused-import
 from __future__ import annotations
-from collections.abc import Iterable
+
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
+from typing import Self
 
 import claripy
-from typing_extensions import Self
 
 from angr import ailment
-from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
+
+from .expression import Atom, DirtyExpression, Expression
 from .tagged_object import TaggedObject
-from .expression import Atom, Expression, DirtyExpression
+from .utils import is_none_or_likeable, is_none_or_matchable, stable_hash
 
 
 class Statement(TaggedObject, ABC):
@@ -67,7 +69,7 @@ class Assignment(Statement):
         "src",
     )
 
-    def __init__(self, idx: int | None, dst: Atom, src: Expression, **kwargs):
+    def __init__(self, idx: int, dst: Atom, src: Expression, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.dst = dst
@@ -128,7 +130,7 @@ class WeakAssignment(Statement):
         "src",
     )
 
-    def __init__(self, idx: int | None, dst: Atom, src: Expression, **kwargs):
+    def __init__(self, idx: int, dst: Atom, src: Expression, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.dst = dst
@@ -182,7 +184,7 @@ class WeakAssignment(Statement):
 
 class Store(Statement):
     """
-    Store statement: *addr = data
+    Store statement: ``*addr = data``
     """
 
     __slots__ = (
@@ -190,21 +192,17 @@ class Store(Statement):
         "data",
         "endness",
         "guard",
-        "offset",
         "size",
-        "variable",
     )
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         addr: Expression,
         data: Expression,
         size: int,
         endness: str,
         guard: Expression | None = None,
-        variable=None,
-        offset=None,
         **kwargs,
     ):
         super().__init__(idx, **kwargs)
@@ -213,9 +211,7 @@ class Store(Statement):
         self.data = data
         self.size = size
         self.endness = endness
-        self.variable = variable
         self.guard = guard
-        self.offset = offset  # variable_offset
 
     def likes(self, other):
         return (
@@ -244,10 +240,8 @@ class Store(Statement):
         return f"Store ({self.addr}, {self.data}[{self.size}])" + ("" if self.guard is None else f"[{self.guard}]")
 
     def __str__(self):
-        if self.variable is None:
-            return f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
-        return f"{self.variable.name} ={'L' if self.endness == 'Iend_LE' else 'B'} {self.data}<{self.size}>" + (
-            "" if self.guard is None else f"[{self.guard}]"
+        return (
+            f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
         )
 
     def replace(self, old_expr, new_expr):
@@ -279,7 +273,6 @@ class Store(Statement):
                 self.size,
                 self.endness,
                 guard=replaced_guard,
-                variable=self.variable,
                 **self.tags,
             )
         return False, self
@@ -296,22 +289,21 @@ class Store(Statement):
             self.size,
             self.endness,
             guard=self.guard,
-            variable=self.variable,
-            offset=self.offset,
             **self.tags,
         )
 
     def deep_copy(self, manager) -> Store:
-        return Store(
-            manager.next_atom(),
-            self.addr.deep_copy(manager),
-            self.data.deep_copy(manager),
-            self.size,
-            self.endness,
-            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
-            variable=self.variable,
-            offset=self.offset,
-            **self.tags,
+        return self._transfer_varmap(
+            Store(
+                manager.next_atom(),
+                self.addr.deep_copy(manager),
+                self.data.deep_copy(manager),
+                self.size,
+                self.endness,
+                guard=self.guard.deep_copy(manager) if self.guard is not None else None,
+                **self.tags,
+            ),
+            manager,
         )
 
 
@@ -325,7 +317,7 @@ class Jump(Statement):
         "target_idx",
     )
 
-    def __init__(self, idx: int | None, target: Expression, target_idx: int | None = None, **kwargs):
+    def __init__(self, idx: int, target: Expression, target_idx: int | None = None, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.target = target
@@ -391,7 +383,7 @@ class ConditionalJump(Statement):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         condition: Expression,
         true_target: Expression | None,
         false_target: Expression | None,
@@ -542,8 +534,8 @@ class SideEffectStatement(Statement):
 
     def __init__(
         self,
-        idx: int | None,
-        expr: ailment.expression.Call,
+        idx: int,
+        expr: ailment.expression.Expression,
         ret_expr: Expression | None = None,
         fp_ret_expr: Expression | None = None,
         **kwargs,
@@ -665,7 +657,7 @@ class Return(Statement):
 
     __slots__ = ("ret_exprs",)
 
-    def __init__(self, idx: int | None, ret_exprs: Iterable[Expression], **kwargs):
+    def __init__(self, idx: int, ret_exprs: Iterable[Expression], **kwargs):
         super().__init__(idx, **kwargs)
         self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 
@@ -735,8 +727,8 @@ class CAS(Statement):
     """
     Atomic compare-and-swap.
 
-    *_lo and *_hi are used to represent the low and high parts of a 128-bit CAS operation; *_hi is None if the CAS
-    operation works on values that are less than or equal to 64 bits.
+    ``*_lo`` and ``*_hi`` are used to represent the low and high parts of a 128-bit CAS operation; ``*_hi`` is None if
+    the CAS operation works on values that are less than or equal to 64 bits.
 
     addr: The address to be compared and swapped.
     data: The value to be written if the comparison is successful.
@@ -748,7 +740,7 @@ class CAS(Statement):
 
     def __init__(
         self,
-        idx: int | None,
+        idx: int,
         addr: Expression,
         data_lo: Expression,
         data_hi: Expression | None,
@@ -910,7 +902,7 @@ class DirtyStatement(Statement):
 
     __slots__ = ("dirty",)
 
-    def __init__(self, idx: int | None, dirty: DirtyExpression, **kwargs):
+    def __init__(self, idx: int, dirty: DirtyExpression, **kwargs):
         super().__init__(idx, **kwargs)
         self.dirty = dirty
 
@@ -956,7 +948,7 @@ class Label(Statement):
 
     __slots__ = ("name",)
 
-    def __init__(self, idx: int | None, name: str, **kwargs):
+    def __init__(self, idx: int, name: str, **kwargs):
         super().__init__(idx, **kwargs)
         self.name = name
 
@@ -991,3 +983,40 @@ class Label(Statement):
 
     def deep_copy(self, manager) -> Label:
         return Label(manager.next_atom(), self.name, **self.tags)
+
+
+class NoOp(Statement):
+    """
+    A statement that does nothing. It defines and uses no atoms. It is primarily used as an in-place placeholder for a
+    removed statement so that the indices of the surrounding statements (and code locations referencing them) remain
+    stable until the block is compacted.
+    """
+
+    __slots__ = ()
+
+    def likes(self, other):
+        return isinstance(other, NoOp)
+
+    def replace(self, old_expr, new_expr):
+        return False, self
+
+    @property
+    def depth(self) -> int:
+        return 0
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash((NoOp,))
+
+    def __repr__(self):
+        return "NoOp"
+
+    def __str__(self):
+        return "NoOp"
+
+    def copy(self) -> NoOp:
+        return NoOp(self.idx, **self.tags)
+
+    def deep_copy(self, manager) -> NoOp:
+        return NoOp(manager.next_atom(), **self.tags)

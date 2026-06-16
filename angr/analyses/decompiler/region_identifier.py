@@ -1,26 +1,27 @@
 from __future__ import annotations
-from typing import Any, Literal, TypeAlias, cast, overload, TypeVar
+
+import logging
+from collections import defaultdict
 from collections.abc import Iterable
 from itertools import count
-from collections import defaultdict
-import logging
+from typing import Any, Literal, cast, overload
 
 import networkx
 
 from angr import ailment
-from angr.ailment import Block
-from angr.ailment.statement import ConditionalJump, Jump
+from angr.ailment import Block, Manager
 from angr.ailment.expression import Const
-from angr.knowledge_plugins.functions.function import Function
-from angr.utils.graph import GraphUtils
-from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
-from angr.utils.doms import IncrementalDominators
+from angr.ailment.statement import ConditionalJump, Jump
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.errors import AngrRuntimeError
-from angr.analyses import Analysis, register_analysis
-from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
-from .graph_region import GraphRegion
+from angr.knowledge_plugins.functions.function import Function
+from angr.utils.doms import IncrementalDominators
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
+
 from .condition_processor import ConditionProcessor
-from .utils import replace_last_statement, first_nonlabel_nonphi_statement, copy_graph
+from .graph_region import GraphRegion
+from .structurer_nodes import ConditionNode, IncompleteSwitchCaseHeadStatement, MultiNode
+from .utils import copy_graph, first_nonlabel_nonphi_statement, replace_last_statement
 
 l = logging.getLogger(name=__name__)
 
@@ -28,9 +29,8 @@ l = logging.getLogger(name=__name__)
 # an ever-incrementing counter
 CONDITIONNODE_ADDR = count(0xFF000000)
 
-TNode: TypeAlias = Block | GraphRegion | MultiNode | ConditionNode
-TGraph: TypeAlias = "networkx.DiGraph[TNode]"
-T = TypeVar("T")
+type TNode = Block | GraphRegion | MultiNode | ConditionNode
+type TGraph = "networkx.DiGraph[TNode]"
 
 
 class RegionIdentifier(Analysis):
@@ -48,6 +48,7 @@ class RegionIdentifier(Analysis):
         func: Function,
         cond_proc: ConditionProcessor | None = None,
         graph: networkx.DiGraph[Block] | None = None,
+        ail_manager: Manager | None = None,
         update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
@@ -59,13 +60,15 @@ class RegionIdentifier(Analysis):
         self.entry_node_addr: tuple[int, int | None] | None = (
             entry_node_addr if entry_node_addr is not None else (func.addr, None) if func is not None else None
         )
+        self.ail_manager = ail_manager if ail_manager is not None else Manager()
         self.cond_proc = (
             cond_proc
             if cond_proc is not None
             else ConditionProcessor(
                 self.project.arch
                 if getattr(self, "project", None) is not None
-                else None  # it's only None in test cases
+                else None,  # it's only None in test cases
+                self.ail_manager,
             )
         )
 
@@ -264,6 +267,18 @@ class RegionIdentifier(Analysis):
                 elif type_ == "call":
                     graph.remove_node(dst)
                     break
+                elif (
+                    type_ == "transition"
+                    and graph.out_degree[src] == 1
+                    and graph.in_degree[dst] == 1
+                    and src is not dst
+                    and not self._block_ends_with_indirect_jump_or_call(dst)
+                ):
+                    merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
+                    # update the entry_node if necessary
+                    if entry_node is not None and entry_node is src:
+                        entry_node = merged_node
+                    break
             else:
                 break
 
@@ -278,16 +293,26 @@ class RegionIdentifier(Analysis):
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
 
-        # special case: any node with more than two non-self successors are probably the head of a switch-case. we
+        # special case: any node with more than two non-self successors is probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
         # we must be extra careful here to not include nodes that are reachable from outside the loop subgraph. an
         # example is in binary 064e1d62c8542d658d83f7e231cc3b935a1f18153b8aea809dcccfd446a91c93, loop 0x40d7b0 should
         # not include block 0x40d9d5 because this node has a out-of-loop-body predecessor (block 0x40d795).
+        #
+        # another special case: any node with two non-self successors where one of them is an identified jump table
+        # head is likely the head of a switch-case. we should include all successors in the loop subgraph if these
+        # successors do not have out-of-loop-body predecessors.
+        # example: binary cb30d69b24245bf2ecdc9e7f53bbad19159999970b6d82c0c00c7d32d9e37aa4 , function 0x414cb0, block
+        # 0x4046e4.
+        cfg_model = self.kb.cfgs.get_most_accurate()
+        jump_tables = cfg_model.jump_tables if cfg_model is not None else {}
         while True:
             updated = False
             for node in list(loop_subgraph):
                 nonself_successors = [succ for succ in graph.successors(node) if succ is not node]
-                if len(nonself_successors) > 2:
+                if len(nonself_successors) > 2 or (
+                    len(nonself_successors) == 2 and any(succ.addr in jump_tables for succ in nonself_successors)
+                ):
                     for succ in nonself_successors:
                         if not loop_subgraph.has_edge(node, succ) and all(
                             pred in loop_subgraph for pred in graph.predecessors(succ)
@@ -639,7 +664,7 @@ class RegionIdentifier(Analysis):
                             new_last_stmt = ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
                                 last_stmt.false_target,
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
@@ -651,7 +676,7 @@ class RegionIdentifier(Analysis):
                                 last_stmt.idx,
                                 last_stmt.condition,
                                 last_stmt.true_target,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
@@ -661,7 +686,7 @@ class RegionIdentifier(Analysis):
                         if isinstance(last_stmt.target, ailment.Expr.Const):
                             new_last_stmt = Jump(
                                 last_stmt.idx,
-                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
                                 ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
@@ -1113,6 +1138,18 @@ class RegionIdentifier(Analysis):
         return out_edges
 
     @staticmethod
+    def _block_ends_with_indirect_jump_or_call(node: TNode) -> bool:
+        """Check if the last statement of a node is an indirect jump or a call."""
+        last_block = node.nodes[-1] if isinstance(node, MultiNode) else node
+        if isinstance(last_block, Block) and last_block.statements:
+            last_stmt = last_block.statements[-1]
+            if isinstance(last_stmt, Jump) and not isinstance(last_stmt.target, Const):
+                return True
+            if isinstance(last_stmt, ConditionalJump):
+                return True
+        return False
+
+    @staticmethod
     def _merge_nodes(graph: TGraph, node_a: TNode, node_b: TNode, force_multinode: bool = False) -> MultiNode | None:
         in_edges = list(graph.in_edges(node_a, data=True))
         out_edges = list(graph.out_edges(node_b, data=True))
@@ -1165,8 +1202,8 @@ class RegionIdentifier(Analysis):
             if not node.statements:
                 node.statements.append(
                     Jump(
-                        None,
-                        Const(None, None, node.addr + node.original_size, self.project.arch.bits),
+                        self.ail_manager.next_atom(),
+                        Const(self.ail_manager.next_atom(), node.addr + node.original_size, self.project.arch.bits),
                         ins_addr=node.addr,
                     )
                 )
@@ -1181,8 +1218,12 @@ class RegionIdentifier(Analysis):
                 ):
                     node.statements.append(
                         Jump(
-                            None,
-                            Const(None, None, node.addr + node.original_size, self.project.arch.bits),
+                            self.ail_manager.next_atom(),
+                            Const(
+                                self.ail_manager.next_atom(),
+                                node.addr + node.original_size,
+                                self.project.arch.bits,
+                            ),
                             ins_addr=node.addr,
                         )
                     )

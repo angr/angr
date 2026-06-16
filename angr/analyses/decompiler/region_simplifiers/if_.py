@@ -1,17 +1,17 @@
 # pylint:disable=unused-argument,arguments-differ
 from __future__ import annotations
+
 import logging
 
 import angr.ailment as ailment
-
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    MultiNode,
-    LoopNode,
-    ConditionNode,
+from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
 
 l = logging.getLogger(name=__name__)

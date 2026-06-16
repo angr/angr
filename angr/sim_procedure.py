@@ -1,29 +1,31 @@
 from __future__ import annotations
-import inspect
+
 import copy
+import inspect
 import itertools
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import claripy
-from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
+from cle import SymbolType
 
 import angr
 from angr import sim_options as o
-from angr.errors import SimProcedureError, SimShadowStackError
-from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import (
     DEFAULT_CC,
-    default_cc,
-    SimTypeFunction,
-    SimTypePointer,
-    SimTypeChar,
     ArgSession,
+    SimTypeChar,
+    SimTypeFunction,
     SimTypeNum,
+    SimTypePointer,
+    default_cc,
 )
-from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from angr.errors import SimProcedureError, SimShadowStackError
+from angr.state_plugins.sim_action import SimActionExit
+
 from .sim_type import parse_signature, parse_type
+from .state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
@@ -42,9 +44,6 @@ class SimProcedure:
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/extending-angr/simprocedures
 
     :param arch:            The architecture to use for this procedure
-
-    The following parameters are optional:
-
     :param symbolic_return: Whether the procedure's return value should be stubbed into a
                             single symbolic variable constratined to the real return value
     :param returns:         Whether the procedure should return to its caller afterwards
@@ -205,11 +204,8 @@ class SimProcedure:
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        if self.addr is None:
-            if isinstance(state._ip, tuple):
-                self.addr = state._ip[0]
-            elif not state.regs._ip.symbolic:
-                self.addr = state.addr
+        if self.addr is None and not state.regs._ip.symbolic:
+            self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
         if self.project is None:
@@ -268,7 +264,9 @@ class SimProcedure:
             ):
                 sim_args = tuple(state.callstack.passed_args)
                 inst.use_state_arguments = False
-                inst.ret_to = state.callstack.return_addr
+                ret_to_tuple = state.callstack.return_addr
+                inst.ret_to = ret_to_tuple[0]
+                state.scratch.ail_block_idx = ret_to_tuple[1]
                 inst.arguments = list(sim_args)
                 inst.arg_session = 0
                 sim_args = sim_args[: inst.num_args]
@@ -497,7 +495,9 @@ class SimProcedure:
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
         elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack):
-            ret_addr = self.state.callstack.return_addr
+            ret_addr_tuple = self.state.callstack.return_addr
+            ret_addr = ret_addr_tuple[0]
+            self.state.scratch.ail_block_idx = ret_addr_tuple[1]
             # When successors is None, this is an internal/inline SimProcedure call (e.g. inline_call()).
             if self.should_add_successors:
                 self.state.callstack.pop()

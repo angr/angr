@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from .dream import DreamStructurer
 from .phoenix import PhoenixStructurer
-from .sailr import SAILRStructurer
 from .recursive_structurer import RecursiveStructurer
+from .sailr import SAILRStructurer
 
 STRUCTURER_CLASSES = {
     SAILRStructurer.NAME: SAILRStructurer,

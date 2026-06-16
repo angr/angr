@@ -1,8 +1,10 @@
 # Microsoft Visual C/C++ Runtime
 from __future__ import annotations
-from . import SimLibrary
-from angr.procedures import SIM_PROCEDURES as P
+
 from angr.calling_conventions import SimCCMicrosoftAMD64
+from angr.procedures.procedure_dict import SIM_PROCEDURES as P
+
+from . import SimLibrary
 
 libc = SimLibrary()
 libc.set_library_names(

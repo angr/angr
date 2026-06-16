@@ -1,34 +1,34 @@
 from __future__ import annotations
-from collections import defaultdict
-import logging
-from itertools import combinations
+
 import itertools
+import logging
+from collections import defaultdict
+from itertools import combinations
 
 import networkx as nx
 
 import angr.ailment as ailment
 from angr.ailment.block import Block
-from angr.ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
-from angr.ailment.expression import Const, Register, Convert, Expression, VirtualVariable
+from angr.ailment.expression import Const, Convert, Expression, Register, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return
+from angr.analyses.decompiler.block_io_finder import BlockIOFinder
+from angr.analyses.decompiler.block_similarity import index_of_similar_stmts, is_similar, longest_ail_subseq
+from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
+from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
+from angr.utils.graph import dominates
 
-from .ail_merge_graph import AILMergeGraph, AILBlockSplit
+from .ail_merge_graph import AILBlockSplit, AILMergeGraph
 from .errors import SAILRSemanticError
 from .similarity import longest_ail_graph_subseq
-
 from .utils import (
-    replace_node_in_graph,
-    find_block_in_successors_by_addr,
     copy_graph_and_nodes,
     correct_jump_targets,
     deepcopy_ail_anyjump,
+    find_block_in_successors_by_addr,
+    replace_node_in_graph,
 )
-from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
-from angr.analyses.decompiler.block_io_finder import BlockIOFinder
-from angr.analyses.decompiler.block_similarity import is_similar, index_of_similar_stmts, longest_ail_subseq
-from angr.analyses.decompiler.utils import to_ail_supergraph, remove_labels
-from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
-from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
-from angr.utils.graph import dominates
 
 _l = logging.getLogger(name=__name__)
 
@@ -395,14 +395,16 @@ class DuplicationReverter(StructuringOptimizationPass):
                     if last_stmt.target.value != successor.addr:
                         new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
                         last_stmt.target_idx = successor.idx
-                        new_last_stmt.target = Const(None, None, successor.addr, self.project.arch.bits)
+                        new_last_stmt.target = Const(self.manager.next_atom(), successor.addr, self.project.arch.bits)
                         new_node = node.copy()
                         new_node.statements[-1] = new_last_stmt
                 # the last statement is not a jump, but this node should have one, so add it
                 else:
                     new_node = node.copy()
                     new_last_stmt = Jump(
-                        None, Const(None, None, successor.addr, self.project.arch.bits), target_idx=successor.idx
+                        self.manager.next_atom(),
+                        Const(self.manager.next_atom(), successor.addr, self.project.arch.bits),
+                        target_idx=successor.idx,
                     )
                     # TODO: improve addressing here
                     new_last_stmt.tags["ins_addr"] = new_node.addr + 1
@@ -465,8 +467,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         cond_jump = ConditionalJump(
             1,
             best_condition.copy() if best_condition is not None else None,
-            Const(None, None, 0, self.project.arch.bits),
-            Const(None, None, 0, self.project.arch.bits),
+            Const(self.manager.next_atom(), 0, self.project.arch.bits),
+            Const(self.manager.next_atom(), 0, self.project.arch.bits),
             **old_stmt_tags,
         )
         cond_block.statements = [cond_jump]
@@ -477,29 +479,33 @@ class DuplicationReverter(StructuringOptimizationPass):
     def boolean_operators_in_condition(condition: Expression):
         """
         TODO: this entire boolean checking semantic we use needs to be removed, see how it is used for other dels needed
-        we need to replace it with a boolean variable insertion on both branches that lead to the new block
-        say we have:
-        if (A()) {
-            do_thing();
-        }
-        if (B()) {
-            do_thing():
-        }
+        we need to replace it with a boolean variable insertion on both branches that lead to the new block.
 
-        We want to translate it to:
-        int should_do_thing = 0;
-        if (A())
-            should_do_thing = 1;
-        if (B())
-            should_do_thing = 1;
+        Say we have::
 
-        if (should_do_thing):
-            do_thing();
+            if (A()) {
+                do_thing();
+            }
+            if (B()) {
+                do_thing():
+            }
 
-        Although longer, this code can be optimized to look like:
-        int should_do_thing = A() || B();
-        if (should_do_thing)
-            do_thing();
+        We want to translate it to::
+
+            int should_do_thing = 0;
+            if (A())
+                should_do_thing = 1;
+            if (B())
+                should_do_thing = 1;
+
+            if (should_do_thing):
+                do_thing();
+
+        Although longer, this code can be optimized to look like::
+
+            int should_do_thing = A() || B();
+            if (should_do_thing)
+                do_thing();
         """
         walker = BooleanCounter()
         walker.walk_expression(condition)
@@ -775,7 +781,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 nop_blk = Block(
                     self.new_block_addr(),
                     0,
-                    statements=[Jump(0, Const(0, 0, 0, self.project.arch.bits), 0, ins_addr=self.new_block_addr())],
+                    statements=[Jump(0, Const(0, 0, self.project.arch.bits), 0, ins_addr=self.new_block_addr())],
                 )
                 # point src -> nop -> dst
                 graph.add_edge(src, nop_blk)

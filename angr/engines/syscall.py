@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 import angr
 from angr.errors import AngrUnsupportedSyscallError
-from .successors import SuccessorsEngine
+
 from .procedure import ProcedureMixin
+from .successors import SuccessorsEngine
 
 l = logging.getLogger(name=__name__)
 

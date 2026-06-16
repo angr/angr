@@ -1,15 +1,15 @@
 from __future__ import annotations
-from typing import Generic, TypeVar, overload
+
+from typing import overload
 
 import networkx
+
 from angr.codenode import CodeNode
 from angr.knowledge_plugins.functions.function import Function
-from angr.utils.graph import compute_dominance_frontier, Dominators
-
-T_co = TypeVar("T_co", covariant=True)
+from angr.utils.graph import Dominators, compute_dominance_frontier
 
 
-class DominanceFrontier(Generic[T_co]):
+class DominanceFrontier[T_co]:
     """
     Computes the dominance frontier of all nodes in a function graph, and provides an easy-to-use interface for
     querying the frontier information.

@@ -1,27 +1,28 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
+from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
-from angr.ailment.expression import Atom, Call, VirtualVariable, Convert, BinaryOp, Phi, Extract
 from angr.ailment.utils import is_none_or_likeable
-
-from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
+from angr.knowledge_plugins.key_definitions import atoms
 
 if TYPE_CHECKING:
+    from angr.ailment.block import Block
     from angr.ailment.expression import (
+        ITE,
+        DirtyExpression,
         Expression,
         Load,
         UnaryOp,
-        ITE,
-        DirtyExpression,
         VEXCCallExpression,
     )
+    from angr.ailment.manager import Manager
     from angr.ailment.statement import Statement
-    from angr.ailment.block import Block
 
 
 _l = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.args is not None:
             for i, arg in enumerate(expr.args):
                 handled = False
@@ -232,12 +233,19 @@ class ExpressionNarrower(AILBlockRewriter):
     """
 
     def __init__(
-        self, project, rd, narrowables, addr2blocks: dict[tuple[int, int | None], Block], new_blocks: dict[Block, Block]
+        self,
+        project,
+        rd,
+        manager: Manager,
+        narrowables,
+        addr2blocks: dict[tuple[int, int | None], Block],
+        new_blocks: dict[Block, Block],
     ):
         super().__init__(update_block=False)
 
         self.project = project
         self._rd = rd
+        self.manager = manager
         self._addr2blocks = addr2blocks
         self._new_blocks = new_blocks
 
@@ -302,7 +310,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 new_src.bits = self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width
             else:
                 new_src = Convert(
-                    None,
+                    self.manager.next_atom(),
                     stmt.src.bits,
                     self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
                     False,
@@ -337,7 +345,7 @@ class ExpressionNarrower(AILBlockRewriter):
             self.replacement_core_vvars[expr.varid].append(new_expr)
 
             return Convert(
-                None,
+                self.manager.next_atom(),
                 new_expr.bits,
                 expr.bits,
                 False,

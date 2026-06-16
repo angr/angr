@@ -4,12 +4,11 @@ from __future__ import annotations
 import archinfo
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Assignment, SideEffectStatement
 from angr.ailment.expression import Call, Const, Register, VirtualVariable
-
+from angr.ailment.statement import Assignment, SideEffectStatement, Statement
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 WIN64_REG_ARGS = {
     archinfo.ArchAMD64().registers["rcx"][0],
@@ -78,13 +77,15 @@ class StringObfType3Rewriter(OptimizationPass):
             old_call_expr: Call = old_stmt.src
         else:
             old_call_expr: Call = old_stmt.expr
+        str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
+        self.manager.variable_map.set_custom_string(str_const)
         new_call = Call(
             old_call_expr.idx,
             "init_str",
             args=[
                 old_call_expr.args[0],
-                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                Const(None, None, len(deobf_content), self.project.arch.bits),
+                str_const,
+                Const(None, len(deobf_content), self.project.arch.bits),
             ],
             bits=old_call_expr.bits,
             **old_call_expr.tags,

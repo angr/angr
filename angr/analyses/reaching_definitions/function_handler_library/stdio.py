@@ -1,7 +1,8 @@
 from __future__ import annotations
-import re
-import random
+
 import logging
+import random
+import re
 from collections.abc import Iterable
 
 import archinfo

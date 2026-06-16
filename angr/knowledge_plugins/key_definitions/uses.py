@@ -1,9 +1,10 @@
 # pylint:disable=unsubscriptable-object
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
 
-from angr.utils.cowdict import DefaultChainMapCOW
+from typing import TYPE_CHECKING, Any
+
 from angr.code_location import CodeLocation
+from angr.utils.cowdict import DefaultChainMapCOW
 
 if TYPE_CHECKING:
     from .definition import Definition

@@ -1,21 +1,23 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
-from typing import cast, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, cast
 
 import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from angr.analyses.typehoon import typeconsts, typevars
 from angr.block import Block
-from angr.errors import SimMemoryMissingError
 from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc
-from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.engines.light import SimEngineNostmtVEX
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins import Function
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.analyses.typehoon import typevars, typeconsts
 from angr.sim_type import SimTypeBottom, SimTypeRef
-from .engine_base import SimEngineVRBase, RichR
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
+from .engine_base import RichR, SimEngineVRBase
 from .irsb_scanner import VEXIRSBScanner
 
 if TYPE_CHECKING:
@@ -312,7 +314,7 @@ class SimEngineVRVEX(
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data.concrete_value))
+            typevar = self.tv_manager.new_dtv(r0.typevar, label=typevars.AddN(r1.data.concrete_value))
 
         tc: set[typevars.TypeConstraint] = set()
         if r0.typevar is not None and r1.typevar is not None:
@@ -335,7 +337,7 @@ class SimEngineVRVEX(
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data.concrete_value))
+            typevar = self.tv_manager.new_dtv(r0.typevar, label=typevars.SubN(r1.data.concrete_value))
 
         return RichR(
             diff,

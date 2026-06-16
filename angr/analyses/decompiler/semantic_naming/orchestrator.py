@@ -9,19 +9,23 @@ after structuring, where it can leverage the structured LoopNode information.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr import ailment
+from angr.analyses.decompiler.variable_map import VariableMap
 from angr.sim_variable import SimVariable
-from .naming_base import ClinicNamingBase
+
 from .array_index_naming import ArrayIndexNaming
-from .call_result_naming import CallResultNaming
-from .size_naming import SizeNaming
 from .boolean_naming import BooleanNaming
+from .call_result_naming import CallResultNaming
+from .naming_base import ClinicNamingBase
 from .pointer_naming import PointerNaming
+from .size_naming import SizeNaming
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
@@ -55,12 +59,14 @@ class SemanticNamingOrchestrator:
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: ailment.Block,
+        variable_map=None,
         patterns: list[type[ClinicNamingBase]] | None = None,
     ):
         self._graph = ail_graph
         self._variable_manager = variable_manager
         self._functions = functions
         self._entry_node = entry_node
+        self._variable_map = variable_map if variable_map is not None else VariableMap()
         self._patterns = patterns or NAMING_PATTERNS
 
         # Track all renamed variables
@@ -84,6 +90,7 @@ class SemanticNamingOrchestrator:
                 self._variable_manager,
                 self._functions,
                 self._entry_node,
+                self._variable_map,
             )
 
             # Analyze to get suggested renames
@@ -105,4 +112,23 @@ class SemanticNamingOrchestrator:
 
             l.debug("Pattern %s renamed %d variables", pattern_class.__name__, len(renamed))
 
+        self.resolve_name_collisions()
+
         return all_renames
+
+    def resolve_name_collisions(self) -> None:
+        """Suffix duplicate names (len, len1, ...) so each variable is unique.
+
+        Two distinct variables can get the same name
+        (two strlen -> "len", or CallResultNaming and PointerNaming both -> "ptr").
+        """
+        varname_count: defaultdict[str, int] = defaultdict(int)
+        renamed = (v for v in self.renamed_variables if v.renamed)
+        for var in sorted(renamed, key=lambda v: str(v.ident)):
+            base = var.name
+            if base is None:
+                continue
+            if n := varname_count[base]:
+                var.name = f"{base}{n}"
+                var.clear_hash()
+            varname_count[base] += 1

@@ -1,20 +1,21 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeAlias
+
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import pyvex
 
-from angr.utils.bits import u2s
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
-from angr.analyses.analysis import Analysis
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode, FuncNode
-from angr.engines.light import SimEngineNostmtVEX, SimEngineLight
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
+from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
+
 from .utils import is_sane_register_variable
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ SUBKIND_BP = 1
 # for KIND_STACKVAL subkind is source stack offset
 # offset is const offset from original value, or value for KIND_CONST
 
-FactData: TypeAlias = tuple[int, int, int] | None
+type FactData = tuple[int, int, int] | None
 
 
 class FactCollectorState:
@@ -317,6 +318,7 @@ class FactCollector(Analysis):
         self.unused_args: list[SimRegArg] = []
         self.retval_size: int | None = None
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
+        self.extra_pop: int | None = None
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
         self._analyze()
@@ -329,6 +331,7 @@ class FactCollector(Analysis):
         self._analyze_endpoints_for_retval_size(end_states)
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
+        self.extra_pop = self._analyze_endpoints_for_extrapop()
 
     def _analyze_startpoint(self) -> list[FactCollectorState]:
         func_graph = self.function.transition_graph
@@ -481,7 +484,19 @@ class FactCollector(Analysis):
         else:
             return
 
+        # Get the overflow return register offset (e.g., rdx on x64). This is only used to detect
+        # 128-bit return values on Rust binaries; on non-Rust binaries the overflow register is
+        # typically used as a scratch register, and counting writes to it as part of the return
+        # value size incorrectly inflates retval_size and pushes the prototype to void (see
+        # CallingConventionAnalysis._guess_retval_type which only maps 9..16 sizes to a type for
+        # Rust binaries).
+        overflow_retreg_offset: int | None = None
+        if self.project.is_rust_binary and isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
+            overflow_retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+
         retval_sizes = []
+        propagated_retval_sizes = []
+        overflow_retval_sizes = []
         for endpoint in self.function.endpoints:
             assert isinstance(endpoint, (BlockNode, HookNode))
             traversed = set()
@@ -516,7 +531,7 @@ class FactCollector(Analysis):
                         returnty_size = func.prototype.returnty.with_arch(self.project.arch).size
                         assert returnty_size is not None
                         retval_size = returnty_size // self.project.arch.byte_width
-                        retval_sizes.append(retval_size)
+                        propagated_retval_sizes.append(retval_size)
                     continue
 
                 # if this block ends with a call to a function, we process the function first
@@ -552,7 +567,7 @@ class FactCollector(Analysis):
                                 retval_size = self.project.arch.bytes
                             else:
                                 retval_size = returnty_size // self.project.arch.byte_width
-                            retval_sizes.append(retval_size)
+                            propagated_retval_sizes.append(retval_size)
                             continue
                         if (
                             func_succ.prototype is not None
@@ -572,7 +587,10 @@ class FactCollector(Analysis):
                         tmp_definitions[stmt.tmp] = stmt.data
 
                 # scan the block statements backwards to find writes to the return value register
-                retval_size = None
+                # block_retval_size stores the size of the first write (in the block) to the return register; this is
+                # to account for the common case where the shorter register (e.g., al) is extended to the full register
+                # (e.g., rax) before returning.
+                block_retval_size = None
                 for stmt in reversed(block.vex.statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
@@ -592,10 +610,12 @@ class FactCollector(Analysis):
                                 size = 4
 
                         if stmt.offset == retreg_offset:
-                            retval_size = max(size, 1)
+                            block_retval_size = max(size, 1)
+                        if stmt.offset == overflow_retreg_offset:
+                            overflow_retval_sizes.append(max(size, 1))
 
-                if retval_size is not None:
-                    retval_sizes.append(retval_size)
+                if block_retval_size is not None:
+                    retval_sizes.append(block_retval_size)
                     continue
 
                 for pred, _, data in func_graph.in_edges(node, data=True):
@@ -623,6 +643,9 @@ class FactCollector(Analysis):
 
                 if not is_written:
                     retval_sizes.append(self.project.arch.bytes)
+
+        overflow_retval_size = max(overflow_retval_sizes) if overflow_retval_sizes else 0
+        retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
 
@@ -742,6 +765,40 @@ class FactCollector(Analysis):
                     caller_saved_offsets.add(self.project.arch.registers[reg_name][0])
 
         return callee_restored_regs.difference(caller_saved_offsets)
+
+    def _analyze_endpoints_for_extrapop(self) -> int:
+        """
+        Analyze all endpoints to determine the number of bytes that are popped after popping the return address at the
+        end of the function. This information is useful for determining if the function cleans up stack arguments
+        before returning.
+        """
+
+        if not self.project.arch.call_pushes_ret:
+            return 0
+
+        sp_offset = self.project.arch.sp_offset
+        sp_diffs = set()  # should all be positive
+
+        for endpoint in self.function.endpoints:
+            block = self.project.factory.block(endpoint.addr, size=endpoint.size)
+            if not block.instruction_addrs:
+                continue
+            # ret is the only instruction that can load the return address, and it must be the last instruction of the
+            # block. so we simply take a look at sp value diff before and after the last instruction. hopefully this
+            # applies for all architectures :)
+            last_ins_addr = block.instruction_addrs[-1]
+            last_ins_block = self.project.factory.block(last_ins_addr, size=block.addr + block.size - last_ins_addr)
+            spt = self.project.analyses.StackPointerTracker(
+                None, reg_offsets={self.project.arch.sp_offset}, block=last_ins_block, track_memory=False
+            )
+            sp_off_after = spt.offset_after(last_ins_addr, sp_offset)
+            sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
+            if sp_off_after is None or sp_off_before is None:
+                continue
+            sp_diff = sp_off_after - sp_off_before
+            sp_diffs.add(sp_diff - self.project.arch.bytes)
+
+        return 0 if not sp_diffs else max(sp_diffs)
 
     def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []

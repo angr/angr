@@ -2,17 +2,17 @@
 from __future__ import annotations
 
 import json
-import sys
-import os
 import logging
-from collections import OrderedDict, defaultdict
+import os
+import sys
 from argparse import ArgumentParser
+from collections import OrderedDict, defaultdict
 from pathlib import Path
 
 import angr
-from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBottom, SimTypePointer
-from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
+from angr.procedures.definitions import SimTypeCollection
+from angr.sim_type import PointerDisposition, SimTypeBottom, SimTypeFunction, SimTypeInt, SimTypeLong, SimTypePointer
 
 # The win32json marks some outparams as inout. fix this
 OVERRIDE_OUTPARAMS = {

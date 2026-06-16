@@ -3,24 +3,26 @@ from __future__ import annotations
 import logging
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootArgument, SootNullConstant
-from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS, fpToIEEEBV
+from claripy import BVS, BVV, FPS, FPV, FSORT_DOUBLE, FSORT_FLOAT, StringS, StringV, fpToIEEEBV
 from claripy.ast import BV, FP
 
 import angr
-from angr import SIM_PROCEDURES, options
-from angr.calling_conventions import default_cc, SimCCSoot
+from angr import sim_options as options
+from angr.calling_conventions import SimCCSoot, default_cc
 from angr.engines.soot import SootMixin
 from angr.engines.soot.expressions import SimSootExpr_NewArray
 from angr.engines.soot.values import (
     SimSootValue_ArrayRef,
+    SimSootValue_StaticFieldRef,
     SimSootValue_StringRef,
     SimSootValue_ThisRef,
-    SimSootValue_StaticFieldRef,
 )
 from angr.errors import AngrSimOSError
+from angr.procedures import SIM_PROCEDURES
 from angr.procedures.java_jni import jni_functions
 from angr.sim_state import SimState
 from angr.sim_type import SimTypeFunction, SimTypeNum
+
 from .simos import SimOS
 
 l = logging.getLogger("angr.simos.JavaVM")

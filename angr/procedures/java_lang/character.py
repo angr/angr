@@ -1,6 +1,8 @@
 from __future__ import annotations
-import claripy
+
 import logging
+
+import claripy
 
 from angr.procedures.java import JavaSimProcedure
 

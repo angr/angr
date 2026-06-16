@@ -1,50 +1,38 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
-from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
-from collections.abc import Iterator, Generator
-from collections import OrderedDict, UserDict
-import logging
-import collections.abc
-import re
-import weakref
 import bisect
+import collections.abc
+import logging
 import os
+import re
 import threading
-from collections import defaultdict
+import weakref
+from collections import OrderedDict, UserDict, defaultdict
+from collections.abc import Generator
+from typing import TYPE_CHECKING, TypeVar, cast, overload
 
+import cle
 import lmdb
 import networkx
-
 from archinfo.arch_soot import SootMethodDescriptor
-import cle
 from cachetools import LRUCache
-from sortedcontainers import SortedKeysView, SortedItemsView, SortedValuesView
+from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.errors import SimEngineError
 from angr.codenode import FuncNode, HookNode
+from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
-from angr.utils.smart_cache import SmartLRUCache
 from angr.protos import function_pb2
+from angr.utils.smart_cache import SmartLRUCache
+
 from .function import Function
 from .soot_function import SootFunction
-
-K = TypeVar("K", int, SootMethodDescriptor)
-T = TypeVar("T")
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
     from angr.knowledge_plugins.rtdb import RuntimeDb
 
-    class SortedDict(Generic[K, T], dict[K, T]):
-        def irange(self, *args, **kwargs) -> Iterator[K]: ...
-
-    class SortedList(Generic[K], list[K]):
-        def irange(self, *args, **kwargs) -> Iterator[K]: ...
-        def add(self, value: K) -> None: ...
-
-else:
-    from sortedcontainers import SortedDict, SortedList
+K = TypeVar("K", int, SootMethodDescriptor)
 
 QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
 ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
@@ -56,7 +44,7 @@ _missing = object()
 USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
 
 
-class FunctionDictBase(Generic[K]):
+class FunctionDictBase[K: (int, SootMethodDescriptor)]:
     """
     Base class for FunctionDict and SpillingFunctionDict.
     """
@@ -116,7 +104,7 @@ class FunctionDictBase(Generic[K]):
     @overload
     def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
+    def get[T](self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
 
     def get(self, addr: K, default=_missing, /, meta_only: bool = False):
         raise NotImplementedError
@@ -150,7 +138,7 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
+    def get[T](self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
     def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type: ignore #pylint:disable=unused-argument
         try:
@@ -371,7 +359,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
+    def get[T](self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
     def get(self, addr, default=_missing, /, meta_only: bool = False):  # type: ignore
         # First check in-memory
@@ -667,7 +655,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._evict_n(self.cached_count)
 
 
-class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
+class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
     """
     When cache_limit is set, the FunctionManager uses a SpillingFunctionDict
     that implements an LRU cache keeping only the most recently accessed N functions
@@ -715,6 +703,8 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
         # historical function name cache
         self._old_func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
+        # key function addresses cache
+        self._key_func_addrs: defaultdict[str, set[K]] = defaultdict(set)
 
     def __setstate__(self, state):
         self.function_address_types = state["function_address_types"]
@@ -781,6 +771,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         fm._func_block_counts = self._func_block_counts.copy()
         fm._func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._func_name_to_addrs.items()})
         fm._old_func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._old_func_name_to_addrs.items()})
+        fm._key_func_addrs = defaultdict(set, {k: v.copy() for k, v in self._key_func_addrs.items()})
 
         return fm
 
@@ -805,6 +796,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._func_block_counts = {}
         self._func_name_to_addrs = defaultdict(set)
         self._old_func_name_to_addrs = defaultdict(set)
+        self._key_func_addrs = defaultdict(set)
 
     def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
         """
@@ -1156,6 +1148,11 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # update the function block count cache
         self.set_func_block_count(func.addr, len(func.block_addrs_set))
 
+        # update key function address cache
+        for key, value in func.info.items():
+            if key.startswith("is_") and value is True:
+                self.add_key_func_addr(key[3:], func.addr)
+
         # make sure all functions exist in the call graph
         self.callgraph.add_node(func.addr)
 
@@ -1261,18 +1258,24 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         return None
 
     def function(
-        self, addr=None, name=None, check_previous_names=False, create=False, syscall=False, plt=None
+        self,
+        addr: K | None = None,
+        name: str | None = None,
+        check_previous_names: bool = False,
+        create: bool = False,
+        syscall: bool = False,
+        plt: bool | None = None,
     ) -> Function | None:
         """
         Get a function object from the function manager.
 
         Pass either `addr` or `name` with the appropriate values.
 
-        :param int addr: Address of the function.
-        :param str name: Name of the function.
-        :param bool create: Whether to create the function or not if the function does not exist.
-        :param bool syscall: True to create the function as a syscall, False otherwise.
-        :param bool or None plt: True to find the PLT stub, False to find a non-PLT stub, None to disable this
+        :param addr: Address of the function.
+        :param name: Name of the function.
+        :param create: Whether to create the function or not if the function does not exist.
+        :param syscall: True to create the function as a syscall, False otherwise.
+        :param plt: True to find the PLT stub, False to find a non-PLT stub, None to disable this
                                  restriction.
         :return: The Function instance, or None if the function is not found and create is False.
         :rtype: Function or None
@@ -1407,6 +1410,16 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         :return:        None
         """
         self._func_block_counts[addr] = count
+
+    #
+    # Key functions
+    #
+
+    def get_key_func_addrs(self, func_type: str) -> set[K]:
+        return self._key_func_addrs.get(func_type, set())
+
+    def add_key_func_addr(self, func_type: str, addr: K) -> None:
+        self._key_func_addrs[func_type].add(addr)
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)

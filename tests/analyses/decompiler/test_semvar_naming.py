@@ -16,14 +16,15 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
-from typing import TYPE_CHECKING
 import os
-import unittest
 import re
+import unittest
+from typing import TYPE_CHECKING
 
 import angr
-
-from tests.common import bin_location, print_decompilation_result, WORKER
+from angr.analyses.decompiler.semantic_naming.orchestrator import SemanticNamingOrchestrator
+from angr.sim_variable import SimRegisterVariable
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler import Decompiler
@@ -55,6 +56,36 @@ class TestSemvarNaming(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         return dec, dec.codegen.text
+
+    _external: dict[str, tuple] = {}
+
+    @classmethod
+    def _project_for(cls, bin_name: str):
+        """Build (and cache) a project + CFG for another shipped binary."""
+        if bin_name not in cls._external:
+            path = os.path.join(test_location, "x86_64", bin_name)
+            proj = angr.Project(path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+            proj.analyses.CompleteCallingConventions()
+            cls._external[bin_name] = (proj, cfg)
+        return cls._external[bin_name]
+
+    def _decompile_external(self, bin_name: str, func) -> tuple[Decompiler, str]:
+        """Decompile a function (by name or address) from another shipped binary."""
+        proj, cfg = self._project_for(bin_name)
+        f = cfg.functions[func]
+        assert f is not None, f"Function {func} not found in {bin_name}"
+        dec = proj.analyses.Decompiler(f)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        return dec, dec.codegen.text
+
+    @staticmethod
+    def _assert_unique_local_names(dec, where: str) -> None:
+        """Assert no two declared local variables share a name."""
+        names = [v.name for v in getattr(dec.codegen.cfunc, "unified_local_vars", {})]
+        dups = sorted({n for n in names if names.count(n) > 1})
+        assert not dups, f"duplicate local variable names in {where}: {dups} (all={names})"
 
     def test_loop_counter_naming_nested_two(self):
         """Test that nested loops get i, j naming."""
@@ -180,6 +211,82 @@ class TestSemvarNaming(unittest.TestCase):
         # - pointer variable for iteration
         # - boolean flag for in_word state
         assert "while" in text or "for" in text, "Expected loop construct not found"
+
+    def test_collision_call_result_naming(self):
+        """Test that CallResultNaming collisions are disambiguated (df/find_mount_point: 'err')."""
+        dec, _ = self._decompile_external("df_gcc_-O1", "find_mount_point")
+        self._assert_unique_local_names(dec, "df/find_mount_point")
+
+    def test_collision_size_naming(self):
+        """Test that SizeNaming collisions are disambiguated (df/human_readable: 'n')."""
+        dec, _ = self._decompile_external("df_gcc_-O1", "human_readable")
+        self._assert_unique_local_names(dec, "df/human_readable")
+
+    def test_collision_pointer_naming(self):
+        """Test that cross-pattern collisions are disambiguated (df/hash_initialize: 'ptr')."""
+        dec, _ = self._decompile_external("df_gcc_-O1", "hash_initialize")
+        self._assert_unique_local_names(dec, "df/hash_initialize")
+
+
+class TestResolveNameCollisions(unittest.TestCase):
+    """Unit tests for the collision-resolution pass itself (no decompilation)."""
+
+    @staticmethod
+    def _resolve(vars_spec):
+        """Run resolve_name_collisions over fake renamed variables; return {ident: name}."""
+
+        variables = []
+        for ident, name, renamed in vars_spec:
+            v = SimRegisterVariable(0, 8, ident=ident, name=name)
+            v.renamed = renamed
+            variables.append(v)
+
+        orch = SemanticNamingOrchestrator(None, None, None, None)  # type: ignore[arg-type]
+        orch.renamed_variables = set(variables)
+        orch.resolve_name_collisions()
+        return {v.ident: v.name for v in variables}
+
+    def test_duplicates_numbered_lone_kept(self):
+        """Test that duplicates are numbered while a name used once is left alone."""
+        result = self._resolve(
+            [
+                ("v_0", "len", True),
+                ("v_1", "len", True),
+                ("v_2", "len", True),
+                ("v_3", "ptr", True),
+                ("v_4", "ptr", True),
+                ("v_5", "n", True),
+            ]
+        )
+        assert result == {
+            "v_0": "len",
+            "v_1": "len1",
+            "v_2": "len2",
+            "v_3": "ptr",
+            "v_4": "ptr1",
+            "v_5": "n",
+        }, result
+
+    def test_no_collisions_is_noop(self):
+        """Test that all-distinct names are left unchanged."""
+        result = self._resolve(
+            [
+                ("v_0", "ptr", True),
+                ("v_1", "len", True),
+                ("v_2", "n", True),
+            ]
+        )
+        assert result == {"v_0": "ptr", "v_1": "len", "v_2": "n"}, result
+
+    def test_unrenamed_vars_ignored(self):
+        """Test that variables not marked .renamed are ignored."""
+        result = self._resolve(
+            [
+                ("v_0", "len", True),
+                ("v_1", "len", False),
+            ]
+        )
+        assert result == {"v_0": "len", "v_1": "len"}, result
 
 
 if __name__ == "__main__":

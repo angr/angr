@@ -1,12 +1,13 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
 
 import angr.ailment as ailment
-
-from angr.utils.bits import s2u
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.utils.bits import s2u
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -149,7 +150,7 @@ class StackCanarySimplifier(OptimizationPass):
                 pred_copy = pred.copy()
                 pred_copy.statements[-1] = ailment.Stmt.Jump(
                     len(pred_copy.statements) - 1,
-                    ailment.Expr.Const(None, None, ret_node.addr, self.project.arch.bits),
+                    ailment.Expr.Const(self.manager.next_atom(), ret_node.addr, self.project.arch.bits),
                     ins_addr=pred_copy.statements[-1].tags["ins_addr"],
                 )
 

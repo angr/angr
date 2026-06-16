@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
 
-from angr.analyses import AnalysesHub
-from . import Analysis, CFGFast
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGFast
 
 l = logging.getLogger(name=__name__)
 

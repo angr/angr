@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
@@ -10,11 +11,11 @@ from angr.ailment.statement import ConditionalJump
 from .errors import SAILRSemanticError
 from .similarity import ail_similarity_to_orig_blocks
 from .utils import (
-    copy_graph_and_nodes,
-    replace_node_in_graph,
     ail_block_from_stmts,
+    copy_graph_and_nodes,
     correct_jump_targets,
     deepcopy_ail_anyjump,
+    replace_node_in_graph,
 )
 
 _l = logging.getLogger(name=__name__)
@@ -79,36 +80,36 @@ class AILBlockSplit:
 class AILMergeGraph:
     """
     This class represents the merged results of two AIL graphs that have been found to be similar. We can reference
-    these graphs as G1 and G2. The two graphs are of the following form, where any node other than D can be empty:
+    these graphs as G1 and G2. The two graphs are of the following form, where any node other than D can be empty::
 
-        A
-       / \
-      B   C
-      \\  /
-       D
-      / \
-     E   F
+            A
+           / \
+          B   C
+          \\  /
+           D
+          / \
+         E   F
 
     The D node can be a subgraph, but in both G1 and G2, this D-subgraph are exact duplicates of each
     other, except their top and bottom statements. This class is the result of merging those two D subgraphs.
 
-    To explain that last part about statements differing at the ends, see this example:
+    To explain that last part about statements differing at the ends, see this example::
 
-    D1:
-    -----
-    a = 10;
-    puts(a);
-    puts("bye");
-    -----
+        D1:
+        -----
+        a = 10;
+        puts(a);
+        puts("bye");
+        -----
 
-    D2:
-    -----
-    a = 11;
-    puts(a);
-    puts("cya");
-    -----
+        D2:
+        -----
+        a = 11;
+        puts(a);
+        puts("cya");
+        -----
 
-    In this case, the merged D would contain just `puts(a)`. The statements above it, referred to as up_split in
+    In this case, the merged D would contain just ``puts(a)``. The statements above it, referred to as up_split in
     the code, and the statements below it, referred to as down_split in the code, would be moved out of the block
     and bounded by the conditions that lead to those statements. This creates a graph even in the case of a single
     block being the original D.

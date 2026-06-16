@@ -1,20 +1,20 @@
 from __future__ import annotations
-from typing import Any
+
 import logging
+from typing import Any
 
 import networkx
 
 import angr.ailment as ailment
-from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label, SideEffectStatement
+from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Phi, VirtualVariable
-
-from angr.utils.ail import is_phi_assignment
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, calls_in_graph
-from angr.analyses.decompiler.structuring.structurer_nodes import MultiNode, ConditionNode
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
+from angr.analyses.decompiler.structurer_nodes import ConditionNode, MultiNode
+from angr.analyses.decompiler.utils import calls_in_graph, remove_labels, to_ail_supergraph
+from angr.utils.ail import is_phi_assignment
 
 _l = logging.getLogger(name=__name__)
 
@@ -44,8 +44,6 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 dst.bits,
                 dst.category,
                 dst.oident,
-                variable=dst.variable,
-                variable_offset=dst.variable_offset,
                 **dst.tags,
             )
 
@@ -63,8 +61,6 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 expr.bits,
                 expr.category,
                 expr.oident,
-                variable=expr.variable,
-                variable_offset=expr.variable_offset,
                 **expr.tags,
             )
         return expr

@@ -1,18 +1,21 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import os
+
+import contextlib
+import functools
 import logging
+import os
+import shutil
+import sys
 import tempfile
 import uuid
-import contextlib
-import shutil
 import weakref
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 import lmdb
 
-from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.errors import AngrRuntimeDbError
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -21,6 +24,68 @@ RTDB_BASEDIR: str | None = os.environ.get("RTDB_BASE")
 
 
 l = logging.getLogger(__name__)
+
+
+@functools.cache
+def _is_windows_appcontainer() -> bool:
+    """
+    Detect whether the current process is running inside a Windows AppContainer.
+
+    AppContainer processes cannot access the ``Global\\`` kernel namespace, so
+    LMDB's ``CreateMutexA``-based cross-process locking fails with a misleading
+    ``Input/output error`` (see angr/angr#6391). When this returns ``True`` the
+    caller should pass ``lock=False`` (``MDB_NOLOCK``) to ``lmdb.open``.
+    """
+    if sys.platform != "win32":
+        return False
+
+    import ctypes  # pylint:disable=import-outside-toplevel
+    from ctypes import wintypes  # pylint:disable=import-outside-toplevel
+
+    TOKEN_QUERY = 0x0008
+    TokenIsAppContainer = 29  # TOKEN_INFORMATION_CLASS
+
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    except OSError:
+        return False
+
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), TOKEN_QUERY, ctypes.byref(token)):
+        return False
+    try:
+        is_app_container = wintypes.DWORD(0)
+        return_length = wintypes.DWORD(0)
+        if not advapi32.GetTokenInformation(
+            token,
+            TokenIsAppContainer,
+            ctypes.byref(is_app_container),
+            ctypes.sizeof(is_app_container),
+            ctypes.byref(return_length),
+        ):
+            return False
+        return is_app_container.value != 0
+    finally:
+        kernel32.CloseHandle(token)
 
 
 class RuntimeDbForkCondom:
@@ -61,6 +126,28 @@ class RuntimeDb(KnowledgeBasePlugin):
 
     def __del__(self):
         self.cleanup()
+
+    def __getstate__(self):
+        # We drop the following items:
+        # - _lmdb_env, which is an unpicklable lmdb.Environment
+        # - _dbs, which holds LMDB DB handles
+        # - _condom, which holds a weakref.proxy and a registered fork callback
+        # - _lmdb_path, which is the path for the currently opened LMDB
+        #
+        # Spilling dicts flush their data to memory before pickling, so dropping the
+        # live LMDB state is safe: a fresh environment will be created lazily on next use.
+        state = self.__dict__.copy()
+        for key in ("_lmdb_env", "_dbs", "_dbnames", "_condom", "_lmdb_path"):
+            state.pop(key, None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._lmdb_path = None
+        self._lmdb_env = None
+        self._dbs = {}
+        self._dbnames = defaultdict(int)
+        self._condom = RuntimeDbForkCondom(self)
 
     def _init_lmdb(self):
         if self._lmdb_env is not None:
@@ -135,9 +222,14 @@ class RuntimeDb(KnowledgeBasePlugin):
         if self._lmdb_env is not None:
             return None
 
+        kwargs: dict[str, Any] = {"sync": False, "map_size": self._lmdb_mapsize, "max_dbs": 10}
+        if _is_windows_appcontainer():
+            # AppContainer processes cannot access the ``Global\`` namespace used by LMDB's
+            # cross-process mutex; ``MDB_NOLOCK`` is safe because RuntimeDb is single-process.
+            kwargs["lock"] = False
         try:
-            return lmdb.open(lmdb_path, sync=False, map_size=self._lmdb_mapsize, max_dbs=10)
-        except (PermissionError, OSError):
+            return lmdb.open(lmdb_path, **kwargs)
+        except (PermissionError, OSError, lmdb.Error):
             return None
 
     @staticmethod

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
@@ -6,16 +7,18 @@ import archinfo
 import claripy
 
 import angr
-from angr.analyses import ForwardAnalysis, visitors
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
+from angr.analyses.typehoon.typevars import TypeVariableManager
+from angr.code_location import CodeLocation
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.functions.function import Function
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr import BP, BP_AFTER
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
-from angr.code_location import CodeLocation
-from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
+from angr.state_plugins.inspect import BP, BP_AFTER
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .annotations import StackLocationAnnotation
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 
 l = logging.getLogger(name=__name__)
 
@@ -35,6 +38,8 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         arch: archinfo.Arch,
         func: Function,
         concrete_states,
+        *,
+        tv_manager: TypeVariableManager,
         stack_region=None,
         register_region=None,
     ):
@@ -46,6 +51,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             func=func,
             stack_region=stack_region,
             register_region=register_region,
+            tv_manager=tv_manager,
         )
 
         self._concrete_states = concrete_states
@@ -84,6 +90,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             self.arch,
             self.function,
             self._concrete_states,
+            tv_manager=self.tv_manager,
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
         )
@@ -143,6 +150,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.arch,
                 self.function,
                 merged_concrete_states,
+                tv_manager=self.tv_manager,
                 stack_region=new_stack_region,
                 register_region=new_register_region,
             ),
@@ -172,15 +180,15 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     #
 
     def _hook_register_read(self, state):
-        reg_read_offset = state.inspect.reg_read_offset
+        reg_read_offset = state.inspect.attrs.reg_read_offset
         if isinstance(reg_read_offset, claripy.ast.BV):
             if reg_read_offset.multivalued:
                 # Multi-valued register offsets are not supported
                 l.warning("Multi-valued register offsets are not supported.")
                 return
             reg_read_offset = state.solver.eval(reg_read_offset)
-        reg_read_length = state.inspect.reg_read_length
-        reg_read_expr = state.inspect.reg_read_expr
+        reg_read_length = state.inspect.attrs.reg_read_length
+        reg_read_expr = state.inspect.attrs.reg_read_expr
 
         if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bytes:
             # TODO: make sure the sp is not overwritten by something that we are not tracking
@@ -204,7 +212,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             self.variable_manager[self.func_addr].add_variable("register", var_offset, variable)
 
     def _hook_register_write(self, state):
-        reg_write_offset = state.inspect.reg_write_offset
+        reg_write_offset = state.inspect.attrs.reg_write_offset
         if isinstance(reg_write_offset, claripy.ast.BV):
             if reg_write_offset.multivalued:
                 # Multi-valued register offsets are not supported
@@ -216,13 +224,13 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             # it's updating stack pointer. skip
             return
 
-        reg_write_expr = state.inspect.reg_write_expr
+        reg_write_expr = state.inspect.attrs.reg_write_expr
         reg_write_length = len(reg_write_expr) // 8
 
         # annotate it
         # reg_write_expr = reg_write_expr.annotate(VariableSourceAnnotation.from_state(state))
 
-        state.inspect.reg_write_expr = reg_write_expr
+        state.inspect.attrs.reg_write_expr = reg_write_expr
 
         existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(
             state.scratch.bbl_addr, state.scratch.stmt_idx, "register"
@@ -282,10 +290,10 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.variable_manager[self.func_addr].reference_at(var, offset, self._codeloc_from_state(state))
 
     def _hook_memory_read(self, state):
-        mem_read_address = state.inspect.mem_read_address
-        mem_read_expr = state.inspect.mem_read_expr
-        mem_read_length = state.inspect.mem_read_length
-        endness = state.inspect.mem_read_endness
+        mem_read_address = state.inspect.attrs.mem_read_address
+        mem_read_expr = state.inspect.attrs.mem_read_expr
+        mem_read_length = state.inspect.attrs.mem_read_length
+        endness = state.inspect.attrs.mem_read_endness
 
         stack_offset = self._addr_to_stack_offset(mem_read_address)
 
@@ -336,10 +344,10 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.variable_manager[self.func_addr].read_from(variable, offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
-        mem_write_address = state.inspect.mem_write_address
-        mem_write_expr = state.inspect.mem_write_expr
+        mem_write_address = state.inspect.attrs.mem_write_address
+        mem_write_expr = state.inspect.attrs.mem_write_expr
         mem_write_length = len(mem_write_expr) // 8
-        endness = state.inspect.mem_write_endness
+        endness = state.inspect.attrs.mem_write_endness
 
         stack_offset = self._addr_to_stack_offset(mem_write_address)
 
@@ -477,6 +485,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
         )
 
         self._node_iterations = defaultdict(int)
+        self.tv_manager = TypeVariableManager(func.addr)
 
         self._analyze()
 
@@ -502,7 +511,15 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
         # give it enough stack space
         concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        return VariableRecoveryState(self.project, node.addr, self, self.project.arch, self.function, [concrete_state])
+        return VariableRecoveryState(
+            self.project,
+            node.addr,
+            self,
+            self.project.arch,
+            self.function,
+            [concrete_state],
+            tv_manager=self.tv_manager,
+        )
 
     def _merge_states(self, node, *states: VariableRecoveryState):
         if len(states) == 1:

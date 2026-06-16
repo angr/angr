@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import claripy
 from archinfo.arch_soot import SootAddressDescriptor
@@ -18,10 +18,8 @@ from angr.errors import (
 )
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action_object import _raw_ast
-from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 if TYPE_CHECKING:
-    from angr.ailment import Address as AILAddr
     from angr.sim_state import SimState
 
 
@@ -55,7 +53,7 @@ class SimSuccessors:
     https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
-    def __init__(self, addr: int | AILAddr | SootAddressDescriptor | None, initial_state: HeavyState | None):
+    def __init__(self, addr: int | SootAddressDescriptor | None, initial_state: HeavyState | None):
         self.addr = addr
         self.initial_state = initial_state
 
@@ -89,17 +87,17 @@ class SimSuccessors:
         if isinstance(self.addr, int):
             int_addr = self.addr
             addendum = ""
-        elif isinstance(self.addr, tuple):
-            int_addr = self.addr[0]
-            addendum = f"{'.' if self.addr[1] is not None else ''}{self.addr[1] if self.addr[1] is not None else ''}"
+            if self.initial_state is not None and self.initial_state.scratch.is_ail:
+                idx = self.initial_state.scratch.ail_block_idx
+                if idx is not None:
+                    addendum = f".{idx}"
         else:
             return f"<{self.description} from {self.addr}: {result}>"
         if self.initial_state is not None and self.initial_state.project is not None:
             whatsup = self.initial_state.project.loader.describe_addr(int_addr)
             hex_addr = hex(int_addr)
             if hex_addr in whatsup:
-                if addendum is not None:
-                    whatsup = whatsup.replace(hex_addr, hex_addr + addendum)
+                whatsup = whatsup.replace(hex_addr, hex_addr + addendum)
                 return f"<{self.description} from {whatsup}: {result}>"
             return f"<{self.description} from {int_addr:#x}{addendum} ({whatsup}): {result}>"
         return f"<{self.description} from {int_addr:#x}{addendum}: {result}>"
@@ -436,7 +434,7 @@ class SimSuccessors:
                 fallback = True
                 break
 
-            if target.symbolic is False and state.solver.eval(target) == DUMMY_SYMBOLIC_READ_VALUE:
+            if target.symbolic is False and state.solver.eval(target) == angr.storage.DUMMY_SYMBOLIC_READ_VALUE:
                 # Ignore the dummy value, which acts as the sentinel of this ITE tree
                 reached_sentinel = True
                 continue
@@ -502,9 +500,7 @@ class SimSuccessors:
         return [(ip == addr, addr) for addr in addrs]
 
 
-HeavyState: TypeAlias = (
-    "SimState[int | AILAddr | SootAddressDescriptor, claripy.ast.BV | AILAddr | SootAddressDescriptor]"
-)
+type HeavyState = "SimState[int | SootAddressDescriptor, claripy.ast.BV | SootAddressDescriptor]"
 
 
 class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):
@@ -549,7 +545,10 @@ class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):
         # nuance: make sure to copy from the PREVIOUS state to the CURRENT one
         # to avoid creating a dead link in the history, messing up the statehierarchy
         new_state.register_plugin("history", old_state.history.make_child())
-        new_state.history.recent_bbl_addrs.append(addr)
+        if new_state.scratch.is_ail:
+            new_state.history.recent_bbl_addrs.append((addr, new_state.scratch.ail_block_idx))
+        else:
+            new_state.history.recent_bbl_addrs.append(addr)
         if new_state.arch.unicorn_support and isinstance(addr, int):
             new_state.scratch.executed_pages_set = {addr & ~0xFFF}
 

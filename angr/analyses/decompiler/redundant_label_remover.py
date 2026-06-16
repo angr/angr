@@ -4,7 +4,7 @@ from __future__ import annotations
 import angr.ailment as ailment
 
 from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import SequenceNode
+from .structurer_nodes import SequenceNode
 from .utils import first_nonlabel_nonphi_statement
 
 
@@ -110,7 +110,6 @@ class RedundantLabelRemover:
                     if tpl in self._new_jump_target:
                         first_stmt.true_target = ailment.Expr.Const(
                             first_stmt.true_target.idx,
-                            first_stmt.true_target.variable,
                             self._new_jump_target[tpl][0],
                             first_stmt.true_target.bits,
                             **first_stmt.true_target.tags,
@@ -120,7 +119,6 @@ class RedundantLabelRemover:
                     if tpl in self._new_jump_target:
                         first_stmt.false_target = ailment.Expr.Const(
                             first_stmt.false_target.idx,
-                            first_stmt.false_target.variable,
                             self._new_jump_target[tpl][0],
                             first_stmt.false_target.bits,
                             **first_stmt.false_target.tags,
@@ -133,7 +131,6 @@ class RedundantLabelRemover:
                     if tpl in self._new_jump_target:
                         last_stmt.target = ailment.Expr.Const(
                             last_stmt.target.idx,
-                            last_stmt.target.variable,
                             self._new_jump_target[tpl][0],
                             last_stmt.target.bits,
                             **last_stmt.target.tags,

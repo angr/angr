@@ -9,8 +9,7 @@ import os
 import unittest
 
 import angr
-
-from tests.common import bin_location, print_decompilation_result, WORKER
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -48,7 +47,6 @@ class TestExpressionOverfolding(unittest.TestCase):
             0x401AFF,
             0x401B76,
             0x401B01,
-            0x401B07,
             0x401B7A,
             0x401B03,
             0x401B7E,

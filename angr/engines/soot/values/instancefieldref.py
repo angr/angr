@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import angr
-from .base import SimSootValue
 from angr.engines.soot.field_dispatcher import resolve_field
+
+from .base import SimSootValue
 
 
 class SimSootValue_InstanceFieldRef(SimSootValue):

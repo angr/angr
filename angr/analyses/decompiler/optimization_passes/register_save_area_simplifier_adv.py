@@ -1,13 +1,14 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
-
-from angr.ailment.statement import Assignment
 from angr.ailment.expression import VirtualVariable
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.utils.ail import is_phi_assignment
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -36,7 +37,9 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
 
     def _check(self):
         self._srda = self.project.analyses.SReachingDefinitions(
-            subject=self._func, func_graph=self._graph, func_args=self._arg_vvars
+            subject=self._func,
+            func_graph=self._graph,
+            func_args={vvar for vvar, _ in arg_vvars.values()} if (arg_vvars := self._arg_vvars) is not None else set(),
         )
         info = self._find_reg_store_and_restore_locations()
         if not info:

@@ -12,9 +12,8 @@ from __future__ import annotations
 
 import os
 from io import BytesIO
-from unittest import TestCase
-
 from typing import cast
+from unittest import TestCase
 
 import archinfo
 import cle
@@ -22,9 +21,9 @@ import cle
 import angr
 from angr import sim_options as o
 from angr.emulator import Emulator, EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, IcicleStateTranslationData, UberIcicleEngine
+from angr.engines.icicle import IcicleEngine, UberIcicleEngine
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
-from angr.state_plugins.icicle import SimStateIcicle
+from angr.state_plugins.icicle import IcicleStateTranslationData, SimStateIcicle
 from tests.common import bin_location
 
 
@@ -196,7 +195,6 @@ class TestSnapshotSync(TestCase):
         shellcode = "ldr x1, [x0]"
         project = angr.load_shellcode(shellcode, "aarch64")
         engine = IcicleEngine(project)
-        engine.enable_snapshot_mode()
 
         state_opts = {
             "remove_options": {*o.symbolic},
@@ -244,6 +242,65 @@ class TestSnapshotSync(TestCase):
         assert len(result4.successors) == 1
         assert result4[0].regs.x1.concrete_value == 0xDD
 
+    def test_snapshot_sync_code_modification(self):
+        """Code at the entry address can differ between states; each branch must
+        re-lift instead of replaying a stale JIT'd block from a sibling state."""
+        # aarch64 `movz x0, #imm16` (hw=0, Rd=x0), little-endian byte order:
+        #   movz x0, #1 -> 0xD2800020
+        #   movz x0, #2 -> 0xD2800040
+        code_a = b"\x20\x00\x80\xd2"
+        code_b = b"\x40\x00\x80\xd2"
+
+        project = angr.load_shellcode(code_a, "aarch64")
+        engine = IcicleEngine(project)
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        # First run: lifts code_a, takes the snapshot.
+        s1 = project.factory.blank_state(**state_opts)
+        assert engine.process(s1, num_inst=1)[0].regs.x0.concrete_value == 1
+
+        # Branch with code overwritten — the sync write to a previously-
+        # executed page must succeed AND drop the cached code_a block.
+        s2 = project.factory.blank_state(**state_opts)
+        s2.memory.store(project.entry, code_b)
+        assert engine.process(s2, num_inst=1)[0].regs.x0.concrete_value == 2
+
+        # Branch back to the snapshot's original code — the JIT block from
+        # the previous run must not survive the restore.
+        s3 = project.factory.blank_state(**state_opts)
+        assert engine.process(s3, num_inst=1)[0].regs.x0.concrete_value == 1
+
+    def test_snapshot_sync_new_readonly_page_content(self):
+        """A read-only page newly mapped between states must have its content
+        copied to the emu — not left as zeros."""
+        # ldr x1, [x0]
+        shellcode = "ldr x1, [x0]"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = IcicleEngine(project)
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        # First run: establishes snapshot with no extra mappings.
+        s1 = project.factory.blank_state(**state_opts)
+        s1.regs.x0 = 0x10000
+        s1.memory.map_region(0x10000, 0x1000, 0b111)
+        s1.memory.store(0x10000, 0xAA, size=8, endness="Iend_LE")
+        assert engine.process(s1, num_inst=1)[0].regs.x1.concrete_value == 0xAA
+
+        # Branch: the load target is on a newly-mapped read-only page. The
+        # delta-sync must seed its content; otherwise the load reads zero.
+        s2 = project.factory.blank_state(**state_opts)
+        s2.regs.x0 = 0x20000
+        s2.memory.map_region(0x10000, 0x1000, 0b111)
+        s2.memory.map_region(0x20000, 0x1000, 0b101)  # R + X, no W
+        s2.memory.store(0x20000, 0xBB, size=8, endness="Iend_LE")
+        assert engine.process(s2, num_inst=1)[0].regs.x1.concrete_value == 0xBB
+
 
 class TestDirtyPageTracking(TestCase):
     """Unit tests for dirty page tracking optimization in the Icicle engine."""
@@ -285,7 +342,6 @@ class TestDirtyPageTracking(TestCase):
         project = angr.load_shellcode(shellcode, "aarch64")
 
         engine = IcicleEngine(project)
-        engine.enable_snapshot_mode()
 
         state_opts = {
             "remove_options": {*o.symbolic},
@@ -764,7 +820,7 @@ class TestEdgeHitmap(TestCase):
         assert hitmap_1 == hitmap_2
 
     def test_edge_hitmap_multiple_blocks(self):
-        shellcode = "xor rax, rax; inc rax; cmp rax, 5; jne $-8; nop"
+        shellcode = "xor rax, rax; loop: inc rax; cmp rax, 5; jne loop; hlt"
         project = angr.load_shellcode(shellcode, "x86_64")
         engine = IcicleEngine(project)
         init_state = project.factory.blank_state(
@@ -841,7 +897,7 @@ class TestSimStateIciclePlugin(TestCase):
     """Tests for the SimStateIcicle state plugin."""
 
     def test_plugin_attached_after_process(self):
-        """Test that process_concrete attaches the icicle plugin to the result state."""
+        """Test that processing a state attaches the icicle plugin to the result state."""
         shellcode = "mov x0, 0x1; mov x1, 0x2"
         project = angr.load_shellcode(shellcode, "aarch64")
         engine = IcicleEngine(project)
@@ -855,21 +911,19 @@ class TestSimStateIciclePlugin(TestCase):
         assert state.has_plugin("icicle")
         plugin = state.get_plugin("icicle")
         assert isinstance(plugin, SimStateIcicle)
-        assert plugin.engine_id == id(engine)
-        assert plugin.run_id > 0
+        assert plugin.vm_ref is not None
+        assert plugin.is_live
 
     def test_plugin_copy(self):
         """Test that the plugin is correctly copied when the state is copied."""
         dummy_td = cast(IcicleStateTranslationData, None)
         plugin = SimStateIcicle(
-            engine_id=12345,
-            run_id=42,
+            generation=42,
             translation_data=dummy_td,
             dirty_pages={3, 4},
         )
         copied = plugin.copy({})
-        assert copied.engine_id == 12345
-        assert copied.run_id == 42
+        assert copied.generation == 42
         assert copied.dirty_pages == {3, 4}
         # Ensure copies are independent
         copied.dirty_pages.add(6)
@@ -879,8 +933,7 @@ class TestSimStateIciclePlugin(TestCase):
         """Test that merge and widen return False (not mergeable)."""
         dummy_td = cast(IcicleStateTranslationData, None)
         plugin = SimStateIcicle(
-            engine_id=1,
-            run_id=1,
+            generation=1,
             translation_data=dummy_td,
             dirty_pages=set(),
         )
@@ -903,7 +956,6 @@ class TestContinuation(TestCase):
         project.hook(0x4, hook_nop, length=4)
 
         engine = UberIcicleEngine(project)
-        engine.enable_snapshot_mode()
         init_state = project.factory.blank_state(
             remove_options={*o.symbolic},
             add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},

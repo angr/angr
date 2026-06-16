@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 from enum import Enum
 
 import angr.ailment as ailment
-
+from angr.analyses.forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
 from angr.block import Block
 from angr.knowledge_plugins.functions.function_manager import Function
-from angr.analyses.forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
 
 
 class SubjectType(Enum):

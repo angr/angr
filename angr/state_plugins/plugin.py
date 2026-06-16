@@ -3,22 +3,19 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
+import angr
 from angr.misc.ux import once
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
 
-# pylint: disable=import-outside-toplevel
-
 
 l = logging.getLogger(name=__name__)
 
-S_co = TypeVar("S_co", covariant=True)
 
-
-class _CopyFunc(Protocol, Generic[S_co]):
+class _CopyFunc[S_co](Protocol):
     """
     Function wrapping copy method for memo tracking.
     """
@@ -53,7 +50,7 @@ class SimStatePlugin:
         return d
 
     @staticmethod
-    def memo(f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
+    def memo[S_co](f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
         """
         A decorator function you should apply to ``copy``
         """
@@ -156,9 +153,7 @@ class SimStatePlugin:
                     "the plugin class must be provided as the second argument."
                 )
 
-            from angr.sim_state import SimState
-
-            SimState.register_default(name, xtr)
+            angr.sim_state.SimState.register_default(name, xtr)
 
         else:
             if xtr is cls:
@@ -174,9 +169,7 @@ class SimStatePlugin:
                     "the second argument must be completely omitted or a preset string."
                 )
 
-            from angr.sim_state import SimState
-
-            SimState.register_default(name, cls, xtr if xtr is not None else "default")
+            angr.sim_state.SimState.register_default(name, cls, xtr if xtr is not None else "default")
 
     def init_state(self) -> None:
         """

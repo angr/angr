@@ -10,12 +10,12 @@ import unittest
 import networkx as nx
 
 import angr
-from angr.ailment.manager import Manager
-from angr.ailment import Block, Assignment, Register, Const, BinaryOp
+from angr.ailment import Assignment, BinaryOp, Block, Const, Register
 from angr.ailment.expression import Call
-from angr.ailment.statement import Return, Store, ConditionalJump
+from angr.ailment.manager import Manager
+from angr.ailment.statement import ConditionalJump, Return, Store
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode
+from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
@@ -23,12 +23,12 @@ log = logging.getLogger(__name__)
 
 def c(v):
     """Simple AIL Const shorthand"""
-    return Const(None, None, v, 32)
+    return Const(0, v, 32)
 
 
 def r(o):
     """Simple AIL Register shorthand"""
-    return Register(None, None, o, 32)
+    return Register(0, o, 32)
 
 
 class TestFlipBooleanCmp(unittest.TestCase):
@@ -61,19 +61,19 @@ class TestFlipBooleanCmp(unittest.TestCase):
             0x400000,
             1,
             [
-                Assignment(None, r(0), c(0x123)),
+                Assignment(0, r(0), c(0x123)),
                 ConditionalJump(
-                    None, BinaryOp(None, "CmpLE", [r(0), c(0x1000)], False), c(0x400023), c(0x400037), ins_addr=0x400001
+                    1, BinaryOp(2, "CmpLE", [r(0), c(0x1000)], False), c(0x400023), c(0x400037), ins_addr=0x400001
                 ),
             ],
         )
-        block_1 = Block(0x400023, 1, [Assignment(None, r(0), c(0x456)) for _ in range(flip_size)])
+        block_1 = Block(0x400023, 1, [Assignment(3, r(0), c(0x456)) for _ in range(flip_size)])
         block_2 = Block(
             0x400037,
             1,
             [
-                Store(None, c(0xDEADBEEF), r(0), 4, "Iend_LE"),  # Must not be moved
-                Return(None, []),
+                Store(4, c(0xDEADBEEF), r(0), 4, "Iend_LE"),  # Must not be moved
+                Return(5, []),
             ],
         )
 
@@ -83,7 +83,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         func = None
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
         ri = proj.analyses.RegionIdentifier(func, graph=graph)
-        rs = proj.analyses.RecursiveStructurer(ri.region)
+        rs = proj.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
         seq = rs.result
 
         assert isinstance(seq, SequenceNode)
@@ -130,19 +130,19 @@ class TestFlipBooleanCmp(unittest.TestCase):
             0x400000,
             1,
             [
-                Assignment(None, r(0), c(0x123)),
+                Assignment(0, r(0), c(0x123)),
                 ConditionalJump(
-                    None, BinaryOp(None, "CmpLE", [r(0), c(0x1000)], False), c(0x400023), c(0x400037), ins_addr=0x400001
+                    1, BinaryOp(2, "CmpLE", [r(0), c(0x1000)], False), c(0x400023), c(0x400037), ins_addr=0x400001
                 ),
             ],
         )
-        block_1 = Block(0x400023, 1, [Assignment(None, r(0), c(0x456)) for _ in range(flip_size)])
+        block_1 = Block(0x400023, 1, [Assignment(3, r(0), c(0x456)) for _ in range(flip_size)])
         block_2 = Block(
             0x400037,
             1,
             [
-                Call(None, "always_called", None, None, [r(0)]),  # Must not be moved
-                Return(None, []),
+                Call(4, "always_called", [r(0)]),  # Must not be moved
+                Return(5, []),
             ],
         )
 
@@ -152,7 +152,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         func = None
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
         ri = proj.analyses.RegionIdentifier(func, graph=graph)
-        rs = proj.analyses.RecursiveStructurer(ri.region)
+        rs = proj.analyses.RecursiveStructurer(ri.region, ail_manager=Manager())
         seq = rs.result
 
         assert isinstance(seq, SequenceNode)
@@ -173,3 +173,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         log.debug("After:\n%s", post_transform_seq_repr)
 
         assert pre_transform_seq_repr == post_transform_seq_repr
+
+
+if __name__ == "__main__":
+    unittest.main()

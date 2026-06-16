@@ -1,5 +1,6 @@
 # Util functions that are mostly rewrite of the original code in redare2
 from __future__ import annotations
+
 import struct
 
 

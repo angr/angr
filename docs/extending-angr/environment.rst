@@ -8,7 +8,7 @@ rare cases, loader artifacts. angr provides a convenient interface to do most of
 these things!
 
 Everything discussed here involves writing SimProcedures, so :ref:`make sure you
-know how to do that! <Hooks and SimProcedures>`.
+know how to do that! <extending-angr/simprocedures:Hooks and SimProcedures>`.
 
 Note that this page should be treated as a narrative document, not a reference
 document, so you should read it at least once start to end.

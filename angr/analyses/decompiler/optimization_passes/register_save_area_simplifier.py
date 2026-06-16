@@ -1,16 +1,18 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
+import logging
 from collections import defaultdict
 from collections.abc import Iterable
 from itertools import chain
-import logging
 
 import archinfo
-import angr.ailment as ailment
 
+import angr.ailment as ailment
+from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation
-from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
+from angr.engines.soot.values import SimSootValue_ArrayBaseRef
+
 from .base import SimSootExpr
 from .newArray import SimSootExpr_NewArray
-from angr.engines.soot.values import SimSootValue_ArrayBaseRef
 
 l = logging.getLogger("angr.engines.soot.expressions.newmultiarray")
 

@@ -387,14 +387,14 @@ These events expose different attributes:
      - The SimSuccessors object defining the result of the engine.
 
 
-These attributes can be accessed as members of ``state.inspect`` during the
+These attributes can be accessed as members of ``state.inspect.attrs`` during the
 appropriate breakpoint callback to access the appropriate values. You can even
 modify these value to modify further uses of the values!
 
 .. code-block:: python
 
    >>> def track_reads(state):
-   ...     print('Read', state.inspect.mem_read_expr, 'from', state.inspect.mem_read_address)
+   ...     print('Read', state.inspect.attrs.mem_read_expr, 'from', state.inspect.attrs.mem_read_address)
    ...
    >>> s.inspect.b('mem_read', when=angr.BP_AFTER, action=track_reads)
 
@@ -419,7 +419,7 @@ Cool stuff! In fact, we can even specify a function as a condition:
    # this is a complex condition that could do anything! In this case, it makes sure that RAX is 0x41414141 and
    # that the basic block starting at 0x8004 was executed sometime in this path's history
    >>> def cond(state):
-   ...     return state.eval(state.regs.rax, cast_to=str) == 'AAAA' and 0x8004 in state.inspect.backtrace
+   ...     return state.eval(state.regs.rax, cast_to=str) == 'AAAA' and 0x8004 in state.inspect.attrs.backtrace
 
    >>> s.inspect.b('mem_write', condition=cond)
 

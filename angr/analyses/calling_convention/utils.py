@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
 
 import archinfo
-from archinfo.arch_arm import is_arm_arch, ArchARMHF, ArchARMCortexM
+from archinfo.arch_arm import ArchARMCortexM, ArchARMHF, is_arm_arch
 
 from angr.calling_conventions import SimCC
 

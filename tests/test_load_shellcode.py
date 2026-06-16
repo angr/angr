@@ -1,5 +1,6 @@
 # pylint: disable=no-self-use,missing-class-docstring
 from __future__ import annotations
+
 import unittest
 
 import angr

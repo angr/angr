@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
 import re
 import unittest
 
-import angr.ailment as ailment
 import angr
+from angr import ailment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
+from angr.analyses.decompiler.structurer_nodes import LoopNode
 
 
 class TestPropagatorLoops(unittest.TestCase):
@@ -50,9 +51,9 @@ class TestPropagatorLoops(unittest.TestCase):
         # assert(cond_stmt is not None)
         # print('Condition:' + str(cond_stmt))
         # print(cond_proc.claripy_ast_from_ail_condition(cond_stmt.condition))
-        cond_proc = ConditionProcessor(p.arch)
+        cond_proc = ConditionProcessor(p.arch, am)
         ri = p.analyses.RegionIdentifier(f, graph=a.graph, cond_proc=cond_proc, kb=p.kb)
-        rs = p.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=p.kb, func=f)
+        rs = p.analyses.RecursiveStructurer(ri.region, ail_manager=am, cond_proc=cond_proc, kb=p.kb, func=f)
         snodes = rs.result.nodes
         assert len(snodes) == 3
         assert isinstance(snodes[1], LoopNode)

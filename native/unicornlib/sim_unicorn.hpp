@@ -855,14 +855,14 @@ class State {
 
 		uc_err start(address_t pc, uint64_t step = 1);
 
-		void stop(stop_t reason, bool do_commit=false, uint64_t commit_addr=0);
+		void stop(stop_t reason, bool do_commit=false);
 
 		bool step(address_t current_address, int32_t size, bool check_stop_points=true);
 
 		/*
 		* commit all memory actions.
 		*/
-		void commit(uint64_t address);
+		void commit();
 
 		/*
 		 * undo recent memory actions.

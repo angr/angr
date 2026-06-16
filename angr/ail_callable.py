@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from angr.engines.ail import ail_call_state
 from angr.errors import AngrCallableError, AngrCallableMultistateError
+
 from .callable import Callable as VEXCallable
 
 if TYPE_CHECKING:
+    from angr.ailment import Address
     from angr.analyses.decompiler.clinic import Clinic
     from angr.project import Project
-    from angr.ailment import Address
     from angr.sim_manager import SimulationManager
 
 

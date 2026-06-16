@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.ailment.expression import Const
 
 
@@ -14,5 +15,5 @@ def ail_const_to_be(expr: Const, endness: str) -> Const:
         for elem in lst:
             v <<= 8
             v += elem
-        return Const(expr.idx, None, v, expr.bits, **expr.tags)
+        return Const(expr.idx, v, expr.bits, **expr.tags)
     return expr

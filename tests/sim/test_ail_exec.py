@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
-
 import os
 import unittest
 from functools import cache
@@ -11,14 +10,13 @@ import claripy
 
 import angr
 from angr import ailment
+from angr.analyses.decompiler.clinic import Clinic
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
 from angr.procedures.libc.snprintf import snprintf
+from angr.state_plugins.history import SimStateHistory
 from angr.storage import DefaultMemory
-
-
-from angr.analyses.decompiler.clinic import Clinic
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -78,10 +76,10 @@ class TestAILExec(unittest.TestCase):
 
         # armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3) -> I32
         # Use ARMCondAL so the result should be 1.
-        cond_n_op = ailment.expression.Const(None, None, 0xE0, 32)  # (AL<<4) | 0
-        cc_dep1 = ailment.expression.Const(None, None, 0, 32)
-        cc_dep2 = ailment.expression.Const(None, None, 0, 32)
-        cc_dep3 = ailment.expression.Const(None, None, 0, 32)
+        cond_n_op = ailment.expression.Const(None, 0xE0, 32)  # (AL<<4) | 0
+        cc_dep1 = ailment.expression.Const(None, 0, 32)
+        cc_dep2 = ailment.expression.Const(None, 0, 32)
+        cc_dep3 = ailment.expression.Const(None, 0, 32)
         ccall_expr = ailment.expression.VEXCCallExpression(
             idx=0,
             callee="armg_calculate_condition",
@@ -91,11 +89,11 @@ class TestAILExec(unittest.TestCase):
         r0_offset = p.arch.registers["r0"][0]
         assign_stmt = ailment.statement.Assignment(
             idx=0,
-            dst=ailment.expression.Register(None, None, r0_offset, 32),
+            dst=ailment.expression.Register(None, r0_offset, 32),
             src=ccall_expr,
         )
         assign_stmt.tags["ins_addr"] = 0x400000
-        jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, 32))
+        jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400004, 32))
         jump_stmt.tags["ins_addr"] = 0x400000
         block = ailment.Block(0x400000, 0, statements=[assign_stmt, jump_stmt])
 
@@ -105,7 +103,8 @@ class TestAILExec(unittest.TestCase):
 
         assert len(successors.successors) == 1
         succ = successors.successors[0]
-        assert succ.addr == (0x400004, None)
+        assert succ.addr == 0x400004
+        assert succ.scratch.is_ail
 
         out = succ.registers.load(r0_offset, 4)
         assert isinstance(out, claripy.ast.BV)
@@ -124,9 +123,9 @@ class TestAILExec(unittest.TestCase):
         state.register_plugin("callstack", bottom_frame)
         state.callstack.push(top_frame)
 
-        cond_bv1 = ailment.expression.Const(None, None, 1, 1)  # BV1(1)
-        true_tgt = ailment.expression.Const(None, None, 0x400004, 64)
-        false_tgt = ailment.expression.Const(None, None, 0x400008, 64)
+        cond_bv1 = ailment.expression.Const(None, 1, 1)  # BV1(1)
+        true_tgt = ailment.expression.Const(None, 0x400004, 64)
+        false_tgt = ailment.expression.Const(None, 0x400008, 64)
         cjmp = ailment.statement.ConditionalJump(0, cond_bv1, true_tgt, false_tgt)
         cjmp.tags["ins_addr"] = 0x400000
         block = ailment.Block(0x400000, 0, statements=[cjmp])
@@ -141,13 +140,15 @@ class TestAILExec(unittest.TestCase):
         assert len(succ.unconstrained_successors) == 0
 
         true_succ = succ.successors[0]
-        assert true_succ.addr == (0x400004, None)
+        assert true_succ.addr == 0x400004
+        assert true_succ.scratch.is_ail
         assert true_succ.history.jumpkind == "Ijk_Boring"
         assert true_succ.scratch.exit_stmt_idx == 0
         assert true_succ.solver.is_true(true_succ.scratch.guard)
 
         false_succ = succ.unsat_successors[0]
-        assert false_succ.addr == (0x400008, None)
+        assert false_succ.addr == 0x400008
+        assert false_succ.scratch.is_ail
         assert false_succ.history.jumpkind == "Ijk_Boring"
         assert false_succ.scratch.exit_stmt_idx == 0
         assert false_succ.solver.is_false(false_succ.scratch.guard)
@@ -167,7 +168,7 @@ class TestAILExec(unittest.TestCase):
         state.callstack.push(top_frame)
 
         # predecessor block: jump to successor
-        pred_jump = ailment.statement.Jump(idx=0, target=ailment.expression.Const(None, None, 0x400004, 64))
+        pred_jump = ailment.statement.Jump(idx=0, target=ailment.expression.Const(None, 0x400004, 64))
         pred_jump.tags["ins_addr"] = 0x400000
         pred_block = ailment.Block(0x400000, 0, statements=[pred_jump])
 
@@ -176,12 +177,12 @@ class TestAILExec(unittest.TestCase):
         engine.process(state, block=pred_block)
         assert len(pred_succ.successors) == 1
         s1 = pred_succ.successors[0]
-        assert s1.addr == (0x400004, None)
+        assert s1.addr == 0x400004
+        assert s1.scratch.is_ail
 
         # Emulate the history linkage normally created by SimSuccessors.process():
         # SimEngineAILSimState._handle_expr_Phi consults state.history.parent.recent_bbl_addrs[-1] to pick the
         # predecessor edge for the phi.
-        from angr.state_plugins.history import SimStateHistory  # pylint:disable=import-outside-toplevel
 
         h_parent = SimStateHistory()
         h_parent.recent_bbl_addrs.append((0x400000, None))
@@ -192,11 +193,11 @@ class TestAILExec(unittest.TestCase):
         rax_offset = p.arch.registers["rax"][0]
         assign = ailment.statement.Assignment(
             idx=0,
-            dst=ailment.expression.Register(None, None, rax_offset, 64),
+            dst=ailment.expression.Register(None, rax_offset, 64),
             src=phi,
         )
         assign.tags["ins_addr"] = 0x400004
-        succ_jump = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400008, 64))
+        succ_jump = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400008, 64))
         succ_jump.tags["ins_addr"] = 0x400004
         succ_block = ailment.Block(0x400004, 0, statements=[assign, succ_jump])
 
@@ -241,12 +242,12 @@ class TestAILExec(unittest.TestCase):
         )
         ref = ailment.expression.UnaryOp(idx=0, op="Reference", operand=vvar, bits=p.arch.bits)
 
-        call_tgt = ailment.expression.Const(None, None, 0xDEADBEEF, p.arch.bits)
+        call_tgt = ailment.expression.Const(None, 0xDEADBEEF, p.arch.bits)
         call_expr = ailment.expression.Call(idx=0, target=call_tgt, args=[ref], bits=p.arch.bits)
         call = ailment.statement.SideEffectStatement(idx=0, expr=call_expr)
         call.tags["ins_addr"] = 0x400000
 
-        jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, p.arch.bits))
+        jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400004, p.arch.bits))
         jmp.tags["ins_addr"] = 0x400000
 
         block = ailment.Block(0x400000, 0, statements=[call, jmp])
@@ -283,7 +284,7 @@ class TestAILExec(unittest.TestCase):
         # A Call expression wrapped in SideEffectStatement with no return assignment (unused return value).
         call_expr = ailment.expression.Call(
             idx=0,
-            target=ailment.expression.Const(None, None, 0x5000, 32),
+            target=ailment.expression.Const(None, 0x5000, 32),
             args=[],
             bits=32,
         )
@@ -296,7 +297,7 @@ class TestAILExec(unittest.TestCase):
         # The light AIL engine expects statements to carry an instruction address tag.
         call_stmt.tags["ins_addr"] = 0x400000
         # Add a diverging statement afterwards to avoid requiring a real lifter/graph in _process_block_end().
-        jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, 32))
+        jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400004, 32))
         jump_stmt.tags["ins_addr"] = 0x400000
         block = ailment.Block(0x400000, 0, statements=[call_stmt, jump_stmt])
 
@@ -315,7 +316,8 @@ class TestAILExec(unittest.TestCase):
         assert len(successors.unconstrained_successors) == 0
 
         succ = successors.successors[0]
-        assert succ.addr == (0x400004, None)
+        assert succ.addr == 0x400004
+        assert succ.scratch.is_ail
         assert succ.history.jumpkind == "Ijk_Boring"
         assert succ.scratch.exit_stmt_idx == 1
 
@@ -378,7 +380,7 @@ class TestAILExec(unittest.TestCase):
 
         state.globals["ail_lifter"] = lambda _addr: _FakeClinic()  # type: ignore
 
-        jump = ailment.statement.Jump(0, ailment.expression.Const(None, None, 0x400004, 64))
+        jump = ailment.statement.Jump(0, ailment.expression.Const(None, 0x400004, 64))
         jump.tags["ins_addr"] = 0x400000
         block = ailment.Block(0x400000, 0, statements=[jump])
 

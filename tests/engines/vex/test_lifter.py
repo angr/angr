@@ -2,14 +2,14 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 from __future__ import annotations
 
-import os
 import binascii
+import os
 import unittest
 
-import pyvex
 import archinfo
-import angr
+import pyvex
 
+import angr
 from tests.common import bin_location
 
 

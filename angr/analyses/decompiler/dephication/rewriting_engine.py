@@ -1,41 +1,43 @@
 # pylint:disable=unused-argument,no-self-use,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 from angr.ailment.block import Block
-from angr.ailment.statement import (
-    Statement,
-    Assignment,
-    Store,
-    SideEffectStatement,
-    CAS,
-    Return,
-    ConditionalJump,
-    DirtyStatement,
-    WeakAssignment,
-)
 from angr.ailment.expression import (
+    ITE,
     Atom,
+    BinaryOp,
     Call,
+    Convert,
+    DirtyExpression,
     Expression,
     Extract,
     Insert,
-    VirtualVariable,
     Load,
-    BinaryOp,
-    UnaryOp,
     Phi,
-    Convert,
-    ITE,
-    VEXCCallExpression,
-    DirtyExpression,
     Reinterpret,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
+)
+from angr.ailment.statement import (
+    CAS,
+    Assignment,
+    ConditionalJump,
+    DirtyStatement,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+    WeakAssignment,
 )
 from angr.engines.light import SimEngineNostmtAIL
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
+    from angr.analyses.decompiler.variable_map import VariableMap
 
 
 _l = logging.getLogger(__name__)
@@ -55,6 +57,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         vvar_to_vvar: dict[int, int],
         func_addr: int | None = None,
         variable_kb: KnowledgeBase | None = None,
+        variable_map: VariableMap | None = None,
     ):
         super().__init__(project)
 
@@ -62,6 +65,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         self.out_block = None
         self.func_addr = func_addr
         self.variable_kb = variable_kb
+        self.variable_map = variable_map
 
         self._stmt_handlers["IncompleteSwitchCaseHeadStatement"] = self._handle_stmt_IncompleteSwitchCaseHeadStatement
 
@@ -104,8 +108,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 stmt.dst.bits,
                 stmt.dst.category,
                 oident=stmt.dst.oident,
-                variable=stmt.dst.variable,
-                variable_offset=stmt.dst.variable_offset,
                 **stmt.dst.tags,
             )
 
@@ -121,9 +123,10 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 self.func_addr is not None
                 and self.variable_kb is not None
                 and self.func_addr in self.variable_kb.variables
+                and self.variable_map is not None
             ):
-                dst_var = getattr(dst, "variable", None)
-                src_var = getattr(src, "variable", None)
+                dst_var = self.variable_map.variable(dst)
+                src_var = self.variable_map.variable(src)
                 var_manager = self.variable_kb.variables[self.func_addr]
                 if (
                     dst_var is not None
@@ -194,7 +197,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 stmt.data if new_data is None else new_data,
                 stmt.size,
                 stmt.endness,
-                variable=stmt.variable,
                 guard=stmt.guard,
                 **stmt.tags,
             )
@@ -219,26 +221,14 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         return None
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
-        new_target = (
-            self._expr(stmt.expr.target)
-            if stmt.expr.target is not None and not isinstance(stmt.expr.target, str)
-            else None
-        )
+        new_expr = self._expr(stmt.expr)
         new_ret_expr = self._expr(stmt.ret_expr) if stmt.ret_expr is not None else None
         new_fp_ret_expr = self._expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
-        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
+        if new_expr is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
             return SideEffectStatement(
                 stmt.idx,
-                Call(
-                    stmt.idx,
-                    stmt.expr.target if new_target is None else new_target,
-                    calling_convention=stmt.expr.calling_convention,
-                    prototype=stmt.expr.prototype,
-                    args=stmt.expr.args,
-                    bits=stmt.bits,
-                    **stmt.tags,
-                ),
+                new_expr if new_expr is not None else stmt.expr,
                 ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
                 **stmt.tags,
@@ -302,8 +292,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 expr.bits,
                 expr.category,
                 oident=expr.oident,
-                variable=expr.variable,
-                variable_offset=expr.variable_offset,
                 **expr.tags,
             )
         return None
@@ -318,7 +306,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 new_r = self._expr(r)
                 if new_r is not None:
                     updated = True
-                new_ret_exprs.append(new_r if new_r is not None else None)
+                new_ret_exprs.append(new_r if new_r is not None else r)
             if not updated:
                 new_ret_exprs = None
 
@@ -328,6 +316,34 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
 
     def _handle_stmt_IncompleteSwitchCaseHeadStatement(self, stmt):
         return None
+
+    def _handle_expr_String(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_StringLiteral(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Struct(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Array(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_RustEnum(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_Let(self, expr):
+        # TODO
+        pass
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        # TODO
+        pass
 
     def _handle_expr_BinaryOp(self, expr):
         new_op0 = self._expr(expr.operands[0])
@@ -459,8 +475,6 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             return Call(
                 expr.idx,
                 new_target,
-                calling_convention=expr.calling_convention,
-                prototype=expr.prototype,
                 args=expr.args,
                 bits=expr.bits,
                 **expr.tags,

@@ -1,9 +1,11 @@
 from __future__ import annotations
-import logging
+
 import copy
+import logging
 from collections import defaultdict
 
 from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)

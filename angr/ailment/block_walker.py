@@ -1,26 +1,67 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
+
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar, cast
+from collections import OrderedDict
 from collections.abc import Callable
+from typing import Any, cast
 
 from . import Block
+from .expression import (
+    ITE,
+    Array,
+    Atom,
+    BinaryOp,
+    Call,
+    ComboRegister,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    Extract,
+    FunctionLikeMacro,
+    Insert,
+    Load,
+    MultiStatementExpression,
+    Phi,
+    Register,
+    Reinterpret,
+    RustEnum,
+    StringLiteral,
+    Struct,
+    Tmp,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
+)
 from .statement import (
     CAS,
-    Statement,
-    SideEffectStatement,
-    ConditionalJump,
     Assignment,
-    Store,
-    Return,
-    Jump,
+    ConditionalJump,
     DirtyStatement,
+    Jump,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
     WeakAssignment,
 )
-from .expression import (
+
+_DEFAULT_STMT_HANDLER_TYPES = {
+    Assignment,
+    WeakAssignment,
+    CAS,
+    SideEffectStatement,
+    Store,
+    ConditionalJump,
+    Jump,
+    Return,
+    DirtyStatement,
+}
+
+_DEFAULT_EXPR_HANDLER_TYPES = {
     Call,
     Load,
-    Expression,
     BinaryOp,
     UnaryOp,
     Convert,
@@ -29,65 +70,74 @@ from .expression import (
     VEXCCallExpression,
     Tmp,
     Register,
-    Const,
+    ComboRegister,
     Reinterpret,
+    Const,
     MultiStatementExpression,
     VirtualVariable,
     Phi,
-    Atom,
     Extract,
     Insert,
-)
+    RustEnum,
+    Struct,
+    Array,
+    FunctionLikeMacro,
+    StringLiteral,
+}
 
-ExprType = TypeVar("ExprType")
-StmtType = TypeVar("StmtType")
-BlockType = TypeVar("BlockType")
 
-
-class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
+class AILBlockWalker[ExprType, StmtType, BlockType]:
     """
     Walks all statements and expressions of an AIL node and construct arbitrary values based on them.
+
+    Note that we lazily initialize self._stmt_handlers and self._expr_handlers when they are accessed. This is to
+    support the existing pattern of updating stmt/expr handlers in-place after creating a block walker, and is slightly
+    slower. Overridding handler methods in a new class is the fastest approach.
     """
 
+    _default_stmt_funcs: dict[type, Callable]
+    _default_expr_funcs: dict[type, Callable]
+
     def __init__(self, stmt_handlers=None, expr_handlers=None):
-        _default_stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = {
-            Assignment: self._handle_Assignment,
-            WeakAssignment: self._handle_WeakAssignment,
-            CAS: self._handle_CAS,
-            SideEffectStatement: self._handle_SideEffectStatement,
-            Store: self._handle_Store,
-            ConditionalJump: self._handle_ConditionalJump,
-            Jump: self._handle_Jump,
-            Return: self._handle_Return,
-            DirtyStatement: self._handle_DirtyStatement,
-        }
-
-        _default_expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = {
-            Call: self._handle_CallExpr,
-            Load: self._handle_Load,
-            BinaryOp: self._handle_BinaryOp,
-            UnaryOp: self._handle_UnaryOp,
-            Convert: self._handle_Convert,
-            ITE: self._handle_ITE,
-            DirtyExpression: self._handle_DirtyExpression,
-            VEXCCallExpression: self._handle_VEXCCallExpression,
-            Tmp: self._handle_Tmp,
-            Register: self._handle_Register,
-            Reinterpret: self._handle_Reinterpret,
-            Const: self._handle_Const,
-            MultiStatementExpression: self._handle_MultiStatementExpression,
-            VirtualVariable: self._handle_VirtualVariable,
-            Phi: self._handle_Phi,
-            Extract: self._handle_Extract,
-            Insert: self._handle_Insert,
-        }
-
-        self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
-            stmt_handlers or _default_stmt_handlers
+        self._stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] | None = stmt_handlers or None
+        self._expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] | None = (
+            expr_handlers or None
         )
-        self.expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = (
-            expr_handlers or _default_expr_handlers
-        )
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.rebuild_default_handler_funcs()
+
+    @classmethod
+    def rebuild_default_handler_funcs(cls) -> None:
+        cls._default_stmt_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
+        cls._default_expr_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
+
+    @property
+    def stmt_handlers(self) -> dict[type, Callable[[int, Any, Block | None], StmtType]]:
+        if self._stmt_handlers is None:
+            self._stmt_handlers = {t: getattr(self, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
+        return self._stmt_handlers
+
+    @stmt_handlers.setter
+    def stmt_handlers(self, value) -> None:
+        self._stmt_handlers = value
+
+    @property
+    def expr_handlers(self) -> dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]]:
+        if self._expr_handlers is None:
+            self._expr_handlers = {t: getattr(self, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
+        return self._expr_handlers
+
+    @expr_handlers.setter
+    def expr_handlers(self, value) -> None:
+        self._expr_handlers = value
+
+    def reset(self) -> None:
+        """
+        Reset per-walk state variables so that this walker can be reused for another walk. Subclasses that updates
+        state across a walk must override this to clear that state.
+        """
 
     def walk(self, block: Block) -> BlockType:
         i = 0
@@ -115,13 +165,29 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         return self._handle_expr(0, expr, stmt_idx or 0, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> StmtType:
-        handler = self.stmt_handlers.get(type(stmt), self._stmt_top)
+        handlers = self._stmt_handlers
+        if handlers is None:
+            func = self._default_stmt_funcs.get(type(stmt))
+            if func is None:
+                return self._stmt_top(stmt_idx, stmt, block)
+            return func(self, stmt_idx, stmt, block)
+        handler = handlers.get(type(stmt))
+        if handler is None:
+            return self._stmt_top(stmt_idx, stmt, block)
         return handler(stmt_idx, stmt, block)
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        handler = self.expr_handlers.get(type(expr), self._top)
+        handlers = self._expr_handlers
+        if handlers is None:
+            func = self._default_expr_funcs.get(type(expr))
+            if func is None:
+                return self._top(expr_idx, expr, stmt_idx, stmt, block)
+            return func(self, expr_idx, expr, stmt_idx, stmt, block)
+        handler = handlers.get(type(expr))
+        if handler is None:
+            return self._top(expr_idx, expr, stmt_idx, stmt, block)
         return handler(expr_idx, expr, stmt_idx, stmt, block)
 
     @abstractmethod
@@ -200,7 +266,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         if not isinstance(expr.target, str):
@@ -310,6 +376,47 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_RustEnum(
+        self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        for idx, field in enumerate(expr.fields):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        for idx, field in enumerate(expr.fields.values()):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        for idx, ele in enumerate(expr.elements):
+            self._handle_expr(idx, ele, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacro(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        if expr.args:
+            for i, arg in enumerate(expr.args):
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_StringLiteral(
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_ComboRegister(
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        for idx, reg in enumerate(expr.registers):
+            self._handle_expr(idx, reg, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+
+# __init_subclass__ only runs for subclasses; build the base class's default handler tables explicitly.
+AILBlockWalker.rebuild_default_handler_funcs()
+
 
 class AILBlockViewer(AILBlockWalker[None, None, None]):
     """
@@ -322,7 +429,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
         return None
 
-    def _handle_block_end(self, stmt_results: list[StmtType], block: Block):
+    def _handle_block_end(self, stmt_results: list[None], block: Block):
         return None
 
     # Duplicate all handlers for performance...
@@ -377,7 +484,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if not isinstance(expr.target, str):
             self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
         if expr.args:
@@ -413,6 +520,12 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         return None
+
+    def _handle_ComboRegister(
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        for idx, reg in enumerate(expr.registers):
+            self._handle_expr(idx, reg, stmt_idx, stmt, block)
 
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return None
@@ -456,6 +569,32 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+
+    def _handle_RustEnum(
+        self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        for idx, field in enumerate(expr.fields):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        for idx, field in enumerate(expr.fields.values()):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        for idx, ele in enumerate(expr.elements):
+            self._handle_expr(idx, ele, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacro(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        if expr.args:
+            for i, arg in enumerate(expr.args):
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+
+    def _handle_StringLiteral(
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        pass
 
 
 class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
@@ -572,11 +711,18 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         new_expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
         changed = new_expr is not stmt.expr
 
+        new_ret_expr = None
+        if stmt.ret_expr is not None:
+            new_ret_expr = self._handle_expr(-1, stmt.ret_expr, stmt_idx, stmt, block)
+            if new_ret_expr is not None and new_ret_expr is not stmt.ret_expr:
+                changed = True
+
         if changed:
+            side_effect_expr: Call = new_expr if isinstance(new_expr, Call) else stmt.expr
             return SideEffectStatement(
                 stmt.idx,
-                new_expr,
-                ret_expr=stmt.ret_expr,
+                side_effect_expr,
+                ret_expr=new_ret_expr,
                 fp_ret_expr=stmt.fp_ret_expr,
                 **stmt.tags,
             )
@@ -600,8 +746,6 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
                 stmt.size,
                 stmt.endness,
                 guard=guard,
-                variable=stmt.variable,
-                offset=stmt.offset,
                 **stmt.tags,
             )
         return stmt
@@ -689,7 +833,28 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             return new_expr
         return expr
 
-    def _handle_CallExpr(
+    def _handle_ComboRegister(
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        changed = False
+        new_regs = []
+
+        for idx, reg in enumerate(expr.registers):
+            new_reg = self._handle_expr(idx, reg, stmt_idx, stmt, block)
+            if new_reg and new_reg is not reg:
+                changed = True
+                new_regs.append(new_reg)
+            else:
+                new_regs.append(reg)
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.registers = new_regs
+            return new_expr
+
+        return expr
+
+    def _handle_Call(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         changed = False
@@ -724,6 +889,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         if changed:
             new_expr = expr.copy()
             new_expr.operands = (operand_0, operand_1)
+            assert operand_0 is not None
             new_expr.depth = max(operand_0.depth, operand_1.depth) + 1
             return new_expr
         return expr
@@ -890,4 +1056,91 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             result.offset = new_offset
             result.value = new_value
             return result
+        return expr
+
+    def _handle_RustEnum(
+        self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        changed = False
+        new_fields = []
+        for idx, field in enumerate(expr.fields):
+            new_field = self._handle_expr(idx, field, stmt_idx, stmt, block)
+            if new_field is not None and new_field is not field:
+                changed = True
+                new_fields.append(new_field)
+            else:
+                new_fields.append(field)
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.fields = tuple(new_fields)
+            return new_expr
+        return expr
+
+    def _handle_StringLiteral(
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        return expr
+
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        changed = False
+        new_fields = OrderedDict()
+        for idx, (offset, field) in enumerate(expr.fields.items()):
+            new_field = self._handle_expr(idx, field, stmt_idx, stmt, block)
+            if new_field is not None and new_field is not field:
+                changed = True
+                new_fields[offset] = new_field
+            else:
+                new_fields[offset] = field
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.fields = new_fields
+            return new_expr
+        return expr
+
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        changed = False
+        new_elements = []
+        for idx, ele in enumerate(expr.elements):
+            new_ele = self._handle_expr(idx, ele, stmt_idx, stmt, block)
+            if new_ele is not None and new_ele is not ele:
+                changed = True
+                new_elements.append(new_ele)
+            else:
+                new_elements.append(ele)
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.elements = tuple(new_elements)
+            return new_expr
+        return expr
+
+    def _handle_FunctionLikeMacro(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        changed = False
+
+        new_args = None
+        if expr.args is not None:
+            i = 0
+            new_args = []
+            while i < len(expr.args):
+                arg = expr.args[i]
+                new_arg = self._handle_expr(i, arg, stmt_idx, stmt, block)
+                if new_arg is not None and new_arg is not arg:
+                    if not changed:
+                        # initialize new_args
+                        new_args = list(expr.args[:i])
+                    new_args.append(new_arg)
+                    changed = True
+                else:
+                    if changed:
+                        new_args.append(arg)
+                i += 1
+
+        if changed:
+            expr = expr.copy()
+            expr.args = new_args
+            return expr
         return expr

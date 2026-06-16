@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGFast
+from angr.analyses.vtable import VtableFinder
 from angr.sim_type import SimCppClass, SimTypeCppFunction
-from angr.analyses import AnalysesHub
 from angr.utils.cpp import is_cpp_funcname_ctor
-from . import Analysis, CFGFast, VtableFinder
 
 
 class ClassIdentifier(Analysis):

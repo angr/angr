@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 from enum import Enum, auto
 
 import claripy
-import angr.ailment as ailment
 from archinfo import Arch, Endness, RegisterOffset
 
+import angr.ailment as ailment
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from angr.engines.light import SpOffset
+
 from .heap_address import HeapAddress
 
 

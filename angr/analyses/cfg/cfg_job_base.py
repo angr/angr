@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 
-from angr.errors import SimValueError, SimSolverModeError
+from angr.errors import SimSolverModeError, SimValueError
 from angr.state_plugins.callstack import CallStack
 
 if TYPE_CHECKING:

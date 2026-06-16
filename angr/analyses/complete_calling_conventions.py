@@ -1,30 +1,33 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections.abc import Callable, Iterable
+
+import logging
 import queue
 import threading
 import time
-import logging
 from collections import defaultdict
+from collections.abc import Callable, Iterable
 from enum import Enum
-
-import networkx
+from typing import TYPE_CHECKING
 
 import claripy
+import networkx
 
-from angr.utils.graph import GraphUtils
-from angr.simos import SimWindows
-from angr.utils.mp import mp_context, Initializer
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.calling_convention import CallingConventionAnalysis
+from angr.analyses.cfg import CFGFast
+from angr.analyses.variable_recovery import VariableRecoveryFast
 from angr.knowledge_plugins.cfg import CFGModel
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis, CFGFast
+from angr.simos import SimWindows
+from angr.utils.graph import GraphUtils
+from angr.utils.mp import Initializer, mp_context
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
-    from angr.sim_type import SimTypeFunction
-    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions.function_manager import Function
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from angr.sim_type import SimTypeFunction
 
 
 _l = logging.getLogger(name=__name__)
@@ -70,6 +73,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         skip_other_funcs: bool = False,
         auto_start: bool = True,
         func_graphs: dict[int, networkx.DiGraph] | None = None,
+        target_functions: set[int] | None = None,
     ):
         """
 
@@ -104,6 +108,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._auto_start = auto_start
         self._total_funcs = None
         self._func_graphs = func_graphs or {}
+        self._target_functions = target_functions
         self.prototype_libnames: set[str] = set()
 
         # sanity check
@@ -155,6 +160,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
         total_funcs = 0
         for func_addr in reversed(sorted_funcs):
+            if self._target_functions is not None and func_addr not in self._target_functions:
+                continue
+
             func = self.kb.functions.get_by_addr(func_addr)
             if (func.calling_convention is None or func.prototype is None) or self._force:
                 if func.is_alignment:

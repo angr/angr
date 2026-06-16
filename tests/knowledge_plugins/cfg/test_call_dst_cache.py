@@ -12,7 +12,6 @@ import unittest
 import angr
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG, get_block_key
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

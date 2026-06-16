@@ -1,10 +1,13 @@
 from __future__ import annotations
-import claripy
+
 import logging
 
-from angr.procedures.java import JavaSimProcedure
+import claripy
+
 from angr.engines.soot.values import SimSootValue_ThisRef
-from .collection import ELEMS, SIZE, INDEX
+from angr.procedures.java import JavaSimProcedure
+
+from .collection import ELEMS, INDEX, SIZE
 
 log = logging.getLogger(name=__name__)
 

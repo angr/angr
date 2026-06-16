@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 import claripy
 
-from angr.storage.memory_mixins.memory_mixin import MemoryMixin
-from angr import sim_options as options
+import angr
 from angr import concretization_strategies
+from angr import sim_options as options
+from angr.errors import SimMemoryAddressError, SimMemoryError, SimMergeError, SimUnsatError
 from angr.sim_state_options import SimStateOptions
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from angr.errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
-from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class MultiwriteAnnotation(claripy.Annotation):
@@ -16,7 +17,7 @@ class MultiwriteAnnotation(claripy.Annotation):
         return False
 
     @property
-    def relocateable(self):
+    def relocatable(self):
         return True
 
 
@@ -295,7 +296,7 @@ class AddressConcretizationMixin(MemoryMixin):
 
         # quick optimization to not introduce the DUMMY value if there's only one loop
         # DUMMY_SYMBOLIC_READ_VALUE is a sentinel value and should never be touched
-        read_value = None if len(concrete_addrs) == 1 else DUMMY_SYMBOLIC_READ_VALUE
+        read_value = None if len(concrete_addrs) == 1 else angr.storage.DUMMY_SYMBOLIC_READ_VALUE
 
         for concrete_addr in concrete_addrs:
             # perform each of the loads

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import unittest
 
 import angr
-from angr import SimState, SIM_PROCEDURES, load_shellcode
+from angr import SIM_PROCEDURES, SimState, load_shellcode
 from angr.engines import ProcedureEngine
 
 FAKE_ADDR = 0x100000

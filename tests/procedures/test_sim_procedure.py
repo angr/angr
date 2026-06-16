@@ -9,7 +9,6 @@ import unittest
 
 import angr
 from angr.codenode import BlockNode, HookNode, SyscallNode
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

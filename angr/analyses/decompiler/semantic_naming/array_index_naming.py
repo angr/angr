@@ -6,8 +6,9 @@ This module detects variables used as array indices and names them appropriately
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 from angr.ailment import Block
 from angr.ailment.expression import BinaryOp, Const, Load

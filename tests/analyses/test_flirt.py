@@ -9,7 +9,6 @@ import unittest
 
 import angr
 import angr.flirt
-
 from tests.common import bin_location
 
 

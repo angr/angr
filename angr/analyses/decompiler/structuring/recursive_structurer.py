@@ -1,21 +1,24 @@
 from __future__ import annotations
-import itertools
-from typing import TYPE_CHECKING
-import logging
 
-from angr.analyses import Analysis, register_analysis
+import itertools
+import logging
+from typing import TYPE_CHECKING
+
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+from angr.analyses.decompiler.structurer_nodes import BaseNode
 from angr.utils.graph import GraphUtils
-from .structurer_nodes import BaseNode
-from .structurer_base import StructurerBase
+
 from .dream import DreamStructurer
+from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
+    from angr.ailment.manager import Manager
     from angr.knowledge_plugins.functions import Function
 
 
@@ -33,13 +36,16 @@ class RecursiveStructurer(Analysis):
         cond_proc=None,
         func: Function | None = None,
         structurer_cls: type | None = None,
+        *,
+        ail_manager: Manager,
         **kwargs,
     ):
         self._region = region
-        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.structurer_options = kwargs
+        self.ail_manager = ail_manager
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch, self.ail_manager)
 
         self.result: BaseNode | None = None
         self.result_incomplete: bool = False
@@ -91,6 +97,7 @@ class RecursiveStructurer(Analysis):
                     func=self.function,
                     parent_region=parent_region,
                     jump_tables=self.kb.cfgs["CFGFast"].jump_tables,
+                    ail_manager=self.ail_manager,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
@@ -125,14 +132,14 @@ class RecursiveStructurer(Analysis):
             StructurerBase._remove_all_jumps(self.result)
 
         else:
-            StructurerBase._remove_redundant_jumps(self.result)
+            StructurerBase.remove_redundant_jumps(self.result, self.ail_manager)
 
         # remove redundant labels
         jtc = JumpTargetCollector(self.result)
         self.result = RedundantLabelRemover(self.result, jtc.jump_targets).result
 
         # remove empty nodes (if any)
-        self.result = EmptyNodeRemover(self.result).result
+        self.result = EmptyNodeRemover(self.result, self.ail_manager).result
 
         if self.structurer_cls is DreamStructurer:
             # remove conditional jumps

@@ -1,62 +1,59 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
+import contextlib
 import functools
+import logging
 import os
 import sys
-import contextlib
+import time
+import typing
 from collections import defaultdict
 from collections.abc import Callable
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Generic, cast, Any
-from types import NoneType
 from itertools import chain
 from traceback import format_exception
-
-import logging
-import time
-import typing
+from types import NoneType
+from typing import TYPE_CHECKING, Any
 
 import psutil
-
 from rich import progress
 
-from angr.misc.plugins import PluginVendor, VendorPreset
 from angr.misc import telemetry
+from angr.misc.plugins import PluginVendor, VendorPreset
 from angr.misc.testing import is_testing
 
 if TYPE_CHECKING:
+    from typing_extensions import ParamSpec
+
     from angr.knowledge_base import KnowledgeBase
     from angr.project import Project
-    from typing_extensions import ParamSpec
-    from .identifier import Identifier
-    from .callee_cleanup_finder import CalleeCleanupFinder
-    from .vsa_ddg import VSA_DDG
-    from .cdg import CDG
-    from .bindiff import BinDiff
-    from .cfg import CFGEmulated
-    from .cfg import CFBlanket
-    from .cfg import CFG
-    from .cfg import CFGFast
-    from .static_hooker import StaticHooker
-    from .ddg import DDG
-    from .congruency_check import CongruencyCheck
-    from .reassembler import Reassembler
+
     from .backward_slice import BackwardSlice
     from .binary_optimizer import BinaryOptimizer
-    from .vfg import VFG
-    from .loopfinder import LoopFinder
-    from .disassembly import Disassembly
-    from .veritesting import Veritesting
-    from .code_tagging import CodeTagging
+    from .bindiff import BinDiff
     from .boyscout import BoyScout
-    from .variable_recovery import VariableRecoveryFast
-    from .variable_recovery import VariableRecovery
-    from .reaching_definitions import ReachingDefinitionsAnalysis
-    from .complete_calling_conventions import CompleteCallingConventionsAnalysis
-    from .decompiler.clinic import Clinic
-    from .propagator import PropagatorAnalysis
+    from .callee_cleanup_finder import CalleeCleanupFinder
     from .calling_convention import CallingConventionAnalysis
+    from .cdg import CDG
+    from .cfg import CFG, CFBlanket, CFGEmulated, CFGFast
+    from .code_tagging import CodeTagging
+    from .complete_calling_conventions import CompleteCallingConventionsAnalysis
+    from .congruency_check import CongruencyCheck
+    from .ddg import DDG
+    from .decompiler.clinic import Clinic
     from .decompiler.decompiler import Decompiler
+    from .disassembly import Disassembly
+    from .identifier import Identifier
+    from .loopfinder import LoopFinder
+    from .propagator import PropagatorAnalysis
+    from .reaching_definitions import ReachingDefinitionsAnalysis
+    from .reassembler import Reassembler
+    from .static_hooker import StaticHooker
+    from .variable_recovery import VariableRecovery, VariableRecoveryFast
+    from .veritesting import Veritesting
+    from .vfg import VFG
+    from .vsa_ddg import VSA_DDG
     from .xrefs import XRefsAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
@@ -111,9 +108,6 @@ class AnalysisLogEntry:
         return f"<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>"
 
 
-A = TypeVar("A", bound="Analysis")
-
-
 class AnalysesHub(PluginVendor[Any]):
     """
     This class contains functions for all the registered and runnable analyses,
@@ -123,7 +117,7 @@ class AnalysesHub(PluginVendor[Any]):
         super().__init__()
         self.project = project
 
-    def _init_plugin(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
+    def _init_plugin[A: Analysis](self, plugin_cls: type[A]) -> AnalysisFactory[A]:
         return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
     def __getstate__(self):  # type: ignore[reportIncompatibleMethodOverride]
@@ -134,7 +128,7 @@ class AnalysesHub(PluginVendor[Any]):
         s, self.project = sd
         super().__setstate__(s)
 
-    def __getitem__(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
+    def __getitem__[A: Analysis](self, plugin_cls: type[A]) -> AnalysisFactory[A]:
         return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
 
@@ -178,11 +172,11 @@ class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
     """
 
 
-class AnalysisFactory(Generic[A]):
+class AnalysisFactory[A: Analysis]:
     def __init__(self, project: Project, analysis_cls: type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
-        self.__sig = Signature.from_callable(analysis_cls.__init__)
+        self.__sig: Signature | None = None  # will be computed upon first access
 
     def prep(
         self,
@@ -198,41 +192,44 @@ class AnalysisFactory(Generic[A]):
         @t.start_as_current_span(self._analysis_cls.__name__)
         def wrapper(*args, **kwargs):
             span = telemetry.get_current_span()
-            sig = cast(Signature, self.__sig)
-            bound = sig.bind(None, *args, **kwargs)
-            for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
-                if name in ("kwargs", "self"):
-                    continue
-                if isinstance(val, (str, bytes, bool, int, float, NoneType)):
-                    if val is None:
-                        span.set_attribute(f"arg.{name}.is_none", True)
+            if span.is_recording():
+                if self.__sig is None:
+                    self.__sig = Signature.from_callable(self._analysis_cls.__init__)
+                sig = self.__sig
+                bound = sig.bind(None, *args, **kwargs)
+                for name, val in chain(bound.arguments.items(), bound.arguments.get("kwargs", {}).items()):
+                    if name in ("kwargs", "self"):
+                        continue
+                    if isinstance(val, (str, bytes, bool, int, float, NoneType)):
+                        if val is None:
+                            span.set_attribute(f"arg.{name}.is_none", True)
+                        else:
+                            span.set_attribute(f"arg.{name}", val)
+                    elif isinstance(val, (list, tuple, set, frozenset)):
+                        listval = list(val)
+                        if not listval or (
+                            isinstance(listval[0], (str, bytes, bool, int, float))
+                            and all(type(sval) is type(listval[0]) for sval in listval)
+                        ):
+                            span.set_attribute(f"arg.{name}", listval)
+                    elif isinstance(val, dict):
+                        listval_keys = list(val)
+                        listval_values = list(val.values())
+                        if not listval_keys or (
+                            isinstance(listval_keys[0], (str, bytes, bool, int, float))
+                            and all(type(sval) is type(listval_keys[0]) for sval in listval_keys)
+                        ):
+                            span.set_attribute(f"arg.{name}.keys", listval_keys)
+                        if not listval_values or (
+                            isinstance(listval_values[0], (str, bytes, bool, int, float))
+                            and all(type(sval) is type(listval_values[0]) for sval in listval_values)
+                        ):
+                            span.set_attribute(f"arg.{name}.values", listval_values)
                     else:
-                        span.set_attribute(f"arg.{name}", val)
-                elif isinstance(val, (list, tuple, set, frozenset)):
-                    listval = list(val)
-                    if not listval or (
-                        isinstance(listval[0], (str, bytes, bool, int, float))
-                        and all(type(sval) is type(listval[0]) for sval in listval)
-                    ):
-                        span.set_attribute(f"arg.{name}", listval)
-                elif isinstance(val, dict):
-                    listval_keys = list(val)
-                    listval_values = list(val.values())
-                    if not listval_keys or (
-                        isinstance(listval_keys[0], (str, bytes, bool, int, float))
-                        and all(type(sval) is type(listval_keys[0]) for sval in listval_keys)
-                    ):
-                        span.set_attribute(f"arg.{name}.keys", listval_keys)
-                    if not listval_values or (
-                        isinstance(listval_values[0], (str, bytes, bool, int, float))
-                        and all(type(sval) is type(listval_values[0]) for sval in listval_values)
-                    ):
-                        span.set_attribute(f"arg.{name}.values", listval_values)
-                else:
-                    span.set_attribute(f"arg.{name}.unrepresentable", True)
-            if self._project.filename is not None:
-                span.set_attribute("project.binary_name", self._project.filename)
-            span.set_attribute("project.arch_name", self._project.arch.name)
+                        span.set_attribute(f"arg.{name}.unrepresentable", True)
+                if self._project.filename is not None:
+                    span.set_attribute("project.binary_name", self._project.filename)
+                span.set_attribute("project.arch_name", self._project.arch.name)
 
             oself = object.__new__(self._analysis_cls)
             oself.named_errors = defaultdict(list)

@@ -11,6 +11,25 @@ import unittest
 import archinfo
 import networkx
 
+from angr.analyses.typehoon.simple_solver import (
+    BASE_LATTICE_32,
+    BASE_LATTICE_64,
+    PRIMITIVE_TYPES,
+    Bottom_,
+    Int8_,
+    Int16_,
+    Int32_,
+    Int64_,
+    SInt8_,
+    SInt16_,
+    SInt32_,
+    SInt64_,
+    UInt8_,
+    UInt16_,
+    UInt32_,
+    UInt64_,
+)
+from angr.analyses.typehoon.translator import TypeTranslator
 from angr.analyses.typehoon.typeconsts import (
     Int,
     Int8,
@@ -18,37 +37,18 @@ from angr.analyses.typehoon.typeconsts import (
     Int32,
     Int64,
     SInt8,
-    UInt8,
     SInt16,
-    UInt16,
     SInt32,
-    UInt32,
     SInt64,
+    UInt8,
+    UInt16,
+    UInt32,
     UInt64,
     int_type,
     signed_int_type,
     unsigned_int_type,
 )
-from angr.analyses.typehoon.simple_solver import (
-    BASE_LATTICE_32,
-    BASE_LATTICE_64,
-    Bottom_,
-    Int8_,
-    Int16_,
-    Int32_,
-    Int64_,
-    SInt8_,
-    UInt8_,
-    SInt16_,
-    UInt16_,
-    SInt32_,
-    UInt32_,
-    SInt64_,
-    UInt64_,
-    PRIMITIVE_TYPES,
-)
-from angr.analyses.typehoon.translator import TypeTranslator
-from angr.sim_type import SimTypeInt, SimTypeShort, SimTypeChar, SimTypeLongLong
+from angr.sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort
 
 
 class TestTypeConsts(unittest.TestCase):

@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrIncongruencyError
-from angr.analyses import AnalysesHub
-from . import Analysis
 
 l = logging.getLogger(name=__name__)
 

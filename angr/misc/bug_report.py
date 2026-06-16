@@ -1,15 +1,16 @@
 from __future__ import annotations
+
+import ctypes
+import datetime
+import gc
 import importlib.metadata
 import os
 import sys
-import datetime
-import gc
-import ctypes
 import sysconfig
 
 have_gitpython = False
 try:
-    from git import Repo, InvalidGitRepositoryError
+    from git import InvalidGitRepositoryError, Repo
 
     have_gitpython = True
 except ImportError:

@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 from cle.backends.elf.variable import Variable
-from cle.backends.elf.variable_type import VariableType, PointerType, ArrayType, StructType, TypedefType
+from cle.backends.elf.variable_type import ArrayType, PointerType, StructType, TypedefType, VariableType
 
 from angr.sim_state import SimState
 from angr.sim_type import ALL_TYPES, SimTypeNum
@@ -13,8 +14,8 @@ from .plugin import SimStatePlugin
 l = logging.getLogger(name=__name__)
 
 if TYPE_CHECKING:
-    from angr.state_plugins.view import SimMemView
     from angr.sim_type import SimType
+    from angr.state_plugins.view import SimMemView
 
 
 class SimDebugVariable:

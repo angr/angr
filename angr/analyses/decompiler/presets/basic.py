@@ -1,19 +1,29 @@
 from __future__ import annotations
-from .preset import DecompilationPreset
+
 from angr.analyses.decompiler.optimization_passes import (
-    RegisterSaveAreaSimplifier,
-    StackCanarySimplifier,
-    WinStackCanarySimplifier,
     BasePointerSaveSimplifier,
-    ConstantDereferencesSimplifier,
-    RetAddrSaveSimplifier,
-    RegisterSaveAreaSimplifierAdvanced,
-    X86GccGetPcSimplifier,
-    MipsGpSettingSimplifier,
     CallStatementRewriter,
-    SwitchReusedEntryRewriter,
+    ConstantDereferencesSimplifier,
+    InlinedMemcpySimplifier,
+    InlinedMemcpySimplifierLate,
+    InlinedMemsetSimplifier,
+    InlinedMemsetSimplifierLate,
+    InlinedStrcpySimplifier,
+    InlinedStrcpySimplifierLate,
+    InlinedWcscpySimplifier,
+    InlinedWcscpySimplifierLate,
+    MipsGpSettingSimplifier,
     PostStructuringPeepholeOptimizationPass,
+    RegisterSaveAreaSimplifier,
+    RegisterSaveAreaSimplifierAdvanced,
+    RetAddrSaveSimplifier,
+    StackCanarySimplifier,
+    SwitchReusedEntryRewriter,
+    WinStackCanarySimplifier,
+    X86GccGetPcSimplifier,
 )
+
+from .preset import DecompilationPreset
 
 preset_basic = DecompilationPreset(
     "basic",
@@ -27,6 +37,14 @@ preset_basic = DecompilationPreset(
         RegisterSaveAreaSimplifierAdvanced,
         X86GccGetPcSimplifier,
         MipsGpSettingSimplifier,
+        InlinedMemcpySimplifier,
+        InlinedMemsetSimplifier,
+        InlinedStrcpySimplifier,
+        InlinedWcscpySimplifier,
+        InlinedMemcpySimplifierLate,
+        InlinedMemsetSimplifierLate,
+        InlinedStrcpySimplifierLate,
+        InlinedWcscpySimplifierLate,
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
         PostStructuringPeepholeOptimizationPass,

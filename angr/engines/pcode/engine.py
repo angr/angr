@@ -1,17 +1,19 @@
 from __future__ import annotations
+
+import logging
 from collections.abc import Iterable
 
 import claripy
-import logging
 
-from angr.calling_conventions import DEFAULT_CC, default_cc, SimRegArg
-from angr.engines.successors import SuccessorsEngine, SimSuccessors
+from angr import errors
+from angr import sim_options as o
+from angr.calling_conventions import DEFAULT_CC, SimRegArg, default_cc
+from angr.engines.successors import SimSuccessors, SuccessorsEngine
 from angr.misc.ux import once
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr import sim_options as o
-from angr import errors
-from .lifter import PcodeLifterEngineMixin, IRSB
+
 from .emulate import PcodeEmulatorMixin
+from .lifter import IRSB, PcodeLifterEngineMixin
 
 l = logging.getLogger(__name__)
 
@@ -217,7 +219,7 @@ class HeavyPcodeMixin(
                 exit_state.scratch.target = claripy.BVV(
                     successors.addr + self.state.scratch.irsb.size, exit_state.arch.bits
                 )
-                exit_state.history.jumpkind = "Ijk_Ret"
+                exit_state.history.jumpkind = "Ijk_FakeRet"
                 exit_state.regs.ip = exit_state.scratch.target
                 if exit_state.arch.call_pushes_ret:
                     exit_state.regs.sp = exit_state.regs.sp + exit_state.arch.bytes

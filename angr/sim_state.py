@@ -5,32 +5,36 @@ import functools
 import itertools
 import logging
 import weakref
-from typing import Any, TypeVar, TYPE_CHECKING, Generic
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import archinfo
+import claripy
 from archinfo import Arch
 from archinfo.arch_soot import SootAddressDescriptor
-import claripy
 from cle import Clemory
 
+import angr
+
 from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
+from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
-from .state_plugins import SimStatePlugin
+from .state_plugins.plugin import SimStatePlugin
 
 if TYPE_CHECKING:
-    from .storage import DefaultMemory
-    from .state_plugins.solver import SimSolver
-    from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.view import SimRegNameView, SimMemView
-    from .state_plugins.callstack import CallStack
-    from .state_plugins.inspect import SimInspector
-    from .state_plugins.jni_references import SimStateJNIReferences
-    from .state_plugins.scratch import SimStateScratch
     from angr.project import Project
     from angr.simos.javavm import SimJavaVM
+
+    from .state_plugins.callstack import CallStack
+    from .state_plugins.history import SimStateHistory
+    from .state_plugins.inspect import SimInspector
+    from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.posix import SimSystemPosix
+    from .state_plugins.scratch import SimStateScratch
+    from .state_plugins.solver import SimSolver
+    from .state_plugins.view import SimMemView, SimRegNameView
+    from .storage import DefaultMemory
 
 
 l = logging.getLogger(name=__name__)
@@ -50,14 +54,9 @@ def arch_overridable(f):
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-_complained_se = False
-
-IPTypeConc = TypeVar("IPTypeConc")
-IPTypeSym = TypeVar("IPTypeSym")
-
 
 # pylint: disable=not-callable
-class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
+class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -301,15 +300,16 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
     def __repr__(self):
         try:
             addr = self.addr
-            ip_str = (
-                f"{addr:#x}"
-                if type(addr) is int
-                else (
-                    f"{addr[0]:#x}{'' if addr[1] is None else '.'}{'' if addr[1] is None else addr[1]}"
-                    if type(addr) is tuple
-                    else repr(addr)
-                )
-            )
+            if type(addr) is int:
+                ip_str = f"{addr:#x}"
+                try:
+                    scratch = self.scratch
+                    if scratch.is_ail and scratch.ail_block_idx is not None:
+                        ip_str = f"{addr:#x}.{scratch.ail_block_idx}"
+                except Exception:
+                    pass
+            else:
+                ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
@@ -348,17 +348,11 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
         :return: an expression
         """
-        if isinstance(self._addr, tuple):
-            return self._addr
         return self.regs.ip
 
     @ip.setter
     def ip(self, val):
-        # I WISH FOR A BETTER WAY TO DO THIS
-        if isinstance(val, tuple):
-            self._addr = val
-        else:
-            self.regs.ip = val
+        self.regs.ip = val
 
     @property
     def _ip(self) -> IPTypeSym:
@@ -367,8 +361,6 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
         :return: an expression
         """
-        if isinstance(self._addr, tuple):
-            return self._addr
         try:
             return self.regs._ip
         except AttributeError as e:
@@ -382,9 +374,6 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
         :param val: The new instruction pointer.
         :return:    None
         """
-        if isinstance(val, tuple):
-            self._addr = val
-            return
         try:
             self.regs._ip = val
         except AttributeError as e:
@@ -400,13 +389,22 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
         """
 
         ip = self._ip
-        if isinstance(ip, (SootAddressDescriptor, tuple)):
+        if isinstance(ip, SootAddressDescriptor):
             return ip
         return self.solver.eval_one(self.regs._ip)
 
     @addr.setter
-    def addr(self, v):
-        self._ip = v
+    def addr(self, v: int | SootAddressDescriptor | tuple[int, int | None]):
+        """
+        Set the instruction pointer to a concrete address, without triggering SimInspect breakpoints or generating
+        SimActions. This method has extra logic to handle AIL addresses, which are represented as a tuple of (address, block_idx).
+        """
+        # magic to handle ail addresses
+        if isinstance(v, tuple) and len(v) == 2:
+            self._ip = v[0]
+            self.scratch.ail_block_idx = v[1]
+        else:
+            self._ip = v
 
     @property
     def arch(self) -> Arch:
@@ -426,12 +424,9 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
         if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
-    T = TypeVar("T")
-
-    def _inspect_getattr(self, attr: str, default_value: T):
-        if self.supports_inspect and hasattr(self.inspect, attr):
-            return getattr(self.inspect, attr)
-
+    def _inspect_getattr[T](self, attr: str, default_value: T):
+        if self.supports_inspect:
+            return getattr(self.inspect.attrs, attr)
         return default_value
 
     #
@@ -666,7 +661,7 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
             )
             if (
                 plugin_common_ancestor is None
-                and plugin_class is SimStateHistory
+                and plugin_class is angr.state_plugins.SimStateHistory
                 and common_ancestor_history is not None
             ):
                 plugin_common_ancestor = common_ancestor_history
@@ -782,12 +777,6 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
         v = self.solver.eval(expr)
         self.add_constraints(expr == v)
         return v
-
-    # This handles the preparation of concrete function launches from abstract functions.
-    @arch_overridable
-    def prepare_callsite(self, retval, args, cc="wtf"):
-        # TODO
-        pass
 
     def _stack_values_to_string(self, stack_values):
         """
@@ -922,5 +911,3 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset("default", default_state_plugin_preset)
-
-from .state_plugins.history import SimStateHistory

@@ -11,7 +11,6 @@ import angr.ailment as ailment
 from angr.analyses.decompiler.optimization_passes.base_ptr_save_simplifier import (
     BasePointerSaveSimplifier,
 )
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

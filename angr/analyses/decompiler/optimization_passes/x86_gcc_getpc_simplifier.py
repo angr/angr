@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Any
+
 import logging
+from typing import Any
 
 import angr.ailment as ailment
 
@@ -52,8 +53,8 @@ class X86GccGetPcSimplifier(OptimizationPass):
             old_stmt = block.statements[stmt_idx]
             block.statements[stmt_idx] = ailment.Stmt.Assignment(
                 old_stmt.idx,
-                ailment.Expr.Register(self.manager.next_atom(), None, pcreg_offset, 32, reg_name=getpc_reg),
-                ailment.Expr.Const(self.manager.next_atom(), None, getpc_reg_value, 32),
+                ailment.Expr.Register(self.manager.next_atom(), pcreg_offset, 32, reg_name=getpc_reg),
+                ailment.Expr.Const(self.manager.next_atom(), getpc_reg_value, 32),
                 **old_stmt.tags,
             )
             # remove the statement that pushes return address onto the stack

@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
-from typing import Literal, TypeAlias
 from collections import defaultdict
 from itertools import count
+from typing import Literal
 
 import networkx
 
@@ -12,19 +13,20 @@ from angr.ailment.expression import (
     StackBaseOffset,
     VirtualVariable,
 )
-
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
-from angr.analyses import Analysis, register_analysis
-from .traversal import TraversalAnalysis
+
 from .rewriting import RewritingAnalysis
+from .traversal import TraversalAnalysis
 
 l = logging.getLogger(name=__name__)
 
 
-Kind: TypeAlias = Literal["stack", "reg"]
-UDef: TypeAlias = tuple[Kind, int, int]
-Def: TypeAlias = StackBaseOffset | Register
+type Kind = Literal["stack", "reg"]
+type UDef = tuple[Kind, int, int]
+type Def = StackBaseOffset | Register
 
 
 class Ssailification(Analysis):  # pylint:disable=abstract-method
@@ -86,6 +88,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             ssa_tmps,
             set(),
             self.kb.functions.get,
+            variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
         )
 
         # calculate virtual variables and phi nodes

@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import UnaryOp, BinaryOp, StackBaseOffset, Const
+from angr.ailment.expression import BinaryOp, Const, StackBaseOffset, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -96,11 +97,11 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
         while stackbaseoffset_objs:
             sign, obj = stackbaseoffset_objs.pop(0)
             if expr is None:
-                expr = obj if sign else UnaryOp(None, "Neg", obj, **obj.tags)
+                expr = obj if sign else UnaryOp(self.manager.next_atom(), "Neg", obj, **obj.tags)
             else:
                 op = "Add" if sign else "Sub"
                 expr = BinaryOp(
-                    None,
+                    self.manager.next_atom(),
                     op,
                     [
                         expr,
@@ -118,7 +119,7 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
             else:
                 op = "Add" if positive else "Sub"
                 expr = BinaryOp(
-                    None,
+                    self.manager.next_atom(),
                     op,
                     [
                         expr,

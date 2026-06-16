@@ -1,13 +1,16 @@
 from __future__ import annotations
+
+import logging
 import os
 import re
-import logging
+
 from sortedcontainers import SortedList
 
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 from angr.knowledge_plugins.functions.function import Function
+
+from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 
 l = logging.getLogger(__name__)
 

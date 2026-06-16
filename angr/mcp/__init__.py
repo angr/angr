@@ -11,6 +11,9 @@ Usage:
     # Run with SSE transport
     python -m angr.mcp --transport sse --port 8080
 
+    # Run with HTTP transport
+    python -m angr.mcp --transport http --host 0.0.0.0 --port 8080 --path /mcp
+
     # Programmatic usage
     from angr.mcp import create_server
     server = create_server()

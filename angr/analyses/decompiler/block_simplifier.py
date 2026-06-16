@@ -1,28 +1,35 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-import logging
-from typing import TYPE_CHECKING
-from collections.abc import Iterable, Mapping
 
+import logging
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING
+
+from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Statement, Assignment, SideEffectStatement, Store, Jump
-from angr.ailment.expression import Call, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
-from angr.ailment import AILBlockViewer
+from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.s_propagator import SPropagatorAnalysis
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
-from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import has_reference_to_vvar
+
+from .block_walkers import HasCallExprWalker, HasCallNotification
 from .peephole_optimizations import (
+    EXPR_OPTS,
     MULTI_STMT_OPTS,
     STMT_OPTS,
-    EXPR_OPTS,
-    PeepholeOptimizationStmtBase,
     PeepholeOptimizationExprBase,
     PeepholeOptimizationMultiStmtBase,
+    PeepholeOptimizationStmtBase,
 )
-from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
+from .utils import (
+    _PeepholeExprsWalker,
+    peephole_optimize_exprs,
+    peephole_optimize_multistmts,
+    peephole_optimize_stmts,
+)
 
 if TYPE_CHECKING:
     from angr.ailment.block import Block
@@ -31,22 +38,7 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-class HasCallExprWalker(AILBlockViewer):
-    """
-    Test if an expression contains a call expression inside.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.has_call_expr = False
-
-    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):  # pylint:disable=unused-argument
-        self.has_call_expr = True
-
-    def _handle_CallExpr(  # pylint:disable=unused-argument
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ):
-        self.has_call_expr = True
+_HAS_CALL_EXPR_WALKER = HasCallExprWalker()
 
 
 class BlockSimplifier(Analysis):
@@ -117,6 +109,9 @@ class BlockSimplifier(Analysis):
             ]
 
         self.result_block = None
+
+        # cached peephole expression walker
+        self._expr_peephole_walker = _PeepholeExprsWalker(expr_opts=self._expr_peephole_opts)
 
         # cached Propagator and ReachingDefinitions results. Clear them if the block is updated
         self._propagator = cached_propagator
@@ -337,17 +332,21 @@ class BlockSimplifier(Analysis):
             """
             Check if a statement has any Call expressions.
             """
-            walker = HasCallExprWalker()
-            walker.walk_statement(stmt)
-            return walker.has_call_expr
+            try:
+                _HAS_CALL_EXPR_WALKER.walk_statement(stmt)
+            except HasCallNotification:
+                return True
+            return False
 
         def _expression_has_calls(expr: Expression) -> bool:
             """
             Check if an expression has any Call expressions.
             """
-            walker = HasCallExprWalker()
-            walker.walk_expression(expr)
-            return walker.has_call_expr
+            try:
+                _HAS_CALL_EXPR_WALKER.walk_expression(expr)
+            except HasCallNotification:
+                return True
+            return False
 
         new_statements = []
         if not block.statements:
@@ -391,7 +390,7 @@ class BlockSimplifier(Analysis):
 
                     if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
-                        stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
+                        stmt = SideEffectStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags)
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
                     continue
@@ -406,7 +405,7 @@ class BlockSimplifier(Analysis):
 
     def _peephole_optimize(self, block):
         # expressions are updated in place
-        peephole_optimize_exprs(block, self._expr_peephole_opts)
+        peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)

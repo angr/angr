@@ -1,6 +1,8 @@
 from __future__ import annotations
-import angr
+
 import tempfile
+
+import angr
 
 
 class tmpnam(angr.SimProcedure):

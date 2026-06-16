@@ -1,24 +1,24 @@
 from __future__ import annotations
 
-from .functions import FunctionManager, Function
-from .variables import VariableManager
-from .debug_variables import DebugVariableManager
-from .comments import Comments
-from .data import Data
-from .indirect_jumps import IndirectJumps
-from .labels import Labels
+from .callsite_prototypes import CallsitePrototypes
 from .cfg import CFGManager
-from .xrefs import XRefManager
-from .plugin import KnowledgeBasePlugin
-from .patches import PatchManager
+from .comments import Comments
+from .custom_strings import CustomStrings
+from .data import Data
+from .debug_variables import DebugVariableManager
+from .functions import Function, FunctionManager
+from .indirect_jumps import IndirectJumps
 from .key_definitions import KeyDefinitionManager
+from .labels import Labels
+from .obfuscations import Obfuscations
+from .patches import PatchManager
+from .plugin import KnowledgeBasePlugin
 from .propagations import PropagationManager
+from .rtdb import RuntimeDb
 from .structured_code import StructuredCodeManager
 from .types import TypesStore
-from .callsite_prototypes import CallsitePrototypes
-from .custom_strings import CustomStrings
-from .obfuscations import Obfuscations
-from .rtdb import RuntimeDb
+from .variables import VariableManager
+from .xrefs import XRefManager
 
 __all__ = (
     "CFGManager",

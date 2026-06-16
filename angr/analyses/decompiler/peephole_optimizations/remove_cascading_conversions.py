@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import Convert, BinaryOp, Const
+
+from angr.ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -31,7 +32,7 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
                 return BinaryOp(
                     expr.idx,
                     "And",
-                    [inner.operand, Const(None, None, mask, inner.operand.bits)],
+                    [inner.operand, Const(self.manager.next_atom(), mask, inner.operand.bits)],
                     False,
                     **expr.tags,
                 )

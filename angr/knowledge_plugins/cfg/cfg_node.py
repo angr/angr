@@ -1,21 +1,23 @@
 from __future__ import annotations
 
-import traceback
 import logging
+import traceback
 from typing import TYPE_CHECKING
 
-from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
+from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
-from angr.serializable import Serializable
 from angr.protos import cfg_pb2
+from angr.serializable import Serializable
 from angr.utils.ins_addr_list import InsAddrList
+
 from .block_id import BlockID
 
 if TYPE_CHECKING:
     from angr.block import Block, SootBlock
+
     from .cfg_model import CFGModel
 
 _l = logging.getLogger(__name__)
@@ -184,7 +186,7 @@ class CFGNode(Serializable):
         return self._thumb
 
     @property
-    def size(self) -> bool:
+    def size(self) -> int:
         return self._size
 
     @property

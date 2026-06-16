@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 
-from angr import SIM_PROCEDURES
-from angr.analyses import AnalysesHub, Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.procedures import SIM_PROCEDURES
 
 l = logging.getLogger(name=__name__)
 

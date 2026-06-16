@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from archinfo.arch_arm import is_arm_arch
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
 from .cfg_model import CFGModel
 
 if TYPE_CHECKING:

@@ -92,7 +92,7 @@ angr 8.18.10.1
 
 Welcome to angr 8!
 The biggest change for this major version bump is the transition to Python 3.
-You can read about this, as well as a few other breaking changes, in the :ref:`Migrating to angr 8`.
+You can read about this, as well as a few other breaking changes, in the :ref:`Migrating to angr 8 <appendix/migration-8:Migrating to angr 8>`.
 
 
 * Switch to Python 3
@@ -169,7 +169,7 @@ angr 7.7.9.8
 
 Welcome to angr 7!
 We worked long and hard all summer to make this release the best ever.
-It introduces several breaking changes, so for a quick guide on the most common ways you'll need to update your scripts, take a look at the :ref:`Migrating to angr 7`.
+It introduces several breaking changes, so for a quick guide on the most common ways you'll need to update your scripts, take a look at the :ref:`Migrating to angr 7 <appendix/migration-7:Migrating to angr 7>`.
 
 
 * SimuVEX has been removed and its components have been integrated into angr

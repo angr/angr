@@ -4,19 +4,19 @@ import argparse
 import contextlib
 import logging
 import re
-from typing import TYPE_CHECKING
 from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from rich import progress as rich_progress
+from rich.console import Console
 from rich.logging import RichHandler
 from rich.syntax import Syntax
-from rich.console import Console
 from rich.table import Column
 
 import angr
-from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
-from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
+from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER, STRUCTURER_CLASSES
 from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
@@ -261,6 +261,7 @@ def decompile(args):
     Decompile functions.
     """
     structurer = args.structurer or DEFAULT_STRUCTURER.NAME
+    rust_mode = args.rust
     should_highlight = ansi_color_enabled and not args.no_colors
     err, show_status = _make_status_console()
     if not args.pbar:
@@ -279,19 +280,33 @@ def decompile(args):
     # Load binary
     proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
 
+    if rust_mode and show_status and not proj.is_rust_binary:
+        err.print(
+            "[yellow]Warning:[/yellow] --rust was supplied but the binary does not appear to be a Rust binary. "
+            "Rust-specific analyses may have no effect."
+        )
+
     # CFG recovery with progress on stderr
     with _stderr_progress(err, "Recovering control flow graph", show=show_status) as progress_cb:
         cfg = proj.analyses.CFG(  # pyright: ignore[reportCallIssue]
             normalize=True, data_references=True, progress_callback=progress_cb
         )
 
-    # Complete calling conventions with progress on stderr
-    if args.cca:
+    # Complete calling conventions with progress on stderr. Rust decompilation always needs this
+    # to recover prototypes before TypeDBLoader can refine them.
+    if args.cca or rust_mode:
         with _stderr_progress(err, "Recovering calling conventions", show=show_status) as progress_cb:
             proj.analyses.CompleteCallingConventions(
                 analyze_callsites=args.cca_callsites,
                 progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
             )
+
+    if rust_mode:
+        # These analyses don't expose a progress_callback, so show a spinner status line instead.
+        with err.status("Recovering Rust symbols", spinner="dots") if show_status else contextlib.nullcontext():
+            proj.analyses.RustSymbolRecovery()
+        with err.status("Loading Rust type database", spinner="dots") if show_status else contextlib.nullcontext():
+            proj.analyses.TypeDBLoader()
 
     # Collect and normalize function identifiers
     if args.functions is None:
@@ -338,6 +353,8 @@ def decompile(args):
     success_count = 0
     error_count = 0
 
+    decompiler_kwargs = {"flavor": "rust"} if rust_mode else {}
+
     with _multi_progress(err, total, "Decompiling", show=show_status) as tracker:
         for func in funcs:
             func_name = func.name or hex(func.addr)
@@ -355,6 +372,7 @@ def decompile(args):
                             preset=args.preset,
                             fail_fast=True,  # pyright: ignore[reportCallIssue]
                             progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
+                            **decompiler_kwargs,
                         )
                     else:
                         dec = proj.analyses.Decompiler(
@@ -363,6 +381,7 @@ def decompile(args):
                             options=dec_options,
                             preset=args.preset,
                             progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
+                            **decompiler_kwargs,
                         )
                 except Exception as e:  # pylint:disable=broad-exception-caught
                     if args.pdb:
@@ -386,7 +405,8 @@ def decompile(args):
                 assert dec is not None and dec.codegen is not None
                 text = dec.codegen.text
                 if should_highlight:
-                    syntax = Syntax(text + "\n", "c", theme=args.theme, line_numbers=False)  # type: ignore[operator]
+                    lexer = "rust" if rust_mode else "c"
+                    syntax = Syntax(text + "\n", lexer, theme=args.theme, line_numbers=False)  # type: ignore[operator]
                     out.print(syntax)
                 else:
                     print(text)
@@ -507,6 +527,14 @@ def main():
         help="Use an LLM to refine the decompilation output. The LLM must be configured separately using environment "
         "variables. You may only need to set ANGR_LLM_MODEL (see pydantic-ai model list) and ANGR_LLM_API_KEY. See "
         "the documentation for angr.LLMClient for details in LLM configuration.",
+        action="store_true",
+        default=False,
+    )
+    decompile_cmd_parser.add_argument(
+        "--rust",
+        help="Decompile to Rust pseudocode (Oxidizer). Implies full-binary calling-convention recovery and runs the "
+        "Rust symbol-recovery and type-database analyses before decompilation. Intended for binaries built from Rust "
+        "source.",
         action="store_true",
         default=False,
     )

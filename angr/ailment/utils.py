@@ -1,23 +1,24 @@
-# pylint:disable=ungrouped-imports,wrong-import-position
 from __future__ import annotations
-from typing import TypeAlias
+
 import struct
+
+from angr import ailment
 
 try:
     from claripy.ast import Bits
 except ImportError:
-    from typing_extensions import Never as Bits
+    from typing import Never as Bits
 
 try:
     import _md5 as md5lib
 except ImportError:
     import hashlib as md5lib
 
-GetBitsTypeParams: TypeAlias = "Expression"
+type GetBitsTypeParams = "ailment.expression.Expression"
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:
-    if isinstance(expr, Expression):
+    if isinstance(expr, ailment.expression.Expression):
         return expr.bits
     if isinstance(expr, Bits):
         return expr.size()
@@ -49,7 +50,7 @@ def _dump_tuple(t: tuple) -> bytes:
 
 
 def _dump_str(t: str) -> bytes:
-    return t.encode("ascii")
+    return t.encode("utf-8")
 
 
 def _dump_int(t: int) -> bytes:
@@ -90,7 +91,7 @@ def is_none_or_likeable(arg1, arg2, is_list=False):
     if is_list:
         return len(arg1) == len(arg2) and all(is_none_or_likeable(a1, a2) for a1, a2 in zip(arg1, arg2))
 
-    if isinstance(arg1, Expression):
+    if isinstance(arg1, ailment.expression.Expression):
         return arg1.likes(arg2)
     return arg1 == arg2
 
@@ -105,9 +106,6 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     if is_list:
         return len(arg1) == len(arg2) and all(is_none_or_matchable(a1, a2) for a1, a2 in zip(arg1, arg2))
 
-    if isinstance(arg1, Expression):
+    if isinstance(arg1, ailment.expression.Expression):
         return arg1.matches(arg2)
     return arg1 == arg2
-
-
-from .expression import Expression

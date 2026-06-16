@@ -9,7 +9,7 @@ from unittest import mock
 
 import angr
 from angr.analyses.decompiler import Decompiler
-from angr.analyses.decompiler.decompilation_options import options, PARAM_TO_OPTION
+from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION, options
 from angr.llm_client import LLMClient
 from angr.llm_models import (
     FunctionNameSuggestion,
@@ -18,7 +18,6 @@ from angr.llm_models import (
     VariableTypeChange,
     VariableTypeSuggestions,
 )
-
 from tests.common import bin_location, set_decompiler_option
 
 test_location = os.path.join(bin_location, "tests")

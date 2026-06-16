@@ -10,15 +10,15 @@ import archinfo
 import pypcode
 import pyvex
 
-from . import Analysis
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
+from angr.codenode import BlockNode, SyscallNode
 from angr.engines import pcode
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins import Function
+from angr.utils.formatting import add_edge_to_buffer, ansi_color, ansi_color_enabled
 from angr.utils.library import get_cpp_function_name
-from angr.utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
-from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
-from angr.codenode import BlockNode
+
 from .disassembly_utils import decode_instruction
 
 IRSBType = pyvex.IRSB | pcode.lifter.IRSB
@@ -1155,7 +1155,7 @@ class Disassembly(Analysis):
         bs = BlockStart(block, func, self.project)
         self.raw_result.append(bs)
 
-        if block.is_hook:
+        if block.is_hook or isinstance(block, SyscallNode):
             hook = Hook(block)
             self.raw_result.append(hook)
             self.raw_result_map["hooks"][block.addr] = hook

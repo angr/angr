@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from angr.ailment.statement import DirtyStatement, Statement, SideEffectStatement
-from angr.ailment.expression import Call, Const, DirtyExpression, Expression
 from angr import sim_type
+from angr.ailment.expression import Call, Const, DirtyExpression, Expression
+from angr.ailment.statement import DirtyStatement, SideEffectStatement, Statement
+from angr.analyses.decompiler.variable_map import variable_map_of
+
 from .rewriter_base import DirtyRewriterBase
 
 
@@ -18,7 +20,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
         call_expr = self._rewrite_expr_to_call(dirty.dirty)
         if call_expr is None:
             return None
-        return SideEffectStatement(dirty.idx, call_expr, **dirty.tags)
+        return SideEffectStatement(self.manager.next_atom(), call_expr, **dirty.tags)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
         return self._rewrite_expr_to_call(dirty)
@@ -32,17 +34,20 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                 if not isinstance(size, Const):
                     return None
                 bits = size.value_int * self.arch.byte_width
-                return Call(
-                    idx=dirty.idx,
+                call = Call(
+                    self.manager.next_atom(),
                     target=f"__in{self._inout_intrinsic_suffix(bits)}",
-                    calling_convention=None,
-                    prototype=sim_type.SimTypeFunction(
-                        [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
-                    ).with_arch(self.arch),
                     args=(portno,),
                     bits=dirty.bits,
                     **dirty.tags,
                 )
+                variable_map_of(self.manager).set_prototype(
+                    call,
+                    sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
+                    ).with_arch(self.arch),
+                )
+                return call
             case "amd64g_dirtyhelper_OUT":
                 if len(dirty.operands) != 3:
                     return None
@@ -50,17 +55,20 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                 if not isinstance(size, Const):
                     return None
                 bits = size.value_int * self.arch.byte_width
-                return Call(
-                    dirty.idx,
+                call = Call(
+                    self.manager.next_atom(),
                     target=f"__out{self._inout_intrinsic_suffix(bits)}",
-                    calling_convention=None,
-                    prototype=sim_type.SimTypeFunction(
-                        [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
-                    ).with_arch(self.arch),
                     args=(portno, data),
                     bits=None,
                     **dirty.tags,
                 )
+                variable_map_of(self.manager).set_prototype(
+                    call,
+                    sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
+                    ).with_arch(self.arch),
+                )
+                return call
         return None
 
     #

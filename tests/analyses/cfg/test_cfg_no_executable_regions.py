@@ -8,7 +8,6 @@ import os
 import unittest
 
 import angr
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -22,6 +21,13 @@ class TestCfgNoExeutableRegions(unittest.TestCase):
         p = angr.Project(bin_path)
         cfg = p.analyses.CFG()
         assert len(cfg.kb.functions) == 0
+
+    def test_cfg_elf_no_section_headers(self):
+        # Regression test for #6409: stripped ELFs with no section headers fall back to segments.
+        bin_path = os.path.join(test_location, "armel", "dbus-cleanup-sockets_stripped")
+        p = angr.Project(bin_path)
+        cfg = p.analyses.CFG()
+        assert len(cfg.kb.functions) > 0
 
 
 if __name__ == "__main__":

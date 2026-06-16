@@ -1,7 +1,8 @@
 # pylint:disable=missing-class-docstring,no-self-use,pointless-string-statement
 from __future__ import annotations
-from unittest import main, TestCase
+
 import os.path
+from unittest import TestCase, main
 
 import angr
 

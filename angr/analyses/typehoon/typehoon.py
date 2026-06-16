@@ -1,19 +1,22 @@
 # pylint:disable=bad-builtin
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections import defaultdict
 
-from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
+from collections import defaultdict
+from typing import TYPE_CHECKING
+
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrRuntimeError
-from angr.analyses.analysis import Analysis, AnalysesHub
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
+
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
-from .typevars import Equivalence, Subtype, TypeVariable, DerivedTypeVariable
+from .typeconsts import Array, Pointer, Struct, TopType, TypeConstant
+from .typevars import DerivedTypeVariable, Equivalence, Subtype, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
+
     from .typevars import TypeConstraint
 
 
@@ -42,6 +45,7 @@ class Typehoon(Analysis):
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
         constraint_set_degradation_threshold: int = 150,
         type_translator: TypeTranslator | None = None,
+        tv_manager: TypeVariableManager | None = None,
     ):
         """
 
@@ -61,6 +65,7 @@ class Typehoon(Analysis):
         self._stack_offset_tvs = stack_offset_tvs if stack_offset_tvs is not None else {}
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._type_translator = type_translator if type_translator is not None else TypeTranslator(self.project.arch)
+        self.tv_manager = tv_manager if tv_manager is not None else TypeVariableManager(0x1337)
 
         self.bits = self.project.arch.bits
         self.solution = None
@@ -224,6 +229,7 @@ class Typehoon(Analysis):
             typevars,
             stackvar_max_sizes=self._stackvar_max_sizes,
             constraint_set_degradation_threshold=self._constraint_set_degradation_threshold,
+            tv_manager=self.tv_manager,
         )
         self.solution = solver.solution
         self.processed_constraints_count = solver.processed_constraints_count

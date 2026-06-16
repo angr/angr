@@ -1,13 +1,14 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
 import logging
-from typing import TYPE_CHECKING
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.utils.bits import ffs
 
 if TYPE_CHECKING:

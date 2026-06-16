@@ -1,51 +1,54 @@
 # pylint:disable=no-self-use,unused-argument,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections.abc import MutableMapping
+
 import logging
+from collections.abc import MutableMapping
+from typing import TYPE_CHECKING
 
 import archinfo
 
 from angr.ailment.block import Block
-from angr.ailment.manager import Manager
-from angr.ailment.statement import (
-    Statement,
-    Assignment,
-    CAS,
-    Store,
-    SideEffectStatement,
-    Return,
-    ConditionalJump,
-    DirtyStatement,
-    Jump,
-    WeakAssignment,
-)
 from angr.ailment.expression import (
+    ITE,
     Atom,
+    BinaryOp,
     Call,
+    ComboRegister,
+    Const,
+    Convert,
+    DirtyExpression,
     Expression,
     Extract,
     Insert,
-    Register,
-    VirtualVariable,
     Load,
-    Const,
-    VirtualVariableCategory,
-    BinaryOp,
-    UnaryOp,
-    Convert,
-    StackBaseOffset,
-    VEXCCallExpression,
-    ITE,
-    Tmp,
-    DirtyExpression,
+    Register,
     Reinterpret,
+    StackBaseOffset,
+    Tmp,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
+    VirtualVariableCategory,
 )
-
+from angr.ailment.manager import Manager
+from angr.ailment.statement import (
+    CAS,
+    Assignment,
+    ConditionalJump,
+    DirtyStatement,
+    Jump,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+    WeakAssignment,
+)
 from angr.ailment.tagged_object import TaggedObject
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.engines.light.engine import SimEngineNostmtAIL
-from .rewriting_state import RewritingState
+
 from .consts import MAX_STACK_VAR_SIZE
+from .rewriting_state import RewritingState
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
@@ -89,6 +92,7 @@ class SimEngineSSARewriting(
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
+        self._varid_to_combo_reg = {}
 
     @property
     def current_vvar_id(self) -> int:
@@ -268,29 +272,13 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement:
-        new_args = None
-        if stmt.expr.args is not None:
-            new_args = []
-            for arg in stmt.expr.args:
-                new_arg = self._expr(arg)
-                if new_arg is not None:
-                    new_args.append(new_arg)
-                else:
-                    new_args.append(arg)
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+        new_expr = self._expr(stmt.expr)
+        vm = variable_map_of(self.ail_manager)
+        cc = vm.calling_convention(stmt.expr)
 
-        new_target = self._expr(stmt.expr.target) if not isinstance(stmt.expr.target, str) else None
-        replaced_call = Call(
-            stmt.idx,
-            stmt.expr.target if new_target is None else new_target,
-            calling_convention=stmt.expr.calling_convention,
-            prototype=stmt.expr.prototype,
-            args=new_args,
-            bits=stmt.bits,
-            **stmt.tags,
-        )
-
-        cc = stmt.expr.calling_convention if stmt.expr.calling_convention is not None else self.project.factory.cc()
+        if cc is None:
+            cc = self.project.factory.cc()
         if cc is not None:
             # clean up all caller-saved registers (and their subregisters)
             for reg_name in cc.CALLER_SAVED_REGS:
@@ -301,12 +289,16 @@ class SimEngineSSARewriting(
         new_stmt = None
         if stmt.ret_expr is not None:
             assert isinstance(stmt.ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.ret_expr, replaced_call, stmt)
+            new_stmt = self._replace_def_expr(stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+            # becomes an Assignment
         elif stmt.fp_ret_expr is not None:
             assert isinstance(stmt.fp_ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, replaced_call, stmt)
-        if new_stmt is None:
-            new_stmt = SideEffectStatement(stmt.idx, replaced_call, **stmt.tags)
+            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+            # becomes an Assignment
+
+        if new_stmt is None and new_expr is not None:
+            # only create a new SideEffectStatement if we get a new inner expr
+            new_stmt = SideEffectStatement(self.ail_manager.next_atom(), new_expr, **stmt.tags)
 
         return new_stmt
 
@@ -316,6 +308,21 @@ class SimEngineSSARewriting(
             return None
         assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
+
+    def _handle_expr_String(self, expr):
+        return expr
+
+    def _handle_expr_Struct(self, expr):
+        return expr
+
+    def _handle_expr_Array(self, expr):
+        return expr
+
+    def _handle_expr_Let(self, expr):
+        return expr
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        return expr
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
         vvar = self._expr_to_vvar(expr, True)
@@ -462,11 +469,10 @@ class SimEngineSSARewriting(
 
         new_target = self._expr(expr.target) if not isinstance(expr.target, str) else None
         if new_target is not None or new_args is not None:
+            # The new call reuses expr.idx, so its VariableMap entry (calling_convention/prototype) stays valid.
             return Call(
                 expr.idx,
                 expr.target if new_target is None else new_target,
-                calling_convention=expr.calling_convention,
-                prototype=expr.prototype,
                 args=new_args if new_args is not None else expr.args,
                 bits=expr.bits,
                 **expr.tags,
@@ -545,7 +551,11 @@ class SimEngineSSARewriting(
         if vvar.stack_offset == expr.offset:
             return refers
 
-        return BinaryOp(expr.idx, "Add", [refers, Const(None, None, vvar.stack_offset - expr.offset, refers.bits)])
+        return BinaryOp(
+            expr.idx,
+            "Add",
+            [refers, Const(self.ail_manager.next_atom(), vvar.stack_offset - expr.offset, refers.bits)],
+        )
 
     def _handle_expr_Extract(self, expr: Extract):
         base = self._expr(expr.base) or expr.base
@@ -576,15 +586,51 @@ class SimEngineSSARewriting(
             return self._replace_def_reg(thing, value, orig_tags)
         if isinstance(thing, Tmp) and self.rewrite_tmps:
             return self._replace_def_tmp(thing, value, orig_tags)
+        if isinstance(thing, ComboRegister):
+            return self._replace_def_combo_reg(thing, value, orig_tags)
         if isinstance(thing, VirtualVariable):
             # update liveness info
             if thing.category == VirtualVariableCategory.REGISTER:
                 for suboff in range(thing.reg_offset, thing.reg_offset + thing.size):
                     self.state.registers[suboff] = thing
             elif thing.category == VirtualVariableCategory.STACK:
+                self.state.stackvars = self.state.stackvars.clean()
                 for suboff in range(thing.stack_offset, thing.stack_offset + thing.size):
                     self.state.stackvars[suboff] = thing
         return None
+
+    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
+        # Create individual register VirtualVariables for each sub-register
+        reg_vvars = []
+        for reg in expr.registers:
+            reg_varid = self._current_vvar_id
+            self._current_vvar_id += 1
+            reg_vvar = VirtualVariable(
+                self.ail_manager.next_atom(),
+                reg_varid,
+                reg.bits,
+                VirtualVariableCategory.REGISTER,
+                oident=reg.reg_offset,
+                **(reg.tags | {"ins_addr": self.ins_addr}),
+            )
+            for suboff in range(reg.reg_offset, reg.reg_offset + reg.size):
+                self.state.registers[suboff] = reg_vvar
+            reg_vvars.append(reg_vvar)
+
+        vvid = self._current_vvar_id
+        self._current_vvar_id += 1
+        result = VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.COMBO_REGISTER,
+            oident=tuple(reg.reg_offset for reg in expr.registers),
+            reg_vvars=reg_vvars,
+            **expr.tags,
+        )
+        for reg_vvar in result.reg_vvars:
+            self._varid_to_combo_reg[reg_vvar.varid] = result
+        return Assignment(self.ail_manager.next_atom(), result, value, **orig_tags.tags)
 
     def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
         """
@@ -656,6 +702,7 @@ class SimEngineSSARewriting(
         vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
         if def_is_implicit:
             if kind == "stack":
+                self.state.stackvars = self.state.stackvars.clean()
                 for suboff in range(offset, offset + size):
                     self.state.stackvars[suboff] = vvar
             elif kind == "reg":
@@ -677,7 +724,7 @@ class SimEngineSSARewriting(
         if size > vvar.size:
             if self._fail_fast:
                 assert False, "Invariant failure: we generated a vvar which is smaller than one of its uses"
-            remainder = Const(None, None, 0, size * 8 - vvar.bits, uninitalized=True)
+            remainder = Const(self.ail_manager.next_atom(), 0, size * 8 - vvar.bits, uninitalized=True)
             order = [vvar, remainder] if endness == archinfo.Endness.LE else [remainder, vvar]
             return BinaryOp(
                 self.ail_manager.next_atom(),
@@ -686,7 +733,12 @@ class SimEngineSSARewriting(
                 bits=size * 8,
             )
         return Extract(
-            self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), endness, **orig_tags.tags
+            self.ail_manager.next_atom(),
+            size * 8,
+            vvar,
+            Const(self.ail_manager.next_atom(), offset, 64),
+            endness,
+            **orig_tags.tags,
         )
 
     def _vvar_update(
@@ -703,7 +755,7 @@ class SimEngineSSARewriting(
             else:
                 raise TypeError(vvar.category)
             if base is None:
-                base = Const(None, None, 0, vvar.bits, uninitialized=True)
+                base = Const(self.ail_manager.next_atom(), 0, vvar.bits, uninitialized=True)
             endness = (
                 self.project.arch.memory_endness
                 if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
@@ -713,14 +765,27 @@ class SimEngineSSARewriting(
                 base = BinaryOp(
                     self.ail_manager.next_atom(),
                     "Concat",
-                    [base, Const(None, None, 0, vvar.bits - base.bits, uninitialized=True)],
+                    [base, Const(self.ail_manager.next_atom(), 0, vvar.bits - base.bits, uninitialized=True)],
                     bits=vvar.bits,
                 )
             elif base.bits > vvar.bits:
-                base = Extract(self.ail_manager.next_atom(), vvar.bits, base, Const(None, None, offset, 64), endness)
-            combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
+                base = Extract(
+                    self.ail_manager.next_atom(),
+                    vvar.bits,
+                    base,
+                    Const(self.ail_manager.next_atom(), offset, 64),
+                    endness,
+                )
+            combined = Insert(
+                self.ail_manager.next_atom(),
+                base,
+                Const(self.ail_manager.next_atom(), offset, 64),
+                value,
+                endness,
+            )
 
         if vvar.category == VirtualVariableCategory.STACK:
+            self.state.stackvars = self.state.stackvars.clean()
             for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
                 self.state.stackvars[suboff] = vvar
         elif vvar.category == VirtualVariableCategory.REGISTER:

@@ -1,6 +1,6 @@
 # stub file for angr.rustylib.icicle
 
-from typing_extensions import override
+from typing import override
 
 class VmExit:
     """

@@ -1,19 +1,21 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import time
+
 import json
+import time
 from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
-from angr.errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
+from angr.errors import AngrCorruptDBError, AngrDBError, AngrIncompatibleDBError
 from angr.procedures import SIM_PROCEDURES
 from angr.project import Project
+
 from .models import Base, DbInformation
-from .serializers import LoaderSerializer, KnowledgeBaseSerializer
+from .serializers import KnowledgeBaseSerializer, LoaderSerializer
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -173,6 +175,12 @@ class AngrDB:
             for kb in kbs:
                 KnowledgeBaseSerializer.dump(session, kb)
 
+            # Save rust binary metadata
+            if self.project.rustc_version is not None:
+                self.save_info(session, "rustc_version", self.project.rustc_version)
+            if self.project.rustc_optimization_level is not None:
+                self.save_info(session, "rustc_optimization_level", self.project.rustc_optimization_level)
+
             # Save unresolvable target hook addresses so CFG edges can be resolved after load. CFGFast
             # allocates pseudo-addresses for UnresolvableCallTarget/JumpTarget via get_pseudo_addr(),
             # which are baked into CFG node/edge addresses. These addresses are not reproducible on a
@@ -213,7 +221,13 @@ class AngrDB:
             # Load the loader
             loader = LoaderSerializer.load(session)
             # Create the project
-            proj = Project(loader)
+            rustc_version = self.get_info(session, "rustc_version")
+            rustc_optimization_level = self.get_info(session, "rustc_optimization_level")
+            proj = Project(
+                loader,
+                rustc_version=rustc_version,
+                rustc_optimization_level=rustc_optimization_level,
+            )
 
             # Restore unresolvable target hooks at the exact addresses used by the original CFGFast
             # analysis. These addresses are embedded in CFG edges and must be hooked with the correct

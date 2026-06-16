@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import logging
 
 import networkx
 
-from angr.utils.graph import dfs_back_edges, GraphUtils
+from angr.utils.graph import GraphUtils, dfs_back_edges
+
 from .graph import GraphVisitor, NodeType
 
 _l = logging.getLogger(__name__)

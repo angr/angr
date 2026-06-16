@@ -6,12 +6,13 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
-from angr.code_location import AILCodeLocation
-from angr.analyses import Analysis, register_analysis
-from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs
-from angr.calling_conventions import default_cc, SimRegArg
+from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, get_vvar_uselocs
+
 from .s_rda_model import SRDAModel
 from .s_rda_view import SRDAView
 
@@ -29,6 +30,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
         track_tmps: bool = False,
+        variable_map=None,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -51,7 +53,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         if self.func is not None:
             self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
 
-        self.model = SRDAModel(func_graph, func_args, self.project.arch)
+        self.model = SRDAModel(func_graph, func_args, self.project.arch, variable_map=variable_map)
 
         self._analyze()
 
@@ -144,8 +146,11 @@ class SReachingDefinitionsAnalysis(Analysis):
                 assert isinstance(call, Call)
 
                 # conservatively add uses to all registers that are potentially used here
-                if call.calling_convention is not None:
-                    cc = call.calling_convention
+                call_cc = (
+                    self.model.variable_map.calling_convention(call) if self.model.variable_map is not None else None
+                )
+                if call_cc is not None:
+                    cc = call_cc
                 else:
                     # just use all registers in the default calling convention because we don't know anything about
                     # the calling convention yet

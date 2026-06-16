@@ -1,28 +1,30 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from itertools import chain
-from collections.abc import Iterable
+
 import logging
+from collections.abc import Iterable
+from itertools import chain
 from typing import cast
 
 import archinfo
-from archinfo.types import RegisterOffset
 import claripy
-import angr.ailment as ailment
+from archinfo.types import RegisterOffset
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
+import angr.ailment as ailment
+from angr.calling_conventions import SimRegArg, SimTypeBottom, default_cc
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.errors import SimEngineError, SimMemoryMissingError
-from angr.calling_conventions import default_cc, SimRegArg, SimTypeBottom
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, mv_is_bv
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from angr.code_location import CodeLocation, ExternalCodeLocation
-from .subject import SubjectType
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, mv_is_bv
+
+from .function_handler import FunctionCallData, FunctionHandler
 from .rd_state import ReachingDefinitionsState
-from .function_handler import FunctionHandler, FunctionCallData
+from .subject import SubjectType
 
 l = logging.getLogger(name=__name__)
 
@@ -39,6 +41,7 @@ class SimEngineRDAIL(
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
         bp_as_gpr: bool = False,
+        variable_map=None,
     ):
         super().__init__(project)
         self._function_handler = function_handler
@@ -47,6 +50,7 @@ class SimEngineRDAIL(
         self._stack_pointer_tracker = stack_pointer_tracker
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self.bp_as_gpr = bp_as_gpr
+        self._variable_map = variable_map
 
     def _is_top(self, expr):
         """
@@ -201,7 +205,7 @@ class SimEngineRDAIL(
         self.state.kill_definitions(ip)
 
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.Stmt.SideEffectStatement):
-        data = self._handle_Call_base(stmt, is_expr=False)
+        data = self._handle_Call_base(stmt.expr, is_expr=False)
         src = data.ret_values
         if src is None:
             return
@@ -236,17 +240,15 @@ class SimEngineRDAIL(
         if self.state.analysis:
             self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)
 
-    def _handle_Call_base(
-        self, stmt: ailment.Expr.Call | ailment.Stmt.SideEffectStatement, is_expr: bool = False
-    ) -> FunctionCallData:
-        if isinstance(stmt.target, ailment.Expr.Expression):
-            target = self._expr(stmt.target)  # pylint:disable=unused-variable
+    def _handle_Call_base(self, call: ailment.Expr.Call, is_expr: bool = False) -> FunctionCallData:
+        if isinstance(call.target, ailment.Expr.Expression):
+            target = self._expr(call.target)  # pylint:disable=unused-variable
             func_name = None
-        elif isinstance(stmt.target, str):
-            func_name = stmt.target
+        elif isinstance(call.target, str):
+            func_name = call.target
             target = None
         else:
-            target = stmt.target
+            target = call.target
             func_name = None
 
         ip = Register(cast(RegisterOffset, self.arch.ip_offset), self.arch.bytes)
@@ -254,7 +256,7 @@ class SimEngineRDAIL(
 
         statement = self.block.statements[self.stmt_idx]
         caller_will_handle_single_ret = True
-        ret_expr = getattr(stmt, "ret_expr", None)
+        ret_expr = getattr(call, "ret_expr", None)
         if hasattr(statement, "dst") and statement.dst != ret_expr:
             caller_will_handle_single_ret = False
 
@@ -264,19 +266,23 @@ class SimEngineRDAIL(
                 target, self.state.codeloc, self.state.analysis.model.func_addr
             ),
             target,
-            cc=stmt.calling_convention,
-            prototype=stmt.prototype,
+            cc=self._variable_map.calling_convention(call) if self._variable_map is not None else None,
+            prototype=self._variable_map.prototype(call) if self._variable_map is not None else None,
             name=func_name,
-            args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
-            redefine_locals=stmt.args is None and not is_expr,
+            args_values=[self._expr(arg) for arg in call.args] if call.args is not None else None,
+            redefine_locals=call.args is None and not is_expr,
             caller_will_handle_single_ret=caller_will_handle_single_ret,
-            ret_atoms={Atom.from_ail_expr(ret_expr, self.arch)} if ret_expr is not None else None,
+            ret_atoms=(
+                {Atom.from_ail_expr(ret_expr, self.arch)}  # TODO: Support stack atoms in the future
+                if isinstance(ret_expr, ailment.Expr.Register)
+                else None
+            ),
         )
 
         self._function_handler.handle_function(self.state, data)
 
-        if hasattr(stmt, "arg_defs"):
-            for arg_def in stmt.arg_defs:
+        if hasattr(call, "arg_defs"):
+            for arg_def in call.arg_defs:
                 arg_def: Definition
                 if arg_def in self.state.all_definitions:
                     self.state.kill_definitions(arg_def.atom)
@@ -373,6 +379,21 @@ class SimEngineRDAIL(
     #
     # AIL expression handlers
     #
+
+    def _handle_expr_String(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Struct(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Array(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_Let(self, expr):
+        return self._top(expr.bits)
+
+    def _handle_expr_FunctionLikeMacro(self, expr):
+        return self._top(expr.bits)
 
     def _handle_expr_Tmp(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         self.state.add_tmp_use(expr.tmp_idx)

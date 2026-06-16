@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
 import angr
-from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 from angr.misc.ux import once
+from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 
 _l = logging.getLogger(name=__name__)
 

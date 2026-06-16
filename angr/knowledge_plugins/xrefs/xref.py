@@ -1,6 +1,10 @@
 from __future__ import annotations
-from angr.serializable import Serializable
+
+import angr
+from angr.engines.light import SpOffset
 from angr.protos import primitives_pb2
+from angr.serializable import Serializable
+
 from .xref_types import XRefType
 
 
@@ -26,7 +30,7 @@ class XRef(Serializable):
         block_addr: int | None = None,
         stmt_idx: int | None = None,
         insn_op_idx: int | None = None,
-        memory_data: MemoryData | None = None,
+        memory_data: angr.knowledge_plugins.cfg.memory_data.MemoryData | None = None,
         dst: int | None = None,
         xref_type=None,
     ):
@@ -79,13 +83,10 @@ class XRef(Serializable):
     def serialize_to_cmessage(self):
         # pylint:disable=no-member
 
-        # delayed import
-        from angr.engines.light import SpOffset  # pylint:disable=import-outside-toplevel
-
         cmsg = self._get_cmsg()
         if self.memory_data is not None:
             # determine target_type from memory_data.sort
-            if self.memory_data.sort == MemoryDataSort.CodeReference:
+            if self.memory_data.sort == angr.knowledge_plugins.cfg.memory_data.MemoryDataSort.CodeReference:
                 cmsg.target_type = primitives_pb2.CodeReference.CodeTarget
             else:
                 cmsg.target_type = primitives_pb2.CodeReference.DataTarget
@@ -115,9 +116,6 @@ class XRef(Serializable):
     def parse_from_cmessage(cls, cmsg, bits=None, **kwargs):  # pylint:disable=arguments-differ
         # Note that we cannot recover _memory_data from cmsg
 
-        # delayed import
-        from angr.engines.light import SpOffset  # pylint:disable=import-outside-toplevel
-
         if not isinstance(bits, int):
             raise TypeError("bits must be provided.")
 
@@ -146,6 +144,3 @@ class XRef(Serializable):
             dst=self.dst,
             xref_type=self.type,
         )
-
-
-from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort

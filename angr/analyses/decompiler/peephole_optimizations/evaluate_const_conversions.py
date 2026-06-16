@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Const, Convert, Extract
+
 from .base import PeepholeOptimizationExprBase
 
 
@@ -29,4 +30,4 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
         if signed and value >= 1 << (expr.bits - 1):
             value -= 1 << expr.bits  # re-adds sign
 
-        return Const(inner.idx, inner.variable, value, expr.bits, **inner.tags)
+        return Const(inner.idx, value, expr.bits, **inner.tags)

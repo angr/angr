@@ -11,28 +11,28 @@ from archinfo import Endness
 import angr
 from angr import AngrMissingTypeError
 from angr.sim_type import (
+    SimStruct,
     SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeCppFunction,
+    SimTypeDouble,
+    SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
-    SimTypePointer,
-    SimTypeChar,
-    SimTypeWideChar,
-    SimStruct,
-    SimTypeFloat,
-    SimUnion,
-    SimTypeDouble,
-    SimTypeLongLong,
     SimTypeLong,
+    SimTypeLongLong,
     SimTypeNum,
-    SimTypeReference,
-    SimTypeBottom,
-    SimTypeTop,
-    SimTypeString,
-    SimTypeCppFunction,
-    SimTypeArray,
+    SimTypePointer,
     SimTypeRef,
+    SimTypeReference,
+    SimTypeString,
+    SimTypeTop,
+    SimTypeWideChar,
+    SimUnion,
 )
-from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
+from angr.utils.library import convert_cppproto_to_py, convert_cproto_to_py
 from angr.utils.types import dereference_simtype
 
 
@@ -423,6 +423,14 @@ class TestTypes(unittest.TestCase):
         new_t = SimType.from_json(d)
         deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
         assert deref_t == deref_new_t
+
+    def test_simstruct_cmp_recursion_error(self):
+        t0 = SimStruct(fields={"a": SimTypeBottom()})
+        t0.fields["a"] = t0
+        t1 = SimStruct(fields={"a": SimTypeBottom()})
+        t1.fields["a"] = t0
+
+        assert t0 == t1  # should not raise RecursionError
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.ailment.expression import Load, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
@@ -6,7 +7,7 @@ from .base import PeepholeOptimizationExprBase
 
 class RemoveRedundantDerefs(PeepholeOptimizationExprBase):
     """
-    Remove redundant dereferences (e.g. *(&v))
+    Remove redundant dereferences (e.g. ``*(&v)``).
     """
 
     __slots__ = ()

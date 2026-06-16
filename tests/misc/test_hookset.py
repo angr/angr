@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
 from __future__ import annotations
+
 import unittest
 
 import angr

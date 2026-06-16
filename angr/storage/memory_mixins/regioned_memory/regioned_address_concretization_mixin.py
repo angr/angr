@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 from collections.abc import Generator
 
 import claripy
 
-from angr.sim_options import HYBRID_SOLVER, APPROXIMATE_FIRST
 from angr import concretization_strategies
-from angr.errors import SimMergeError, SimMemoryAddressError
+from angr.errors import SimMemoryAddressError, SimMergeError
+from angr.sim_options import APPROXIMATE_FIRST, HYBRID_SOLVER
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+
 from .abstract_address_descriptor import AbstractAddressDescriptor
 from .region_data import AddressWrapper
 

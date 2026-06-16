@@ -1,26 +1,27 @@
-# pylint:disable=abstract-method,ungrouped-imports
+# pylint:disable=abstract-method
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+import bisect
 import contextlib
-import re
 import logging
+import re
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 import pypcode
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from angr.analyses import ForwardAnalysis, visitors
-from angr.engines import pcode
-from angr.utils.constants import is_alignment_mask
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins import Function
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.block import BlockNode
-from angr.errors import SimTranslationError
 from angr.calling_conventions import SimStackArg
-from angr.utils.types import dereference_simtype_by_lib
 from angr.codenode import FuncNode
+from angr.engines import pcode
+from angr.errors import SimTranslationError
+from angr.knowledge_plugins import Function
+from angr.utils.constants import is_alignment_mask
+from angr.utils.types import dereference_simtype_by_lib
 
 from .analysis import Analysis
 
@@ -219,12 +220,15 @@ class FrozenStackPointerTrackerState:
         return False
 
 
+MAX_MEMORY_ENTRIES = 100
+
+
 class StackPointerTrackerState:
     """
     Abstract state for StackPointerTracker analysis.
     """
 
-    __slots__ = "is_tracking_memory", "memory", "regs", "resilient"
+    __slots__ = "_dirty_mem", "_dirty_regs", "is_tracking_memory", "memory", "regs", "resilient"
 
     def __init__(self, regs, memory, is_tracking_memory, resilient: bool):
         self.regs = regs
@@ -234,16 +238,38 @@ class StackPointerTrackerState:
             self.memory = {}
         self.is_tracking_memory = is_tracking_memory
         self.resilient = resilient
+        # Bookkeeping for per-instruction delta capture by StackPointerTracker. `put`/`store` add the
+        # written register offset / memory address here; `pop_dirty` then materializes a delta dict at
+        # IMark boundaries and resets the sets. Avoids snapshotting and diffing the full state at every
+        # instruction. Not propagated by `copy`/`freeze`: each fresh state starts with empty dirty sets,
+        # since these markers are only meaningful within a single `_run_on_node` IR replay.
+        self._dirty_regs: set[int] = set()
+        self._dirty_mem: set[int] = set()
 
     def give_up_on_memory_tracking(self):
         self.memory = {}
         self.is_tracking_memory = False
+        self._dirty_mem = set()
         return self
 
     def store(self, addr, val):
         # strong update
         if self.is_tracking_memory and val is not None and addr is not None:
             self.memory[addr] = val
+            self._dirty_mem.add(addr)
+
+        if len(self.memory) >= MAX_MEMORY_ENTRIES:
+            self.give_up_on_memory_tracking()
+
+    def pop_dirty(self):
+        # Return (reg_delta, mem_delta) capturing the *current* values of every register / memory cell
+        # written since the last call (or since construction), then reset the dirty sets. Called at each
+        # IMark boundary so that StackPointerTracker can record one delta entry per instruction.
+        reg_delta = {r: self.regs[r] for r in self._dirty_regs if r in self.regs}
+        mem_delta = {m: self.memory[m] for m in self._dirty_mem if m in self.memory}
+        self._dirty_regs = set()
+        self._dirty_mem = set()
+        return reg_delta, mem_delta
 
     def load(self, addr):
         if not self.is_tracking_memory:
@@ -271,6 +297,7 @@ class StackPointerTrackerState:
         # tracking,
         if reg in self.regs or force:
             self.regs[reg] = val
+            self._dirty_regs.add(reg)
 
     def copy(self):
         return StackPointerTrackerState(self.regs.copy(), self.memory.copy(), self.is_tracking_memory, self.resilient)
@@ -367,7 +394,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self.track_mem = track_memory
         self._func = func
         self.reg_offsets = reg_offsets
-        self.states = {}
+        self.reg_values: dict[int, dict[int, Any]] = defaultdict(dict)
+        self.mem_values: dict[int, dict[int, Any]] = defaultdict(dict)
+        self.reg_deltas: dict[int, dict[int, dict[int, Any]]] = {}
+        self.mem_deltas: dict[int, dict[int, dict[int, Any]]] = {}
+        self._block_meta: dict[int, tuple[bool, bool]] = {}
+        self._sorted_block_addrs: list[int] = []
         self._blocks = {}
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
@@ -387,28 +419,39 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         _l.debug("Running on function %r", self._func)
         self._analyze()
 
-    def _state_for(self, addr, pre_or_post):
-        if addr not in self.states:
+    def _block_addr_for_insn(self, insn_addr: int) -> int | None:
+        idx = bisect.bisect_right(self._sorted_block_addrs, insn_addr) - 1
+        if idx < 0:
             return None
-
-        addr_map = self.states[addr]
-        if pre_or_post not in addr_map:
+        block_addr = self._sorted_block_addrs[idx]
+        block = self._blocks.get(block_addr)
+        if block is None or insn_addr >= block_addr + block.size:
             return None
+        return block_addr
 
-        return addr_map[pre_or_post]
+    def _value_for(self, addr, pre_or_post, store, deltas, key):
+        block_addr = self._block_addr_for_insn(addr)
+        if block_addr is None:
+            return TOP
+        per_block = store.get(key)
+        if per_block is None or block_addr not in per_block:
+            return TOP
+        val = per_block[block_addr]
+        target = addr - block_addr
+        block_deltas = deltas.get(block_addr)
+        if block_deltas:
+            include_target = pre_or_post == "post"
+            for off in sorted(block_deltas):
+                if off > target or (off == target and not include_target):
+                    break
+                inner = block_deltas[off]
+                if key in inner:
+                    val = inner[key]
+        return val
 
     def _offset_for(self, addr, pre_or_post, reg):
-        try:
-            s = self._state_for(addr, pre_or_post)
-            if s is None:
-                return TOP
-            regval = dict(s.regs)[reg]
-        except KeyError:
-            return TOP
-        if regval is TOP or type(regval) is Constant:
-            return TOP
-        if regval is BOTTOM:
-            # we don't really know what it should be. return TOP instead.
+        regval = self._value_for(addr, pre_or_post, self.reg_values, self.reg_deltas, reg)
+        if regval is TOP or regval is BOTTOM or type(regval) is Constant:
             return TOP
         return regval.offset
 
@@ -435,13 +478,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self.offset_before(instr_addrs[0], reg)
 
     def _constant_for(self, addr, pre_or_post, reg):
-        try:
-            s = self._state_for(addr, pre_or_post)
-            if s is None:
-                return TOP
-            regval = dict(s.regs)[reg]
-        except KeyError:
-            return TOP
+        regval = self._value_for(addr, pre_or_post, self.reg_values, self.reg_deltas, reg)
         if type(regval) is Constant:
             return regval.val
         return TOP
@@ -523,23 +560,39 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             regs=initial_regs, memory={}, is_tracking_memory=self.track_mem, resilient=self._resilient
         ).freeze()
 
-    def _set_state(self, addr, new_val, pre_or_post):
-        previous_val = self._state_for(addr, pre_or_post)
-        if previous_val is not None:
-            new_val = previous_val.merge(new_val, addr, self._reg_merge_cache, self._mem_merge_cache)
-        if addr not in self.states:
-            self.states[addr] = {}
-        self.states[addr][pre_or_post] = new_val
+    def _merge_into_block_start(self, block_addr: int, state: StackPointerTrackerState) -> StackPointerTrackerState:
+        """
+        Merge ``state`` (this iteration's block-start) with whatever is already stored for ``block_addr``,
+        write the merged result back, and return it.
+        """
+        if block_addr in self._block_meta:
+            prev_regs = {
+                r: per_block[block_addr] for r, per_block in self.reg_values.items() if block_addr in per_block
+            }
+            prev_mem = {m: per_block[block_addr] for m, per_block in self.mem_values.items() if block_addr in per_block}
+            prev_itm, prev_res = self._block_meta[block_addr]
+            prev = StackPointerTrackerState(prev_regs, prev_mem, prev_itm, prev_res)
+            state = prev.merge(state, block_addr, self._reg_merge_cache, self._mem_merge_cache)
+        for r, v in state.regs.items():
+            self.reg_values[r][block_addr] = v
+        for m, v in state.memory.items():
+            self.mem_values[m][block_addr] = v
+        self._block_meta[block_addr] = (state.is_tracking_memory, state.resilient)
+        return state
 
-    def _set_post_state(self, addr, new_val):
-        self._set_state(addr, new_val, "post")
-
-    def _set_pre_state(self, addr, new_val):
-        self._set_state(addr, new_val, "pre")
+    def _record_delta(self, block_addr: int, insn_offset: int, reg_delta: dict, mem_delta: dict):
+        if reg_delta:
+            self.reg_deltas.setdefault(block_addr, {})[insn_offset] = reg_delta
+        if mem_delta:
+            self.mem_deltas.setdefault(block_addr, {})[insn_offset] = mem_delta
 
     def _run_on_node(self, node: BlockNode, state):
         block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self.cross_insn_opt)
         self._blocks[node.addr] = block
+        if not self._sorted_block_addrs or self._sorted_block_addrs[-1] != node.addr:
+            idx = bisect.bisect_left(self._sorted_block_addrs, node.addr)
+            if idx >= len(self._sorted_block_addrs) or self._sorted_block_addrs[idx] != node.addr:
+                self._sorted_block_addrs.insert(idx, node.addr)
 
         state = state.unfreeze()
         _l.debug("START:       Running on block at %x", node.addr)
@@ -555,6 +608,15 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             for reg, val in self._reg_value_at_block_start[node.addr].items():
                 state.put(reg, val)
 
+        # merge this iteration's block-start state with what's already stored, and use the merged state going forward
+        state = self._merge_into_block_start(node.addr, state)
+
+        # deltas are deterministic given the (merged) block-start state, so regenerate from scratch
+        self.reg_deltas.pop(node.addr, None)
+        self.mem_deltas.pop(node.addr, None)
+        # discard any dirty markers carried over from setup; only IR-driven changes should be captured as deltas
+        state.pop_dirty()
+
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
@@ -564,7 +626,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 raise NotImplementedError(f"Unsupported block type {type(vex_block)}")
 
         if curr_stmt_start_addr is not None:
-            self._set_post_state(curr_stmt_start_addr, state.freeze())
+            reg_delta, mem_delta = state.pop_dirty()
+            self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
 
         _l.debug("FINISH:      After running on block at %x", node.addr)
         _l.debug("Regs: %s", state.regs)
@@ -703,10 +766,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         for stmt in vex_block.statements:
             if type(stmt) is pyvex.IRStmt.IMark:
                 if curr_stmt_start_addr is not None:
-                    # we've reached a new instruction. Time to store the post state
-                    self._set_post_state(curr_stmt_start_addr, state.freeze())
+                    # we've reached a new instruction. record the previous instruction's delta
+                    reg_delta, mem_delta = state.pop_dirty()
+                    self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = stmt.addr + stmt.delta
-                self._set_pre_state(curr_stmt_start_addr, state.freeze())
             elif (
                 type(stmt) is pyvex.IRStmt.Exit
                 and curr_stmt_start_addr in vex_block.instruction_addresses
@@ -880,10 +943,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         for op in pcode_irsb._ops:
             if op.opcode == pypcode.OpCode.IMARK:
                 if curr_stmt_start_addr is not None:
-                    # we've reached a new instruction. Time to store the post state
-                    self._set_post_state(curr_stmt_start_addr, state.freeze())
+                    # we've reached a new instruction. record the previous instruction's delta
+                    reg_delta, mem_delta = state.pop_dirty()
+                    self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = op.inputs[0].offset
-                self._set_pre_state(curr_stmt_start_addr, state.freeze())
             else:
                 with contextlib.suppress(CouldNotResolveException):
                     resolve_op(op)

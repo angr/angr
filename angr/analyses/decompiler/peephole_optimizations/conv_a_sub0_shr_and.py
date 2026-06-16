@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import Convert, BinaryOp, Const
+
+from angr.ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -56,11 +57,11 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
 
                 cvt = Convert(expr.idx, real_expr.bits, to_bits, False, real_expr, **expr.tags)
                 return BinaryOp(
-                    None,
+                    self.manager.next_atom(),
                     "CmpLT",
                     (
                         cvt,
-                        Const(None, None, 0, to_bits),
+                        Const(self.manager.next_atom(), 0, to_bits),
                     ),
                     True,
                     **expr.tags,

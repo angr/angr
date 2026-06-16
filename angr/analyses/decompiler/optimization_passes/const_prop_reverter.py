@@ -1,127 +1,48 @@
 from __future__ import annotations
-import logging
-from collections.abc import Callable
+
 import itertools
+import logging
 
-import networkx
 import claripy
-from angr.ailment import Const
-from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.statement import SideEffectStatement, Statement, ConditionalJump, Assignment, Store, Return
-from angr.ailment.expression import Call, Convert, Register, Expression, Load
 
-from .optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
+from angr.ailment import Block, Const
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.expression import Call, Convert, Expression, Load, Register
+from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
+from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)
 
 
-class PairAILBlockRewriter:
-    """
-    This AILBlockRewriter will walk two blocks at a time and call a handler for each pair of statements that are
-    instances of the same type. This is useful for comparing two statements for similarity across blocks.
-    """
+class BlockWalker(AILBlockViewer):
+    def __init__(self, walked_objs: dict[type, set[SideEffectStatement | Assignment | Return | Store]]):
+        super().__init__()
+        self.walked_objs = walked_objs
 
-    def __init__(self, graph: networkx.DiGraph, stmt_pair_handlers=None):
-        self.graph = graph
+    def _handle_SideEffectStatement(self, stmt_idx, stmt: SideEffectStatement, block):
+        self.walked_objs[SideEffectStatement].add(stmt)
 
-        _default_stmt_handlers = {
-            Assignment: self._handle_Assignment_pair,
-            Call: self._handle_Call_pair,
-            Store: self._handle_Store_pair,
-            ConditionalJump: self._handle_ConditionalJump_pair,
-            Return: self._handle_Return_pair,
-        }
+    def _handle_Assignment(self, stmt_idx, stmt: Assignment, block):
+        src = stmt.src
+        if isinstance(src, Convert):
+            src = src.operand
+        if isinstance(src, Call):
+            self.walked_objs[Assignment].add(stmt)
 
-        self.stmt_pair_handlers: dict[Statement, Callable] = stmt_pair_handlers or _default_stmt_handlers
+    def _handle_Store(self, stmt_idx, stmt: Store, block):
+        src = stmt.data
+        if isinstance(src, Convert):
+            src = src.operand
+        if isinstance(src, Call):
+            self.walked_objs[Store].add(stmt)
 
-    # pylint: disable=no-self-use
-    def _walk_block(self, block):
-        walked_objs = {
-            Assignment: set(),
-            Call: set(),
-            Store: set(),
-            ConditionalJump: set(),
-            Return: set(),
-        }
-
-        # create a walker that will:
-        # 1. recursively expand a stmt with the default handler then,
-        # 2. record the stmt parts in the walked_objs dict with the overwritten handler
-        #
-        # CallExpressions are a special case that require a handler in expressions, since they are statements.
-        walker = AILBlockViewer()
-        _default_stmt_handlers = {
-            Assignment: walker._handle_Assignment,
-            Store: walker._handle_Store,
-            ConditionalJump: walker._handle_ConditionalJump,
-            Return: walker._handle_Return,
-        }
-
-        def _handle_ail_obj(stmt_idx, stmt, block_):
-            _default_stmt_handlers[type(stmt)](stmt_idx, stmt, block_)
-            walked_objs[type(stmt)].add(stmt)
-
-        # pylint: disable=unused-argument
-        def _handle_call_expr(expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block_):
-            walked_objs[Call].add(expr)
-
-        _stmt_handlers = dict.fromkeys(walked_objs, _handle_ail_obj)
-        walker.stmt_handlers = _stmt_handlers
-        walker.expr_handlers[Call] = _handle_call_expr
-
-        walker.walk(block)
-        return walked_objs
-
-    def walk(self):
-        for b0, b1 in itertools.combinations(self.graph.nodes, 2):
-            walked_obj_by_blk = {}
-
-            for blk in (b0, b1):
-                walked_obj_by_blk[blk] = self._walk_block(blk)
-
-            for typ, objs0 in walked_obj_by_blk[b0].items():
-                try:
-                    handler = self.stmt_pair_handlers[typ]
-                except KeyError:
-                    continue
-
-                if not objs0:
-                    continue
-
-                objs1 = walked_obj_by_blk[b1][typ]
-                if not objs1:
-                    continue
-
-                for o0 in objs0:
-                    for o1 in objs1:
-                        handler(o0, b0, o1, b1)
-
-    #
-    # default handlers
-    #
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Assignment_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Call_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Store_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_ConditionalJump_pair(self, obj0, blk0, obj1, blk1):
-        return
-
-    # pylint: disable=unused-argument,no-self-use
-    def _handle_Return_pair(self, obj0, blk0, obj1, blk1):
-        return
+    def _handle_Return(self, stmt_idx, stmt: Return, block):
+        self.walked_objs[Return].add(stmt)
 
 
 class ConstPropOptReverter(OptimizationPass):
@@ -166,28 +87,84 @@ class ConstPropOptReverter(OptimizationPass):
         self.resolution = False
         self.out_graph = self._graph.copy()
 
-        _pair_stmt_handlers = {
-            Call: self._handle_Call_pair,
-            Return: self._handle_Return_pair,
-        }
-
         if self.out_graph is None:
             return
 
-        walker = PairAILBlockRewriter(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
-        walker.walk()
+        # find pairs of SideEffectStatements and Returns
+        call_sets, return_set = self._find_candidate_pairs()
+
+        # handle pairs of potentially similar calls
+        for call_set in call_sets:
+            for (call0, blk0), (call1, blk1) in itertools.combinations(call_set, 2):
+                if call0 is call1:
+                    continue
+                self._handle_CallStatement_pair(call0, blk0, call1, blk1)
+
         if self._call_pair_targets:
             self._analyze_call_pair_targets()
 
+        # handle pairs of potentially similar returns
+        for ret0, blk0 in return_set:
+            for ret1, blk1 in return_set:
+                if ret0 is ret1:
+                    continue
+                self._handle_Return_pair(ret0, blk0, ret1, blk1)
+
         if not self.resolution:
             self.out_graph = None
+
+    def _find_candidate_pairs(
+        self,
+    ) -> tuple[list[set[tuple[SideEffectStatement | Assignment | Store, Block]]], set[tuple[Return, Block]]]:
+        call_sets: dict[
+            str, set[tuple[SideEffectStatement | Assignment | Store, Block]]
+        ] = {}  # organized by function call target
+        return_set: set[tuple[Return, Block]] = set()
+
+        # walk the graph to collect all calls and returns
+        call_stmt_and_blocks = set()
+        for blk in self._graph:
+            walked_objs = {
+                SideEffectStatement: set(),
+                Assignment: set(),
+                Store: set(),
+                Return: set(),
+            }
+            walker = BlockWalker(walked_objs)
+            walker.walk(blk)
+
+            for call_stmt in walked_objs[SideEffectStatement] | walked_objs[Assignment] | walked_objs[Store]:
+                call_stmt_and_blocks.add((call_stmt, blk))
+            for ret_stmt in walked_objs[Return]:
+                return_set.add((ret_stmt, blk))
+
+        # now, let's group the calls
+        for call_stmt, blk in call_stmt_and_blocks:
+            assert isinstance(call_stmt, (SideEffectStatement, Assignment, Store))
+            call_expr = self._get_callexpr_from_stmt(call_stmt)
+            if call_expr is None:
+                continue
+            key = str(call_expr.target)
+            if key not in call_sets:
+                call_sets[key] = set()
+            call_sets[key].add((call_stmt, blk))
+
+        return list(call_sets.values()), return_set
 
     def _analyze_call_pair_targets(self):
         all_obs_points = []
         for _, observation_points in self._call_pair_targets:
             all_obs_points.extend(observation_points)
+        all_obs_points = list(set(all_obs_points))
 
-        self.rd = self.project.analyses.ReachingDefinitions(subject=self._func, observation_points=all_obs_points)
+        self.rd = self.project.analyses.ReachingDefinitions(
+            subject=self._func,
+            func_graph=self._graph,
+            observation_points=all_obs_points,
+            dep_graph=None,
+            track_liveness=False,
+            variable_map=variable_map_of(self.manager),
+        )
 
         for (call0, blk0, call1, blk1, arg_conflicts), _ in self._call_pair_targets:
             # attempt to do constant resolution for each argument that differs
@@ -249,7 +226,7 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Returns
     #
 
-    def _handle_Return_pair(self, obj0: Return, blk0: Return, obj1, blk1):
+    def _handle_Return_pair(self, obj0: Return, blk0: Block, obj1: Return, blk1: Block):
         if obj0 is obj1:
             return
 
@@ -308,7 +285,7 @@ class ConstPropOptReverter(OptimizationPass):
                 const_block = expr_to_blk[const_expr]
 
                 # rax = foo();
-                reg_assign = Assignment(None, symb_expr, const_expr, **const_expr.tags)
+                reg_assign = Assignment(self.manager.next_atom(), symb_expr, const_expr, **const_expr.tags)
 
                 # construct new constant block
                 new_const_block = const_block.copy()
@@ -322,8 +299,20 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Calls
     #
 
-    def _handle_Call_pair(self, obj0: Call, blk0, obj1: Call, blk1):
-        if obj0 is obj1:
+    def _handle_CallStatement_pair(
+        self,
+        stmt0: SideEffectStatement | Assignment | Store,
+        blk0,
+        stmt1: SideEffectStatement | Assignment | Store,
+        blk1,
+    ):
+
+        obj0 = self._get_callexpr_from_stmt(stmt0)
+        obj1 = self._get_callexpr_from_stmt(stmt1)
+
+        if obj0 is None or obj1 is None or obj0 is obj1:
+            return
+        if not isinstance(obj0, Call) or not isinstance(obj1, Call):
             return
 
         # verify both calls are calls to the same function
@@ -339,6 +328,11 @@ class ConstPropOptReverter(OptimizationPass):
         if not arg_conflicts:
             return
 
+        # Only keep conflicts that _analyze_call_pair_targets can handle
+        resolvable_conflicts = {i: args for i, args in arg_conflicts.items() if self._is_resolvable_conflict(args)}
+        if not resolvable_conflicts:
+            return
+
         _l.debug(
             "Found two calls at (%x, %x) that are similar. Attempting to resolve const args now...",
             blk0.addr,
@@ -349,10 +343,30 @@ class ConstPropOptReverter(OptimizationPass):
         observation_points = ("node", blk0.addr, OP_BEFORE), ("node", blk1.addr, OP_BEFORE)
 
         # do full analysis after collecting all calls in _analyze
-        self._call_pair_targets.append(((call0, blk0, call1, blk1, arg_conflicts), observation_points))
+        self._call_pair_targets.append(((call0, blk0, call1, blk1, resolvable_conflicts), observation_points))
 
     @staticmethod
-    def find_conflicting_call_args(call0: SideEffectStatement | Call, call1: SideEffectStatement | Call):
+    def _is_resolvable_conflict(args) -> bool:
+        """A conflict is resolvable by _analyze_call_pair_targets iff one argument is a constant and
+        the other is (a Convert of) a Load from a constant address.
+        Update this method when _analyze_call_pair_targets is more powerful!
+        """
+        a0, a1 = args
+        const_arg = sym_arg = None
+        for arg in (a0, a1):
+            if isinstance(arg, Const) and const_arg is None:
+                const_arg = arg
+            elif not isinstance(arg, Const) and sym_arg is None:
+                sym_arg = arg
+        if const_arg is None or sym_arg is None:
+            return False
+        unwrapped = sym_arg.operands[0] if isinstance(sym_arg, Convert) else sym_arg
+        return (
+            isinstance(unwrapped, Load) and isinstance(unwrapped.addr, Const) and isinstance(unwrapped.addr.value, int)
+        )
+
+    @staticmethod
+    def find_conflicting_call_args(call0: Call, call1: Call):
         if not call0.args or not call1.args:
             return None
 
@@ -362,3 +376,21 @@ class ConstPropOptReverter(OptimizationPass):
 
         # zip args of call 0 and 1 conflict if they are not like each other
         return {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
+
+    @staticmethod
+    def _get_callexpr_from_stmt(stmt: SideEffectStatement | Assignment | Store) -> Call | None:
+        if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+            return stmt.expr
+        if isinstance(stmt, Assignment):
+            src = stmt.src
+            if isinstance(src, Convert):
+                src = src.operand
+            if isinstance(src, Call):
+                return src
+        if isinstance(stmt, Store):
+            data = stmt.data
+            if isinstance(data, Convert):
+                data = data.operand
+            if isinstance(data, Call):
+                return data
+        return None

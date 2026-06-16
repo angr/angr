@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import enum
 import logging
 import re
-import enum
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 
 if TYPE_CHECKING:
     from cle.backends import Backend
@@ -240,6 +240,9 @@ class LanguageDetector(Analysis):
 
         comp_name, comp_ver = compiler_info
         if comp_name:
+            # Only credit C here. Rust binaries often inherit a gcc/clang
+            # .comment from the linker driver, which previously double-credited
+            # rust and produced ties broken by dict-insertion order.
             scores["c"] += 5
             evidence.append(f"cle_compiler: {comp_name} {comp_ver}")
             return comp_name, comp_ver
@@ -361,10 +364,13 @@ class LanguageDetector(Analysis):
         if memory is None:
             return
 
-        # Only scan up to 2MB to avoid performance issues
-        max_scan = 2 * 1024 * 1024
+        # Large statically linked Rust binaries place marker strings in .rodata
+        # well past the first few MB, so the cap needs to cover them.
+        max_scan = 128 * 1024 * 1024
         scanned = 0
         rustc_found = False
+        rustc_path_found = False
+        cargo_registry_found = False
         go_found = False
 
         for _start, data in memory.backers():
@@ -395,6 +401,18 @@ class LanguageDetector(Analysis):
                 except (IndexError, UnicodeDecodeError):
                     evidence_str = "rustc version marker (undecodable)"
                 evidence.append(f"string: {evidence_str}")
+
+            # /rustc/<commit-hash>/library/... paths baked into panic messages by rustc
+            if not rustc_path_found and b"/rustc/" in chunk:
+                rustc_path_found = True
+                scores["rust"] += 5
+                evidence.append("string: /rustc/ stdlib path marker")
+
+            # .cargo/registry/ paths from dependency sources, embedded in panics
+            if not cargo_registry_found and b".cargo/registry" in chunk:
+                cargo_registry_found = True
+                scores["rust"] += 5
+                evidence.append("string: .cargo/registry marker")
 
             if not go_found and (b"go1." in chunk or b"Go build" in chunk or b"go.buildinfo" in chunk):
                 go_found = True

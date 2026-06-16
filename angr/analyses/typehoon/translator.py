@@ -1,10 +1,12 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from itertools import count
+from typing import TYPE_CHECKING
 
 from angr import sim_type
 from angr.sim_type import SimType, TypeRef
+
 from . import typeconsts
 from .typeconsts import TypeConstant
 
@@ -21,7 +23,7 @@ class SimTypeTempRef(sim_type.SimType):
         super().__init__()
         self.typevar = typevar
 
-    def c_repr(self, **kwargs):
+    def c_repr(self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True) -> str:  # pylint: disable=unused-argument
         return "<SimTypeTempRef>"
 
 

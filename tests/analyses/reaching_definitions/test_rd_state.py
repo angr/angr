@@ -5,17 +5,15 @@ __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:dis
 
 import os
 import random
-
-from unittest import main, mock, TestCase
+from unittest import TestCase, main, mock
 
 import archinfo
 
 from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import SubjectType
-from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.code_location import CodeLocation
-
+from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from tests.common import bin_location
 
 TESTS_LOCATION = os.path.join(bin_location, "tests")

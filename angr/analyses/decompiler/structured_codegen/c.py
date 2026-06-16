@@ -1,92 +1,96 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from __future__ import annotations
-from typing import cast, Any, TYPE_CHECKING
 
-from collections.abc import Iterable
-from collections.abc import Callable
-from collections import defaultdict, Counter
 import logging
-import struct
 import re
+import struct
+from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any, cast
 
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import StackBaseOffset, BinaryOp
-
+from angr.ailment.expression import BinaryOp, StackBaseOffset
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
+from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.analyses.decompiler.variable_map import VariableMap
+from angr.errors import UnsupportedNodeTypeError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.knowledge_plugins.functions import Function
 from angr.sim_type import (
-    SimTypeLongLong,
-    SimTypeInt,
-    SimTypeShort,
-    SimTypeChar,
-    SimTypeWideChar,
-    SimTypePointer,
+    SimCppClass,
     SimStruct,
     SimType,
-    SimTypeBottom,
     SimTypeArray,
-    SimTypeFunction,
-    SimTypeFloat,
+    SimTypeBitfield,
+    SimTypeBottom,
+    SimTypeChar,
     SimTypeDouble,
-    TypeRef,
-    SimTypeNum,
+    SimTypeEnum,
     SimTypeFixedSizeArray,
-    SimTypeLength,
-    SimTypeReg,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
-    SimCppClass,
-    SimTypeEnum,
-    SimTypeBitfield,
+    SimTypeLength,
+    SimTypeLongLong,
+    SimTypeNum,
+    SimTypePointer,
+    SimTypeReg,
+    SimTypeShort,
+    SimTypeWideChar,
+    TypeRef,
 )
-from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import (
-    SimVariable,
-    SimTemporaryVariable,
-    SimStackVariable,
     SimMemoryVariable,
     SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
 )
+from angr.utils.bits import u2s
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
-from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
-from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from angr.utils.strings import decode_utf16_string
-from angr.utils.bits import u2s
-from angr.analyses.decompiler.utils import structured_node_is_simple_return
-from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-from angr.errors import UnsupportedNodeTypeError
-from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from angr.analyses import Analysis, register_analysis
-from angr.analyses.decompiler.region_identifier import MultiNode
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    BreakNode,
-    SwitchCaseNode,
-    IncompleteSwitchCaseNode,
-    ContinueNode,
-    CascadingConditionNode,
-)
+from angr.utils.types import dereference_simtype_by_lib, unpack_pointer_and_array, unpack_typeref
+
 from .base import (
     BaseStructuredCodeGenerator,
+    CConstantType,
+    IdentType,
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
-    IdentType,
-    CConstantType,
 )
 
 if TYPE_CHECKING:
     import archinfo
+
     import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 
 l = logging.getLogger(name=__name__)
+
+
+type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapping, dict[Any, set[Any]]]
 
 
 INDENT_DELTA = 4
@@ -270,7 +274,7 @@ class CConstruct:
 
     def __init__(self, codegen, tags=None):
         self.tags = tags or {}
-        self.codegen: StructuredCodeGenerator = codegen
+        self.codegen: CStructuredCodeGenerator = codegen  # type: ignore[assignment]
         self.idx = codegen.next_idx(self.__class__.__name__)
 
     def c_repr(self, initial_pos=0, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
@@ -588,7 +592,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             # Discover all nested structs
             # we rely on the behavior that if you extend a list while it is iterating you will see those values
-            for ty in extern_types:  # pylint
+            for ty in extern_types:  # pylint:disable=modified-iterating-list
                 for field in ty.fields.values():
                     field = unpack_typeref(field)
                     while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
@@ -2349,8 +2353,8 @@ class CConstant(CExpression):
                     return
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                     refval = self.reference_values[self._type]
-                    if isinstance(refval, MemoryData) and refval.content is not None:
-                        v = refval.content.decode("utf-8")
+                    if isinstance(refval, MemoryData):
+                        v = refval.content.decode("utf-8") if refval.content else f"<unknown@{refval.addr:#x}>"
                     elif isinstance(refval, bytes):
                         v = refval.decode("latin1")
                     else:
@@ -2361,11 +2365,12 @@ class CConstant(CExpression):
                     return
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                     refval = self.reference_values[self._type]
-                    v = (
-                        decode_utf16_string(refval.content)
-                        if isinstance(refval, MemoryData)
-                        else decode_utf16_string(refval)
-                    )  # it's a string
+                    if isinstance(refval, MemoryData):
+                        v = decode_utf16_string(refval.content) if refval.content else f"<unknown@{refval.addr:#x}>"
+                    elif isinstance(refval, bytes):
+                        v = decode_utf16_string(refval) if refval else "<unknown_bytes>"
+                    else:
+                        assert False, f"Unexpected reference value type {type(refval)} for wide char pointer"
                     yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
                     return
                 else:
@@ -2638,6 +2643,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         max_str_len: int | None = None,
         prettify_thiscall: bool = False,
         cstyle_void_param: bool = True,
+        variable_map: VariableMap | None = None,
     ):
         super().__init__(
             flavor=flavor,
@@ -2695,6 +2701,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._cfg = cfg
         self._sequence = sequence
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
+        self._variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: dict | None = None
@@ -2824,9 +2831,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.map_ast_to_pos,
         ) = self.render_text(self.cfunc)
 
-    RENDER_TYPE = tuple[str, PositionMapping, PositionMapping, InstructionMapping, dict[Any, set[Any]]]
-
-    def render_text(self, cfunc: CFunction) -> RENDER_TYPE:
+    def render_text(self, cfunc: CFunction) -> RenderResult:
         pos_to_node = PositionMapping()
         pos_to_addr = PositionMapping()
         addr_to_pos = InstructionMapping()
@@ -3500,9 +3505,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return proposed_ty
             return old_ty
 
-        if stmt.variable is not None and cdata.type is not None:
-            cvar = self._variable(stmt.variable, stmt.size)
-            offset = stmt.offset or 0
+        stmt_var = self._variable_map.variable(stmt)
+        if stmt_var is not None and cdata.type is not None:
+            cvar = self._variable(stmt_var, stmt.size)
+            offset = self._variable_map.variable_offset(stmt) or 0
             assert type(offset) is int  # I refuse to deal with the alternative
 
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
@@ -3514,15 +3520,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def variables_unify(self, v1: Expr.VirtualVariable, v2: Expr.VirtualVariable) -> bool:
         vmi = self._variable_kb.variables[self._func.addr]
-        v1v = vmi.unified_variable(v1.variable) if v1.variable is not None else None
-        v2v = vmi.unified_variable(v2.variable) if v2.variable is not None else None
+        v1_var = self._variable_map.variable(v1)
+        v2_var = self._variable_map.variable(v2)
+        v1v = vmi.unified_variable(v1_var) if v1_var is not None else None
+        v2v = vmi.unified_variable(v2_var) if v2_var is not None else None
         return v1v == v2v
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
         if (
             isinstance(stmt.dst, Expr.VirtualVariable)
             and stmt.dst.was_stack
-            and stmt.dst.variable is not None
+            and self._variable_map.variable(stmt.dst) is not None
             and isinstance(stmt.src, Expr.Insert)
             and isinstance(stmt.src.offset, Expr.Const)
             and isinstance(stmt.src.offset.value, int)
@@ -3532,7 +3540,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
         ):
             offset = stmt.src.offset.value
-            var = stmt.dst.variable
+            var = self._variable_map.variable(stmt.dst)
             cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
             csrc = self._handle(stmt.src.value)
             src_type = csrc.type
@@ -3696,7 +3704,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
-        if expr.bits and call_expr.type.size != expr.size * self.project.arch.byte_width:
+        if expr.bits and call_expr.type is not None and call_expr.type.size != expr.size * self.project.arch.byte_width:
             call_expr = CTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(
@@ -3758,11 +3766,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return proposed_ty
             return old_ty
 
-        if expr.variable:
-            cvar = self._variable(expr.variable, None)
-            if expr.variable.size == expr.size:
+        expr_var = self._variable_map.variable(expr)
+        if expr_var:
+            cvar = self._variable(expr_var, None)
+            if expr_var.size == expr.size:
                 return cvar
-            offset = 0 if expr.variable_offset is None else expr.variable_offset
+            expr_var_offset = self._variable_map.variable_offset(expr)
+            offset = 0 if expr_var_offset is None else expr_var_offset
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_bits(expr.bits, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
@@ -3792,9 +3802,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return proposed_ty
             return old_ty
 
-        if expr.variable is not None:
-            cvar = self._variable(expr.variable, expr_size)
-            offset = expr.variable_offset or 0
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            cvar = self._variable(expr_var, expr_size)
+            offset = self._variable_map.variable_offset(expr) or 0
 
             assert type(offset) is int  # I refuse to deal with the alternative
             return self._access_constant_offset(CUnaryOp("Reference", cvar, codegen=self), offset, ty, False, negotiate)
@@ -3821,11 +3832,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if type_ is None and "type" in expr.tags:
             type_ = expr.tags["type"]
 
-        if type_ is None and expr.variable is not None:
-            type_ = self._get_variable_type(expr.variable)
+        expr_var = self._variable_map.variable(expr)
+        if type_ is None and expr_var is not None:
+            type_ = self._get_variable_type(expr_var)
 
-        if reference_values is None and "reference_values" in expr.tags:
-            reference_values = expr.tags["reference_values"].copy()
+        expr_reference_values = self._variable_map.reference_values(expr)
+        if reference_values is None and expr_reference_values is not None:
+            reference_values = expr_reference_values.copy()
         if type_ is None and reference_values is not None and len(reference_values) == 1:  # type: ignore
             type_ = next(iter(reference_values))  # type: ignore
 
@@ -3903,17 +3916,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # default to int or unsigned int, determined by likely_signed
             type_ = self.default_simtype_from_bits(expr.bits, signed=likely_signed)
 
-        if variable is None and "reference_variable" in expr.tags and expr.tags["reference_variable"] is not None:
-            variable = expr.tags["reference_variable"]
+        expr_reference_variable = self._variable_map.reference_variable(expr)
+        if variable is None and expr_reference_variable is not None:
+            variable = expr_reference_variable
             if inline_string:
-                self._inlined_strings.add(expr.tags["reference_variable"])
+                self._inlined_strings.add(expr_reference_variable)
             elif function_pointer:
-                self._function_pointers.add(expr.tags["reference_variable"])
+                self._function_pointers.add(expr_reference_variable)
 
         var_access = None
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
-            offset = expr.tags.get("reference_variable_offset", 0)
+            offset = self._variable_map.reference_variable_offset(expr)
             var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         if var_access is not None:
@@ -3943,10 +3957,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
 
     def _handle_Expr_BinaryOp(self, expr: BinaryOp, **kwargs):
-        if expr.variable is not None:
-            cvar = self._variable(expr.variable, None)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            cvar = self._variable(expr_var, None)
             return self._access_constant_offset_reference(
-                self._get_variable_reference(cvar), expr.variable_offset or 0, None
+                self._get_variable_reference(cvar), self._variable_map.variable_offset(expr) or 0, None
             )
 
         lhs = self._handle(expr.operands[0])
@@ -4103,14 +4118,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ref: bool = False,
         **kwargs,
     ):
-        if expr.variable is not None:
-            cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            cvar = self._variable(expr_var, None, vvar_id=expr.varid)
 
-            if not lvalue and expr.variable.size != expr.size:
+            if not lvalue and expr_var.size != expr.size:
                 l.warning(
                     "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
                     expr.size,
-                    expr.variable.size,
+                    expr_var.size,
                 )
                 src_type = cvar.type
                 dst_type = {
@@ -4126,8 +4142,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
-        if expr.variable is not None:
-            var_thing = self._variable(expr.variable, expr.size)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            var_thing = self._variable(expr_var, expr.size)
             var_thing.tags = dict(expr.tags)
             if "def_at" in var_thing.tags and "ins_addr" not in var_thing.tags:
                 var_thing.tags["ins_addr"] = var_thing.tags["def_at"].tags["ins_addr"]
@@ -4382,5 +4399,5 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
         return obj
 
 
-StructuredCodeGenerator = CStructuredCodeGenerator
-register_analysis(StructuredCodeGenerator, "StructuredCodeGenerator")
+# StructuredCodeGenerator = CStructuredCodeGenerator
+register_analysis(CStructuredCodeGenerator, "CStructuredCodeGenerator")

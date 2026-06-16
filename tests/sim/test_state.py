@@ -3,9 +3,9 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 
-import pickle
 import gc
 import os
+import pickle
 import unittest
 
 import claripy
@@ -13,7 +13,6 @@ import cle
 
 import angr
 from angr import SimState
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

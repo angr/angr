@@ -1,14 +1,15 @@
 # pylint:disable=unnecessary-pass
 from __future__ import annotations
+
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, SideEffectStatement, ConditionalJump, Assignment, Jump
-from angr.ailment.expression import ITE, Call, Const, VirtualVariable, Phi
-
+from angr.ailment.expression import ITE, Call, Const, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffectStatement, Statement
+from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import subgraph_between_nodes
-from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)
@@ -215,7 +216,7 @@ class ITERegionConverter(OptimizationPass):
 
         addr_obj = true_stmt_src if "ins_addr" in true_stmt_src.tags else true_stmt
         ternary_expr = ITE(
-            None,
+            self.manager.next_atom(),
             conditional_jump.condition,
             false_stmt_src,
             true_stmt_src,
@@ -237,7 +238,10 @@ class ITERegionConverter(OptimizationPass):
         # add a goto statement to the region tail so it can be transformed into a break or other types of control-flow
         # transitioning statement in the future
         goto_stmt = Jump(
-            None, Const(None, None, region_tail.addr, self.project.arch.bits), region_tail.idx, **conditional_jump.tags
+            self.manager.next_atom(),
+            Const(self.manager.next_atom(), region_tail.addr, self.project.arch.bits),
+            region_tail.idx,
+            **conditional_jump.tags,
         )
         new_region_head.statements.append(goto_stmt)
 

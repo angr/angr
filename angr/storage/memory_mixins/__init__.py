@@ -1,64 +1,63 @@
 from __future__ import annotations
 
 from angr.sim_state import SimState
+
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin
 from .bvv_conversion_mixin import DataNormalizationMixin
-from .clouseau_mixin import InspectMixinHigh
 from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
-from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
+from .default_filler_mixin import DefaultFillerMixin, ExplicitFillerMixin, SpecialFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
 from .hex_dumper_mixin import HexDumperMixin
+from .inspect_mixin import InspectMixin
+from .javavm_memory_mixin import JavaVmMemoryMixin
+from .keyvalue_memory_mixin import KeyValueMemoryMixin
 from .label_merger_mixin import LabelMergerMixin
 from .multi_value_merger_mixin import MultiValueMergerMixin
 from .name_resolution_mixin import NameResolutionMixin
-from .simplification_mixin import SimplificationMixin
+from .paged_memory.page_backer_mixins import ClemoryBackerMixin, ConcreteBackerMixin, DictBackerMixin
+from .paged_memory.paged_memory_mixin import (
+    ListPagesMixin,
+    ListPagesWithLabelsMixin,
+    MVListPagesMixin,
+    MVListPagesWithLabelsMixin,
+    PagedMemoryMixin,
+    UltraPagesMixin,
+)
+from .paged_memory.paged_memory_multivalue_mixin import PagedMemoryMultiValueMixin
+from .paged_memory.pages import (
+    CooperationBase,
+    HistoryTrackingMixin,
+    ISPOMixin,
+    ListPage,
+    MemoryObjectMixin,
+    MVListPage,
+    PageBase,
+    PageType,
+    PermissionsMixin,
+    RefcountMixin,
+    UltraPage,
+)
+from .paged_memory.privileged_mixin import PrivilegedPagingMixin
+from .paged_memory.stack_allocation_mixin import StackAllocationMixin
+from .regioned_memory import (
+    AbstractMergerMixin,
+    MemoryRegionMetaMixin,
+    RegionCategoryMixin,
+    RegionedAddressConcretizationMixin,
+    RegionedMemoryMixin,
+    StaticFindMixin,
+)
 from .simple_interface_mixin import SimpleInterfaceMixin
-from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
+from .simplification_mixin import SimplificationMixin
+from .size_resolution_mixin import SizeConcretizationMixin, SizeNormalizationMixin
+from .slotted_memory import SlottedMemoryMixin
 from .smart_find_mixin import SmartFindMixin
 from .symbolic_merger_mixin import SymbolicMergerMixin
 from .top_merger_mixin import TopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
-
-from .paged_memory.page_backer_mixins import ClemoryBackerMixin, ConcreteBackerMixin, DictBackerMixin
-from .paged_memory.paged_memory_mixin import (
-    PagedMemoryMixin,
-    ListPagesMixin,
-    UltraPagesMixin,
-    ListPagesWithLabelsMixin,
-    MVListPagesMixin,
-    MVListPagesWithLabelsMixin,
-)
-from .paged_memory.privileged_mixin import PrivilegedPagingMixin
-from .paged_memory.stack_allocation_mixin import StackAllocationMixin
-from .paged_memory.paged_memory_multivalue_mixin import PagedMemoryMultiValueMixin
-from .paged_memory.pages import (
-    CooperationBase,
-    MemoryObjectMixin,
-    ISPOMixin,
-    RefcountMixin,
-    PermissionsMixin,
-    HistoryTrackingMixin,
-    PageBase,
-    PageType,
-    ListPage,
-    MVListPage,
-    UltraPage,
-)
-
-from .slotted_memory import SlottedMemoryMixin
-from .regioned_memory import (
-    RegionedMemoryMixin,
-    RegionCategoryMixin,
-    StaticFindMixin,
-    AbstractMergerMixin,
-    MemoryRegionMetaMixin,
-    RegionedAddressConcretizationMixin,
-)
-from .keyvalue_memory_mixin import KeyValueMemoryMixin
-from .javavm_memory_mixin import JavaVmMemoryMixin
 
 # pylint:disable=missing-class-docstring
 
@@ -70,13 +69,12 @@ class DefaultMemory(
     NameResolutionMixin,
     DataNormalizationMixin,
     SimplificationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     ActionsMixinHigh,
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
     AddressConcretizationMixin,
-    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     ConvenientMappingsMixin,
@@ -106,9 +104,8 @@ class DefaultListPagesMemory(
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     AddressConcretizationMixin,
-    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     ConvenientMappingsMixin,
@@ -130,7 +127,7 @@ class FastMemory(
     NameResolutionMixin,
     SimpleInterfaceMixin,
     SimplificationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     ConditionalMixin,
     ExplicitFillerMixin,
     DefaultFillerMixin,
@@ -144,12 +141,11 @@ class AbstractMemory(
     NameResolutionMixin,
     DataNormalizationMixin,
     SimplificationMixin,
-    InspectMixinHigh,
+    InspectMixin,
     ActionsMixinHigh,
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
-    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     RegionedAddressConcretizationMixin,
@@ -270,7 +266,7 @@ __all__ = (
     "HexDumperMixin",
     "HistoryTrackingMixin",
     "ISPOMixin",
-    "InspectMixinHigh",
+    "InspectMixin",
     "JavaVmMemory",
     "JavaVmMemoryMixin",
     "KeyValueMemory",

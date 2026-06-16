@@ -1,46 +1,51 @@
 from __future__ import annotations
-from typing import Literal, TypeVar, Generic, TYPE_CHECKING, cast, overload
+
+import logging
 from collections import defaultdict
 from collections.abc import Iterator
-from itertools import count, chain
-import logging
+from itertools import chain, count
+from typing import TYPE_CHECKING, Literal, cast, overload
 
 import cle
 import networkx
-
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
 from angr import ailment
-from angr.utils.orderedset import OrderedSet
-from angr.utils.ail import is_phi_assignment
-from angr.utils.types import unpack_pointer, replace_pointer_pts_to
-from angr.protos import variables_pb2
-from angr.serializable import Serializable
-from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimConstantVariable
-from angr.sim_type import (
-    TypeRef,
-    SimType,
-    SimStruct,
-    SimTypeBottom,
-    SimTypeChar,
-    SimTypeShort,
-    SimTypeInt,
-    SimTypeLong,
-)
 from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
-from .variable_access import VariableAccess, VariableAccessSort
+from angr.protos import variables_pb2
+from angr.serializable import Serializable
+from angr.sim_type import (
+    SimStruct,
+    SimType,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeShort,
+    TypeRef,
+)
+from angr.sim_variable import (
+    SimComboRegisterVariable,
+    SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimVariable,
+)
+from angr.utils.ail import is_phi_assignment
+from angr.utils.orderedset import OrderedSet
+from angr.utils.types import replace_pointer_pts_to, unpack_pointer
 
-K = TypeVar("K")
-T = TypeVar("T")
+from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.stack_item import StackItem
     from angr.code_location import CodeLocation
 
-    class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
+    class SortedDict[K, T](dict[K, T]):  # pylint:disable=missing-class-docstring
         def irange(self, *args, **kwargs) -> Iterator[K]:  # pylint:disable=unused-argument, no-self-use
             ...
 
@@ -991,6 +996,7 @@ class VariableManagerInternal(Serializable):
 
         sorted_stack_variables = []
         sorted_reg_variables = []
+        sorted_combo_reg_variables = []
         arg_vars = []
 
         for var in self._unified_variables:
@@ -1005,6 +1011,12 @@ class VariableManagerInternal(Serializable):
                     arg_vars.append(var)
                 else:
                     sorted_reg_variables.append(var)
+
+            elif isinstance(var, SimComboRegisterVariable):
+                if var.ident and var.ident.startswith("arg_"):
+                    arg_vars.append(var)
+                else:
+                    sorted_combo_reg_variables.append(var)
 
             elif isinstance(var, SimMemoryVariable):
                 if not reset and var.name is not None:
@@ -1038,11 +1050,11 @@ class VariableManagerInternal(Serializable):
                     sorted_reg_variables.remove(var)
                     phi_only_vars.append(var)
 
-        for var in chain(sorted_stack_variables, sorted_reg_variables, phi_only_vars):
+        for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_combo_reg_variables, phi_only_vars):
             idx = next(var_ctr)
             if var.name is not None and var.name != var.ident and not reset:
                 continue
-            if isinstance(var, (SimStackVariable, SimRegisterVariable)):
+            if isinstance(var, (SimStackVariable, SimRegisterVariable, SimComboRegisterVariable)):
                 var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None

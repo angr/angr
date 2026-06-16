@@ -1,27 +1,32 @@
 # pylint:disable=too-many-boolean-expressions,unused-argument
 from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
-
-from angr.ailment import Statement, Block
+from angr.ailment import Block, Statement
 from angr.ailment.block_walker import AILBlockRewriter
+from angr.ailment.expression import Call, Const, Load, UnaryOp, VirtualVariable
 from angr.ailment.statement import WeakAssignment
-from angr.ailment.expression import Call, VirtualVariable, Const, Load, UnaryOp
-from angr.sim_type import SimType, SimTypePointer, SimTypeChar
+from angr.sim_type import SimType, SimTypeChar, SimTypePointer
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 _l = logging.getLogger(name=__name__)
 
 
 class RewriteStdStringCallWalker(AILBlockRewriter):
-    def __init__(self, str_defs: dict[int, bytes], kb, **kwargs):
+    def __init__(self, str_defs: dict[int, bytes], kb, manager: Manager, **kwargs):
         super().__init__(update_block=False, **kwargs)
         self._str_defs = str_defs
         self.kb = kb
         self.functions = kb.functions
+        self.manager = manager
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         if isinstance(expr.target, Const) and self.functions.contains_addr(expr.target.value_int):
             func = self.functions.get_by_addr(expr.target.value_int)
             if "std::basic_string" in func.demangled_name:
@@ -36,7 +41,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
                     if varid in self._str_defs:
                         s = self._str_defs[varid]
                         if s is not None:
-                            return Const(None, None, len(s), expr.bits, **expr.tags)
+                            return Const(self.manager.next_atom(), len(s), expr.bits, **expr.tags)
                 if (
                     func.short_name == "c_str"
                     and len(expr.args) == 1
@@ -49,9 +54,11 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
                         s = self._str_defs[varid]
                         if s is not None:
                             idx = self.kb.custom_strings.allocate(s)
-                            return Const(None, None, idx, expr.bits, custom_string=True, **expr.tags)
+                            const = Const(self.manager.next_atom(), idx, expr.bits, **expr.tags)
+                            self.manager.variable_map.set_custom_string(const)
+                            return const
 
-        return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class EagerStdStringEvalPass(OptimizationPass):
@@ -138,7 +145,7 @@ class EagerStdStringEvalPass(OptimizationPass):
             return
 
         # rewrite std::string-related calls
-        rewriter = RewriteStdStringCallWalker(str_defs, self.kb)
+        rewriter = RewriteStdStringCallWalker(str_defs, self.kb, self.manager)
         for block in list(self._graph):
             new_block = rewriter.walk(block)
             if new_block is not None:
@@ -157,7 +164,7 @@ class EagerStdStringEvalPass(OptimizationPass):
             if isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Const):
                 src_ty = stmt.tags["type"]["src"]
                 if self._is_std_string_type_or_charptr(src_ty):
-                    if isinstance(stmt.src.addr, Const) and stmt.src.addr.tags.get("custom_string", False):
+                    if isinstance(stmt.src.addr, Const) and self.manager.variable_map.custom_string(stmt.src.addr):
                         try:
                             s = self.kb.custom_strings[stmt.src.addr.value_int]
                         except KeyError:

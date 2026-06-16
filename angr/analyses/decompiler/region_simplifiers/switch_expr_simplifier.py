@@ -1,11 +1,16 @@
 # pylint:disable=no-self-use,arguments-renamed
 from __future__ import annotations
+
 from collections import OrderedDict
+from typing import TYPE_CHECKING
 
 import angr.ailment as ailment
-
-from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode
+from angr.analyses.decompiler.peephole_optimizations import RemoveNoopConversions
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import SwitchCaseNode
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 
 class SwitchExpressionSimplifier(SequenceWalker):
@@ -14,7 +19,8 @@ class SwitchExpressionSimplifier(SequenceWalker):
     adjust all case expressions accordingly.
     """
 
-    def __init__(self, node):
+    def __init__(self, node, manager: Manager):
+        self.manager = manager
         handlers = {
             SwitchCaseNode: self._handle_SwitchCase,
         }
@@ -28,11 +34,8 @@ class SwitchExpressionSimplifier(SequenceWalker):
         switch_expr = node.switch_expr
         convert = None
 
-        # pylint: disable=import-outside-toplevel
-        from angr.analyses.decompiler.peephole_optimizations.remove_noop_conversions import RemoveNoopConversions
-
         while isinstance(switch_expr, ailment.Expr.Convert):
-            optimized = RemoveNoopConversions(None, None, None).optimize(switch_expr)
+            optimized = RemoveNoopConversions(None, None, self.manager).optimize(switch_expr)
             if optimized is not None:
                 switch_expr = optimized
                 continue
@@ -57,7 +60,7 @@ class SwitchExpressionSimplifier(SequenceWalker):
                         new_switch_expr = new_switch_expr.operand
                     else:
                         new_switch_expr = ailment.Expr.Convert(
-                            None,
+                            self.manager.next_atom(),
                             new_switch_expr.from_bits,
                             convert.to_bits,
                             convert.is_signed,
@@ -66,7 +69,12 @@ class SwitchExpressionSimplifier(SequenceWalker):
                         )
                 else:
                     new_switch_expr = ailment.Expr.Convert(
-                        None, convert.from_bits, convert.to_bits, convert.is_signed, new_switch_expr, **convert.tags
+                        self.manager.next_atom(),
+                        convert.from_bits,
+                        convert.to_bits,
+                        convert.is_signed,
+                        new_switch_expr,
+                        **convert.tags,
                     )
 
             new_cases = OrderedDict()

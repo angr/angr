@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 import functools
-import time
 import logging
 import os
+import time
 from typing import TypeVar, overload
 
 import claripy
 
 from angr import sim_options as o
-from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
 from angr.sim_state import SimState
 from angr.utils.balancer import constraint_to_si
+
 from .inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
-from .sim_action_object import ast_stripping_decorator, SimActionObject
 from .sim_action import SimActionConstraint
+from .sim_action_object import SimActionObject, ast_stripping_decorator
 
 l = logging.getLogger(name=__name__)
 

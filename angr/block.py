@@ -1,12 +1,14 @@
-# pylint:disable=wrong-import-position,arguments-differ
+# pylint:disable=arguments-differ
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
 import pyvex
-from pyvex import IRSB
 from archinfo import Arch, ArchARM
+from pyvex import IRSB
 
+from .codenode import BlockNode, SootBlockNode
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
 from .utils.ins_addr_list import InsAddrList
@@ -18,9 +20,10 @@ except ImportError:
 
 if TYPE_CHECKING:
     from angr import Project
-    from angr.engines.vex import VEXLifter
-    from angr.engines.pcode.lifter import PcodeLifterEngineMixin, IRSB as PcodeIRSB
+    from angr.engines.pcode.lifter import IRSB as PcodeIRSB
+    from angr.engines.pcode.lifter import PcodeLifterEngineMixin
     from angr.engines.soot.engine import SootMixin
+    from angr.engines.vex import VEXLifter
 
 
 l = logging.getLogger(name=__name__)
@@ -568,6 +571,3 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
-
-
-from .codenode import BlockNode, SootBlockNode

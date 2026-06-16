@@ -1,12 +1,14 @@
 from __future__ import annotations
-import traceback
+
 import logging
+import traceback
 import zlib
 
-from .ansi import Color, BackgroundColor, color, clear
-
-from .testing import is_testing
+import angr
 from angr.utils.formatting import ansi_color_enabled
+
+from .ansi import BackgroundColor, Color, clear, color
+from .testing import is_testing
 
 
 class Loggers:
@@ -118,9 +120,7 @@ class CuteFormatter(logging.Formatter):
 
 def is_enabled_for(logger, level):
     if level == 1:
-        from angr import loggers
-
-        return loggers.profiling_enabled
+        return angr.loggers.profiling_enabled
     return originalIsEnabledFor(logger, level)
 
 

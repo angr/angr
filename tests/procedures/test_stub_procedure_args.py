@@ -10,10 +10,9 @@ import unittest
 import archinfo
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar
-from angr.engines.successors import SimSuccessors
 from angr.calling_conventions import SimCCStdcall, SimStackArg
-
+from angr.engines.successors import SimSuccessors
+from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

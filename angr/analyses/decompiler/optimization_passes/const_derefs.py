@@ -1,17 +1,19 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
-from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.expression import Load, Const
+from angr.ailment import AILBlockRewriter, Block
+from angr.ailment.expression import Const, Load
 from angr.ailment.statement import Statement
-
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
     from angr import Project
+    from angr.ailment import Manager
 
 
 _l = logging.getLogger(name=__name__)
@@ -22,9 +24,10 @@ class BlockWalker(AILBlockRewriter):
     AIL Block walker in order to perform const deref substitution
     """
 
-    def __init__(self, project: Project):
+    def __init__(self, project: Project, manager: Manager):
         super().__init__()
         self._project = project
+        self.manager = manager
         self._new_block: Block | None = None  # output
 
     def _addr_belongs_to_ro_region(self, addr: int) -> bool:
@@ -64,7 +67,7 @@ class BlockWalker(AILBlockRewriter):
                     w = None
                 if w is not None and not (is_got and w == 0):
                     # nice! replace it with the actual value
-                    return Const(None, None, w, expr.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), w, expr.bits, **expr.tags)
         elif (
             isinstance(expr.addr, Load)
             and expr.addr.bits == self._project.arch.bits
@@ -83,11 +86,9 @@ class BlockWalker(AILBlockRewriter):
                     # nice! replace it with a load from that address
                     return Load(
                         expr.idx,
-                        Const(None, None, w, expr.addr.size, **expr.addr.addr.tags),
+                        Const(self.manager.next_atom(), w, expr.addr.size, **expr.addr.addr.tags),
                         expr.size,
                         expr.endness,
-                        variable=expr.variable,
-                        variable_offset=expr.variable_offset,
                         guard=expr.guard,
                         alt=expr.alt,
                         **expr.tags,
@@ -112,7 +113,7 @@ class ConstantDereferencesSimplifier(OptimizationPass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._block_walker = BlockWalker(self.project)
+        self._block_walker = BlockWalker(self.project, self.manager)
         self.analyze()
 
     def _check(self):

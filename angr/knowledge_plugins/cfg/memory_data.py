@@ -1,5 +1,6 @@
 # pylint:disable=no-member
 from __future__ import annotations
+
 from angr.protos import cfg_pb2
 from angr.serializable import Serializable
 
@@ -20,6 +21,11 @@ class MemoryDataSort:
     PEImportDirectory = "pe-import-directory"
     PEExportDirectory = "pe-export-directory"
     PEDelayImportDirectory = "pe-delay-import-directory"
+    EHFuncInfo = "eh-funcinfo"
+    EHUnwindMapEntry = "eh-unwindmapentry"
+    EH4ScopeTable = "eh4-scopetable"
+    EHTryBlockMap = "eh-tryblockmap"
+    EHHandlerType = "eh-handlertype"
 
 
 _SORT_TO_IDX = {
@@ -38,6 +44,11 @@ _SORT_TO_IDX = {
     MemoryDataSort.PEImportDirectory: cfg_pb2.MemoryData.PEImportDirectory,
     MemoryDataSort.PEExportDirectory: cfg_pb2.MemoryData.PEExportDirectory,
     MemoryDataSort.PEDelayImportDirectory: cfg_pb2.MemoryData.PEDelayImportDirectory,
+    MemoryDataSort.EHFuncInfo: cfg_pb2.MemoryData.EHFuncInfo,
+    MemoryDataSort.EHUnwindMapEntry: cfg_pb2.MemoryData.EHUnwindMapEntry,
+    MemoryDataSort.EH4ScopeTable: cfg_pb2.MemoryData.EH4ScopeTable,
+    MemoryDataSort.EHTryBlockMap: cfg_pb2.MemoryData.EHTryBlockMap,
+    MemoryDataSort.EHHandlerType: cfg_pb2.MemoryData.EHHandlerType,
 }
 
 _IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}

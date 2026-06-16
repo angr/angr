@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.errors import SimMergeError
+
 from .base import SimConcretizationStrategy
 
 

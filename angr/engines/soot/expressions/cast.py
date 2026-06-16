@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 from archinfo import ArchSoot
 
-from .base import SimSootExpr
 from angr.engines.soot.values.thisref import SimSootValue_ThisRef
+
+from .base import SimSootExpr
 
 l = logging.getLogger("angr.engines.soot.expressions.cast")
 

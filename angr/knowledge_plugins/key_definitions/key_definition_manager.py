@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections.abc import Iterable
 
-from angr.knowledge_plugins import KnowledgeBasePlugin
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
+
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
+from .constants import OP_AFTER, OP_BEFORE
 from .rd_model import ReachingDefinitionsModel
-from .constants import OP_BEFORE, OP_AFTER
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

@@ -1,21 +1,22 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 from __future__ import annotations
-from typing import Any
+
+import contextlib
 import logging
 import time
-import contextlib
+from typing import Any
 
 import claripy
-import angr.ailment as ailment
 import pyvex
 
-from angr.code_location import CodeLocation
-from angr.analyses import ForwardAnalysis, visitors
-from angr.knowledge_plugins.propagations.propagation_model import PropagationModel
-from angr.knowledge_plugins.propagations.states import PropagatorVEXState, PropagatorState
+import angr.ailment as ailment
 from angr import sim_options
-from angr.analyses import register_analysis
-from angr.analyses.analysis import Analysis
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
+from angr.code_location import CodeLocation
+from angr.knowledge_plugins.propagations.propagation_model import PropagationModel
+from angr.knowledge_plugins.propagations.states import PropagatorState, PropagatorVEXState
+
 from .engine_vex import SimEnginePropagatorVEX
 
 _l = logging.getLogger(name=__name__)

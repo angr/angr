@@ -6,16 +6,15 @@ import logging
 import os
 import re
 from enum import Enum
-from typing import TypeVar, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any
 
 from angr.errors import AngrAIError
 
 if TYPE_CHECKING:
     from pydantic_ai.models import Model
-    from pydantic_ai.settings import ModelSettings
     from pydantic_ai.providers import Provider
+    from pydantic_ai.settings import ModelSettings
 
-T = TypeVar("T")
 
 l = logging.getLogger(name=__name__)
 
@@ -151,7 +150,7 @@ class LLMClient:
         result = agent.run_sync(prompt, model_settings=self._model_settings())
         return result.output
 
-    def completion_structured(
+    def completion_structured[T](
         self, messages: list[dict[str, str]], output_type: type[T], raise_exc: bool = False, **kwargs
     ) -> T | None:
         """

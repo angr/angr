@@ -1,40 +1,42 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-import os
-import logging
-import itertools
-from collections import defaultdict, UserDict
-from collections.abc import Iterable, Iterator
+
 import contextlib
+import itertools
 import json
+import logging
+import os
+import re
+from collections import UserDict, defaultdict
+from collections.abc import Iterable, Iterator
 from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
 
+import claripy
 import networkx
 import pydemumble
-
-from cle.backends.symbol import Symbol
+import rust_demangler
 from archinfo.arch_arm import get_real_address_if_arm
-import claripy
+from cle.backends.symbol import Symbol
 
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode, FuncNode
-from angr.knowledge_plugins.xrefs.xref import XRef
-from angr.serializable import Serializable
+from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc
+from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.xrefs.xref import XRef
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
 from angr.protos import function_pb2
-from angr.calling_conventions import DEFAULT_CC, default_cc
+from angr.serializable import Serializable
 from angr.sim_type import SimTypeFunction, parse_defns
-from angr.calling_conventions import SimCC
-from angr.project import Project
 from angr.utils.library import get_cpp_function_name_and_metadata
+
 from .function_parser import FunctionParser
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
+    from angr.project import Project
 
 l = logging.getLogger(name=__name__)
 
@@ -186,9 +188,6 @@ class Function(Serializable):
         the creation of a Function object.
 
         :param addr:            The address of the function.
-
-        The following parameters are optional.
-
         :param str name:        The name of the function.
         :param bool syscall:    Whether this function is a syscall or not.
         :param bool is_simprocedure:    Whether this function is a SimProcedure or not.
@@ -1705,7 +1704,13 @@ class Function(Serializable):
                 if new_node is None:
                     # TODO: Do this correctly for hook nodes
                     # Create a new one
-                    new_node = BlockNode(n.addr, new_size, graph=graph, thumb=n.thumb)
+                    new_node = BlockNode(
+                        n.addr,
+                        new_size,
+                        bytestr=n.bytestr[:new_size] if n.bytestr is not None else None,
+                        graph=graph,
+                        thumb=n.thumb,
+                    )
                     self._block_sizes[n.addr] = new_size
                     self._addr_to_block_node[n.addr] = new_node
                     # Put the newnode into end_addresses
@@ -1898,23 +1903,33 @@ class Function(Serializable):
 
     @staticmethod
     def _addr_to_funcloc(addr):
-        # FIXME
-        if isinstance(addr, tuple):
-            return addr[0]
-        # int, long
         return addr
 
     def is_rust_function(self):
-        ast = pydemumble.demangle(self.name)
-        if ast:
-            nodes = ast.split("::")
-            if len(nodes) >= 2:
-                last_node = nodes[-1]
-                return (
-                    len(last_node) == 17
-                    and last_node.startswith("h")
-                    and all(c in "0123456789abcdef" for c in last_node[1:])
-                )
+        """
+        Determines if the function name follows Rust mangling conventions.
+        """
+        name = self.name
+
+        # 1. Check for Rust v0 mangling (Newer standard, e.g., _RNvCs...)
+        # Starts with _R followed by alphanumeric/underscores
+        if name.startswith("_R"):
+            return True
+
+        # 2. Check for Legacy/Itanium mangling (Standard, e.g., _ZN3std2io...)
+        # Rust legacy symbols almost always start with _ZN
+        if name.startswith("_ZN"):
+            # To distinguish from C++, look for the specific Rust hash pattern at the end.
+            # Rust legacy symbols typically end with 'h' followed by 16 hex characters.
+            # Example: _ZN3std2io5stdio6_print17h560ab85309735912E
+            rust_hash_pattern = re.compile(r"h[0-9a-fA-F]{16}E?$")
+            if rust_hash_pattern.search(name):
+                return True
+
+            # Fallback: If no hash is found, it *might* still be Rust (unhashed symbols),
+            # but _ZN is shared with C++.
+            # You might optionally check for common Rust crates in the name here.
+
         return False
 
     @staticmethod
@@ -1962,10 +1977,16 @@ class Function(Serializable):
 
     @property
     def demangled_name(self):
-        ast = pydemumble.demangle(self.name).strip()
         if self.is_rust_function():
-            nodes = ast.split("::")[:-1]
-            ast = "::".join([Function._rust_fmt_node(node) for node in nodes])
+            parts = rust_demangler.demangle(self.name).split("::")
+            # Drop the trailing 17-char `h<16 hex>` disambiguation hash if present (e.g.,
+            # "std::rt::lang_start::h9b2e0b6aeda0bae0" -> "std::rt::lang_start").
+            if len(parts) >= 2:
+                last = parts[-1]
+                if len(last) == 17 and last.startswith("h") and all(c in "0123456789abcdef" for c in last[1:]):
+                    parts = parts[:-1]
+            return "::".join(parts)
+        ast = pydemumble.demangle(self.name).strip()
         return ast or self.name
 
     @property
@@ -2002,11 +2023,12 @@ class Function(Serializable):
         Get a disambiguated function name.
 
         :param display_name: Name to display, otherwise the function name.
-        :return: The function name in the form:
-            ::<name>           when the function binary is the main object.
-            ::<obj>::<name>    when the function binary is not the main object.
-            ::<addr>::<name>   when the function binary is an unnamed non-main object, or when multiple functions with
-                               the same name are defined in the function binary.
+        :return: The function name in one of the following forms:
+
+            - ``::<name>`` when the function binary is the main object.
+            - ``::<obj>::<name>`` when the function binary is not the main object.
+            - ``::<addr>::<name>`` when the function binary is an unnamed non-main object, or when multiple functions
+              with the same name are defined in the function binary.
         """
         assert self.project is not None
         must_disambiguate_by_addr = self.binary is not self.project.loader.main_object and self.binary_name is None

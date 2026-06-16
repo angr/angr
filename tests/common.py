@@ -1,22 +1,23 @@
 from __future__ import annotations
+
+import logging
 import os
 import pickle
-import sys
-import logging
 import subprocess
-from functools import lru_cache
+import sys
 from collections.abc import Sequence
+from functools import lru_cache
 from tempfile import NamedTemporaryFile
-from unittest import skipIf, skipUnless, skip, SkipTest
+from unittest import SkipTest, skip, skipIf, skipUnless
 
-from rich.syntax import Syntax
 from rich.console import Console
+from rich.syntax import Syntax
 
 import angr
-from angr import load_shellcode, Project
+import angr.sim_options as so
+from angr import Project, load_shellcode
 from angr.analyses import CongruencyCheck
 from angr.misc.testing import is_testing
-import angr.sim_options as so
 
 l = logging.getLogger("angr.tests.common")
 

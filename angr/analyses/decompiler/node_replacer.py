@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from angr.ailment import Block
+
 from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import BaseNode, SequenceNode, MultiNode
+from .structurer_nodes import BaseNode, MultiNode, SequenceNode
 
 
 class NodeReplacer(SequenceWalker):

@@ -1,29 +1,29 @@
 from __future__ import annotations
+
 import logging
-
 from collections import defaultdict
-
-from sortedcontainers import SortedDict
 from copy import copy
 
-from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
+from sortedcontainers import SortedDict
 
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.errors import AngrCFGError, SimMemoryError, SimEngineError
+from angr.analyses.analysis import register_analysis
 from angr.codenode import HookNode, SootBlockNode
+from angr.errors import AngrCFGError, SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg import CFGNode
-from angr.analyses import register_analysis
-from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
+from angr.utils.constants import DEFAULT_STATEMENT
+
+from .cfg_fast import CFGFast, CFGJob, FunctionTransitionEdge, PendingJobs
 
 l = logging.getLogger(name=__name__)
 
 try:
-    from pysoot.sootir.soot_value import SootLocal
-    from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
     from pysoot.sootir.soot_expr import (
-        SootStaticInvokeExpr,
         SootInvokeExpr,
+        SootStaticInvokeExpr,
     )
+    from pysoot.sootir.soot_statement import AssignStmt, GotoStmt, IfStmt, InvokeStmt
+    from pysoot.sootir.soot_value import SootLocal
 
     PYSOOT_INSTALLED = True
 except ImportError:
@@ -542,6 +542,9 @@ class CFGFastSoot(CFGFast):
                 l.debug("Unsupported jumpkind %s", jumpkind)
 
         return jobs
+
+    def drop_bad_functions(self):
+        pass
 
     def make_functions(self):
         """

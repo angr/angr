@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 import itertools
+
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert
+
 from .base import PeepholeOptimizationExprBase
 
 
@@ -55,11 +58,9 @@ class SimplifyBitwiseInserts(PeepholeOptimizationExprBase):
             assert pb2.bits > pb2x.bits
             assert isinstance(pb2x, Const)
             assert isinstance(pb2x.value, int)
-            pb2x = Const(self.manager.next_atom(), None, pb2x.value << pb1o, pb2.bits)
+            pb2x = Const(self.manager.next_atom(), pb2x.value << pb1o, pb2.bits)
         elif pb1o != 0:
-            pb2x = BinaryOp(
-                self.manager.next_atom(), "Shl", [pb2x, Const(self.manager.next_atom(), None, pb1o, pb2x.bits)]
-            )
+            pb2x = BinaryOp(self.manager.next_atom(), "Shl", [pb2x, Const(self.manager.next_atom(), pb1o, pb2x.bits)])
 
         result = BinaryOp(self.manager.next_atom(), expr.value.op, [pb1, pb2x])
         if result.bits != expr.bits:

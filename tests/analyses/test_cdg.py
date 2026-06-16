@@ -11,7 +11,6 @@ import networkx
 import angr
 from angr.analyses.cdg import TemporaryNode
 from angr.utils.graph import compute_dominance_frontier
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

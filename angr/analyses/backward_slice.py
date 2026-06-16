@@ -1,14 +1,14 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
 import networkx
 import pyvex
-from . import Analysis
 
-from angr.analyses import AnalysesHub
-from angr.code_location import CodeLocation
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.annocfg import AnnotatedCFG
+from angr.code_location import CodeLocation
 from angr.errors import AngrBackwardSlicingError
 from angr.utils.constants import DEFAULT_STATEMENT
 

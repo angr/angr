@@ -32,5 +32,10 @@ dist
 *.db
 *.dylib
 docs/_build
+docs/api/
 uv.lock
 target/
+.DS_Store
+*_angr_rtdb
+*_angr_rtdb_*
+.claude/

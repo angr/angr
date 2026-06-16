@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import string
+
 from .sim_state_options import SimStateOptions
 
 # This option controls whether or not constraints are tracked in the analysis.

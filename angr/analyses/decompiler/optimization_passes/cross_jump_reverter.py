@@ -1,10 +1,12 @@
 from __future__ import annotations
+
+import inspect
+import logging
 from collections import defaultdict
 from itertools import count
-import logging
-import inspect
 
 from angr.analyses.decompiler.counters import AILBlockCallCounter
+
 from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 
 l = logging.getLogger(__name__)

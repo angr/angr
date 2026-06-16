@@ -7,12 +7,13 @@ This module detects variables used as boolean flags and names them appropriately
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from angr import ailment
-from angr.ailment.expression import BinaryOp, UnaryOp, Const
+from angr.ailment.expression import BinaryOp, Const, UnaryOp
 from angr.ailment.statement import Assignment, ConditionalJump
 from angr.sim_variable import SimVariable
 

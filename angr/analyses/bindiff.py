@@ -1,14 +1,16 @@
 from __future__ import annotations
+
 import logging
 import math
 import types
-from collections import deque, defaultdict
-from typing import TYPE_CHECKING
+from collections import defaultdict, deque
 from functools import partial
+from typing import TYPE_CHECKING
 
 import networkx
 
-from angr.analyses import AnalysesHub, Analysis, CFGFast
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGFast
 from angr.errors import SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
@@ -792,9 +794,6 @@ class FunctionDiff:
         """
         :param attributes_a:    A dict of blocks to their attributes
         :param attributes_b:    A dict of blocks to their attributes
-
-        The following parameters are optional.
-
         :param filter_set_a:    A set to limit attributes_a to the blocks in this set.
         :param filter_set_b:    A set to limit attributes_b to the blocks in this set.
         :param delta:           An offset to add to each vector in attributes_a.
@@ -1497,9 +1496,6 @@ class BinDiff(Analysis):
         """
         :param attributes_a:    A dict of functions to their attributes
         :param attributes_b:    A dict of functions to their attributes
-
-        The following parameters are optional.
-
         :param filter_set_a:    A set to limit attributes_a to the functions in this set.
         :param filter_set_b:    A set to limit attributes_b to the functions in this set.
         :returns:               A list of tuples of matching objects.

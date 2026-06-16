@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from angr import SimState, SimFile, SIM_PROCEDURES
+from angr import SIM_PROCEDURES, SimFile, SimState
 
 
 class TestPwrite(unittest.TestCase):

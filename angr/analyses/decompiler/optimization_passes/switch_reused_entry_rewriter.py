@@ -1,12 +1,12 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from itertools import count
+
 import logging
+from itertools import count
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Jump
 from angr.ailment.expression import Const
-
+from angr.ailment.statement import Jump
 from angr.knowledge_plugins.cfg import IndirectJumpType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -78,8 +78,13 @@ class SwitchReusedEntryRewriter(OptimizationPass):
             for head_node in sorted_pred_nodes[1:]:
                 # create the new goto node
                 goto_stmt = Jump(
-                    None,
-                    Const(None, None, entry_node.addr, self.project.arch.bits, ins_addr=entry_node.addr),
+                    self.manager.next_atom(),
+                    Const(
+                        self.manager.next_atom(),
+                        entry_node.addr,
+                        self.project.arch.bits,
+                        ins_addr=entry_node.addr,
+                    ),
                     target_idx=entry_node.idx,
                     ins_addr=entry_node.addr,
                 )

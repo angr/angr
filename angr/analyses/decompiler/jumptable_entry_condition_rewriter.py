@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import claripy
 
-from .structuring.structurer_nodes import ConditionNode, CodeNode
 from .sequence_walker import SequenceWalker
+from .structurer_nodes import CodeNode, ConditionNode
 
 
 class JumpTableEntryConditionRewriter(SequenceWalker):

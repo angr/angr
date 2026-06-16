@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import NamedTuple, Any
-from collections.abc import Callable
+
 import multiprocessing
 import platform
+from collections.abc import Callable
+from typing import Any, NamedTuple
+
 from angr.errors import AngrRuntimeError
 
 

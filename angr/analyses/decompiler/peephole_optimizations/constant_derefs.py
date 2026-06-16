@@ -1,6 +1,8 @@
 from __future__ import annotations
-from angr.ailment.expression import Load, Const
+
 from cle.backends import Blob, Hex
+
+from angr.ailment.expression import Const, Load
 
 from .base import PeepholeOptimizationExprBase
 
@@ -28,7 +30,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 if "got" in sec.name and val == 0:
                     return None
 
-                return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
+                return Const(self.manager.next_atom(), val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
 
             # is it loading from a blob?
             obj = self.project.loader.find_object_containing(expr.addr.value)
@@ -39,6 +41,6 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 except KeyError:
                     return None
 
-                return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
+                return Const(self.manager.next_atom(), val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
 
         return None

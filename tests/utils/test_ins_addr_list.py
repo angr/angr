@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from unittest import main, TestCase
+
+from unittest import TestCase, main
 
 from angr.utils.ins_addr_list import InsAddrList
 

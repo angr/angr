@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import claripy
 
-from .undefined import Undefined, UNDEFINED
+from .undefined import UNDEFINED, Undefined
 
 
 class Environment:

@@ -1,13 +1,14 @@
 # pylint:disable=unnecessary-pass
 from __future__ import annotations
+
 import logging
 
 from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump, Return
-
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
-from angr.utils.graph import subgraph_between_nodes
+from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, update_labels
+from angr.utils.graph import subgraph_between_nodes
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class ReturnDeduplicator(OptimizationPass):
             graph_updated |= self._fix_if_ret_region(region_head, true_child, false_child, super_true, super_false)
 
         if graph_updated:
-            self.out_graph = update_labels(self._graph)
+            self.out_graph = update_labels(self._graph, self.manager)
 
     def _fix_if_ret_region(self, region_head, true_child, false_child, super_true, super_false):
         """

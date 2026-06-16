@@ -5,6 +5,7 @@ import contextlib
 import logging
 
 from angr import vaults
+
 from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
@@ -68,7 +69,7 @@ class PickledStatesDb(PickledStatesBase):
     """
 
     def __init__(self, db_str="sqlite:///:memory:"):
-        from .spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
+        from .spiller_db import Base, OperationalError, create_engine, sessionmaker, sqlalchemy
 
         if sqlalchemy is None:
             raise ImportError(

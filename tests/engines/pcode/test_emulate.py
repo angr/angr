@@ -9,10 +9,10 @@ import claripy
 from pypcode import OpCode
 
 import angr
+from angr.engines import SimSuccessors
 from angr.engines.pcode.behavior import BehaviorFactory
 from angr.engines.pcode.emulate import PcodeEmulatorMixin
 from angr.sim_state import SimState
-from angr.engines import SimSuccessors
 
 log = logging.getLogger(__name__)
 

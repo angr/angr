@@ -1,21 +1,28 @@
 from __future__ import annotations
+
 import logging
 import os
-import types
-from io import BytesIO, IOBase
 import pickle
 import string
+import types
 from collections import defaultdict
+from io import BytesIO, IOBase
 from pathlib import Path
 from typing import Any, cast
 
 import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
-from .sim_procedure import SimProcedure
-from .llm_client import LLMClient
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
+from angr.knowledge_base import KnowledgeBase
+
+from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
 from .errors import AngrNoPluginError
+from .factory import AngrObjectFactory
+from .llm_client import LLMClient
+from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
+from .sim_procedure import SimProcedure
+from .simos import SimOS, os_mapping
 
 l = logging.getLogger(name=__name__)
 
@@ -72,9 +79,6 @@ class Project:
     them, and perform analyses on them.
 
     :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
-
-    The following parameters are optional.
-
     :param default_analysis_mode:       The mode of analysis to use by default. Defaults to 'symbolic'.
     :param ignore_functions:            A list of function names that, when imported from shared libraries, should
                                         never be stepped into in analysis (calls will return an unconstrained value).
@@ -133,8 +137,12 @@ class Project:
         concrete_target=None,
         eager_ifunc_resolution=None,
         cache_limits: dict[str, int | None] | None = None,
+        rustc_version=None,
+        rustc_optimization_level=None,
         **kwargs,
     ):
+        self.rustc_version = rustc_version
+        self.rustc_optimization_level = rustc_optimization_level
         # Step 1: Load the binary
 
         if load_options is None:
@@ -257,11 +265,11 @@ class Project:
         if not set(self.cache_limits.keys()).issubset(CACHE_CONFIG_KEYS):
             raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
 
+        self._languages: list[str] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
         )
-        self._language: str | None = None
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and getattr(self.simos, "is_javavm_with_jni_support", False):
@@ -886,6 +894,29 @@ class Project:
         return "<Project %s>" % (self.filename if self.filename is not None else "loaded from stream")
 
     #
+    # Binary languages
+    #
+
+    def languages(self) -> list[str]:
+        if self._languages is not None:
+            return self._languages
+        self._languages = []
+        if self.is_java_project:
+            self._languages.append("java")
+        if self.is_java_jni_project:
+            self._languages.append("c")
+        if not self._languages:
+            detector = self.analyses.LanguageDetector()
+            self._languages = [detector.language]
+        if not self._languages:
+            self._languages.append("unknown")
+        return self._languages
+
+    @property
+    def is_rust_binary(self) -> bool:
+        return "rust" in self.languages()
+
+    #
     # Cache limit settings
     #
 
@@ -960,10 +991,3 @@ class Project:
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG edges
         return min(((sz // 256) // 100 + 1) * 50, 800)
-
-
-from .factory import AngrObjectFactory
-from .simos import SimOS, os_mapping
-from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
-from .knowledge_base import KnowledgeBase
-from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

@@ -1,14 +1,16 @@
 from __future__ import annotations
+
 import struct
 import zlib
 from io import BytesIO
 
 from angr.errors import AngrError
-from .consts import FlirtParseFlag, FlirtFeatureFlag, FlirtFunctionFlag
-from .flirt_utils import read_max_2_bytes, read_multiple_bytes
+
+from .consts import FlirtFeatureFlag, FlirtFunctionFlag, FlirtParseFlag
 from .flirt_function import FlirtFunction
 from .flirt_module import FlirtModule
 from .flirt_node import FlirtNode
+from .flirt_utils import read_max_2_bytes, read_multiple_bytes
 
 
 class FlirtSignatureError(AngrError):
@@ -145,7 +147,7 @@ class FlirtSignatureParsed:
 
         name_lst = []
         name_end = False  # in case the function name is too long...
-        for _ in range(8192):  # max length of a function name
+        for _ in range(4096):  # max length of a function name
             if next_byte < 0x20 or next_byte >= 0x80:
                 name_end = True
                 break
@@ -165,7 +167,7 @@ class FlirtSignatureParsed:
             name_len = file_obj.read(1)[0]
             if name_len == 0:
                 name_len = read_multiple_bytes(file_obj)
-            if name_len > 1024:
+            if name_len > 4096:
                 raise FlirtSignatureError(f"Function name too long: {name_len}")
             name_bytes = file_obj.read(name_len)
             if len(name_bytes) < name_len:
@@ -257,9 +259,13 @@ class FlirtSignatureParsed:
         return pattern
 
     @classmethod
-    def parse(cls, file_obj) -> FlirtSignatureParsed:
+    def parse_header(cls, file_obj) -> FlirtSignatureParsed:
         """
-        Parse a FLIRT signature file.
+        Parse only the FLIRT signature header (no function tree).
+
+        The returned object has ``root`` set to None. Use :meth:`parse` if you also
+        need the function tree, or call :meth:`parse_tree_from` later on a separately
+        opened file to populate ``root`` on demand.
 
         The following struct definitions come from radare2
 
@@ -328,7 +334,7 @@ class FlirtSignatureParsed:
         libname_len = unpacked[10]
         libname = file_obj.read(libname_len).decode("utf-8")
 
-        obj = cls(
+        return cls(
             version=version,
             arch=unpacked[2],
             file_types=unpacked[3],
@@ -344,6 +350,14 @@ class FlirtSignatureParsed:
             root=None,
         )
 
+    @classmethod
+    def parse(cls, file_obj) -> FlirtSignatureParsed:
+        """
+        Parse a FLIRT signature file, including the function tree.
+        """
+
+        obj = cls.parse_header(file_obj)
+
         # is it compressed?
         if obj.features & FlirtFeatureFlag.FEATURE_COMPRESSED:
             data = file_obj.read()
@@ -353,7 +367,5 @@ class FlirtSignatureParsed:
                 raise FlirtSignatureError(f"Failed to decompress FLIRT signature: {ex}") from ex
             file_obj = decompressed
 
-        root = obj.parse_tree(file_obj, root=True)
-
-        obj.root = root
+        obj.root = obj.parse_tree(file_obj, root=True)
         return obj

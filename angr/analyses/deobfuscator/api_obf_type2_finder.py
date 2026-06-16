@@ -1,23 +1,23 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast
 
+import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
-import logging
+from typing import TYPE_CHECKING, cast
 
-from angr.project import Project
-from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.key_definitions import DerefSize
-from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.sim_variable import SimMemoryVariable
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions import (
-        ReachingDefinitionsAnalysis,
         FunctionCallRelationships,
+        ReachingDefinitionsAnalysis,
     )
+    from angr.knowledge_base import KnowledgeBase
+    from angr.project import Project
 
 
 log = logging.getLogger(__name__)

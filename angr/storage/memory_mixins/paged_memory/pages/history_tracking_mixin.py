@@ -1,8 +1,9 @@
 # pylint:disable=arguments-differ,unused-argument,no-member
 from __future__ import annotations
 
-from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.rustylib import SegmentList
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+
 from .refcount_mixin import RefcountMixin
 
 MAX_HISTORY_DEPTH = 50

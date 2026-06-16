@@ -1,18 +1,22 @@
 from __future__ import annotations
+
 import cle
+
 from angr.analyses.cfg.indirect_jump_resolvers import MemoryLoadResolver
 
-from . import MipsElfFastResolver
-from . import X86ElfPicPltResolver
-from . import JumpTableResolver
-from . import X86PeIatResolver
-from . import AMD64ElfGotResolver
-from . import ConstantResolver
-from . import ArmElfFastResolver
-from . import AMD64PeIatResolver
-from . import MipsElfGotResolver
-from . import SyscallResolver
-from . import AArch64MachOGotResolver
+from . import (
+    AArch64MachOGotResolver,
+    AMD64ElfGotResolver,
+    AMD64PeIatResolver,
+    ArmElfFastResolver,
+    ConstantResolver,
+    JumpTableResolver,
+    MipsElfFastResolver,
+    MipsElfGotResolver,
+    SyscallResolver,
+    X86ElfPicPltResolver,
+    X86PeIatResolver,
+)
 
 DEFAULT_RESOLVERS = {
     "X86": {

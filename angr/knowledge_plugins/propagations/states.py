@@ -1,25 +1,25 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from abc import abstractmethod
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict
-import weakref
 
-from typing_extensions import Self
+import weakref
+from abc import abstractmethod
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Self
+
+import archinfo
+import claripy
 
 import angr.ailment as ailment
-import claripy
-import archinfo
-
-from angr.errors import SimMemoryMissingError
-from angr.project import Project
-from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from angr.storage.memory_mixins import LabeledMemory
-from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
+from angr.engines.light.engine import SimEngineLight
+from angr.errors import SimMemoryMissingError
+from angr.storage.memory_mixins import LabeledMemory
+from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 
 if TYPE_CHECKING:
     from archinfo import Arch
+
+    from angr.project import Project
 
 
 class CallExprFinder(ailment.AILBlockRewriter):
@@ -32,7 +32,7 @@ class CallExprFinder(ailment.AILBlockRewriter):
         self.has_call = False
 
     # pylint:disable=unused-argument
-    def _handle_CallExpr(
+    def _handle_Call(
         self,
         expr_idx: int,
         expr: ailment.Expr.Call,

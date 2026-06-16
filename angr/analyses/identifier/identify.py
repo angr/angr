@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from itertools import chain
@@ -7,9 +8,13 @@ import claripy
 from cle.backends.cgc import CGC
 from networkx import NetworkXError
 
-from angr.analyses import Analysis, AnalysesHub
-from angr import options
-from angr.errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
+from angr import sim_options as options
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.errors import AngrError, SimEngineError, SimError, SimMemoryError, SimSegfaultError
+
+from .errors import IdentifierException
+from .functions import Functions
+from .runner import Runner
 
 from .errors import IdentifierException
 from .functions import Functions

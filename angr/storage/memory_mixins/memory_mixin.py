@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Generic, TypeVar
-from typing_extensions import Self
+from typing import Any, Self
 
 import claripy
 
 from angr.errors import SimMemoryError
 from angr.state_plugins.plugin import SimStatePlugin
 
-InData = TypeVar("InData")
-OutData = TypeVar("OutData")
-Addr = TypeVar("Addr")
 
-
-class MemoryMixin(Generic[InData, OutData, Addr], SimStatePlugin):
+class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
     """
     MemoryMixin is the base class for the memory model in angr. It provides a
     set of methods that should be implemented by memory models. This is done

@@ -1,11 +1,10 @@
 from __future__ import annotations
+
 import logging
 
-from . import Analysis
-
-from angr import SIM_LIBRARIES
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrValueError
+from angr.procedures import SIM_LIBRARIES
 
 l = logging.getLogger(name=__name__)
 

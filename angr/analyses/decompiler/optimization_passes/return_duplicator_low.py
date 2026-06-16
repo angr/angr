@@ -1,6 +1,7 @@
 from __future__ import annotations
-import logging
+
 import inspect
+import logging
 from typing import Any
 
 import networkx
@@ -8,8 +9,8 @@ import networkx
 from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump
 
-from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import StructuringOptimizationPass
+from .return_duplicator_base import ReturnDuplicatorBase
 
 _l = logging.getLogger(name=__name__)
 

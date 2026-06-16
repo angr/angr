@@ -1,34 +1,37 @@
 from __future__ import annotations
-from typing import cast, Any, TYPE_CHECKING
+
 import copy
 import logging
+from typing import TYPE_CHECKING, Any, cast
 
 import archinfo
-from angr.ailment import Stmt, Expr, Const
-from angr.ailment.manager import Manager
 
+from angr.ailment import Const, Expr, Stmt
+from angr.ailment.manager import Manager
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.s_reaching_definitions import SRDAView
+from angr.calling_conventions import (
+    SimCC,
+    SimComboArg,
+    SimFunctionArgument,
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimStructArg,
+)
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
     SimType,
     SimTypeBottom,
-    SimTypePointer,
     SimTypeChar,
     SimTypeFloat,
     SimTypeFunction,
+    SimTypePointer,
 )
-from angr.calling_conventions import (
-    SimReferenceArgument,
-    SimRegArg,
-    SimStackArg,
-    SimCC,
-    SimStructArg,
-    SimComboArg,
-    SimFunctionArgument,
-)
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.analyses import Analysis, register_analysis
-from angr.analyses.s_reaching_definitions import SRDAView
 from angr.utils.types import dereference_simtype_by_lib
+
+from .variable_map import variable_map_of
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -43,14 +46,12 @@ class CallSiteMaker(Analysis):
     Add calling convention, declaration, and args to a call site.
     """
 
-    def __init__(
-        self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager: Manager | None = None
-    ):
+    def __init__(self, block, *, ail_manager: Manager, reaching_definitions=None, stack_pointer_tracker=None):
         self.block = block
 
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
-        self._ail_manager: Manager | None = ail_manager
+        self._ail_manager: Manager = ail_manager
 
         self.result_block = None
         self.stack_arg_offsets: set[tuple[int, int]] | None = None  # call ins addr, stack_offset
@@ -183,7 +184,7 @@ class CallSiteMaker(Analysis):
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
                         vvar_use = Expr.VirtualVariable(
-                            None,
+                            self._ail_manager.next_atom(),
                             vvar_def.varid,
                             vvar_def.bits,
                             vvar_def.category,
@@ -202,13 +203,12 @@ class CallSiteMaker(Analysis):
                         if vvar_def_reg_offset is not None and offset > vvar_def_reg_offset:
                             # we need to shift the value
                             vvar_use = Expr.BinaryOp(
-                                self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                                self._ail_manager.next_atom(),
                                 "Shr",
                                 [
                                     vvar_use,
                                     Expr.Const(
-                                        self._ail_manager.next_atom() if self._ail_manager is not None else None,
-                                        None,
+                                        self._ail_manager.next_atom(),
                                         (offset - vvar_def_reg_offset) * 8,
                                         8,
                                     ),
@@ -218,7 +218,7 @@ class CallSiteMaker(Analysis):
                         if vvar_def.size > arg_loc.size:
                             # we need to narrow the value
                             vvar_use = Expr.Convert(
-                                self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                                self._ail_manager.next_atom(),
                                 vvar_use.bits,
                                 arg_loc.size * self.project.arch.byte_width,
                                 False,
@@ -229,7 +229,6 @@ class CallSiteMaker(Analysis):
                     else:
                         reg = Expr.Register(
                             self._atom_idx(),
-                            None,
                             offset,
                             size * 8,
                             reg_name=arg_loc.reg_name,
@@ -240,12 +239,19 @@ class CallSiteMaker(Analysis):
                     stack_arg_locs.append(arg_loc)
                     _, the_arg = self._resolve_stack_argument(call_expr, arg_loc)
                     arg_expr = the_arg if the_arg is not None else None
+                elif isinstance(arg_loc, SimStructArg):
+                    arg_expr = None
+                    l.warning("SimStructArg is not yet supported")
+                elif isinstance(arg_loc, SimComboArg):
+                    arg_expr = None
+                    l.warning("SimComboArg is not yet supported")
                 else:
                     assert False, "Unreachable"
 
                 if arg_expr is not None and dereference_size is not None:
                     arg_expr = Expr.Load(self._atom_idx(), arg_expr, dereference_size, endness=archinfo.Endness.BE)
-                args.append(arg_expr)
+                if arg_expr is not None:
+                    args.append(arg_expr)
 
         # Remove the old call statement
         new_stmts = self.block.statements[:-1]
@@ -369,12 +375,13 @@ class CallSiteMaker(Analysis):
         new_call = Expr.Call(
             call_expr.idx,
             call_expr.target,
-            calling_convention=cc,
-            prototype=prototype,
             args=args,
             arg_vvars=arg_vvars,
             **tags,
         )
+        vm = variable_map_of(self._ail_manager)
+        vm.set_calling_convention(new_call, cc)
+        vm.set_prototype(new_call, prototype)
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_call.bits:
                 new_call.bits = last_stmt.src.bits
@@ -441,7 +448,7 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
+    def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
@@ -538,12 +545,12 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_stmt) -> list[SimType]:
+    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
         if "printf" in func.name or "scanf" in func.name:
-            return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
+            return self._determine_variadic_arguments_for_format_strings(func, cc, call_expr)
         return []
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> list[SimType]:
+    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
         proto = func.prototype
         if proto is None:
             # TODO: Support cases where prototypes are not available
@@ -578,14 +585,14 @@ class CallSiteMaker(Analysis):
                     value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_stmt, arg_loc)
+                value, _ = self._resolve_stack_argument(call_expr, arg_loc)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
                 continue
 
-            if not isinstance(value, Const) and call_stmt.args is not None and len(call_stmt.args) > fmt_arg_idx:
-                value = call_stmt.args[fmt_arg_idx]
+            if not isinstance(value, Const) and call_expr.args is not None and len(call_expr.args) > fmt_arg_idx:
+                value = call_expr.args[fmt_arg_idx]
             if isinstance(value, Const) and isinstance(value.value, int):
                 value = value.value
             if isinstance(value, int):
@@ -632,8 +639,8 @@ class CallSiteMaker(Analysis):
 
         return expanded_arg_locs
 
-    def _atom_idx(self) -> int | None:
-        return self._ail_manager.next_atom() if self._ail_manager is not None else None
+    def _atom_idx(self) -> int:
+        return self._ail_manager.next_atom()
 
 
 register_analysis(CallSiteMaker, "AILCallSiteMaker")

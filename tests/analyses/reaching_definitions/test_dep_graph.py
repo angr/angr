@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # pylint: disable=no-self-use
 from __future__ import annotations
+
 from random import randrange
-from unittest import main, mock, TestCase
-import networkx
+from unittest import TestCase, main, mock
 
 import claripy
+import networkx
 
+from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.definition import Definition
-from angr.analyses.reaching_definitions.dep_graph import DepGraph
 
 _PAST_N = set()
 

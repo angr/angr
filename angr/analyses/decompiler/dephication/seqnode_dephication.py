@@ -1,23 +1,25 @@
 from __future__ import annotations
-from collections import defaultdict
-import logging
-from typing import Any, TYPE_CHECKING
 
-from angr.ailment.block import Block
-from angr.ailment.statement import Assignment
-from angr.ailment.expression import VirtualVariable, Phi, BinaryOp, UnaryOp
+import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 import angr
-from angr.utils.ail import is_phi_assignment
-from angr.knowledge_plugins.functions import Function
-from angr.analyses import register_analysis
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, LoopNode
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Phi, UnaryOp, VirtualVariable
+from angr.ailment.statement import Assignment
+from angr.analyses.analysis import register_analysis
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import LoopNode, SequenceNode
+from angr.knowledge_plugins.functions import Function
+from angr.utils.ail import is_phi_assignment
+
 from .dephication_base import DephicationBase
 from .rewriting_engine import SimEngineDephiRewriting
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
+    from angr.analyses.decompiler.variable_map import VariableMap
 
 
 l = logging.getLogger(__name__)
@@ -63,6 +65,7 @@ class SeqNodeRewriter(SequenceWalker):
         project: angr.Project,
         variable_kb: KnowledgeBase | None = None,
         func_addr: int | None = None,
+        variable_map: VariableMap | None = None,
     ):
         super().__init__(
             handlers={
@@ -76,7 +79,10 @@ class SeqNodeRewriter(SequenceWalker):
         )
 
         self.vvar_to_vvar = vvar_to_vvar
-        self.engine = SimEngineDephiRewriting(project, self.vvar_to_vvar, func_addr=func_addr, variable_kb=variable_kb)
+        self.variable_map = variable_map
+        self.engine = SimEngineDephiRewriting(
+            project, self.vvar_to_vvar, func_addr=func_addr, variable_kb=variable_kb, variable_map=self.variable_map
+        )
 
         self.output = self.walk(seq_node)
         if self.output is None:
@@ -129,8 +135,15 @@ class SeqNodeDephication(DephicationBase):
         vvar_to_vvar_mapping: dict[int, int] | None = None,
         rewrite: bool = False,
         variable_kb: KnowledgeBase | None = None,
+        variable_map: VariableMap | None = None,
     ):
-        super().__init__(func, vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite, variable_kb=variable_kb)
+        super().__init__(
+            func,
+            vvar_to_vvar_mapping=vvar_to_vvar_mapping,
+            rewrite=rewrite,
+            variable_kb=variable_kb,
+            variable_map=variable_map,
+        )
 
         self._seq_node = seq_node
 
@@ -148,6 +161,7 @@ class SeqNodeDephication(DephicationBase):
             self.project,
             func_addr=self._function.addr,
             variable_kb=self.variable_kb,
+            variable_map=self.variable_map,
         )
         return rewriter.output
 

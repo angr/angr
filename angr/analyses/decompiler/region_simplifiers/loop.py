@@ -1,21 +1,21 @@
 # pylint:disable=unused-argument,arguments-differ
 from __future__ import annotations
+
 from collections import defaultdict
 
 import angr.ailment as ailment
-
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
+from angr.analyses.decompiler.structurer_nodes import (
+    CascadingConditionNode,
     CodeNode,
-    MultiNode,
-    LoopNode,
     ConditionNode,
     ContinueNode,
-    CascadingConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
-from angr.analyses.decompiler.utils import is_statement_terminating, has_nonlabel_nonphi_statements
+from angr.analyses.decompiler.utils import has_nonlabel_nonphi_statements, is_statement_terminating
 from angr.utils.ail import is_phi_assignment
 
 

@@ -1,5 +1,6 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
+
 import pyvex
 
 from .errors import SimSlicerError

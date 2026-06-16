@@ -1,10 +1,10 @@
 from __future__ import annotations
-from sortedcontainers import SortedDict
 
 import claripy
+from sortedcontainers import SortedDict
 
 from angr.errors import SimRegionMapError
-from angr.state_plugins import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin
 
 
 class AddressWrapper:

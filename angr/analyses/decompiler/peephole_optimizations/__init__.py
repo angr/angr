@@ -1,68 +1,63 @@
 from __future__ import annotations
+
 from typing import Any
 
 from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst
 from .a_mul_const_div_shr_const import AMulConstDivShrConst
+from .a_mul_const_sub_a import AMulConstSubA
 from .a_shl_const_sub_a import AShlConstSubA
 from .a_sub_a_div import ASubADiv
-from .modulo_simplifier import ModuloSimplifier
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
+from .a_sub_a_sub_n import ASubASubN
 from .arm_cmpf import ARMCmpF
+from .base import PeepholeOptimizationExprBase, PeepholeOptimizationMultiStmtBase, PeepholeOptimizationStmtBase
+from .basepointeroffset_add_n import BasePointerOffsetAddN
+from .basepointeroffset_and_mask import BasePointerOffsetAndMask
 from .bitwise_inserts import SimplifyBitwiseInserts
+from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
+from .bool_expr_xor_1 import BoolExprXor1
 from .bswap import Bswap
 from .cas_intrinsics import CASIntrinsics
+from .cmpord_rewriter import CmpORDRewriter
+from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .concat_simplifier import ConcatSimplifier
 from .constant_derefs import ConstantDereferences
-from .optimized_div_simplifier import OptimizedDivisionSimplifier
-from .extended_byte_and_mask import ExtendedByteAndMask
-from .remove_empty_if_body import RemoveEmptyIfBody
-from .remove_redundant_ite_branch import RemoveRedundantITEBranches
-from .shl_to_mul import ShlToMul
-from .single_bit_xor import SingleBitXor
-from .a_sub_a_sub_n import ASubASubN
 from .conv_a_sub0_shr_and import ConvASub0ShrAnd
+from .conv_shl_shr import ConvShlShr
 from .eager_eval import EagerEvaluation
+from .evaluate_const_conversions import EvaluateConstConversions
+from .extended_byte_and_mask import ExtendedByteAndMask
+from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .modulo_simplifier import ModuloSimplifier
 from .one_sub_bool import OneSubBool
-from .bool_expr_xor_1 import BoolExprXor1
-from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
+from .optimized_div_simplifier import OptimizedDivisionSimplifier
+from .remove_cascading_conversions import RemoveCascadingConversions
+from .remove_const_insert import RemoveConstInsert
+from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
+from .remove_empty_if_body import RemoveEmptyIfBody
+from .remove_noop_conversions import RemoveNoopConversions
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
+from .remove_redundant_conversions import RemoveRedundantConversions
 from .remove_redundant_derefs import RemoveRedundantDerefs
 from .remove_redundant_insert import RemoveRedundantInsert
+from .remove_redundant_ite_branch import RemoveRedundantITEBranches
+from .remove_redundant_ite_comparisons import RemoveRedundantITEComparisons
 from .remove_redundant_nots import RemoveRedundantNots
 from .remove_redundant_reinterprets import RemoveRedundantReinterprets
 from .remove_redundant_shifts import RemoveRedundantShifts
 from .remove_redundant_shifts_around_comparators import RemoveRedundantShiftsAroundComparators
-from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
-from .basepointeroffset_add_n import BasePointerOffsetAddN
-from .basepointeroffset_and_mask import BasePointerOffsetAndMask
-from .remove_const_insert import RemoveConstInsert
-from .remove_redundant_conversions import RemoveRedundantConversions
-from .remove_cascading_conversions import RemoveCascadingConversions
-from .conv_shl_shr import ConvShlShr
-from .rewrite_mips_gp_loads import RewriteMipsGpLoads
-from .remove_noop_conversions import RemoveNoopConversions
 from .rewrite_bit_extractions import RewriteBitExtractions
-from .remove_redundant_ite_comparisons import RemoveRedundantITEComparisons
-from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
-from .sar_to_signed_div import SarToSignedDiv
-from .tidy_stack_addr import TidyStackAddr
-from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
-from .rol_ror import RolRorRewriter
-from .inlined_memcpy import InlinedMemcpy
-from .inlined_memset import InlinedMemset
-from .inlined_strcpy import InlinedStrcpy
-from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
-from .inlined_wcscpy import InlinedWcscpy
-from .inlined_wcscpy_consolidation import InlinedWcscpyConsolidation
-from .cmpord_rewriter import CmpORDRewriter
-from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
-from .a_mul_const_sub_a import AMulConstSubA
-from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
-from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .rewrite_conv_mul import RewriteConvMul
-from .evaluate_const_conversions import EvaluateConstConversions
-from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
+from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
+from .rewrite_mips_gp_loads import RewriteMipsGpLoads
+from .rol_ror import RolRorRewriter
+from .sar_to_signed_div import SarToSignedDiv
+from .shl_to_mul import ShlToMul
+from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
+from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
+from .single_bit_xor import SingleBitXor
+from .tidy_stack_addr import TidyStackAddr
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
     ADivConstAddAMulNDivConst,
@@ -112,12 +107,6 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     TidyStackAddr,
     InvertNegatedLogicalConjunctionsAndDisjunctions,
     RolRorRewriter,
-    InlinedMemcpy,
-    InlinedMemset,
-    InlinedStrcpy,
-    InlinedStrcpyConsolidation,
-    InlinedWcscpy,
-    InlinedWcscpyConsolidation,
     CmpORDRewriter,
     CoalesceAdjacentShiftRights,
     ShlToMul,

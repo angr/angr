@@ -1,15 +1,16 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
+import claripy
 import networkx
 
-import claripy
-
-from angr.ailment.statement import Jump
 from angr.ailment.expression import Const
-from angr.utils.graph import to_acyclic_graph
+from angr.ailment.statement import Jump
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.utils.graph import to_acyclic_graph
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -37,7 +38,7 @@ class DeadblockRemover(OptimizationPass):
         if len(self._graph) >= self._node_cutoff:
             return False, None
 
-        cond_proc = ConditionProcessor(self.project.arch)
+        cond_proc = ConditionProcessor(self.project.arch, self.manager)
         if networkx.is_directed_acyclic_graph(self._graph):
             acyclic_graph = self._graph
         else:
@@ -69,8 +70,8 @@ class DeadblockRemover(OptimizationPass):
                     continue
                 other_successor = next(s for s in self._graph.successors(p) if s != b)
                 p.statements[-1] = Jump(
-                    None,
-                    Const(None, None, other_successor.addr, self.project.arch.bits),
+                    self.manager.next_atom(),
+                    Const(self.manager.next_atom(), other_successor.addr, self.project.arch.bits),
                     other_successor.idx,
                     **p.statements[-1].tags,
                 )

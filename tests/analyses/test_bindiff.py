@@ -8,8 +8,6 @@ import os
 import unittest
 
 import angr
-from angr.analyses.bindiff import NormalizedFunction, NormalizedBlock
-
 from tests.common import bin_location
 
 l = logging.getLogger("angr.tests.test_bindiff")

@@ -1,25 +1,31 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
+
 from collections import OrderedDict
+from typing import TYPE_CHECKING
 
 import claripy
-import angr.ailment as ailment
+
+from angr import ailment
 from angr.ailment.expression import negate
 
+from .condition_processor import ConditionProcessor
 from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import (
+from .structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    LoopNode,
     MultiNode,
     SequenceNode,
-    CodeNode,
-    ConditionNode,
     SwitchCaseNode,
-    ConditionalBreakNode,
-    BreakNode,
-    LoopNode,
-    CascadingConditionNode,
-    ContinueNode,
 )
-from .condition_processor import ConditionProcessor
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 
 class EmptyNodeRemover:
@@ -33,8 +39,9 @@ class EmptyNodeRemover:
                                     expressions.
     """
 
-    def __init__(self, node, claripy_ast_conditions: bool = True):
+    def __init__(self, node, ail_manager: Manager, claripy_ast_conditions: bool = True):
         self.root = node
+        self.ail_manager = ail_manager
         self._claripy_ast_conditions = claripy_ast_conditions
 
         self.removed_sequences = []
@@ -137,7 +144,7 @@ class EmptyNodeRemover:
                 (
                     ConditionProcessor.simplify_condition(claripy.Not(node.condition))
                     if self._claripy_ast_conditions
-                    else negate(node.condition)
+                    else negate(node.condition, self.ail_manager)
                 ),
                 false_node,
                 false_node=None,

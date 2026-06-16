@@ -1,7 +1,7 @@
 # pylint: disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 
-from angr.ailment.expression import BinaryOp, Convert, Const, Insert
+from angr.ailment.expression import BinaryOp, Const, Convert, Insert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -19,8 +19,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             return self._optimize_Convert(expr)
         return None
 
-    @staticmethod
-    def _optimize_BinaryOp(expr: BinaryOp):
+    def _optimize_BinaryOp(self, expr: BinaryOp):
         # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):  # noqa: SIM102
             # check: is the lhs convert an up-cast and is rhs a const?
@@ -31,7 +30,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or expr.operands[1].value >= (
                         1 << to_bits
                     ) - (1 << (from_bits - 1)):
-                        con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
+                        con = Const(
+                            self.manager.next_atom(), expr.operands[1].value, from_bits, **expr.operands[1].tags
+                        )
                         new_expr = BinaryOp(
                             expr.idx, "And", (expr.operands[0].operand, con), expr.signed, bits=from_bits, **expr.tags
                         )
@@ -59,7 +60,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or (
                         expr.operands[0].is_signed and expr.operands[1].value >= (1 << to_bits) - (1 << (from_bits - 1))
                     ):
-                        con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
+                        con = Const(
+                            self.manager.next_atom(), expr.operands[1].value, from_bits, **expr.operands[1].tags
+                        )
                         return BinaryOp(
                             expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=1, **expr.tags
                         )
@@ -67,7 +70,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                 elif expr.op in {"Add", "Sub"}:
                     # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
                     op0, op1 = expr.operands
-                    con = Const(op1.idx, op1.variable, op1.value, op0.from_bits)
+                    con = Const(op1.idx, op1.value, op0.from_bits)
                     return Convert(
                         op0.idx,
                         op0.from_bits,
@@ -114,7 +117,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             r0 = BinaryOp(
                                 left.idx,
                                 left.op,
-                                [shift_lhs.operand, Const(a.idx, a.variable, a.value, from_bits)],
+                                [shift_lhs.operand, Const(a.idx, a.value, from_bits)],
                                 left.signed,
                                 bits=from_bits,
                                 **left.tags,
@@ -122,7 +125,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             r1 = BinaryOp(
                                 op0.idx,
                                 op0.op,
-                                [r0, Const(b.idx, b.variable, b.value, from_bits)],
+                                [r0, Const(b.idx, b.value, from_bits)],
                                 op0.signed,
                                 bits=from_bits,
                                 **op0.tags,
@@ -130,7 +133,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             return BinaryOp(
                                 expr.idx,
                                 expr.op,
-                                [r1, Const(c.idx, c.variable, c.value, from_bits)],
+                                [r1, Const(c.idx, c.value, from_bits)],
                                 expr.signed,
                                 bits=1,
                                 **expr.tags,
@@ -237,7 +240,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     # ignore the high bits of each operand
                     op0, op1 = operand_expr.operands
                     new_op0 = Convert(
-                        expr.idx,
+                        self.manager.next_atom(),
                         expr.from_bits,
                         expr.to_bits,
                         False,
@@ -245,7 +248,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         **expr.tags,
                     )
                     new_op1 = Convert(
-                        expr.idx,
+                        self.manager.next_atom(),
                         expr.from_bits,
                         expr.to_bits,
                         False,
@@ -254,7 +257,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     )
 
                     return BinaryOp(
-                        expr.idx,
+                        self.manager.next_atom(),
                         operand_expr.op,
                         [new_op0, new_op1],
                         operand_expr.signed,
@@ -266,7 +269,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     assert isinstance(op0, Convert)
                     if op0.to_bits > op0.from_bits and op0.to_bits == expr.from_bits:
                         new_operand = BinaryOp(
-                            expr.idx,
+                            self.manager.next_atom(),
                             operand_expr.op,
                             [op0.operand, op1],
                             operand_expr.signed,
@@ -274,7 +277,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             **operand_expr.tags,
                         )
                         return Convert(
-                            expr.idx,
+                            self.manager.next_atom(),
                             new_operand.bits,
                             expr.to_bits,
                             expr.is_signed,

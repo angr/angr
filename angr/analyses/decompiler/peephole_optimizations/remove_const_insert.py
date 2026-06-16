@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Convert, Insert, Const
+
+from angr.ailment.expression import BinaryOp, Const, Convert, Insert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -24,15 +25,18 @@ class RemoveConstInsert(PeepholeOptimizationExprBase):
         # TODO fix big-endian?
         assert self.project is not None
         base = expr.base.value & ~((1 << expr.value.bits) - 1) << (expr.offset.value * self.project.arch.byte_width)
-        value = Convert(None, expr.value.bits, expr.bits, False, expr.value)
+        value = Convert(self.manager.next_atom(), expr.value.bits, expr.bits, False, expr.value)
         shifted = (
             BinaryOp(
-                None,
+                self.manager.next_atom(),
                 "Shl",
-                [value, Const(None, None, expr.offset.value * self.project.arch.byte_width, expr.bits)],
+                [
+                    value,
+                    Const(self.manager.next_atom(), expr.offset.value * self.project.arch.byte_width, expr.bits),
+                ],
                 signed=False,
             )
             if expr.offset.value != 0
             else value
         )
-        return BinaryOp(expr.idx, "Or", [shifted, Const(None, None, base, shifted.bits)], signed=False)
+        return BinaryOp(expr.idx, "Or", [shifted, Const(self.manager.next_atom(), base, shifted.bits)], signed=False)

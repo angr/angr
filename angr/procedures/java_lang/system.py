@@ -1,5 +1,8 @@
 from __future__ import annotations
+
 import logging
+from time import time
+
 import claripy
 
 from angr.procedures.java import JavaSimProcedure
@@ -12,7 +15,5 @@ class SystemCurrentTimeMillis(JavaSimProcedure):
 
     def run(self):
         log.debug("Called SimProcedure java.lang.System.currentTimeMillis with args")
-
-        from time import time
 
         return claripy.BVV(int(time() * 1000), 64)

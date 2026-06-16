@@ -10,20 +10,29 @@ from unittest import TestCase, main
 
 import archinfo
 
-from angr.calling_conventions import (
-    SimReferenceArgument,
-    SimStackArg,
-    SimTypeInt,
-    SimTypeFixedSizeArray,
-    SimCCSystemVAMD64,
-    SimTypeFunction,
-    SimRegArg,
-    SimCCMicrosoftAMD64,
-    SimCCRISCV64,
-)
-from angr.sim_type import parse_file, SimStructValue, SimTypeRef, SimCppClass
-from angr.calling_conventions import default_cc
 from angr import Project, load_shellcode, types
+from angr.calling_conventions import (
+    SimCCMicrosoftAMD64,
+    SimCCMicrosoftFastcall,
+    SimCCRISCV64,
+    SimCCSystemVAMD64,
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimTypeFixedSizeArray,
+    SimTypeFunction,
+    SimTypeInt,
+    default_cc,
+)
+from angr.sim_type import (
+    SimCppClass,
+    SimStructValue,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeLongLong,
+    SimTypeRef,
+    parse_file,
+)
 
 from .common import bin_location
 
@@ -63,6 +72,43 @@ class TestCallingConvention(TestCase):
 
         # It should not raise any exception!
         cc.arg_locs(proto)
+
+    def test_microsoft_fastcall_large_arg(self):
+        # Regression test: a >DWORD argument (e.g. __int64/double) landing on a register position
+        # must NOT raise "doesn't know how to store large types". Per the __fastcall ABI such
+        # arguments are passed on the stack and do not consume an ECX/EDX slot.
+        arch = archinfo.arch_from_id("x86")
+        cc = SimCCMicrosoftFastcall(arch)
+
+        def footprints(proto):
+            return [list(loc.get_footprint()) for loc in cc.arg_locs(proto.with_arch(arch))]
+
+        # __int64 first arg -> stack (two words); the following int still gets ECX.
+        assert footprints(SimTypeFunction([SimTypeLongLong(), SimTypeInt()], SimTypeInt())) == [
+            [SimStackArg(0x4, 4), SimStackArg(0x8, 4)],
+            [SimRegArg("ecx", 4)],
+        ]
+        # Two small ints fill ECX/EDX, the __int64 spills to the stack.
+        assert footprints(SimTypeFunction([SimTypeInt(), SimTypeInt(), SimTypeLongLong()], SimTypeInt())) == [
+            [SimRegArg("ecx", 4)],
+            [SimRegArg("edx", 4)],
+            [SimStackArg(0x4, 4), SimStackArg(0x8, 4)],
+        ]
+        # An __int64 between two ints: it skips the registers; the trailing int still gets EDX.
+        assert footprints(SimTypeFunction([SimTypeInt(), SimTypeLongLong(), SimTypeInt()], SimTypeInt())) == [
+            [SimRegArg("ecx", 4)],
+            [SimStackArg(0x4, 4), SimStackArg(0x8, 4)],
+            [SimRegArg("edx", 4)],
+        ]
+        # Doubles are passed on the stack too and do not consume a register.
+        assert footprints(SimTypeFunction([SimTypeDouble(), SimTypeInt()], SimTypeInt())) == [
+            [SimStackArg(0x4, 4), SimStackArg(0x8, 4)],
+            [SimRegArg("ecx", 4)],
+        ]
+        # A sub-DWORD integer still uses a register, refined to its size.
+        char_locs = cc.arg_locs(SimTypeFunction([SimTypeChar(), SimTypeInt()], SimTypeInt()).with_arch(arch))
+        assert isinstance(char_locs[0], SimRegArg) and char_locs[0].reg_name == "ecx" and char_locs[0].size == 1
+        assert char_locs[1] == SimRegArg("edx", 4)
 
     def test_struct_ffi(self):
         with open(os.path.join(test_location, "../tests_src/test_structs.c"), encoding="utf-8") as fp:

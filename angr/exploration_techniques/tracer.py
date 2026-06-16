@@ -7,8 +7,11 @@ import claripy
 import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
-from angr import BP_BEFORE, BP_AFTER, sim_options
+import angr
+from angr import sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .base import ExplorationTechnique
 
 if TYPE_CHECKING:
@@ -61,8 +64,6 @@ class RepHook:
         return p.execute(state, None, arguments=e_args)
 
     def run(self, state):
-        from angr import SIM_PROCEDURES  # pylint: disable=import-outside-toplevel
-
         dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
 
         if self.mnemonic.startswith("stos"):
@@ -84,7 +85,7 @@ class RepHook:
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
-            memset = SIM_PROCEDURES["libc"]["memset"]
+            memset = angr.SIM_PROCEDURES["libc"]["memset"]
             memset().execute(state, arguments=[dst, val, size])
 
             if state.arch.name == "X86":
@@ -111,7 +112,7 @@ class RepHook:
 
             size = (state.regs.ecx if state.arch.name == "X86" else state.regs.rcx) * multiplier
 
-            memcpy = SIM_PROCEDURES["libc"]["memcpy"]
+            memcpy = angr.SIM_PROCEDURES["libc"]["memcpy"]
             memcpy().execute(state, arguments=[dst, src, size])
 
             if state.arch.name == "X86":
@@ -1054,8 +1055,8 @@ class Tracer(ExplorationTechnique):
         """
         # only grab ones that match the constrained addrs
         if cls._should_add_constraints(state):
-            addr = state.inspect.address_concretization_expr
-            result = state.inspect.address_concretization_result
+            addr = state.inspect.attrs.address_concretization_expr
+            result = state.inspect.attrs.address_concretization_result
             if result is None:
                 l.warning("addr concretization result is None")
                 return
@@ -1068,7 +1069,7 @@ class Tracer(ExplorationTechnique):
         """
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
-        state.inspect.address_concretization_add_constraints = cls._should_add_constraints(state)
+        state.inspect.attrs.address_concretization_add_constraints = cls._should_add_constraints(state)
 
     @classmethod
     def _should_add_constraints(cls, state):
@@ -1076,7 +1077,7 @@ class Tracer(ExplorationTechnique):
         Check to see if the current address concretization variable is any of the registered
         constrained_addrs we want to allow concretization for
         """
-        expr = state.inspect.address_concretization_expr
+        expr = state.inspect.attrs.address_concretization_expr
         hit_indices = cls._to_indices(state, expr)
 
         for action in state.preconstrainer._constrained_addrs:

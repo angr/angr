@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import typing
 
 from angr.errors import SimMemoryError

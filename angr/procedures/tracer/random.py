@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.procedures.cgc.random import random as orig_random
 
 

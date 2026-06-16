@@ -1,16 +1,17 @@
 from __future__ import annotations
+
 import logging
 import re
-from typing import TYPE_CHECKING
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from angr.analyses import AnalysesHub
-from angr.knowledge_base import KnowledgeBase
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGEmulated
+from angr.analyses.ddg import DDG
 from angr.codenode import HookNode
-from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
-from angr import SIM_PROCEDURES
-
-from . import Analysis, CFGEmulated, DDG
+from angr.knowledge_base import KnowledgeBase
+from angr.procedures import SIM_PROCEDURES
+from angr.sim_variable import SimConstantVariable, SimMemoryVariable, SimRegisterVariable, SimStackVariable
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function

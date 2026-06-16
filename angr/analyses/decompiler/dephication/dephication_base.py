@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from typing import Any
+
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
-from angr.analyses import Analysis
+from angr.analyses.analysis import Analysis
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
+    from angr.analyses.decompiler.variable_map import VariableMap
 
 l = logging.getLogger(name=__name__)
 
@@ -24,6 +25,7 @@ class DephicationBase(Analysis):
         vvar_to_vvar_mapping: dict[int, int] | None = None,
         rewrite: bool = False,
         variable_kb: KnowledgeBase | None = None,
+        variable_map: VariableMap | None = None,
     ):
         if isinstance(func, str):
             self._function = self.kb.functions[func]
@@ -32,6 +34,7 @@ class DephicationBase(Analysis):
 
         self.variable_kb = variable_kb
         self.vvar_to_vvar_mapping = vvar_to_vvar_mapping if vvar_to_vvar_mapping is not None else None
+        self.variable_map = variable_map
         self.rewrite = rewrite
         self.output = None
 
