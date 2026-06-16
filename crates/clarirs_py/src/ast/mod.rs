@@ -34,6 +34,11 @@ pub fn and<'py>(
     py: Python<'py>,
     args: Vec<Bound<'py, PyAny>>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
+    // No operands: the identity element, true.
+    if args.is_empty() {
+        return Bool::new(py, &GLOBAL_CONTEXT.true_()?)
+            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+    }
     // If all args are actually Bools (or Python bool literals) — not BVs
     // being coerced through the Bool path — use the Bool And. Otherwise fall
     // back to BV bitwise And.
@@ -73,6 +78,11 @@ pub fn or<'py>(
     py: Python<'py>,
     args: Vec<Bound<'py, PyAny>>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
+    // No operands: the identity element, false.
+    if args.is_empty() {
+        return Bool::new(py, &GLOBAL_CONTEXT.false_()?)
+            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+    }
     // Same policy as And: prefer the Bool path whenever every arg is a Bool.
     let all_bools = args
         .iter()
