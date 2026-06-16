@@ -238,6 +238,28 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
     @for_all_structuring_algos
+    def test_decompiling_dir_gcc_O0_quote_name(self, decompiler_options=None):
+        # quote_name has a multibyte-character handling branch. A structuring regression (e.g. a phantom
+        # finalize edge collapsing the region) silently produces a much shorter, incomplete result that drops
+        # that branch and the output write. Guard against the body shrinking by requiring the calls that vanish
+        # when it does -- the full result is ~5.5k chars; the regressed one is ~2.2k.
+        bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+
+        f = cfg.functions["quote_name"]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        for needed in ("mbrtowc(", "mbsinit(", "wcwidth(", "fwrite_unlocked("):
+            assert needed in code, (
+                f"quote_name decompilation is missing {needed!r}; structuring likely produced an incomplete "
+                f"(too short) result."
+            )
+
+    @for_all_structuring_algos
     def test_decompiling_dir_gcc_O0_main(self, decompiler_options=None):
         # tests loop structuring
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
@@ -2355,6 +2377,27 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
         assert "goto " not in d.codegen.text
+
+    @structuring_algo("sailr")
+    def test_decompiling_ls_ubuntu2204_sub_414cb0(self, decompiler_options=None):
+        # sub_414cb0 is a 363-block quoting routine (part of gnulib's quotearg machinery) with a large,
+        # hard-to-structure loop. When a switch-case construct inside that loop drops real case-exit edges during
+        # structuring ("Multiple in-region successors detected ... dropping others"), the region tree can collapse
+        # to a tiny prologue ending in abort() while still reporting structuring success - silently discarding
+        # ~95% of the function body. Guard against that: the multibyte/quoting logic must survive into the output.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_ubuntu2204")
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        f = proj.kb.functions[0x414CB0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        code = d.codegen.text
+        for needed in ("iswprint(", "mbsinit(", "memcmp(", "dcgettext(", "strlen("):
+            assert needed in code, (
+                f"sub_414cb0 decompilation is missing {needed!r}; structuring likely discarded most of the "
+                f"function body."
+            )
 
     @for_all_structuring_algos
     def test_decompiling_functions_with_unknown_simprocedures(self, decompiler_options=None):

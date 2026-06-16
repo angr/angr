@@ -96,6 +96,7 @@ message JumptableInfo {
     int32           size = 2; // Size of the jump table
     int32           entry_size = 3; // Size of each entry
     repeated uint64 entries = 4; // Target addresses
+    bool            entries_guessed = 5; // Are entries of this jump table guessed
 }
 
 message IndirectJump {

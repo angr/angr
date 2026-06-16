@@ -209,6 +209,7 @@ class Clinic(Analysis):
         variable_kb: KnowledgeBase | None = None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
+        rewrite_ites_to_diamond_max_cases: int = 15,
         cache: DecompilationCache | None = None,
         mode: ClinicMode = ClinicMode.DECOMPILE,
         sp_shift: int = 0,
@@ -220,7 +221,7 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
-        complete_successors: bool = False,
+        expose_loop_head_backedges: bool = False,
         typehoon_cls=Typehoon,
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
@@ -281,6 +282,7 @@ class Clinic(Analysis):
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
+        self._rewrite_ites_to_diamond_max_cases = rewrite_ites_to_diamond_max_cases
         self.reaching_definitions: SRDAModel | None = None
         self._cache = cache
         self._mode = mode
@@ -322,7 +324,7 @@ class Clinic(Analysis):
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
-        self._complete_successors = complete_successors
+        self._expose_loop_head_backedges = expose_loop_head_backedges
 
         self._register_save_areas_removed: bool = False
         self.edges_to_remove: list[tuple[ailment.Address, ailment.Address]] = []
@@ -1903,7 +1905,7 @@ class Clinic(Analysis):
                 scratch=self.optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-                complete_successors=self._complete_successors,
+                expose_loop_head_backedges=self._expose_loop_head_backedges,
                 fold_expressions=self._fold_expressions,
                 stack_pointer_tracker=stack_pointer_tracker,
                 notes=self.notes,
@@ -2834,7 +2836,8 @@ class Clinic(Analysis):
 
     def _rewrite_ite_expressions(self, ail_graph):
         cfg = self._cfg
-        for block in list(ail_graph):
+        block_and_ite_ins_addrs = []
+        for block in ail_graph:
             if cfg is not None and block.addr in cfg.jump_tables:
                 continue
 
@@ -2852,6 +2855,19 @@ class Clinic(Analysis):
                 ):
                     ite_ins_addrs.append(stmt.tags["ins_addr"])
 
+            if ite_ins_addrs:
+                block_and_ite_ins_addrs.append((block, ite_ins_addrs))
+
+        if len(block_and_ite_ins_addrs) > self._rewrite_ites_to_diamond_max_cases:
+            l.debug(
+                "Too many ITE expressions (%d) to convert to diamond shapes in this function. The maximum "
+                "allowed is %d. Skipping.",
+                len(block_and_ite_ins_addrs),
+                self._rewrite_ites_to_diamond_max_cases,
+            )
+            return
+
+        for block, ite_ins_addrs in block_and_ite_ins_addrs:
             if ite_ins_addrs:
                 block_addr = block.addr
                 for ite_ins_addr in ite_ins_addrs:

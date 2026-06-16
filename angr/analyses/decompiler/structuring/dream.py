@@ -11,8 +11,8 @@ import networkx
 import angr.ailment as ailment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+from angr.analyses.decompiler.region_overlay import OverlayManager
 from angr.analyses.decompiler.region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
@@ -63,6 +63,9 @@ class DreamStructurer(StructurerBase):
     """
 
     NAME = "dream"
+    # DreamStructurer reads the region's graph and produces its result without destructively reducing the shared
+    # graph, so RecursiveStructurer collapses the region onto the result via RegionOverlay.collapse_to().
+    SUPPORTS_OVERLAYS = True
 
     def __init__(
         self,
@@ -314,9 +317,11 @@ class DreamStructurer(StructurerBase):
         for src, dst, edge_data in outedges:
             loop_region_graph_with_successors.add_edge(src, dst, **edge_data)
             loop_successors.add(dst)
-        region = GraphRegion(
-            loop_head, loop_region_graph, successors=None, graph_with_successors=None, cyclic=False, full_graph=None
-        )
+        # wrap the loop-body subgraph as a standalone (acyclic) overlay region and structure it. The root overlay
+        # has no successors, so its graph_with_successors view equals its member view -- matching the old
+        # GraphRegion(successors=None, graph_with_successors=None).
+        region = OverlayManager(loop_region_graph).root
+        region.head = loop_head
         structurer = self.project.analyses[DreamStructurer].prep()(
             region, condition_processor=self.cond_proc, func=self.function, jump_tables=self.jump_tables
         )

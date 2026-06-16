@@ -141,7 +141,7 @@ class OptimizationPass(BaseOptimizationPass):
         scratch: dict[str, Any] | None = None,
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
-        complete_successors: bool = False,
+        expose_loop_head_backedges: bool = False,
         fold_expressions: bool = True,
         avoid_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
@@ -167,7 +167,7 @@ class OptimizationPass(BaseOptimizationPass):
         )
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
-        self._complete_successors = complete_successors
+        self._expose_loop_head_backedges = expose_loop_head_backedges
         self._avoid_vvar_ids = avoid_vvar_ids or set()
         self._fold_expressions = fold_expressions
         self._peephole_optimizations = peephole_optimizations
@@ -424,7 +424,7 @@ class OptimizationPass(BaseOptimizationPass):
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
-            complete_successors=self._complete_successors,
+            expose_loop_head_backedges=self._expose_loop_head_backedges,
             entry_node_addr=self.entry_node_addr,
         )
 
@@ -619,7 +619,7 @@ class StructuringOptimizationPass(OptimizationPass):
             update_graph=False,
             cond_proc=self._ri.cond_proc,
             force_loop_single_exit=False,
-            complete_successors=True,
+            expose_loop_head_backedges=True,
             entry_node_addr=self.entry_node_addr,
         )
         if self._ri is None:

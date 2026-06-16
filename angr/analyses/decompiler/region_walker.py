@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from .graph_region import GraphRegion
+from .region_overlay import RegionOverlay
 
 
 class RegionWalker:
     """
-    A simple traverser class that walks GraphRegion instances.
+    A simple traverser class that walks RegionOverlay instances.
     """
 
     def __init__(self):
         self._parent_region = None
         self._current_region = None
 
-    def walk(self, region: GraphRegion):
+    def walk(self, region: RegionOverlay):
         for node in region.graph.nodes():
-            if isinstance(node, GraphRegion):
+            if isinstance(node, RegionOverlay):
                 self._parent_region = node
                 self.walk(node)
                 self._parent_region = None

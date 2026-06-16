@@ -30,7 +30,7 @@ class NodeFoundNotification(Exception):
 
 class BlockLocator(RegionWalker):
     """
-    Recursively locate block in a GraphRegion instance.
+    Recursively locate block in a RegionOverlay instance.
 
     It might be reasonable to move this class into its own file.
     """
