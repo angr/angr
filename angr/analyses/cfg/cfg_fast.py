@@ -2304,6 +2304,89 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._model.edges_to_repair = remaining_edges_to_repair
 
+    def _repair_guessed_jumptables(self):
+        """
+        The jump targets of some jumptables are guessed purely based on heuristics. We need to make sure that the
+        guessed jump tables do not overlap with other jump tables.
+        """
+
+        # first, collect the addresses of all jump tables
+        jumptable_addr_and_ijs: list[tuple[int, int, IndirectJump]] = []
+        for block_addr, ij in self.indirect_jumps.items():
+            if ij.jumptable_addr is not None:
+                jumptable_addr_and_ijs.append((block_addr, ij.jumptable_addr, ij))
+
+        # sort them by jump table address
+        jumptable_addr_and_ijs.sort(key=lambda x: x[1])
+
+        # CFG edges to remove, keyed by source block address
+        edges_to_remove: defaultdict[int, set[int]] = defaultdict(set)
+
+        # check if any guessed jumptables (1) overlap with others, or (2) overlap with data referenced elsewhere.
+        # we reduce the size of the prior jumptable if necessary
+        xrefs = self.kb.xrefs
+        for i in range(len(jumptable_addr_and_ijs) - 1):
+            block_addr1, addr1, ij1 = jumptable_addr_and_ijs[i]
+            if not (
+                ij1.jumptable
+                and len(ij1.jumptables) == 1
+                and ij1.jumptables[0].entries_guessed
+                and ij1.jumptables[0].size is not None
+            ):
+                # this is not a jump table or is not guessed. skip.
+                continue
+            new_size_0: int | None = None
+            new_size_1: int | None = None
+
+            _, addr2, _ = jumptable_addr_and_ijs[i + 1]
+
+            # jumptable overlap with data check
+            stop_addr = xrefs.get_next_xref_addr_by_dst(addr1 + 1)
+            if stop_addr is not None and addr1 < stop_addr < addr1 + ij1.jumptables[0].size:
+                new_size_0 = stop_addr - addr1
+
+            # jumptables overlap check
+            # make sure the two jump tables do have the same start address. otherwise we cannot reduce the size of the
+            # first jump table.
+            if addr1 != addr2 and addr1 + ij1.jumptables[0].size > addr2:
+                new_size_1 = max(0, addr2 - addr1)
+
+            if new_size_0 is not None or new_size_1 is not None:
+                new_size = min(
+                    new_size_0 if new_size_0 is not None else ij1.jumptables[0].size,
+                    new_size_1 if new_size_1 is not None else ij1.jumptables[0].size,
+                )
+                # update the jumptable entry
+                ij1.jumptables[0].size = new_size
+                # record edges to remove
+                new_table_entry_count = new_size // ij1.jumptables[0].entry_size
+                dropped_entries = ij1.jumptables[0].entries[new_table_entry_count:]
+                edges_to_remove[block_addr1] |= set(dropped_entries)
+                new_entries = ij1.jumptables[0].entries[:new_table_entry_count]
+
+                # update the jumptable targets
+                # TODO: resolved_targets is a set, which means we cannot reliable drop the last N entries, so we
+                # TODO: cannot support updating the targets of jump tables with custom arithmetic transformations on
+                # TODO: jumptargets.
+                if ij1.resolved_targets == set(ij1.jumptables[0].entries):
+                    ij1.resolved_targets = set(new_entries)
+
+                ij1.jumptables[0].entries = new_entries
+
+        # remove CFG edges
+        # we don't update function graphs because they will be re-generated in self.make_functions() later
+        l.debug("Removing %d edges due to jumptable repair...", sum(len(v) for v in edges_to_remove.values()))
+        for src_addr, dst_addrs in edges_to_remove.items():
+            src_node = self.model.get_any_node(src_addr)
+            if src_node is None:
+                continue
+            for dst_addr in dst_addrs:
+                dst_node = self.model.get_any_node(dst_addr)
+                if dst_node is None:
+                    continue
+                if self.model.graph.has_edge(src_node, dst_node):
+                    self.model.graph.remove_edge(src_node, dst_node)
+
     def _post_analysis(self):
         self.stage = "Analysis (Stage 2)"
 
@@ -2312,6 +2395,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self.drop_bad_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
 
+        self._repair_guessed_jumptables()
         self._repair_edges()
 
         self._make_completed_functions()

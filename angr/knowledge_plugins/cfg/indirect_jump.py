@@ -20,13 +20,16 @@ class JumptableInfo:
     Describes a jump table or a vtable.
     """
 
-    __slots__ = ("addr", "entries", "entry_size", "size")
+    __slots__ = ("addr", "entries", "entries_guessed", "entry_size", "size")
 
-    def __init__(self, addr: int | None, size: int, entry_size: int, entries: list[int]):
+    def __init__(
+        self, addr: int | None, size: int, entry_size: int, entries: list[int], *, entries_guessed: bool = False
+    ):
         self.addr = addr
         self.size = size
         self.entry_size = entry_size
         self.entries = entries
+        self.entries_guessed = entries_guessed
 
     def serialize_to_cmessage(self):
         cmsg = cfg_pb2.JumptableInfo()
@@ -35,12 +38,13 @@ class JumptableInfo:
         cmsg.size = self.size
         cmsg.entry_size = self.entry_size
         cmsg.entries.extend(self.entries)
+        cmsg.entries_guessed = self.entries_guessed
         return cmsg
 
     @classmethod
     def parse_from_cmessage(cls, cmsg) -> JumptableInfo:
         addr = cmsg.addr if cmsg.HasField("addr") else None
-        return cls(addr, cmsg.size, cmsg.entry_size, list(cmsg.entries))
+        return cls(addr, cmsg.size, cmsg.entry_size, list(cmsg.entries), entries_guessed=cmsg.entries_guessed)
 
 
 class IndirectJump(Serializable):
@@ -73,6 +77,7 @@ class IndirectJump(Serializable):
         jumptable_size: int | None = None,
         jumptable_entry_size: int | None = None,
         jumptable_entries: list[int] | None = None,
+        jumptable_entries_guessed: bool = False,
         type_: int | None = IndirectJumpType.Unknown,
     ):
         self.addr = addr
@@ -89,7 +94,13 @@ class IndirectJump(Serializable):
             and jumptable_entry_size is not None
             and jumptable_entries is not None
         ):
-            self.add_jumptable(jumptable_addr, jumptable_size, jumptable_entry_size, jumptable_entries)
+            self.add_jumptable(
+                jumptable_addr,
+                jumptable_size,
+                jumptable_entry_size,
+                jumptable_entries,
+                entries_guessed=jumptable_entries_guessed,
+            )
         self.type = type_
 
     def add_jumptable(
@@ -99,8 +110,10 @@ class IndirectJump(Serializable):
         entry_size: int,
         entries: list[int],
         is_primary: bool = False,
+        *,
+        entries_guessed: bool = False,
     ) -> None:
-        ji = JumptableInfo(addr, size, entry_size, entries)
+        ji = JumptableInfo(addr, size, entry_size, entries, entries_guessed=entries_guessed)
         if is_primary:
             self.jumptables.insert(0, ji)
         else:
@@ -130,6 +143,12 @@ class IndirectJump(Serializable):
     def jumptable_entries(self) -> list[int] | None:
         if self.jumptables:
             return self.jumptables[0].entries
+        return None
+
+    @property
+    def jumptable_entries_guessed(self) -> bool | None:
+        if self.jumptables:
+            return self.jumptables[0].entries_guessed
         return None
 
     @classmethod
@@ -178,4 +197,9 @@ class IndirectJump(Serializable):
             if len(self.jumptables) > 1:
                 status += f" (+{len(self.jumptables) - 1} jumptables)"
 
-        return "<IndirectJump {:#08x} - ins {:#08x}{}>".format(self.addr, self.ins_addr, " " + status if status else "")
+        return "<IndirectJump {:#08x} - ins {:#08x}{}{})>".format(
+            self.addr,
+            self.ins_addr,
+            " " + status if status else "",
+            " <guessed>" if self.jumptable_entries_guessed else "",
+        )

@@ -89,6 +89,16 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         """
         return self.xrefs_by_dst.get_xrefs_in_range(start, end)
 
+    def get_next_xref_addr_by_dst(self, addr: int) -> int | None:
+        """
+        Get the next XRef object whose address is greater than or equal to the given address.
+        Will only return absolute xrefs, not relative ones (like SP offsets)
+        """
+        try:
+            return next(self.xrefs_by_dst.irange(minimum=addr))
+        except StopIteration:
+            return None
+
     def get_xrefs_by_ins_addr_region(self, start, end) -> set[XRef]:
         """
         Get a set of XRef objects that originate at a given address region

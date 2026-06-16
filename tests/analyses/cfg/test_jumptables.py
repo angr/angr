@@ -3231,6 +3231,21 @@ class TestJumpTableResolver(unittest.TestCase):
             0x51C6E,
         ]
 
+    def test_amd64_guessed_jumptables(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "50e5f670700243535f8ff558831dbbc314b215092f523355aa7a1c26205ece37"
+        )
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        # the first jump table; we happen to resolve it because its shape is the same as a regular, cmp-based one
+        jt0 = cfg.model.jump_tables[0x415530]
+        assert len(jt0.jumptables) == 1
+        assert jt0.jumptables[0].addr == 0x441BB0
+        assert jt0.jumptables[0].entry_size == 4
+        assert jt0.jumptables[0].size == 4 * 5
+        assert jt0.jumptables[0].entries_guessed is True
+        assert jt0.jumptables[0].entries == [0x4154DA, 0x4154F0, 0x4154F0, 0x4154F0, 0x4154F0]
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """
