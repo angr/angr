@@ -25,6 +25,8 @@ from angr.protos import cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 from angr.utils.json_utils import json_decode, json_encode
 
+from hashlib import sha256 # for hashing Transaction keys
+
 from .block_id import BlockID
 from .types import CFG_ADDR_TYPES, K
 
@@ -365,7 +367,7 @@ class SpillingAdjDict(MutableMapping):
             try:
                 with self.rtdb.begin_txn(self._edgesdb, write=True) as txn:
                     for src_key, inner_dict in entries:
-                        key = repr(src_key).encode("utf-8")
+                        key = sha256(repr(src_key).encode()).hexdigest().encode("utf-8")
                         value = self._serialize_inner_dict(inner_dict)
                         txn.put(key, value)
                 break
@@ -388,7 +390,7 @@ class SpillingAdjDict(MutableMapping):
         self._loading_from_lmdb = True
 
         try:
-            lmdb_key = repr(key).encode("utf-8")
+            lmdb_key = sha256(repr(key).encode()).hexdigest().encode("utf-8")
 
             with self.rtdb.begin_txn(self._edgesdb) as txn:
                 value = txn.get(lmdb_key)
@@ -485,7 +487,7 @@ class SpillingAdjDict(MutableMapping):
                 self.rtdb.begin_txn(new_dict._edgesdb, write=True) as dst_txn,
             ):
                 for key in self._spilled_keys:
-                    lmdb_key = repr(key).encode("utf-8")
+                    lmdb_key = sha256(repr(key).encode()).hexdigest().encode("utf-8")
                     value = src_txn.get(lmdb_key)
                     if value is not None:
                         dst_txn.put(lmdb_key, value)
