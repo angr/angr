@@ -3,6 +3,7 @@ mod bv;
 
 use crate::strided_interval::{ComparisonResult, StridedInterval};
 use clarirs_core::algorithms::walk_post_order;
+use clarirs_core::cache::GenericCache;
 use clarirs_core::prelude::*;
 
 // Define an enum to represent the result of reduction
@@ -47,6 +48,7 @@ pub trait Reduce<'c>: Sized {
 
 impl<'c> Reduce<'c> for AstRef<'c> {
     fn reduce(&self) -> Result<ReduceResult, ClarirsError> {
+        let cache = GenericCache::default();
         walk_post_order(
             self.clone(),
             |node, children| match node.ast_type() {
@@ -56,7 +58,7 @@ impl<'c> Reduce<'c> for AstRef<'c> {
                     "Unsupported operation for reduction".to_string(),
                 )),
             },
-            &(),
+            &cache,
         )
     }
 }
