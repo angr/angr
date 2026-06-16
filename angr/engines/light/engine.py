@@ -128,7 +128,7 @@ T = TypeVar("T")
 
 
 def longest_prefix_lookup[T](haystack: str, mapping: dict[str, T]) -> T | None:
-    for l in reversed(range(len(haystack))):
+    for l in reversed(range(len(haystack) + 1)):
         handler = mapping.get(haystack[:l])
         if handler is not None:
             return handler
