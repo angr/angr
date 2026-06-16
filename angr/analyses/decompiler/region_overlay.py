@@ -152,7 +152,7 @@ class OverlayManager:
 
             def inverse():
                 self.graph[src][dst].clear()
-                self.graph[src][dst].update(old_data)
+                self.graph[src][dst].update(old_data)  # type:ignore
 
         else:
 
@@ -167,7 +167,7 @@ class OverlayManager:
     def graph_remove_edge(self, src, dst) -> None:
         old_data = dict(self.graph[src][dst])
         self.graph.remove_edge(src, dst)
-        self._record(lambda: self.graph.add_edge(src, dst, **old_data))
+        self._record(lambda: self.graph.add_edge(src, dst, **old_data))  # type:ignore
         self._touch(src)
         self._touch(dst)
         self._bump()

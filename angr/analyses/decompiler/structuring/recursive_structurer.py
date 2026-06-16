@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 import logging
-from typing import TYPE_CHECKING, assert_type
+from typing import TYPE_CHECKING
 
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
@@ -74,11 +74,10 @@ class RecursiveStructurer(Analysis):
 
         try:
             parent_map = {}
-            stack = [root]
+            stack: list[RegionOverlay] = [root]
 
             while stack:
                 current_region = stack[-1]
-                assert_type(current_region, RegionOverlay)
 
                 has_region = False
                 for node in GraphUtils.dfs_postorder_nodes_deterministic(current_region.graph, current_region.head):
