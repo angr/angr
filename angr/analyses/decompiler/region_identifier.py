@@ -293,16 +293,26 @@ class RegionIdentifier(Analysis):
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
 
-        # special case: any node with more than two non-self successors are probably the head of a switch-case. we
+        # special case: any node with more than two non-self successors is probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
         # we must be extra careful here to not include nodes that are reachable from outside the loop subgraph. an
         # example is in binary 064e1d62c8542d658d83f7e231cc3b935a1f18153b8aea809dcccfd446a91c93, loop 0x40d7b0 should
         # not include block 0x40d9d5 because this node has a out-of-loop-body predecessor (block 0x40d795).
+        #
+        # another special case: any node with two non-self successors where one of them is an identified jump table
+        # head is likely the head of a switch-case. we should include all successors in the loop subgraph if these
+        # successors do not have out-of-loop-body predecessors.
+        # example: binary cb30d69b24245bf2ecdc9e7f53bbad19159999970b6d82c0c00c7d32d9e37aa4 , function 0x414cb0, block
+        # 0x4046e4.
+        cfg_model = self.kb.cfgs.get_most_accurate()
+        jump_tables = cfg_model.jump_tables if cfg_model is not None else {}
         while True:
             updated = False
             for node in list(loop_subgraph):
                 nonself_successors = [succ for succ in graph.successors(node) if succ is not node]
-                if len(nonself_successors) > 2:
+                if len(nonself_successors) > 2 or (
+                    len(nonself_successors) == 2 and any(succ.addr in jump_tables for succ in nonself_successors)
+                ):
                     for succ in nonself_successors:
                         if not loop_subgraph.has_edge(node, succ) and all(
                             pred in loop_subgraph for pred in graph.predecessors(succ)
