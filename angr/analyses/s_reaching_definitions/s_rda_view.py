@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import Callable
 
 from angr.ailment import Block
-from angr.ailment.expression import Expression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Call, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, SideEffectStatement, Statement
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
@@ -43,6 +43,8 @@ class RegVVarPredicate:
 
     def _get_call_clobbered_regs(self, stmt: SideEffectStatement) -> set[int]:
         call = stmt.expr
+        if not isinstance(call, Call):
+            return set()
         if isinstance(call.target, str):
             # pseudo calls do not clobber any registers
             return set()
