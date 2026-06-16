@@ -124,7 +124,11 @@ fn is_true(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
     } else if let Ok(string_expr) = expr.clone().extract::<CoerceString>() {
         Ok(string_expr.0.get().inner.simplify()?.is_true())
     } else {
-        Ok(expr.is_truthy()?)
+        // Anything we cannot prove true is not true. This matches claripy
+        // (whose concrete backend raises BackendError for non-AST inputs,
+        // which is_true treats as False); falling back to Python truthiness
+        // would instead report every foreign object as true.
+        Ok(false)
     }
 }
 
@@ -146,7 +150,8 @@ fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
     } else if let Ok(string_expr) = expr.clone().extract::<CoerceString>() {
         Ok(string_expr.0.get().inner.simplify()?.is_false())
     } else {
-        Ok(!expr.is_truthy()?)
+        // See is_true: claripy returns False for anything it cannot prove.
+        Ok(false)
     }
 }
 
