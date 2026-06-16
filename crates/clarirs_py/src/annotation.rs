@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyDict, PyTuple, PyType};
 
 use crate::prelude::*;
 
@@ -165,7 +165,11 @@ pub struct SimplificationAvoidanceAnnotation;
 #[pymethods]
 impl SimplificationAvoidanceAnnotation {
     #[new]
-    fn py_new() -> PyClassInitializer<Self> {
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn py_new(
+        _args: &Bound<'_, PyTuple>,
+        _kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyClassInitializer<Self> {
         PyClassInitializer::from(PyAnnotation).add_subclass(SimplificationAvoidanceAnnotation)
     }
 
@@ -220,6 +224,17 @@ impl StridedIntervalAnnotation {
         false
     }
 
+    fn __reduce__<'py>(slf: PyRef<'py, Self>) -> (Bound<'py, PyType>, (BigUint, BigUint, BigUint)) {
+        (
+            slf.py().get_type::<Self>(),
+            (
+                slf.stride.clone(),
+                slf.lower_bound.clone(),
+                slf.upper_bound.clone(),
+            ),
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "StridedIntervalAnnotation(stride={}, lower_bound={}, upper_bound={})",
@@ -235,7 +250,11 @@ pub struct EmptyStridedIntervalAnnotation;
 #[pymethods]
 impl EmptyStridedIntervalAnnotation {
     #[new]
-    fn py_new() -> PyClassInitializer<Self> {
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn py_new(
+        _args: &Bound<'_, PyTuple>,
+        _kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyClassInitializer<Self> {
         PyClassInitializer::from(PyAnnotation).add_subclass(EmptyStridedIntervalAnnotation)
     }
 
@@ -283,6 +302,13 @@ impl RegionAnnotation {
         false
     }
 
+    fn __reduce__<'py>(slf: PyRef<'py, Self>) -> (Bound<'py, PyType>, (String, BigUint)) {
+        (
+            slf.py().get_type::<Self>(),
+            (slf.region_id.clone(), slf.region_base_addr.clone()),
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "RegionAnnotation(region_id={}, region_base_addr={})",
@@ -298,7 +324,11 @@ pub struct UninitializedAnnotation;
 #[pymethods]
 impl UninitializedAnnotation {
     #[new]
-    fn py_new() -> PyClassInitializer<Self> {
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn py_new(
+        _args: &Bound<'_, PyTuple>,
+        _kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyClassInitializer<Self> {
         PyClassInitializer::from(PyAnnotation).add_subclass(UninitializedAnnotation)
     }
 
