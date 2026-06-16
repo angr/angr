@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from angr.ailment.expression import Expression, BinaryOp, Const, Convert, ITE
+
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression
 
 from .base import PeepholeOptimizationExprBase
 
@@ -29,8 +30,8 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
                 return ITE(
                     expr.idx,
                     bitoffset2exprs[bit_offset],
-                    Const(None, None, 0, expr.bits),
-                    Const(None, None, 1, expr.bits),
+                    Const(self.manager.next_atom(), 0, expr.bits),
+                    Const(self.manager.next_atom(), 1, expr.bits),
                     **expr.tags,
                 )
 

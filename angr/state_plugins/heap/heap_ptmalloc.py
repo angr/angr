@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
-from angr.state_plugins.plugin import SimStatePlugin
-from .heap_freelist import SimHeapFreelist, Chunk
-from .utils import concretize
 from angr.errors import SimHeapError, SimMergeError, SimSolverError
+from angr.state_plugins.plugin import SimStatePlugin
+
+from .heap_freelist import Chunk, SimHeapFreelist
+from .utils import concretize
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
 
@@ -541,9 +543,10 @@ class SimHeapPTMalloc(SimHeapFreelist):
             # Less space is needed, so just shrink the chunk and create a new free chunk from the freed space
             chunk.set_size(new_size, False)
             new_next_chunk = chunk.next_chunk()
-            new_next_chunk.set_size(old_size - new_size, False)
-            new_next_chunk.set_prev_freeness(False)
-            self.free(new_next_chunk.data_ptr())
+            if new_next_chunk is not None:
+                new_next_chunk.set_size(old_size - new_size, False)
+                new_next_chunk.set_prev_freeness(False)
+                self.free(new_next_chunk.data_ptr())
             return chunk.data_ptr()
         # No changes needed; we're already the right size
         return chunk.data_ptr()

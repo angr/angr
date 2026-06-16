@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, Generic, Literal, overload
+from typing import Any, Literal, overload
 
 import cffi
 import claripy
@@ -11,7 +11,7 @@ import claripy
 from angr.errors import SimMemoryError
 from angr.state_plugins.sim_action_object import SimActionObject
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
+from angr.storage.memory_mixins.paged_memory.pages import ListPage, MVListPage, PageBase, UltraPage
 
 # yeet
 ffi = cffi.FFI()
@@ -19,8 +19,7 @@ ffi = cffi.FFI()
 l = logging.getLogger(__name__)
 
 
-class PagedMemoryMixin(
-    Generic[PageType],
+class PagedMemoryMixin[PageType: PageBase](
     MemoryMixin[int | claripy.ast.BV | SimActionObject, claripy.ast.BV, int | claripy.ast.BV | SimActionObject],
 ):
     """
@@ -128,6 +127,9 @@ class PagedMemoryMixin(
         if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
 
+        if addr < 0:
+            raise ValueError("Negative addresses are not supported in paged memory")
+
         pageno, pageoff = self._divide_addr(addr)
         vals = []
 
@@ -181,6 +183,9 @@ class PagedMemoryMixin(
 
         if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
+
+        if addr < 0:
+            raise ValueError("Negative addresses are not supported in paged memory")
 
         # l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import os
 import tempfile
 import unittest
+
 import angr
-from angr.angrdb import AngrDB
 from angr.analyses.decompiler.peephole_optimizations import PeepholeOptimizationStmtBase
+from angr.angrdb import AngrDB
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -72,3 +74,7 @@ class TestDecompilerErrors(unittest.TestCase):
             assert False, "Must not raise BadException"
 
         assert decomp.codegen.text is not None
+
+
+if __name__ == "__main__":
+    unittest.main()

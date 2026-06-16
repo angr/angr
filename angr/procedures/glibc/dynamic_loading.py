@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import angr
 
 # pylint: disable=unused-argument,arguments-differ

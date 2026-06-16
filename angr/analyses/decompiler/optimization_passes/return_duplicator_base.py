@@ -1,21 +1,20 @@
 from __future__ import annotations
-from typing import Any
-import copy
+
 import logging
+from typing import Any
 
 import networkx
 
 import angr.ailment as ailment
-from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
+from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Phi, VirtualVariable
-
-from angr.utils.ail import is_phi_assignment
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, calls_in_graph
-from angr.analyses.decompiler.structuring.structurer_nodes import MultiNode, ConditionNode
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
+from angr.analyses.decompiler.structurer_nodes import ConditionNode, MultiNode
+from angr.analyses.decompiler.utils import calls_in_graph, remove_labels, to_ail_supergraph
+from angr.utils.ail import is_phi_assignment
 
 _l = logging.getLogger(name=__name__)
 
@@ -45,8 +44,6 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 dst.bits,
                 dst.category,
                 dst.oident,
-                variable=dst.variable,
-                variable_offset=dst.variable_offset,
                 **dst.tags,
             )
 
@@ -64,8 +61,6 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 expr.bits,
                 expr.category,
                 expr.oident,
-                variable=expr.variable,
-                variable_offset=expr.variable_offset,
                 **expr.tags,
             )
         return expr
@@ -81,6 +76,7 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
+        manager,
         *,
         vvar_id_start: int,
         max_calls_in_regions: int = 2,
@@ -96,6 +92,7 @@ class ReturnDuplicatorBase:
         # this should also be set by the optimization passes initer
         self.scratch = scratch if scratch is not None else {}
         self._func = func
+        self._manager = manager
         self._ri: RegionIdentifier | None = ri
         self.vvar_id_start = vvar_id_start
         self._max_func_blocks = max_func_blocks
@@ -229,10 +226,9 @@ class ReturnDuplicatorBase:
             if node in copies:
                 node_copy = copies[node]
             else:
+                node_copy = node.deep_copy(self._manager)
                 if node is region_head:
-                    node_copy = self._copy_node_and_update_phi_variables(node, pred)
-                else:
-                    node_copy = copy.deepcopy(node)
+                    node_copy = self._copy_node_and_update_phi_variables(node_copy, pred)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
                 node_copy.idx = self.next_node_idx()
                 self._fix_copied_node_labels(node_copy)
@@ -419,8 +415,8 @@ class ReturnDuplicatorBase:
             if node.statements:
                 stmts += node.statements
 
-        # all statements must be either a return, a jump, or an assignment
-        type_white_list = (Return, Jump, Assignment)
+        # all statements must be either a return, a jump, an assignment, or a side-effect statement (e.g. a call)
+        type_white_list = (Return, Jump, Assignment, SideEffectStatement)
         for stmt in stmts:
             if not isinstance(stmt, type_white_list):
                 return False
@@ -617,7 +613,7 @@ class ReturnDuplicatorBase:
             stmt = block.statements[i]
             if isinstance(stmt, Label):
                 # fix the default name by suffixing it with the new block ID
-                new_name = stmt.name if stmt.name else f"Label_{stmt.tags['ins_addr']:x}"
+                new_name = stmt.name or f"Label_{stmt.tags['ins_addr']:x}"
                 if "block_idx" in stmt.tags:
                     suffix = f"__{stmt.tags['block_idx']}"
                     new_name = new_name.removesuffix(suffix)

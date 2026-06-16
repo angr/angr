@@ -1,19 +1,23 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any
 
-import angr.ailment as ailment
+from typing import TYPE_CHECKING, Any
+
+from angr import ailment
 from angr.ailment.expression import Op
-
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import ConditionNode
 from angr.analyses.decompiler.utils import (
-    structured_node_is_simple_return,
-    structured_node_is_simple_return_strict,
     sequence_to_statements,
     structured_node_has_multi_predecessors,
+    structured_node_is_simple_return,
+    structured_node_is_simple_return_strict,
 )
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
+
+from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 
 class FlipBooleanWalker(SequenceWalker):
@@ -22,9 +26,10 @@ class FlipBooleanWalker(SequenceWalker):
     Uses the flip_size to determine when to flip the condition on large if-statement bodies.
     """
 
-    def __init__(self, graph, flip_size=9, last_node=None):
+    def __init__(self, graph, manager: Manager, flip_size=9, last_node=None):
         super().__init__()
         self._graph = graph
+        self.manager = manager
         self._last_node = last_node
         self._flip_size = flip_size
 
@@ -67,7 +72,7 @@ class FlipBooleanWalker(SequenceWalker):
 
         for node in type1_condition_nodes:
             if isinstance(node.condition, Op) and structured_node_is_simple_return(node.false_node, self._graph):
-                node.condition = ailment.expression.negate(node.condition)
+                node.condition = ailment.expression.negate(node.condition, self.manager)
                 node.true_node, node.false_node = node.false_node, node.true_node
 
         for idx, cond_node, successor in type2_condition_nodes:
@@ -77,7 +82,7 @@ class FlipBooleanWalker(SequenceWalker):
             if (successor is not self._last_node) or (
                 len(sequence_to_statements(cond_node.true_node)) >= self._flip_size
             ):
-                cond_node.condition = ailment.expression.negate(cond_node.condition)
+                cond_node.condition = ailment.expression.negate(cond_node.condition, self.manager)
                 seq_node.nodes[idx + 1] = cond_node.true_node
                 cond_node.true_node = successor
                 seq_node.nodes.insert(idx + 2, successor)
@@ -98,8 +103,8 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     NAME = "Flip small ret booleans"
     DESCRIPTION = "When false node has no successors, flip condition so else scope can be simplified later"
 
-    def __init__(self, func, flip_size=9, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, flip_size=9, **kwargs):
+        super().__init__(*args, **kwargs)
         self._graph = kwargs.get("graph")
         self._flip_size = flip_size
         self.analyze()
@@ -108,6 +113,6 @@ class FlipBooleanCmp(SequenceOptimizationPass):
         return bool(self.seq.nodes), None
 
     def _analyze(self, cache=None):
-        walker = FlipBooleanWalker(self._graph, last_node=self.seq.nodes[-1], flip_size=self._flip_size)
+        walker = FlipBooleanWalker(self._graph, self.manager, last_node=self.seq.nodes[-1], flip_size=self._flip_size)
         walker.walk(self.seq)
         self.out_seq = self.seq

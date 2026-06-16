@@ -9,20 +9,21 @@ existing loop analysis results instead of re-analyzing the graph.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
-import logging
 
-from angr.ailment.statement import Statement, Assignment
-from angr.ailment.expression import Expression, BinaryOp
-from angr.sim_variable import SimVariable
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    LoopNode,
-    SequenceNode,
+import logging
+from typing import TYPE_CHECKING
+
+from angr.ailment.expression import BinaryOp, Expression
+from angr.ailment.statement import Assignment, Statement
+from angr.analyses.decompiler.structurer_nodes import (
+    BaseNode,
+    CascadingConditionNode,
     CodeNode,
     ConditionNode,
-    CascadingConditionNode,
-    BaseNode,
+    LoopNode,
+    SequenceNode,
 )
+from angr.sim_variable import SimVariable
 
 from .naming_base import RegionNamingBase
 
@@ -52,8 +53,9 @@ class RegionLoopCounterNaming(RegionNamingBase):
         region: BaseNode,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
+        variable_map,
     ):
-        super().__init__(region, variable_manager, functions)
+        super().__init__(region, variable_manager, functions, variable_map)
 
         # Track loops and their nesting
         self._loop_nodes: list[LoopNode] = []
@@ -211,9 +213,7 @@ class RegionLoopCounterNaming(RegionNamingBase):
         Assign standard names (i, j, k, ...) to counter variables based on nesting depth.
         """
         # Sort loops by nesting depth (outermost first), then by address for stability
-        sorted_loops = sorted(
-            self._loop_nodes, key=lambda ln: (self._loop_info[ln]["nesting_depth"], ln.addr if ln.addr else 0)
-        )
+        sorted_loops = sorted(self._loop_nodes, key=lambda ln: (self._loop_info[ln]["nesting_depth"], ln.addr or 0))
 
         for loop_node in sorted_loops:
             counter_var = self._loop_info[loop_node]["counter_var"]

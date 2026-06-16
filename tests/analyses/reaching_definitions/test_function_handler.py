@@ -4,20 +4,20 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
 
-from typing import TYPE_CHECKING
 import os
-from unittest import main, TestCase
+from typing import TYPE_CHECKING
+from unittest import TestCase, main
 
 import claripy
 
 import angr
 from angr.analyses.reaching_definitions import FunctionHandler
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.errors import SimMemoryMissingError
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
-    from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from angr.analyses.reaching_definitions import FunctionCallData
+    from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
 from tests.common import bin_location
 

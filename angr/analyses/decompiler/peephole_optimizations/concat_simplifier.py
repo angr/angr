@@ -136,17 +136,15 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
             return None
         result = high
 
-        # If there was an outer convert, we may need to apply it
-        # The shift extracted high part has high.bits bits
         # Apply conversion if needed
-        if outer_convert is not None and outer_convert.to_bits != high.bits:
+        if expr.bits != result.bits:
             result = Convert(
-                outer_convert.idx,
-                high.bits,
-                outer_convert.to_bits,
-                outer_convert.is_signed,
+                expr.idx,
+                result.bits,
+                expr.bits,
+                outer_convert.is_signed if outer_convert is not None else False,
                 result,
-                **outer_convert.tags,
+                **expr.tags,
             )
 
         return result

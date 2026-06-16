@@ -7,11 +7,12 @@ appropriately (e.g., size, len, count, n).
 """
 
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
 from angr.ailment import Block
-from angr.ailment.statement import Call
+from angr.ailment.statement import SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
@@ -91,10 +92,10 @@ class SizeNaming(ClinicNamingBase):
                 continue
 
             for stmt in node.statements:
-                if isinstance(stmt, Call):
-                    self._analyze_call_params(stmt)
+                if isinstance(stmt, SideEffectStatement):
+                    self._analyze_call_params(stmt.expr)
 
-    def _analyze_call_params(self, call: Call) -> None:
+    def _analyze_call_params(self, call: SideEffectStatement) -> None:
         """
         Analyze a function call for size parameters.
         """

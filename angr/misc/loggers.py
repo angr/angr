@@ -1,12 +1,14 @@
 from __future__ import annotations
-import traceback
+
 import logging
+import traceback
 import zlib
 
-from .ansi import Color, BackgroundColor, color, clear
-
-from .testing import is_testing
+import angr
 from angr.utils.formatting import ansi_color_enabled
+
+from .ansi import BackgroundColor, Color, clear, color
+from .testing import is_testing
 
 
 class Loggers:
@@ -110,7 +112,7 @@ class CuteFormatter(logging.Formatter):
         # Finalize log message
         name = name.ljust(14 + len(name) - name_len)
         level = level.ljust(8 + len(level) - lvl_len)
-        body: str = f"{level} | {self.formatTime(record, self.datefmt) : <23} | {name} | {message}"
+        body: str = f"{level} | {self.formatTime(record, self.datefmt): <23} | {name} | {message}"
         if record.exc_info:
             body += "\n" + "".join(traceback.format_exception(*record.exc_info))[:-1]
         return body
@@ -118,9 +120,7 @@ class CuteFormatter(logging.Formatter):
 
 def is_enabled_for(logger, level):
     if level == 1:
-        from angr import loggers
-
-        return loggers.profiling_enabled
+        return angr.loggers.profiling_enabled
     return originalIsEnabledFor(logger, level)
 
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
@@ -6,8 +7,9 @@ import cle
 from archinfo.arch_soot import SootAddressDescriptor
 
 import angr
-from .successors import SuccessorsEngine
+
 from .procedure import ProcedureMixin
+from .successors import SuccessorsEngine
 
 l = logging.getLogger(name=__name__)
 
@@ -39,8 +41,6 @@ class HooksMixin(SuccessorsEngine, ProcedureMixin):
             # symbolic IP is not supported
             return None
         addr = state.addr
-        if isinstance(addr, tuple):
-            addr = addr[0]
         if not isinstance(addr, int):
             return None
 

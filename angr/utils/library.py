@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from angr.sim_type import (
-    parse_file,
-    parse_cpp_file,
-    normalize_cpp_function_name,
     SimTypeCppFunction,
     SimTypeFd,
-    register_types,
+    normalize_cpp_function_name,
+    parse_cpp_file,
+    parse_file,
     parse_types,
+    register_types,
 )
 
 if TYPE_CHECKING:
@@ -51,7 +52,8 @@ def get_function_name(s):
 
 
 def register_kernel_types():
-    register_types(parse_types("""
+    register_types(
+        parse_types("""
     typedef int mode_t;
     typedef unsigned int umode_t;
     typedef int clockid_t;
@@ -65,7 +67,8 @@ def register_kernel_types():
     typedef uint64_t u64;
     typedef int32_t __s32;
     typedef int64_t loff_t;
-    """))
+    """)
+    )
 
 
 def convert_cproto_to_py(c_decl) -> tuple[str, SimTypeFunction, str]:
@@ -230,3 +233,16 @@ def get_cpp_function_name(demangled_name: str) -> str:
     :return:               The qualified function name, excluding return type and parameters.
     """
     return get_cpp_function_name_and_metadata(demangled_name)[0]
+
+
+def get_rust_function_name(demangled_name):
+    name = demangled_name
+    chunks = name.split("::")
+    if len(chunks) > 1:
+        name = "::".join(chunks[:-1])
+
+    # remove arguments
+    if "(" in name:
+        name = name[: name.find("(")]
+
+    return name

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring
 from __future__ import annotations
-from unittest import main, TestCase
+
+from unittest import TestCase, main
 
 from archinfo import ArchMIPS32
 

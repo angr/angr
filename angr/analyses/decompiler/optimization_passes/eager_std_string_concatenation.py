@@ -1,14 +1,15 @@
 # pylint:disable=too-many-boolean-expressions,unused-argument
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
 from archinfo import Endness
 
 from angr.ailment import Block
+from angr.ailment.expression import BinaryOp, Const, Load, VirtualVariable
 from angr.ailment.statement import WeakAssignment
-from angr.ailment.expression import VirtualVariable, BinaryOp, Const, Load
-from angr.sim_type import SimType, SimTypePointer, SimTypeChar
+from angr.sim_type import SimType, SimTypeChar, SimTypePointer
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -26,8 +27,8 @@ class EagerStdStringConcatenationPass(OptimizationPass):
     NAME = "Condense multiple constant std::string creation calls into one when possible"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -145,12 +146,14 @@ class EagerStdStringConcatenationPass(OptimizationPass):
             assert old_block is not None
             block = old_block.copy()
             old_stmt = block.statements[last_stmt_idx]
+            str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
+            self.manager.variable_map.set_custom_string(str_const)
             block.statements[last_stmt_idx] = WeakAssignment(
                 old_stmt.idx,
                 old_stmt.dst,
                 Load(
-                    None,
-                    Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                    self.manager.next_atom(),
+                    str_const,
                     len(final_str),
                     Endness.BE,
                 ),

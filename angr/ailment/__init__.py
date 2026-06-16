@@ -1,15 +1,14 @@
 from __future__ import annotations
-import logging
-from typing import TypeAlias
 
+import logging
+
+from . import expression, statement
 from .block import Block
-from . import statement
-from . import expression
-from .statement import Assignment, Statement
-from .expression import Expression, Const, Tmp, Register, UnaryOp, BinaryOp
-from .converter_common import Converter
-from .manager import Manager
 from .block_walker import AILBlockRewriter, AILBlockViewer, AILBlockWalker
+from .converter_common import Converter
+from .expression import BinaryOp, Const, Expression, Register, Tmp, UnaryOp
+from .manager import Manager
+from .statement import Assignment, NoOp, Statement
 
 log = logging.getLogger(__name__)
 
@@ -19,11 +18,12 @@ Stmt = statement
 
 available_converters: set[str] = set()
 
-Address: TypeAlias = tuple[int, int | None]
+type Address = tuple[int, int | None]
 
 try:
-    from .converter_vex import VEXIRSBConverter
     import pyvex
+
+    from .converter_vex import VEXIRSBConverter
 
     available_converters.add("vex")
 except ImportError:
@@ -31,8 +31,9 @@ except ImportError:
     VEXIRSBConverter = None
 
 try:
-    from .converter_pcode import PCodeIRSBConverter
     from angr.engines import pcode
+
+    from .converter_pcode import PCodeIRSBConverter
 
     available_converters.add("pcode")
 except ImportError:
@@ -70,6 +71,7 @@ __all__ = [
     "Expression",
     "IRSBConverter",
     "Manager",
+    "NoOp",
     "PCodeIRSBConverter",
     "Register",
     "Statement",

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 import networkx as nx
@@ -6,9 +7,9 @@ import networkx as nx
 import angr.ailment as ailment
 from angr.ailment import Const
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, ConditionalJump, Jump
+from angr.ailment.statement import ConditionalJump, Jump, Statement
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 
-from angr.analyses.decompiler.structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from .errors import UnsupportedAILNodeError
 
 _l = logging.getLogger(name=__name__)
@@ -72,14 +73,12 @@ def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
     return [start_block, *blocks]
 
 
-def copy_graph_and_nodes(graph: nx.DiGraph, new_idx=False):
+def copy_graph_and_nodes(graph: nx.DiGraph):
     new_graph = nx.DiGraph()
     nodes_map = {}
     for node in graph.nodes:
         node_copy = node.copy()
         node_copy.statements = list(node_copy.statements)
-        if new_idx:
-            node_copy.idx = node_copy.idx + 1 if isinstance(node_copy.idx, int) else 1
         nodes_map[node] = node_copy
 
     new_graph.add_nodes_from(nodes_map.values())
@@ -101,7 +100,7 @@ def ail_block_from_stmts(stmts, idx=None, block_addr=None) -> Block | None:
     first_stmt = stmts[0]
 
     return Block(
-        block_addr if block_addr else first_stmt.tags["ins_addr"],
+        block_addr or first_stmt.tags["ins_addr"],
         0,
         statements=list(stmts),
         idx=idx or 1,
@@ -112,7 +111,7 @@ def deepcopy_ail_jump(stmt: Jump, idx=1):
     target: Const = stmt.target
     tags = stmt.tags.copy()
 
-    return Jump(idx, Const(1, target.variable, target.value, target.bits, **target.tags.copy()), **tags)
+    return Jump(idx, Const(1, target.value, target.bits, **target.tags.copy()), **tags)
 
 
 def deepcopy_ail_condjump(stmt: ConditionalJump, idx=1):
@@ -123,8 +122,8 @@ def deepcopy_ail_condjump(stmt: ConditionalJump, idx=1):
     return ConditionalJump(
         idx,
         stmt.condition.copy(),
-        Const(1, true_target.variable, true_target.value, true_target.bits, **true_target.tags.copy()),
-        Const(1, false_target.variable, false_target.value, false_target.bits, **false_target.tags.copy()),
+        Const(1, true_target.value, true_target.bits, **true_target.tags.copy()),
+        Const(1, false_target.value, false_target.bits, **false_target.tags.copy()),
         **tags,
     )
 

@@ -3,9 +3,9 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 
-import pickle
 import gc
 import os
+import pickle
 import unittest
 
 import claripy
@@ -13,7 +13,6 @@ import cle
 
 import angr
 from angr import SimState
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -259,9 +258,9 @@ class TestState(unittest.TestCase):
 
         simgr.step()
 
-        assert (
-            len(simgr.errored) == 0
-        ), "The state should not go to the errored stash. Is AngrSyscallError handled in SimSuccessors?"
+        assert len(simgr.errored) == 0, (
+            "The state should not go to the errored stash. Is AngrSyscallError handled in SimSuccessors?"
+        )
         assert len(simgr.unsat) == 1
 
     def test_bypass_errored_irstmt(self):
@@ -287,9 +286,9 @@ class TestState(unittest.TestCase):
         simgr = proj.factory.simgr(state)
         simgr.step()
         assert len(simgr.errored) == 1
-        assert (
-            str(simgr.errored[0].error) == "address not supported"
-        ), "Does SimFastMemory support reading from a symbolic address?"
+        assert str(simgr.errored[0].error) == "address not supported", (
+            "Does SimFastMemory support reading from a symbolic address?"
+        )
 
         # try it with BYPASS_ERRORED_IRSTMT
         state.options.add(angr.sim_options.BYPASS_ERRORED_IRSTMT)

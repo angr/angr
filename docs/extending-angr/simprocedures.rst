@@ -38,8 +38,7 @@ Now, let's talk about what happens on the edge of this function! When entering
 the function, where do the values that go into the arguments come from? You can
 define your ``run()`` function with however many arguments you like, and the
 SimProcedure runtime will automatically extract from the program state those
-arguments for you, via a :ref:`calling convention <Working with Calling
-Conventions>`, and call your run function with them. Similarly, when you return
+arguments for you, via a :ref:`calling convention <advanced-topics/structured_data:Working with Calling Conventions>`, and call your run function with them. Similarly, when you return
 a value from the run function, it is placed into the state (again, according to
 the calling convention), and the actual control-flow action of returning from a
 function is performed, which depending on the architecture may involve jumping
@@ -55,7 +54,7 @@ Implementation Context
 
 On a ``Project`` class, the dict ``project._sim_procedures`` is a mapping from
 address to ``SimProcedure`` instances. When the :ref:`execution pipeline
-<Understanding the Execution Pipeline>` reaches an address that is present in
+<advanced-topics/pipeline:Understanding the Execution Pipeline>` reaches an address that is present in
 that dict, that is, an address that is hooked, it will execute
 ``project._sim_procedures[address].execute(state)``. This will consult the
 calling convention to extract the arguments, make a copy of itself in order to
@@ -281,8 +280,7 @@ Otherwise, use a user hook.
 Hooking Symbols
 ---------------
 
-As you should recall from the :ref:`section on loading a binary <Loading a
-Binary>`, dynamically linked programs have a list of symbols that they must
+As you should recall from the :ref:`section on loading a binary <core-concepts/loading:Loading a Binary>`, dynamically linked programs have a list of symbols that they must
 import from the libraries they have listed as dependencies, and angr will make
 sure, rain or shine, that every import symbol gets resolved by *some* address,
 whether it's a real implementation of the function or just a dummy address hooked

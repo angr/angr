@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 from collections.abc import Callable
 
 from angr import ailment
-from angr.analyses import Analysis
+from angr.analyses.analysis import Analysis
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.forward_analysis.forward_analysis import ForwardAnalysisForClinic
 from angr.errors import AngrAnalysisError
 from angr.knowledge_plugins.functions.function import Function
+
 from .engine import PurityEngineAIL, ResultType, StateType
 
 

@@ -7,13 +7,11 @@ import itertools
 import unittest
 
 from angr.utils.bits import truncate_bits
-
 from tests.common import run_simple_unicorn_congruency_check
 
 
 # pylint: disable=missing-class-docstring
 class TestShl(unittest.TestCase):
-
     def test_shl(self):
         for reg, rbits in [("eax", 32), ("rax", 64)]:
             values = [

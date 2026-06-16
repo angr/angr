@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-import sys
 import itertools
+import logging
+import sys
 import types
 from collections import defaultdict
-import logging
 from types import TracebackType
 
 import claripy
 import mulpyplexer
 
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
+from .errors import AngrError, SimError, SimMergeError, SimulationManagerError, SimUnsatError
+from .exploration_techniques import ExplorationTechnique, Explorer, Suggestions, Threading, Veritesting
 from .misc.hookset import HookSet
-from .misc.ux import once
 from .misc.picklable_lock import PicklableLock
-from .errors import SimError, SimMergeError
+from .misc.ux import once
+from .sim_options import LAZY_SOLVES
 from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
-from .errors import AngrError, SimUnsatError, SimulationManagerError
-from .sim_options import LAZY_SOLVES
 from .state_plugins.sim_event import resource_event
 
 l = logging.getLogger(name=__name__)
@@ -324,8 +323,8 @@ class SimulationManager:
             if isinstance(t, Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter", None)
                 if deviation_filter_saved is not None:
-                    t.options["deviation_filter"] = (
-                        lambda s, dfs=deviation_filter_saved: tech.find(s) or tech.avoid(s) or dfs(s)
+                    t.options["deviation_filter"] = lambda s, dfs=deviation_filter_saved: (
+                        tech.find(s) or tech.avoid(s) or dfs(s)
                     )
                 else:
                     t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)
@@ -432,7 +431,7 @@ class SimulationManager:
         :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        l.info("Stepping %s of %s", stash, self)
+        l.debug("Stepping %s of %s", stash, self)
         # 8<----------------- Compatibility layer -----------------
         if n is not None or until is not None:
             if once("simgr_step_n_until"):

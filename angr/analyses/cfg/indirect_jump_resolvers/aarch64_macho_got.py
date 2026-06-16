@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 import archinfo
@@ -27,9 +28,9 @@ class AArch64MachOGotResolver(IndirectJumpResolver):
         """
         Resolves the GOT entries in AARCH64 Mach-O binaries, where plt stubs are of manner::
 
-        adrp    x16, #0x100000
-        ldr     x16, [x16,#0x10]
-        br      x16
+            adrp    x16, #0x100000
+            ldr     x16, [x16,#0x10]
+            br      x16
         """
 
         insns = self.project.factory.block(block.addr, size=block.size).capstone.insns

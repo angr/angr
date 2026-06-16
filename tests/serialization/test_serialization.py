@@ -13,7 +13,6 @@ import unittest
 
 import angr
 from angr.sim_variable import SimStackVariable
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -47,13 +46,11 @@ def internaltest_vfg(p, cfg):
 def internaltest_cfg(p):
     with tempfile.TemporaryFile() as state:
         cfg = p.analyses.CFGEmulated()
-        pickle.dump(cfg, state, -1)
+        pickle.dump(cfg.model, state, -1)
 
         state.seek(0)
-        cfg2 = pickle.load(state)
-        assert set(cfg.model.nodes()) == set(cfg2.model.nodes())
-        assert cfg.unresolvables == cfg2.unresolvables
-        assert set(cfg.deadends) == set(cfg2.deadends)
+        cfg2_model = pickle.load(state)
+        assert set(cfg.model.nodes()) == set(cfg2_model.nodes())
 
         return cfg
 
@@ -67,11 +64,11 @@ def internaltest_cfgfast(p):
         for b in main_function.blocks:
             _ = b.capstone
 
-        pickle.dump(cfg, state, -1)
+        pickle.dump(cfg.model, state, -1)
 
         state.seek(0)
-        cfg2 = pickle.load(state)
-        assert set(cfg.model.nodes()) == set(cfg2.model.nodes())
+        cfg2_model = pickle.load(state)
+        assert set(cfg.model.nodes()) == set(cfg2_model.nodes())
 
 
 def internaltest_project(fpath):

@@ -1,14 +1,17 @@
-# pylint:disable=wrong-import-position,arguments-differ
+# pylint:disable=arguments-differ
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
 import pyvex
-from pyvex import IRSB
 from archinfo import Arch, ArchARM
+from pyvex import IRSB
 
+from .codenode import BlockNode, SootBlockNode
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
+from .utils.ins_addr_list import InsAddrList
 
 try:
     from .engines import pcode
@@ -17,9 +20,10 @@ except ImportError:
 
 if TYPE_CHECKING:
     from angr import Project
-    from angr.engines.vex import VEXLifter
-    from angr.engines.pcode.lifter import PcodeLifterEngineMixin, IRSB as PcodeIRSB
+    from angr.engines.pcode.lifter import IRSB as PcodeIRSB
+    from angr.engines.pcode.lifter import PcodeLifterEngineMixin
     from angr.engines.soot.engine import SootMixin
+    from angr.engines.vex import VEXLifter
 
 
 l = logging.getLogger(name=__name__)
@@ -263,7 +267,7 @@ class Block(Serializable):
         self._const_prop = const_prop
 
         self._instructions: int | None = num_inst
-        self._instruction_addrs: list[int] = []
+        self._instruction_addrs: InsAddrList = InsAddrList()
 
         self._bytes = byte_string
         self.size = size
@@ -310,7 +314,7 @@ class Block(Serializable):
     def _parse_vex_info(self, vex_block):
         if vex_block is not None:
             self._instructions = vex_block.instructions
-            self._instruction_addrs = vex_block.instruction_addresses
+            self._instruction_addrs = InsAddrList.from_addr_list(vex_block.instruction_addresses)
             self.size = vex_block.size
 
     def __repr__(self):
@@ -567,6 +571,3 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
-
-
-from .codenode import BlockNode, SootBlockNode

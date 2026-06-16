@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"MI_Application_InitializeV1": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MI_Instance', 'ot': 'struct'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MI_Application', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'MI_Result', 'ot': 'enum'}, 'arg_names': ['flags', 'applicationID', 'extendedError', 'application']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MI_Instance', 'ot': 'struct'}}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MI_Application', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'MI_Result', 'ot': 'enum'}, 'arg_names': ['flags', 'applicationID', 'extendedError', 'application']}"
 		}
 	}
 }

@@ -7,13 +7,14 @@ This module detects variables used as pointers and names them appropriately
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from angr import ailment
-from angr.ailment.expression import BinaryOp, UnaryOp, Const, Load
-from angr.ailment.statement import Assignment, Store, Call
+from angr.ailment.expression import BinaryOp, Call, Const, Load, UnaryOp
+from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
@@ -220,18 +221,18 @@ class PointerNaming(ClinicNamingBase):
                 continue
 
             for stmt in node.statements:
-                if isinstance(stmt, Call):
-                    self._analyze_call_for_pointers(stmt)
+                if isinstance(stmt, SideEffectStatement):
+                    self._analyze_call_for_pointers(stmt.expr, ret_expr=stmt.ret_expr)
                 elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
-                    self._analyze_call_for_pointers(stmt.src)
+                    self._analyze_call_for_pointers(stmt.src, ret_expr=stmt.dst)
 
-    def _analyze_call_for_pointers(self, call: Call) -> None:
+    def _analyze_call_for_pointers(self, call: Call, ret_expr=None) -> None:
         """Analyze a function call for pointer parameters and return values."""
         func_name = self._get_function_name(call)
 
         # Check return value
-        if call.ret_expr is not None:
-            ret_var = self._get_linked_variable(call.ret_expr)
+        if ret_expr is not None:
+            ret_var = self._get_linked_variable(ret_expr)
             if ret_var is not None and func_name and self._normalize_name(func_name) in POINTER_RETURNING_FUNCTIONS:
                 self._record_pointer(ret_var, "return_value", "write")
 
@@ -313,7 +314,7 @@ class PointerNaming(ClinicNamingBase):
     def _assign_pointer_names(self) -> None:
         """Assign names to pointer variables."""
         # Sort by score (highest first)
-        sorted_candidates = sorted(self._pointer_candidates.items(), key=lambda x: -x[1]["score"])
+        sorted_candidates = sorted(self._pointer_candidates.items(), key=lambda x: (-x[1]["score"], str(x[0].ident)))
 
         # Threshold for considering a variable as a pointer
         SCORE_THRESHOLD = 20

@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -13,7 +14,7 @@ class ShlToMul(PeepholeOptimizationExprBase):
 
     def optimize(self, expr: BinaryOp, **kwargs):
         if expr.op == "Shl" and isinstance(expr.operands[1], Const):
-            mul_amount = Const(None, None, 2 ** expr.operands[1].value, expr.operands[0].bits)
+            mul_amount = Const(self.manager.next_atom(), 2 ** expr.operands[1].value_int, expr.operands[0].bits)
             return BinaryOp(
                 expr.idx,
                 "Mul",

@@ -1,24 +1,25 @@
 from __future__ import annotations
+
 import contextlib
-from typing import TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING
 
 from angr import sim_options as o
-from angr import BP, BP_AFTER
 from angr.errors import (
     AngrUnsupportedSyscallError,
-    SimOperationError,
     SimError,
+    SimOperationError,
 )
+from angr.state_plugins.inspect import BP, BP_AFTER
 
-from .resolver import IndirectJumpResolver
 from .constant_value_manager import ConstantValueManager
+from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:
     from angr import Block
     from angr.engines import SimSuccessors
-    from angr.sim_state import SimState
     from angr.sim_procedure import SimProcedure
+    from angr.sim_state import SimState
 
 
 _l = logging.getLogger(name=__name__)

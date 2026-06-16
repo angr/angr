@@ -5,7 +5,6 @@ import unittest
 
 import angr
 from angr.exploration_techniques import Threading
-
 from tests.common import bin_location
 
 

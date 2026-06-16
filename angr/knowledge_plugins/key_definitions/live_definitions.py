@@ -1,23 +1,25 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, cast, overload
-from collections import defaultdict
-from collections.abc import Iterable, Generator
-from enum import Enum, auto
-import weakref
-import logging
 
+import logging
+import weakref
+from collections import defaultdict
+from collections.abc import Generator, Iterable
+from enum import Enum, auto
+from typing import TYPE_CHECKING, Any, cast, overload
+
+import archinfo
 import claripy
 from claripy.annotation import Annotation
-import archinfo
 
-from angr.errors import SimMemoryMissingError, SimMemoryError
-from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, MultiValues
-from angr.knowledge_plugins.key_definitions.definition import A
-from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.engines.light import SpOffset
+from angr.errors import SimMemoryError, SimMemoryMissingError
+from angr.knowledge_plugins.key_definitions.definition import A
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, MVType
 from angr.utils.constants import is_alignment_mask
-from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
+
+from .atoms import Atom, ConstantSrc, MemoryLocation, Register, Tmp
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .undefined import Undefined
@@ -86,6 +88,7 @@ class LiveDefinitions:
     uncovered during the analysis.
     """
 
+    INITIAL_SP_16BIT = 0x7F00
     INITIAL_SP_32BIT = 0x7FFF0000
     INITIAL_SP_64BIT = 0x7FFFFFFF0000
     _tops = {}
@@ -438,6 +441,9 @@ class LiveDefinitions:
         elif self.arch.bits == 64:
             base_v = self.INITIAL_SP_64BIT
             mask = 0xFFFF_FFFF_FFFF_FFFF
+        elif self.arch.bits == 16:
+            base_v = self.INITIAL_SP_16BIT
+            mask = 0xFFFF
         else:
             raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
         return (base_v + offset) & mask
@@ -566,7 +572,6 @@ class LiveDefinitions:
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
-
             # Tolerate simple stack pointer alignments
             if atom.reg_offset == self.arch.sp_offset:
                 d = self._simplify_sp_alignment(d)

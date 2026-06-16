@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
+# pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import os
 import logging
+import os
 import unittest
 
 import archinfo
-import angr
-from angr.codenode import FuncNode
-from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
-from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
+import angr
+from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
+from angr.codenode import FuncNode
+from angr.knowledge_plugins.cfg import CFGModel, CFGNode
 from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")
@@ -21,26 +21,22 @@ l = logging.getLogger("angr.tests.test_cfgfast")
 test_location = os.path.join(bin_location, "tests")
 
 
-def cstring_to_unicode_string(cstr: bytes) -> bytes:
-    return b"".join((bytes([ch]) + b"\x00") for ch in cstr)
-
-
 class TestCfgfast(unittest.TestCase):
-    def cfg_fast_functions_check(self, arch, binary_path, func_addrs, func_features):
+    def cfg_fast_functions_check(self, arch: str, binary_path: str, func_addrs: set[int], func_features: dict):
         """
         Generate a fast CFG on the given binary, and test if all specified functions are found
 
-        :param str arch: the architecture, will be prepended to `binary_path`
-        :param str binary_path: path to the binary under the architecture directory
-        :param dict func_addrs: A collection of function addresses that should be recovered
-        :param dict func_features: A collection of features for some of the functions
+        :param arch: the architecture, will be prepended to `binary_path`
+        :param binary_path: path to the binary under the architecture directory
+        :param func_addrs: A collection of function addresses that should be recovered
+        :param func_features: A collection of features for some of the functions
         :return: None
         """
 
         path = os.path.join(test_location, arch, binary_path)
         proj = angr.Project(path, load_options={"auto_load_libs": False})
 
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
         assert set(cfg.kb.functions.keys()).issuperset(func_addrs)
 
         for func_addr, feature_dict in func_features.items():
@@ -66,20 +62,20 @@ class TestCfgfast(unittest.TestCase):
             if returning != "undefined":
                 assert cfg.kb.functions.function(addr=func_addr).returning is returning
 
-    def cfg_fast_edges_check(self, arch, binary_path, edges):
+    def cfg_fast_edges_check(self, arch: str, binary_path: str, edges: set[tuple[int, int]]):
         """
         Generate a fast CFG on the given binary, and test if all edges are found.
 
-        :param str arch: the architecture, will be prepended to `binary_path`
-        :param str binary_path: path to the binary under the architecture directory
-        :param list edges: a list of edges
+        :param arch: the architecture, will be prepended to `binary_path`
+        :param binary_path: path to the binary under the architecture directory
+        :param edges: a list of edges
         :return: None
         """
 
         path = os.path.join(test_location, arch, binary_path)
         proj = angr.Project(path, load_options={"auto_load_libs": False})
 
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
 
         for src, dst in edges:
             src_node = cfg.model.get_any_node(src)
@@ -157,7 +153,7 @@ class TestCfgfast(unittest.TestCase):
 
         # nothing should prevent us from finish creating the CFG
 
-    def test_fauxware_function_feauters_x86_64(self):
+    def test_fauxware_function_features_x86_64(self):
         functions = {
             0x4004E0,
             0x400510,
@@ -495,7 +491,7 @@ class TestCfgfast(unittest.TestCase):
         path = os.path.join(test_location, "i386", "fauxware_pie")
         proj = angr.Project(path, load_options={"auto_load_libs": False})
 
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
 
         # puts
         puts_node = cfg.model.get_any_node(0x4005B0)
@@ -575,6 +571,7 @@ class TestCfgfast(unittest.TestCase):
             symbols=False,
             detect_tail_calls=True,
             data_references=True,
+            retedges=True,
         )
 
         all_func_addrs = set(cfg.functions.keys())
@@ -737,7 +734,7 @@ class TestCfgfast(unittest.TestCase):
         proj = angr.load_shellcode("loop: dec ecx; jnz loop; ret", "x86")
         cfg = proj.analyses.CFGFast()
 
-        assert len(cfg.model.nodes()) == 2
+        assert len(cfg.model.graph) == 2
 
     def test_starting_point_ordering(self):
         # project entry should always be first
@@ -746,7 +743,7 @@ class TestCfgfast(unittest.TestCase):
 
         path = os.path.join(test_location, "armel", "start_ordering")
         proj = angr.Project(path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
 
         # if ordering is incorrect, edge to function 0x103D4 will not exist
         n = cfg.model.get_any_node(proj.entry)
@@ -926,162 +923,33 @@ class TestCfgfast(unittest.TestCase):
         assert 0x1001B5EC in proj.kb.functions
         assert proj.kb.functions[0x1001B5EC].name == "_security_check_cookie"
 
+    def test_universal_binary_amd64(self):
+        path = os.path.join(test_location, "multi_arch", "fauxware_macho_multiarch")
+        proj = angr.Project(path, arch=archinfo.arch_from_id("amd64"))
 
-class TestCfgfastDataReferences(unittest.TestCase):
-    def test_data_references_x86_64(self):
-        path = os.path.join(test_location, "x86_64", "fauxware")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True)
-
-        memory_data = cfg.memory_data
-        # There is no code reference
-        code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
-        assert code_ref_count >= 0, "There should be no code reference."
-
-        # There are at least 2 pointer arrays
-        ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
-        assert ptr_array_count > 2, "Missing some pointer arrays."
-
-        assert 0x4008D0 in memory_data
-        sneaky_str = memory_data[0x4008D0]
-        assert sneaky_str.sort == "string"
-        assert sneaky_str.content == b"SOSNEAKY"
-
-    def test_data_references_mipsel(self):
-        path = os.path.join(test_location, "mipsel", "fauxware")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True)
-
-        memory_data = cfg.memory_data
-        # There is no code reference
-        code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
-        assert code_ref_count >= 0, "There should be no code reference."
-
-        # There are at least 2 pointer arrays
-        ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
-        assert ptr_array_count >= 1, "Missing some pointer arrays."
-
-        assert 0x400C00 in memory_data
-        sneaky_str = memory_data[0x400C00]
-        assert sneaky_str.sort == "string"
-        assert sneaky_str.content == b"SOSNEAKY"
-
-        assert 0x400C0C in memory_data
-        str_ = memory_data[0x400C0C]
-        assert str_.sort == "string"
-        assert str_.content == b"Welcome to the admin console, trusted user!"
-
-        assert 0x400C38 in memory_data
-        str_ = memory_data[0x400C38]
-        assert str_.sort == "string"
-        assert str_.content == b"Go away!"
-
-        assert 0x400C44 in memory_data
-        str_ = memory_data[0x400C44]
-        assert str_.sort == "string"
-        assert str_.content == b"Username: "
-
-        assert 0x400C50 in memory_data
-        str_ = memory_data[0x400C50]
-        assert str_.sort == "string"
-        assert str_.content == b"Password: "
-
-    def test_data_references_mips64(self):
-        path = os.path.join(test_location, "mips64", "true")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
-        memory_data = cfg.memory_data
-
-        assert 0x120007DD8 in memory_data
-        assert memory_data[0x120007DD8].sort == "string"
-        assert memory_data[0x120007DD8].content == b"coreutils"
-
-        xrefs = proj.kb.xrefs
-        refs = list(xrefs.get_xrefs_by_dst(0x120007DD8))
-        assert len(refs) == 2
-        assert {x.ins_addr for x in refs} == {0x1200020E8, 0x120002108}
-
-    def test_data_references_i386_gcc_pie(self):
-        path = os.path.join(test_location, "i386", "nl")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
-        memory_data = cfg.memory_data
-
-        assert 0x405BB0 in memory_data
-        assert memory_data[0x405BB0].sort == "string"
-        assert memory_data[0x405BB0].content == b"/usr/local/share/locale"
-
-        xrefs = proj.kb.xrefs
-        refs = list(xrefs.get_xrefs_by_dst(0x405BB0))
-        assert len(refs) == 1
-        assert {x.ins_addr for x in refs} == {0x4011DD}
-
-    def test_data_references_wide_string(self):
-        path = os.path.join(test_location, "x86_64", "windows", "fauxware-wide.exe")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True)
-        recovered_strings = [d.content for d in cfg.memory_data.values() if d.sort == MemoryDataSort.UnicodeString]
-
-        for testme in ("SOSNEAKY", "Welcome to the admin console, trusted user!\n", "Go away!\n", "Username: \n"):
-            assert testme.encode("utf-16-le") in recovered_strings
-
-    def test_data_references_lea_string_addr(self):
-        path = os.path.join(test_location, "x86_64", "windows", "3ware.sys")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True)
-        assert cfg.memory_data[0x1C0010A20].sort == MemoryDataSort.String
-        assert cfg.memory_data[0x1C0010A20].content == b"Initialize> %s"
-
-    def test_arm_function_hints_from_data_references(self):
-        path = os.path.join(test_location, "armel", "sha224sum")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        proj.analyses.CFGFast(data_references=True)
-        funcs = proj.kb.functions
-        assert funcs.contains_addr(0x129C4)
-        func = funcs[0x129C4]
-        assert len(list(func.blocks)) == 1
-        assert next(iter(func.blocks)).size == 16
-
-    def test_data_references_windows_driver_utf16_strings(self):
-        path = os.path.join(
-            test_location, "x86_64", "windows", "aaba7db353eb9400e3471eaaa1cf0105f6d1fab0ce63f1a2665c8ba0e8963a05.bin"
-        )
-        proj = angr.Project(path, auto_load_libs=False)
+        assert hasattr(proj.loader.main_object, "child_objects")
+        assert len(proj.loader.main_object.child_objects) == 1
+        assert proj.loader.main_object.child_objects[0].arch.name == "AMD64"
 
         cfg = proj.analyses.CFGFast()
+        func_names = {func.name for func in cfg.kb.functions.values()}
+        assert "_main" in func_names
+        assert "_accepted" in func_names
+        assert "_authenticate" in func_names
 
-        assert cfg.model.memory_data[0x1DCE0].sort == MemoryDataSort.UnicodeString
-        assert cfg.model.memory_data[0x1DCE0].content == cstring_to_unicode_string(
-            b"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Control\\WinApi"
-        )
-        assert cfg.model.memory_data[0x1DCE0].size == 116
-        assert cfg.model.memory_data[0x1DD90].sort == MemoryDataSort.UnicodeString
-        assert cfg.model.memory_data[0x1DD90].content == cstring_to_unicode_string(b"ntdll.dll")
-        assert cfg.model.memory_data[0x1DD90].size == 20
+    def test_universal_binary_aarch64(self):
+        path = os.path.join(test_location, "multi_arch", "fauxware_macho_multiarch")
+        proj = angr.Project(path, arch=archinfo.arch_from_id("aarch64"))
 
-    def test_pe_32bit_pointer_array_detection(self):
-        path = os.path.join(
-            test_location, "i386", "windows", "53575875777863a69a573be858e75ceea834ea54c844bb528128a4ad16879d45"
-        )
-        proj = angr.Project(path, auto_load_libs=False)
+        assert hasattr(proj.loader.main_object, "child_objects")
+        assert len(proj.loader.main_object.child_objects) == 1
+        assert proj.loader.main_object.child_objects[0].arch.name == "AARCH64"
 
-        cfg = proj.analyses.CFGFast(show_progressbar=True)
-        cfg_model = cfg.model
-        assert cfg._seg_list.is_occupied(0x100018BC) is True
-        assert cfg._seg_list.occupied_by_sort(0x100018BC) == "pointer-array"
-        assert cfg_model.memory_data[0x100018BC].size == 4
-        assert cfg_model.memory_data[0x100018BC].sort == MemoryDataSort.PointerArray
-        assert cfg._seg_list.is_occupied(0x10001004) is True
-        assert cfg._seg_list.occupied_by_sort(0x10001004) == "pointer-array"
-        assert cfg_model.memory_data[0x10001004].size == 228
-        assert cfg_model.memory_data[0x10001004].sort == MemoryDataSort.PointerArray
+        cfg = proj.analyses.CFGFast()
+        func_names = {func.name for func in cfg.kb.functions.values()}
+        assert "_main" in func_names
+        assert "_accepted" in func_names
+        assert "_authenticate" in func_names
 
     def test_syscalls_resolved_with_constant_propagation(self):
         for arch in ["x86", "x86_64"]:

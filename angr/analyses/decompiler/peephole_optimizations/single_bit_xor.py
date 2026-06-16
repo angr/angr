@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import Convert, BinaryOp, Const, UnaryOp
+
+from angr.ailment.expression import BinaryOp, Const, Convert, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -24,6 +25,6 @@ class SingleBitXor(PeepholeOptimizationExprBase):
                     and xor_expr.operands[0].from_bits == 1
                 )
             ):
-                return UnaryOp(None, "Not", expr.operand.operands[0].operand)
+                return UnaryOp(self.manager.next_atom(), "Not", expr.operand.operands[0].operand)
 
         return expr

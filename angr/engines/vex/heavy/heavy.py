@@ -1,15 +1,18 @@
 from __future__ import annotations
+
 import logging
+
 import claripy
 import pyvex
 
-from angr.engines.successors import SuccessorsEngine
-from angr.engines.vex.light import VEXMixin
-from angr.engines.vex.lifter import VEXLifter
-from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr import sim_options as o
 from angr import errors
+from angr import sim_options as o
+from angr.engines.successors import SuccessorsEngine
+from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
+from angr.engines.vex.lifter import VEXLifter
+from angr.engines.vex.light import VEXMixin
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from . import dirty
 
 l = logging.getLogger(__name__)
@@ -188,14 +191,14 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
 
         # do return emulation and calless stuff
         for exit_state in list(successors.all_successors):
-            exit_jumpkind = exit_state.history.jumpkind if exit_state.history.jumpkind else ""
+            exit_jumpkind = exit_state.history.jumpkind or ""
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(
                     exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
                 )
                 exit_state.scratch.target = claripy.BVV(successors.addr + irsb.size, exit_state.arch.bits)
-                exit_state.history.jumpkind = "Ijk_Ret"
+                exit_state.history.jumpkind = "Ijk_FakeRet"
                 exit_state.regs.ip = exit_state.scratch.target
                 if exit_state.arch.call_pushes_ret:
                     exit_state.regs.sp = exit_state.regs.sp + exit_state.arch.bytes

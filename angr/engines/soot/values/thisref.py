@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import logging
 
 from archinfo.arch_soot import SootAddressTerminator, SootArgument
 
+from angr import sim_options as options
+from angr.engines.soot.method_dispatcher import resolve_method
+
 from .base import SimSootValue
 from .instancefieldref import SimSootValue_InstanceFieldRef
 from .local import SimSootValue_Local
-from angr.engines.soot.method_dispatcher import resolve_method
-from angr import sim_options as options
 
 l = logging.getLogger("angr.engines.soot.values.thisref")
 
@@ -117,10 +119,11 @@ class SimSootValue_ThisRef(SimSootValue):
 
     @classmethod
     def new_object(cls, state, type_, symbolic=False, init_object=False, init_class=False):
-        """
+        r"""
         Creates a new object reference.
+
         :param state: State associated to the object.
-        :param type_: Class of the object.
+        :param type\_: Class of the object.
         :param init_object: Whether the objects initializer method should be run.
         :param init_class: Whether the class initializer method should be run.
         :return: Reference to the new object.

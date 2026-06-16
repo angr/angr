@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .ail import AILMixin
 from .engine import SimEngine
 from .failure import SimEngineFailure
 from .hook import HooksMixin
@@ -9,7 +10,6 @@ from .successors import SimSuccessors, SuccessorsEngine
 from .syscall import SimEngineSyscall
 from .unicorn import SimEngineUnicorn
 from .vex import HeavyResilienceMixin, HeavyVEXMixin, SimInspectMixin, SuperFastpathMixin, TrackActionsMixin
-from .ail import AILMixin
 
 
 class UberEngine(
@@ -58,9 +58,7 @@ __all__ = [
 try:
     from .pcode import HeavyPcodeMixin
 
-    class UberEnginePcode(
-        SimEngineFailure, SimEngineSyscall, HooksMixin, HeavyPcodeMixin
-    ):  # pylint:disable=abstract-method
+    class UberEnginePcode(SimEngineFailure, SimEngineSyscall, HooksMixin, HeavyPcodeMixin):  # pylint:disable=abstract-method
         pass
 
     __all__.append("UberEnginePcode")

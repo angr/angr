@@ -1,18 +1,21 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import cast
 
 import claripy
 import pyvex
 
-from angr.analyses import visitors, ForwardAnalysis
-from angr.knowledge_plugins.xrefs import XRef, XRefType
-from angr.knowledge_plugins.functions.function import Function
+from angr.analyses.analysis import register_analysis
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
+from angr.analyses.propagator import PropagatorAnalysis
 from angr.engines.light import SimEngineNostmtVEX
-from .propagator.vex_vars import VEXTmp
-from .propagator.values import Top
-from . import register_analysis, PropagatorAnalysis
+from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+
 from .analysis import Analysis
+from .propagator.values import Top
+from .propagator.vex_vars import VEXTmp
 
 
 class SimEngineXRefsVEX(SimEngineNostmtVEX[None, None, None]):  # go girl give us nothing!!

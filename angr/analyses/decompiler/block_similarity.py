@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import logging
+
 import networkx as nx
+
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, ConditionalJump
+from angr.ailment.statement import ConditionalJump, Statement
 
 from .utils import find_block_by_addr_and_idx
 
@@ -73,8 +76,9 @@ def is_similar(
                 t1, t2 = getattr(ail_obj1, attr).value, getattr(ail_obj2, attr).value
                 i1, i2 = getattr(ail_obj1, attr + "_idx"), getattr(ail_obj2, attr + "_idx")
                 try:
-                    t1_blk, t2_blk = find_block_by_addr_and_idx(graph, t1, i1), find_block_by_addr_and_idx(
-                        graph, t2, i2
+                    t1_blk, t2_blk = (
+                        find_block_by_addr_and_idx(graph, t1, i1),
+                        find_block_by_addr_and_idx(graph, t2, i2),
                     )
                 except ValueError:
                     _l.warning("Could not find block by address in graph. It is likely that the graph is broken.")
@@ -173,10 +177,10 @@ def longest_ail_subseq(
     The common List[Statement] most all be in the same order and adjacent to each other. If no common subsequence is
     found, it returns None.
 
-    @param stmts_list:
-    @param graph:
-    @return: Tuple[List[Statement], List[int]], where the first element is the longest common subsequence, and the
-             second element is a list of integers indicating the index of the longest common subsequence in each
+    :param stmts_list:
+    :param graph:
+    :return: ``Tuple[List[Statement], List[int]]``, where the first element is the longest common subsequence, and
+             the second element is a list of integers indicating the index of the longest common subsequence in each
              list of statements.
     """
 

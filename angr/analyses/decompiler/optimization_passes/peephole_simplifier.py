@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from angr import ailment
+from angr.analyses.decompiler.peephole_optimizations import (
+    EXPR_OPTS,
+    PeepholeOptimizationExprBase,
+)
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import (
     peephole_optimize_expr,
 )
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.peephole_optimizations import (
-    PeepholeOptimizationExprBase,
-    EXPR_OPTS,
-)
+
 from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
 
 
@@ -36,11 +37,11 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
     NAME = "Post-Structuring Peephole Optimization"
     DESCRIPTION = (__doc__ or "").strip()
 
-    def __init__(self, func, peephole_optimizations=None, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, peephole_optimizations=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self._peephole_optimizations = peephole_optimizations
         self._expr_peephole_opts = [
-            cls(self.project, self.kb, self._func.addr)
+            cls(self.project, self.kb, ail_manager=self.manager, func_addr=self._func.addr)
             for cls in (self._peephole_optimizations or EXPR_OPTS)
             if issubclass(cls, PeepholeOptimizationExprBase)
         ]
@@ -69,6 +70,7 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
                 new_block,
                 func_addr=self._func.addr,
                 peephole_optimizations=self._peephole_optimizations,
+                ail_manager=self.manager,
             )
             assert simp.result_block is not None
             new_block = simp.result_block

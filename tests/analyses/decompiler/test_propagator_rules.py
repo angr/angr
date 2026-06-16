@@ -8,8 +8,7 @@ import os
 import unittest
 
 import angr
-
-from tests.common import bin_location, print_decompilation_result, WORKER
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -33,6 +32,47 @@ class TestPropagatorRules(unittest.TestCase):
         assert dec.codegen.text.count("ObfDereferenceObject(") == 1
         assert dec.codegen.text.count("ObReferenceObjectByPointer(") == 1
         assert dec.codegen.text.count("ExFreePoolWithTag") == 1
+
+    def test_propagator_do_not_create_overly_deep_expressions(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "94def0c6290dbc32ebb9a6e72d2f76d0ffe66365606efeef952834768e47f1d8"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+
+        func = cfg.functions[0x14000F190]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # ensure that each line contains at most five operators
+        for line in dec.codegen.text.splitlines():
+            if line.strip() == "":
+                continue
+            op_count = line.count("+") + line.count("-") + line.count("^") + line.count("ROL") + line.count("ROR")
+            if "return" in line:
+                assert op_count <= 12
+            else:
+                assert op_count <= 7
+
+    def test_spropagator_do_not_propagate_vvars_defined_in_assignment_src(self):
+        proj = angr.Project(
+            os.path.join(
+                test_location, "i386", "windows", "0c694dfa7ad465bded90c4faf63100c7008b5efc4bc49b38644a9770b42669b0"
+            )
+        )
+        _ = proj.analyses.CFG(force_smart_scan=False, normalize=True)
+        dec = proj.analyses.Decompiler(0x4847D4, fail_fast=True)
+        # it should not raise any exceptions; it was triggering an assertion error before this fix at
+        # ailment/expression.py:
+        #
+        # assert not isinstance(offset, Const) or offset.value * 8 + value.bits <= base.bits
+        #
+        # this is because we were trying to propagate Reference(vvar_780) to vvar_780 (16-byte) in a statement of
+        # `vvar_781 = Reference(vvar_780)`, where both vvar_780 and vvar_781 are defined at the same statement.
+        assert dec.codegen is not None and dec.codegen.text is not None
 
 
 if __name__ == "__main__":

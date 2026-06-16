@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.analyses.identifier.func import Func, TestData
 from angr.errors import SimMemoryError
 

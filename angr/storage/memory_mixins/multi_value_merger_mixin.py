@@ -1,7 +1,8 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
+from collections.abc import Callable, Iterable
 from typing import Any
-from collections.abc import Iterable, Callable
 
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import logging
+
+from angr.errors import SimHeapError
+
 from . import SimHeapLibc
 from .utils import concretize
-from angr.errors import SimHeapError
 
 l = logging.getLogger("angr.state_plugins.heap.heap_freelist")
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import random
 
-from angr.sim_type import SimTypeFunction, SimTypeInt
-from angr.analyses.identifier.func import Func, TestData
 from angr.analyses.identifier.custom_callable import IdentifierCallable
+from angr.analyses.identifier.func import Func, TestData
+from angr.sim_type import SimTypeFunction, SimTypeInt
 
 
 def rand_str(length, byte_list=None):

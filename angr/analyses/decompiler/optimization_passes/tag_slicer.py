@@ -1,8 +1,10 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
 from angr.ailment.statement import ConditionalJump, Jump, Label
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -19,8 +21,8 @@ class TagSlicer(OptimizationPass):
     NAME = "Remove unmarked statements from the graph."
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):

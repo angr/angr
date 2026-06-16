@@ -1,3 +1,5 @@
+#![allow(clippy::declare_interior_mutable_const)] // FIXME: https://github.com/PyO3/pyo3/issues/5768
+
 /// Icicle bindings
 ///
 /// This module provides Python bindings for the Icicle emulator, allowing
@@ -40,7 +42,7 @@ impl icicle_vm::cpu::RegHandler for X86FlagsRegHandler {
 }
 
 /// VmExit is the result of a VM execution. Borrowed directly from icicle.
-#[pyclass(module = "angr.rustylib.icicle")]
+#[pyclass(module = "angr.rustylib.icicle", from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmExit {
     /// The VM is still running.
@@ -89,7 +91,7 @@ impl From<icicle_vm::VmExit> for VmExit {
     }
 }
 
-#[pyclass(module = "angr.rustylib.icicle")]
+#[pyclass(module = "angr.rustylib.icicle", from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u64)]
 pub enum ExceptionCode {
@@ -231,6 +233,7 @@ struct Icicle {
     vm: icicle_vm::Vm,
     path_tracer: Option<PathTracerRef>,
     edge_count_hitmap: Option<Hitmap>,
+    snapshot: Option<icicle_vm::Snapshot>,
 }
 
 #[pymethods]
@@ -296,6 +299,7 @@ impl Icicle {
             vm,
             path_tracer,
             edge_count_hitmap,
+            snapshot: None,
         })
     }
 
@@ -329,6 +333,7 @@ impl Icicle {
     }
 
     pub fn mem_unmap(&mut self, addr: u64, size: u64) -> PyResult<()> {
+        self.invalidate_code_range(addr, size);
         if !self.vm.cpu.mem.unmap_memory_len(addr, size) {
             return Err(PyRuntimeError::new_err(format!(
                 "Failed to unmap memory at {addr:#x} with size {size}"
@@ -338,6 +343,7 @@ impl Icicle {
     }
 
     pub fn mem_protect(&mut self, addr: u64, size: u64, perms: u8) -> PyResult<()> {
+        self.invalidate_code_range(addr, size);
         self.vm
             .cpu
             .mem
@@ -361,12 +367,59 @@ impl Icicle {
     }
 
     pub fn mem_write(&mut self, addr: u64, data: Vec<u8>) -> PyResult<()> {
-        self.vm
+        self.invalidate_code_range(addr, data.len() as u64);
+        // The cache invalidation above makes this write safe; suppress the
+        // mmu's SMC guard for just this call so it doesn't reject sync
+        // writes into bytes that were previously executed. Guest writes
+        // during `emu.run()` still see the guard.
+        let prev_smc = self.vm.cpu.mem.detect_self_modifying_code;
+        self.vm.cpu.mem.detect_self_modifying_code = false;
+        let result = self
+            .vm
             .cpu
             .mem
             .write_bytes(addr, &data, perm::NONE)
-            .map_err(|e| PyRuntimeError::new_err(format!("Failed to write memory: {e}")))?;
-        Ok(())
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to write memory: {e}")));
+        self.vm.cpu.mem.detect_self_modifying_code = prev_smc;
+        result
+    }
+
+    /// Invalidate any lifted/JIT code whose extent overlaps `[addr, addr+size)`.
+    ///
+    /// Removes affected entries from the block map and drops their JIT
+    /// compilations so subsequent execution re-lifts from current memory.
+    /// Also clears the cached per-address disassembly strings — the lifter
+    /// compares freshly-lifted disassembly against this cache and raises
+    /// `SelfModifyingCode` on mismatch, which would otherwise fire whenever
+    /// the newly-written instruction differs from the one previously at the
+    /// same address.
+    fn invalidate_code_range(&mut self, addr: u64, size: u64) {
+        if size == 0 {
+            return;
+        }
+        let end = addr.saturating_add(size);
+
+        let mut affected_keys = Vec::new();
+        let mut affected_blocks = Vec::new();
+        for (key, group) in &self.vm.code.map {
+            // group covers inclusive [start, end]; range overlaps iff
+            //   group.start < end && group.end >= addr
+            if group.start < end && group.end >= addr {
+                affected_keys.push(*key);
+                affected_blocks.extend(group.range());
+            }
+        }
+
+        for key in affected_keys {
+            self.vm.code.map.remove(&key);
+        }
+        for id in affected_blocks {
+            self.vm.jit.invalidate(id);
+        }
+        self.vm
+            .code
+            .disasm
+            .retain(|&vaddr, _| vaddr < addr || vaddr >= end);
     }
 
     // Specialized state accessors
@@ -396,13 +449,8 @@ impl Icicle {
 
     // Execution
 
-    pub fn add_breakpoint(&mut self, addr: u64) -> PyResult<()> {
-        if !self.vm.add_breakpoint(addr) {
-            return Err(PyRuntimeError::new_err(format!(
-                "Failed to add breakpoint at {addr:#x}"
-            )));
-        }
-        Ok(())
+    pub fn add_breakpoint(&mut self, addr: u64) -> bool {
+        self.vm.add_breakpoint(addr)
     }
 
     pub fn remove_breakpoint(&mut self, addr: u64) -> PyResult<()> {
@@ -476,6 +524,62 @@ impl Icicle {
             return Err(PyRuntimeError::new_err("Edge hitmap is not enabled"));
         }
         Ok(())
+    }
+
+    // Snapshot/restore
+
+    pub fn save_snapshot(&mut self) {
+        self.snapshot = Some(self.vm.snapshot());
+    }
+
+    pub fn restore_snapshot(&mut self) -> PyResult<()> {
+        let snapshot = self
+            .snapshot
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
+        // Code/JIT/ISA-mode caches aren't in the snapshot; reset clears
+        // them (and memory), then restore puts memory back.
+        self.vm.reset();
+        self.vm.restore(snapshot);
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.clear(&mut self.vm);
+        }
+        if let Some(hitmap) = &mut self.edge_count_hitmap {
+            hitmap.as_slice_mut().fill(0);
+        }
+        Ok(())
+    }
+
+    pub fn has_snapshot(&self) -> bool {
+        self.snapshot.is_some()
+    }
+
+    pub fn clear_path_tracer(&mut self) {
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.clear(&mut self.vm);
+        }
+    }
+
+    // Dirty page tracking
+
+    /// Get the set of page-aligned virtual addresses that have been modified
+    /// since the last call to reset_page_modification_tracking.
+    #[getter]
+    pub fn get_modified_pages(&self) -> Vec<u64> {
+        self.vm.cpu.mem.modified.iter().copied().collect()
+    }
+
+    /// Reset page modification tracking so that only writes occurring after
+    /// this call are recorded.  For each given page address, the per-page
+    /// `modified` flag on the underlying physical page is cleared.  Then the
+    /// global modified-address set and TLB write cache are flushed.
+    pub fn reset_page_modification_tracking(&mut self, page_addresses: Vec<u64>) {
+        for addr in page_addresses {
+            if let Some(index) = self.vm.cpu.mem.get_physical_index(addr) {
+                self.vm.cpu.mem.get_physical_mut(index).modified = false;
+            }
+        }
+        self.vm.cpu.mem.clear_page_modification_log();
     }
 }
 

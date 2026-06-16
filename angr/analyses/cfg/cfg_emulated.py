@@ -1,56 +1,61 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+import contextlib
 import itertools
 import logging
 import sys
 from collections import defaultdict
 from functools import reduce
-import contextlib
+from typing import TYPE_CHECKING
 
-import angr
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
-from angr.analyses import ForwardAnalysis
-from angr.utils.graph import GraphUtils
-from angr.analyses import AnalysesHub
-from angr import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
-from angr import options as o
-from angr.codenode import BlockNode
+import angr
+from angr import procedures
+from angr import sim_options as o
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.backward_slice import BackwardSlice
+from angr.analyses.cdg import CDG
+from angr.analyses.ddg import DDG
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.analyses.loopfinder import Loop, LoopFinder
+from angr.codenode import BlockNode, FuncNode
 from angr.engines.procedure import ProcedureEngine
-from angr.exploration_techniques.loop_seer import LoopSeer
-from angr.exploration_techniques.slicecutor import Slicecutor
-from angr.exploration_techniques.explorer import Explorer
-from angr.exploration_techniques.lengthlimiter import LengthLimiter
 from angr.errors import (
     AngrCFGError,
     AngrError,
+    AngrExitError,
     AngrSkipJobNotice,
     AngrSyscallError,
+    SimEmptyCallStackError,
     SimError,
-    SimValueError,
-    SimSolverModeError,
     SimFastPathError,
     SimIRSBError,
-    AngrExitError,
-    SimEmptyCallStackError,
+    SimSolverModeError,
+    SimValueError,
 )
+from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.lengthlimiter import LengthLimiter
+from angr.exploration_techniques.loop_seer import LoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.knowledge_plugins.cfg import BlockID, CFGENode, IndirectJump
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_state import SimState
 from angr.state_plugins.callstack import CallStack
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action import SimActionData
-from angr.knowledge_plugins.cfg import CFGENode, IndirectJump
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.cdg import CDG
-from angr.analyses.ddg import DDG
-from angr.analyses.backward_slice import BackwardSlice
-from angr.analyses.loopfinder import LoopFinder, Loop
+from angr.utils.graph import GraphUtils
+
 from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
+from .cfg_job_base import CFGJobBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGNode
+    from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
 
 
 l = logging.getLogger(name=__name__)
@@ -164,6 +169,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     """
 
     tag = "CFGEmulated"
+    addr_type = "block_id"
 
     def __init__(
         self,
@@ -283,7 +289,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._keep_state = keep_state
         self._advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
-        self._additional_edges = additional_edges if additional_edges else {}
+        self._additional_edges = additional_edges or {}
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
@@ -529,7 +535,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if start_node is None:
             raise AngrCFGError("Cannot find start node when trying to unroll loops. The CFG might be empty.")
 
-        graph_copy = networkx.DiGraph(self.graph)
+        graph_copy = networkx.DiGraph(self.graph.to_networkx())
 
         while True:
             cycles_iter = networkx.simple_cycles(graph_copy)
@@ -622,7 +628,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # Update loop backedges
         self._loop_back_edges = loop_backedges
 
-        self.model.graph = graph_copy
+        self.model.graph.from_networkx(graph_copy)
 
     def immediate_dominators(self, start, target_graph=None):
         """
@@ -790,7 +796,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             "project": self.project,
             "indirect_jumps": self.indirect_jumps,
             "_loop_back_edges": self._loop_back_edges,
-            "_nodes_by_addr": self._nodes_by_addr,
             "_thumb_addrs": self._thumb_addrs,
             "_unresolvable_runs": self._unresolvable_runs,
             "_executable_address_ranges": self._executable_address_ranges,
@@ -803,7 +808,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     #
 
     @property
-    def graph(self):
+    def graph(self) -> SpillingCFG:
         return self._model.graph
 
     @property
@@ -1055,8 +1060,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
 
         # Let's check whether this address has been traced before.
-        if pending_job_key in self._nodes:
-            node = self._nodes[pending_job_key]
+        if self.model.has_node_id(pending_job_key):
+            node = self.model.get_node(pending_job_key)
             if node in self.graph:
                 pending_exit_addr = self._block_id_addr(pending_job_key)
                 # That block has been traced before. Let's forget about it
@@ -1070,7 +1075,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     stmt_idx=pending_job_src_exit_stmt_idx,
                     ins_addr=pending_job.src_exit_ins_addr,
                 )
-
+                self._update_function_transition_graph(
+                    pending_job_src_block_id,
+                    pending_job_key,
+                    jumpkind="Ijk_FakeRet",
+                    stmt_idx=pending_job_src_exit_stmt_idx,
+                    confirmed=True,
+                )
                 return None
 
         pending_job_state.history.jumpkind = "Ijk_FakeRet"
@@ -1124,8 +1135,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         self._make_completed_functions()
         new_changes = self._iteratively_analyze_function_features()
-        functions_do_not_return = new_changes["functions_do_not_return"]
-        self._update_function_callsites(functions_do_not_return)
+        funcaddrs_do_not_return = new_changes["functions_do_not_return"]
+        self._update_function_callsites(funcaddrs_do_not_return)
 
         # Create all pending edges
         for _, edges in self._pending_edges.items():
@@ -1201,13 +1212,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 # oh this is the very first basic block on this path
                 depth = 0
             else:
-                src_cfgnode = self._nodes[src_block_id]
+                src_cfgnode = self.model.get_node(src_block_id)
                 depth = src_cfgnode.depth + 1
                 # the depth will not be updated later on even if this block has a greater depth on another path.
                 # consequently, the `max_steps` limit is not very precise - I didn't see a need to make it precise
                 # though.
 
-        if block_id not in self._nodes:
+        if not self.model.has_node_id(block_id):
             # Create the CFGNode object
             cfg_node = self._create_cfgnode(
                 sim_successors, job.call_stack, job.func_addr, block_id=block_id, depth=depth
@@ -1233,15 +1244,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             # "call eax" should be traced twice with *different* sim_successors keys, which requires block ID being flow
             # sensitive, but it is way too expensive.
 
-            cfg_node = self._nodes[block_id]
+            cfg_node = self.model.get_node(block_id)
 
         # Increment tracing count for this block
         self._traced_addrs[job.call_stack_suffix][addr] += 1
-
-        if self._keep_state:
-            # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
-            # TODO: should save them all, which, unfortunately, requires some redesigning :-(
-            cfg_node.input_state = sim_successors.initial_state
 
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
@@ -1288,6 +1294,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             # We are good. Raise the exception and leave
             raise AngrSkipJobNotice
+
+        if self._keep_state:
+            # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
+            # TODO: should save them all, which, unfortunately, requires some redesigning :-(
+            cfg_node.input_state = sim_successors.initial_state
 
         self._update_thumb_addrs(sim_successors, job.state)
 
@@ -1461,7 +1472,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
-                    if return_target_key in self._nodes:
+                    if self.model.has_node_addr(return_target_key):
                         self._graph_add_edge(
                             job.block_id,
                             return_target_key,
@@ -1640,9 +1651,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 # - Job pended by an unknown function
 
                 new_changes = self._iteratively_analyze_function_features()
-                functions_do_not_return = new_changes["functions_do_not_return"]
+                funcaddrs_do_not_return = new_changes["functions_do_not_return"]
 
-                self._update_function_callsites(functions_do_not_return)
+                self._update_function_callsites(funcaddrs_do_not_return)
 
                 if not self._clean_pending_exits():
                     # no more pending exits are removed. we are good to go!
@@ -2009,7 +2020,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :return:
         """
 
-        if node_key not in self._nodes:
+        if not self.model.has_node_id(node_key):
             if not terminator_for_nonexistent_node:
                 return None
             # Generate a PathTerminator node
@@ -2045,7 +2056,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             l.debug("Block ID %s does not exist. Create a PathTerminator instead.", self._block_id_repr(node_key))
 
-        return self._nodes[node_key]
+        return self.model.get_node(node_key)
 
     def _graph_add_edge(self, src_node_key, dst_node_key, **kwargs):
         """
@@ -2182,27 +2193,28 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     stmt_idx=stmt_idx,
                 )
 
-    def _update_function_callsites(self, noreturns):
+    def _update_function_callsites(self, noreturns: set[int]):
         """
         Update the callsites of functions (remove return targets) that are calling functions that are just deemed not
         returning.
 
-        :param iterable func_addrs: A collection of functions for newly-recovered non-returning functions.
+        :param iterable noreturns:  A collection of functions for newly-recovered non-returning functions.
         :return:                    None
         """
 
-        for callee_func in noreturns:
+        for callee_func_addr in noreturns:
             # consult the callgraph to find callers of each function
-            if callee_func.addr not in self.functions.callgraph:
+            if callee_func_addr not in self.functions.callgraph:
                 continue
-            caller_addrs = self.functions.callgraph.predecessors(callee_func.addr)
+            caller_addrs = self.functions.callgraph.predecessors(callee_func_addr)
             for caller_addr in caller_addrs:
                 caller = self.functions[caller_addr]
-                if callee_func not in caller.transition_graph:
+                callee_funcnode = FuncNode(callee_func_addr)
+                if callee_funcnode not in caller.transition_graph:
                     continue
-                callsites = caller.transition_graph.predecessors(callee_func)
+                callsites = caller.transition_graph.predecessors(callee_funcnode)
                 for callsite in callsites:
-                    caller._add_call_site(callsite.addr, callee_func.addr, None)
+                    caller._add_call_site(callsite.addr, callee_func_addr, None)
 
     def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """
@@ -2654,12 +2666,12 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
                 :param SimSuccessors state_: state to update registers for
                 """
-                if state_.inspect.address is None:
-                    l.error("state.inspect.address is None. It will be fixed by Yan later.")
+                if state_.inspect.attrs.address is None:
+                    l.error("state.inspect.attrs.address is None. It will be fixed by Yan later.")
                     return
 
                 if state_.registers.load(self._reg_offset).symbolic:
-                    current_run = state_.inspect.address
+                    current_run = state_.inspect.attrs.address
                     if current_run in self._info_collection and not state_.solver.symbolic(
                         self._info_collection[current_run][self._reg_offset]
                     ):

@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import Convert, BinaryOp, Const, UnaryOp
+
+from angr.ailment.expression import BinaryOp, Const, Convert, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -22,11 +23,11 @@ class OneSubBool(PeepholeOptimizationExprBase):
             conv_expr = expr.operands[1]
             if self.is_bool_expr(conv_expr.operand):
                 return Convert(
-                    None,
+                    self.manager.next_atom(),
                     1,
                     conv_expr.to_bits,
                     conv_expr.is_signed,
-                    UnaryOp(None, "Not", conv_expr.operand, **conv_expr.operand.tags),
+                    UnaryOp(self.manager.next_atom(), "Not", conv_expr.operand, **conv_expr.operand.tags),
                     **conv_expr.tags,
                 )
 

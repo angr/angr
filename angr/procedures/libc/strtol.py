@@ -1,7 +1,10 @@
 from __future__ import annotations
-import angr
-import claripy
+
 import logging
+
+import claripy
+
+import angr
 from angr.errors import SimProcedureError
 
 l = logging.getLogger(name=__name__)
@@ -13,17 +16,19 @@ class strtol(angr.SimProcedure):
     @staticmethod
     def strtol_inner(s, state, region, base, signed, read_length=None):
         """
+        Inner parser for strtol-style functions.
+
+        Note: all numbers may start with +/- and base 16 may start with 0x.
+
         :param s: the string address/offset
         :param state: SimState
         :param region: memory, file, etc
         :param base: the base to use to interpret the number
-        note: all numbers may start with +/- and base 16 may start with 0x
         :param signed: boolean, true means the result will be signed, otherwise unsigned
         :param read_length: int, the number of bytes parsed in strtol
-        :return: expression, value, num_bytes
-        the returned expression is a symbolic boolean indicating success, value will be set to 0 on failure
-        value is the returned value (set to min/max on overflow)
-        num_bytes is the number of bytes read in the string
+        :return: ``(expression, value, num_bytes)`` where ``expression`` is a symbolic boolean indicating success,
+                 ``value`` is the returned value (set to 0 on failure, or min/max on overflow), and ``num_bytes`` is
+                 the number of bytes read in the string.
         """
 
         # sanity check

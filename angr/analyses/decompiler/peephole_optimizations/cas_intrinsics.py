@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from angr.ailment import Const
-from angr.ailment.expression import BinaryOp, Load, Expression, Tmp
-from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment, Call
+from angr.ailment.expression import BinaryOp, Call, Expression, Load, Tmp
+from angr.ailment.statement import CAS, Assignment, ConditionalJump, Statement
 
 from .base import PeepholeOptimizationMultiStmtBase
 
@@ -31,27 +31,26 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
     """
     Rewrite lock-prefixed instructions (or rather, their VEX/AIL forms) into intrinsic calls.
 
-    Case 1.
+    Case 1::
 
-                 mov eax, r12d
-    0x140014b57: xchg eax, [0x14000365f8]
+                     mov eax, r12d
+        0x140014b57: xchg eax, [0x14000365f8]
 
-    LABEL_0x140014b57:
-    CAS(0x1400365f8<64>, Conv(64->32, vvar_365{reg 112}), Load(addr=0x1400365f8<64>, size=4, endness=Iend_LE),
-        vvar_27756)
-    if (CasCmpNE(vvar_27756, g_1400365f8))
-        goto LABEL_0x140014b57;
+        LABEL_0x140014b57:
+        CAS(0x1400365f8<64>, Conv(64->32, vvar_365{reg 112}), Load(addr=0x1400365f8<64>, size=4, endness=Iend_LE),
+            vvar_27756)
+        if (CasCmpNE(vvar_27756, g_1400365f8))
+            goto LABEL_0x140014b57;
 
-    => vvar_27756 = _InterlockedExchange(0x1400365f8, vvar_365{reg 112})
+        => vvar_27756 = _InterlockedExchange(0x1400365f8, vvar_365{reg 112})
 
+    Case 2::
 
-    Case 2.
+        lock cmpxchg cs:g_WarbirdSecureFunctionsLock, r14d
 
-    lock cmpxchg cs:g_WarbirdSecureFunctionsLock, r14d
+        CAS(0x1400365f8<64>, 0x1<32>, 0x0<32>, vvar_27751)
 
-    CAS(0x1400365f8<64>, 0x1<32>, 0x0<32>, vvar_27751)
-
-    => var_27751 = _InterlockedCompareExchange(0x1400365f8, 0x1<32>, 0x0<32>)
+        => var_27751 = _InterlockedCompareExchange(0x1400365f8, 0x1<32>, 0x0<32>)
     """
 
     __slots__ = ()

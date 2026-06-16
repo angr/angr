@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.errors import AngrExitError
+
 from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)

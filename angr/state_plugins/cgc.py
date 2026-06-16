@@ -3,6 +3,7 @@ from __future__ import annotations
 import operator
 
 from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 

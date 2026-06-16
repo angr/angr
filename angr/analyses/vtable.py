@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
 
-from angr.analyses import AnalysesHub
-from . import Analysis, CFGFast
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGFast
 
 l = logging.getLogger(name=__name__)
 
@@ -15,7 +16,7 @@ class Vtable:
     def __init__(self, vaddr, size, func_addrs=None):
         self.vaddr = vaddr
         self.size = size
-        self.func_addrs = func_addrs if func_addrs else []
+        self.func_addrs = func_addrs or []
 
 
 class VtableFinder(Analysis):

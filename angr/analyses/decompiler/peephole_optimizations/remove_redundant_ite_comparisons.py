@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import ITE, BinaryOp, UnaryOp, Const
+
+from angr.ailment.expression import ITE, BinaryOp, Const, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -49,6 +50,6 @@ class RemoveRedundantITEComparisons(PeepholeOptimizationExprBase):
 
                 if not negate:
                     return inner_expr.cond
-                return UnaryOp(None, "Not", inner_expr.cond, **expr.tags)
+                return UnaryOp(self.manager.next_atom(), "Not", inner_expr.cond, **expr.tags)
 
         return None

@@ -1,8 +1,9 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Const, Load
 
-from angr.utils.loader import is_pc, is_in_readonly_section, is_in_readonly_segment
+from angr.ailment.expression import BinaryOp, Const, Load
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment, is_pc
+
 from .base import PeepholeOptimizationExprBase
 
 
@@ -46,6 +47,6 @@ class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
                     except KeyError:
                         return expr
                     value = offset + op1.value
-                    return Const(None, None, value, self.project.arch.bits, **expr.tags)
+                    return Const(self.manager.next_atom(), value, self.project.arch.bits, **expr.tags)
 
         return expr

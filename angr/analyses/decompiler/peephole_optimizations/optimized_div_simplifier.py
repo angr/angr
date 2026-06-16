@@ -1,8 +1,9 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import math
 
-from angr.ailment.expression import Convert, BinaryOp, Const, Expression
+from angr.ailment.expression import BinaryOp, Const, Convert, Expression
 
 from .base import PeepholeOptimizationExprBase
 
@@ -53,7 +54,9 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
             elif expr.op in {"Add", "Sub"}:
                 expr0, expr1 = expr.operands
-                if isinstance(expr1, Convert) and expr1.from_bits == 32 and expr1.to_bits == 64:
+                if (isinstance(expr1, Convert) and expr1.from_bits == 32 and expr1.to_bits == 64) or (
+                    isinstance(expr1, BinaryOp) and expr1.op == "Sar"
+                ):
                     r = self._match_case_a(expr0, expr1)
                     if r is not None:
                         return self._reconvert(r, conv_expr) if conv_expr is not None else r
@@ -71,34 +74,39 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
                 ):
                     expr0_operand = expr0.operands[0]
                     expr1_operand = expr1.operands[0]
+                    C: int | None = None
                     if (
                         isinstance(expr0_operand, BinaryOp)
                         and expr0_operand.op in {"Mull", "Mul"}
                         and expr0_operand.signed
                         and isinstance(expr0_operand.operands[1], Const)
+                        and isinstance(expr1_operand, BinaryOp)
                     ):
                         a0 = expr0_operand.operands[0]
                         a1 = expr1_operand.operands[0]
+                        C = expr0_operand.operands[1].value_int
                     elif (
                         isinstance(expr1_operand, BinaryOp)
                         and expr1_operand.op in {"Mull", "Mul"}
                         and expr1_operand.signed
                         and isinstance(expr1_operand.operands[1], Const)
+                        and isinstance(expr0_operand, BinaryOp)
                     ):
                         a0 = expr1_operand.operands[0]
                         a1 = expr0_operand.operands[0]
+                        C = expr1_operand.operands[1].value_int
                     else:
                         a0, a1 = None, None
 
-                    if a0 is not None and a1 is not None and a0.likes(a1):
+                    if a0 is not None and a1 is not None and a0.likes(a1) and C is not None:
                         # (a * x >> 0x3f) +/- (a * x >> 0x20)  ==>  a / N
-                        C = expr0_operand.operands[1].value
+                        assert isinstance(expr0_operand, BinaryOp)
                         X = a0
                         V = 32
                         ndigits = 5 if V == 32 else 6
                         divisor = self._check_divisor(pow(2, V), C, ndigits)
                         if divisor is not None:
-                            new_const = Const(None, None, divisor, X.bits)
+                            new_const = Const(self.manager.next_atom(), divisor, X.bits)
                             r = BinaryOp(
                                 expr0_operand.idx,
                                 "Div",
@@ -110,13 +118,22 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
         return None
 
-    def _match_case_a(self, expr0: Expression, expr1: Convert) -> BinaryOp | None:
+    def _match_case_a(self, expr0: Expression, expr1: Convert | BinaryOp) -> BinaryOp | None:
         # (
         #   (((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) -
         #   Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>))
         # )
+        #
+        # or
+        # (Conv(64I->32I, ((Conv(32I->s64I, Conv(64I->32I, vvar_59{r32|8b})) * 0x4325c53f<64>) >>a 0x24<8>)) -
+        #  (Conv(64I->32I, vvar_59{r32|8b}) >>a 0x1f<8>)
+        # )
 
-        expr1_op = expr1.operand
+        if isinstance(expr1, Convert):
+            expr1_op = expr1.operand
+        else:
+            assert isinstance(expr1, BinaryOp)
+            expr1_op = expr1
 
         if (
             isinstance(expr0, BinaryOp)
@@ -125,6 +142,8 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             and expr0.operands[1].value == 0xFFFFFFFF
         ):
             expr0 = expr0.operands[0]
+        elif isinstance(expr0, Convert) and expr0.from_bits == 64 and expr0.to_bits == 32:
+            expr0 = expr0.operand
         else:
             return None
 
@@ -136,6 +155,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             and expr1_op.op in {"Shr", "Sar"}
             and isinstance(expr1_op.operands[1], Const)
         ):
+            C: int | None = None
             if (
                 isinstance(expr0.operands[0], BinaryOp)
                 and expr0.operands[0].op in {"Mull", "Mul"}
@@ -143,13 +163,16 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             ):
                 a0 = expr0.operands[0].operands[0]
                 a1 = expr1_op.operands[0]
+                C = expr0.operands[0].operands[1].value_int
             elif (
                 isinstance(expr1_op.operands[0], BinaryOp)
                 and expr1_op.operands[0].op in {"Mull", "Mul"}
                 and isinstance(expr1_op.operands[0].operands[1], Const)
+                and isinstance(expr0.operands[0], BinaryOp)
             ):
-                a1 = expr0.operands[0].operands[0]
                 a0 = expr1_op.operands[0]
+                a1 = expr0.operands[0].operands[0]
+                C = expr1_op.operands[0].operands[1].value_int
             else:
                 a0, a1 = None, None
 
@@ -158,15 +181,15 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             if isinstance(a0, Convert) and a1 is not None and a0.from_bits == a1.bits:
                 a0 = a0.operand
 
-            if a0 is not None and a1 is not None and a0.likes(a1):
+            if a0 is not None and a1 is not None and a0.likes(a1) and C is not None:
                 # (a * x >> M1) +/- (a >> M2)  ==>  a / N
-                C = expr0.operands[0].operands[1].value
+                assert isinstance(expr0.operands[0], BinaryOp)
                 X = a0
                 V = expr0.operands[1].value
                 ndigits = 5 if V == 32 else 6
                 divisor = self._check_divisor(pow(2, V), C, ndigits)
                 if divisor is not None:
-                    new_const = Const(None, None, divisor, X.bits)
+                    new_const = Const(self.manager.next_atom(), divisor, X.bits)
                     # we cannot drop the convert in this case
                     return BinaryOp(
                         expr0.operands[0].idx,
@@ -178,8 +201,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
         return None
 
-    @staticmethod
-    def _match_case_b(expr: BinaryOp) -> BinaryOp | Convert | None:
+    def _match_case_b(self, expr: BinaryOp) -> BinaryOp | Convert | None:
         """
         A more complex (but general) case for unsigned 32-bit division by a constant integer.
 
@@ -274,7 +296,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
         divisor = math.ceil((2 ** (32 + p)) / (m + 0x1_0000_0000))
         if divisor == 0:
             return None
-        divisor_expr = Const(None, None, divisor, n.bits)
+        divisor_expr = Const(self.manager.next_atom(), divisor, n.bits)
         div = BinaryOp(expr.idx, "Div", [n, divisor_expr], signed=False, **expr.tags)
         if expr.bits != div.bits:
             div = Convert(expr.idx, div.bits, expr.bits, False, div, **expr.tags)
@@ -297,7 +319,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
                 ndigits = 5 if V == 32 else 6
                 divisor = self._check_divisor(pow(2, V), C, ndigits)
                 if divisor is not None:
-                    new_const = Const(None, None, divisor, X.bits)
+                    new_const = Const(self.manager.next_atom(), divisor, X.bits)
                     return BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
         return None
 

@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use,too-many-boolean-expressions
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -26,7 +27,7 @@ class AMulConstSubA(PeepholeOptimizationExprBase):
                 return BinaryOp(
                     expr.idx,
                     "Mul",
-                    [a, Const(None, None, N - 1, expr.bits, **expr.operands[0].operands[1].tags)],
+                    [a, Const(self.manager.next_atom(), N - 1, expr.bits, **expr.operands[0].operands[1].tags)],
                     expr.signed,
                     **expr.tags,
                 )

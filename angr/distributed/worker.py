@@ -1,11 +1,12 @@
 from __future__ import annotations
-import time
-import multiprocessing
-import logging
-import sys
 
+import logging
+import multiprocessing
+import sys
+import time
+
+from angr.exploration_techniques import Bucketizer, ExplorationTechnique
 from angr.utils.mp import Initializer
-from angr.exploration_techniques import ExplorationTechnique, Bucketizer
 from angr.vaults import VaultDirShelf
 
 _l = logging.getLogger(__name__)
@@ -85,8 +86,8 @@ class Worker:
         initializer.initialize()
 
         from angr.exploration_techniques.spiller import (
-            Spiller,
             PickledStatesDb,
+            Spiller,
         )  # pylint:disable=import-outside-toplevel
 
         _l.debug("Worker %d starts running...", self.worker_id)

@@ -1,13 +1,15 @@
 # pylint:disable=import-outside-toplevel
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+import angr
 
 from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
     from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+    from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
 
 
 class StructuredCodeManager(KnowledgeBasePlugin):
@@ -28,13 +30,10 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return self.cached[self._normalize_key(item)]
 
     def __setitem__(self, key, value: DecompilationCache | BaseStructuredCodeGenerator):
-        from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
-        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-
         nkey = self._normalize_key(key)
 
-        if isinstance(value, BaseStructuredCodeGenerator):
-            cache = DecompilationCache(nkey)
+        if isinstance(value, angr.analyses.decompiler.BaseStructuredCodeGenerator):
+            cache = angr.analyses.decompiler.DecompilationCache(nkey)
             cache.codegen = value
         else:
             cache = value
@@ -46,6 +45,9 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __delitem__(self, key):
         del self.cached[self._normalize_key(key)]
 
+    def get(self, key, default=None):
+        return self.cached.get(self._normalize_key(key), default)
+
     def discard(self, key):
         normalized_key = self._normalize_key(key)
         if normalized_key in self.cached:
@@ -55,6 +57,9 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         if type(item) is str:
             item = self._kb.labels.lookup(item)
         return [flavor for func, flavor in self.cached if func == item]
+
+    def all_flavors(self, item):  # pylint:disable=no-self-use, unused-argument
+        return ["pseudocode", "rust"]
 
     def copy(self):
         raise NotImplementedError

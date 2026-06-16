@@ -12,49 +12,49 @@
 	},
 	"functions": {
 		"gluBeginCurve": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluBeginPolygon": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
 		},
 		"gluBeginSurface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluBeginTrim": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluBuild1DMipmaps": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['target', 'components', 'width', 'format', 'type', 'data']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['target', 'components', 'width', 'format', 'type', 'data']}"
 		},
 		"gluBuild2DMipmaps": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['target', 'components', 'width', 'height', 'format', 'type', 'data']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['target', 'components', 'width', 'height', 'format', 'type', 'data']}"
 		},
 		"gluCylinder": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'baseRadius', 'topRadius', 'height', 'slices', 'stacks']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'baseRadius', 'topRadius', 'height', 'slices', 'stacks']}"
 		},
 		"gluDeleteNurbsRenderer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluDeleteQuadric": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state']}"
 		},
 		"gluDeleteTess": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
 		},
 		"gluDisk": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'innerRadius', 'outerRadius', 'slices', 'loops']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'innerRadius', 'outerRadius', 'slices', 'loops']}"
 		},
 		"gluEndCurve": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluEndPolygon": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
 		},
 		"gluEndSurface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluEndTrim": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj']}"
 		},
 		"gluErrorString": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['errCode']}"
@@ -63,16 +63,16 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['errCode']}"
 		},
 		"gluGetNurbsProperty": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'property', 'value']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'property', 'value']}"
 		},
 		"gluGetString": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['name']}"
 		},
 		"gluGetTessProperty": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'which', 'value']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'which', 'value']}"
 		},
 		"gluLoadSamplingMatrices": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'modelMatrix', 'projMatrix', 'viewport']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'modelMatrix', 'projMatrix', 'viewport']}"
 		},
 		"gluLookAt": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['eyex', 'eyey', 'eyez', 'centerx', 'centery', 'centerz', 'upx', 'upy', 'upz']}"
@@ -87,85 +87,85 @@
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, 'arg_names': []}"
 		},
 		"gluNextContour": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'type']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'type']}"
 		},
 		"gluNurbsCallback": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'which', 'fn']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr', 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'which', 'fn']}"
 		},
 		"gluNurbsCurve": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'nknots', 'knot', 'stride', 'ctlarray', 'order', 'type']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'nknots', 'knot', 'stride', 'ctlarray', 'order', 'type']}"
 		},
 		"gluNurbsProperty": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'property', 'value']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'property', 'value']}"
 		},
 		"gluNurbsSurface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'sknot_count', 'sknot', 'tknot_count', 'tknot', 's_stride', 't_stride', 'ctlarray', 'sorder', 'torder', 'type']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'sknot_count', 'sknot', 'tknot_count', 'tknot', 's_stride', 't_stride', 'ctlarray', 'sorder', 'torder', 'type']}"
 		},
 		"gluOrtho2D": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['left', 'right', 'bottom', 'top']}"
 		},
 		"gluPartialDisk": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'innerRadius', 'outerRadius', 'slices', 'loops', 'startAngle', 'sweepAngle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'innerRadius', 'outerRadius', 'slices', 'loops', 'startAngle', 'sweepAngle']}"
 		},
 		"gluPerspective": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['fovy', 'aspect', 'zNear', 'zFar']}"
 		},
 		"gluPickMatrix": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'width', 'height', 'viewport']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'width', 'height', 'viewport']}"
 		},
 		"gluProject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['objx', 'objy', 'objz', 'modelMatrix', 'projMatrix', 'viewport', 'winx', 'winy', 'winz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['objx', 'objy', 'objz', 'modelMatrix', 'projMatrix', 'viewport', 'winx', 'winy', 'winz']}"
 		},
 		"gluPwlCurve": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'count', 'array', 'stride', 'type']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUnurbs', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nobj', 'count', 'array', 'stride', 'type']}"
 		},
 		"gluQuadricCallback": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'which', 'fn']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr', 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'which', 'fn']}"
 		},
 		"gluQuadricDrawStyle": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'drawStyle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'drawStyle']}"
 		},
 		"gluQuadricNormals": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'normals']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'normals']}"
 		},
 		"gluQuadricOrientation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'orientation']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'orientation']}"
 		},
 		"gluQuadricTexture": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'textureCoords']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['quadObject', 'textureCoords']}"
 		},
 		"gluScaleImage": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['format', 'widthin', 'heightin', 'typein', 'datain', 'widthout', 'heightout', 'typeout', 'dataout']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['format', 'widthin', 'heightin', 'typein', 'datain', 'widthout', 'heightout', 'typeout', 'dataout']}"
 		},
 		"gluSphere": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'radius', 'slices', 'stacks']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUquadric', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['qobj', 'radius', 'slices', 'stacks']}"
 		},
 		"gluTessBeginContour": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
 		},
 		"gluTessBeginPolygon": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'polygon_data']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'polygon_data']}"
 		},
 		"gluTessCallback": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'which', 'fn']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr', 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'which', 'fn']}"
 		},
 		"gluTessEndContour": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
 		},
 		"gluTessEndPolygon": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess']}"
 		},
 		"gluTessNormal": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'x', 'y', 'z']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'x', 'y', 'z']}"
 		},
 		"gluTessProperty": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'which', 'value']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'which', 'value']}"
 		},
 		"gluTessVertex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'coords', 'data']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLUtesselator', 'ot': 'ptr'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['tess', 'coords', 'data']}"
 		},
 		"gluUnProject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['winx', 'winy', 'winz', 'modelMatrix', 'projMatrix', 'viewport', 'objx', 'objy', 'objz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['winx', 'winy', 'winz', 'modelMatrix', 'projMatrix', 'viewport', 'objx', 'objy', 'objz']}"
 		}
 	}
 }

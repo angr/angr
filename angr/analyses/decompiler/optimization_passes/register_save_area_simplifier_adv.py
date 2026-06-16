@@ -1,13 +1,14 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 import logging
 
-
-from angr.ailment.statement import Assignment
 from angr.ailment.expression import VirtualVariable
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.utils.ail import is_phi_assignment
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -28,16 +29,17 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
     NAME = "Simplify register save areas (advanced)"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._srda = None
 
         self.analyze()
 
     def _check(self):
-
         self._srda = self.project.analyses.SReachingDefinitions(
-            subject=self._func, func_graph=self._graph, func_args=self._arg_vvars
+            subject=self._func,
+            func_graph=self._graph,
+            func_args={vvar for vvar, _ in arg_vvars.values()} if (arg_vvars := self._arg_vvars) is not None else set(),
         )
         info = self._find_reg_store_and_restore_locations()
         if not info:
@@ -46,9 +48,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         return True, {"info": info}
 
     @staticmethod
-    def _modify_statement(
-        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None
-    ):  # pylint:disable=unused-argument
+    def _modify_statement(old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None):  # pylint:disable=unused-argument
         if old_block not in updated_blocks_:
             block = old_block.copy()
             updated_blocks_[old_block] = block
@@ -57,7 +57,6 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         block.statements[stmt_idx_] = None
 
     def _analyze(self, cache=None):
-
         if cache is None:
             return
 

@@ -1,39 +1,53 @@
-# pylint:disable=unused-import
+# pylint:disable=unused-import,protected-access
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import networkx
 from cle import SymbolType
 
 from angr import ailment
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
-from angr.knowledge_plugins.functions.function import Function
+from angr.analyses.s_propagator import sprop_cache_scope
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.analyses.typehoon.typevars import TypeVariableManager
+from angr.errors import AngrAIError
 from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions.function import Function
+from angr.rust.optimization_passes import get_rust_optimization_passes
+from angr.rust.typehoon.typehoon import RustTypehoon
+from angr.sim_type import parse_type
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
-from angr.analyses import Analysis, AnalysesHub
-from .clinic import ClinicStage
-from .structured_codegen.c import CStructuredCodeGenerator
-from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
-from .region_identifier import RegionIdentifier
-from .optimization_passes.optimization_pass import OptimizationPassStage
+
 from .ailgraph_walker import AILGraphWalker
+from .clinic import ClinicStage
 from .condition_processor import ConditionProcessor
-from .decompilation_options import DecompilationOption, PARAM_TO_OPTION
 from .decompilation_cache import DecompilationCache
-from .utils import remove_edges_in_ailgraph
-from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import SequenceNode
-from .presets import DECOMPILATION_PRESETS, DecompilationPreset
+from .decompilation_options import PARAM_TO_OPTION, DecompilationOption
 from .notes import DecompilationNote
+from .optimization_passes.optimization_pass import OptimizationPassStage
+from .presets import DECOMPILATION_PRESETS, DecompilationPreset
+from .region_identifier import RegionIdentifier
+from .sequence_walker import SequenceWalker
+from .structured_codegen.c import CStructuredCodeGenerator
+from .structured_codegen.rust import RustStructuredCodeGenerator
+from .structurer_nodes import SequenceNode
+from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
+from .structuring.phoenix import MultiStmtExprMode
+from .utils import remove_edges_in_ailgraph
+from .variable_map import VariableMap
 
 if TYPE_CHECKING:
+    from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
+
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
-    from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
+    from .structured_codegen.base import BaseStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
 
@@ -74,6 +88,7 @@ class Decompiler(Analysis):
         want_full_graph: bool = False,
         generate_code: bool = True,
         use_cache: bool = True,
+        update_cache: bool = True,
         expr_collapse_depth: int = 16,
         clinic_graph=None,
         clinic_arg_vvars=None,
@@ -82,6 +97,7 @@ class Decompiler(Analysis):
         clinic_skip_stages=(),
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        codegen_cls=CStructuredCodeGenerator,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -93,6 +109,8 @@ class Decompiler(Analysis):
                 "data.",
                 func,
             )
+
+        self._flavor = flavor
 
         if cfg is None:
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
@@ -112,11 +130,14 @@ class Decompiler(Analysis):
             if not isinstance(preset, DecompilationPreset):
                 raise TypeError('"preset" must be a DecompilationPreset instance')
             self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
+
+        if self._flavor == "rust":
+            self._optimization_passes.extend(get_rust_optimization_passes())
+
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
-        self._flavor = flavor
         self._variable_kb = variable_kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
@@ -159,7 +180,9 @@ class Decompiler(Analysis):
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
-        self.codegen: CStructuredCodeGenerator | None = None
+        self.codegen: BaseStructuredCodeGenerator | None = None
+        self.codegen_cls = codegen_cls
+        self.cache: DecompilationCache | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
         self.seq_node: SequenceNode | None = None
@@ -171,24 +194,46 @@ class Decompiler(Analysis):
         self.expr_collapse_depth = expr_collapse_depth
         self.notes: dict[str, DecompilationNote] = {}
         self.region_identifier = None
+        self.use_cache = use_cache
+        self.update_cache = update_cache
+
+        self._variable_map = None
+        # structuring-specific parameters - will be reset in _decompile()
+        self._force_loop_single_exit = True
+        self._refine_loops_with_single_successor = False
+        self._complete_successors = False
+        self._recursive_structurer_params = {}
+
+        # cache of reusable AILBlockWalker instances that are shared by all SPropagator instances created during
+        # decompilation. Owned here so all walkers are released when this Decompiler instance is garbage-collected.
+        # SPropagator picks up this cache (see walker_cache_scope).
+        self._sprop_walker_cache: dict = {}
+
+        self._codegen_cls = CStructuredCodeGenerator
+        self._typehoon_cls = Typehoon
+        if self._flavor == "rust":
+            self._codegen_cls = RustStructuredCodeGenerator
+            self._typehoon_cls = RustTypehoon
 
         if decompile:
             with self._resilience():
-                self._decompile()
+                self._decompile_with_cache()
             if self.errors:
-                if (self.func.addr, self._flavor) not in self.kb.decompilations:
-                    self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
-                for error in self.errors:
-                    self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+                if self.update_cache:
+                    if (self.func.addr, self._flavor) not in self.kb.decompilations:
+                        self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
+                    for error in self.errors:
+                        self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
                 with self._resilience():
                     l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
                     if preset != DECOMPILATION_PRESETS["basic"]:
                         self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
                             self.project.arch, self.project.simos.name
                         )
-                        self._decompile()
-                        for error in self.errors:
-                            self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+                        self._decompile_with_cache()
+                        if self.update_cache:
+                            for error in self.errors:
+                                self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         if self._cache_parameters is None or cache.parameters is None:
@@ -210,6 +255,10 @@ class Decompiler(Analysis):
                 o = PARAM_TO_OPTION[o]
             converted_options.append((o, v))
         return converted_options
+
+    def _decompile_with_cache(self):
+        with sprop_cache_scope(self._sprop_walker_cache):
+            self._decompile()
 
     @timethis
     def _decompile(self):
@@ -267,6 +316,9 @@ class Decompiler(Analysis):
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
+        # The Rust flavor disables multi-statement-expression generation regardless of user options.
+        if self._flavor == "rust":
+            self._recursive_structurer_params["use_multistmtexprs"] = MultiStmtExprMode.NEVER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
@@ -279,6 +331,11 @@ class Decompiler(Analysis):
             cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
+
+        # The Decompiler owns the VariableMap. A fresh map is created before launching a new Clinic (re-linking
+        # populates it from scratch over freshly-allocated atom idx values). When a cached Clinic is reused without
+        # re-linking, its existing map is carried over below.
+        variable_map = VariableMap()
 
         # convert function blocks to AIL blocks
         def progress_callback(p, **kwargs):
@@ -305,6 +362,7 @@ class Decompiler(Analysis):
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
+                typehoon_cls=self._typehoon_cls,
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
@@ -313,6 +371,8 @@ class Decompiler(Analysis):
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                flavor=self._flavor,
+                variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -323,7 +383,11 @@ class Decompiler(Analysis):
 
         self.clinic = clinic
         self.cache = cache
+        # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial
+        # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
+        cache.variable_map = clinic.variable_map
         self._variable_kb = clinic.variable_kb
+        self._variable_map = clinic.variable_map
         self._update_progress(70.0, text="Identifying regions")
         self.vvar_id_start = clinic.vvar_id_start
         self._copied_var_ids = clinic.copied_var_ids
@@ -337,7 +401,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph = (
             clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
         )
-        cond_proc = ConditionProcessor(self.project.arch)
+        cond_proc = ConditionProcessor(self.project.arch, clinic._ail_manager)
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,
@@ -359,7 +423,7 @@ class Decompiler(Analysis):
             self.region_identifier,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
-            arg_vvars=set(clinic.arg_vvars),
+            arg_vvars=set(clinic.arg_vvars) if clinic.arg_vvars is not None else set(),
             edges_to_remove=clinic.edges_to_remove,
         )
 
@@ -386,6 +450,7 @@ class Decompiler(Analysis):
                 self.region_identifier.region,
                 cond_proc=cond_proc,
                 func=self.func,
+                ail_manager=clinic._ail_manager,
                 **self._recursive_structurer_params,
             )
             self._update_progress(80.0, text="Simplifying regions")
@@ -395,18 +460,29 @@ class Decompiler(Analysis):
             variable_manager = None
             if clinic.variable_kb is not None and self.func.addr in clinic.variable_kb.variables:
                 variable_manager = clinic.variable_kb.variables[self.func.addr]
+            region_simplifier_params = self.options_to_params(self.options_by_class["region_simplifier"])
+            # The Rust flavor forces if-else simplification off regardless of user options.
+            region_simplifier_params.pop("simplify_ifelse", None)
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
-                arg_vvars=set(self.clinic.arg_vvars),
+                self.clinic._ail_manager,
+                arg_vvars=set(self.clinic.arg_vvars)
+                if self.clinic is not None and self.clinic.arg_vvars is not None
+                else set(),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
-                **self.options_to_params(self.options_by_class["region_simplifier"]),
+                simplify_ifelse=self._flavor != "rust",
+                **region_simplifier_params,
             )
             seq_node = s.result
             seq_node = self._run_post_structuring_simplification_passes(
-                seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
+                seq_node,
+                binop_operators=cache.binop_operators,
+                goto_manager=s.goto_manager,
+                graph=clinic.graph,
+                variable_kb=self._variable_kb,
             )
 
             # rewrite the sequence node to remove phi expressions
@@ -418,16 +494,15 @@ class Decompiler(Analysis):
 
             if self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES:
                 self._update_progress(85.0, text="Generating code")
-                codegen = self.project.analyses.StructuredCodeGenerator(
+                codegen = self.project.analyses[self._codegen_cls].prep(kb=self.kb, fail_fast=self._fail_fast)(
                     self.func,
                     seq_node,
                     cfg=self._cfg,
                     ail_graph=clinic.graph,
                     flavor=self._flavor,
                     func_args=clinic.arg_list,
-                    kb=self.kb,
-                    fail_fast=self._fail_fast,
                     variable_kb=clinic.variable_kb,
+                    variable_map=clinic.variable_map,
                     expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                     const_formats=old_codegen.const_formats if old_codegen is not None else None,
@@ -437,7 +512,6 @@ class Decompiler(Analysis):
                     **self.options_to_params(self.options_by_class["codegen"]),
                 )
 
-        self._update_progress(90.0, text="Finishing up")
         self.seq_node = seq_node
         self.codegen = codegen
         # save a copy of the AIL graph that is optimized but not modified by region identification
@@ -445,14 +519,30 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
-        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
+        # LLM refinement pass
+        if self.codegen is not None and self.options_by_class is not None:
+            llm_opts = self.options_to_params(self.options_by_class.get("decompiler", []))
+            if llm_opts.get("llm_refine", False):
+                self._update_progress(90.0, text="LLM refinement")
+                try:
+                    self.llm_refine()
+                except Exception:  # pylint:disable=broad-exception-caught
+                    l.error("LLM refinement failed", exc_info=True)
+
+        self._update_progress(95.0, text="Finishing up")
+        if self.update_cache:
+            self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
         self._finish_progress()
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
+        assert self.clinic is not None
+        assert self.options_by_class is not None
+
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(
             self.func,
             graph=graph,
             cond_proc=condition_processor,
+            ail_manager=self.clinic._ail_manager,
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
@@ -494,8 +584,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -531,6 +623,8 @@ class Decompiler(Analysis):
         :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
+        assert self.clinic is not None
+
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
@@ -555,8 +649,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -585,13 +681,15 @@ class Decompiler(Analysis):
                 addr_to_blocks = defaultdict(set)
                 AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
-                cond_proc = ConditionProcessor(self.project.arch)
+                cond_proc = ConditionProcessor(self.project.arch, self.clinic._ail_manager)
                 # always update RI on graph change
                 ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
 
                 self.vvar_id_start = a.vvar_id_start
 
-        return ail_graph, self._recover_regions(ail_graph, ConditionProcessor(self.project.arch), update_graph=True)
+        return ail_graph, self._recover_regions(
+            ail_graph, ConditionProcessor(self.project.arch, self.clinic._ail_manager), update_graph=True
+        )
 
     @timethis
     def _run_post_structuring_simplification_passes(self, seq_node, **kwargs):
@@ -600,8 +698,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 seq=seq_node,
                 scratch=self._optimization_scratch,
                 peephole_optimizations=self._peephole_optimizations,
@@ -617,10 +717,12 @@ class Decompiler(Analysis):
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type == SymbolType.TYPE_OBJECT:
                 ident = global_variables.next_variable_ident("global")
+                variable = SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident)
+                variable.renamed = True
                 global_variables.set_variable(
                     "global",
                     symbol.rebased_addr,
-                    SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident),
+                    variable,
                 )
 
     def reflow_variable_types(self, cache: DecompilationCache):
@@ -631,13 +733,19 @@ class Decompiler(Analysis):
         """
 
         # extract everything from the cache
-        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints
+        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints or {}
         func_typevar = cache.func_typevar
         var_to_typevar = cache.var_to_typevar
         arg_vvars = cache.arg_vvars
         stack_offset_typevars = cache.stack_offset_typevars
         stackvar_max_sizes = cache.stackvar_max_sizes
         codegen = cache.codegen
+        max_tv_id = cache.max_tv_id
+        tv_manager = TypeVariableManager(self.func.addr, idx=max_tv_id + 1)
+
+        if codegen is None:
+            # nothing to reflow; but this should not happen
+            return None
 
         var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
 
@@ -682,16 +790,15 @@ class Decompiler(Analysis):
 
         # Type inference
         try:
-            tp = self.project.analyses.Typehoon(
+            tp = self.project.analyses[self._typehoon_cls].prep(kb=var_kb, fail_fast=self._fail_fast)(
                 type_constraints,
                 func_typevar,
-                kb=var_kb,
-                fail_fast=self._fail_fast,
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
                 stack_offset_tvs=stack_offset_typevars,
                 stackvar_max_sizes=tv_max_sizes,
+                tv_manager=tv_manager,
             )
             tp.update_variable_types(
                 self.func.addr,
@@ -702,7 +809,13 @@ class Decompiler(Analysis):
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
             )
             # update the function prototype if needed
-            if self.func.is_prototype_guessed and self.func.prototype is not None and self.func.prototype.args:
+            if (
+                self.func.is_prototype_guessed
+                and self.func.prototype is not None
+                and self.func.prototype.args
+                and isinstance(codegen, CStructuredCodeGenerator)
+                and codegen.cfunc is not None
+            ):
                 var_manager = var_kb.variables[self.func.addr]
                 for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):
@@ -727,10 +840,13 @@ class Decompiler(Analysis):
         return codegen
 
     def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
+        assert self._cfg is not None
+
         const_values: set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
-            const_values.add(expr.value)
+            if isinstance(expr.value, int):
+                const_values.add(expr.value)
 
         def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
             block_walker = ailment.AILBlockViewer(
@@ -771,16 +887,320 @@ class Decompiler(Analysis):
         """
         variable_kb = self._variable_kb
         dephication = self.project.analyses.GraphDephication(
-            self.func, ail_graph, rewrite=True, variable_kb=variable_kb, kb=self.kb, fail_fast=self._fail_fast
+            self.func,
+            ail_graph,
+            rewrite=True,
+            variable_kb=variable_kb,
+            variable_map=self._variable_map,
+            kb=self.kb,
+            fail_fast=self._fail_fast,
         )
         return dephication.output
 
     def transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
         variable_kb = self._variable_kb
         dephication = self.project.analyses.SeqNodeDephication(
-            self.func, seq_node, rewrite=True, variable_kb=variable_kb, kb=self.kb, fail_fast=self._fail_fast
+            self.func,
+            seq_node,
+            rewrite=True,
+            variable_kb=variable_kb,
+            variable_map=self._variable_map,
+            kb=self.kb,
+            fail_fast=self._fail_fast,
         )
         return dephication.output
+
+    def llm_refine(self) -> bool:
+        """
+        Use the configured LLM to suggest improved variable names, function names, and variable types.
+        Returns True if any changes were made.
+        """
+        if self.codegen is None:
+            l.warning("llm_refine: no codegen available")
+            return False
+
+        llm_client = self.project.llm_client
+        if llm_client is None:
+            l.error("llm_refine: no LLM client configured. Set ANGR_LLM_MODEL env var or assign project.llm_client.")
+            return False
+
+        code_text = self.codegen.text
+        if not code_text:
+            l.warning("llm_refine: no decompiled text available")
+            return False
+
+        changed = False
+        changed |= self.llm_suggest_variable_names(llm_client=llm_client, code_text=code_text)
+        changed |= self.llm_suggest_function_name(llm_client=llm_client, code_text=code_text)
+        changed |= self.llm_suggest_variable_types(llm_client=llm_client, code_text=code_text)
+
+        if changed:
+            self.codegen.regenerate_text()
+
+        self.llm_summarize_function(llm_client=llm_client, code_text=self.codegen.text)
+
+        return changed
+
+    def llm_suggest_variable_names(
+        self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
+    ) -> bool:
+        """
+        Ask the LLM to suggest better variable names for the decompiled code.
+        Returns True if any variables were renamed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
+                            If False (default), exceptions are caught and the method returns False.
+        """
+
+        from angr.llm_models import VariableNameSuggestions  # pylint:disable=import-outside-toplevel
+
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            return False
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            return False
+
+        # collect unified variables
+        varman = self._variable_kb.variables[self.func.addr]
+        unified_vars = varman.get_unified_variables(sort=None)
+
+        # also collect argument variables
+        arg_vars = []
+        if (
+            self.codegen
+            and isinstance(self.codegen, CStructuredCodeGenerator)
+            and self.codegen.cfunc
+            and self.codegen.cfunc.arg_list
+        ):
+            for cvar in self.codegen.cfunc.arg_list:
+                v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                if v not in unified_vars:
+                    arg_vars.append(v)
+
+        all_vars = unified_vars + arg_vars
+        if not all_vars:
+            return False
+
+        var_names = [v.name or str(v) for v in all_vars]
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, suggest better, "
+            "more descriptive variable names. Only include variables that you want to rename. "
+            "Use snake_case naming convention.\n\n"
+            f"Current variable names: {var_names}\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```"
+        )
+
+        result = llm_client.completion_structured(
+            [{"role": "user", "content": prompt}], output_type=VariableNameSuggestions, raise_exc=raise_exc
+        )
+        if not result:
+            return False
+
+        # build name-to-variable lookup
+        name_to_var = {}
+        for v in all_vars:
+            key = v.name or str(v)
+            name_to_var[key] = v
+
+        changed = False
+        for rename in result.renames:
+            old_name = rename.old_name
+            new_name = rename.new_name
+            if not new_name:
+                continue
+            var = name_to_var.get(old_name)
+            if var is None:
+                continue
+            if old_name == new_name:
+                continue
+            var.name = new_name
+            var.renamed = True
+            changed = True
+            l.info("LLM renamed variable %s -> %s", old_name, new_name)
+
+        return changed
+
+    def llm_suggest_function_name(self, llm_client=None, code_text: str | None = None, raise_exc: bool = False) -> bool:
+        """
+        Ask the LLM to suggest a better function name.
+        Only suggests rename for auto-generated names (starting with ``sub_`` or ``fcn.``).
+        Returns True if the function was renamed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
+        """
+
+        from angr.llm_models import FunctionNameSuggestion  # pylint:disable=import-outside-toplevel
+
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            return False
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            return False
+
+        if not self.func.is_default_name:
+            return False
+        current_name = self.func.name
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, suggest a descriptive "
+            "function name that reflects what the function does. Use snake_case naming convention.\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```"
+        )
+
+        result = llm_client.completion_structured(
+            [{"role": "user", "content": prompt}], output_type=FunctionNameSuggestion, raise_exc=raise_exc
+        )
+        if not result:
+            return False
+
+        new_name = result.function_name
+        if not new_name or new_name == current_name:
+            return False
+
+        l.info("LLM renamed function %s -> %s", current_name, new_name)
+        self.func.name = new_name
+        self.func.is_default_name = False
+        if self.codegen and isinstance(self.codegen, CStructuredCodeGenerator) and self.codegen.cfunc:
+            self.codegen.cfunc.name = new_name
+
+        return True
+
+    def llm_suggest_variable_types(
+        self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
+    ) -> bool:
+        """
+        Ask the LLM to suggest better C types for variables.
+        Returns True if any variable types were changed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
+        """
+
+        from angr.llm_models import VariableTypeSuggestions  # pylint:disable=import-outside-toplevel
+
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            return False
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            return False
+
+        varman = self._variable_kb.variables[self.func.addr]
+        unified_vars = varman.get_unified_variables(sort=None)
+
+        if not unified_vars:
+            return False
+
+        # build current type info
+        var_type_info = {}
+        for v in unified_vars:
+            name = v.name or str(v)
+            current_type = varman.get_variable_type(v)
+            var_type_info[name] = str(current_type) if current_type else "unknown"
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code and the current "
+            "variable types, suggest better C types for the variables. Only include variables whose types "
+            "you want to change.\n\n"
+            f"Current variable types: {var_type_info}\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```"
+        )
+
+        result = llm_client.completion_structured(
+            [{"role": "user", "content": prompt}], output_type=VariableTypeSuggestions, raise_exc=raise_exc
+        )
+        if not result:
+            return False
+
+        # build name-to-variable lookup
+        name_to_var = {}
+        for v in unified_vars:
+            key = v.name or str(v)
+            name_to_var[key] = v
+
+        changed = False
+        for type_change in result.type_changes:
+            var_name = type_change.variable_name
+            type_str = type_change.new_type
+            if not type_str:
+                continue
+            var = name_to_var.get(var_name)
+            if var is None:
+                continue
+            try:
+                new_type = parse_type(type_str, arch=self.project.arch)
+            except Exception:  # pylint:disable=broad-exception-caught
+                l.debug("LLM suggested unparseable type '%s' for %s", type_str, var_name)
+                continue
+
+            varman.set_variable_type(var, new_type, mark_manual=True, all_unified=True)
+            changed = True
+            l.info("LLM changed type of %s to %s", var_name, type_str)
+
+        if changed and self.codegen:
+            self.codegen.reload_variable_types()
+
+        return changed
+
+    def llm_summarize_function(
+        self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
+    ) -> str | None:
+        """
+        Ask the LLM to produce a natural-language summary of what the decompiled function does.
+        The summary is stored in the DecompilationCache and returned.
+
+        Returns the summary string, or None if summarization failed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
+        """
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            l.warning("llm_summarize_function: no LLM client configured.")
+            return None
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            l.warning("llm_summarize_function: no decompiled text available.")
+            return None
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, write a concise "
+            "natural-language summary of what the function does. Focus on the function's purpose, its inputs "
+            "and outputs, and any important side effects. Keep the summary to a short paragraph.\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
+            "Respond with ONLY the summary text, no extra formatting."
+        )
+
+        try:
+            summary = llm_client.completion([{"role": "user", "content": prompt}])
+        except Exception as ex:  # pylint:disable=broad-exception-caught
+            if raise_exc:
+                raise AngrAIError("LLM call failed") from ex
+            l.warning("llm_summarize_function: LLM call failed", exc_info=True)
+            return None
+
+        if not summary or not isinstance(summary, str):
+            return None
+
+        summary = summary.strip()
+        if not summary:
+            return None
+
+        l.info("LLM generated function summary for %s", self.func.name)
+
+        if self.cache is not None:
+            self.cache.function_summary = summary
+
+        return summary
 
     @staticmethod
     def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:

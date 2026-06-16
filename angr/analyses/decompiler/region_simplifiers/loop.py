@@ -1,21 +1,21 @@
 # pylint:disable=unused-argument,arguments-differ
 from __future__ import annotations
+
 from collections import defaultdict
 
 import angr.ailment as ailment
-
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
+from angr.analyses.decompiler.structurer_nodes import (
+    CascadingConditionNode,
     CodeNode,
-    MultiNode,
-    LoopNode,
     ConditionNode,
     ContinueNode,
-    CascadingConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
-from angr.analyses.decompiler.utils import is_statement_terminating, has_nonlabel_nonphi_statements
+from angr.analyses.decompiler.utils import has_nonlabel_nonphi_statements, is_statement_terminating
 from angr.utils.ail import is_phi_assignment
 
 
@@ -43,7 +43,8 @@ class LoopSimplifier(SequenceWalker):
     @staticmethod
     def _control_transferring_statement(stmt: ailment.Stmt.Statement) -> bool:
         return isinstance(
-            stmt, (ailment.Stmt.Call, ailment.Stmt.Return, ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)
+            stmt,
+            (ailment.Stmt.SideEffectStatement, ailment.Stmt.Return, ailment.Stmt.Jump, ailment.Stmt.ConditionalJump),
         )
 
     def _handle_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
@@ -129,9 +130,7 @@ class LoopSimplifier(SequenceWalker):
         for n0, n1, n2 in zip(node.nodes, [*node.nodes[1:], successor], [predecessor, *node.nodes[:-1]]):
             self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
 
-    def _handle_block(
-        self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs
-    ):  # pylint:disable=no-self-use
+    def _handle_block(self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):  # pylint:disable=no-self-use
         if isinstance(successor, ContinueNode) or successor is loop_successor:
             # ensure this block is not returning or exiting
             try:

@@ -618,3 +618,12 @@ class AngrDecompilationError(AngrError):
 
 class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass
+
+
+#
+# LLM / AI errors
+#
+
+
+class AngrAIError(AngrError):
+    pass

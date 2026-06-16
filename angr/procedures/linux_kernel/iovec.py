@@ -5,14 +5,16 @@ import claripy
 import angr
 from angr.procedures.posix.read import read
 from angr.procedures.posix.write import write
-from angr.sim_type import register_types, parse_types
+from angr.sim_type import parse_types, register_types
 
-register_types(parse_types("""
+register_types(
+    parse_types("""
 struct iovec {
     void  *iov_base;    /* Starting address */
     size_t iov_len;     /* Number of bytes to transfer */
 };
-"""))
+""")
+)
 
 
 class readv(angr.SimProcedure):

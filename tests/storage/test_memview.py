@@ -2,16 +2,16 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 from __future__ import annotations
 
-from collections import OrderedDict
 import ctypes
 import unittest
+from collections import OrderedDict
 
-from archinfo import Endness
 import claripy
+from archinfo import Endness
 
 import angr
 from angr import SimState
-from angr.sim_type import register_types, parse_types, SimStruct, SimTypeNumOffset
+from angr.sim_type import SimStruct, SimTypeNumOffset, parse_types, register_types
 
 
 class TestMemView(unittest.TestCase):
@@ -100,12 +100,14 @@ class TestMemView(unittest.TestCase):
     def test_structs(self):
         s = SimState(arch="AMD64")
 
-        register_types(parse_types("""
+        register_types(
+            parse_types("""
     struct test_structs {
       int a;
       long b;
     };
-    """))
+    """)
+        )
 
         s.memory.store(0x8000, bytes(16))
         s.mem[0x8000].struct.test_structs = {"a": 10, "b": 20}

@@ -8,21 +8,22 @@ This module provides two base classes for semantic naming:
 """
 
 from __future__ import annotations
+
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
-import logging
 
-from angr.ailment.statement import Call
-from angr.ailment.expression import Const
+from angr.ailment.expression import Call, Const
 from angr.sim_variable import SimVariable
 
 if TYPE_CHECKING:
     import networkx
 
     from angr.ailment import Block
+    from angr.analyses.decompiler.structurer_nodes import BaseNode
+    from angr.analyses.decompiler.variable_map import VariableMap
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-    from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode
 
 l = logging.getLogger(name=__name__)
 
@@ -43,9 +44,11 @@ class SemanticNamingBase(ABC):
         self,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
+        variable_map: VariableMap,
     ):
         self._variable_manager = variable_manager
         self._functions = functions
+        self._variable_map = variable_map
         self._var_to_new_name: dict[SimVariable, str] = {}
 
     @abstractmethod
@@ -87,6 +90,9 @@ class SemanticNamingBase(ABC):
             if unified_var in renamed_vars:
                 continue
 
+            if target_var.renamed:
+                continue
+
             l.debug("Renaming %s -> %s (pattern: %s)", target_var.name, new_name, self.__class__.__name__)
             target_var.name = new_name
             target_var.renamed = True
@@ -99,13 +105,13 @@ class SemanticNamingBase(ABC):
 
     # --- Helper methods for subclasses ---
 
-    @staticmethod
-    def _get_linked_variable(expr) -> SimVariable | None:
+    def _get_linked_variable(self, expr) -> SimVariable | None:
         """
         Get the SimVariable linked to an expression, if any.
         """
-        if hasattr(expr, "variable") and expr.variable is not None:
-            return expr.variable
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            return self._variable_manager.unified_variable(expr_var)
         return None
 
     def _get_function_name(self, call: Call) -> str | None:
@@ -142,8 +148,9 @@ class ClinicNamingBase(SemanticNamingBase):
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: Block,
+        variable_map: VariableMap,
     ):
-        super().__init__(variable_manager, functions)
+        super().__init__(variable_manager, functions, variable_map)
         self._graph = ail_graph
         self._entry_node = entry_node
 
@@ -162,6 +169,7 @@ class RegionNamingBase(SemanticNamingBase):
         region: BaseNode,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
+        variable_map,
     ):
-        super().__init__(variable_manager, functions)
+        super().__init__(variable_manager, functions, variable_map)
         self._region = region

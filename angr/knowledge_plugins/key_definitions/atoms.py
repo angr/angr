@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 from enum import Enum, auto
 
 import claripy
-import angr.ailment as ailment
 from archinfo import Arch, Endness, RegisterOffset
 
+import angr.ailment as ailment
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from angr.engines.light import SpOffset
+
 from .heap_address import HeapAddress
 
 
@@ -115,8 +117,7 @@ class Atom:
                 raise ValueError("You must provide a size when specifying the register offset")
         else:
             raise TypeError(
-                "Unsupported type of register. It must be a string (for register name) or an int (for "
-                "register offset)"
+                "Unsupported type of register. It must be a string (for register name) or an int (for register offset)"
             )
         return Register(reg_offset, size, arch=arch)
 

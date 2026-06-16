@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from . import JNISimProcedure
 
 # pylint: disable=arguments-differ,unused-argument

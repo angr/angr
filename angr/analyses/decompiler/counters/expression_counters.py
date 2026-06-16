@@ -1,12 +1,13 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections.abc import Iterable
-from collections import defaultdict
 
+from collections import defaultdict
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
+
+from angr.ailment import Block
+from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Expression, Register
 from angr.ailment.statement import Statement
-from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment import Block
 
 if TYPE_CHECKING:
     from angr.ailment.expression import BinaryOp, UnaryOp

@@ -1,28 +1,29 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
+
 import logging
 from collections import namedtuple
 from collections.abc import Generator
-from typing import Any, TYPE_CHECKING
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 import networkx
 
-import angr.ailment as ailment
-
-from angr.analyses.decompiler import RegionIdentifier
+import angr
+from angr import ailment
+from angr.ailment.manager import Manager
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
-from angr.analyses.decompiler.utils import add_labels, remove_edges_in_ailgraph, is_empty_node
-from angr.analyses.decompiler.counters import ControlFlowStructureCounter
-from angr.project import Project
+from angr.analyses.decompiler.utils import add_labels, is_empty_node, remove_edges_in_ailgraph
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions import Function
-    from angr.sim_variable import SimVariable
     from angr.analyses.decompiler.stack_item import StackItem
+    from angr.knowledge_plugins.functions import Function
+    from angr.project import Project
+    from angr.sim_variable import SimVariable
 
 
 _l = logging.getLogger(__name__)
@@ -79,8 +80,9 @@ class BaseOptimizationPass:
     NAME = "N/A"
     DESCRIPTION = "N/A"
 
-    def __init__(self, func):
+    def __init__(self, func, manager: Manager):
         self._func: Function = func
+        self.manager = manager
 
     @property
     def project(self) -> Project:
@@ -126,6 +128,7 @@ class OptimizationPass(BaseOptimizationPass):
     def __init__(
         self,
         func,
+        manager,
         *,
         graph,
         blocks_by_addr=None,
@@ -147,7 +150,7 @@ class OptimizationPass(BaseOptimizationPass):
         notes: dict | None = None,
         **kwargs,
     ):
-        super().__init__(func)
+        super().__init__(func, manager)
         # self._blocks is just a cache
         self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr or {}
         self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx or {}
@@ -316,6 +319,7 @@ class OptimizationPass(BaseOptimizationPass):
         self,
         ail_graph: networkx.DiGraph,
         cache: dict | None = None,
+        only_blocks: set[tuple[int, int | None]] | None = None,
     ):
         """
         Simplify all blocks in self._blocks.
@@ -323,12 +327,17 @@ class OptimizationPass(BaseOptimizationPass):
         :param ail_graph:               The AIL function graph.
         :param cache:                   A block-level cache that stores reaching definition analysis results and
                                         propagation results.
+        :param only_blocks:             If not None, only simplify blocks whose (addr, idx) is in this set; all other
+                                        blocks are left unchanged. Used to skip re-simplifying blocks that have not
+                                        changed since they were last simplified.
         :return:                        None
         """
 
         blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = {}
 
         for ail_block in ail_graph.nodes():
+            if only_blocks is not None and (ail_block.addr, ail_block.idx) not in only_blocks:
+                continue
             simplified = self._simplify_block(
                 ail_block,
                 cache=cache,
@@ -367,6 +376,7 @@ class OptimizationPass(BaseOptimizationPass):
 
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
+            self.manager,
             self._func.addr,
             peephole_optimizations=self._peephole_optimizations,
             cached_reaching_definitions=cached_rd,
@@ -381,11 +391,16 @@ class OptimizationPass(BaseOptimizationPass):
 
     def _simplify_graph(self, graph):
         MAX_SIMP_ITERATION = 8
+        # On the first iteration every block is simplified. Afterwards we only re-simplify the blocks that the previous
+        # AILSimplifier run actually modified: block-level simplification is idempotent, so unchanged blocks cannot
+        # simplify any further.
+        dirty_blocks: set[tuple[int, int | None]] | None = None
         for _ in range(MAX_SIMP_ITERATION):
-            self._simplify_blocks(graph)
+            self._simplify_blocks(graph, only_blocks=dirty_blocks)
             simp = self.project.analyses.AILSimplifier(
                 self._func,
                 func_graph=graph,
+                ail_manager=self.manager,
                 fold_expressions=self._fold_expressions,
                 use_callee_saved_regs_at_return=False,
                 gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
@@ -393,6 +408,7 @@ class OptimizationPass(BaseOptimizationPass):
             )
             if simp.simplified:
                 graph = simp.func_graph
+                dirty_blocks = simp.simplified_blocks
             else:
                 break
         else:
@@ -400,10 +416,11 @@ class OptimizationPass(BaseOptimizationPass):
         return graph
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor=None, update_graph: bool = False):
-        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+        return self.project.analyses[angr.analyses.decompiler.RegionIdentifier].prep(kb=self.kb)(
             self._func,
             graph=graph,
-            cond_proc=condition_processor or ConditionProcessor(self.project.arch),
+            ail_manager=self.manager,
+            cond_proc=condition_processor or ConditionProcessor(self.project.arch, self.manager),
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
@@ -417,8 +434,8 @@ class SequenceOptimizationPass(BaseOptimizationPass):
     The base class for any sequence node optimization pass.
     """
 
-    def __init__(self, func, seq=None, **kwargs):
-        super().__init__(func)
+    def __init__(self, func, manager, seq=None, **kwargs):
+        super().__init__(func, manager)
         self.seq = seq
         self.out_seq = None
 
@@ -448,6 +465,7 @@ class StructuringOptimizationPass(OptimizationPass):
     def __init__(
         self,
         func,
+        manager,
         require_structurable_graph: bool = True,
         prevent_new_gotos: bool = True,
         strictly_less_gotos: bool = False,
@@ -460,7 +478,7 @@ class StructuringOptimizationPass(OptimizationPass):
         edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] | None = None,
         **kwargs,
     ):
-        super().__init__(func, **kwargs)
+        super().__init__(func, manager, **kwargs)
         self._require_structurable_graph = require_structurable_graph
         self._prevent_new_gotos = prevent_new_gotos
         self._strictly_less_gotos = strictly_less_gotos
@@ -519,7 +537,7 @@ class StructuringOptimizationPass(OptimizationPass):
 
         # since all checks have completed, add labels back out here
         if self._readd_labels:
-            self.out_graph = add_labels(self.out_graph)
+            self.out_graph = add_labels(self.out_graph, self.manager)
 
         if (
             self._require_structurable_graph
@@ -589,13 +607,14 @@ class StructuringOptimizationPass(OptimizationPass):
         Consequently, a true return guarantees up-to-date goto information in the goto manager.
         """
         if readd_labels:
-            graph = add_labels(graph)
+            graph = add_labels(graph, self.manager)
 
         remove_edges_in_ailgraph(graph, self._edges_to_remove)
 
-        self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+        self._ri = self.project.analyses[angr.analyses.decompiler.RegionIdentifier].prep(kb=self.kb)(
             self._func,
             graph=graph,
+            ail_manager=self.manager,
             # never update the graph in-place, we need to keep the original graph for later use
             update_graph=False,
             cond_proc=self._ri.cond_proc,
@@ -612,6 +631,7 @@ class StructuringOptimizationPass(OptimizationPass):
             rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
                 self._ri.region,
                 cond_proc=self._ri.cond_proc,
+                ail_manager=self.manager,
                 func=self._func,
                 structurer_cls=SAILRStructurer,
             )
@@ -623,7 +643,9 @@ class StructuringOptimizationPass(OptimizationPass):
         if not rs or not rs.result or is_empty_node(rs.result) or rs.result_incomplete:
             return False
 
-        rs = self.project.analyses.RegionSimplifier(self._func, rs.result, arg_vvars=self._arg_vvars, kb=self.kb)
+        rs = self.project.analyses.RegionSimplifier(
+            self._func, rs.result, self.manager, arg_vvars=self._arg_vvars, kb=self.kb
+        )
         if not rs or rs.goto_manager is None or rs.result is None:
             return False
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import logging
 
+from .sim_action_object import SimActionObject
 from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
@@ -321,6 +322,3 @@ class SimActionData(SimAction):
         c.condition = self._copy_object(self.condition)
         c.fallback = self._copy_object(self.fallback)
         c.fd = self._copy_object(self.fd)
-
-
-from .sim_action_object import SimActionObject

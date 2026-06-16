@@ -1,6 +1,7 @@
 from __future__ import annotations
-from archinfo.arch_arm import is_arm_arch
+
 import cle
+from archinfo.arch_arm import is_arm_arch
 
 from .plugin import KnowledgeBasePlugin
 
@@ -16,14 +17,7 @@ class Labels(KnowledgeBasePlugin):
             for v in obj.symbols:
                 if is_arm and v.name in {"$d", "$t", "$a"}:
                     continue
-                if (
-                    v.name
-                    and not v.is_import
-                    and v.type
-                    not in {
-                        cle.SymbolType.TYPE_OTHER,
-                    }
-                ):
+                if v.name and not v.is_import and v.type != cle.SymbolType.TYPE_OTHER:
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr
             try:

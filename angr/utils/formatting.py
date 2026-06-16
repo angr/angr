@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import os
 import sys
-from collections.abc import Sequence, Callable
+from collections.abc import Callable, Sequence
 
 if sys.platform == "win32":
     import colorama  # pylint:disable=import-error

@@ -1,6 +1,7 @@
 from __future__ import annotations
-from angr.ailment.statement import ConditionalJump
+
 from angr.ailment.expression import BinaryOp, Const
+from angr.ailment.statement import ConditionalJump
 
 from .base import PeepholeOptimizationStmtBase
 

@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import Any
+
 import logging
+from typing import Any
 
 import angr.ailment as ailment
+from angr.calling_conventions import DEFAULT_CC, SimRegArg, default_cc
 
-from angr.calling_conventions import SimRegArg, default_cc, DEFAULT_CC
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -22,8 +23,8 @@ class RetAddrSaveSimplifier(OptimizationPass):
     NAME = "Simplify return address storage"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):

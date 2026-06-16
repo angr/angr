@@ -1,17 +1,21 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+
+import json
 import time
 from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
-from angr.errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
+from angr.errors import AngrCorruptDBError, AngrDBError, AngrIncompatibleDBError
+from angr.procedures import SIM_PROCEDURES
 from angr.project import Project
+
 from .models import Base, DbInformation
-from .serializers import LoaderSerializer, KnowledgeBaseSerializer
+from .serializers import KnowledgeBaseSerializer, LoaderSerializer
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -156,6 +160,8 @@ class AngrDB:
             self.engine.dispose()
 
     def dump(self, db_path, kbs: list[KnowledgeBase] | None = None, extra_info: dict[str, Any] | None = None):
+        assert self.project is not None
+
         db_str = f"sqlite:///{db_path}"
 
         with self.open_db(db_str) as Session, self.session_scope(Session) as session:
@@ -168,6 +174,29 @@ class AngrDB:
 
             for kb in kbs:
                 KnowledgeBaseSerializer.dump(session, kb)
+
+            # Save rust binary metadata
+            if self.project.rustc_version is not None:
+                self.save_info(session, "rustc_version", self.project.rustc_version)
+            if self.project.rustc_optimization_level is not None:
+                self.save_info(session, "rustc_optimization_level", self.project.rustc_optimization_level)
+
+            # Save unresolvable target hook addresses so CFG edges can be resolved after load. CFGFast
+            # allocates pseudo-addresses for UnresolvableCallTarget/JumpTarget via get_pseudo_addr(),
+            # which are baked into CFG node/edge addresses. These addresses are not reproducible on a
+            # fresh loader, so we must save and restore them explicitly.
+            call_target_addrs: list[int] = []
+            jump_target_addrs: list[int] = []
+            for addr, proc in self.project._sim_procedures.items():
+                name = type(proc).__name__
+                if name == "UnresolvableCallTarget":
+                    call_target_addrs.append(addr)
+                elif name == "UnresolvableJumpTarget":
+                    jump_target_addrs.append(addr)
+            if call_target_addrs:
+                self.save_info(session, "unresolvable_call_target_addrs", json.dumps(call_target_addrs))
+            if jump_target_addrs:
+                self.save_info(session, "unresolvable_jump_target_addrs", json.dumps(jump_target_addrs))
 
             # Update the information
             self.update_dbinfo(session, extra_info=extra_info)
@@ -192,7 +221,40 @@ class AngrDB:
             # Load the loader
             loader = LoaderSerializer.load(session)
             # Create the project
-            proj = Project(loader)
+            rustc_version = self.get_info(session, "rustc_version")
+            rustc_optimization_level = self.get_info(session, "rustc_optimization_level")
+            proj = Project(
+                loader,
+                rustc_version=rustc_version,
+                rustc_optimization_level=rustc_optimization_level,
+            )
+
+            # Restore unresolvable target hooks at the exact addresses used by the original CFGFast
+            # analysis. These addresses are embedded in CFG edges and must be hooked with the correct
+            # SimProcedure for Clinic's indirect call resolution to work.
+            call_addrs_str = self.get_info(session, "unresolvable_call_target_addrs")
+            if call_addrs_str:
+                try:
+                    call_addrs_list = json.loads(call_addrs_str)
+                    if not isinstance(call_addrs_list, list):
+                        raise TypeError("Expected a list of addresses")
+                    for addr in call_addrs_list:
+                        if isinstance(addr, int):
+                            proj.hook(addr, SIM_PROCEDURES["stubs"]["UnresolvableCallTarget"](), replace=True)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            jump_addrs_str = self.get_info(session, "unresolvable_jump_target_addrs")
+            if jump_addrs_str:
+                try:
+                    jump_addrs_list = json.loads(jump_addrs_str)
+                    if not isinstance(jump_addrs_list, list):
+                        raise json.JSONDecodeError("Expected a list of addresses", "dummy", 0)
+                    for addr in jump_addrs_list:
+                        if isinstance(addr, int):
+                            proj.hook(addr, SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"](), replace=True)
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
             if kb_names is None:
                 kb_names = ["global"]

@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import collections
 import itertools
 import logging
 import typing
 
-from archinfo import ArchSoot
 import claripy
+from archinfo import ArchSoot
 
 from angr.calling_conventions import default_cc
 from angr.sim_procedure import SimProcedure
@@ -124,8 +125,7 @@ class JNISimProcedure(SimProcedure):
         # check if addr is symbolic
         if self.state.solver.symbolic(addr_):
             l.error(
-                "Loading strings from symbolic addresses is not implemented. "
-                "Continue execution with an empty string."
+                "Loading strings from symbolic addresses is not implemented. Continue execution with an empty string."
             )
             return ""
         addr = self.state.solver.eval(addr_)

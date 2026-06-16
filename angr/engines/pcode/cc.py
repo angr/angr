@@ -1,18 +1,19 @@
 from __future__ import annotations
+
 import logging
 
 from archinfo import ArchPcode
 
 from angr.calling_conventions import (
+    DEFAULT_CC,
     SimCC,
     SimCCARM,
+    SimCCO32,
+    SimCCUnknown,
     SimRegArg,
     SimStackArg,
-    DEFAULT_CC,
-    register_default_cc,
-    SimCCUnknown,
     default_cc,
-    SimCCO32,
+    register_default_cc,
 )
 
 l = logging.getLogger(__name__)

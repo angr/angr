@@ -1,26 +1,28 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from collections import defaultdict, OrderedDict
+
 import logging
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING
 
 import networkx
 
-from angr.ailment import Block, AILBlockViewer
-from angr.ailment.statement import ConditionalJump, Label, Assignment, Jump
-from angr.ailment.expression import VirtualVariable, Expression, BinaryOp, Const, Load
-
-from angr.utils.graph import GraphUtils
-from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    IncompleteSwitchCaseHeadStatement,
-    SequenceNode,
-    MultiNode,
-)
-from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
+from angr.ailment import AILBlockViewer, Block
+from angr.ailment.expression import BinaryOp, Const, Expression, Load, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
+from angr.analyses.decompiler.structurer_nodes import (
+    IncompleteSwitchCaseHeadStatement,
+    MultiNode,
+    SequenceNode,
+)
+from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
+from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.utils.graph import GraphUtils
+
+from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
 
 if TYPE_CHECKING:
-    from angr.ailment.expression import UnaryOp, Convert
+    from angr.ailment.expression import Convert, UnaryOp
 
 _l = logging.getLogger(name=__name__)
 
@@ -102,17 +104,19 @@ class StableVarExprHasher(AILBlockViewer):
     Obtain a stable hash of an AIL expression with respect to all variables and all operations applied on variables.
     """
 
-    def __init__(self, expr: Expression):
+    def __init__(self, expr: Expression, variable_map):
         super().__init__()
         self.expr = expr
+        self._variable_map = variable_map
         self._hash_lst = []
 
         self.walk_expression(expr)
         self.hash = hash(tuple(self._hash_lst))
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Block | None):
-        if hasattr(expr, "variable") and expr.variable is not None:
-            self._hash_lst.append(expr.variable)
+        expr_var = self._variable_map.variable(expr)
+        if expr_var is not None:
+            self._hash_lst.append(expr_var)
         else:
             super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -156,9 +160,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         "algorithm is in use."
     )
 
-    def __init__(self, func, min_distinct_cases=2, **kwargs):
+    def __init__(self, *args, min_distinct_cases=2, **kwargs):
         super().__init__(
-            func,
+            *args,
             require_structurable_graph=False,
             require_gotos=False,
             prevent_new_gotos=False,
@@ -209,7 +213,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     def _analyze_simplified_region(self, region, initial=False):
         super()._analyze_simplified_region(region, initial=initial)
-        finder = SwitchClusterFinder(region)
+        finder = SwitchClusterFinder(region, variable_map_of(self.manager))
         self._switches_present_in_code = len(finder.var2switches.values())
 
     def _check(self):
@@ -299,8 +303,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         ]
                         statements.append(
                             Jump(
-                                None,
-                                Const(None, None, case.target, self.project.arch.bits),
+                                self.manager.next_atom(),
+                                Const(self.manager.next_atom(), case.target, self.project.arch.bits),
                                 ins_addr=case.original_node.addr,
                             )
                         )
@@ -308,7 +312,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             self._block_copies[case.original_node] = [case.original_node.copy(statements=statements)]
                         else:
                             self._block_copies[case.original_node].append(
-                                case.original_node.copy(statements=statements)
+                                case.original_node.copy(statements=statements).deep_copy(self.manager)
                             )
                             self._block_copies[case.original_node][-1].idx = (
                                 len(self._block_copies[case.original_node]) + 1000
@@ -384,7 +388,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 next_id = 0 if succ_node.idx is None else succ_node.idx + 1
                 graph_copy.remove_node(succ_node)
                 for head in heads:
-                    node_copy = succ_node.copy()
+                    node_copy = succ_node.deep_copy(self.manager)
                     node_copy.idx = next_id
                     next_id += 1
 
@@ -410,15 +414,15 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
         variable_comparisons = OrderedDict()
         for node in sorted_nodes:
-            r = self._find_switch_variable_comparison_type_a(node)
+            r = self._find_switch_variable_comparison_type_a(node, variable_map_of(self.manager))
             if r is not None:
                 variable_comparisons[node] = ("a", *r)
                 continue
-            r = self._find_switch_variable_comparison_type_b(node)
+            r = self._find_switch_variable_comparison_type_b(node, variable_map_of(self.manager))
             if r is not None:
                 variable_comparisons[node] = ("b", *r)
                 continue
-            r = self._find_switch_variable_comparison_type_c(node)
+            r = self._find_switch_variable_comparison_type_c(node, variable_map_of(self.manager))
             if r is not None:
                 variable_comparisons[node] = ("c", *r)
                 continue
@@ -683,6 +687,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_a(
         node,
+        variable_map,
     ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type a is the last statement is a var == constant comparison, but
         # there is more than one non-label statement in the block
@@ -704,7 +709,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     and isinstance(cond.operands[0], VirtualVariable)
                     and isinstance(cond.operands[1], Const)
                 ):
-                    variable_hash = StableVarExprHasher(cond.operands[0]).hash
+                    variable_hash = StableVarExprHasher(cond.operands[0], variable_map).hash
                     value = cond.operands[1].value
                     if cond.op == "CmpEQ":
                         target = stmt.true_target.value
@@ -734,6 +739,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_b(
         node,
+        variable_map,
     ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type b is the last statement is a var == constant comparison, and
         # there is only one non-label statement
@@ -755,7 +761,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     and isinstance(cond.operands[0], VirtualVariable)
                     and isinstance(cond.operands[1], Const)
                 ):
-                    variable_hash = StableVarExprHasher(cond.operands[0]).hash
+                    variable_hash = StableVarExprHasher(cond.operands[0], variable_map).hash
                     value = cond.operands[1].value
                     if cond.op == "CmpEQ":
                         target = stmt.true_target.value
@@ -785,6 +791,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_c(
         node,
+        variable_map,
     ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
         # the type c is where the last statement is a var < or > constant comparison, and
         # there is only one non-label statement
@@ -806,7 +813,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     and isinstance(cond.operands[0], VirtualVariable)
                     and isinstance(cond.operands[1], Const)
                 ):
-                    variable_hash = StableVarExprHasher(cond.operands[0]).hash
+                    variable_hash = StableVarExprHasher(cond.operands[0], variable_map).hash
                     value = cond.operands[1].value
                     op = cond.op
                     if stmt.true_target.value == stmt.false_target.value:

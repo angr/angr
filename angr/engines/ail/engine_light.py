@@ -1,28 +1,29 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeAlias
+
 import itertools
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
 
 import angr
+from angr import ailment, errors
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
-from angr import ailment, errors
 from angr.engines.successors import SimSuccessors
-from angr.sim_state import SimState
 from angr.engines.vex.claripy import ccall
+from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.constants import DEFAULT_STATEMENT
 
 if TYPE_CHECKING:
-    from angr.project import Project
     from angr.analyses.decompiler.clinic import Clinic
+    from angr.project import Project
 
 log = logging.getLogger(__name__)
 
-StateType: TypeAlias = SimState[ailment.Address, ailment.Address]
-DataType: TypeAlias = claripy.ast.Bits | claripy.ast.Bool
+type StateType = SimState[int, claripy.ast.BV]
+type DataType = claripy.ast.Bits | claripy.ast.Bool
 
 
 class CallReached(Exception):
@@ -49,7 +50,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         self, state: StateType, *, block: ailment.Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> None:
         self.state = state
-        self.state.bbl_addr = state.addr[0]
+        self.state.bbl_addr = state.addr
         # if there is a function parameter handoff waiting, process that asap
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
@@ -85,14 +86,27 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(callstack, AILCallStack)
         return callstack
 
-    def lift_addr(self, addr: ailment.Address) -> Clinic:
+    @property
+    def _ail_addr(self) -> tuple[int, int | None]:
+        return (self.state.addr, self.state.scratch.ail_block_idx)
+
+    def _set_ail_successor(self, state, addr: int, block_idx: int | None) -> int:
+        state.scratch.ail_block_idx = block_idx
+        return addr
+
+    def lift_addr(self, addr: int) -> Clinic:
         result = self.state.globals["ail_lifter"]  # type: ignore
         assert callable(result)
-        return result(addr[0])  # type: ignore
+        return result(addr)  # type: ignore
 
     def lift(self, state: StateType | int | ailment.Address) -> ailment.Block:
-        addr = (state, None) if isinstance(state, int) else state if isinstance(state, tuple) else state.addr
-        clinic = self.lift_addr(addr)
+        if isinstance(state, int):
+            addr = (state, None)
+        elif isinstance(state, tuple):
+            addr = state
+        else:
+            addr = self._ail_addr
+        clinic = self.lift_addr(addr[0])
         assert clinic.cc_graph is not None
         blocks = [blk for blk in clinic.cc_graph if (blk.addr, blk.idx) == addr]
         if len(blocks) == 0:
@@ -169,7 +183,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             succ = next(iter(clinic.cc_graph.succ[block]))
             self.successors.add_successor(
                 self.state,
-                (succ.addr, succ.idx),
+                self._set_ail_successor(self.state, succ.addr, succ.idx),
                 claripy.true(),
                 "Ijk_Boring",
                 add_guard=False,
@@ -222,7 +236,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(result, claripy.ast.FP)
         return result
 
-    def _do_call(self, call: ailment.statement.Call, is_expr: bool = False):
+    def _do_call(
+        self,
+        call: ailment.expression.Call,
+        is_expr: bool = False,
+        stmt: ailment.statement.SideEffectStatement | None = None,
+    ):
         arguments = tuple(self._expr_bits(e) for e in (call.args or []))
 
         if angr.options.CALLLESS in self.state.options:
@@ -230,13 +249,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 # ????? if doing ret emulation and this is an expr (no lvalue expression)
                 # how do I tell if this is a float ret or not?
                 return (claripy.BVS(f"callless_stub_{call.target}", call.bits),)
-            if call.ret_expr is not None:
-                return (claripy.BVS(f"callless_stub_{call.target}", call.ret_expr.bits),)
-            if call.fp_ret_expr is not None:
+            if stmt is not None and stmt.ret_expr is not None:
+                return (claripy.BVS(f"callless_stub_{call.target}", stmt.ret_expr.bits),)
+            if stmt is not None and stmt.fp_ret_expr is not None:
                 return (
                     claripy.FPS(
                         f"callless_stub_{call.target}",
-                        claripy.FSORT_FLOAT if call.fp_ret_expr.bits == 32 else claripy.FSORT_DOUBLE,
+                        claripy.FSORT_FLOAT if stmt.fp_ret_expr.bits == 32 else claripy.FSORT_DOUBLE,
                     ),
                 )
             return ()
@@ -250,12 +269,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
         new_frame = AILCallStack(func_addr=target)
         new_frame.passed_args = arguments
-        new_frame.return_addr = self.state.addr
+        new_frame.return_addr = self._ail_addr
         self.frame.push(new_frame)
 
         self.successors.add_successor(
             self.state,
-            target,
+            self._set_ail_successor(self.state, target_addr.concrete_value, None),
             claripy.true(),
             "Ijk_Call",
             add_guard=False,
@@ -304,10 +323,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_Jump(self, stmt: ailment.statement.Jump) -> bool:
         target_addr = self._expr_bv(stmt.target)
         assert target_addr.concrete
-        target = (target_addr.concrete_value, stmt.target_idx)
         self.successors.add_successor(
             self.state,
-            target,
+            self._set_ail_successor(self.state, target_addr.concrete_value, stmt.target_idx),
             claripy.true(),
             "Ijk_Boring",
             add_guard=False,
@@ -329,7 +347,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             assert target_false_addr.concrete
         self.successors.add_successor(
             state_true,
-            (target_true_addr.concrete_value, stmt.true_target_idx),
+            self._set_ail_successor(state_true, target_true_addr.concrete_value, stmt.true_target_idx),
             condition,
             "Ijk_Boring",
             exit_stmt_idx=self.stmt_idx,
@@ -338,7 +356,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if target_false_addr is not None:
             self.successors.add_successor(
                 state_false,
-                (target_false_addr.concrete_value, stmt.false_target_idx),
+                self._set_ail_successor(state_false, target_false_addr.concrete_value, stmt.false_target_idx),
                 ~condition,  # type: ignore
                 "Ijk_Boring",
                 exit_stmt_idx=self.stmt_idx,
@@ -361,9 +379,10 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             self.state.globals["vvars"][this_frame.func_addr].append(this_frame.vars)
         self.frame.pop()
         self.frame.passed_rets += (ret_values,)
+        succ_addr = self._set_ail_successor(self.state, target[0], target[1]) if target is not None else self.state.addr
         self.successors.add_successor(
             self.state,
-            target if target is not None else self.state.addr,
+            succ_addr,
             claripy.true(),
             "Ijk_Ret" if target is not None else "Ijk_Exit",
             add_guard=False,
@@ -378,8 +397,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_Label(self, stmt: ailment.statement.Label) -> bool:
         return True
 
-    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> bool:
-        results = self._do_call(stmt)
+    def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> bool:
+        assert isinstance(stmt.expr, ailment.expression.Call)
+        results = self._do_call(stmt.expr, stmt=stmt)
         ret_expr = stmt.ret_expr or stmt.fp_ret_expr
         ret_exprs = [] if ret_expr is None else [ret_expr]
         if len(results) < len(ret_exprs):
@@ -393,7 +413,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     ### Expressions
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType:
+    def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType:
         results = self._do_call(expr, True)
         if len(results) != 1:
             raise errors.AngrRuntimeError(f"Call expression returned with {len(results)} return values, expected 1")
@@ -454,12 +474,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         # the immediate "previous block" in history may be the current block itself.
         # Phi semantics are based on the *CFG predecessor at block entry*.
         # Walk backwards until we find a different block address.
-        if last_addr == self.state.addr:
+        ail_addr = self._ail_addr
+        if last_addr == ail_addr:
             cur_hist = parent.parent
             while cur_hist is not None:
                 if cur_hist.recent_bbl_addrs:
                     cand = cur_hist.recent_bbl_addrs[-1]
-                    if cand != self.state.addr:
+                    if cand != ail_addr:
                         last_addr = cand
                         break
                 cur_hist = cur_hist.parent
@@ -527,6 +548,32 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 assert False
         else:
             assert False
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType:
+        child = self._expr_bv(expr.base)
+        offset = self._expr_bv(expr.offset)
+        assert offset.concrete
+        # does this need adjustment for big endian?
+        offset_bits = offset.concrete_value * self.arch.byte_width
+        return child[expr.bits + offset_bits - 1 : offset_bits]
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType:
+        value = self._expr_bv(expr.value)
+        offset = self._expr_bv(expr.offset)
+        base = self._expr_bv(expr.base)
+        assert offset.concrete
+
+        # as above
+        offset_bits = offset.concrete_value * self.arch.byte_width
+        return claripy.Concat(
+            (
+                base[len(base) - 1 : offset_bits + len(value)]
+                if offset_bits + len(value) != len(base)
+                else claripy.BVV(b"")
+            ),
+            value,
+            base[offset_bits - 1 : 0] if offset_bits != 0 else claripy.BVV(b""),
+        )
 
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType:
         cond = self._expr_bool(expr.cond)

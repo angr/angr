@@ -1,11 +1,13 @@
 # pylint:disable=super-init-not-called
 from __future__ import annotations
+
 import os
 from collections import defaultdict
 
 import networkx
 
 from angr.codenode import BlockNode
+
 from .function import Function
 
 
@@ -108,7 +110,7 @@ class SootFunction(Function):
         # The Shimple CFG is already normalized.
         pass
 
-    def _register_node(self, is_local: bool, node):
+    def _register_node(self, is_local: bool, node, update_func_block_count: bool = True):  # pylint:disable=unused-argument
         if is_local and self._local_blocks.get(node.addr) == node:
             return self._local_blocks[node.addr]
 

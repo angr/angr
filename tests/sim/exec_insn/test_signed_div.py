@@ -5,10 +5,9 @@ from __future__ import annotations
 __package__ = __package__ or "tests.sim.exec_insn"  # pylint:disable=redefined-builtin
 
 import os
-from unittest import main, TestCase
+from unittest import TestCase, main
 
 import angr
-
 from tests.common import bin_location, run_simple_unicorn_congruency_check
 
 

@@ -1,29 +1,32 @@
 from __future__ import annotations
+
+import logging
+from collections.abc import Iterable
 from itertools import chain
 from typing import TYPE_CHECKING
-from collections.abc import Iterable
-import logging
 
-import pyvex
 import claripy
+import pyvex
 
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, mv_is_bv
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SimEngineNostmtVEX, SpOffset
 from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.errors import SimEngineError, SimMemoryMissingError
-from angr.utils.constants import DEFAULT_STATEMENT
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, Tag
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.code_location import CodeLocation, ExternalCodeLocation
-from .rd_state import ReachingDefinitionsState
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, mv_is_bv
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from .function_handler import FunctionCallData
+from .rd_state import ReachingDefinitionsState
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import FunctionManager
+
     from .function_handler import FunctionHandler
 
 
@@ -723,9 +726,7 @@ class SimEngineRDVEX(
         if expr0_v is not None and expr1_v is not None:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                r = (
-                    MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)
-                )  # type: ignore
+                r = MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)  # type: ignore
         elif expr0_v is None and expr1_v is not None:
             if expr1_v.concrete and expr1_v.concrete_value == 0:
                 r = MultiValues(self.state.top(bits))

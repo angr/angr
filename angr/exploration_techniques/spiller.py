@@ -5,6 +5,7 @@ import contextlib
 import logging
 
 from angr import vaults
+
 from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
@@ -68,11 +69,11 @@ class PickledStatesDb(PickledStatesBase):
     """
 
     def __init__(self, db_str="sqlite:///:memory:"):
-        from .spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
+        from .spiller_db import Base, OperationalError, create_engine, sessionmaker, sqlalchemy
 
         if sqlalchemy is None:
             raise ImportError(
-                f"Cannot import SQLAlchemy. Please install SQLAlchemy before using " f"{self.__class__.__name__}."
+                f"Cannot import SQLAlchemy. Please install SQLAlchemy before using {self.__class__.__name__}."
             )
 
         # ORM declarations

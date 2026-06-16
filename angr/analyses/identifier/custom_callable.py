@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
 
-from angr.errors import AngrCallableError, AngrCallableMultistateError
 from angr.calling_conventions import default_cc
+from angr.errors import AngrCallableError, AngrCallableMultistateError
 
 l = logging.getLogger(name=__name__)
 
@@ -32,9 +33,6 @@ class IdentifierCallable:
         """
         :param project:         The project to operate on
         :param addr:            The address of the function to use
-
-        The following parameters are optional:
-
         :param concrete_only:   Throw an exception if the execution splits into multiple paths
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs

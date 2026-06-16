@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import functools
 import logging
 
 import claripy
 
-from angr.errors import AngrError, SimError, SimUnsupportedError, SimCCallError
 from angr import sim_options
 from angr.engines.successors import SimSuccessors
+from angr.errors import AngrError, SimCCallError, SimError, SimUnsupportedError
+
 from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)

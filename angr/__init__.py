@@ -1,8 +1,7 @@
-# pylint: disable=wildcard-import
 # pylint: disable=wrong-import-position
 from __future__ import annotations
 
-__version__ = "9.2.197.dev0"
+__version__ = "9.2.222.dev0"
 
 if bytes is str:
     raise Exception("""
@@ -20,6 +19,7 @@ For more information, see here: https://docs.angr.io/appendix/migration
 Good luck!
 """)
 
+# isort: off
 from .utils.formatting import setup_terminal
 
 setup_terminal()
@@ -35,165 +35,172 @@ loggers = Loggers()
 del Loggers
 del logging
 
-# this must happen first, prior to initializing analyses
+# angr.state_plugins and angr.sim_state are mutually dependent: the plugin modules register themselves
+# on SimState at import time, while SimState needs the SimStatePlugin base class. Importing the
+# state_plugins package to completion here, before anything pulls in sim_state, is the one ordering
+# that resolves the cycle.
+from . import state_plugins  # noqa: F401
+
+# SimProcedure must be bound on the ``angr`` package before the procedures package loads, because the
+# hundreds of built-in SimProcedures are defined as ``class Foo(angr.SimProcedure)`` and dereference
+# that attribute at class-definition time.
 from .sim_procedure import SimProcedure
-from .procedures import SIM_PROCEDURES, SimProcedures, SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
-from . import sim_options
+# isort: on
 
-options = sim_options  # alias
-
-# enums
-from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPYTHON
-
-# other stuff
-from .state_plugins.inspect import BP
-from .state_plugins import SimStatePlugin
-
-from .project import Project, load_shellcode
+from . import (
+    analyses,
+    concretization_strategies,
+    engines,
+    exploration_techniques,
+    knowledge_plugins,
+    sim_options,
+)
+from . import sim_manager as manager
+from . import sim_type as types
+from .analyses import Analysis, register_analysis
+from .blade import Blade
+from .block import Block
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC, default_cc
+from .distributed import Server
+from .emulator import Emulator, EmulatorStopReason
 from .errors import (
-    AngrError,
-    AngrRuntimeError,
-    AngrValueError,
-    AngrLifterError,
-    AngrExitError,
-    AngrPathError,
-    AngrVaultError,
-    PathUnreachableError,
-    SimulationManagerError,
-    AngrInvalidArgumentError,
-    AngrSurveyorError,
+    AngrAIError,
     AngrAnalysisError,
+    AngrAnnotatedCFGError,
+    AngrAssemblyError,
+    AngrBackwardSlicingError,
     AngrBladeError,
     AngrBladeSimProcError,
-    AngrAnnotatedCFGError,
-    AngrBackwardSlicingError,
     AngrCallableError,
     AngrCallableMultistateError,
-    AngrSyscallError,
-    AngrSimOSError,
-    AngrAssemblyError,
-    AngrTypeError,
-    AngrMissingTypeError,
-    AngrIncongruencyError,
-    AngrForwardAnalysisError,
-    AngrSkipJobNotice,
-    AngrDelayJobNotice,
-    AngrJobMergingFailureNotice,
-    AngrJobWideningFailureNotice,
     AngrCFGError,
-    AngrVFGError,
-    AngrVFGRestartAnalysisNotice,
+    AngrCorruptDBError,
     AngrDataGraphError,
+    AngrDBError,
     AngrDDGError,
-    AngrLoopAnalysisError,
+    AngrDecompilationError,
+    AngrDelayJobNotice,
+    AngrDirectorError,
+    AngrError,
+    AngrExitError,
     AngrExplorationTechniqueError,
     AngrExplorerError,
-    AngrDirectorError,
-    AngrTracerError,
-    AngrDBError,
-    AngrCorruptDBError,
+    AngrForwardAnalysisError,
     AngrIncompatibleDBError,
-    TracerEnvironmentError,
-    SimError,
-    SimStateError,
-    SimMergeError,
-    SimMemoryError,
-    SimMemoryMissingError,
+    AngrIncongruencyError,
+    AngrInvalidArgumentError,
+    AngrJobMergingFailureNotice,
+    AngrJobWideningFailureNotice,
+    AngrLifterError,
+    AngrLoopAnalysisError,
+    AngrMissingTypeError,
+    AngrNoPluginError,
+    AngrPathError,
+    AngrRuntimeError,
+    AngrSimOSError,
+    AngrSkipJobNotice,
+    AngrSurveyorError,
+    AngrSyscallError,
+    AngrTracerError,
+    AngrTypeError,
+    AngrUnsupportedSyscallError,
+    AngrValueError,
+    AngrVaultError,
+    AngrVFGError,
+    AngrVFGRestartAnalysisNotice,
+    PathUnreachableError,
     SimAbstractMemoryError,
-    SimRegionMapError,
-    SimMemoryLimitError,
-    SimMemoryAddressError,
-    SimFastMemoryError,
+    SimActionError,
+    SimCCallError,
+    SimCCError,
+    SimConcreteBreakpointError,
+    SimConcreteMemoryError,
+    SimConcreteRegisterError,
+    SimEmptyCallStackError,
+    SimEngineError,
+    SimError,
     SimEventError,
-    SimPosixError,
-    SimFilesystemError,
-    SimSymbolicFilesystemError,
+    SimException,
+    SimExpressionError,
+    SimFastMemoryError,
+    SimFastPathError,
     SimFileError,
+    SimFilesystemError,
     SimHeapError,
-    SimUnsupportedError,
+    SimIRSBError,
+    SimIRSBNoDecodeError,
+    SimMemoryAddressError,
+    SimMemoryError,
+    SimMemoryLimitError,
+    SimMemoryMissingError,
+    SimMergeError,
+    SimMissingTempError,
+    SimOperationError,
+    SimPosixError,
+    SimProcedureArgumentError,
+    SimProcedureError,
+    SimRegionMapError,
+    SimReliftException,
+    SimSegfaultError,
+    SimSegfaultException,
+    SimShadowStackError,
+    SimSlicerError,
     SimSolverError,
     SimSolverModeError,
     SimSolverOptionError,
-    SimValueError,
-    SimUnsatError,
-    SimOperationError,
-    UnsupportedIROpError,
-    SimExpressionError,
-    UnsupportedIRExprError,
-    SimCCallError,
-    UnsupportedCCallError,
-    SimUninitializedAccessError,
+    SimStateError,
     SimStatementError,
-    UnsupportedIRStmtError,
-    UnsupportedDirtyError,
-    SimMissingTempError,
-    SimEngineError,
-    SimIRSBError,
+    SimStateOptionsError,
+    SimSymbolicFilesystemError,
     SimTranslationError,
-    SimProcedureError,
-    SimProcedureArgumentError,
-    SimShadowStackError,
-    SimFastPathError,
-    SimIRSBNoDecodeError,
-    AngrUnsupportedSyscallError,
-    UnsupportedSyscallError,
-    SimReliftException,
-    SimSlicerError,
-    SimActionError,
-    SimCCError,
-    SimUCManagerError,
     SimUCManagerAllocationError,
-    SimUnicornUnsupport,
+    SimUCManagerError,
+    SimulationManagerError,
     SimUnicornError,
     SimUnicornSymbolic,
-    SimEmptyCallStackError,
-    SimStateOptionsError,
-    SimException,
-    SimSegfaultException,
-    SimSegfaultError,
+    SimUnicornUnsupport,
+    SimUninitializedAccessError,
+    SimUnsatError,
+    SimUnsupportedError,
+    SimValueError,
     SimZeroDivisionException,
-    AngrNoPluginError,
-    SimConcreteMemoryError,
-    SimConcreteRegisterError,
-    SimConcreteBreakpointError,
-    AngrDecompilationError,
+    TracerEnvironmentError,
+    UnsupportedCCallError,
+    UnsupportedDirtyError,
+    UnsupportedIRExprError,
+    UnsupportedIROpError,
+    UnsupportedIRStmtError,
     UnsupportedNodeTypeError,
+    UnsupportedSyscallError,
 )
-from .blade import Blade
-from .simos import SimOS
-from .block import Block
-from .sim_manager import SimulationManager
-from .analyses import Analysis, register_analysis
-from . import analyses
-from . import knowledge_plugins
-from . import exploration_techniques
 from .exploration_techniques import ExplorationTechnique
-from . import sim_type as types
-from .state_hierarchy import StateHierarchy
-
+from .knowledge_base import KnowledgeBase
+from .llm_client import LLMClient
+from .procedures import SIM_LIBRARIES, SIM_PROCEDURES, SIM_TYPE_COLLECTIONS, SimProcedures
+from .procedures.definitions import load_external_definitions
+from .project import Project, load_shellcode
+from .rust import analyses as rust_analyses
+from .rust import knowledge_plugins as rust_knowledge_plugins
+from .sim_manager import SimulationManager
 from .sim_state import SimState
-from . import engines
-from .calling_conventions import default_cc, DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
+from .simos import SimOS
+from .state_hierarchy import StateHierarchy
+from .state_plugins import SimStatePlugin
+from .state_plugins.filesystem import SimHostFilesystem, SimMount
+from .state_plugins.heap import PTChunk, SimHeapBrk, SimHeapPTMalloc
+from .state_plugins.inspect import BP, BP_AFTER, BP_BEFORE, BP_BOTH, BP_IPDB, BP_IPYTHON
 from .storage.file import (
-    SimFileBase,
     SimFile,
-    SimPackets,
-    SimFileStream,
-    SimPacketsStream,
+    SimFileBase,
     SimFileDescriptor,
     SimFileDescriptorDuplex,
+    SimFileStream,
+    SimPackets,
+    SimPacketsStream,
 )
-from .state_plugins.filesystem import SimMount, SimHostFilesystem
-from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
-from . import concretization_strategies
-from .distributed import Server
-from .knowledge_base import KnowledgeBase
-from .procedures.definitions import load_external_definitions
-from .emulator import Emulator, EmulatorStopReason
 
-# for compatibility reasons
-from . import sim_manager as manager
+options = sim_options  # alias
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
@@ -213,6 +220,7 @@ __all__ = (
     "SIM_TYPE_COLLECTIONS",
     "SYSCALL_CC",
     "Analysis",
+    "AngrAIError",
     "AngrAnalysisError",
     "AngrAnnotatedCFGError",
     "AngrAssemblyError",
@@ -262,6 +270,7 @@ __all__ = (
     "EmulatorStopReason",
     "ExplorationTechnique",
     "KnowledgeBase",
+    "LLMClient",
     "PTChunk",
     "PathUnreachableError",
     "PointerWrapper",
@@ -359,6 +368,8 @@ __all__ = (
     "manager",
     "options",
     "register_analysis",
+    "rust_analyses",
+    "rust_knowledge_plugins",
     "sim_options",
     "types",
 )

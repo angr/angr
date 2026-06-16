@@ -1,18 +1,22 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Literal, TypeVar, Generic
-from dataclasses import dataclass
-import logging
 
-from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_variable import SimTemporaryVariable
-from angr.sim_variable import SimMemoryVariable
-from angr.sim_variable import SimStackVariable
-from angr.sim_variable import SimRegisterVariable
-from angr.misc.ux import once
-from angr.engines.light import SpOffset
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal, TypeVar
+
 from angr.code_location import ExternalCodeLocation
-from angr.sim_variable import SimVariable
-from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping, VirtualVariable
+from angr.engines.light import SpOffset
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.misc.ux import once
+from angr.sim_variable import (
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
+)
+
+from .atoms import Atom, AtomKind, MemoryLocation, Register, Tmp, VirtualVariable, atom_kind_mapping
 from .tag import Tag
 
 if TYPE_CHECKING:
@@ -130,9 +134,7 @@ class DefinitionMatchPredicate:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
             if self.stack_offset is not None and (
-                not isinstance(defn.atom.addr, SpOffset)
-                or defn.atom.addr.base != "sp"  # TODO???????
-                or defn.atom.addr.offset != self.stack_offset
+                not isinstance(defn.atom.addr, SpOffset) or defn.atom.addr.offset != self.stack_offset
             ):
                 return False
         elif isinstance(defn.atom, Tmp) and self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
@@ -141,7 +143,7 @@ class DefinitionMatchPredicate:
         return True
 
 
-class Definition(Generic[A, CodeLoc]):
+class Definition[A: Atom, CodeLoc: CodeLocation | AILCodeLocation]:
     """
     An atom definition.
 
@@ -181,7 +183,7 @@ class Definition(Generic[A, CodeLoc]):
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
-        return f"Definition:\n" f"Atom: {self.atom}\n" f"CodeLoc: {self.codeloc}\n" f"Tags: {pretty_tags}"
+        return f"Definition:\nAtom: {self.atom}\nCodeLoc: {self.codeloc}\nTags: {pretty_tags}"
 
     def __hash__(self):
         if self._hash is None:

@@ -1,21 +1,23 @@
 from __future__ import annotations
+
 import binascii
 import logging
 import os
 
 import claripy
 
+import angr
 from angr import concretization_strategies
-from angr.errors import SimUnsatError, SimMemoryAddressError
 from angr.engines.soot.values import (
-    SimSootValue_ArrayRef,
     SimSootValue_ArrayBaseRef,
+    SimSootValue_ArrayRef,
     SimSootValue_InstanceFieldRef,
     SimSootValue_Local,
     SimSootValue_ParamRef,
     SimSootValue_StaticFieldRef,
     SimSootValue_StringRef,
 )
+from angr.errors import SimMemoryAddressError, SimUnsatError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(name=__name__)
@@ -41,11 +43,10 @@ class JavaVmMemoryMixin(MemoryMixin):
         super().__init__(memory_id=memory_id, **kwargs)
 
         self._stack = [] if stack is None else stack
-        # delayed import
-        from . import KeyValueMemory  # pylint: disable=import-outside-toplevel
-
-        self.heap = KeyValueMemory("mem") if heap is None else heap
-        self.vm_static_table = KeyValueMemory("mem") if vm_static_table is None else vm_static_table
+        self.heap = angr.storage.memory_mixins.KeyValueMemory("mem") if heap is None else heap
+        self.vm_static_table = (
+            angr.storage.memory_mixins.KeyValueMemory("mem") if vm_static_table is None else vm_static_table
+        )
 
         # Heap helper
         # TODO: ask someone how we want to manage this
@@ -54,8 +55,8 @@ class JavaVmMemoryMixin(MemoryMixin):
         self.max_array_size = max_array_size
 
         # concretizing strategies
-        self.load_strategies = load_strategies if load_strategies else []
-        self.store_strategies = store_strategies if store_strategies else []
+        self.load_strategies = load_strategies or []
+        self.store_strategies = store_strategies or []
 
     @staticmethod
     def get_new_uuid():
@@ -122,9 +123,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         return None
 
     def push_stack_frame(self):
-        from . import KeyValueMemory  # pylint: disable=import-outside-toplevel
-
-        self._stack.append(KeyValueMemory("mem"))
+        self._stack.append(angr.storage.memory_mixins.KeyValueMemory("mem"))
 
     def pop_stack_frame(self):
         self._stack = self._stack[:-1]

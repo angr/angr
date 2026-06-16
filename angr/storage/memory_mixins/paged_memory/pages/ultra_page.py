@@ -1,15 +1,16 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
-import logging
-from typing import Any
-from collections.abc import Iterable
 
-from sortedcontainers import SortedDict
+import logging
+from collections.abc import Iterable
+from typing import Any
 
 import claripy
+from sortedcontainers import SortedDict
 
+import angr
 from angr.errors import SimMemoryError
-from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemoryview
+
 from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
 
@@ -53,9 +54,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         o.symbolic_data = SortedDict(self.symbolic_data)
         return o
 
-    def load(
-        self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs
-    ):  # pylint: disable=arguments-differ
+    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):  # pylint: disable=arguments-differ
         concrete_run = []
         symbolic_run = ...
         last_run = None
@@ -233,7 +232,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         for b in sorted(changed_offsets):
             if merged_to is not None and not b >= merged_to:
-                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -248,12 +247,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if pg.symbolic_bitmap[b]:
                     mo = pg._get_object(b, page_addr)
                     if mo is not None:
-                        l.info("... MO present in %s", fv)
+                        l.debug("... MO present in %s", fv)
                         memory_objects.append((mo, fv))
                         if pg is self:
                             our_mo = mo
                     else:
-                        l.info("... not present in %s", fv)
+                        l.debug("... not present in %s", fv)
                         unconstrained_in.append((pg, fv))
                 else:
                     # concrete data
@@ -313,7 +312,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                             min_size = i
                             break
                 merged_to = b + min_size
-                l.info("... determined minimum size of %d", min_size)
+                l.debug("... determined minimum size of %d", min_size)
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
@@ -348,12 +347,18 @@ class UltraPage(MemoryObjectMixin, PageBase):
         assert self.symbolic_bitmap is not None
         mv_data = (
             self.concrete_data
-            if isinstance(self.concrete_data, (memoryview, NotMemoryview))
+            if isinstance(
+                self.concrete_data,
+                (memoryview, angr.storage.memory_mixins.paged_memory.page_backer_mixins.NotMemoryview),
+            )
             else memoryview(self.concrete_data)
         )
         mv_bitm = (
             self.symbolic_bitmap
-            if isinstance(self.symbolic_bitmap, (memoryview, NotMemoryview))
+            if isinstance(
+                self.symbolic_bitmap,
+                (memoryview, angr.storage.memory_mixins.paged_memory.page_backer_mixins.NotMemoryview),
+            )
             else memoryview(self.symbolic_bitmap)
         )
         result = (

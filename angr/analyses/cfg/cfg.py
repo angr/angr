@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import sys
 
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub
+
 from .cfg_fast import CFGFast
 
 

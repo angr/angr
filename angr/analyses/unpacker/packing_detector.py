@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-import math
-import logging
 
-from angr.analyses.analysis import Analysis, AnalysesHub
+import logging
+import math
+from typing import TYPE_CHECKING
+
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.knowledge_plugins.cfg import CFGModel
 
 if TYPE_CHECKING:
@@ -117,7 +118,11 @@ class PackingDetector(Analysis):
         byte_counts = [0] * 256
 
         for start, end in regions:
-            for b in self.project.loader.memory.load(start, end - start):
+            try:
+                data = self.project.loader.memory.load(start, end - start)
+            except KeyError:
+                continue
+            for b in data:
                 byte_counts[b] += 1
 
         total = sum(byte_counts)

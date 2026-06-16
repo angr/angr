@@ -1,18 +1,20 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
 import pyvex
 
+from angr.analyses.propagator import vex_vars
+from angr.blade import Blade
+from angr.code_location import CodeLocation
 from angr.knowledge_plugins.propagations import PropagationModel
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.code_location import CodeLocation
-from angr.blade import Blade
-from angr.analyses.propagator import vex_vars
 from angr.utils.vex import get_tmp_def_stmt
-from .resolver import IndirectJumpResolver
+
 from .propagator_utils import PropagatorLoadCallback
+from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:
     from angr import Block
@@ -61,8 +63,8 @@ class ConstantResolver(IndirectJumpResolver):
             return False
 
         # for performance, we don't run constant resolver if the function is too large
-        func = cfg.functions.get_by_addr(func_addr)
-        if len(func.block_addrs_set) > self.max_func_nodes:
+        func_block_count = cfg.functions.get_func_block_count(func_addr)
+        if func_block_count is None or func_block_count > self.max_func_nodes:
             return False
 
         # we support both an indirect call and jump since the value can be resolved

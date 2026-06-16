@@ -1,17 +1,19 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from enum import Enum, auto
-from dataclasses import dataclass
-from weakref import ref
+
 from collections import defaultdict
+from dataclasses import dataclass
+from enum import Enum, auto
+from weakref import ref
 
 from networkx import DiGraph
 from networkx.algorithms.shortest_paths import single_target_shortest_path_length
 
-from angr.sim_state import SimState
 from angr.engines.successors import SimSuccessors
 from angr.knowledge_plugins.cfg import CFGModel, CFGNode
-from .analysis import Analysis, AnalysesHub
+from angr.sim_state import SimState
+
+from .analysis import AnalysesHub, Analysis
 
 
 class Unreachable(Exception):

@@ -63,10 +63,10 @@ Currently, Claripy supports the following types of ASTs:
      - This is a floating-point number, whether symbolic (with a name) or
        concrete (with a value).
      - BackendConcrete, BackendZ3
-     - Create a `claripy.fp.FSORT_DOUBLE` symbolic floating point "b": `claripy.FPS('b',
-          claripy.fp.FSORT_DOUBLE)`Create a `claripy.fp.FSORT_FLOAT`
-          floating point with value `3.2`: `claripy.FPV(3.2,
-          claripy.fp.FSORT_FLOAT)`
+     - Create a ``claripy.fp.FSORT_DOUBLE`` symbolic floating point "b":
+       ``claripy.FPS('b', claripy.fp.FSORT_DOUBLE)``. Create a
+       ``claripy.fp.FSORT_FLOAT`` floating point with value ``3.2``:
+       ``claripy.FPV(3.2, claripy.fp.FSORT_FLOAT)``.
    * - Bool
      - This is a boolean operation (True or False).
      - BackendConcrete, BackendVSA, BackendZ3
@@ -120,9 +120,9 @@ You can combine these conditions in different ways.
 
 The usefulness of this will become apparent when we discuss Claripy solvers.
 
-In general, Claripy supports all of the normal Python operations (+, -, |, ==,
-etc), and provides additional ones via the Claripy instance object. Here's a
-list of available operations from the latter.
+In general, Claripy supports all of the normal Python operations (``+``, ``-``,
+``|``, ``==``, etc), and provides additional ones via the Claripy instance
+object. Here's a list of available operations from the latter.
 
 .. list-table::
    :header-rows: 1

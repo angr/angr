@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.sim_options import EFFICIENT_STATE_MERGING
+
 from .base import ExplorationTechnique
 
 

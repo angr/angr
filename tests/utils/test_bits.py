@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import unittest
 
 from angr.utils.bits import truncate_bits
@@ -7,7 +8,6 @@ from angr.utils.bits import truncate_bits
 
 # pylint: disable=missing-class-docstring,disable=no-self-use
 class TestBits(unittest.TestCase):
-
     def test_truncate_bits(self):
         with self.assertRaises(ValueError):
             truncate_bits(0, -1)

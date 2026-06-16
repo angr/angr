@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 import logging
-
 from collections import Counter
-from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeWalker
+from typing import TYPE_CHECKING
+
 from angr.analyses.analysis import Analysis
+from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeWalker
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen.c import CFunction

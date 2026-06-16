@@ -1,33 +1,35 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any
-from enum import IntEnum
-import string
-import logging
 
-import networkx
+import logging
+import string
+from enum import IntEnum
+from typing import TYPE_CHECKING, Any
 
 import claripy
+import networkx
 
-from angr import SIM_LIBRARIES
-from angr.calling_conventions import SimRegArg
-from angr.errors import SimMemoryMissingError
-from angr.knowledge_base import KnowledgeBase
-from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
-from angr.sim_type import SimTypePointer, SimTypeChar
-from angr.analyses import Analysis, AnalysesHub
-from angr.procedures.definitions import SimSyscallLibrary
-from angr.sim_variable import SimMemoryVariable
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.decompiler.structured_codegen.c import (
-    CStructuredCodeWalker,
-    CFunctionCall,
-    CConstant,
     CAssignment,
+    CConstant,
+    CFunctionCall,
+    CStructuredCodeWalker,
     CVariable,
 )
+from angr.calling_conventions import SimRegArg
+from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+from angr.procedures import SIM_LIBRARIES
+from angr.procedures.definitions import SimSyscallLibrary
+from angr.sim_type import SimTypeChar, SimTypePointer
+from angr.sim_variable import SimMemoryVariable
 
 from .api_obf_type2_finder import APIObfuscationType2Finder
 from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
+
+if TYPE_CHECKING:
+    from angr.knowledge_base import KnowledgeBase
 
 _l = logging.getLogger(name=__name__)
 
@@ -118,7 +120,8 @@ class APIObfuscationFinder(Analysis):
         )
 
     def _hash_lookup_api_deobfuscator_lifter(self, func):
-        d = self.project.analyses.Decompiler(func)
+        d = self.project.analyses.Decompiler(func, fail_fast=self._fail_fast)
+        assert d.clinic is not None
         return d.clinic
 
     def _find_type1(self):

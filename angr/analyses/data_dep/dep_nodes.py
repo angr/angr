@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from claripy.ast.bv import BV
-    from angr.state_plugins import SimActionData
+
+    from angr.state_plugins.sim_action import SimActionData
 
 
 class DepNodeTypes:
@@ -133,7 +135,7 @@ class VarDepNode(BaseDepNode):
 
     @property
     def display_name(self) -> str:
-        return self.arch_name if self.arch_name else hex(self.reg)
+        return self.arch_name or hex(self.reg)
 
     def __str__(self):
         return self.display_name

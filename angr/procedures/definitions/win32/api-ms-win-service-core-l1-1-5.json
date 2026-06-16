@@ -12,10 +12,10 @@
 	},
 	"functions": {
 		"GetSharedServiceDirectory": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_SHARED_DIRECTORY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'DirectoryType', 'PathBuffer', 'PathBufferLength', 'RequiredBufferLength']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_SHARED_DIRECTORY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'DirectoryType', 'PathBuffer', 'PathBufferLength', 'RequiredBufferLength']}"
 		},
 		"GetSharedServiceRegistryStateKey": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_SHARED_REGISTRY_STATE_TYPE', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'StateType', 'AccessMask', 'ServiceStateKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_SHARED_REGISTRY_STATE_TYPE', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'StateType', 'AccessMask', 'ServiceStateKey']}"
 		}
 	}
 }

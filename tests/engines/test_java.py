@@ -11,15 +11,15 @@ from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (
     ArchSoot,
     SootAddressDescriptor,
-    SootMethodDescriptor,
-    SootArgument,
     SootAddressTerminator,
+    SootArgument,
+    SootMethodDescriptor,
 )
 
 import angr
-from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
-from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
 from angr.engines.soot.method_dispatcher import resolve_method
+from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
+from angr.storage.memory_mixins import DefaultMemory, JavaVmMemory, KeyValueMemory
 
 try:
     import pysoot
@@ -122,7 +122,7 @@ class TestJava(unittest.TestCase):
     def test_jni_global_and_local_refs(self):
         project = self.create_project("jni_global_and_local_refs")
 
-        assertions = {"global refs dict": lambda state: (state.jni_references.global_refs == {})}
+        assertions = {"global refs dict": lambda state: state.jni_references.global_refs == {}}
         self.run_method(
             project=project, method="MixedJava.test_jni_global_refs", assert_locals={"i0": 0xA}, assertions=assertions
         )
@@ -156,8 +156,8 @@ class TestJava(unittest.TestCase):
         project = self.create_project("jni_string_operations")
 
         assertions = {
-            "1st string": lambda state: (state.solver.eval_one(self.load_string(state, "r0")) == "mum"),
-            "2nd string": lambda state: (state.solver.eval_one(self.load_string(state, "r1")) == "himum!"),
+            "1st string": lambda state: state.solver.eval_one(self.load_string(state, "r0")) == "mum",
+            "2nd string": lambda state: state.solver.eval_one(self.load_string(state, "r1")) == "himum!",
         }
         self.run_method(
             project=project,

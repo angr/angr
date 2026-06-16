@@ -1,19 +1,20 @@
 # pylint:disable=no-self-use,unused-argument,too-many-boolean-expressions
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from angr.analyses import Analysis, register_analysis
-from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeWalker, CVariable, CConstant, CBinaryOp
+from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.structured_codegen.c import CBinaryOp, CConstant, CStructuredCodeWalker, CVariable
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen.c import (
         CAssignment,
-        CFunction,
-        CWhileLoop,
+        CBreak,
         CDoWhileLoop,
         CForLoop,
-        CBreak,
+        CFunction,
         CStatements,
+        CWhileLoop,
     )
 
 
@@ -299,7 +300,6 @@ class LoopVisitor(CStructuredCodeWalker):
 
                 cond_node: BinOpNode | None = AssignmentToASTVisitor().handle(cond)
                 if cond_node is not None and body_visitor.assignments:
-
                     assignments = body_visitor.assignments
 
                     # case 3:

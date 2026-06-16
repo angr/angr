@@ -13,9 +13,7 @@ l = logging.getLogger(name=__name__)
 class strncmp(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
-    def run(
-        self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False
-    ):  # pylint:disable=arguments-differ
+    def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False):  # pylint:disable=arguments-differ
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
         char_size = 1 if not wchar else 2
 

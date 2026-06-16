@@ -1,12 +1,13 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
 
 import angr.ailment as ailment
-
-from angr.utils.bits import s2u
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.utils.bits import s2u
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -26,8 +27,8 @@ class StackCanarySimplifier(OptimizationPass):
     NAME = "Simplify stack canaries"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -149,7 +150,7 @@ class StackCanarySimplifier(OptimizationPass):
                 pred_copy = pred.copy()
                 pred_copy.statements[-1] = ailment.Stmt.Jump(
                     len(pred_copy.statements) - 1,
-                    ailment.Expr.Const(None, None, ret_node.addr, self.project.arch.bits),
+                    ailment.Expr.Const(self.manager.next_atom(), ret_node.addr, self.project.arch.bits),
                     ins_addr=pred_copy.statements[-1].tags["ins_addr"],
                 )
 
@@ -181,11 +182,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         while True:
             traversed.add(block_addr)
-            try:
-                first_block = next(self._get_blocks(block_addr))
-            except StopIteration:
-                break
-
+            first_block = next(self._get_blocks(block_addr), None)
             if first_block is None:
                 break
 
@@ -290,8 +287,8 @@ class StackCanarySimplifier(OptimizationPass):
 
     def _calls_stack_chk_fail(self, node):
         for stmt in node.statements:
-            if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
-                const_target = stmt.target.value
+            if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.expr.target, ailment.Expr.Const):
+                const_target = stmt.expr.target.value
                 if const_target in self.kb.functions:
                     func = self.kb.functions.function(addr=const_target)
                     if func.name == "__stack_chk_fail":

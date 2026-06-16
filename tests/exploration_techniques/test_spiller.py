@@ -3,15 +3,14 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
-import os
 import gc
+import os
 import unittest
 
 import claripy
 
-from angr.exploration_techniques.spiller import Spiller
 import angr
-
+from angr.exploration_techniques.spiller import Spiller
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

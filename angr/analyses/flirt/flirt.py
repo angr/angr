@@ -1,19 +1,19 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-from collections.abc import Generator
-from collections import defaultdict
 import contextlib
 import logging
+from collections import defaultdict
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from archinfo.arch_arm import is_arm_arch
 
-from angr.analyses import AnalysesHub
-from angr.analyses.analysis import Analysis
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrRuntimeError
-from .flirt_sig import FlirtSignature, FlirtSignatureParsed
+
 from .flirt_function import FlirtFunction
 from .flirt_matcher import FlirtMatcher
+from .flirt_sig import FlirtSignature, FlirtSignatureParsed
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -35,8 +35,13 @@ class FlirtAnalysis(Analysis):
       current binary, and then match all possible signatures for the architecture.
     """
 
-    def __init__(self, sig: FlirtSignature | str | None = None, max_mismatched_bytes: int = 0, dry_run: bool = False):
-
+    def __init__(
+        self,
+        sig: FlirtSignature | str | None = None,
+        max_mismatched_bytes: int = 0,
+        dry_run: bool = False,
+        match_named_functions: bool = False,
+    ):
         from angr.flirt import FLIRT_SIGNATURES_BY_ARCH  # pylint:disable=import-outside-toplevel
 
         self._is_arm = is_arm_arch(self.project.arch)
@@ -45,6 +50,7 @@ class FlirtAnalysis(Analysis):
         self.matched_suggestions: dict[str, tuple[FlirtSignature, dict[int, str]]] = {}
         self._temporary_sig = False
         self._max_mismatched_bytes = max_mismatched_bytes
+        self._match_named_functions = match_named_functions
 
         if sig:
             if isinstance(sig, str):
@@ -101,8 +107,7 @@ class FlirtAnalysis(Analysis):
                 self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: list[bytes]) -> Generator[FlirtSignature]:
-
-        from angr.flirt import STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES  # pylint:disable=import-outside-toplevel
+        from angr.flirt import LIBRARY_TO_SIGNATURES, STRING_TO_LIBRARIES  # pylint:disable=import-outside-toplevel
 
         library_hits: dict[str, int] = defaultdict(int)
         for s, libs in STRING_TO_LIBRARIES.items():
@@ -136,20 +141,26 @@ class FlirtAnalysis(Analysis):
                     matched = False
 
                     funcs = (
-                        self.project.kb.functions.values()
+                        self.project.kb.functions.values(meta_only=True)
                         if not updated_funcs
-                        else {self.project.kb.functions.get_by_addr(a) for a in self._get_caller_funcs(updated_funcs)}
+                        else {
+                            self.project.kb.functions.get_by_addr(a, meta_only=True)
+                            for a in self._get_caller_funcs(updated_funcs)
+                        }
                     )
                     updated_funcs = set()
 
                     for func in funcs:
                         func: Function
+                        if not func.block_addrs_set:
+                            # empty function
+                            continue
                         if func.is_simprocedure or func.is_plt:
                             continue
                         if func.addr in self._suggestions:
                             # we already have a suggestion for this function
                             continue
-                        if not func.is_default_name:
+                        if not self._match_named_functions and not func.is_default_name:
                             # it already has a name. skip
                             continue
 
@@ -191,7 +202,11 @@ class FlirtAnalysis(Analysis):
         return caller_funcs
 
     def _get_callee_name(
-        self, func, func_addr: int, call_addr: int, expected_name: str  # pylint:disable=unused-argument
+        self,
+        func,
+        func_addr: int,
+        call_addr: int,
+        expected_name: str,  # pylint:disable=unused-argument
     ) -> str | None:
         for block_addr, (call_target, _) in func._call_sites.items():
             block = func.get_block(block_addr)
@@ -230,12 +245,14 @@ class FlirtAnalysis(Analysis):
                 return
             func = matched_func
 
-        if func.is_default_name:
+        if func.is_default_name or self._match_named_functions:
             # set the function name
             # TODO: Make sure function names do not conflict with existing ones
             _l.debug("Identified %s @ %#x (%#x-%#x)", flirt_func.name, func_addr, base_addr, flirt_func.offset)
-            func_name = flirt_func.name if flirt_func.name != "?" else f"unknown_function_{func.addr:x}"
-            self._suggestions[func.addr] = func_name
+            # func_name = flirt_func.name if flirt_func.name != "?" else f"unknown_function_{func.addr:x}"
+            func_name = flirt_func.name if flirt_func.name != "?" else None
+            if func_name:
+                self._suggestions[func.addr] = func_name
 
     def _apply_changes(self, library_name: str | None, suggestion: dict[int, str]) -> None:
         for func_addr, suggested_name in suggestion.items():

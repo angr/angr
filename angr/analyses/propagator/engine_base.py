@@ -1,23 +1,22 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Generic
+
 import logging
-
-
-from angr.engines.light.engine import BlockType, DataType_co, StateType
+from typing import TYPE_CHECKING
 
 from angr.engines.light import SimEngineLight
+from angr.engines.light.engine import BlockProtocol
 from angr.errors import SimEngineError
-from angr.project import Project
 from angr.misc.testing import is_testing
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
+    from angr.project import Project
 
 l = logging.getLogger(name=__name__)
 
 
-class SimEnginePropagatorBaseMixin(
-    Generic[StateType, DataType_co, BlockType], SimEngineLight[StateType, DataType_co, BlockType, StateType]
+class SimEnginePropagatorBaseMixin[StateType, DataType_co, BlockType: BlockProtocol](
+    SimEngineLight[StateType, DataType_co, BlockType, StateType]
 ):  # pylint:disable=abstract-method
     """
     The base class for the propagator VEX engine.

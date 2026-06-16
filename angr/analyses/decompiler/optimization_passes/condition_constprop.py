@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr.ailment import AILBlockRewriter, Block, Expression
-from angr.ailment.statement import ConditionalJump, Statement, Assignment
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable
-
+from angr.ailment.expression import BinaryOp, Const, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
 from angr.utils.graph import dominates
 from angr.utils.timing import timethis
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ class CCondPropBlockWalker(AILBlockRewriter):
         if expr.varid == self.vvar_id and not (
             isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == self.vvar_id
         ):
-            return Const(expr.idx, None, self.const_value.value, self.const_value.bits, **expr.tags)
+            return Const(expr.idx, self.const_value.value, self.const_value.bits, **expr.tags)
         return expr
 
 
@@ -81,8 +82,8 @@ class ConditionConstantPropagation(OptimizationPass):
     NAME = "Propagate constants using information deduced from conditionals."
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -201,11 +202,17 @@ class ConditionConstantPropagation(OptimizationPass):
             if isinstance(op0, VirtualVariable) and isinstance(op1, Const) and op1.is_int:
                 if op == "CmpEQ":
                     ccond = ConstantCondition(
-                        op0.varid, op1, stmt.true_target.value, stmt.true_target_idx  # type: ignore
+                        op0.varid,
+                        op1,
+                        stmt.true_target.value,
+                        stmt.true_target_idx,  # type: ignore
                     )
                     cconds.append(ccond)
                 elif op == "CmpNE":
                     ccond = ConstantCondition(
-                        op0.varid, op1, stmt.false_target.value, stmt.false_target_idx  # type: ignore
+                        op0.varid,
+                        op1,
+                        stmt.false_target.value,
+                        stmt.false_target_idx,  # type: ignore
                     )
                     cconds.append(ccond)

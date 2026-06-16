@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from . import ux
-from . import autoimport
-from .loggers import Loggers
-from .plugins import PluginHub, PluginPreset
+from . import autoimport, ux
 from .hookset import HookSet
+from .loggers import Loggers
 from .picklable_lock import PicklableLock
+from .plugins import PluginHub, PluginPreset
 
 __all__ = (
     "HookSet",

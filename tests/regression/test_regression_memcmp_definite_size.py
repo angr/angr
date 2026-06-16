@@ -7,7 +7,6 @@ import unittest
 import claripy
 
 import angr
-
 from tests.common import bin_location, broken
 
 

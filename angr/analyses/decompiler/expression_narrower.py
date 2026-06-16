@@ -1,27 +1,28 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
-from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.ailment.utils import is_none_or_likeable
-
-from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
+from angr.knowledge_plugins.key_definitions import atoms
 
 if TYPE_CHECKING:
+    from angr.ailment.block import Block
     from angr.ailment.expression import (
+        ITE,
+        DirtyExpression,
         Expression,
         Load,
         UnaryOp,
-        ITE,
-        DirtyExpression,
         VEXCCallExpression,
     )
+    from angr.ailment.manager import Manager
     from angr.ailment.statement import Statement
-    from angr.ailment.block import Block
 
 
 _l = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._ignore_call_args = ignore_call_args
         self.expr_to_effective_bits: dict[Expression, tuple[int, int]] = {}
         self.expr_used_as_call_arg_effective_bits: tuple[int, int] | None = None
+        self.expr_used_as_insert_base: bool = False
 
     def _update_effective_bits(self, expr, lo_bits: int, hi_bits: int):
         existing = self.expr_to_effective_bits.get(expr)
@@ -96,33 +98,66 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
             return
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        # self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        if self._target_expr.likes(expr.base):
+            self.expr_used_as_insert_base = True
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        if isinstance(expr.offset, Const) and isinstance(expr.offset.value, int):
+            self._update_effective_bits(expr.base, expr.offset.value, expr.offset.value + expr.bits)
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.args is not None:
             for i, arg in enumerate(expr.args):
-                if (
-                    self._ignore_call_args
-                    and isinstance(arg, Convert)
-                    and arg.to_bits < arg.from_bits
-                    and is_none_or_likeable(arg.operand, self._target_expr)
-                ):
-                    self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
-                else:
+                handled = False
+                if self._ignore_call_args:
+                    if (
+                        isinstance(arg, Convert)
+                        and arg.to_bits < arg.from_bits
+                        and is_none_or_likeable(arg.operand, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
+                    if (
+                        isinstance(arg, Extract)
+                        and isinstance(arg.offset, Const)
+                        and is_none_or_likeable(arg.base, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
+
+                if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if stmt.args is not None:
-            for i, arg in enumerate(stmt.args):
-                if (
-                    self._ignore_call_args
-                    and isinstance(arg, Convert)
-                    and arg.to_bits < arg.from_bits
-                    and is_none_or_likeable(arg.operand, self._target_expr)
-                ):
-                    self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
-                else:
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        if stmt.expr.args is not None:
+            for i, arg in enumerate(stmt.expr.args):
+                handled = False
+                if self._ignore_call_args:
+                    if (
+                        isinstance(arg, Convert)
+                        and arg.to_bits < arg.from_bits
+                        and is_none_or_likeable(arg.operand, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
+                    if (
+                        isinstance(arg, Extract)
+                        and isinstance(arg.offset, Const)
+                        and is_none_or_likeable(arg.base, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
+
+                if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
 
         if stmt.ret_expr is not None:
@@ -198,12 +233,19 @@ class ExpressionNarrower(AILBlockRewriter):
     """
 
     def __init__(
-        self, project, rd, narrowables, addr2blocks: dict[tuple[int, int | None], Block], new_blocks: dict[Block, Block]
+        self,
+        project,
+        rd,
+        manager: Manager,
+        narrowables,
+        addr2blocks: dict[tuple[int, int | None], Block],
+        new_blocks: dict[Block, Block],
     ):
         super().__init__(update_block=False)
 
         self.project = project
         self._rd = rd
+        self.manager = manager
         self._addr2blocks = addr2blocks
         self._new_blocks = new_blocks
 
@@ -219,7 +261,6 @@ class ExpressionNarrower(AILBlockRewriter):
         return super().walk(block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment:
-
         if isinstance(stmt.src, Phi):
             changed = False
 
@@ -269,7 +310,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 new_src.bits = self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width
             else:
                 new_src = Convert(
-                    None,
+                    self.manager.next_atom(),
                     stmt.src.bits,
                     self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
                     False,
@@ -304,7 +345,7 @@ class ExpressionNarrower(AILBlockRewriter):
             self.replacement_core_vvars[expr.varid].append(new_expr)
 
             return Convert(
-                None,
+                self.manager.next_atom(),
                 new_expr.bits,
                 expr.bits,
                 False,
@@ -313,9 +354,11 @@ class ExpressionNarrower(AILBlockRewriter):
             )
         return expr
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call:
-        new_stmt = super()._handle_Call(stmt_idx, stmt, block)
-        assert isinstance(new_stmt, Call)
+    def _handle_SideEffectStatement(
+        self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None
+    ) -> SideEffectStatement:
+        new_stmt = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
+        assert isinstance(new_stmt, SideEffectStatement)
         changed = new_stmt is not stmt
 
         if (

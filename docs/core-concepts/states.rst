@@ -223,7 +223,7 @@ analyzed can be found as ``arch.memory_endness`` - for instance
 
 There is also a low-level interface for register access, ``state.registers``,
 that uses the exact same API as ``state.memory``, but explaining its behavior
-involves a :ref:`dive <Intermediate Representation>` into the abstractions that
+involves a :ref:`dive <advanced-topics/ir:Intermediate Representation>` into the abstractions that
 angr uses to seamlessly work with multiple architectures. The short version is
 that it is simply a register file, with the mapping between registers and
 offsets defined in `archinfo <https://github.com/angr/archinfo>`_.
@@ -239,7 +239,7 @@ On each SimState object, there is a set (``state.options``) of all its enabled
 options. Each option (really just a string) controls the behavior of angr's
 execution engine in some minute way. A listing of the full domain of options,
 along with the defaults for different state types, can be found in :ref:`the
-appendix <List of State Options>`. You can access an individual option for
+appendix <appendix/options:List of State Options>`. You can access an individual option for
 adding to a state through ``angr.options``. The individual options are named
 with CAPITAL_LETTERS, but there are also common groupings of objects that you
 might want to use bundled together, named with lowercase_letters.
@@ -268,7 +268,7 @@ SimState is actually stored in a *plugin* attached to the state. Almost every
 property on the state we've discussed so far is a plugin - ``memory``,
 ``registers``, ``mem``, ``regs``, ``solver``, etc. This design allows for code
 modularity as well as the ability to easily :ref:`implement new kinds of data
-storage <State Plugins>` for other aspects of an emulated state, or the ability
+storage <extending-angr/state_plugins:State Plugins>` for other aspects of an emulated state, or the ability
 to provide alternate implementations of plugins.
 
 For example, the normal ``memory`` plugin simulates a flat memory space, but
@@ -355,7 +355,7 @@ topmost frame, this is ``state.callstack``.
 More about I/O: Files, file systems, and network sockets
 --------------------------------------------------------
 
-Please refer to :ref:`Working with File System, Sockets, and Pipes` for a more
+Please refer to :ref:`Working with File System, Sockets, and Pipes <advanced-topics/file_system:Working with File System, Sockets, and Pipes>` for a more
 complete and detailed documentation of how I/O is modeled in angr.
 
 Copying and Merging

@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import logging
 
 import networkx
 
-from angr.analyses import AnalysesHub
-from angr.utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
-from . import Analysis
+import angr
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.utils.graph import PostDominators, TemporaryNode, compute_dominance_frontier
 
 _l = logging.getLogger(name=__name__)
 
@@ -35,11 +36,7 @@ class CDG(Analysis):
 
         if not no_construct:
             if self._cfg is None:
-                # This leads to import cycles otherwise
-                # pylint: disable=import-outside-toplevel
-                from angr.analyses.cfg.cfg_emulated import CFGEmulated
-
-                self._cfg = self.project.analyses[CFGEmulated].prep()()
+                self._cfg = self.project.analyses[angr.analyses.cfg.CFGEmulated].prep()()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.model.get_any_node(self._start)

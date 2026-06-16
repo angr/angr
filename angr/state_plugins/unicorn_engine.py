@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import binascii
 import copy
 import ctypes
@@ -9,19 +10,19 @@ import sys
 import threading
 import time
 
-import cffi  # lmao
-
 import archinfo
+import cffi  # lmao
 import claripy
 import pyvex
 
 import angr
-from angr.engines.vex.claripy import ccall
-from angr.sim_state import SimState
 from angr import sim_options as options
+from angr.engines.vex.claripy import ccall
 from angr.engines.vex.claripy.irop import operations as irop_ops
 from angr.errors import SimMemoryError, SimSegfaultError, SimUnicornError, SimUnicornUnsupport, SimValueError
 from angr.misc.testing import is_testing
+from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
@@ -1782,7 +1783,7 @@ class Unicorn(SimStatePlugin):
         handling symbolic exits in native interface
         """
 
-        state = succ_state if succ_state else self.state
+        state = succ_state or self.state
 
         # first, get the ignore list (in case of symbolic registers)
         saved_registers = []

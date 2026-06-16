@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
@@ -28,7 +29,11 @@ class CoalesceAdjacentShiftRights(PeepholeOptimizationExprBase):
                 # merge them
                 new_shift = inner.operands[1].value + expr.operands[1].value
                 r = BinaryOp(
-                    expr.idx, expr.op, [inner.operands[0], Const(None, None, new_shift, 8)], expr.signed, **expr.tags
+                    expr.idx,
+                    expr.op,
+                    [inner.operands[0], Const(self.manager.next_atom(), new_shift, 8)],
+                    expr.signed,
+                    **expr.tags,
                 )
                 if convert is not None:
                     return Convert(

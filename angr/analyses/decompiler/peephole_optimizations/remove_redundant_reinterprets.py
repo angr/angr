@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import struct
 
-from angr.ailment.expression import Reinterpret, Const
+from angr.ailment.expression import Const, Reinterpret
 
 from .base import PeepholeOptimizationExprBase
 
@@ -39,6 +40,6 @@ class RemoveRedundantReinterprets(PeepholeOptimizationExprBase):
                 raise NotImplementedError
 
             value = struct.unpack(float_fmt, struct.pack(int_fmt, expr.operand.value))[0]
-            return Const(expr.idx, None, value, expr.bits, **expr.tags)
+            return Const(expr.idx, value, expr.bits, **expr.tags)
 
         return None

@@ -1,10 +1,11 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 from typing import Any
 
 from angr.ailment import Block
-from angr.ailment.statement import Assignment, Label, ConditionalJump, Call
-from angr.ailment.expression import BinaryOp, VirtualVariable, Const, Phi, Load, Expression
+from angr.ailment.expression import BinaryOp, Call, Const, Expression, Load, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Label
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.utils.ail import is_phi_assignment
 from angr.utils.bits import u2s
@@ -21,8 +22,8 @@ class InlinedStrlenSimplifier(OptimizationPass):
     NAME = "Identify and simplify inlined strlen() functions"
     DESCRIPTION = "Identify and simplify inlined strlen() functions"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -55,8 +56,10 @@ class InlinedStrlenSimplifier(OptimizationPass):
                 func_name = "wcslen"
             case _:
                 raise RuntimeError(f"Unsupported load size {load_size} for strlen simplification.")
-        strlen_call = Call(None, func_name, args=[str_expr], ret_expr=None, bits=result_var.bits, ins_addr=block.addr)
-        strlen_stmt = Assignment(None, result_var, strlen_call, ins_addr=block.addr)
+        strlen_call = Call(
+            self.manager.next_atom(), func_name, args=[str_expr], bits=result_var.bits, ins_addr=block.addr
+        )
+        strlen_stmt = Assignment(self.manager.next_atom(), result_var, strlen_call, ins_addr=block.addr)
         new_block = Block(block.addr, block.original_size, statements=[strlen_stmt], idx=block.idx)
         self._update_block(block, new_block)
 

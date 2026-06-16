@@ -14,7 +14,7 @@ import claripy
 
 import angr
 from angr import options as so
-from tests.common import bin_location, broken
+from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -190,7 +190,6 @@ class TestUnicorn(unittest.TestCase):
     def test_longinit_x86_64(self):
         self._run_longinit("x86_64")
 
-    @broken
     def test_fauxware_arm(self):
         p = angr.Project(os.path.join(test_location, "armel", "fauxware"), auto_load_libs=False)
         s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
@@ -287,7 +286,6 @@ class TestUnicorn(unittest.TestCase):
             cc.simgr = prehook(cc.simgr)
         cc.run(depth=depth)
 
-    @broken
     def test_similarity_fauxware(self):
         def cooldown(pg):
             # gotta skip the initializers because of cpuid and RDTSC

@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import random
 from collections import UserDict
 from collections.abc import Iterator
 
+from angr.sim_type import ALL_TYPES, SimType, TypeRef
+
 from .plugin import KnowledgeBasePlugin
-from angr.sim_type import ALL_TYPES, TypeRef, SimType
 
 FRUITS = [
     "mango",

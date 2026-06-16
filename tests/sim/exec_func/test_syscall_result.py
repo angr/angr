@@ -8,7 +8,6 @@ import os
 import unittest
 
 import angr
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -26,9 +25,9 @@ class TestSyscallResult(unittest.TestCase):
 
         simgr = p.factory.simulation_manager(thing=s)
         simgr.run()
-        assert (
-            len(simgr.deadended) == 2
-        ), "for these architectures, libc checks if the bit is set. make sure it branches"
+        assert len(simgr.deadended) == 2, (
+            "for these architectures, libc checks if the bit is set. make sure it branches"
+        )
 
     def test_syscalls(self):
         for arch in arches:

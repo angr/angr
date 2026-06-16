@@ -1,23 +1,32 @@
 from __future__ import annotations
 
 import logging
-import copy
-from collections.abc import Callable
 from collections import defaultdict
+from collections.abc import Callable
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Assignment, Call, Label
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
-
+from angr.ailment.expression import Call, Expression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Label, SideEffectStatement, Statement
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
-from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, ObservationPoint
 from angr.utils.ssa import get_reg_offset_base
-from angr.calling_conventions import SimRegArg, default_cc
 
 from .s_rda_model import SRDAModel
 
 log = logging.getLogger(__name__)
+
+
+def _copy_reg2vvarid(reg2vvarid: dict[int, dict[int, int]]) -> dict[int, dict[int, int]]:
+    """Fast deep copy of a reg2vvarid map.
+
+    ``reg2vvarid`` is always a ``dict[int, dict[int, int]]`` (register base offset -> {size -> vvar id}); all keys and
+    values are immutable ints. ``copy.deepcopy`` works but its generic machinery (memo dict, ``_keep_alive``,
+    per-object dispatch) dominates SReachingDefinitions runtime because ``observe`` copies this map at every graph edge
+    and observation point. A two-level dict comprehension is semantically identical and far cheaper.
+    """
+    return {offset: sizes.copy() for offset, sizes in reg2vvarid.items()}
 
 
 class RegVVarPredicate:
@@ -25,17 +34,21 @@ class RegVVarPredicate:
     Implements a predicate that is used in get_reg_vvar_by_stmt_idx and get_reg_vvar_by_insn.
     """
 
-    def __init__(self, reg_offset: int, min_size: int, vvars: list[VirtualVariable], arch):
+    def __init__(self, reg_offset: int, min_size: int, vvars: list[VirtualVariable], arch, variable_map=None):
         self.reg_offset = reg_offset
         self.min_size = min_size
         self.vvars = vvars
         self.arch = arch
+        self.variable_map = variable_map
 
-    def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
-        if isinstance(stmt.target, str):
+    def _get_call_clobbered_regs(self, stmt: SideEffectStatement) -> set[int]:
+        call = stmt.expr
+        if not isinstance(call, Call):
+            return set()
+        if isinstance(call.target, str):
             # pseudo calls do not clobber any registers
             return set()
-        cc = stmt.calling_convention
+        cc = self.variable_map.calling_convention(call) if self.variable_map is not None else None
         if cc is None:
             # get the default calling convention
             cc = default_cc(self.arch.name)  # TODO: platform and language
@@ -59,7 +72,7 @@ class RegVVarPredicate:
             if stmt.dst not in self.vvars:
                 self.vvars.append(stmt.dst)
             return True
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             if (
                 isinstance(stmt.ret_expr, VirtualVariable)
                 and stmt.ret_expr.was_reg
@@ -107,6 +120,7 @@ class SRDAView:
 
     def __init__(self, model: SRDAModel):
         self.model = model
+        self._traversal_order: list[Block] | None = None
 
     def _get_vvar_by_stmt(
         self,
@@ -160,7 +174,9 @@ class SRDAView:
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
+        predicater = RegVVarPredicate(
+            reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map
+        )
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
         if not vvars:
@@ -239,7 +255,9 @@ class SRDAView:
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
+        predicater = RegVVarPredicate(
+            reg_offset, min_size, vvars, self.model.arch, variable_map=self.model.variable_map
+        )
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
@@ -280,7 +298,12 @@ class SRDAView:
         }
         # TODO: Other types
 
-        traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
+        # The traversal order depends only on func_graph, which is immutable for the lifetime of this view. observe()
+        # is frequently called more than once per analysis (e.g. call-site uses and callee-saved-register uses), and
+        # the quasi-topological sort dominates observe(), so cache it across calls.
+        if self._traversal_order is None:
+            self._traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
+        traversal_order = self._traversal_order
         all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, dict[int, int]]] = defaultdict(dict)
 
         observations = {}
@@ -290,7 +313,7 @@ class SRDAView:
             if (block.addr, block.idx) in node_ops and node_ops[
                 (block.addr, block.idx)
             ] == ObservationPointType.OP_BEFORE:
-                observations[("node", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = copy.deepcopy(
+                observations[("node", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(
                     reg2vvarid
                 )
 
@@ -299,46 +322,50 @@ class SRDAView:
                 if last_insn_addr != stmt.tags["ins_addr"]:
                     # observe
                     if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = copy.deepcopy(
+                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(
                             reg2vvarid
                         )
                     if (
                         stmt.tags["ins_addr"] in insn_ops
                         and insn_ops[stmt.tags["ins_addr"]] == ObservationPointType.OP_BEFORE
                     ):
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = copy.deepcopy(
+                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(
                             reg2vvarid
                         )
                     last_insn_addr = stmt.tags["ins_addr"]
 
                 stmt_key = (block.addr, block.idx), stmt_idx
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = copy.deepcopy(reg2vvarid)
+                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(reg2vvarid)
 
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                     base_offset = get_reg_offset_base(stmt.dst.reg_offset, self.model.arch)
                     if base_offset not in reg2vvarid:
                         reg2vvarid[base_offset] = {}
                     reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
-                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
+                elif (
+                    isinstance(stmt, SideEffectStatement)
+                    and isinstance(stmt.ret_expr, VirtualVariable)
+                    and stmt.ret_expr.was_reg
+                ):
                     base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
                     if base_offset not in reg2vvarid:
                         reg2vvarid[base_offset] = {}
                     reg2vvarid[base_offset][stmt.ret_expr.size] = stmt.ret_expr.varid
 
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = copy.deepcopy(reg2vvarid)
+                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(reg2vvarid)
 
             if (block.addr, block.idx) in node_ops and node_ops[
                 (block.addr, block.idx)
             ] == ObservationPointType.OP_AFTER:
-                observations[("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = copy.deepcopy(
+                observations[("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(
                     reg2vvarid
                 )
 
             for succ in self.model.func_graph.successors(block):
                 if succ is block:
                     continue
-                all_reg2vvarid[succ.addr, succ.idx] = copy.deepcopy(reg2vvarid)
+                all_reg2vvarid[succ.addr, succ.idx] = _copy_reg2vvarid(reg2vvarid)
 
         return observations

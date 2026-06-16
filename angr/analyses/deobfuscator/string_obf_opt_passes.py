@@ -4,12 +4,11 @@ from __future__ import annotations
 import archinfo
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Call, Assignment
-from angr.ailment.expression import Const, Register, VirtualVariable
-
+from angr.ailment.expression import Call, Const, Register, VirtualVariable
+from angr.ailment.statement import Assignment, SideEffectStatement, Statement
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 WIN64_REG_ARGS = {
     archinfo.ArchAMD64().registers["rcx"][0],
@@ -33,8 +32,8 @@ class StringObfType3Rewriter(OptimizationPass):
     DESCRIPTION = "Simplify Type 3 string deobfuscation calls"
     stmt_classes = ()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -45,10 +44,9 @@ class StringObfType3Rewriter(OptimizationPass):
 
     @staticmethod
     def is_call_or_call_assignment(stmt) -> bool:
-        return isinstance(stmt, Call) or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call))
+        return isinstance(stmt, SideEffectStatement) or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call))
 
     def _analyze(self, cache=None):
-
         # find all blocks with type-3 deobfuscation calls
         for block in list(self._graph):
             if not block.statements:
@@ -75,23 +73,27 @@ class StringObfType3Rewriter(OptimizationPass):
         # replace the call
         old_stmt: Statement = block.statements[-1]
         str_id = self.kb.custom_strings.allocate(deobf_content)
-        old_call: Call = old_stmt.src if isinstance(old_stmt, Assignment) else old_stmt
+        if isinstance(old_stmt, Assignment):
+            old_call_expr: Call = old_stmt.src
+        else:
+            old_call_expr: Call = old_stmt.expr
+        str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
+        self.manager.variable_map.set_custom_string(str_const)
         new_call = Call(
-            old_call.idx,
+            old_call_expr.idx,
             "init_str",
             args=[
-                old_call.args[0],
-                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                Const(None, None, len(deobf_content), self.project.arch.bits),
+                old_call_expr.args[0],
+                str_const,
+                Const(None, len(deobf_content), self.project.arch.bits),
             ],
-            ret_expr=old_call.ret_expr,
-            bits=old_call.bits,
-            **old_call.tags,
+            bits=old_call_expr.bits,
+            **old_call_expr.tags,
         )
         if isinstance(old_stmt, Assignment):
             new_stmt = Assignment(old_stmt.idx, old_stmt.dst, new_call, **old_stmt.tags)
         else:
-            new_stmt = new_call
+            new_stmt = SideEffectStatement(old_stmt.idx, new_call, ret_expr=old_stmt.ret_expr, **old_stmt.tags)
 
         statements = [*block.statements[:-1], new_stmt]
 

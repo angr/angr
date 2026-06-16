@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from socket import inet_ntoa as _inet_ntoa
 
 from claripy import BVS, BVV, Concat
@@ -37,8 +38,7 @@ class inet_ntoa(angr.SimProcedure):
                 # "big" is network byte ordering, we want to preserve it in net order
                 # because `inet_ntoa` expects to be given that ordering (but in bytes
                 # and not a python int)
-                bytes(_inet_ntoa(addr_in_i32.to_bytes(4, "big")), "utf-8")
-                + b"\x00"
+                bytes(_inet_ntoa(addr_in_i32.to_bytes(4, "big")), "utf-8") + b"\x00"
             )
             rv_exprs.extend(BVV(b, size=self.state.arch.byte_width) for b in inet_str)
         else:

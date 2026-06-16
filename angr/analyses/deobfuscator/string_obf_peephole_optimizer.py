@@ -1,10 +1,10 @@
 from __future__ import annotations
-from angr.ailment.statement import Call
-from angr.ailment.expression import Const
+
 import claripy
 
-from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
+from angr.ailment.expression import Call, Const
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
+from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.errors import AngrCallableMultistateError
 
 
@@ -38,7 +38,7 @@ class StringObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
 
                 if out.concrete:
                     return Const(
-                        None, None, out.concrete_value, self.project.arch.bits, **expr.tags
+                        None, out.concrete_value, self.project.arch.bits, **expr.tags
                     )  # FIXME: use out.bits when the function prototype recovery is more reliable
 
         return None

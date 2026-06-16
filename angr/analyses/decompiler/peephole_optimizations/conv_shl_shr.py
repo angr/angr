@@ -1,5 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import Convert, BinaryOp, Const
+
+from angr.ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -27,23 +28,21 @@ class ConvShlShr(PeepholeOptimizationExprBase):
                     if m < n and n >= p:
                         bitmask = (1 << (n - p)) - 1
                         and_expr = BinaryOp(
-                            None,
+                            self.manager.next_atom(),
                             "And",
                             (
                                 Convert(expr_a.idx, m, n, False, expr_a.operand, **expr_a.tags),
-                                Const(None, None, bitmask, n),
+                                Const(self.manager.next_atom(), bitmask, n),
                             ),
                             False,
-                            variable=None,
-                            variable_offset=None,
                             **expr.tags,
                         )
                         return BinaryOp(
-                            None,
+                            self.manager.next_atom(),
                             "Shr",
                             (
                                 and_expr,
-                                Const(None, None, q - p, and_expr.bits),
+                                Const(self.manager.next_atom(), q - p, and_expr.bits),
                             ),
                             False,
                             **expr.tags,

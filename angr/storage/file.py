@@ -1,13 +1,15 @@
 from __future__ import annotations
-import logging
+
 import itertools
+import logging
 
 import claripy
 
 from angr import sim_options
-from angr.errors import SimMergeError, SimFileError, SimSolverError
+from angr.errors import SimFileError, SimMergeError, SimSolverError
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action_object import SimActionObject
+
 from .memory_mixins import DefaultMemory
 
 l = logging.getLogger(name=__name__)
@@ -447,7 +449,9 @@ class SimPackets(SimFileBase):
                         else (
                             (x.ast, len(x) // 8)
                             if isinstance(x, SimActionObject)
-                            else (claripy.BVV(x), len(x)) if type(x) is bytes else None
+                            else (claripy.BVV(x), len(x))
+                            if type(x) is bytes
+                            else None
                         )
                     )
                 )

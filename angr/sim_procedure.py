@@ -1,32 +1,33 @@
 from __future__ import annotations
-import inspect
+
 import copy
+import inspect
 import itertools
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import claripy
-from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
+from cle import SymbolType
 
 import angr
 from angr import sim_options as o
-from angr.errors import SimProcedureError, SimShadowStackError
-from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import (
     DEFAULT_CC,
-    default_cc,
-    SimTypeFunction,
-    SimTypePointer,
-    SimTypeChar,
     ArgSession,
+    SimTypeChar,
+    SimTypeFunction,
     SimTypeNum,
+    SimTypePointer,
+    default_cc,
 )
-from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from angr.errors import SimProcedureError, SimShadowStackError
+from angr.state_plugins.sim_action import SimActionExit
+
 from .sim_type import parse_signature, parse_type
+from .state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 
 if TYPE_CHECKING:
-    import archinfo
     from angr.sim_state import SimState
 
 l = logging.getLogger(name=__name__)
@@ -43,9 +44,6 @@ class SimProcedure:
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/extending-angr/simprocedures
 
     :param arch:            The architecture to use for this procedure
-
-    The following parameters are optional:
-
     :param symbolic_return: Whether the procedure's return value should be stubbed into a
                             single symbolic variable constratined to the real return value
     :param returns:         Whether the procedure should return to its caller afterwards
@@ -119,9 +117,9 @@ class SimProcedure:
 
     def __init__(
         self,
-        project=None,
-        cc=None,
-        prototype=None,
+        project: angr.Project | None = None,
+        cc: angr.SimCC | None = None,
+        prototype: str | SimTypeFunction | None = None,
         symbolic_return=None,
         returns=None,
         is_syscall=False,
@@ -133,13 +131,13 @@ class SimProcedure:
         **kwargs,
     ):
         # WE'LL FIGURE IT OUT
-        self.project: angr.Project = project
-        self.arch: archinfo.arch.Arch = project.arch if project is not None else None
+        self.project = project
+        self.arch = project.arch if project is not None else None
         self.addr = None
-        self.cc: angr.SimCC = cc
-        if type(prototype) is str:
+        self.cc = cc
+        if isinstance(prototype, str):
             prototype = parse_signature(prototype)
-        self.prototype: angr.sim_type.SimTypeFunction = prototype
+        self.prototype = prototype
         self.canonical = self
 
         self.kwargs = kwargs
@@ -173,7 +171,7 @@ class SimProcedure:
             self.guessed_prototype = False
 
         # runtime values
-        self.state = None
+        self.state = None  # type: ignore
         self.successors = None
         self.arguments = None
         self.use_state_arguments = True
@@ -206,28 +204,28 @@ class SimProcedure:
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        if self.addr is None:
-            if isinstance(state._ip, tuple):
-                self.addr = state._ip[0]
-            elif not state.regs._ip.symbolic:
-                self.addr = state.addr
+        if self.addr is None and not state.regs._ip.symbolic:
+            self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
         if self.project is None:
             self.project = state.project
         if self.cc is None:
             if self.arch.name in DEFAULT_CC:
-                self.cc = default_cc(
+                cc_cls = default_cc(
                     self.arch.name,
                     platform=(
                         self.project.simos.name if self.project is not None and self.project.simos is not None else None
                     ),
-                )(self.arch)
+                )
+                assert cc_cls is not None
+                self.cc = cc_cls(self.arch)
             else:
                 raise SimProcedureError(
                     f"There is no default calling convention for architecture {self.arch.name}."
                     " You must specify a calling convention."
                 )
+        assert self.prototype is not None
         if self.prototype._arch is None:
             self.prototype = self.prototype.with_arch(self.arch)
 
@@ -266,7 +264,9 @@ class SimProcedure:
             ):
                 sim_args = tuple(state.callstack.passed_args)
                 inst.use_state_arguments = False
-                inst.ret_to = state.callstack.return_addr
+                ret_to_tuple = state.callstack.return_addr
+                inst.ret_to = ret_to_tuple[0]
+                state.scratch.ail_block_idx = ret_to_tuple[1]
                 inst.arguments = list(sim_args)
                 inst.arg_session = 0
                 sim_args = sim_args[: inst.num_args]
@@ -292,6 +292,8 @@ class SimProcedure:
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
+                    assert inst.cc is not None
+                    assert inst.prototype is not None
                     inst.arg_session = inst.cc.arg_session(inst.prototype.returnty)
                     sim_args = [
                         inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in inst.prototype.args
@@ -325,6 +327,7 @@ class SimProcedure:
     def make_continuation(self, name):
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
+            assert self.project is not None
             cont = copy.copy(self.canonical)
             target_name = f"{self.display_name}.{name}"
             should_be_none = self.project.loader.extern_object.get_symbol(target_name)
@@ -407,18 +410,26 @@ class SimProcedure:
         raise SimProcedureError("the java-specific _compute_ret_addr() method was invoked on a non-Java SimProcedure.")
 
     def set_args(self, args):
+        assert self.cc is not None
+        assert self.prototype is not None
         arg_session = self.cc.arg_session(self.prototype.returnty)
         for arg, ty in zip(args, self.prototype.args):
             self.cc.next_arg(arg_session, ty).set_value(self.state, arg)
 
     def va_arg(self, ty, index=None):
+        assert self.arg_session is not None
         if not self.use_state_arguments:
+            assert self.arguments is not None
+            assert isinstance(self.arg_session, int)
             if index is not None:
                 return self.arguments[self.num_args + index]
 
             result = self.arguments[self.num_args + self.arg_session]
             self.arg_session += 1
             return result
+
+        assert not isinstance(self.arg_session, int)
+        assert self.cc is not None
 
         if index is not None:
             raise SimProcedureError("you think you're so fucking smart? you implement this logic then")
@@ -447,6 +458,7 @@ class SimProcedure:
         return p.execute(self.state, None, arguments=e_args)
 
     def fix_prototype_returnty(self, ret_size):
+        assert self.prototype is not None
         if ret_size not in [8, 16, 32, 64]:
             raise NotImplementedError(f"return type of size {ret_size} is not handled!")
         returnty = SimTypeNum(ret_size, signed=False, label=f"u{ret_size}")
@@ -483,7 +495,9 @@ class SimProcedure:
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
         elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack):
-            ret_addr = self.state.callstack.return_addr
+            ret_addr_tuple = self.state.callstack.return_addr
+            ret_addr = ret_addr_tuple[0]
+            self.state.scratch.ail_block_idx = ret_addr_tuple[1]
             # When successors is None, this is an internal/inline SimProcedure call (e.g. inline_call()).
             if self.should_add_successors:
                 self.state.callstack.pop()
@@ -532,6 +546,7 @@ class SimProcedure:
 
         if cc is None:
             cc = self.cc
+            assert cc is not None
         prototype = cc.guess_prototype(args, prototype)
 
         call_state = self.state.copy()
@@ -557,6 +572,7 @@ class SimProcedure:
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
+        assert self.successors is not None
         self.successors.add_successor(call_state, addr, claripy.true(), jumpkind)
         if jumpkind != "Ijk_Call":
             call_state.callstack.call(
@@ -577,6 +593,7 @@ class SimProcedure:
         """
         self.inhibit_autoret = True
         self._exit_action(self.state, addr)
+        assert self.successors is not None
         self.successors.add_successor(self.state, addr, claripy.true(), jumpkind)
 
     def exit(self, exit_code):
@@ -590,6 +607,7 @@ class SimProcedure:
         if isinstance(exit_code, int):
             exit_code = claripy.BVV(exit_code, self.state.arch.bits)
         self.state.history.add_event("terminate", exit_code=exit_code)
+        assert self.successors is not None
         self.successors.add_successor(self.state, self.state.regs.ip, claripy.true(), "Ijk_Exit")
 
     @staticmethod
@@ -600,9 +618,6 @@ class SimProcedure:
     #
     # misc
     #
-
-    def ty_ptr(self, ty):
-        return SimTypePointer(self.arch, ty)
 
     @property
     def is_java(self):

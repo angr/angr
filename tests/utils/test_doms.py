@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from unittest import main, TestCase
+
+from unittest import TestCase, main
 
 import networkx
 
@@ -9,7 +10,6 @@ from angr.utils.doms import IncrementalDominators
 
 class TestDoms(TestCase):
     def test_simple_doms(self):
-
         g = networkx.DiGraph()
         g.add_edges_from(
             [
@@ -33,7 +33,6 @@ class TestDoms(TestCase):
         assert doms.idom(7) == 6
 
     def test_simple_postdoms(self):
-
         g = networkx.DiGraph()
         g.add_edges_from(
             [

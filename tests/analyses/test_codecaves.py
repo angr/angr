@@ -1,7 +1,8 @@
 # pylint:disable=no-self-use,missing-class-docstring
 from __future__ import annotations
-from unittest import main, TestCase
+
 import os.path
+from unittest import TestCase, main
 
 import angr
 from angr.analyses.codecave import CodeCaveClassification

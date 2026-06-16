@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 import itertools
 import logging
 
 import networkx as nx
 
 from angr.ailment.block import Block
+from angr.analyses.decompiler.block_similarity import is_similar, longest_ail_subseq
 
 from .utils import bfs_list_blocks
-from angr.analyses.decompiler.block_similarity import longest_ail_subseq, is_similar
 
 _l = logging.getLogger(name=__name__)
 
@@ -114,7 +115,7 @@ def ail_similarity_to_orig_blocks(orig_block, graph_similarity, graph):
 
 
 def find_block_by_similarity(block, graph, node_list=None):
-    nodes = node_list if node_list else list(graph.nodes())
+    nodes = node_list or list(graph.nodes())
     similar_blocks = []
     for other_block in nodes:
         if is_similar(block, other_block, graph=graph):

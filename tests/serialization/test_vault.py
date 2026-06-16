@@ -3,12 +3,13 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
+import gc
 import os
 import unittest
 
 import claripy
-import angr
 
+import angr
 from tests.common import bin_location
 
 
@@ -46,7 +47,6 @@ class TestVault(unittest.TestCase):
         bb.n = 1337
         del bb
         del b
-        import gc
 
         gc.collect()
         bbb = v.load(bid)
@@ -159,7 +159,6 @@ class TestVault(unittest.TestCase):
         del pp2
         del pp
         del p
-        import gc
 
         gc.collect()
 

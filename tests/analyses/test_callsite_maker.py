@@ -6,10 +6,8 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
-import angr.ailment as ailment
-
 import angr
-
+import angr.ailment as ailment
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -47,12 +45,12 @@ class TestCallsiteMaker(unittest.TestCase):
         for block in sorted(main_func.blocks, key=lambda x: x.addr):
             print(block.vex.pp())
             ail_block = ailment.IRSBConverter.convert(block.vex, manager)
-            simp = project.analyses.AILBlockSimplifier(ail_block, main_func.addr)
+            simp = project.analyses.AILBlockSimplifier(ail_block, manager, main_func.addr)
 
-            csm = project.analyses.AILCallSiteMaker(simp.result_block)
+            csm = project.analyses.AILCallSiteMaker(simp.result_block, ail_manager=manager)
             if csm.result_block:
                 ail_block = csm.result_block
-                simp = project.analyses.AILBlockSimplifier(ail_block, main_func.addr)
+                simp = project.analyses.AILBlockSimplifier(ail_block, manager, main_func.addr)
 
             print(simp.result_block)
 

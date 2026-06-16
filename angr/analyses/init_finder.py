@@ -1,15 +1,18 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import cast
 
-from cle.loader import MetaELF
-import pyvex
 import claripy
+import pyvex
+from cle.loader import MetaELF
 
-from angr.analyses import visitors, ForwardAnalysis
+from angr.analyses.analysis import register_analysis
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
+from angr.analyses.propagator import PropagatorAnalysis
 from angr.code_location import CodeLocation
 from angr.engines.light import SimEngineNostmtVEX
-from . import register_analysis, PropagatorAnalysis
+
 from .analysis import Analysis
 from .propagator.vex_vars import VEXTmp
 
@@ -55,9 +58,7 @@ class SimEngineInitFinderVEX(SimEngineNostmtVEX[None, claripy.ast.Base | int | N
                 return True
             section = obj.find_section_containing(addr)
             if section is not None:
-                return section.name in {
-                    ".bss",
-                }
+                return section.name == ".bss"
 
             if isinstance(obj, MetaELF):
                 # for ELFs, if p_memsz >= p_filesz, the extra bytes are considered NOBITS

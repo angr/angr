@@ -1,15 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.codenode import BlockNode, FuncNode
-from angr.sim_variable import SimMemoryVariable
 from angr.knowledge_plugins.functions import Function
-from .analysis import Analysis, AnalysesHub
+from angr.sim_variable import SimMemoryVariable
+
+from .analysis import AnalysesHub, Analysis
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.decompiler import Decompiler
@@ -173,6 +175,7 @@ class ProximityGraphAnalysis(Analysis):
         self._cfg_model = cfg_model
         self._xrefs = xrefs
         self._decompilation = decompilation
+        self._variable_map = self._decompilation._variable_map if self._decompilation is not None else None
         self._expand_funcs = expand_funcs.copy() if expand_funcs else None
 
         self.graph: networkx.DiGraph | None = None
@@ -195,7 +198,8 @@ class ProximityGraphAnalysis(Analysis):
         if blank_nodes:
             self._merge_nodes(graph, blank_nodes)
 
-    def _merge_nodes(self, graph: networkx.DiGraph, nodes: list[BaseProxiNode]) -> None:
+    @staticmethod
+    def _merge_nodes(graph: networkx.DiGraph, nodes: list[BaseProxiNode]) -> None:
         for node in nodes:
             predecessors = set(graph.predecessors(node))
             successors = set(graph.successors(node))
@@ -279,9 +283,7 @@ class ProximityGraphAnalysis(Analysis):
                 func_node = n_
                 for block, _, data in func.transition_graph.in_edges(func_node, data=True):
                     if "ins_addr" in data:
-                        if (
-                            self._expand_funcs and func_node.addr in self._expand_funcs
-                        ):  # pylint:disable=unsupported-membership-test
+                        if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                             node = FunctionProxiNode(func_node, ref_at={data["ins_addr"]})
                             to_expand.append(node)
                         else:
@@ -325,18 +327,21 @@ class ProximityGraphAnalysis(Analysis):
                 # not a string. present it as a constant integer
                 args.append(IntegerProxiNode(arg.value_int, None))
         elif isinstance(arg, ailment.expression.Load):
-            if arg.variable is not None:
-                args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
-            elif arg.addr.variable is not None:
-                if isinstance(arg.addr.variable, SimMemoryVariable):
-                    args.append(VariableProxiNode(arg.addr.variable.addr, arg.addr.variable.name))
+            arg_var = self._variable_map.variable(arg)
+            arg_addr_var = self._variable_map.variable(arg.addr)
+            if arg_var is not None:
+                args.append(VariableProxiNode(arg_var.addr, arg_var.name))
+            elif arg_addr_var is not None:
+                if isinstance(arg_addr_var, SimMemoryVariable):
+                    args.append(VariableProxiNode(arg_addr_var.addr, arg_addr_var.name))
                 else:
-                    args.append(VariableProxiNode(None, arg.addr.variable.name))
+                    args.append(VariableProxiNode(None, arg_addr_var.name))
             else:
                 args.append(UnknownProxiNode("l_"))
         elif isinstance(arg, ailment.expression.StackBaseOffset):
-            if arg.variable is not None:
-                args.append(VariableProxiNode(arg.variable, arg.variable.name))
+            arg_var = self._variable_map.variable(arg)
+            if arg_var is not None:
+                args.append(VariableProxiNode(arg_var, arg_var.name))
             else:
                 args.append(UnknownProxiNode("s_"))
         else:
@@ -350,27 +355,33 @@ class ProximityGraphAnalysis(Analysis):
         # dedup
         string_refs: set[int] = set()
 
+        if decompilation.clinic is None:
+            return []
+
         # Walk the clinic structure to dump string references and function calls
         ail_graph = decompilation.clinic.cc_graph
         if ail_graph is None:
             return []
+        self._variable_map = decompilation.clinic.variable_map
 
         def _handle_Call(
-            stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None  # pylint:disable=unused-argument
+            expr_idx: int,
+            expr: ailment.Expr.Call,
+            stmt_idx: int,  # pylint:disable=unused-argument
+            stmt: ailment.Stmt.Statement,  # pylint:disable=unused-argument
+            block: ailment.Block | None,
         ):  # pylint:disable=unused-argument
-            if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
-                func_node = FuncNode(stmt.target.value_int)
+            if isinstance(expr.target, ailment.Expr.Const) and self.kb.functions.contains_addr(expr.target.value):
+                func_node = FuncNode(expr.target.value)
                 ref_at = {stmt.tags["ins_addr"]}
 
                 # extract arguments
                 args = []
-                if stmt.args:
-                    for arg in stmt.args:
+                if expr.args:
+                    for arg in expr.args:
                         self._arg_handler(arg, args, string_refs)
 
-                if (
-                    self._expand_funcs and func_node.addr in self._expand_funcs
-                ):  # pylint:disable=unsupported-membership-test
+                if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                     new_node = FunctionProxiNode(func_node, ref_at=ref_at)
                     if new_node not in to_expand:
                         to_expand.append(new_node)
@@ -380,23 +391,12 @@ class ProximityGraphAnalysis(Analysis):
                 # stmt has been properly handled, add the proxi node to the list
                 self.handled_stmts.append(new_node)
 
-        # This should have the same functionality as the previous handler
-        def _handle_CallExpr(
-            expr_idx: int,
-            expr: ailment.Stmt.Call,
-            stmt_idx: int,  # pylint:disable=unused-argument
-            stmt: ailment.Stmt.Statement,  # pylint:disable=unused-argument
-            block: ailment.Block | None,
-        ):  # pylint:disable=unused-argument
-            _handle_Call(stmt_idx, expr, block)
-
         # subgraph check - do before in case of recursion
         subgraph = self.graph != graph
 
         # Keep all default handlers, but overwrite necessary ones:
         bw = AILBlockViewer()
-        bw.stmt_handlers[ailment.Stmt.Call] = _handle_Call
-        bw.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
+        bw.expr_handlers[ailment.Expr.Call] = _handle_Call
 
         # Custom Graph walker, go through AIL edges
         for ail_edge in ail_graph.edges:

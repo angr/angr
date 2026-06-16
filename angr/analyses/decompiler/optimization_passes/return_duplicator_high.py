@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import logging
 from typing import Any
 
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
+from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import copy_graph
-from .return_duplicator_base import ReturnDuplicatorBase
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .return_duplicator_base import ReturnDuplicatorBase
 
 _l = logging.getLogger(name=__name__)
 
@@ -25,19 +27,18 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
 
     def __init__(
         self,
-        func,
+        *args,
         # settings
-        *,
         vvar_id_start: int,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
         scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
-        OptimizationPass.__init__(self, func, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
+        OptimizationPass.__init__(self, *args, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
         ReturnDuplicatorBase.__init__(
             self,
-            func,
+            *args,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
             vvar_id_start=vvar_id_start,

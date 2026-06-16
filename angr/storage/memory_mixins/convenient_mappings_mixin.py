@@ -1,13 +1,14 @@
 # pylint:disable=arguments-differ,assignment-from-no-return,isinstance-second-argument-not-valid-type
 from __future__ import annotations
+
 import logging
 
 import claripy
 
 from angr import sim_options as options
-from angr.utils.cowdict import ChainMapCOW
 from angr.errors import SimMemoryError, SimMemoryMissingError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+from angr.utils.cowdict import ChainMapCOW
 
 l = logging.getLogger(name=__name__)
 

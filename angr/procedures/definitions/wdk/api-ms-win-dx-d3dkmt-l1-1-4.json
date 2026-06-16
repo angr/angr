@@ -12,13 +12,13 @@
 	},
 	"functions": {
 		"D3DKMTOutputDuplPresentToHwQueue": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPLPRESENTTOHWQUEUE', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPLPRESENTTOHWQUEUE', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
 		},
 		"D3DKMTSubmitPresentBltToHwQueue": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITPRESENTBLTTOHWQUEUE', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITPRESENTBLTTOHWQUEUE', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
 		},
 		"D3DKMTSubmitPresentToHwQueue": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITPRESENTTOHWQUEUE', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITPRESENTTOHWQUEUE', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
 		}
 	}
 }

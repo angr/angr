@@ -26,6 +26,11 @@ INS_GROUP_INFO = {
         cs.arm.ARM_GRP_BRANCH_RELATIVE: "branch",
         cs.arm.ARM_GRP_JUMP: "branch",
     },
+    "RISCV64": {
+        cs.riscv.RISCV_GRP_CALL: "call",
+        cs.riscv.RISCV_GRP_JUMP: "branch",
+        cs.riscv.RISCV_GRP_RET: "return",
+    },
 }
 
 INS_GROUP_INFO["ARMEL"] = INS_GROUP_INFO["ARM"]
@@ -98,4 +103,13 @@ def decode_instruction(arch, instr):
                 instr.branch_type = "indirect"
             else:
                 instr.branch_type = "direct"
+            instr.branch_target_operand = len(instr.insn.operands) - 1
+
+        elif arch_name == "RISCV64":
+            mnemonic = instr.insn.insn.mnemonic.lower()
+            if "r" in mnemonic:
+                instr.branch_type = "indirect"
+            else:
+                instr.branch_type = "direct"
+
             instr.branch_target_operand = len(instr.insn.operands) - 1

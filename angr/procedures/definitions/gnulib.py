@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import logging
 
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimTypeBottom
+from angr.procedures.procedure_dict import SIM_PROCEDURES as P
+from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 
-from angr.procedures import SIM_PROCEDURES as P
 from . import SimLibrary
 
 _l = logging.getLogger(name=__name__)

@@ -1,13 +1,11 @@
 from __future__ import annotations
+
 import logging
 import weakref
-from typing import TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
-if TYPE_CHECKING:
-    from .knowledge_plugins.key_definitions.unknown_size import UnknownSize
-
+from .knowledge_plugins.key_definitions.unknown_size import UnknownSize
 
 l = logging.getLogger(name=__name__)
 
@@ -369,11 +367,6 @@ class KeyedRegion:
     #
 
     def _canonicalize_size(self, size: int | UnknownSize) -> int:
-        # delayed import
-        from .knowledge_plugins.key_definitions.unknown_size import (
-            UnknownSize,
-        )  # pylint:disable=import-outside-toplevel
-
         if isinstance(size, UnknownSize):
             return self._canonical_size
         return size

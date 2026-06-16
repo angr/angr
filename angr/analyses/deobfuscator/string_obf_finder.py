@@ -1,21 +1,21 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import string
+
 import logging
+import string
+from typing import TYPE_CHECKING, Any
 
 import capstone
+import claripy
 import networkx
 
-import claripy
-
-from angr.analyses import Analysis, AnalysesHub
-from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError, AngrAnalysisError
-from angr.calling_conventions import SimRegArg, default_cc
-from angr.state_plugins.sim_action import SimActionData
-from angr.sim_options import ZERO_FILL_UNCONSTRAINED_REGISTERS, ZERO_FILL_UNCONSTRAINED_MEMORY, TRACK_MEMORY_ACTIONS
-from angr.sim_type import SimTypeFunction, SimTypeBottom, SimTypePointer
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.reaching_definitions import ObservationPointType
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.errors import AngrAnalysisError, AngrCallableError, AngrCallableMultistateError, SimMemoryMissingError
+from angr.sim_options import TRACK_MEMORY_ACTIONS, ZERO_FILL_UNCONSTRAINED_MEMORY, ZERO_FILL_UNCONSTRAINED_REGISTERS
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypePointer
+from angr.state_plugins.sim_action import SimActionData
 from angr.utils.graph import GraphUtils
 
 from .irsb_reg_collector import IRSBRegisterCollector
@@ -580,7 +580,10 @@ class StringObfuscationFinder(Analysis):
         return type2_candidates
 
     def _analyze_type2(
-        self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]  # pylint:disable=unused-argument
+        self,
+        func_addr: int,
+        desc: StringDeobFuncDescriptor,
+        table_addrs: set[int],  # pylint:disable=unused-argument
     ) -> set:
         """
         Analyze Type 2 string deobfuscation functions, determine the following information:
@@ -703,7 +706,10 @@ class StringObfuscationFinder(Analysis):
 
                 # simulate an execution to see if it really works
                 data, guessed_size = self._type3_prepare_and_execute(
-                    func.addr, call_sites[i].addr, call_sites[i].function_address, cfg  # type: ignore
+                    func.addr,
+                    call_sites[i].addr,
+                    call_sites[i].function_address,
+                    cfg,  # type: ignore
                 )
                 if data is None:
                     continue
@@ -723,7 +729,9 @@ class StringObfuscationFinder(Analysis):
         return type3_functions
 
     def _analyze_type3(
-        self, func_addr: int, desc: StringDeobFuncDescriptor  # pylint:disable=unused-argument
+        self,
+        func_addr: int,
+        desc: StringDeobFuncDescriptor,  # pylint:disable=unused-argument
     ) -> dict[int, bytes]:
         """
         Analyze Type 3 string deobfuscation functions, determine the following information:
@@ -872,9 +880,9 @@ class StringObfuscationFinder(Analysis):
         in_state = simgr.active[0]
 
         cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
-        assert (
-            cc_cls is not None
-        ), f"Failed to obtain the default calling convention for {self.project.arch.name}-{self.project.simos.name}."
+        assert cc_cls is not None, (
+            f"Failed to obtain the default calling convention for {self.project.arch.name}-{self.project.simos.name}."
+        )
         cc = cc_cls(self.project.arch)
         cc.STACKARG_SP_BUFF = 0  # disable shadow stack space because the binary code already sets it if needed
         cc.STACK_ALIGNMENT = 1  # disable stack address aligning because the binary code already sets it if needed

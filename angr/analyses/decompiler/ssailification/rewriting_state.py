@@ -1,11 +1,10 @@
 from __future__ import annotations
-from collections import defaultdict
 
-from angr.ailment.statement import Statement
-from angr.ailment.expression import VirtualVariable
 from angr.ailment.block import Block
-
-from angr.code_location import CodeLocation
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Statement
+from angr.code_location import AILCodeLocation
+from angr.utils.cowdict import ChainMapCOW
 
 
 class RewritingState:
@@ -15,36 +14,25 @@ class RewritingState:
 
     def __init__(
         self,
-        loc: CodeLocation,
+        loc: AILCodeLocation,
         arch,
         func,
         original_block: Block,
-        registers: dict[int, dict[int, VirtualVariable]] | None = None,
-        stackvars: dict[int, dict[int, VirtualVariable]] | None = None,
+        registers: dict[int, VirtualVariable] | None = None,
+        stackvars: ChainMapCOW[int, VirtualVariable] | None = None,
     ):
         self.loc = loc
         self.arch = arch
         self.func = func
 
-        self.registers: defaultdict[int, dict[int, VirtualVariable | None]] = (
-            registers if registers is not None else defaultdict(dict)
-        )
-        self.stackvars: defaultdict[int, dict[int, VirtualVariable]] = (
-            stackvars if stackvars is not None else defaultdict(dict)
-        )
+        self.registers = registers or {}
+        self.stackvars = stackvars if stackvars is not None else ChainMapCOW(collapse_threshold=200)
         self.tmps: dict[int, VirtualVariable] = {}
         self.original_block = original_block
         self.out_block = None
 
     def copy(self) -> RewritingState:
-
-        copy_regs = defaultdict(dict)
-        for k, vdict in self.registers.items():
-            copy_regs[k] = vdict.copy()
-
-        copy_stackvars = defaultdict(dict)
-        for k, vdict in self.stackvars.items():
-            copy_stackvars[k] = vdict.copy()
+        copy_regs = dict(self.registers)
 
         return RewritingState(
             self.loc,
@@ -52,7 +40,7 @@ class RewritingState:
             self.func,
             self.original_block,
             registers=copy_regs,
-            stackvars=copy_stackvars,
+            stackvars=self.stackvars.copy(),
         )
 
     def append_statement(self, stmt: Statement):

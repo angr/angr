@@ -5,18 +5,18 @@ This module contains symbolic implementations of VEX operations.
 # pylint:disable=no-member
 from __future__ import annotations
 
-from functools import partial
 import collections
 import itertools
-import operator
-import math
-import re
 import logging
+import math
+import operator
+import re
+from functools import partial
 
-import pyvex
 import claripy
+import pyvex
 
-from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
+from angr.errors import SimOperationError, SimValueError, SimZeroDivisionException, UnsupportedIROpError
 from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
@@ -122,6 +122,14 @@ explicit_attrs = {
     },
     "Iop_V256toV128_1": {
         "generic_name": "unpack",
+        "to_size": 128,
+    },
+    "Iop_SliceV128": {
+        "generic_name": "slice",
+        "to_size": 128,
+    },
+    "Iop_Reverse32sIn64_x2": {
+        "generic_name": "reverse",
         "to_size": 128,
     },
 }
@@ -580,6 +588,18 @@ class SimIROp:
     def _op_concat(self, args):
         return claripy.Concat(*args)
 
+    @staticmethod
+    def _op_Iop_SliceV128(args):
+        left, right, imm = args
+        assert imm.op == "BVV"
+        imm = imm.args[0]
+        return claripy.Concat(left, right)[127 + imm * 8 : imm * 8]
+
+    @staticmethod
+    def _op_Iop_Reverse32sIn64_x2(args):
+        arg = args[0]
+        return claripy.Concat(arg[95:64], arg[127:96], arg[31:0], arg[63:32])
+
     def _op_hi_half(self, args):
         return claripy.Extract(args[0].size() - 1, args[0].size() // 2, args[0])
 
@@ -933,16 +953,16 @@ class SimIROp:
 
     def _op_fp_to_int(self, args):
         if self.name.endswith("_RZ"):
-            rm = claripy.fp.RM_TowardsZero
+            rm = claripy.fp.RM.RM_TowardsZero
             arg = args[0]
         elif self.name.endswith("_RN"):
-            rm = claripy.fp.RM_NearestTiesEven
+            rm = claripy.fp.RM.RM_NearestTiesEven
             arg = args[0]
         elif self.name.endswith("_RM"):
-            rm = claripy.fp.RM_TowardsNegativeInf
+            rm = claripy.fp.RM.RM_TowardsNegativeInf
             arg = args[0]
         elif self.name.endswith("_RP"):
-            rm = claripy.fp.RM_TowardsPositiveInf
+            rm = claripy.fp.RM.RM_TowardsPositiveInf
             arg = args[0]
         else:
             rm = self._translate_rm(args[0])
@@ -1263,7 +1283,7 @@ def vexop_to_simop(op, extended=True, fp=True):
     if res is None and extended:
         attrs = op_attrs(op)
         if attrs is None:
-            raise UnsupportedIROpError("Operation not implemented")
+            raise UnsupportedIROpError(f"Operation {op} not implemented")
         res = SimIROp(op, **attrs)
     if res is None:
         raise UnsupportedIROpError("Operation not implemented")

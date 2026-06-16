@@ -1,25 +1,33 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import Any
 
 from angr.ailment import Block
-from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
-from angr.ailment.expression import (
-    Load,
-    VirtualVariable,
-    Expression,
-    BinaryOp,
-    UnaryOp,
-    Convert,
-    ITE,
-    Tmp,
-    Const,
-    StackBaseOffset,
-)
 from angr.ailment.block_walker import AILBlockViewer
-
-
-from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset, ConstantSrc
+from angr.ailment.expression import (
+    ITE,
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    Expression,
+    Load,
+    StackBaseOffset,
+    Tmp,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.statement import (
+    Assignment,
+    ConditionalJump,
+    Jump,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+)
+from angr.knowledge_plugins.key_definitions.atoms import ConstantSrc, MemoryLocation, Register, SpOffset
 
 
 class BlockIOFinder(AILBlockViewer):
@@ -132,9 +140,9 @@ class BlockIOFinder(AILBlockViewer):
         input_loc = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        if stmt.expr.args:
+            for i, arg in enumerate(stmt.expr.args):
                 input_loc = self._handle_expr(i, arg, stmt_idx, stmt, block)
                 self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
@@ -202,7 +210,7 @@ class BlockIOFinder(AILBlockViewer):
             return load_loc
         return None
 
-    def _handle_CallExpr(
+    def _handle_Call(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         args = set()

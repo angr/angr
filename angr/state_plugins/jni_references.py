@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import logging
 
 from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger("angr.state_plugins.jni_references")
@@ -15,8 +17,8 @@ class SimStateJNIReferences(SimStatePlugin):
 
     def __init__(self, local_refs=None, global_refs=None):
         super().__init__()
-        self.local_refs = local_refs if local_refs else {}
-        self.global_refs = global_refs if global_refs else {}
+        self.local_refs = local_refs or {}
+        self.global_refs = global_refs or {}
 
     def lookup(self, opaque_ref):
         """

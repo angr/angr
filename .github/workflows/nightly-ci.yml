@@ -28,17 +28,22 @@ jobs:
         runner_id: [1, 2, 3, 4, 5]
       fail-fast: false
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4
         with:
           path: angr
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4
         with:
           repository: angr/binaries
           path: binaries
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
-      - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v6
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v6
+      - name: Setup Java for pysoot
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
       - name: Sync dependencies
-        run: uv --directory angr sync -p 3.10
+        run: uv --directory angr sync -p 3.12
       - name: Run pytest
         run: uv --directory angr run pytest -n auto --splits 5 --group ${{ matrix.runner_id }} tests
   macos:
@@ -49,15 +54,15 @@ jobs:
         runner_id: [1, 2, 3]
       fail-fast: false
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4
         with:
           path: angr
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4
         with:
           repository: angr/binaries
           path: binaries
-      - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v6
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v6
       - name: Sync dependencies
-        run: uv --directory angr sync -p 3.10
+        run: uv --directory angr sync -p 3.12
       - name: Run pytest
         run: uv --directory angr run pytest -n auto --splits 3 --group ${{ matrix.runner_id }} tests

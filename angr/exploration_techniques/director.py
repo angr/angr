@@ -1,14 +1,16 @@
 from __future__ import annotations
+
 import logging
 from collections import defaultdict
 
 import claripy
 import networkx
 
-from angr.sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
 from angr.calling_conventions import default_cc
-from angr.knowledge_base import KnowledgeBase
 from angr.errors import AngrDirectorError
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_type import SimType, SimTypeChar, SimTypePointer, SimTypeReg, SimTypeString
+
 from .base import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
@@ -85,7 +87,7 @@ class BaseGoal:
         """
 
         if max_steps is None:
-            yield networkx.dfs_edges(graph, source)
+            yield networkx.dfs_edges(graph.to_networkx(), source)
 
         else:
             steps_map = defaultdict(int)

@@ -5,25 +5,38 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
+from collections import OrderedDict
 
 import archinfo
 
 import angr
-from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
+from angr.analyses.decompiler.clinic import Clinic
+from angr.analyses.typehoon.simple_solver import SimpleSolver
+from angr.analyses.typehoon.translator import TypeTranslator
+from angr.analyses.typehoon.typeconsts import Float32, Float64, Int32, Pointer64, Struct
 from angr.analyses.typehoon.typevars import (
-    TypeVariable,
     DerivedTypeVariable,
-    Subtype,
     FuncIn,
     FuncOut,
+    HasField,
     Load,
     Store,
-    HasField,
+    Subtype,
+    TypeVariable,
 )
-from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32, Float64
-from angr.analyses.typehoon.translator import TypeTranslator
-
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import (
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypePointer,
+)
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -77,7 +90,70 @@ class TestTypehoon(unittest.TestCase):
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         assert dec.codegen.text.count("UNICODE_STRING v") == 2
+
+    def test_type_inference_auto_update_and_back_propagation(self):
+        bin_path = os.path.join(test_location, "x86_64", "bomb")
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFG(normalize=True)
+
+        func_phase2 = cfg.kb.functions["phase_2"]
+        assert func_phase2.prototype_source == PrototypeSource.NONE
+
+        proj.analyses.CompleteCallingConventions()
+
+        # let's decompile phase_2 first
+        func_phase2 = cfg.kb.functions["phase_2"]
+        print(func_phase2.prototype)
+        print(func_phase2.prototype_source)
+        assert func_phase2.prototype_source == PrototypeSource.CCA_LOW
+        func_read6numbers = cfg.kb.functions["read_six_numbers"]
+        assert func_read6numbers.prototype_source == PrototypeSource.CCA_LOW
+        dec_phase2 = proj.analyses.Decompiler(
+            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+        )
+        print_decompilation_result(dec_phase2)
+        assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
+        assert func_phase2.prototype_source == PrototypeSource.CCA_DECOMPILER
+
+        # (char*, char*) -> ?
+        assert func_read6numbers.prototype_source == PrototypeSource.CALLSITE_DECOMPILER
+        assert isinstance(func_read6numbers.prototype, SimTypeFunction)
+        assert len(func_read6numbers.prototype.args) == 2
+        print(func_read6numbers.prototype)
+        assert isinstance(func_read6numbers.prototype.args[0], SimTypePointer) and isinstance(
+            func_read6numbers.prototype.args[0].pts_to, SimTypeChar
+        )
+        assert isinstance(func_read6numbers.prototype.args[1], SimTypePointer) and isinstance(
+            func_read6numbers.prototype.args[1].pts_to, SimTypeChar
+        )
+
+        # decompile read_six_numbers, and its prototype should be updated to (char*, uint32_t*)
+        dec_read6numbers = proj.analyses.Decompiler(
+            func_read6numbers, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+        )
+        assert dec_read6numbers.codegen is not None and dec_read6numbers.codegen.text is not None
+        print_decompilation_result(dec_read6numbers)
+        assert func_read6numbers.prototype_source == PrototypeSource.CCA_DECOMPILER
+        assert isinstance(func_read6numbers.prototype, SimTypeFunction)
+        assert len(func_read6numbers.prototype.args) == 2
+        assert isinstance(func_read6numbers.prototype.args[0], SimTypePointer) and isinstance(
+            func_read6numbers.prototype.args[0].pts_to, SimTypeChar
+        )
+        assert (
+            isinstance(func_read6numbers.prototype.args[1], SimTypePointer)
+            and isinstance(func_read6numbers.prototype.args[1].pts_to, SimTypeInt)
+            and func_read6numbers.prototype.args[1].pts_to.signed is True
+        )
+
+        # decompile phase_2 again, and we should see an unsigned int [6] on the stack
+        dec_phase2 = proj.analyses.Decompiler(
+            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+        )
+        assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
+        print_decompilation_result(dec_phase2)
+        assert re.search(r"  int v\d+\[6];", dec_phase2.codegen.text) is not None
 
     def test_type_inference_basic_case_0(self):
         func_f = TypeVariable(name="F")
@@ -363,6 +439,128 @@ class TestTypeTranslator(unittest.TestCase):
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
+
+    def test_lift_recursive_struct(self):
+        arch = archinfo.arch_from_id("amd64")
+        fields = OrderedDict({"ptr": SimTypePointer(SimTypeBottom())})
+        st = SimStruct(fields, name="test_struct")
+        assert isinstance(st.fields["ptr"], SimTypePointer)
+        st.fields["ptr"].pts_to = st
+        st = st.with_arch(arch)
+        tx = TypeTranslator(arch)
+        tc = tx.simtype2tc(st)
+        assert isinstance(tc, Struct)
+        assert 0 in tc.fields
+        assert isinstance(tc.fields[0], Pointer64)
+        assert 0 in tc.field_names
+        assert tc.field_names[0] == "ptr"
+
+
+class TestSimpleSolverLatticeOps(unittest.TestCase):
+    """Tests for the SimType-level lattice operations SimpleSolver.join_simtypes / meet_simtypes."""
+
+    arch = archinfo.arch_from_id("amd64")
+
+    def test_join_signed_unsigned_int(self):
+        # join(signed int, unsigned int) -> int (their common Int32 supertype)
+        joined = SimpleSolver.join_simtypes(
+            SimTypeInt(signed=True).with_arch(self.arch),
+            SimTypeInt(signed=False).with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(joined, SimTypeInt)
+
+    def test_join_same_pointer(self):
+        # join(char *, char *) -> char *
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(SimTypeChar()).with_arch(self.arch),
+            SimTypePointer(SimTypeChar()).with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(joined, SimTypePointer)
+        assert isinstance(joined.pts_to, SimTypeChar)
+
+    def test_join_same_struct_pointer_preserves_struct(self):
+        # join(struct A *, struct A *) -> struct A *
+        s = SimStruct({"a": SimTypeInt()}, name="A").with_arch(self.arch)
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(s).with_arch(self.arch),
+            SimTypePointer(s).with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(joined, SimTypePointer)
+        assert isinstance(joined.pts_to, SimStruct)
+        assert joined.pts_to.name == "A"
+
+    def test_join_distinct_struct_pointers_to_void(self):
+        # join(struct A *, struct B *) -> void * (no common struct supertype)
+        sa = SimStruct({"a": SimTypeInt()}, name="A").with_arch(self.arch)
+        sb = SimStruct({"b": SimTypeInt()}, name="B").with_arch(self.arch)
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(sa).with_arch(self.arch),
+            SimTypePointer(sb).with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(joined, SimTypePointer)
+        assert isinstance(joined.pts_to, SimTypeBottom)
+
+    def test_join_incompatible_scalars_is_bottom(self):
+        # join(char, int): the only common supertype is the generic Int, which has no precise SimType -> bottom
+        joined = SimpleSolver.join_simtypes(
+            SimTypeChar().with_arch(self.arch),
+            SimTypeInt().with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(joined, SimTypeBottom)
+
+    def test_meet_identical_type(self):
+        # meet(char, char) -> char
+        met = SimpleSolver.meet_simtypes(
+            SimTypeChar(signed=True).with_arch(self.arch),
+            SimTypeChar(signed=True).with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(met, SimTypeChar)
+
+    def test_meet_incompatible_is_bottom(self):
+        # meet(signed int, unsigned int): no common subtype on the lattice -> bottom
+        met = SimpleSolver.meet_simtypes(
+            SimTypeInt(signed=True).with_arch(self.arch),
+            SimTypeInt(signed=False).with_arch(self.arch),
+            self.arch,
+        )
+        assert isinstance(met, SimTypeBottom)
+
+
+class TestFunctionArgTypeNormalization(unittest.TestCase):
+    """Tests for Clinic._flatten_pointer_to_array, the call-site argument type normalization filter."""
+
+    arch = archinfo.arch_from_id("amd64")
+
+    def test_pointer_to_array_becomes_pointer(self):
+        # type[N] * -> type *
+        ty = SimTypePointer(SimTypeArray(SimTypeInt(), 4)).with_arch(self.arch)
+        flattened = Clinic._flatten_pointer_to_array(ty)
+        assert isinstance(flattened, SimTypePointer)
+        assert isinstance(flattened.pts_to, SimTypeInt)
+
+    def test_plain_pointer_unchanged(self):
+        ty = SimTypePointer(SimTypeChar()).with_arch(self.arch)
+        flattened = Clinic._flatten_pointer_to_array(ty)
+        assert flattened is ty
+
+    def test_non_pointer_unchanged(self):
+        ty = SimTypeInt().with_arch(self.arch)
+        flattened = Clinic._flatten_pointer_to_array(ty)
+        assert flattened is ty
+
+    def test_array_pointers_of_different_lengths_join_after_filter(self):
+        # int[4] * and int[8] * normalize to int *, which then join to int *
+        t1 = Clinic._flatten_pointer_to_array(SimTypePointer(SimTypeArray(SimTypeInt(), 4)).with_arch(self.arch))
+        t2 = Clinic._flatten_pointer_to_array(SimTypePointer(SimTypeArray(SimTypeInt(), 8)).with_arch(self.arch))
+        joined = SimpleSolver.join_simtypes(t1, t2, self.arch)
+        assert isinstance(joined, SimTypePointer)
+        assert isinstance(joined.pts_to, SimTypeInt)
 
 
 if __name__ == "__main__":

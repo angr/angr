@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 import pyvex
 
 import angr
-from angr.knowledge_plugins.cfg import IndirectJumpType
 from angr.analyses.cfg import CFGFast
 from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
+from angr.knowledge_plugins.cfg import IndirectJumpType
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump

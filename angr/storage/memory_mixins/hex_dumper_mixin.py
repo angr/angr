@@ -1,9 +1,10 @@
 from __future__ import annotations
+
+import contextlib
 import string
 
 from angr.errors import SimValueError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
-import contextlib
 
 
 class HexDumperMixin(MemoryMixin):

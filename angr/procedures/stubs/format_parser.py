@@ -1,12 +1,15 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from string import digits as ascii_digits
+
 import logging
 import math
+import string
+from typing import TYPE_CHECKING
+
 import claripy
 
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
+import angr
 from angr import sim_type
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets
 
@@ -15,7 +18,7 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-ascii_digits = ascii_digits.encode()
+ascii_digits = string.digits.encode()
 
 
 class FormatString:
@@ -38,12 +41,12 @@ class FormatString:
         return self.parser.state
 
     @staticmethod
-    def _add_to_string(string, c):
+    def _add_to_string(sss, c):
         if c is None:
-            return string
-        if string is None:
+            return sss
+        if sss is None:
             return c
-        return string.concat(c)
+        return sss.concat(c)
 
     def _get_str_at(self, str_addr, max_length=None):
         if max_length is None:
@@ -67,16 +70,16 @@ class FormatString:
         :return:                The result formatted string
         """
 
-        string = None
+        sss = None
 
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, bytes):
-                string = self._add_to_string(string, claripy.BVV(component))
+                sss = self._add_to_string(sss, claripy.BVV(component))
             elif isinstance(component, str):
-                raise Exception("this branch should be impossible?")
+                assert False, "this branch should be impossible?"
             elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
-                string = self._add_to_string(string, component)
+                sss = self._add_to_string(sss, component)
             else:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
@@ -84,7 +87,7 @@ class FormatString:
                 if fmt_spec.spec_type == b"s":
                     str_length = va_arg("size_t") if fmt_spec.length_spec == b".*" else None
                     str_ptr = va_arg("char*")
-                    string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
+                    sss = self._add_to_string(sss, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     # ummmmmmm this is a cheap translation but I think it should work
@@ -110,9 +113,9 @@ class FormatString:
                     if isinstance(fmt_spec.length_spec, int):
                         s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
-                    string = self._add_to_string(string, claripy.BVV(s_val.encode()))
+                    sss = self._add_to_string(sss, claripy.BVV(s_val.encode()))
 
-        return string
+        return sss
 
     def interpret(self, va_arg, addr=None, simfd=None):
         """
@@ -325,17 +328,24 @@ class FormatSpecifier:
     __slots__ = (
         "length_spec",
         "pad_chr",
-        "signed",
-        "size",
         "string",
+        "ty",
     )
 
-    def __init__(self, string, length_spec, pad_chr, size, signed):
-        self.string = string
-        self.size = size
-        self.signed = signed
+    def __init__(self, sss, length_spec, pad_chr, ty: SimType):
+        self.string = sss
+        self.ty = ty
         self.length_spec = length_spec
         self.pad_chr = pad_chr
+
+    @property
+    def signed(self):
+        return getattr(self.ty, "size", False)
+
+    @property
+    def size(self):
+        assert self.ty.size is not None
+        return self.ty.size // 8
 
     @property
     def spec_type(self):
@@ -436,10 +446,7 @@ class FormatParser(SimProcedure):
 
         if FormatParser._ALL_SPEC is None:
             base = dict(self._mod_spec)
-
-            for spec in self.basic_spec:
-                base[spec] = self.basic_spec[spec]
-
+            base.update(self.basic_spec)
             FormatParser._ALL_SPEC = base
 
         return FormatParser._ALL_SPEC
@@ -447,7 +454,7 @@ class FormatParser(SimProcedure):
     # Tricky stuff
     # Note that $ is not C99 compliant (but posix specific).
 
-    def _match_spec(self, nugget):
+    def _match_spec(self, nugget: bytes) -> FormatSpecifier | None:
         """
         match the string `nugget` to a format specifier.
         """
@@ -487,6 +494,7 @@ class FormatParser(SimProcedure):
         if length_spec_str_len == 0 and length_str:
             length_spec_str_len = len(length_str)
         # is it an actual format?
+        # pylint: disable=not-an-iterable,unsubscriptable-object
         for spec in all_spec:
             if nugget.startswith(spec):
                 # this is gross coz sim_type is gross..
@@ -494,14 +502,14 @@ class FormatParser(SimProcedure):
                 original_nugget = original_nugget[: (length_spec_str_len + len(spec))]
                 nugtype: SimType = all_spec[nugget]
                 try:
-                    typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
+                    typeobj = nugtype.with_arch(self.arch)
                 except Exception as err:
                     raise SimProcedureError(f"format specifier uses unknown type '{nugtype!r}'") from err
-                return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
+                return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj)
 
         return None
 
-    def extract_components(self, fmt: list) -> list:
+    def extract_components(self, fmt: list) -> list[bytes | FormatSpecifier]:
         """
         Extract the actual formats from the format string `fmt`.
 
@@ -556,9 +564,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
-
-        strtol = SIM_PROCEDURES["libc"]["strtol"]
+        strtol = angr.SIM_PROCEDURES["libc"]["strtol"]
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
 
@@ -567,9 +573,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
-
-        strlen = SIM_PROCEDURES["libc"]["strlen"]
+        strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
 
         return self.inline_call(strlen, str_addr).ret_expr
 

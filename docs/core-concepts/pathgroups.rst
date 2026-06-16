@@ -213,7 +213,7 @@ Now, we can get the flag out of that state!
 
 Pretty simple, isn't it?
 
-Other examples can be found by browsing the :ref:`examples <angr examples>`.
+Other examples can be found by browsing the :ref:`examples <examples:angr examples>`.
 
 Exploration Techniques
 ----------------------

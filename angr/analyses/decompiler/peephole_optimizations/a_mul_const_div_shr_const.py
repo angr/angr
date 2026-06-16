@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -29,7 +30,15 @@ class AMulConstDivShrConst(PeepholeOptimizationExprBase):
                 mul = BinaryOp(
                     inner.idx,
                     "Mul",
-                    [a, Const(None, None, N0 // (2**N2), expr.bits, **expr.operands[0].operands[1].tags)],
+                    [
+                        a,
+                        Const(
+                            self.manager.next_atom(),
+                            N0 // (2**N2),
+                            expr.bits,
+                            **expr.operands[0].operands[1].tags,
+                        ),
+                    ],
                     False,
                     **inner.tags,
                 )

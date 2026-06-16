@@ -1,11 +1,12 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-import unittest
+
 import os
+import unittest
 
 import angr
 from angr.analyses.decompiler import Decompiler
-from tests.common import print_decompilation_result, bin_location
+from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrIncongruencyError
-from angr.analyses import AnalysesHub
-from . import Analysis
 
 l = logging.getLogger(name=__name__)
 
@@ -289,12 +289,8 @@ class CongruencyCheck(Analysis):
         joint_solver = claripy.Solver()
 
         # make sure the canonicalized constraints are the same
-        n_map, n_counter, n_canon_constraint = claripy.And(
-            *sr.solver.constraints
-        ).canonicalize()  # pylint:disable=no-member
-        u_map, u_counter, u_canon_constraint = claripy.And(
-            *sl.solver.constraints
-        ).canonicalize()  # pylint:disable=no-member
+        n_map, n_counter, n_canon_constraint = claripy.And(*sr.solver.constraints).canonicalize()  # pylint:disable=no-member
+        u_map, u_counter, u_canon_constraint = claripy.And(*sl.solver.constraints).canonicalize()  # pylint:disable=no-member
         if n_canon_constraint is not u_canon_constraint:
             # https://github.com/Z3Prover/z3/issues/2359
             # don't try to simplify unless we really need to, as it can introduce serious nondeterminism

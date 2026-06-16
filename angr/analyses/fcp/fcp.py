@@ -1,21 +1,21 @@
 from __future__ import annotations
-from typing import Any
-from collections.abc import Callable
-from collections import defaultdict
 
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
+
+import claripy
 import networkx
 import pyvex
-import claripy
 
-from angr.utils.bits import s2u
-from angr.block import Block
-from angr.analyses.analysis import Analysis
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode, FuncNode
-from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
-from angr.calling_conventions import SimStackArg
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
+from angr.block import Block
+from angr.calling_conventions import SimStackArg
+from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.engines.light import RegisterOffset, SimEngineLight, SimEngineNostmtVEX, SpOffset
+from angr.knowledge_plugins.functions import Function
+from angr.utils.bits import s2u
 
 
 class SV:
@@ -330,12 +330,12 @@ class FastConstantPropagation(Analysis):
             if isinstance(node, HookNode):
                 # attempt to convert it into a function
                 if self.kb.functions.contains_addr(node.addr):
-                    node = self.kb.functions.get_by_addr(node.addr)
+                    node = self.kb.functions.get_by_addr(node.addr, meta_only=True)
                 else:
                     continue
             if isinstance(node, FuncNode):
                 if self.kb.functions.contains_addr(node.addr):
-                    callee = self.kb.functions.get_by_addr(node.addr)
+                    callee = self.kb.functions.get_by_addr(node.addr, meta_only=True)
                     if callee.calling_convention is not None and callee.prototype is not None:
                         # consume args and overwrite the return register
                         self._handle_function(state, callee)
@@ -351,7 +351,7 @@ class FastConstantPropagation(Analysis):
                     callee = next(succ for succ in succs if isinstance(succ, (FuncNode, HookNode)))
                     # attempt to convert it into a function
                     if self.kb.functions.contains_addr(callee.addr):
-                        callee = self.kb.functions.get_by_addr(callee.addr)
+                        callee = self.kb.functions.get_by_addr(callee.addr, meta_only=True)
                     else:
                         callee = None
                     state = self._handle_function(state, callee)

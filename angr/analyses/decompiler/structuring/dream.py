@@ -1,42 +1,44 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-import logging
-from collections import defaultdict, OrderedDict
 
-import networkx
+import logging
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any
 
 import claripy
-import angr.ailment as ailment
+import networkx
 
-from angr.utils.graph import GraphUtils
-from angr.knowledge_plugins.cfg import IndirectJumpType
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+import angr.ailment as ailment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
+    BaseNode,
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    EmptyBlockNotice,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 from angr.analyses.decompiler.utils import (
     extract_jump_targets,
-    get_ast_subexprs,
-    switch_extract_cmp_bounds,
-    remove_last_statement,
     first_nonlabel_nonphi_node,
+    get_ast_subexprs,
+    remove_last_statement,
+    switch_extract_cmp_bounds,
 )
-from .structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    SwitchCaseNode,
-    BreakNode,
-    ContinueNode,
-    MultiNode,
-    CascadingConditionNode,
-    BaseNode,
-    EmptyBlockNotice,
-)
+from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.utils.graph import GraphUtils
+
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
@@ -112,6 +114,7 @@ class DreamStructurer(StructurerBase):
         loop_subgraph = self._region.graph
         successors = self._region.successors
         assert successors is not None
+        assert self._region.graph is not None
 
         assert len(successors) <= 1
 
@@ -142,7 +145,7 @@ class DreamStructurer(StructurerBase):
                 continue
             self._structure_sequence(seq_)
 
-        seq = EmptyNodeRemover(seq).result
+        seq = EmptyNodeRemover(seq, self.ail_manager).result
 
         # unpack nodes and remove CodeNode wrappers
         seq = self._unpack_sequence(seq)
@@ -152,6 +155,8 @@ class DreamStructurer(StructurerBase):
     def _find_loop_nodes_and_successors(self):
         graph = self._region.graph
         head = self._region.head
+
+        assert graph is not None
 
         # find initial loop nodes
         loop_nodes = None
@@ -322,9 +327,9 @@ class DreamStructurer(StructurerBase):
         # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
         self._rewrite_jumps_to_continues(seq)
 
-        seq = self._remove_redundant_jumps(seq)
+        seq = self.remove_redundant_jumps(seq, self.ail_manager)
         seq = self._remove_conditional_jumps(seq)
-        seq = EmptyNodeRemover(seq).result
+        seq = EmptyNodeRemover(seq, self.ail_manager).result
 
         while True:
             r, seq = self._merge_conditional_breaks(seq)
@@ -335,9 +340,11 @@ class DreamStructurer(StructurerBase):
                 continue
             break
 
-        return EmptyNodeRemover(seq).result
+        return EmptyNodeRemover(seq, self.ail_manager).result
 
     def _make_sequence(self):
+        assert self._region.graph is not None
+
         seq = SequenceNode(None)
 
         for node in GraphUtils.quasi_topological_sort_nodes(self._region.graph):
@@ -415,9 +422,9 @@ class DreamStructurer(StructurerBase):
         self._merge_same_conditioned_nodes(seq)
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
-        self._remove_redundant_jumps(seq)
+        self.remove_redundant_jumps(seq, self.ail_manager)
 
-        empty_node_remover = EmptyNodeRemover(seq)
+        empty_node_remover = EmptyNodeRemover(seq, self.ail_manager)
         new_seq = empty_node_remover.result
         # update self._new_sequences
         self._update_new_sequences(set(empty_node_remover.removed_sequences), empty_node_remover.replaced_sequences)
@@ -944,8 +951,8 @@ class DreamStructurer(StructurerBase):
                     0,
                     statements=[
                         ailment.Stmt.Jump(
-                            None,
-                            ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits),
+                            self.ail_manager.next_atom(),
+                            ailment.Expr.Const(self.ail_manager.next_atom(), entry_addr, self.project.arch.bits),
                             ins_addr=0,
                             stmt_idx=0,
                         )
@@ -968,8 +975,8 @@ class DreamStructurer(StructurerBase):
                     0,
                     statements=[
                         ailment.Stmt.Jump(
-                            None,
-                            ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits),
+                            self.ail_manager.next_atom(),
+                            ailment.Expr.Const(self.ail_manager.next_atom(), entry_addr, self.project.arch.bits),
                             ins_addr=0,
                             stmt_idx=0,
                         )
@@ -1170,12 +1177,11 @@ class DreamStructurer(StructurerBase):
                         new_node = ConditionNode(node.addr, None, node.reaching_condition, node, None)
                     seq.nodes[i] = new_node
 
-    @staticmethod
-    def _make_cascading_condition_nodes(seq: SequenceNode):
+    def _make_cascading_condition_nodes(self, seq: SequenceNode):
         """
         Convert nested condition nodes into a CascadingConditionNode.
         """
-        CascadingConditionTransformer(seq)
+        CascadingConditionTransformer(seq, self.ail_manager)
 
     def _make_ite(self, seq, node_0, node_1):
         # ensure order
@@ -1210,7 +1216,3 @@ class DreamStructurer(StructurerBase):
 
         seq.insert_node(pos, ConditionNode(seq_addr, None, node_0.reaching_condition, new_node_0, new_node_1))
         seq.nodes = [n for n in seq.nodes if n is not None]
-
-
-# delayed import
-from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position

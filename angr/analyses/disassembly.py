@@ -10,15 +10,15 @@ import archinfo
 import pypcode
 import pyvex
 
-from . import Analysis
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
+from angr.codenode import BlockNode, SyscallNode
 from angr.engines import pcode
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins import Function
+from angr.utils.formatting import add_edge_to_buffer, ansi_color, ansi_color_enabled
 from angr.utils.library import get_cpp_function_name
-from angr.utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
-from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
-from angr.codenode import BlockNode
+
 from .disassembly_utils import decode_instruction
 
 IRSBType = pyvex.IRSB | pcode.lifter.IRSB
@@ -963,7 +963,7 @@ class Value(OperandPiece):
 
         # default case
         try:
-            func = self.project.kb.functions.get_by_addr(self.val)
+            func = self.project.kb.functions.get_by_addr(self.val, meta_only=True)
         except KeyError:
             func = None
 
@@ -1155,7 +1155,7 @@ class Disassembly(Analysis):
         bs = BlockStart(block, func, self.project)
         self.raw_result.append(bs)
 
-        if block.is_hook:
+        if block.is_hook or isinstance(block, SyscallNode):
             hook = Hook(block)
             self.raw_result.append(hook)
             self.raw_result_map["hooks"][block.addr] = hook
@@ -1234,7 +1234,7 @@ class Disassembly(Analysis):
             )
             formatting = {
                 "colors": colors,
-                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item), None)),
+                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item))),
             }
 
         def col(item: Any) -> str | None:

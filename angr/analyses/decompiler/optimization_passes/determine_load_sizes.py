@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import logging
 
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import BinaryOp, Load, Const
+from angr.ailment.expression import BinaryOp, Const, Load
 from angr.ailment.statement import Assignment, WeakAssignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -21,8 +22,8 @@ class DetermineLoadSizes(OptimizationPass):
     NAME = "Determine sizes of loads whose sizes are undetermined"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -30,7 +31,6 @@ class DetermineLoadSizes(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         changed = False
 
         for block in self._graph.nodes:
@@ -55,7 +55,6 @@ class DetermineLoadSizes(OptimizationPass):
                                 operand.addr.value, max_size=4096
                             )
                             if bs is not None:
-                                operand.size = len(bs)
                                 operand.bits = len(bs) * 8
                     changed = True
 

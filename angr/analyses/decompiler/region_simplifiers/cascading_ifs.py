@@ -1,15 +1,15 @@
 # pylint:disable=unused-argument,arguments-differ
 from __future__ import annotations
-import angr.ailment as ailment
 
+import angr.ailment as ailment
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    MultiNode,
-    LoopNode,
-    ConditionNode,
+from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
 from angr.analyses.decompiler.utils import is_empty_node
 
@@ -31,7 +31,7 @@ class CascadingIfsRemover(SequenceWalker):
         } else { }
     """
 
-    def __init__(self, node):
+    def __init__(self, node, manager):
         handlers = {
             SequenceNode: self._handle_Sequence,
             CodeNode: self._handle_Code,
@@ -42,6 +42,7 @@ class CascadingIfsRemover(SequenceWalker):
         }
 
         super().__init__(handlers)
+        self.manager = manager
         self.walk(node)
 
     def _handle_Condition(self, node, parent=None, index=None, **kwargs):
@@ -77,6 +78,10 @@ class CascadingIfsRemover(SequenceWalker):
                 and true_node.false_node is None
             ):
                 node.condition = ailment.BinaryOp(
-                    None, "LogicalAnd", (node.condition, true_node.condition), False, **node.condition.tags
+                    self.manager.next_atom(),
+                    "LogicalAnd",
+                    (node.condition, true_node.condition),
+                    False,
+                    **node.condition.tags,
                 )
                 node.true_node = true_node.true_node

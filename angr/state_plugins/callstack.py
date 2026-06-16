@@ -3,7 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 from collections.abc import Iterator
-from typing_extensions import Self
+from typing import Any, Self
 
 import claripy
 
@@ -11,6 +11,7 @@ from angr import errors
 from angr.errors import AngrError, SimEmptyCallStackError, SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
@@ -42,7 +43,7 @@ class CallStack(SimStatePlugin):
         self.invoke_return_variable = invoke_return_variable
 
         self.block_counter = collections.Counter()
-        self.procedure_data = None
+        self.procedure_data: Any | None = None
         self.locals = {}
 
     #

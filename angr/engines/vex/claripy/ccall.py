@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 import logging
 
 import claripy
 from archinfo.arch_arm import is_arm_arch
 
 from angr import errors
-from angr.errors import SimError, SimCCallError
+from angr.errors import SimCCallError, SimError
 from angr.sim_options import USE_SIMPLIFIED_CCALLS
-from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
+from angr.state_plugins.sim_action_object import SimActionObject, _raw_ast
 
 l = logging.getLogger(name=__name__)
 
@@ -1019,9 +1020,9 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
         sized_amt = (rot_amt & 0x1F) % 9
     elif sz == 2:
         sized_amt = (rot_amt & 0x1F) % 17
-    elif sz == 3:
-        sized_amt = rot_amt & 0x1F
     elif sz == 4:
+        sized_amt = rot_amt & 0x1F
+    elif sz == 8:
         sized_amt = rot_amt & 0x3F
 
     # Ajust the BV size

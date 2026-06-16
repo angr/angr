@@ -1,6 +1,7 @@
 from __future__ import annotations
-import logging
+
 import inspect
+import logging
 from typing import Any
 
 import networkx
@@ -8,8 +9,8 @@ import networkx
 from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump
 
-from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import StructuringOptimizationPass
+from .return_duplicator_base import ReturnDuplicatorBase
 
 _l = logging.getLogger(name=__name__)
 
@@ -46,7 +47,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
 
     def __init__(
         self,
-        func,
+        *args,
         # settings
         max_opt_iters: int = 4,
         max_calls_in_regions: int = 2,
@@ -60,7 +61,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
     ):
         StructuringOptimizationPass.__init__(
             self,
-            func,
+            *args,
             max_opt_iters=max_opt_iters,
             prevent_new_gotos=prevent_new_gotos,
             require_gotos=True,
@@ -71,7 +72,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         )
         ReturnDuplicatorBase.__init__(
             self,
-            func,
+            *args,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
             ri=region_identifier,

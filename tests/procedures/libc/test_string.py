@@ -12,7 +12,7 @@ from itertools import combinations
 import claripy
 
 import angr
-from angr import SimState, SIM_LIBRARIES
+from angr import SIM_LIBRARIES, SimState
 from tests.common import broken
 
 log = logging.getLogger("angr.tests.string")
@@ -27,11 +27,8 @@ def make_state_with_stdin(content):
 
 
 def make_func(name):
-    return (
-        lambda state, arguments: SIM_LIBRARIES["libc.so.6"][0]
-        .get(name, "AMD64")
-        .execute(state, arguments=arguments)
-        .ret_expr
+    return lambda state, arguments: (
+        SIM_LIBRARIES["libc.so.6"][0].get(name, "AMD64").execute(state, arguments=arguments).ret_expr
     )
 
 

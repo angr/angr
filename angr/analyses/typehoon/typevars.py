@@ -1,15 +1,17 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from typing import Any, Union, TYPE_CHECKING
 
-from collections.abc import Sequence, Iterable
+from collections.abc import Iterable, Sequence
 from itertools import count
+from typing import TYPE_CHECKING, Any, Union
 
 from angr.utils.constants import MAX_POINTSTO_BITS
+
 from .variance import Variance
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
+
     from .typeconsts import TypeConstant
 
 
@@ -272,20 +274,104 @@ class Sub(TypeConstraint):
         return False, self
 
 
+class TypeVariableManager:
+    """
+    A manager for creating new type variables and derived type variables and keeping track of their indices.
+
+    Usually we create a new TypeVariableManager for each function we analyze.
+    """
+
+    __slots__ = ("_counter", "_func_addr")
+
+    def __init__(self, func_addr: int, idx: int = 0):
+        self._func_addr = func_addr
+        self._counter = idx
+
+    def next_id(self) -> int:
+        r = self._counter
+        self._counter += 1
+        return r
+
+    @property
+    def max_tv_id(self) -> int:
+        return self._counter - 1
+
+    def new_tv(self, name: str | None = None) -> TypeVariable:
+        """Create a new TypeVariable with a managed ID."""
+
+        return TypeVariable((self._func_addr, self.next_id()), name=name)
+
+    def new_dtv(
+        self,
+        type_var: TypeVariable | DerivedTypeVariable | TypeConstant,
+        *,
+        label: BaseLabel | None = None,
+        labels: Sequence[BaseLabel] | None = None,
+    ) -> TypeVariable | DerivedTypeVariable | TypeConstant:
+        """
+        Create a new DerivedTypeVariable with a managed ID.
+        """
+
+        return DerivedTypeVariable(type_var, label=label, labels=labels, idx=(self._func_addr, self.next_id()))
+
+    def new_dtv_with_merged_labels(
+        self,
+        type_var: TypeVariable | TypeConstant,
+        *,
+        label: BaseLabel | None = None,
+        labels: Sequence[BaseLabel] | None = None,
+    ) -> TypeVariable | DerivedTypeVariable | TypeConstant:
+        """
+        Create a new DerivedTypeVariable with the given type variable (or DerivedTypeVariable) and labels. Merge the
+        last AddN and SubN labels when possible.
+        """
+
+        if label is None and labels is None:
+            raise ValueError("Either label or labels must be specified")
+        new_labels = (label,) if label is not None else tuple(labels)  # type: ignore[reportArgumentType]
+        if isinstance(type_var, DerivedTypeVariable):
+            base_typevar = type_var.type_var
+            new_labels = type_var.labels + new_labels
+        else:
+            base_typevar = type_var
+
+        # condense the last N labels if they are AddN and SubN
+        off = 1
+        while off <= len(new_labels) and isinstance(new_labels[-off], (AddN, SubN)):
+            off += 1
+        if off <= len(new_labels) and not isinstance(new_labels[-off], (AddN, SubN)):
+            off -= 1
+
+        if off >= 2:
+            new_n = 0
+            for lbl in new_labels[-off:]:
+                if isinstance(lbl, AddN):
+                    new_n += lbl.n
+                elif isinstance(lbl, SubN):
+                    new_n -= lbl.n
+            new_labels = new_labels[:-off]
+            if new_n > 0:
+                new_labels += (AddN(new_n),)
+            elif new_n < 0:
+                new_labels += (SubN(-new_n),)
+
+        return DerivedTypeVariable(base_typevar, None, labels=new_labels) if new_labels else base_typevar
+
+
 _typevariable_counter = count()
 
 
 class TypeVariable:
     __slots__ = ("_cached_hash", "idx", "name")
 
-    def __init__(self, idx: int | None = None, name: str | None = None):
+    def __init__(self, idx: tuple[int, int] | None = None, name: str | None = None):
         if idx is None:
-            self.idx: int = next(_typevariable_counter)
+            self.idx: tuple[int, int] = -1, next(_typevariable_counter)
         else:
-            self.idx: int = idx
+            self.idx: tuple[int, int] = idx
         self.name = name
 
-        self._cached_hash = hash((TypeVariable, self.name if self.name else self.idx))
+        self._cached_hash = hash((TypeVariable, self.name or self.idx))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         varname = mapping.get(self, self.name)
@@ -308,22 +394,22 @@ class TypeVariable:
 
     def __repr__(self):
         if self.name:
-            return f"{self.name}|tv_{self.idx:02d}"
-        return f"tv_{self.idx:02d}"
+            return f"{self.name}|tv_{self.idx[0]:x}_{self.idx[1]:02d}"
+        return f"tv_{self.idx[0]:x}_{self.idx[1]:02d}"
 
 
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("labels", "type_var")
 
-    type_var: TypeVariable
+    type_var: TypeVariable | TypeConstant
     labels: tuple[BaseLabel, ...]
 
     def __init__(
         self,
-        type_var: TypeVariable | DerivedTypeVariable,
+        type_var: TypeVariable | DerivedTypeVariable | TypeConstant,
         label: BaseLabel | None,
         labels: Iterable[BaseLabel] | None = None,
-        idx=None,
+        idx: tuple[int, int] | None = None,
     ):
         super().__init__(idx=idx)
         if isinstance(type_var, DerivedTypeVariable):
@@ -589,45 +675,3 @@ class HasField(BaseLabel):
 class IsArray(BaseLabel):
     def __repr__(self):
         return "is_array"
-
-
-def new_dtv(
-    type_var: TypeVariable,
-    *,
-    label: BaseLabel | None = None,
-    labels: Sequence[BaseLabel] | None = None,
-) -> TypeVariable | DerivedTypeVariable:
-    """
-    Create a new DerivedTypeVariable with the given type variable (or DerivedTypeVariable) and labels.
-    """
-
-    if label is None and labels is None:
-        raise ValueError("Either label or labels must be specified")
-    new_labels = (label,) if label is not None else tuple(labels)  # type: ignore[reportArgumentType]
-    if isinstance(type_var, DerivedTypeVariable):
-        base_typevar = type_var.type_var
-        new_labels = type_var.labels + new_labels
-    else:
-        base_typevar = type_var
-
-    # condense the last N labels if they are AddN and SubN
-    off = 1
-    while off <= len(new_labels) and isinstance(new_labels[-off], (AddN, SubN)):
-        off += 1
-    if off <= len(new_labels) and not isinstance(new_labels[-off], (AddN, SubN)):
-        off -= 1
-
-    if off >= 2:
-        new_n = 0
-        for lbl in new_labels[-off:]:
-            if isinstance(lbl, AddN):
-                new_n += lbl.n
-            elif isinstance(lbl, SubN):
-                new_n -= lbl.n
-        new_labels = new_labels[:-off]
-        if new_n > 0:
-            new_labels += (AddN(new_n),)
-        elif new_n < 0:
-            new_labels += (SubN(-new_n),)
-
-    return DerivedTypeVariable(base_typevar, None, labels=new_labels) if new_labels else base_typevar

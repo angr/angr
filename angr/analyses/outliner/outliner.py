@@ -1,23 +1,21 @@
 from __future__ import annotations
-from collections import defaultdict
+
 import logging
-from typing import TypeVar
+from collections import defaultdict
 
 import networkx
 
-from angr.ailment import Block, Address
-from angr.ailment.statement import Call, Assignment, ConditionalJump, Return, Jump
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment import Address, Block
+from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.utils.ssa import is_phi_assignment
-from angr.analyses import Analysis, AnalysesHub
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
-from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
+from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
+from angr.utils.ssa import is_phi_assignment
 
 _l = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 
 class Outliner(Analysis):
@@ -167,11 +165,12 @@ class Outliner(Analysis):
 
         # rewrite the callsite
         vvar_id = self._next_vvar_id()
+        callee_arg_vvars_copy = [arg_vvar.copy() for arg_vvar in callee_arg_vvars]
         call_expr = Call(
             None,
             f"outlined_func_{src_node.addr:x}",
             # Const(None, None, src_node.addr, 64),
-            args=callee_arg_vvars,
+            args=callee_arg_vvars_copy,
             bits=self.project.arch.bits,
             ins_addr=src_node.addr,
         )
@@ -204,7 +203,7 @@ class Outliner(Analysis):
 
         for ret_node, frontier_node in out_edges:
             if retval_to_target:
-                new_ret_exprs = [*ret_exprs[:-1], Const(None, None, frontier_node.addr, self.project.arch.bits)]
+                new_ret_exprs = [*ret_exprs[:-1], Const(None, frontier_node.addr, self.project.arch.bits)]
             else:
                 new_ret_exprs = ret_exprs
             ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.tags["ins_addr"] for stmt in ret_node.statements))
@@ -222,11 +221,11 @@ class Outliner(Analysis):
                     cond_jump = ret_node.statements[-1]
                     if isinstance(cond_jump.true_target, Const) and cond_jump.true_target.value == frontier_node.addr:
                         _, cond_jump = cond_jump.replace(
-                            cond_jump.true_target, Const(None, None, new_ret_node.addr, self.project.arch.bits)
+                            cond_jump.true_target, Const(None, new_ret_node.addr, self.project.arch.bits)
                         )
                     if isinstance(cond_jump.false_target, Const) and cond_jump.false_target.value == frontier_node.addr:
                         _, cond_jump = cond_jump.replace(
-                            cond_jump.false_target, Const(None, None, new_ret_node.addr, self.project.arch.bits)
+                            cond_jump.false_target, Const(None, new_ret_node.addr, self.project.arch.bits)
                         )
                     ret_node.statements[-1] = cond_jump
                     subgraph.add_edge(ret_node, new_ret_node)
@@ -242,13 +241,13 @@ class Outliner(Analysis):
                     dispatcher_node_addr = next_dispatcher_node_addr
                     next_dispatcher_node_addr = self._next_block_addr(), None
 
-                    retval_const = Const(None, None, retval, self.project.arch.bits)
+                    retval_const = Const(None, retval, self.project.arch.bits)
                     cmp = BinaryOp(None, "CmpEQ", [switch_vvar, retval_const])
                     stmt = ConditionalJump(
                         None,
                         cmp,
-                        Const(None, None, jump_target[0], self.project.arch.bits),
-                        Const(None, None, next_dispatcher_node_addr[0], self.project.arch.bits),
+                        Const(None, jump_target[0], self.project.arch.bits),
+                        Const(None, next_dispatcher_node_addr[0], self.project.arch.bits),
                         true_target_idx=jump_target[1],
                         false_target_idx=next_dispatcher_node_addr[1],
                         ins_addr=dispatcher_node_addr[0],
@@ -281,8 +280,8 @@ class Outliner(Analysis):
         for stmt in block.statements:
             if is_phi_assignment(stmt):
                 all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
-                old_addrs = set(src_addrs) - set(all_stmt_srcs)
-                new_addrs = set(all_stmt_srcs) - set(src_addrs)
+                new_addrs = set(src_addrs) - set(all_stmt_srcs)
+                old_addrs = set(all_stmt_srcs) - set(src_addrs)
                 if len(old_addrs) == 1 and len(new_addrs) == 1:
                     # only source block is replaced by a new one
                     old_addr = next(iter(old_addrs))

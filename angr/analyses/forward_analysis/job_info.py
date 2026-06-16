@@ -1,11 +1,7 @@
 from __future__ import annotations
-from typing import Generic, TypeVar
-
-JobType = TypeVar("JobType")
-JobKey = TypeVar("JobKey")
 
 
-class JobInfo(Generic[JobType, JobKey]):
+class JobInfo[JobType, JobKey]:
     """
     Stores information of each job.
     """

@@ -1,20 +1,22 @@
 # pylint: disable=missing-class-docstring
 from __future__ import annotations
-from typing import cast
+
 import logging
+from typing import cast
 
 import claripy
 import pyvex
 
-from angr.engines.vex.claripy.datalayer import value
-from angr.knowledge_plugins.propagations.states import RegisterAnnotation, RegisterComparisonAnnotation
-from angr.engines.light import SimEngineNostmtVEX
-from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, default_cc, SimRegArg
 from angr.analyses.propagator.propagator import PropagatorVEXState
 from angr.block import Block
+from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, SimRegArg, default_cc
+from angr.engines.light import SimEngineNostmtVEX
+from angr.engines.vex.claripy.datalayer import value
+from angr.knowledge_plugins.propagations.states import RegisterAnnotation, RegisterComparisonAnnotation
+
 from .engine_base import SimEnginePropagatorBaseMixin
 from .top_checker_mixin import ClaripyDataVEXEngineMixin
-from .vex_vars import VEXReg, VEXTmp, VEXMemVar
+from .vex_vars import VEXMemVar, VEXReg, VEXTmp
 
 _l = logging.getLogger(name=__name__)
 

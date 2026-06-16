@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 from angr.analyses.identifier.func import Func, TestData

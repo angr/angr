@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
-from angr.ailment.expression import VirtualVariable, Phi
-from angr.ailment.statement import Statement, Assignment
 from angr.ailment.block import Block
+from angr.ailment.expression import Phi, VirtualVariable
+from angr.ailment.statement import Assignment, Statement
 from angr.code_location import AILCodeLocation
 
 
@@ -19,6 +20,15 @@ class VVarUsesCollector(AILBlockViewer):
 
         self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
         self.vvars: set[int] = set()
+
+    def reset(self) -> None:
+        self.vvar_and_uselocs = defaultdict(list)
+        self.vvars = set()
+
+    def _handle_expr(self, expr_idx: int, expr, stmt_idx: int, stmt, block: Block | None):
+        if expr.tags.get("extra_def", False):
+            return None
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None

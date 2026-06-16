@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import operator
 
-from archinfo.arch_soot import SootNullConstant
 import claripy
+from archinfo.arch_soot import SootNullConstant
 
 from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
+
 from .base import SimSootExpr
 
 

@@ -1,13 +1,14 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
 import logging
-from typing import TYPE_CHECKING
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
-from angr.analyses import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.utils.bits import ffs
 
 if TYPE_CHECKING:
@@ -28,7 +29,7 @@ class OverlappingFunctionsAnalysis(Analysis):
         self.overlapping_functions = defaultdict(list)
         addr_to_func_max_addr = SortedDict()
 
-        for func in self.project.kb.functions.values():
+        for func in self.project.kb.functions.values(meta_only=True):
             if func.is_alignment:
                 continue
             func_max_addr = max((block.addr + block.size) for block in func.blocks)
@@ -59,7 +60,7 @@ class FunctionAlignmentAnalysis(Analysis):
 
         alignment_bins = defaultdict(int)
         count = 0
-        for func in self.project.kb.functions.values():
+        for func in self.project.kb.functions.values(meta_only=True):
             if not (func.is_alignment or func.is_plt or func.is_simprocedure):
                 alignment_bins[ffs(func.addr)] += 1
                 count += 1
@@ -125,7 +126,7 @@ class PatchFinderAnalysis(Analysis):
         # Look for unaligned functions
         expected_alignment = self.project.analyses.FunctionAlignment().alignment
         if expected_alignment is not None and expected_alignment > self.project.arch.instruction_alignment:
-            for func in self.project.kb.functions.values():
+            for func in self.project.kb.functions.values(meta_only=True):
                 if not (func.is_alignment or func.is_plt or func.is_simprocedure) and func.addr & (
                     expected_alignment - 1
                 ):

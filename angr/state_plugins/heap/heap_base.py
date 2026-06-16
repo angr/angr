@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 import angr.sim_options as opts
-from angr.state_plugins.plugin import SimStatePlugin
 from angr.errors import SimMemoryError
+from angr.state_plugins.plugin import SimStatePlugin
 
 l = logging.getLogger("angr.state_plugins.heap.heap_base")
 

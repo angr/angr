@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from angr.knowledge_plugins import FunctionManager, Function
 from angr.angrdb.models import DbFunction
+from angr.knowledge_plugins import Function, FunctionManager
 
 if TYPE_CHECKING:
-    from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 
 class FunctionManagerSerializer:
@@ -51,6 +52,8 @@ class FunctionManagerSerializer:
 
         for db_func in db_funcs:
             func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project)
+            # Mark as dirty so SpillingFunctionDict will save it to LMDB upon eviction.
+            func.mark_dirty()
             funcs[func.addr] = func
 
         funcs.rebuild_callgraph()

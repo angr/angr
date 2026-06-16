@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-# pylint: disable=arguments-differ,arguments-renamed
-
-from typing import Any, TypeAlias
-from collections.abc import Callable, MutableMapping
 from collections import defaultdict
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass, field
-from typing_extensions import Self
+from typing import Any, Self
 
 import angr
-from angr.engines.light import SimEngineLightAIL
 from angr import ailment
+from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
+
+# pylint: disable=arguments-differ,arguments-renamed
 
 
 @dataclass
@@ -126,8 +125,8 @@ class ResultType:
         return True
 
 
-DataType_co: TypeAlias = frozenset[DataSource]
-StmtDataType: TypeAlias = None
+type DataType_co = frozenset[DataSource]
+type StmtDataType = None
 
 
 class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType]):
@@ -231,8 +230,8 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         if stmt.false_target is not None:
             self._expr_single(stmt.false_target)
 
-    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> StmtDataType:
-        results = self._do_call(stmt)
+    def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> StmtDataType:
+        results = self._expr(stmt.expr)
         if stmt.ret_expr is not None:
             assert 0 in results
             self._do_assign(stmt.ret_expr, results[0])
@@ -250,6 +249,12 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
     def _handle_stmt_Label(self, stmt: ailment.statement.Label) -> StmtDataType:
         pass
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType_co:
+        return frozenset(x for x in self._expr(expr.base) if x.constant_value is not None)
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType_co:
+        return frozenset(x for x in self._expr(expr.value) if x.constant_value is not None)
 
     def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType_co:
         if isinstance(expr.value, int):
@@ -303,7 +308,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         self._expr(expr.condition)
         return self._expr(expr.iftrue) | self._expr(expr.iffalse)
 
-    def _do_call(self, expr: ailment.statement.Call, is_expr: bool = False) -> MutableMapping[int, DataType_co]:
+    def _do_call(self, expr: ailment.expression.Call) -> MutableMapping[int, DataType_co]:
         args = [self._expr(arg) for arg in expr.args or []]
         seen = None
 
@@ -350,13 +355,10 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         for i, val in enumerate(args):
             self.result.call_args[(self.block.addr, self.block.idx, self.stmt_idx, func, i)] |= val
         # ummmm need to rearrange data model
-        return {
-            idx: frozenset((DataSource(callee_return=func),))
-            for idx in range(0 if expr.ret_expr is None and not is_expr else 1)
-        }
+        return {0: frozenset((DataSource(callee_return=func),))}
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co:
-        r = self._do_call(expr, is_expr=True)
+    def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType_co:
+        r = self._do_call(expr)
         assert 0 in r
         return r[0]
 

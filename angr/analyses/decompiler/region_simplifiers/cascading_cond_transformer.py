@@ -1,12 +1,17 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
 from __future__ import annotations
 
-import angr.ailment as ailment
+from typing import TYPE_CHECKING
+
 import claripy
 
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, CascadingConditionNode
+from angr import ailment
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import CascadingConditionNode, ConditionNode
 from angr.errors import AngrRuntimeError
+
+if TYPE_CHECKING:
+    from angr.ailment import Manager
 
 
 class CascadingConditionTransformer(SequenceWalker):
@@ -15,11 +20,12 @@ class CascadingConditionTransformer(SequenceWalker):
     `if { ... } else if { ... } else if { ... }`.
     """
 
-    def __init__(self, node):
+    def __init__(self, node, manager: Manager):
         handlers = {
             ConditionNode: self._handle_Condition,
         }
         super().__init__(handlers)
+        self.manager = manager
         self.cascading_if_node: CascadingConditionNode | None = None
 
         self.walk(node)
@@ -44,7 +50,7 @@ class CascadingConditionTransformer(SequenceWalker):
             if isinstance(cond_node.condition, claripy.ast.Base):
                 cond_0 = claripy.Not(cond_node.condition)
             else:
-                cond_0 = ailment.expression.negate(cond_node.condition)
+                cond_0 = ailment.expression.negate(cond_node.condition, self.manager)
             node_0 = cond_node.false_node
             remaining_node = cond_node.true_node
 
@@ -64,7 +70,7 @@ class CascadingConditionTransformer(SequenceWalker):
                 if isinstance(structured.condition, claripy.ast.Base):
                     negated_structured_condition = claripy.Not(structured.condition)
                 else:
-                    negated_structured_condition = ailment.expression.negate(structured.condition)
+                    negated_structured_condition = ailment.expression.negate(structured.condition, self.manager)
                 cond_and_nodes = [
                     (cond_0, node_0),
                     (negated_structured_condition, structured.false_node),

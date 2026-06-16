@@ -1,52 +1,52 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 # ruff: noqa: SIM102
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
-from collections import defaultdict, OrderedDict
-from enum import Enum
-import logging
 
-import networkx
+import logging
+from collections import OrderedDict, defaultdict
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 import claripy
-from angr.ailment.block import Block
-from angr.ailment.statement import Statement, ConditionalJump, Jump, Label, Return
-from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression, BinaryOp
+import networkx
 
-from angr.utils.graph import GraphUtils
-from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block
-from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
-from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.utils import (
-    remove_last_statement,
-    remove_last_statements,
-    extract_jump_targets,
-    switch_extract_cmp_bounds,
-    switch_extract_cmp_bounds_from_condition,
-    is_empty_or_label_only_node,
-    has_nonlabel_nonphi_statements,
-    first_nonlabel_nonphi_statement,
-    switch_extract_bitwiseand_jumptable_info,
-    switch_extract_switch_expr_from_jump_target,
-)
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
+from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
-from .structurer_nodes import (
-    ConditionNode,
-    SequenceNode,
-    LoopNode,
-    ConditionalBreakNode,
-    BreakNode,
-    ContinueNode,
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
-    MultiNode,
-    SwitchCaseNode,
-    IncompleteSwitchCaseNode,
+    BreakNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
     EmptyBlockNotice,
     IncompleteSwitchCaseHeadStatement,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
+from angr.analyses.decompiler.utils import (
+    extract_jump_targets,
+    first_nonlabel_nonphi_statement,
+    has_nonlabel_nonphi_statements,
+    is_empty_or_label_only_node,
+    remove_last_statement,
+    remove_last_statements,
+    switch_extract_bitwiseand_jumptable_info,
+    switch_extract_cmp_bounds,
+    switch_extract_cmp_bounds_from_condition,
+    switch_extract_switch_expr_from_jump_target,
+)
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
+from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, to_acyclic_graph
+
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
@@ -63,7 +63,7 @@ class GraphChangedNotification(Exception):
     """
 
 
-class MultiStmtExprMode(str, Enum):
+class MultiStmtExprMode(StrEnum):
     """
     Mode of multi-statement expression creation during structuring.
     """
@@ -166,12 +166,12 @@ class PhoenixStructurer(StructurerBase):
         if _DEBUG:
             if g is None:
                 return
-            assert (
-                len(list(networkx.connected_components(networkx.Graph(g)))) <= 1
-            ), f"{msg}: More than one connected component. Please report this."
-            assert (
-                len([nn for nn in g if g.in_degree[nn] == 0]) <= 1
-            ), f"{msg}: More than one graph entrance. Please report this."
+            assert len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, (
+                f"{msg}: More than one connected component. Please report this."
+            )
+            assert len([nn for nn in g if g.in_degree[nn] == 0]) <= 1, (
+                f"{msg}: More than one graph entrance. Please report this."
+            )
 
     def _analyze(self):
         # iterate until there is only one node in the region
@@ -432,8 +432,8 @@ class PhoenixStructurer(StructurerBase):
                         last_stmt = self._remove_last_statement_if_jump(head_block)
                         assert last_stmt is not None
                         cond_jump = Jump(
-                            None,
-                            Const(None, None, right.addr, self.project.arch.bits),
+                            self.ail_manager.next_atom(),
+                            Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                             None,
                             ins_addr=last_stmt.tags["ins_addr"],
                         )
@@ -640,7 +640,7 @@ class PhoenixStructurer(StructurerBase):
                                     <= self._multistmtexpr_stmt_threshold
                                 ):
                                     edge_cond_succhead = MultiStatementExpression(
-                                        None,
+                                        self.ail_manager.next_atom(),
                                         stmts,
                                         self.cond_proc.convert_claripy_bool_ast(edge_cond_succhead),
                                         ins_addr=succ.addr,
@@ -697,7 +697,6 @@ class PhoenixStructurer(StructurerBase):
     def _match_cyclic_natural_loop(
         self, node, head, graph_raw, full_graph_raw
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
-
         full_graph = _f(full_graph_raw)
         graph = _f(graph_raw)
 
@@ -814,7 +813,15 @@ class PhoenixStructurer(StructurerBase):
             assert result_while is not None and result_dowhile is not None
             succ_while = result_while[-1]
             succ_dowhile = result_dowhile[-1]
-            if succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
+            # Check if the while matcher would produce while(true): if the
+            # do-while's latch appears as a source in the while's outgoing
+            # edges, the latch's condition is wasted as a break.  Prefer
+            # do-while so the latch's condition becomes the loop condition.
+            dowhile_latch = result_dowhile[2]  # continue_node = latch
+            while_outgoing_srcs = {src for src, _ in result_while[1]}
+            if dowhile_latch in while_outgoing_srcs:
+                is_while = False
+            elif succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
                 sorted_nodes = GraphUtils.quasi_topological_sort_nodes(
                     self._parent_region.graph, loop_heads=[self._parent_region.head]
                 )
@@ -902,15 +909,6 @@ class PhoenixStructurer(StructurerBase):
                         if graph.has_edge(src, dst):
                             graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
                     else:
-                        has_continue = False
-                        # at the same time, examine if there is an edge that goes from src to the continue node. if so,
-                        # we deal with it here as well.
-                        continue_node_going_edge = src, continue_node
-                        if continue_node_going_edge in continue_edges:
-                            has_continue = True
-                            # do not remove the edge from continue_edges since we want to process them later in this
-                            # function.
-
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
                         # rewritten to break nodes after (if possible). directly creating break nodes may lead to
                         # unwanted results, e.g., inserting a break (that's intended to break out of the loop) inside a
@@ -921,8 +919,8 @@ class PhoenixStructurer(StructurerBase):
                         assert successor.addr is not None
                         if claripy.is_true(break_cond):
                             break_stmt = Jump(
-                                None,
-                                Const(None, None, successor.addr, self.project.arch.bits),
+                                self.ail_manager.next_atom(),
+                                Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
                                 target_idx=successor.idx if isinstance(successor, Block) else None,
                                 ins_addr=last_src_stmt.tags["ins_addr"],
                             )
@@ -934,15 +932,19 @@ class PhoenixStructurer(StructurerBase):
                             if fallthrough_node is not None:
                                 # we create a conditional jump that will be converted to a conditional break later
                                 break_stmt = Jump(
-                                    None,
-                                    Const(None, None, successor.addr, self.project.arch.bits),
+                                    self.ail_manager.next_atom(),
+                                    Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 fallthrough_stmt = Jump(
-                                    None,
-                                    Const(None, None, fallthrough_node.addr, self.project.arch.bits),
+                                    self.ail_manager.next_atom(),
+                                    Const(
+                                        self.ail_manager.next_atom(),
+                                        fallthrough_node.addr,
+                                        self.project.arch.bits,
+                                    ),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
@@ -962,14 +964,14 @@ class PhoenixStructurer(StructurerBase):
                                 )
                                 assert other_target is not None
                                 break_stmt = Jump(
-                                    None,
-                                    Const(None, None, successor.addr, self.project.arch.bits),
+                                    self.ail_manager.next_atom(),
+                                    Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 fallthrough_stmt = Jump(
-                                    None,
+                                    self.ail_manager.next_atom(),
                                     other_target,
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
@@ -986,40 +988,6 @@ class PhoenixStructurer(StructurerBase):
                             )
                         new_src_block = self._copy_and_remove_last_statement_if_jump(src_block)
                         new_node = SequenceNode(src_block.addr, nodes=[new_src_block, break_node])
-                        if has_continue:
-                            assert continue_node is not None
-
-                            if continue_node.addr is not None and self.is_a_jump_target(
-                                last_src_stmt, continue_node.addr
-                            ):
-                                # instead of a conditional break node, we should insert a condition node instead
-                                break_stmt = Jump(
-                                    None,
-                                    Const(None, None, successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.tags["ins_addr"],
-                                )
-                                break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
-                                cont_node = ContinueNode(
-                                    last_src_stmt.tags["ins_addr"],
-                                    Const(None, None, continue_node.addr, self.project.arch.bits),
-                                )
-                                cond_node = ConditionNode(
-                                    last_src_stmt.tags["ins_addr"],
-                                    None,
-                                    break_cond,
-                                    break_node,
-                                )
-                                new_node.nodes[-1] = cond_node
-                                new_node.nodes.append(cont_node)
-
-                                # we don't remove the edge (src, continue_node) from the graph or full graph. we will
-                                # process them later in this function.
-                            else:
-                                # the last statement in src_block is not the conditional jump whose one branch goes to
-                                # the loop head. it probably goes to another block that ends up going to the loop head.
-                                # we don't handle it here.
-                                pass
 
                         # we cannot modify the original src_block because loop refinement may fail and we must restore
                         # the original graph
@@ -1110,7 +1078,7 @@ class PhoenixStructurer(StructurerBase):
                                 new_cont_node = ConditionNode(
                                     last_stmt.tags["ins_addr"],
                                     None,
-                                    UnaryOp(None, "Not", last_stmt.condition),
+                                    UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition),
                                     new_cont_node,
                                 )
                         elif isinstance(last_stmt, Jump):
@@ -1229,9 +1197,8 @@ class PhoenixStructurer(StructurerBase):
                         if node is head_pred:
                             continue
                         succs = list(fullgraph.successors(node))
-                        if (
-                            head_pred in succs
-                            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(fullgraph, node)
+                        if head_pred in succs and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                            fullgraph, node
                         ):
                             # special case: if node is the header of a switch-case, then this is *not* a continue edge
                             continue_edges.append((node, head_pred))
@@ -1422,7 +1389,7 @@ class PhoenixStructurer(StructurerBase):
         case_nodes: set[int] = set()
         for _, _, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             case_nodes.add(case_target_addr)
-            case_node = nodes.get((case_target_addr, case_target_idx), None)
+            case_node = nodes.get((case_target_addr, case_target_idx))
             if case_node is None:
                 continue
             successors.update(nn.addr for nn in graph_raw.successors(case_node))
@@ -1452,8 +1419,8 @@ class PhoenixStructurer(StructurerBase):
             # the default node is not found. it's likely the node has been structured and is part of another construct
             # (e.g., inside another switch-case). we need to create a default node that jumps to the other node
             jmp_to_default_node = Jump(
-                None,
-                Const(None, None, node_default_addr, self.project.arch.bits),
+                self.ail_manager.next_atom(),
+                Const(self.ail_manager.next_atom(), node_default_addr, self.project.arch.bits),
                 None,
                 ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
             )
@@ -1492,7 +1459,6 @@ class PhoenixStructurer(StructurerBase):
         return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph_raw, full_graph_raw) -> bool:
-
         successor_addrs: list[int] = []
         cmp_expr: int = 0
         cmp_lb: int = 0
@@ -2130,8 +2096,8 @@ class PhoenixStructurer(StructurerBase):
                     0,
                     statements=[
                         Jump(
-                            None,
-                            Const(None, None, entry_addr, self.project.arch.bits),
+                            self.ail_manager.next_atom(),
+                            Const(self.ail_manager.next_atom(), entry_addr, self.project.arch.bits),
                             target_idx=entry_idx,
                             ins_addr=0,
                             stmt_idx=0,
@@ -2269,7 +2235,10 @@ class PhoenixStructurer(StructurerBase):
                     case_node_last_stmt = None
                 if not isinstance(case_node_last_stmt, Jump):
                     jump_stmt = Jump(
-                        None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
+                        self.ail_manager.next_atom(),
+                        Const(self.ail_manager.next_atom(), head.addr, self.project.arch.bits),
+                        None,
+                        ins_addr=out_src.addr,
                     )
                     jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
                     case_node.nodes.append(jump_node)
@@ -2626,8 +2595,8 @@ class PhoenixStructurer(StructurerBase):
                             0,
                             statements=[
                                 Jump(
-                                    None,
-                                    Const(None, None, right.addr, self.project.arch.bits),
+                                    self.ail_manager.next_atom(),
+                                    Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                                     ins_addr=new_cond_node.addr,
                                 )
                             ],
@@ -2752,7 +2721,7 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, left_right_cond, succ = r
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
-            left_cond_expr_neg = UnaryOp(None, "Not", left_cond_expr, ins_addr=start_node.addr)
+            left_cond_expr_neg = UnaryOp(self.ail_manager.next_atom(), "Not", left_cond_expr, ins_addr=start_node.addr)
             left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_right_cond)
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
@@ -2760,13 +2729,20 @@ class PhoenixStructurer(StructurerBase):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
-                left_right_cond_expr = MultiStatementExpression(None, stmts, left_right_cond_expr, ins_addr=left.addr)
-            cond = BinaryOp(None, "LogicalOr", [left_cond_expr_neg, left_right_cond_expr], ins_addr=start_node.addr)
+                left_right_cond_expr = MultiStatementExpression(
+                    self.ail_manager.next_atom(), stmts, left_right_cond_expr, ins_addr=left.addr
+                )
+            cond = BinaryOp(
+                self.ail_manager.next_atom(),
+                "LogicalOr",
+                [left_cond_expr_neg, left_right_cond_expr],
+                ins_addr=start_node.addr,
+            )
             cond_jump = ConditionalJump(
-                None,
+                self.ail_manager.next_atom(),
                 cond,
-                Const(None, None, right.addr, self.project.arch.bits),
-                Const(None, None, succ.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), succ.addr, self.project.arch.bits),
                 true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
                 false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -2794,13 +2770,20 @@ class PhoenixStructurer(StructurerBase):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(right)
                 assert stmts is not None
-                right_left_cond_expr = MultiStatementExpression(None, stmts, right_left_cond_expr, ins_addr=left.addr)
-            cond = BinaryOp(None, "LogicalOr", [left_cond_expr, right_left_cond_expr], ins_addr=start_node.addr)
+                right_left_cond_expr = MultiStatementExpression(
+                    self.ail_manager.next_atom(), stmts, right_left_cond_expr, ins_addr=left.addr
+                )
+            cond = BinaryOp(
+                self.ail_manager.next_atom(),
+                "LogicalOr",
+                [left_cond_expr, right_left_cond_expr],
+                ins_addr=start_node.addr,
+            )
             cond_jump = ConditionalJump(
-                None,
+                self.ail_manager.next_atom(),
                 cond,
-                Const(None, None, left.addr, self.project.arch.bits, ins_addr=start_node.addr),
-                Const(None, None, else_node.addr, self.project.arch.bits, ins_addr=start_node.addr),
+                Const(self.ail_manager.next_atom(), left.addr, self.project.arch.bits, ins_addr=start_node.addr),
+                Const(self.ail_manager.next_atom(), else_node.addr, self.project.arch.bits, ins_addr=start_node.addr),
                 true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else None,
                 false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -2828,14 +2811,23 @@ class PhoenixStructurer(StructurerBase):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
-                left_succ_cond_expr = MultiStatementExpression(None, stmts, left_succ_cond_expr, ins_addr=left.addr)
-            left_succ_cond_expr_neg = UnaryOp(None, "Not", left_succ_cond_expr, ins_addr=start_node.addr)
-            cond = BinaryOp(None, "LogicalAnd", [left_cond_expr, left_succ_cond_expr_neg], ins_addr=start_node.addr)
+                left_succ_cond_expr = MultiStatementExpression(
+                    self.ail_manager.next_atom(), stmts, left_succ_cond_expr, ins_addr=left.addr
+                )
+            left_succ_cond_expr_neg = UnaryOp(
+                self.ail_manager.next_atom(), "Not", left_succ_cond_expr, ins_addr=start_node.addr
+            )
+            cond = BinaryOp(
+                self.ail_manager.next_atom(),
+                "LogicalAnd",
+                [left_cond_expr, left_succ_cond_expr_neg],
+                ins_addr=start_node.addr,
+            )
             cond_jump = ConditionalJump(
-                None,
+                self.ail_manager.next_atom(),
                 cond,
-                Const(None, None, right.addr, self.project.arch.bits),
-                Const(None, None, succ.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), succ.addr, self.project.arch.bits),
                 true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
                 false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -2862,13 +2854,20 @@ class PhoenixStructurer(StructurerBase):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
-                left_right_cond_expr = MultiStatementExpression(None, stmts, left_right_cond_expr, ins_addr=left.addr)
-            cond = BinaryOp(None, "LogicalAnd", [left_cond_expr, left_right_cond_expr], ins_addr=start_node.addr)
+                left_right_cond_expr = MultiStatementExpression(
+                    self.ail_manager.next_atom(), stmts, left_right_cond_expr, ins_addr=left.addr
+                )
+            cond = BinaryOp(
+                self.ail_manager.next_atom(),
+                "LogicalAnd",
+                [left_cond_expr, left_right_cond_expr],
+                ins_addr=start_node.addr,
+            )
             cond_jump = ConditionalJump(
-                None,
+                self.ail_manager.next_atom(),
                 cond,
-                Const(None, None, right.addr, self.project.arch.bits),
-                Const(None, None, else_node.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                Const(self.ail_manager.next_atom(), else_node.addr, self.project.arch.bits),
                 true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
                 false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
@@ -3167,7 +3166,7 @@ class PhoenixStructurer(StructurerBase):
                 goto0_target = last_stmt.true_target
                 goto1_target = last_stmt.false_target
             elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst.addr:
-                goto0_condition = UnaryOp(None, "Not", last_stmt.condition)
+                goto0_condition = UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition)
                 goto0_target = last_stmt.false_target
                 goto1_target = last_stmt.true_target
             else:
@@ -3181,13 +3180,21 @@ class PhoenixStructurer(StructurerBase):
                 goto0 = Block(
                     last_stmt.tags["ins_addr"],
                     0,
-                    statements=[Jump(None, goto0_target, ins_addr=last_stmt.tags["ins_addr"], stmt_idx=0)],
+                    statements=[
+                        Jump(
+                            self.ail_manager.next_atom(), goto0_target, ins_addr=last_stmt.tags["ins_addr"], stmt_idx=0
+                        )
+                    ],
                 )
                 cond_node = ConditionNode(last_stmt.tags["ins_addr"], None, goto0_condition, goto0)
                 goto1_node = Block(
                     last_stmt.tags["ins_addr"],
                     0,
-                    statements=[Jump(None, goto1_target, ins_addr=last_stmt.tags["ins_addr"], stmt_idx=0)],
+                    statements=[
+                        Jump(
+                            self.ail_manager.next_atom(), goto1_target, ins_addr=last_stmt.tags["ins_addr"], stmt_idx=0
+                        )
+                    ],
                 )
                 remove_src_last_stmt = True
                 new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])
@@ -3201,7 +3208,12 @@ class PhoenixStructurer(StructurerBase):
                 stmt_addr,
                 0,
                 statements=[
-                    Jump(None, Const(None, None, dst.addr, self.project.arch.bits), ins_addr=stmt_addr, stmt_idx=0)
+                    Jump(
+                        self.ail_manager.next_atom(),
+                        Const(self.ail_manager.next_atom(), dst.addr, self.project.arch.bits),
+                        ins_addr=stmt_addr,
+                        stmt_idx=0,
+                    )
                 ],
             )
             new_src = SequenceNode(src.addr, nodes=[src, goto_node])

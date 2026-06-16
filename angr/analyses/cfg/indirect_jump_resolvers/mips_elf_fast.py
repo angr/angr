@@ -1,15 +1,16 @@
 # pylint:disable=too-many-boolean-expressions,global-statement,too-many-positional-arguments
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
 from enum import Enum
+from typing import TYPE_CHECKING
 
 import archinfo
 import pyvex
 
-
 from angr.blade import Blade
 from angr.utils.constants import DEFAULT_STATEMENT
+
 from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:

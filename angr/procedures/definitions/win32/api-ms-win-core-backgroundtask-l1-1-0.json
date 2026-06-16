@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"RaiseCustomSystemEventTrigger": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CustomSystemEventTriggerConfig']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CustomSystemEventTriggerConfig']}"
 		}
 	}
 }

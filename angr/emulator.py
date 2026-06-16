@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
-from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
+from angr.engines.successors import SuccessorsEngine
 from angr.errors import AngrError
+from angr.sim_state import SimState
 
 log = logging.getLogger(name=__name__)
 
@@ -36,28 +37,30 @@ class EmulatorStopReason(Enum):
 
 class Emulator:
     """
-    Emulator is a utility that adapts an angr `ConcreteEngine` to a more
+    Emulator is a utility that adapts an angr `SuccessorsEngine` to a more
     user-friendly interface for concrete execution. It only supports concrete
-    execution and requires a ConcreteEngine.
+    execution.
 
     Saftey: This class is not thread-safe. It should only be used in a
     single-threaded context. It can be safely shared between multiple threads,
     provided that only one thread is using it at a time.
     """
 
-    _engine: ConcreteEngine
-    _state: HeavyConcreteState
+    _engine: SuccessorsEngine
+    _state: SimState
+    _breakpoints: set[int]
 
-    def __init__(self, engine: ConcreteEngine, init_state: HeavyConcreteState):
+    def __init__(self, engine: SuccessorsEngine, init_state: SimState):
         """
-        :param engine: The `ConcreteEngine` to use for emulation.
+        :param engine: The `SuccessorsEngine` to use for emulation.
         :param init_state: The initial state to use for emulation.
         """
         self._engine = engine
         self._state = init_state
+        self._breakpoints = set()
 
     @property
-    def state(self) -> HeavyConcreteState:
+    def state(self) -> SimState:
         """
         The current state of the emulator.
         """
@@ -68,7 +71,7 @@ class Emulator:
         """
         The set of currently set breakpoints.
         """
-        return self._engine.get_breakpoints()
+        return self._breakpoints
 
     def add_breakpoint(self, addr: int) -> None:
         """
@@ -76,7 +79,8 @@ class Emulator:
 
         :param addr: The address to set the breakpoint at.
         """
-        self._engine.add_breakpoint(addr)
+        addr = addr & ~1  # Clear thumb bit if set
+        self._breakpoints.add(addr)
 
     def remove_breakpoint(self, addr: int) -> None:
         """
@@ -84,7 +88,8 @@ class Emulator:
 
         :param addr: The address to remove the breakpoint from.
         """
-        self._engine.remove_breakpoint(addr)
+        addr = addr & ~1  # Clear thumb bit if set
+        self._breakpoints.discard(addr)
 
     def run(self, num_inst: int | None = None) -> EmulatorStopReason:
         """
@@ -95,7 +100,7 @@ class Emulator:
         while self._state.history.jumpkind != "Ijk_Exit":
             # Check if there is a breakpoint at the current address
             addr_with_lower_bit_cleared = self._state.addr & ~1
-            if completed_engine_execs > 0 and addr_with_lower_bit_cleared in self._engine.get_breakpoints():
+            if completed_engine_execs > 0 and addr_with_lower_bit_cleared in self._breakpoints:
                 return EmulatorStopReason.BREAKPOINT
 
             # Check if we've already executed the requested number of instructions
@@ -109,7 +114,9 @@ class Emulator:
 
             # Run the engine to get successors
             try:
-                successors = self._engine.process(self._state, num_inst=remaining_inst)
+                successors = self._engine.process(
+                    self._state, num_inst=remaining_inst, extra_stop_points=self._breakpoints
+                )
             except EngineException as e:
                 raise EngineException(f"Engine encountered an error: {e}") from e
 

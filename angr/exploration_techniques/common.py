@@ -1,6 +1,7 @@
 from __future__ import annotations
+
 from angr import engines
-from angr.errors import SimError, AngrError, AngrExplorationTechniqueError
+from angr.errors import AngrError, AngrExplorationTechniqueError, SimError
 
 
 def condition_to_lambda(condition, default=False):
@@ -34,6 +35,8 @@ def condition_to_lambda(condition, default=False):
                 return {state.addr}
 
             if not isinstance(state.project.factory.default_engine, engines.vex.VEXLifter):
+                return False
+            if isinstance(state.callstack, engines.ail.callstack.AILCallStack):
                 return False
 
             try:

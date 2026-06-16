@@ -1,18 +1,18 @@
 # pylint:disable=too-many-positional-arguments
 from __future__ import annotations
+
 import logging
 
+import cle
 from capstone.mips_const import (
+    MIPS_OP_IMM,
+    MIPS_OP_REG,
+    MIPS_REG_RA,
     MIPS_REG_T7,
     MIPS_REG_T8,
     MIPS_REG_T9,
-    MIPS_REG_RA,
     MIPS_REG_ZERO,
-    MIPS_OP_REG,
-    MIPS_OP_IMM,
 )
-
-import cle
 
 from .resolver import IndirectJumpResolver
 

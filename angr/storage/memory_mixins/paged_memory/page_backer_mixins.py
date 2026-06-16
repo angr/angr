@@ -1,10 +1,13 @@
 from __future__ import annotations
-from mmap import mmap
-from collections.abc import Generator
+
 import logging
+from collections.abc import Generator
+from mmap import mmap
 
 import claripy
 import cle
+
+from .paged_memory_mixin import PagedMemoryMixin
 
 l = logging.getLogger(__name__)
 
@@ -24,9 +27,6 @@ class NotMemoryview:
 
     def __setitem__(self, k, v):
         memoryview(self.obj)[self.offset : self.offset + self.size][k] = v
-
-
-from .paged_memory_mixin import PagedMemoryMixin
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):

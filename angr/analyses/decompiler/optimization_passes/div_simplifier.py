@@ -1,5 +1,6 @@
 # pylint:disable=line-too-long
 from __future__ import annotations
+
 import logging
 import math
 
@@ -15,6 +16,10 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
     """
     An AIL pass for the div simplifier
     """
+
+    def __init__(self, project, manager):
+        super().__init__(project)
+        self.manager = manager
 
     @staticmethod
     def _check_divisor(a: int, b: int, ndigits: int = 6) -> int | None:
@@ -48,7 +53,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 divisor = self._check_divisor(pow(2, 64 + Y), C)
                 if divisor:
                     X = operand_expr.operands[0].operands[0]
-                    new_const = Expr.Const(expr.idx, None, divisor, 64)
+                    new_const = Expr.Const(expr.idx, divisor, 64)
                     return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
 
         return expr
@@ -227,21 +232,19 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 divisor = self._check_divisor(pow(2, Y), C)
 
         if divisor and X:
-            new_const = Expr.Const(expr.idx, None, divisor, 64)
+            new_const = Expr.Const(expr.idx, divisor, 64)
             return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
 
         if isinstance(operand_1, Expr.Const):
             if isinstance(operand_0, Expr.VirtualVariable) and operand_0.was_reg:
-                new_operand = Expr.Const(operand_1.idx, None, 2**operand_1.value, operand_0.bits)
+                new_operand = Expr.Const(operand_1.idx, 2**operand_1.value, operand_0.bits)
                 return Expr.BinaryOp(expr.idx, "Div", [operand_0, new_operand], expr.signed)
             if (
                 isinstance(operand_0, Expr.BinaryOp)
                 and operand_0.op == "Shr"
                 and isinstance(operand_0.operands[1], Expr.Const)
             ):
-                new_const = Expr.Const(
-                    operand_1.idx, None, operand_0.operands[1].value + operand_1.value, operand_1.bits
-                )
+                new_const = Expr.Const(operand_1.idx, operand_0.operands[1].value + operand_1.value, operand_1.bits)
                 return Expr.BinaryOp(expr.idx, "Shr", [operand_0.operands[0], new_const], expr.signed, **expr.tags)
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
@@ -268,7 +271,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 V = X.from_bits - X.to_bits
             ndigits = 5 if V == 32 else 6
             if (divisor := self._check_divisor(pow(2, V + Y), C, ndigits)) and X:
-                new_const = Expr.Const(expr.idx, None, divisor, 64)
+                new_const = Expr.Const(expr.idx, divisor, 64)
                 return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
         if (
             isinstance(operand_1, Expr.Const)
@@ -288,7 +291,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             V = operand_0.from_bits - operand_0.to_bits
             ndigits = 5 if V == 32 else 6
             if (divisor := self._check_divisor(pow(2, V + Y), C, ndigits)) and X:
-                new_const = Expr.Const(expr.idx, None, divisor, 64)
+                new_const = Expr.Const(expr.idx, divisor, 64)
                 return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
         return expr
 
@@ -303,7 +306,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             and isinstance(operand_0.operands[1], Expr.Const)
         ):
             new_const_value = operand_1.value * operand_0.operands[1].value
-            new_const = Expr.Const(operand_1.idx, None, new_const_value, operand_1.bits)
+            new_const = Expr.Const(operand_1.idx, new_const_value, operand_1.bits)
             return Expr.BinaryOp(expr.idx, "Div", [operand_0.operands[0], new_const], expr.signed, **expr.tags)
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
@@ -375,7 +378,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 assert isinstance(C, int)
                 divisor = self._check_divisor(pow(2, V), C, ndigits)
                 if divisor is not None and X:
-                    new_const = Expr.Const(None, None, divisor, V)
+                    new_const = Expr.Const(self.manager.next_atom(), divisor, V)
                     new_expr = Expr.BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
                     return True, new_expr
 
@@ -399,11 +402,11 @@ class DivSimplifier(OptimizationPass):
     NAME = "Simplify arithmetic division"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
-        self.engine = DivSimplifierAILEngine(self.project)
+        self.engine = DivSimplifierAILEngine(self.project, self.manager)
 
         self.analyze()
 

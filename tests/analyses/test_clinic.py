@@ -8,7 +8,6 @@ import unittest
 
 import angr
 import angr.analyses.decompiler
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

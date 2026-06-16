@@ -1,30 +1,26 @@
 from __future__ import annotations
 
-# pylint: disable=import-outside-toplevel
-
-from typing import Any, Generic, ParamSpec, cast, TypeVar, Protocol
-from collections.abc import Callable
-from functools import wraps
-
 import logging
+from collections.abc import Callable, Iterable
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import angr
 from angr.misc.ux import once
 
+if TYPE_CHECKING:
+    from angr.sim_state import SimState
+
+
 l = logging.getLogger(name=__name__)
 
-T = TypeVar("T")
-S_co = TypeVar("S_co", covariant=True)
-P = ParamSpec("P")
 
-
-class _CopyFunc(Protocol, Generic[S_co]):
+class _CopyFunc[S_co](Protocol):
     """
     Function wrapping copy method for memo tracking.
     """
 
-    @staticmethod
-    def __call__(_self: Any, memo: dict[int, Any] | None = None) -> S_co: ...
+    def __call__(self, _self: Any, memo: dict[int, Any] | None = None) -> S_co: ...
 
 
 class SimStatePlugin:
@@ -36,25 +32,25 @@ class SimStatePlugin:
 
     STRONGREF_STATE = False
 
-    def __init__(self):
-        self.state: angr.SimState = cast(angr.SimState, None)
+    def __init__(self) -> None:
+        self.state: SimState[Any, Any] = cast("SimState[Any, Any]", None)
 
-    def set_state(self, state):
+    def set_state(self, state) -> None:
         """
         Sets a new state (for example, if the state has been branched)
         """
         self.state = state._get_weakref()
 
-    def set_strongref_state(self, state):
+    def set_strongref_state(self, state) -> None:
         pass
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         d = dict(self.__dict__)
         d["state"] = None
         return d
 
     @staticmethod
-    def memo(f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
+    def memo[S_co](f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
         """
         A decorator function you should apply to ``copy``
         """
@@ -69,12 +65,10 @@ class SimStatePlugin:
             memo[id(self)] = c
             return c
 
-        # Type-checking fails here because we can't express the `self` partial-application with a Protocol
-        # and we can't express the optional `memo` parameter without a Protocol
-        return inner  # type: ignore
+        return cast(_CopyFunc[S_co], inner)
 
     @memo
-    def copy(self, _memo):
+    def copy(self, _memo: dict[int, Any]) -> SimStatePlugin:
         """
         Should return a copy of the plugin without any state attached. Should check the memo first, and add itself to
         memo if it ends up making a new copy.
@@ -131,13 +125,13 @@ class SimStatePlugin:
         """
         raise NotImplementedError(f"merge() not implement for {self.__class__.__name__}")
 
-    def widen(self, others):  # pylint:disable=unused-argument
+    def widen(self, others: Iterable[SimStatePlugin]) -> bool:  # pylint:disable=unused-argument
         """
         The widening operation for plugins. Widening is a special kind of merging that produces a more general state
         from several more specific states. It is used only during intensive static analysis. The same behavior
         regarding copying and mutation from ``merge`` should be followed.
 
-        :param others: the other state plugin
+        :param others: the other state plugins to widen with
 
         :returns: True if the state plugin is actually widened.
         :rtype: bool
@@ -145,7 +139,7 @@ class SimStatePlugin:
         raise NotImplementedError(f"widen() not implemented for {self.__class__.__name__}")
 
     @classmethod
-    def register_default(cls, name, xtr=None):
+    def register_default(cls, name: str, xtr: type[SimStatePlugin] | str | None = None) -> None:
         if cls is SimStatePlugin:
             if once("simstateplugin_register_default deprecation"):
                 l.critical(
@@ -153,9 +147,13 @@ class SimStatePlugin:
                     "please use SimState.register_default(name)"
                 )
 
-            from angr.sim_state import SimState
+            if xtr is None or isinstance(xtr, str):
+                raise TypeError(
+                    "When calling SimStatePlugin.register_default, "
+                    "the plugin class must be provided as the second argument."
+                )
 
-            SimState.register_default(name, xtr)
+            angr.sim_state.SimState.register_default(name, xtr)
 
         else:
             if xtr is cls:
@@ -165,12 +163,15 @@ class SimStatePlugin:
                         "please use cls.register_default(name)"
                     )
                 xtr = None
+            elif not isinstance(xtr, str) and xtr is not None:
+                raise TypeError(
+                    "When calling a plugin subclass's register_default, "
+                    "the second argument must be completely omitted or a preset string."
+                )
 
-            from angr.sim_state import SimState
+            angr.sim_state.SimState.register_default(name, cls, xtr if xtr is not None else "default")
 
-            SimState.register_default(name, cls, xtr if xtr is not None else "default")
-
-    def init_state(self):
+    def init_state(self) -> None:
         """
         Use this function to perform any initialization on the state at plugin-add time
         """

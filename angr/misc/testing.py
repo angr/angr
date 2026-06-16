@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import sys
 
 TESTER_MODULE_NAMES = ["unittest", "pytest", "_pytest", "nose", "nose2"]

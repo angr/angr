@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from angr.errors import SimSegfaultException
 from angr import sim_options as o
+from angr.errors import SimSegfaultException
+
 from .paged_memory_mixin import PagedMemoryMixin
 
 

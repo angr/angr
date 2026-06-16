@@ -1,6 +1,7 @@
 from __future__ import annotations
-from angr.ailment.statement import Assignment
+
 from angr.ailment.expression import BinaryOp, Const, Tmp
+from angr.ailment.statement import Assignment
 
 from .base import PeepholeOptimizationStmtBase
 from .utils import get_expr_shift_left_amount
@@ -68,11 +69,18 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 and (shiftleft_amount := get_expr_shift_left_amount(stmt_1.src)) is not None
                 and shiftleft_amount + stmt2_op1.value == stmt.dst.bits
             ):
-                rol_amount = Const(None, None, shiftleft_amount, 8, **stmt1_op1.tags)
+                rol_amount = Const(self.manager.next_atom(), shiftleft_amount, 8, **stmt1_op1.tags)
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
-                    BinaryOp(None, "Rol", [stmt1_op0, rol_amount], False, bits=stmt.dst.bits, **stmt_1.src.tags),
+                    BinaryOp(
+                        self.manager.next_atom(),
+                        "Rol",
+                        [stmt1_op0, rol_amount],
+                        False,
+                        bits=stmt.dst.bits,
+                        **stmt_1.src.tags,
+                    ),
                     **stmt.tags,
                 )
             if (
@@ -84,7 +92,14 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
-                    BinaryOp(None, "Ror", [stmt1_op0, stmt1_op1], False, bits=stmt.dst.bits, **stmt_1.src.tags),
+                    BinaryOp(
+                        self.manager.next_atom(),
+                        "Ror",
+                        [stmt1_op0, stmt1_op1],
+                        False,
+                        bits=stmt.dst.bits,
+                        **stmt_1.src.tags,
+                    ),
                     **stmt.tags,
                 )
         elif (
@@ -106,11 +121,18 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 and (op0_shiftamount := get_expr_shift_left_amount(op0)) is not None
                 and op0_shiftamount + op1_v == stmt.dst.bits
             ):
-                shiftamount = Const(None, None, op0_shiftamount, 8, **op0.operands[1].tags)
+                shiftamount = Const(self.manager.next_atom(), op0_shiftamount, 8, **op0.operands[1].tags)
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
-                    BinaryOp(None, "Rol", [op0.operands[0], shiftamount], False, bits=stmt.dst.bits, **op0.tags),
+                    BinaryOp(
+                        self.manager.next_atom(),
+                        "Rol",
+                        [op0.operands[0], shiftamount],
+                        False,
+                        bits=stmt.dst.bits,
+                        **op0.tags,
+                    ),
                     **stmt.tags,
                 )
             if (
@@ -123,7 +145,14 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
-                    BinaryOp(None, "Ror", [op0.operands[0], shiftamount], False, bits=stmt.dst.bits, **op0.tags),
+                    BinaryOp(
+                        self.manager.next_atom(),
+                        "Ror",
+                        [op0.operands[0], shiftamount],
+                        False,
+                        bits=stmt.dst.bits,
+                        **op0.tags,
+                    ),
                     **stmt.tags,
                 )
 

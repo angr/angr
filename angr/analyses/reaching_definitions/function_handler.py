@@ -1,29 +1,30 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast, Literal
-from collections.abc import Iterable, Callable
-from dataclasses import dataclass, field
+
 import logging
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
 from functools import wraps
+from typing import TYPE_CHECKING, Literal, cast
+
+import claripy
 from cle import Symbol
 from cle.backends import ELF
-import claripy
 
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.sim_type import SimTypeBottom
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, SpOffset
-from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.calling_conventions import SimCC
-from angr.sim_type import SimTypeFunction
-from angr.knowledge_plugins.key_definitions.definition import Definition
-from angr.knowledge_plugins.functions import Function
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, SpOffset
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.tag import Tag
+from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
-    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis, ObservationPoint
+    from angr.analyses.reaching_definitions.reaching_definitions import ObservationPoint, ReachingDefinitionsAnalysis
+    from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 
 l = logging.getLogger(__name__)
 
@@ -235,9 +236,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
         d = dict(inner.__dict__)
         annotations = type(self).__annotations__  # pylint: disable=no-member
         for k, v in d.items():
-            assert (
-                v is not None or k not in annotations
-            ), f"Failed to unwrap field {k} - this function is more complicated than you're ready for!"
+            assert v is not None or k not in annotations, (
+                f"Failed to unwrap field {k} - this function is more complicated than you're ready for!"
+            )
             assert v is not None, "Members of FunctionCallDataUnwrapped may not be None"
         super().__init__(**d)
 
