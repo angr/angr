@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use clarirs_core::algorithms::{canonicalize, structurally_match};
-use pyo3::types::{PyFrozenSet, PySet};
+use pyo3::types::{PyFrozenSet, PySet, PyType};
 
 use crate::prelude::*;
 
@@ -108,14 +108,15 @@ impl Base {
     }
 
     #[getter]
-    pub fn annotations(&self) -> PyResult<Vec<PyAnnotation>> {
-        Ok(self
-            .inner
+    pub fn annotations<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Result<Vec<Bound<'py, PyAnnotation>>, ClaripyError> {
+        self.inner
             .annotations()
             .iter()
-            .cloned()
-            .map(PyAnnotation::from)
-            .collect())
+            .map(|annotation| PyAnnotation::from_annotation(py, annotation))
+            .collect()
     }
 
     pub fn hash(&self) -> u64 {
@@ -188,60 +189,66 @@ impl Base {
 
     pub fn has_annotation_type(
         &self,
-        annotation_type: PyAnnotationType,
+        annotation_type: Bound<'_, PyType>,
     ) -> Result<bool, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .iter()
-            .any(|annotation| annotation_type.matches(annotation.0.type_())))
+        let py = annotation_type.py();
+        for annotation in self.inner.annotations() {
+            if PyAnnotation::from_annotation(py, annotation)?.is_instance(&annotation_type)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
-    pub fn get_annotations_by_type(
+    pub fn get_annotations_by_type<'py>(
         &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Vec<PyAnnotation>, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .into_iter()
-            .filter(|annotation| annotation_type.matches(annotation.0.type_()))
-            .collect())
+        annotation_type: Bound<'py, PyType>,
+    ) -> Result<Vec<Bound<'py, PyAnnotation>>, ClaripyError> {
+        let py = annotation_type.py();
+        let mut matching = Vec::new();
+        for annotation in self.inner.annotations() {
+            let annotation = PyAnnotation::from_annotation(py, annotation)?;
+            if annotation.is_instance(&annotation_type)? {
+                matching.push(annotation);
+            }
+        }
+        Ok(matching)
     }
 
-    pub fn get_annotation(
+    pub fn get_annotation<'py>(
         &self,
-        annotation_type: PyAnnotationType,
-    ) -> Result<Option<PyAnnotation>, ClaripyError> {
-        Ok(self
-            .annotations()?
-            .into_iter()
-            .find(|annotation| annotation_type.matches(annotation.0.type_())))
+        annotation_type: Bound<'py, PyType>,
+    ) -> Result<Option<Bound<'py, PyAnnotation>>, ClaripyError> {
+        let py = annotation_type.py();
+        for annotation in self.inner.annotations() {
+            let annotation = PyAnnotation::from_annotation(py, annotation)?;
+            if annotation.is_instance(&annotation_type)? {
+                return Ok(Some(annotation));
+            }
+        }
+        Ok(None)
     }
 
     pub fn append_annotation<'py>(
         &self,
-        py: Python<'py>,
-        annotation: PyAnnotation,
+        annotation: Bound<'py, PyAnnotation>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        let new_annotations = self
-            .inner
-            .annotations()
-            .iter()
-            .cloned()
-            .chain([annotation.0.clone()]);
+        let py = annotation.py();
+        let annotation = PyAnnotation::to_annotation(&annotation)?;
+        let new_annotations = self.inner.annotations().iter().cloned().chain([annotation]);
         Base::from_ast(py, GLOBAL_CONTEXT.annotate(&self.inner, new_annotations)?)
     }
 
     pub fn append_annotations<'py>(
         &self,
         py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
+        annotations: Vec<Bound<'py, PyAnnotation>>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        let new_annotations = self
-            .inner
-            .annotations()
+        let annotations = annotations
             .iter()
-            .cloned()
-            .chain(annotations.into_iter().map(|a| a.0));
+            .map(PyAnnotation::to_annotation)
+            .collect::<Result<Vec<_>, _>>()?;
+        let new_annotations = self.inner.annotations().iter().cloned().chain(annotations);
         Base::from_ast(py, GLOBAL_CONTEXT.annotate(&self.inner, new_annotations)?)
     }
 
@@ -249,21 +256,32 @@ impl Base {
     pub fn annotate<'py>(
         &self,
         py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
-        remove_annotations: Option<Vec<PyAnnotation>>,
+        annotations: Vec<Bound<'py, PyAnnotation>>,
+        remove_annotations: Option<Vec<Bound<'py, PyAnnotation>>>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        let new_annotations = self
-            .annotations()?
+        let annotations = annotations
             .iter()
-            .filter(|a| {
-                if let Some(remove_annotations) = &remove_annotations {
-                    !remove_annotations.iter().any(|ra| ra.0 == a.0)
-                } else {
-                    true
-                }
+            .map(PyAnnotation::to_annotation)
+            .collect::<Result<Vec<_>, _>>()?;
+        let remove_annotations = remove_annotations
+            .as_ref()
+            .map(|annotations| {
+                annotations
+                    .iter()
+                    .map(PyAnnotation::to_annotation)
+                    .collect::<Result<Vec<_>, _>>()
             })
-            .map(|a| a.0.clone())
-            .chain(annotations.into_iter().map(|a| a.0))
+            .transpose()?;
+        let new_annotations = self
+            .inner
+            .annotations()
+            .iter()
+            .filter(|a| match &remove_annotations {
+                Some(remove_annotations) => !remove_annotations.iter().any(|ra| ra == *a),
+                None => true,
+            })
+            .cloned()
+            .chain(annotations)
             .collect();
         let inner = self
             .inner
@@ -275,38 +293,43 @@ impl Base {
     pub fn insert_annotations<'py>(
         &self,
         py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
+        annotations: Vec<Bound<'py, PyAnnotation>>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        Base::from_ast(
-            py,
-            GLOBAL_CONTEXT.annotate(&self.inner, annotations.into_iter().map(|a| a.0))?,
-        )
+        let annotations = annotations
+            .iter()
+            .map(PyAnnotation::to_annotation)
+            .collect::<Result<Vec<_>, _>>()?;
+        Base::from_ast(py, GLOBAL_CONTEXT.annotate(&self.inner, annotations)?)
     }
 
     /// This actually just removes all annotations and adds the new ones.
     pub fn replace_annotations<'py>(
         &self,
         py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
+        annotations: Vec<Bound<'py, PyAnnotation>>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
         let inner = self.inner.context().make_ast_annotated(
             self.inner.op().clone(),
-            annotations.into_iter().map(|a| a.0).collect(),
+            annotations
+                .iter()
+                .map(PyAnnotation::to_annotation)
+                .collect::<Result<_, _>>()?,
         )?;
         Base::from_ast(py, inner)
     }
 
     pub fn remove_annotation<'py>(
         &self,
-        py: Python<'py>,
-        annotation: PyAnnotation,
+        annotation: Bound<'py, PyAnnotation>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
+        let py = annotation.py();
+        let annotation = PyAnnotation::to_annotation(&annotation)?;
         let inner = self.inner.context().make_ast_annotated(
             self.inner.op().clone(),
             self.inner
                 .annotations()
                 .iter()
-                .filter(|a| **a != annotation.0)
+                .filter(|a| **a != annotation)
                 .cloned()
                 .collect(),
         )?;
@@ -316,9 +339,12 @@ impl Base {
     pub fn remove_annotations<'py>(
         &self,
         py: Python<'py>,
-        annotations: Vec<PyAnnotation>,
+        annotations: Vec<Bound<'py, PyAnnotation>>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        let annotations_set: BTreeSet<_> = annotations.into_iter().map(|a| a.0).collect();
+        let annotations_set: BTreeSet<_> = annotations
+            .iter()
+            .map(PyAnnotation::to_annotation)
+            .collect::<Result<_, _>>()?;
         let inner = self.inner.context().make_ast_annotated(
             self.inner.op().clone(),
             self.inner
@@ -344,18 +370,19 @@ impl Base {
 
     pub fn clear_annotation_type<'py>(
         &self,
-        py: Python<'py>,
-        annotation_type: PyAnnotationType,
+        annotation_type: Bound<'py, PyType>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        let inner = self.inner.context().make_ast_annotated(
-            self.inner.op().clone(),
-            self.inner
-                .annotations()
-                .iter()
-                .filter(|a| !annotation_type.matches(a.type_()))
-                .cloned()
-                .collect(),
-        )?;
+        let py = annotation_type.py();
+        let mut kept = BTreeSet::new();
+        for annotation in self.inner.annotations() {
+            if !PyAnnotation::from_annotation(py, annotation)?.is_instance(&annotation_type)? {
+                kept.insert(annotation.clone());
+            }
+        }
+        let inner = self
+            .inner
+            .context()
+            .make_ast_annotated(self.inner.op().clone(), kept)?;
         Base::from_ast(py, inner)
     }
 }

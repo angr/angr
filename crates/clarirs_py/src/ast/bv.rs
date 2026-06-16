@@ -69,7 +69,7 @@ impl BV {
         py: Python<'py>,
         op: &str,
         args: Vec<Py<PyAny>>,
-        annotations: Option<Vec<PyAnnotation>>,
+        annotations: Option<Vec<Bound<'py, PyAnnotation>>>,
     ) -> Result<Py<BV>, ClaripyError> {
         let inner = match op {
             "BVS" => GLOBAL_CONTEXT.bvs(args[0].extract::<String>(py)?, args[1].extract(py)?)?,
@@ -186,7 +186,11 @@ impl BV {
         };
 
         let inner_with_annotations = if let Some(annots) = annotations {
-            GLOBAL_CONTEXT.annotate(&inner, annots.into_iter().map(|a| a.0))?
+            let annots = annots
+                .iter()
+                .map(PyAnnotation::to_annotation)
+                .collect::<Result<Vec<_>, _>>()?;
+            GLOBAL_CONTEXT.annotate(&inner, annots)?
         } else {
             inner
         };
@@ -1016,20 +1020,23 @@ impl BV {
     ) -> Result<
         (
             Bound<'py, PyAny>,
-            (String, Vec<Bound<'py, PyAny>>, Vec<PyAnnotation>),
+            (
+                String,
+                Vec<Bound<'py, PyAny>>,
+                Vec<Bound<'py, PyAnnotation>>,
+            ),
         ),
         ClaripyError,
     > {
         let class = py.get_type::<BV>();
         let op = self.inner.to_opstring();
         let args = self.inner.extract_py_args(py)?;
-        let annotations: Vec<PyAnnotation> = self
+        let annotations: Vec<Bound<'py, PyAnnotation>> = self
             .inner
             .annotations()
             .iter()
-            .cloned()
-            .map(PyAnnotation::from)
-            .collect();
+            .map(|annotation| PyAnnotation::from_annotation(py, annotation))
+            .collect::<Result<_, _>>()?;
         Ok((class.into_any(), (op, args, annotations)))
     }
 }

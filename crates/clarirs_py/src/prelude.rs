@@ -1,4 +1,4 @@
-pub use crate::annotation::{PyAnnotation, PyAnnotationType};
+pub use crate::annotation::PyAnnotation;
 pub use crate::ast;
 pub use crate::ast::{
     GLOBAL_CONTEXT,
