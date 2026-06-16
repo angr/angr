@@ -23,7 +23,7 @@ class CustomRelocatableAnnotation(claripy.Annotation):
 
 class TestAnnotationClasses(unittest.TestCase):
     def test_base_class_flags(self):
-        self.assertTrue(claripy.Annotation.relocatable)
+        self.assertFalse(claripy.Annotation.relocatable)
         self.assertTrue(claripy.Annotation.eliminatable)
 
     def test_builtin_subclasses_are_annotations(self):
@@ -124,7 +124,7 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         self.assertIsInstance(anno, CustomAnnotation)
         self.assertEqual(anno.payload, "payload")
         # Defaults inherited from the base class.
-        self.assertTrue(anno.relocatable)
+        self.assertFalse(anno.relocatable)
         self.assertTrue(anno.eliminatable)
 
     def test_user_annotation_overridden_flags(self):

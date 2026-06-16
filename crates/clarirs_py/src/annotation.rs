@@ -23,7 +23,7 @@ impl PyAnnotation {
 
     #[classattr]
     fn relocatable() -> bool {
-        true
+        false
     }
 
     #[classattr]
@@ -82,7 +82,7 @@ impl PyAnnotation {
             let relocatable = slf
                 .getattr("relocatable")
                 .and_then(|v| v.extract::<bool>())
-                .unwrap_or(true);
+                .unwrap_or(false);
             let module_name = slf.getattr("__module__")?.extract::<String>()?;
             let class_name = slf
                 .getattr("__class__")?
