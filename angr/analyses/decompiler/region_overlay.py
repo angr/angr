@@ -1,7 +1,9 @@
+# pylint:disable=protected-access
 from __future__ import annotations
 
 import logging
 import os
+from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
@@ -141,7 +143,7 @@ class OverlayManager:
             self._touch(dst)
         self._bump()
 
-    def _graph_add_edge(self, src, dst, **data) -> None:
+    def graph_add_edge(self, src, dst, **data) -> None:
         existed = self.graph.has_edge(src, dst)
         old_data = dict(self.graph[src][dst]) if existed else None
         self.graph.add_edge(src, dst, **data)
@@ -162,7 +164,7 @@ class OverlayManager:
         self._touch(dst)
         self._bump()
 
-    def _graph_remove_edge(self, src, dst) -> None:
+    def graph_remove_edge(self, src, dst) -> None:
         old_data = dict(self.graph[src][dst])
         self.graph.remove_edge(src, dst)
         self._record(lambda: self.graph.add_edge(src, dst, **old_data))
@@ -250,7 +252,7 @@ class RegionOverlay:
         # view-level edge pairs injected into the with-successors view only (successor absorption)
         self._extra_full_edges: set[tuple[Any, Any]] = set()
         # scratch edge marks (e.g., Phoenix's cyclic_refinement_outgoing), scoped to this overlay
-        self.edge_marks: set[tuple[Any, Any]] = set()
+        self.edge_marks: defaultdict[str, set[tuple[Any, Any]]] = defaultdict(set)
         # the node this overlay was finalized into, if any
         self.replacement = None
 
@@ -747,10 +749,10 @@ class RegionOverlay:
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
         for src, data in external_in_edges:
-            self._mgr._graph_add_edge(src, absorbed_into, **data)
+            self._mgr.graph_add_edge(src, absorbed_into, **data)
         hidden_added = []
         for dst, data, hide in rewire_out_edges:
-            self._mgr._graph_add_edge(absorbed_into, dst, **data)
+            self._mgr.graph_add_edge(absorbed_into, dst, **data)
             if hide and (absorbed_into, dst) not in self._hidden:
                 self._hidden.add((absorbed_into, dst))
                 hidden_added.append((absorbed_into, dst))
@@ -778,7 +780,7 @@ class RegionOverlay:
                     self._mgr._touch(rep)
             self._invalidate()
 
-    def _underlying_edge_pairs(self, src, dst) -> list[tuple[Any, Any]]:
+    def underlying_edge_pairs(self, src, dst) -> list[tuple[Any, Any]]:
         graph = self._mgr.graph
         under_src = self._underlying(src)
         under_dst = self._underlying(dst)
@@ -805,7 +807,7 @@ class RegionOverlay:
             self.add_node(src)
         if dst_ not in self._mgr.graph:
             self.add_node(dst_)
-        self._mgr._graph_add_edge(src, dst_, **data)
+        self._mgr.graph_add_edge(src, dst_, **data)
         if (src, dst_) in self._hidden:
             self._hidden.discard((src, dst_))
             self._mgr._record(lambda: self._hidden.add((src, dst_)))
@@ -816,8 +818,8 @@ class RegionOverlay:
         Remove an edge from the shared graph for real (e.g., when the edge has been virtualized into a goto).
         Overlay endpoints remove all underlying edges between the two node sets.
         """
-        for u, v in self._underlying_edge_pairs(src, dst):
-            self._mgr._graph_remove_edge(u, v)
+        for u, v in self.underlying_edge_pairs(src, dst):
+            self._mgr.graph_remove_edge(u, v)
         self._invalidate()
 
     def mark_edge(self, src, dst, **attrs) -> None:
@@ -825,12 +827,14 @@ class RegionOverlay:
         Mark a view-level edge (e.g. cyclic_refinement_outgoing) so RegionOverlayGraph hides it by default.
         Marks live in overlay state, never reach the shared graph, and are remapped/cleared with the region.
         """
-        if (src, dst) not in self.edge_marks:
-            self.edge_marks.add((src, dst))
-            self._mgr._record(lambda: self.edge_marks.discard((src, dst)))
-            self._mgr._touch(src)
-            self._mgr._touch(dst)
-            self._invalidate()
+        for attr, value in attrs.items():
+            assert value is True, "only boolean marks are supported"
+            if (src, dst) not in self.edge_marks[attr]:
+                self.edge_marks[attr].add((src, dst))
+                self._mgr._record(lambda k=attr: self.edge_marks[k].discard((src, dst)))
+                self._mgr._touch(src)
+                self._mgr._touch(dst)
+                self._invalidate()
 
     def absorb_successor_into(self, succ, new_node) -> None:
         """
@@ -850,11 +854,11 @@ class RegionOverlay:
                 self._mgr._touch(dst)
         self.hide_edge_to_successor(succ)
 
-    def drop_edge_marks_from(self, node, key: str = "cyclic_refinement_outgoing") -> None:
+    def drop_edge_marks_from(self, node, key) -> None:
         """Clear marks on all out-edges of a node (the new_node after a replace), undoably."""
-        removed = [(u, v) for (u, v) in self.edge_marks if u is node]
+        removed = [(u, v) for (u, v) in self.edge_marks[key] if u is node]
         if removed:
-            self.edge_marks.difference_update(removed)
+            self.edge_marks[key].difference_update(removed)
             self._mgr._record(lambda: self.edge_marks.update(removed))
             self._mgr._touch(node)
             for _, v in removed:
@@ -878,7 +882,7 @@ class RegionOverlay:
         Remove an edge from this overlay's views only. Enclosing regions still see the underlying edge(s).
         """
         added = []
-        for u, v in self._underlying_edge_pairs(src, dst):
+        for u, v in self.underlying_edge_pairs(src, dst):
             if (u, v) not in self._hidden:
                 self._hidden.add((u, v))
                 added.append((u, v))
@@ -924,19 +928,19 @@ class RegionOverlay:
 
         for src, data in in_edges:
             if src not in old_nodes:
-                self._mgr._graph_add_edge(src, new_node, **data)
+                self._mgr.graph_add_edge(src, new_node, **data)
             elif src is old_node_1 and self_loop:
-                self._mgr._graph_add_edge(new_node, new_node, **data)
+                self._mgr.graph_add_edge(new_node, new_node, **data)
         for src, data in in_edges_1:
             if src not in old_nodes and src not in self._under:
                 # entry edge from an enclosing region (e.g., abnormal loop entry): keep it attached
-                self._mgr._graph_add_edge(src, new_node, **data)
+                self._mgr.graph_add_edge(src, new_node, **data)
             # in-edges of old_node_1 from inside the region are dropped, matching StructurerBase.replace_nodes
         for src, dst, data in out_edges:
             if dst not in old_nodes:
-                self._mgr._graph_add_edge(new_node, dst, **data)
+                self._mgr.graph_add_edge(new_node, dst, **data)
             elif src is old_node_1 and dst is old_node_0 and self_loop:
-                self._mgr._graph_add_edge(new_node, new_node, **data)
+                self._mgr.graph_add_edge(new_node, new_node, **data)
 
         self._remap_bookkeeping(old_nodes, new_node)
 
@@ -950,7 +954,7 @@ class RegionOverlay:
         """Remap hidden edges and edge marks that reference replaced nodes, here and in all enclosing overlays."""
         anc: RegionOverlay | None = self
         while anc is not None:
-            for attr in ("_hidden", "_hidden_full", "_extra_full_edges", "edge_marks"):
+            for attr in ("_hidden", "_hidden_full", "_extra_full_edges"):
                 pairs: set[tuple[Any, Any]] = getattr(anc, attr)
                 stale = [(u, v) for u, v in pairs if u in old_nodes or v in old_nodes]
                 if stale:
@@ -960,18 +964,34 @@ class RegionOverlay:
                     pairs.difference_update(stale)
                     pairs.update(remapped)
 
-                    def inverse(pairs=pairs, stale=stale, remapped=remapped):
+                    def undo_0(pairs=pairs, stale=stale, remapped=remapped):  # pylint:disable=dangerous-default-value
                         pairs.difference_update(remapped)
                         pairs.update(stale)
 
-                    self._mgr._record(inverse)
+                    self._mgr._record(undo_0)
+
+            for key, marks in self.edge_marks.items():
+                stale = [(u, v) for u, v in marks if u in old_nodes or v in old_nodes]
+                if stale:
+                    remapped = [
+                        (new_node if u in old_nodes else u, new_node if v in old_nodes else v) for u, v in stale
+                    ]
+                    marks.difference_update(stale)
+                    marks.update(remapped)
+
+                    def undo_1(k=key, stale=stale, remapped=remapped):
+                        self.edge_marks[k].difference_update(remapped)
+                        self.edge_marks[k].update(stale)
+
+                    self._mgr._record(undo_1)
+
             anc = anc.parent
 
     #
     # Region lifecycle
     #
 
-    def snapshot_successors(self) -> dict:
+    def snapshot_successors(self) -> set:
         """
         Capture this region's structural successors and how many member edges reach each, taken before the region
         is structured. finalize() uses it to re-establish the region-to-successor edges that structuring removes
@@ -979,21 +999,21 @@ class RegionOverlay:
         """
         return set(self.successor_nodes())
 
-    def _resolve_entry(self, node):
+    @staticmethod
+    def _resolve_entry(node):
         while isinstance(node, RegionOverlay):
             node = node.head
         return node
 
-    def finalize(self, result_node=None, succ_snapshot=None, virtualized_edges=None):
+    def finalize(self, result_node=None, succ_snapshot=None):
         """
         Collapse this fully-structured region into its parent: the region must consist of a single member node
         (the structuring result), which takes the region's place among the parent's members. Returns that node.
 
-        ``succ_snapshot`` (from snapshot_successors() before structuring) and ``virtualized_edges`` are used to
-        re-establish the edges from result_node to the region's successors: structuring may have removed the live
-        control-flow edges (refining them into breaks/gotos), but the structured region still flows to those
-        successors and enclosing regions must see that. A successor whose every member edge was virtualized is a
-        pure goto target and is not reconnected.
+        ``succ_snapshot`` (from snapshot_successors() before structuring) is used to re-establish the edges from
+        result_node to the region's successors: structuring may have removed the live control-flow edges (refining them
+        into breaks/gotos), but the structured region still flows to those successors and enclosing regions must see
+        that. A successor whose every member edge was virtualized is a pure goto target and is not reconnected.
         """
         parent = self.parent
         assert parent is not None, "cannot finalize the root overlay"
@@ -1007,7 +1027,7 @@ class RegionOverlay:
         # region-internal edges never escape to enclosing regions; a leftover self-loop on the result node (e.g.
         # a structured-away back edge) must not surface as a parent-level edge
         if self._mgr.graph.has_edge(result_node, result_node):
-            self._mgr._graph_remove_edge(result_node, result_node)
+            self._mgr.graph_remove_edge(result_node, result_node)
 
         # re-establish the region-to-successor edges (see docstring). forward exits are reconnected; the one
         # exception is the immediate enclosing loop head: an edge to it is this region's continue (back) edge,
@@ -1026,7 +1046,7 @@ class RegionOverlay:
                     and s_entry in graph
                     and not graph.has_edge(result_node, s_entry)
                 ):
-                    self._mgr._graph_add_edge(result_node, s_entry)
+                    self._mgr.graph_add_edge(result_node, s_entry)
 
         self._members.discard(result_node)
         self._under.discard(result_node)
@@ -1042,7 +1062,7 @@ class RegionOverlay:
         self._hidden = set()
         self._hidden_full = set()
         self._extra_full_edges = set()
-        self.edge_marks = set()
+        self.edge_marks = defaultdict(set)
         if parent.head is self:
             parent.head = result_node
 
@@ -1066,7 +1086,7 @@ class RegionOverlay:
         self._invalidate()
         return result_node
 
-    def collapse_to(self, result_node, succ_snapshot=None, virtualized_edges=None):
+    def collapse_to(self, result_node):
         """
         Collapse this region into its parent by replacing all of its member nodes with a single external result
         node (the structuring result). Used by structurers that compute their result without destructively
@@ -1074,8 +1094,7 @@ class RegionOverlay:
         crossing in/out edges are rewired onto ``result_node`` and the members are removed. Returns result_node.
 
         This is the non-self-collapsing counterpart of finalize(); the legacy GraphRegion path called
-        replace_region() for the same purpose. ``succ_snapshot``/``virtualized_edges`` are accepted for a uniform
-        call site but are unused: the crossing edges are read directly from the (unmutated) shared graph.
+        replace_region() for the same purpose.
         """
         parent = self.parent
         assert parent is not None, "cannot collapse the root overlay"
@@ -1113,10 +1132,10 @@ class RegionOverlay:
         parent._on_node_added(result_node)
         for src, data in in_edges:
             if src in graph and not graph.has_edge(src, result_node):
-                self._mgr._graph_add_edge(src, result_node, **data)
+                self._mgr.graph_add_edge(src, result_node, **data)
         for dst, data in out_edges:
             if dst in graph and not graph.has_edge(result_node, dst):
-                self._mgr._graph_add_edge(result_node, dst, **data)
+                self._mgr.graph_add_edge(result_node, dst, **data)
 
         # reparent: drop this overlay from its parent, leaving result_node in its place
         parent._members.discard(self)
@@ -1129,7 +1148,7 @@ class RegionOverlay:
         self._hidden = set()
         self._hidden_full = set()
         self._extra_full_edges = set()
-        self.edge_marks = set()
+        self.edge_marks = defaultdict(set)
         if parent.head is self:
             parent.head = result_node
 
@@ -1363,7 +1382,7 @@ class RegionOverlayGraph(networkx.DiGraph):
         return ns
 
     def _pair_visible(self, src, dst) -> bool:
-        if not self.include_marked and (src, dst) in self.overlay.edge_marks:
+        if not self.include_marked and any((src, dst) in marks for marks in self.overlay.edge_marks.values()):
             return False
         if (src, dst) in self.blacklisted_edges:
             return False
@@ -1435,8 +1454,10 @@ class RegionOverlayGraph(networkx.DiGraph):
     # use .full_view / .member_view for those)
     #
 
-    def edge_marked(self, u, v) -> bool:
-        return (u, v) in self.overlay.edge_marks
+    def edge_marked(self, u, v, mark_name: str | None = None) -> bool:
+        if mark_name is not None:
+            return (u, v) in self.overlay.edge_marks.get(mark_name, set())
+        return any((u, v) in marks for marks in self.overlay.edge_marks.values())
 
     def successors(self, n, fullgraph: bool | None = None, all_edges: bool | None = None):
         g = self._variant(fullgraph, all_edges)

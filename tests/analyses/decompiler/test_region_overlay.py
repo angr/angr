@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -9,6 +9,7 @@ import unittest
 import networkx
 
 from angr.analyses.decompiler.region_overlay import OverlayManager, RegionOverlay
+from angr.utils.graph import GraphUtils, dfs_back_edges
 
 
 class Node:
@@ -415,8 +416,6 @@ class TestRegionOverlayGraph(unittest.TestCase):
         rog = sub.view_graph()
         full = sub.view_graph(full=True)
 
-        from angr.utils.graph import GraphUtils, dfs_back_edges
-
         assert networkx.is_directed_acyclic_graph(rog)
         assert networkx.descendants(rog, n[2]) == {n[3], n[4], n[5]}
         assert networkx.has_path(rog, n[2], n[5])
@@ -450,8 +449,6 @@ class TestRegionOverlayGraph(unittest.TestCase):
         loop = mgr.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
         rog = loop.view_graph()
         assert not networkx.is_directed_acyclic_graph(rog)
-        from angr.utils.graph import dfs_back_edges
-
         assert list(dfs_back_edges(rog, nodes[2]))
 
     def test_marks_filtering(self):
@@ -459,13 +456,15 @@ class TestRegionOverlayGraph(unittest.TestCase):
         mgr = OverlayManager(g)
         mgr.root.head = n[1]
         sub = mgr.root.create_subregion(n[2], [n[2], n[3], n[4], n[5]], cyclic=False)
-        sub.edge_marks.add((n[3], n[5]))
+        sub.edge_marks["test_mark"].add((n[3], n[5]))
 
         rog = sub.view_graph()
         assert not rog.has_edge(n[3], n[5])
         assert (n[3], n[5]) not in set(rog.edges)
         assert rog.out_degree[n[3]] == 0
         assert rog.edge_marked(n[3], n[5])
+        assert rog.edge_marked(n[3], n[5], "test_mark")
+        assert not rog.edge_marked(n[3], n[5], "other_mark")
         # all_edges variants include the marked edge
         assert rog.has_edge(n[3], n[5], all_edges=True)
         assert rog.with_all_edges().has_edge(n[3], n[5])

@@ -136,7 +136,7 @@ class RegionIdentifier(Analysis):
         self, digraph: networkx.DiGraph[Block], as_copy: bool = False
     ) -> networkx.DiGraph[Block]:
         g = networkx.Graph(digraph)
-        components: list[list[Block]] = list(networkx.connected_components(g))
+        components: list[set[Block]] = list(networkx.connected_components(g))
         if len(components) <= 1:
             return networkx.DiGraph(digraph) if as_copy else digraph
 
@@ -705,16 +705,16 @@ class RegionIdentifier(Analysis):
 
                 if src in region.members:
                     # redirect the underlying loop-exit edges to the condition node
-                    for u, v in region._underlying_edge_pairs(src, succ):
-                        mgr._graph_remove_edge(u, v)
-                        mgr._graph_add_edge(u, cond, **data)
+                    for u, v in region.underlying_edge_pairs(src, succ):
+                        mgr.graph_remove_edge(u, v)
+                        mgr.graph_add_edge(u, cond, **data)
 
         # connect the condition node to the (former) successors in the shared graph
         for succ in successors:
             entry = succ
             while isinstance(entry, RegionOverlay):
                 entry = entry.head
-            mgr._graph_add_edge(cond, entry)
+            mgr.graph_add_edge(cond, entry)
 
         # modify the working graph
         graph.add_edge(region, cond)

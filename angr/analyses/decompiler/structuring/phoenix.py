@@ -305,7 +305,11 @@ class PhoenixStructurer(StructurerBase):
         return matched
 
     def _match_cyclic_while(
-        self, node, head, graph_raw, full_graph_raw
+        self,
+        node,
+        head,
+        graph_raw,  # pylint:disable=unused-argument
+        full_graph_raw,
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
         full_graph = full_graph_raw.filtered()
 
@@ -526,7 +530,11 @@ class PhoenixStructurer(StructurerBase):
         return all(isinstance(stmt, Return) for stmt in last_stmts)
 
     def _match_cyclic_dowhile(
-        self, node, head, graph_raw, full_graph_raw
+        self,
+        node,
+        head,
+        graph_raw,  # pylint:disable=unused-argument
+        full_graph_raw,
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
         full_graph = full_graph_raw.filtered()
 
@@ -1283,7 +1291,6 @@ class PhoenixStructurer(StructurerBase):
             node,
             node_default_addr,
             graph_raw,
-            full_graph_raw,
         )
         fake_node_default = False
         if node_default_addr is not None and node_default is None:
@@ -1512,7 +1519,6 @@ class PhoenixStructurer(StructurerBase):
             node_a,
             node_b_addr,
             graph_raw,
-            full_graph_raw,
         )
 
         if isinstance(better_node_a, SwitchCaseNode) and better_node_a.default_node is None:
@@ -1649,7 +1655,6 @@ class PhoenixStructurer(StructurerBase):
             node,
             None,
             graph_raw,
-            full_graph_raw,
         )
 
         # we don't know what the end address of this switch-case structure is. let's figure it out
@@ -1738,7 +1743,6 @@ class PhoenixStructurer(StructurerBase):
             node,
             None,
             graph_raw,
-            full_graph_raw,
         )
 
         assert node_default is None
@@ -1819,7 +1823,6 @@ class PhoenixStructurer(StructurerBase):
             node,
             default_addr,
             graph_raw,
-            full_graph_raw,
         )
         if node_default is None:
             # there must be a default case
@@ -1894,7 +1897,6 @@ class PhoenixStructurer(StructurerBase):
         node_a: BaseNode,
         node_b_addr: int | None,
         graph_raw: networkx.DiGraph,
-        full_graph_raw: networkx.DiGraph,
     ) -> tuple[OrderedDict, Any, set[Any]]:
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
@@ -3237,7 +3239,7 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_Loop(loop_node: LoopNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if enter_loops:
-                walker._handle_Loop(loop_node, parent=parent, **kwargs)
+                walker._handle_Loop(loop_node, parent=parent, **kwargs)  # pylint:disable=protected-access
 
         walker = SequenceWalker(
             handlers={
@@ -3466,7 +3468,7 @@ class PhoenixStructurer(StructurerBase):
             # the absorbed node is a successor of the region
             region.absorb_successor_into(old_node_1, new_node)
         if drop_refinement_marks:
-            region.drop_edge_marks_from(new_node)
+            region.drop_edge_marks_from(new_node, "cyclic_refinement_outgoing")
         if self._node_order is not None:
             if old_node_1 is not None and old_node_1 in self._node_order:
                 self._node_order[new_node] = min(self._node_order[old_node_0], self._node_order[old_node_1])
