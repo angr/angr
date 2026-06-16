@@ -1076,6 +1076,7 @@ class JumpTableResolver(IndirectJumpResolver):
             # Get the jumping targets
             for r in simgr.found:
                 jt2, jt2_addr, jt2_entrysize, jt2_size = None, None, None, None
+                entries_guessed = False
                 if load_stmt is not None:
                     ret = self._try_resolve_targets_load(
                         r,
@@ -1102,6 +1103,7 @@ class JumpTableResolver(IndirectJumpResolver):
                         jt2_addr,
                         jt2_entrysize,
                         jt2_size,
+                        entries_guessed,
                     ) = ret
                     if sort == "jumptable":
                         ij_type = IndirectJumpType.Jumptable_AddressLoadedFromMemory
@@ -1136,10 +1138,11 @@ class JumpTableResolver(IndirectJumpResolver):
                         all_targets = [t_ for t_ in all_targets if t_ % alignment == 0]
 
                 l.info(
-                    "Jump table at %#x has %d targets: %s",
+                    "Jump table at %#x has %d targets: %s (guessed: %s)",
                     addr,
                     len(all_targets),
                     ", ".join([hex(a) for a in all_targets]),
+                    entries_guessed,
                 )
 
                 # write to the IndirectJump object in CFG
@@ -1154,7 +1157,14 @@ class JumpTableResolver(IndirectJumpResolver):
                             ij.jumptable = True
                         else:
                             ij.jumptable = False
-                        ij.add_jumptable(jumptable_addr, jumptable_size, entry_size, jump_table, is_primary=True)
+                        ij.add_jumptable(
+                            jumptable_addr,
+                            jumptable_size,
+                            entry_size,
+                            jump_table,
+                            is_primary=True,
+                            entries_guessed=entries_guessed,
+                        )
                         ij.resolved_targets = set(jump_table)
                         ij.type = ij_type
                     else:
@@ -1808,11 +1818,16 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 if table_base_addr is not None:
                     addr = table_base_addr
+                    # Stop at the immediate next referenced data address
+                    stop_addr = cfg.kb.xrefs.get_next_xref_addr_by_dst(table_base_addr + 1)
                     # FIXME: May want to support NULL targets for handlers that are not filled in / placeholders
                     # FIXME: Try negative offsets too? (this would be unusual)
                     l.debug("Inspecting table at %#x for plausible targets...", addr)
                     for i in range(self._max_targets):
                         target = cfg._fast_memory_load_pointer(addr, size=load_size)
+                        if stop_addr is not None and addr >= stop_addr:
+                            l.debug("Reached the next referenced data address %#x. Stop scanning.", stop_addr)
+                            break
                         if target is None or not self._is_jumptarget_legal(target):
                             break
                         l.debug("- %#x[%d] -> %#x", table_base_addr, i, target)
@@ -1841,6 +1856,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             None,
                             None,
                             None,
+                            True,
                         )
 
             # We resolved too many targets for this indirect jump. Something might have gone wrong.
@@ -2046,6 +2062,7 @@ class JumpTableResolver(IndirectJumpResolver):
             jt_2nd_baseaddr,
             jt_2nd_entrysize,
             jt_2nd_size,
+            False,
         )
 
     def _try_resolve_targets_ite(self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp):  # pylint:disable=unused-argument

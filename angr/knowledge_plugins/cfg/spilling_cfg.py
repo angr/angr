@@ -911,7 +911,9 @@ class SpillingCFG:
     def remove_edge(self, src: CFGNode, dst: CFGNode) -> None:
         src_block_key = get_block_key(src)
         dst_block_key = get_block_key(dst)
+        self.remove_edge_by_key(src_block_key, dst_block_key)
 
+    def remove_edge_by_key(self, src_block_key: K, dst_block_key: K) -> None:
         # Update call destination cache before removing the edge
         if dst_block_key in self._call_dst_keys:
             edge_data = self._graph.get_edge_data(src_block_key, dst_block_key)
@@ -937,6 +939,9 @@ class SpillingCFG:
     def has_edge(self, src: CFGNode, dst: CFGNode) -> bool:
         src_block_key = get_block_key(src)
         dst_block_key = get_block_key(dst)
+        return self._graph.has_edge(src_block_key, dst_block_key)
+
+    def has_edge_by_key(self, src_block_key: K, dst_block_key: K) -> bool:
         return self._graph.has_edge(src_block_key, dst_block_key)
 
     def get_edge_data(self, src: CFGNode, dst: CFGNode, default=None) -> dict | None:

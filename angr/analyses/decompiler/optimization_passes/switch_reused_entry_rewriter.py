@@ -19,6 +19,13 @@ class SwitchReusedEntryRewriter(OptimizationPass):
     For each switch-case construct (identified by jump tables), rewrite the entry into a goto block when we detect
     situations where an entry node is reused by edges in switch-case constructs that are not the current one. This code
     reuse is usually caused by compiler code deduplication.
+
+    The `max_reused_entries` parameter controls the maximum number of reused entries that can be found in a function
+    before aborting this optimization.
+
+    The `max_entry_reuse_count` parameter controls the maximum number of times an entry can be reused in different jump
+    tables in the same function; exceeding this threshold probably indicates that the jump table recovery is incorrect
+    and thus creating jump tables with too many duplicate entries.
     """
 
     ARCHES = None
@@ -27,10 +34,12 @@ class SwitchReusedEntryRewriter(OptimizationPass):
     NAME = "Rewrite switch-case entry nodes with multiple predecessors into goto statements."
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, max_entry_reuse_count: int = 4, max_reused_entries: int = 6, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.node_idx = count(start=self._scratch.get("node_idx", 0))
+        self.max_entry_reuse_count = max_entry_reuse_count
+        self.max_reused_entries = max_reused_entries
 
         self.analyze()
 
@@ -64,6 +73,25 @@ class SwitchReusedEntryRewriter(OptimizationPass):
 
         if not reused_entries:
             return False, None
+
+        # check if the number of reused entries exceeds the maximum allowed
+        if len(reused_entries) > self.max_reused_entries:
+            _l.debug(
+                "The number of reused entries (%d) exceeds the maximum allowed count of %d. Give up on this function.",
+                len(reused_entries),
+                self.max_reused_entries,
+            )
+            return False, None
+        # check if any entry is reused more than the maximum allowed
+        for entry_node, pred_nodes in reused_entries.items():
+            if len(pred_nodes) > self.max_entry_reuse_count:
+                _l.debug(
+                    "Entry node %s is reused more than the maximum allowed count of %d. Give up on this function.",
+                    entry_node,
+                    self.max_entry_reuse_count,
+                )
+                return False, None
+
         cache = {"reused_entries": reused_entries}
         return True, cache
 

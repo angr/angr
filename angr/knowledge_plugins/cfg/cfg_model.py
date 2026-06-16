@@ -81,7 +81,7 @@ class CFGModel(Serializable):
         self._db_batch_size = db_batch_size
         self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = edge_db_batch_size
-        self.graph = None  # type:ignore
+        self.graph: SpillingCFG = None  # type:ignore
         self._addr_type: CFG_ADDR_TYPES = addr_type
 
         # Necessary settings
