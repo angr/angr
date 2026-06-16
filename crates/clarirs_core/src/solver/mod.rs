@@ -34,6 +34,22 @@ pub trait Solver<'c>: Clone + HasContext<'c> {
     /// Check if the current set of constraints is satisfiable
     fn satisfiable(&mut self) -> Result<bool, ClarirsError>;
 
+    /// Check satisfiability with `extra` constraints temporarily added.
+    /// The default clones the solver and adds the constraints; backends
+    /// override this with cheaper scoped checks (e.g. Z3 assumptions on the
+    /// persistent incremental solver). This is the hot path of symbolic
+    /// execution: every branch feasibility check goes through it.
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        if extra.is_empty() {
+            return self.satisfiable();
+        }
+        let mut solver = self.clone();
+        for constraint in extra {
+            solver.add(constraint)?;
+        }
+        solver.satisfiable()
+    }
+
     /// Evaluate an expression in the current model. The result has the same
     /// sort as the input expression.
     ///

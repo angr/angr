@@ -95,6 +95,13 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         self.exact.satisfiable()
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        if let Ok(false) = self.approximate.satisfiable_with_extra(extra) {
+            return Ok(false);
+        }
+        self.exact.satisfiable_with_extra(extra)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         if !expr.symbolic() {
             return self.approximate.is_true(expr);

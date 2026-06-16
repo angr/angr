@@ -332,6 +332,19 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         self.with_cached_solver(|z3_solver| Ok(z3_solver.check()? == z3::Lbool::True))
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        // Check with the extra constraints as assumptions on the persistent
+        // incremental solver: no clone, no from-scratch re-assertion. This is
+        // angr's hottest solver call (every branch feasibility check).
+        let mut assumptions = Vec::with_capacity(extra.len());
+        for c in extra {
+            assumptions.push(c.simplify_z3()?.to_z3()?);
+        }
+        self.with_cached_solver(|z3_solver| {
+            Ok(z3_solver.check_assumptions(&assumptions)? == z3::Lbool::True)
+        })
+    }
+
     fn eval(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         self.eval_in_model(expr)
     }

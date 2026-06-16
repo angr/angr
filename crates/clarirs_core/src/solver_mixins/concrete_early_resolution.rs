@@ -57,6 +57,17 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         self.inner.satisfiable()
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        // Concretely-false extras decide the result without the solver.
+        if extra
+            .iter()
+            .any(|c| c.concrete() && matches!(c.op(), AstOp::BoolV(false)))
+        {
+            return Ok(false);
+        }
+        self.inner.satisfiable_with_extra(extra)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         // If the expression is concrete, we can determine the result without the solver
         // Assumes the expression is already simplified

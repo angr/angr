@@ -307,6 +307,16 @@ impl PySolver {
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
+        // Fast path: scoped extra-constraint checks reuse the persistent
+        // incremental backend solvers instead of cloning cold copies.
+        if exact.is_none() || !matches!(&self.inner, DynSolver::Hybrid(_)) {
+            let asts: Vec<AstRef<'static>> = extra_constraints
+                .into_iter()
+                .flatten()
+                .map(|c| c.0.get().inner.clone())
+                .collect();
+            return Ok(self.inner.satisfiable_with_extra(&asts)?);
+        }
         self.with_extra_constraints(extra_constraints, exact, |solver| Ok(solver.satisfiable()?))
     }
 

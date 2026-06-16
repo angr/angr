@@ -176,6 +176,74 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
         Ok(true)
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        if extra.is_empty() {
+            return self.satisfiable();
+        }
+
+        let mut vars: BTreeSet<InternedString> = BTreeSet::new();
+        for constraint in extra {
+            if constraint.variables().is_empty() {
+                if constraint.is_false() {
+                    return Ok(false);
+                }
+                continue;
+            }
+            vars.extend(constraint.variables().iter().cloned());
+        }
+
+        let ids = self.child_ids_for_vars(&vars);
+        match ids.len() {
+            0 => {
+                // The extras are independent of all current constraints.
+                let mut solver = self.template.clone();
+                for constraint in extra {
+                    solver.add(constraint)?;
+                }
+                if !solver.satisfiable()? {
+                    return Ok(false);
+                }
+                self.satisfiable()
+            }
+            1 => {
+                // Hot path: the extras only touch one child; that child's
+                // scoped check is incremental, and the other children's plain
+                // checks hit their persistent solvers.
+                let id = ids[0];
+                for (child_id, child) in self.children.iter_mut() {
+                    if *child_id != id && !child.satisfiable()? {
+                        return Ok(false);
+                    }
+                }
+                self.children
+                    .get_mut(&id)
+                    .expect("child id from child_ids_for_vars")
+                    .satisfiable_with_extra(extra)
+            }
+            _ => {
+                // The extras span several children: merge them temporarily.
+                let mut merged = self.template.clone();
+                for &id in &ids {
+                    for constraint in self.children[&id].constraints()? {
+                        merged.add(&constraint)?;
+                    }
+                }
+                for constraint in extra {
+                    merged.add(constraint)?;
+                }
+                if !merged.satisfiable()? {
+                    return Ok(false);
+                }
+                for (child_id, child) in self.children.iter_mut() {
+                    if !ids.contains(child_id) && !child.satisfiable()? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+        }
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.is_true(expr))

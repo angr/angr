@@ -141,6 +141,14 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
         self.inner.satisfiable()
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        let replaced = extra
+            .iter()
+            .map(|c| self.apply_replacements(c))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.inner.satisfiable_with_extra(&replaced)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         let replaced = self.apply_replacements(expr)?;
         self.inner.is_true(&replaced)

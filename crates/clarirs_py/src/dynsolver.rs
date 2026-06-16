@@ -126,6 +126,10 @@ impl Solver<'static> for DynSolver {
         dispatch!(self, satisfiable)
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'static>]) -> Result<bool, ClarirsError> {
+        dispatch!(self, satisfiable_with_extra, extra)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, is_true, expr)
     }

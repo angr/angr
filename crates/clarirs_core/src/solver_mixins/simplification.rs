@@ -55,6 +55,14 @@ impl<'c, S: Solver<'c>> Solver<'c> for SimplificationMixin<'c, S> {
         self.inner.satisfiable()
     }
 
+    fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
+        let simplified = extra
+            .iter()
+            .map(|c| c.simplify())
+            .collect::<Result<Vec<_>, _>>()?;
+        self.inner.satisfiable_with_extra(&simplified)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         self.inner.is_true(&expr.simplify()?)
     }
