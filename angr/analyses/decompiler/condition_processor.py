@@ -809,18 +809,29 @@ class ConditionProcessor:
     #
 
     def _convert_extract(self, hi, lo, expr, tags, memo=None):
-        # ailment does not support Extract. We translate Extract to Convert and shift.
-        if lo == 0:
-            return ailment.Expr.Convert(
+        # ailment does not support Extract. We translate Extract(hi, lo, expr) to a
+        # logical right shift by `lo` (dropping the low bits) followed by a Convert
+        # that truncates to the extracted width.
+        converted = self.convert_claripy_bool_ast(expr, memo=memo)
+        if lo != 0:
+            converted = ailment.Expr.BinaryOp(
                 self.ail_manager.next_atom(),
-                expr.size(),
-                hi + 1,
+                "Shr",
+                (
+                    converted,
+                    ailment.Expr.Const(self.ail_manager.next_atom(), lo, expr.size(), **tags),
+                ),
                 False,
-                self.convert_claripy_bool_ast(expr, memo=memo),
                 **tags,
             )
-
-        raise NotImplementedError("This case will be implemented once encountered.")
+        return ailment.Expr.Convert(
+            self.ail_manager.next_atom(),
+            expr.size(),
+            hi - lo + 1,
+            False,
+            converted,
+            **tags,
+        )
 
     def convert_claripy_bool_ast(self, cond, memo=None):
         """
