@@ -15,6 +15,7 @@ import struct
 import threading
 from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
+from hashlib import sha256  # for hashing Transaction keys
 from typing import TYPE_CHECKING, Any
 
 import lmdb
@@ -24,8 +25,6 @@ from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from angr.protos import cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 from angr.utils.json_utils import json_decode, json_encode
-
-from hashlib import sha256 # for hashing Transaction keys
 
 from .block_id import BlockID
 from .types import CFG_ADDR_TYPES, K
