@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 from unittest import TestCase, main
