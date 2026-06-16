@@ -40,7 +40,7 @@ from angr.errors import AngrDecompilationError
 from angr.knowledge_plugins.cfg import IndirectJump
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.graph_region import GraphRegion
+    from angr.analyses.decompiler.region_overlay import RegionOverlay
     from angr.knowledge_plugins.functions import Function
 
 _l = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class StructurerBase(Analysis):
         ail_manager: Manager | None = None,
         **kwargs,
     ):
-        self._region: GraphRegion = region
+        self._region: RegionOverlay = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
@@ -171,9 +171,15 @@ class StructurerBase(Analysis):
         if not goto_addrs:
             # there is no Goto statement - perfect, we don't need a switch-end node
             return None
-        if len(goto_addrs) > 1 and any(a in region_node_addrs for a in goto_addrs):
-            goto_addrs = {a: times for a, times in goto_addrs.items() if a in region_node_addrs}
-        return sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+        if len(goto_addrs) > 1:
+            # prefer in-region candidates, but only among the top-voted ones: a minority in-region target may
+            # just be one case falling through to the construct's in-region sibling (a jump that sequencing
+            # makes redundant), while the majority target is the real end of the switch
+            max_votes = max(goto_addrs.values())
+            top = {a: times for a, times in goto_addrs.items() if times == max_votes}
+            top_in_region = {a: times for a, times in top.items() if a in region_node_addrs}
+            goto_addrs = top_in_region or top
+        return sorted(goto_addrs.items(), key=lambda x: (-x[1], x[0]))[0][0]
 
     def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
         """
