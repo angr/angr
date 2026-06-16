@@ -287,12 +287,21 @@ impl PySolver {
             ));
         };
 
-        // Add all expressions to the solver
+        // Return only the constraints actually added: trivially-true ones and
+        // duplicates of already-present constraints are filtered out.
+        let mut seen: std::collections::HashSet<u64> =
+            self.inner.constraints()?.iter().map(|c| c.hash()).collect();
+        let mut added = Vec::with_capacity(bool_exprs.len());
         for expr in &bool_exprs {
-            self.inner.add(&expr.get().inner)?;
+            let ast = expr.get().inner.clone();
+            self.inner.add(&ast)?;
+            if ast.simplify()?.is_true() || !seen.insert(ast.hash()) {
+                continue;
+            }
+            added.push(expr.clone());
         }
 
-        Ok(bool_exprs)
+        Ok(added)
     }
 
     fn simplify(&mut self) -> Result<(), ClaripyError> {
