@@ -923,6 +923,30 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             let sig = AstRef::from_z3(ctx, arg(2)?)?;
                             ctx.fp_fp(sign, exp, sig)
                         }
+                        // Zero/infinity special values present as zero-argument
+                        // apps, not numerals (e.g. in models: (_ -zero 8 24)).
+                        // (FpaNan is handled above.)
+                        z3::DeclKind::FpaPlusZero
+                        | z3::DeclKind::FpaMinusZero
+                        | z3::DeclKind::FpaPlusInf
+                        | z3::DeclKind::FpaMinusInf => {
+                            let sort = z3::get_sort(z3_ctx, *ast);
+                            let fsort = FSort::new(
+                                z3::fpa_get_ebits(z3_ctx, sort),
+                                z3::fpa_get_sbits(z3_ctx, sort) - 1,
+                            );
+                            let val = match decl_kind {
+                                z3::DeclKind::FpaPlusZero => 0.0f64,
+                                z3::DeclKind::FpaMinusZero => -0.0f64,
+                                z3::DeclKind::FpaPlusInf => f64::INFINITY,
+                                _ => f64::NEG_INFINITY,
+                            };
+                            if fsort == FSort::f32() {
+                                ctx.fpv(Float::F32(val as f32))
+                            } else {
+                                ctx.fpv(Float::F64(val))
+                            }
+                        }
 
                         // Strings
                         z3::DeclKind::SeqConcat => ctx.str_concat(
