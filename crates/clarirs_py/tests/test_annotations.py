@@ -137,6 +137,53 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         self.assertIsInstance(roundtripped, CustomRelocatableAnnotation)
         self.assertEqual(roundtripped.tag, "t")
 
+    def test_user_annotation_identity_preserved(self):
+        # While the original Python object is alive, retrieval returns it
+        # verbatim rather than an unpickled copy, so `is` holds.
+        anno = CustomRelocatableAnnotation("t")
+        bv = claripy.BVS("x", 32).annotate(anno)
+        self.assertIs(bv.annotations[0], anno)
+        self.assertIs(bv.annotations[0], bv.annotations[0])
+
+    def test_user_annotation_reconstructed_after_original_gc(self):
+        # Once the original is gone, retrieval falls back to unpickling a fresh
+        # equal copy (the cache holds only a weak reference).
+        import gc
+
+        bv = claripy.BVS("x", 32).annotate(CustomRelocatableAnnotation("t"))
+        gc.collect()
+        roundtripped = bv.annotations[0]
+        self.assertIsInstance(roundtripped, CustomRelocatableAnnotation)
+        self.assertEqual(roundtripped.tag, "t")
+
+    def test_builtin_annotation_identity_preserved(self):
+        # Identity preservation is not limited to user-defined annotations: a
+        # built-in annotation that is still alive is also handed back verbatim,
+        # so `is` holds both against the original and across repeated reads.
+        for anno in (
+            claripy.SimplificationAvoidanceAnnotation(),
+            claripy.StridedIntervalAnnotation(3, 0, 9),
+            EmptyStridedIntervalAnnotation(),
+            claripy.RegionAnnotation("heap", 0x20),
+            claripy.UninitializedAnnotation(),
+        ):
+            with self.subTest(annotation=anno):
+                bv = claripy.BVS("x", 32).annotate(anno)
+                self.assertIs(bv.annotations[0], anno)
+                self.assertIs(bv.annotations[0], bv.annotations[0])
+
+    def test_builtin_annotation_reconstructed_after_original_gc(self):
+        # Once the original built-in annotation is gone, retrieval falls back to
+        # reconstructing a fresh equal copy from the stored core value.
+        import gc
+
+        bv = claripy.BVS("x", 32).annotate(claripy.RegionAnnotation("heap", 0x20))
+        gc.collect()
+        roundtripped = bv.annotations[0]
+        self.assertIsInstance(roundtripped, claripy.RegionAnnotation)
+        self.assertEqual(roundtripped.region_id, "heap")
+        self.assertEqual(roundtripped.region_base_addr, 0x20)
+
 
 if __name__ == "__main__":
     unittest.main()
