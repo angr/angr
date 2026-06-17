@@ -44,12 +44,12 @@ from .utils import remove_edges_in_ailgraph
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.clinic import Clinic
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from .structured_codegen.base import BaseStructuredCodeGenerator
-    from angr.analyses.decompiler.clinic import Clinic
 
 l = logging.getLogger(name=__name__)
 

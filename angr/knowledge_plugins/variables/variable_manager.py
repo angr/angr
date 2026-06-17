@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal, TYPE_CHECKING, cast, overload
 from collections import defaultdict
 from collections.abc import Iterator
 from itertools import chain, count
-from typing import TYPE_CHECKING, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 import cle
 import networkx
@@ -17,26 +16,26 @@ from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from angr.protos import variables_pb2
-from angr.sim_variable import (
-    SimTemporaryVariable,
-    SimVariable,
-    SimStackVariable,
-    SimMemoryVariable,
-    SimRegisterVariable,
-    SimConstantVariable,
-    SimComboRegisterVariable,
-)
+from angr.serializable import Serializable
 from angr.sim_type import (
-    TypeRef,
-    SimType,
     SimStruct,
+    SimType,
     SimTypeBottom,
     SimTypeChar,
-    SimTypeShort,
     SimTypeInt,
     SimTypeLong,
+    SimTypeShort,
+    TypeRef,
 )
-from angr.serializable import Serializable
+from angr.sim_variable import (
+    SimComboRegisterVariable,
+    SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
+)
 from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.types import replace_pointer_pts_to, unpack_pointer
@@ -1112,7 +1111,13 @@ class VariableManagerInternal(Serializable):
                     sorted_tmp_variables.remove(var)
                     phi_only_vars.append(var)
 
-        for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_tmp_variables, sorted_combo_reg_variables, phi_only_vars):
+        for var in chain(
+            sorted_stack_variables,
+            sorted_reg_variables,
+            sorted_tmp_variables,
+            sorted_combo_reg_variables,
+            phi_only_vars,
+        ):
             idx = next(var_ctr)
             if var.name is not None and var.name != var.ident and not reset:
                 continue

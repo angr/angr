@@ -555,7 +555,12 @@ class SimEngineSSARewriting(
         return BinaryOp(
             expr.idx,
             "Add",
-            [refers, Const(self.ail_manager.next_atom(), vvar.stack_offset - expr.offset, refers.bits, ins_addr=self.ins_addr)],
+            [
+                refers,
+                Const(
+                    self.ail_manager.next_atom(), vvar.stack_offset - expr.offset, refers.bits, ins_addr=self.ins_addr
+                ),
+            ],
             ins_addr=self.ins_addr,
         )
 

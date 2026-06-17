@@ -31,16 +31,15 @@ from angr.errors import AngrMissingTypeError, AngrVariableRecoveryError, SimEngi
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.procedures import SIM_TYPE_COLLECTIONS
+from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.sim_variable import (
-    SimStackVariable,
+    SimComboRegisterVariable,
+    SimMemoryVariable,
     SimRegisterVariable,
+    SimStackVariable,
     SimTemporaryVariable,
     SimVariable,
-    SimMemoryVariable,
-    SimComboRegisterVariable,
 )
-from angr.engines.vex.claripy.irop import vexop_to_simop
-from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .engine_ail import SimEngineVRAIL
