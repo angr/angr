@@ -15,6 +15,12 @@ use crate::prelude::*;
 #[derive(Clone, Debug)]
 pub struct ReplacementSolver<'c, S: Solver<'c>> {
     inner: S,
+    /// The constraints as added, before replacement. claripy's
+    /// ReplacementFrontend reports the original constraints; only the inner
+    /// solver sees the replaced forms. Callers rely on this: e.g. rebuilding a
+    /// solver from `constraints()` must not pick up values substituted by the
+    /// replacements.
+    original_constraints: Vec<AstRef<'c>>,
     /// The canonical set of replacements (hash → replacement AST).
     replacements: HashMap<u64, AstRef<'c>>,
     /// Cache that includes derived replacements from sub-expression traversal.
@@ -26,18 +32,13 @@ pub struct ReplacementSolver<'c, S: Solver<'c>> {
 
 impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     pub fn new(inner: S) -> Self {
-        Self {
-            inner,
-            replacements: HashMap::new(),
-            replacement_cache: HashMap::new(),
-            auto_replace: true,
-            _marker: std::marker::PhantomData,
-        }
+        Self::new_with_options(inner, true)
     }
 
     pub fn new_with_options(inner: S, auto_replace: bool) -> Self {
         Self {
             inner,
+            original_constraints: Vec::new(),
             replacements: HashMap::new(),
             replacement_cache: HashMap::new(),
             auto_replace,
@@ -121,16 +122,18 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
             self.try_extract_replacement(constraint);
         }
 
+        self.original_constraints.push(constraint.clone());
         let replaced = self.apply_replacements(constraint)?;
         self.inner.add(&replaced)
     }
 
     fn clear(&mut self) -> Result<(), ClarirsError> {
+        self.original_constraints.clear();
         self.inner.clear()
     }
 
     fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        self.inner.constraints()
+        Ok(self.original_constraints.clone())
     }
 
     fn simplify(&mut self) -> Result<(), ClarirsError> {
@@ -292,6 +295,35 @@ mod tests {
 
         assert!(solver.is_true(&x)?);
         assert!(!solver.is_false(&x)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_replacement_solver_reports_original_constraints() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let inner = ConcreteSolver::new(&ctx);
+        let mut solver = ReplacementSolver::new(inner);
+
+        let x = ctx.bvs("x", 8)?;
+        let one = ctx.bvv_prim(1u8)?;
+        let five = ctx.bvv_prim(5u8)?;
+        let six = ctx.bvv_prim(6u8)?;
+
+        // x == 5 auto-extracts the replacement x -> 5.
+        let eq = ctx.eq_(&x, &five)?;
+        solver.add(&eq)?;
+        // x + 1 == 6 folds to `true` once x is replaced by 5, but constraints()
+        // must report the original form, not the replaced one.
+        let derived = ctx.eq_(&ctx.add(&x, &one)?, &six)?;
+        solver.add(&derived)?;
+
+        let constraints = solver.constraints()?;
+        assert!(constraints.contains(&eq));
+        assert!(constraints.contains(&derived));
+
+        solver.clear()?;
+        assert!(solver.constraints()?.is_empty());
 
         Ok(())
     }
