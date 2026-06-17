@@ -35,9 +35,9 @@ class TestAtoms(TestCase):
 
         for obj in (register, codeloc, definition):
             hash(obj)  # populate the cache
-            self.assertIsNotNone(obj._hash)
+            self.assertIsNotNone(obj._hash)  # pylint: disable=protected-access
             clone = pickle.loads(pickle.dumps(obj))
-            self.assertIsNone(clone._hash)
+            self.assertIsNone(clone._hash)  # pylint: disable=protected-access
             self.assertEqual(hash(clone), hash(obj))
 
 
