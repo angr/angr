@@ -80,7 +80,7 @@ def _result_path(binary_results_name):
 
 
 class TestReachingDefinitions(TestCase):
-    def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
+    def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result, _assert_result=None):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses[ReachingDefinitionsAnalysis].prep(kb=tmp_kb)(
             subject=function,
@@ -97,7 +97,20 @@ class TestReachingDefinitions(TestCase):
         # with open(result_path, "wb") as result_file:
         #     result_file.write(pickle.dumps(result))
 
-        self.assertListEqual(result, expected_result)
+        (_assert_result or self.assertListEqual)(result, expected_result)
+
+    def _assert_definitions_equal(self, result, expected_result):
+        # Observations are key-ordered and per-address entries are address-ordered,
+        # so both zip directly. Only the per-address definition lists have a
+        # nondeterministic order, so compare them order-insensitively.
+        self.assertEqual(len(result), len(expected_result))
+        for observed, expected in zip(result, expected_result):
+            self.assertEqual(observed["key"], expected["key"])
+            for kind in ("register_definitions", "stack_definitions", "memory_definitions"):
+                self.assertEqual(len(observed[kind]), len(expected[kind]))
+                for (addr, defs), (expected_addr, expected_defs) in zip(observed[kind], expected[kind]):
+                    self.assertEqual(addr, expected_addr)
+                    self.assertCountEqual(defs, expected_defs)
 
     @staticmethod
     def _extract_all_definitions_from_storage(storage: MultiValuedMemory):
@@ -140,7 +153,9 @@ class TestReachingDefinitions(TestCase):
             cfg = project.analyses[CFGFast].prep()()
             function = cfg.kb.functions["main"]
 
-            self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
+            self._run_reaching_definition_analysis_test(
+                project, function, result_path, _result_extractor, self._assert_definitions_equal
+            )
 
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
