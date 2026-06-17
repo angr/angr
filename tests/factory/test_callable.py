@@ -3,6 +3,8 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.factory"  # pylint:disable=redefined-builtin
 
+import functools
+import operator
 import os
 import unittest
 
@@ -135,7 +137,12 @@ class TestCallable(unittest.TestCase):
         # not almost equal!! totally equal!!! z3 is magic, if kinda slow!!!!!
         for arg_conc in args_conc:
             assert arg_conc > 1.0
-        assert sum(args_conc) == 27.7
+        # Sum sequentially like the program does. Since Python 3.12, builtin
+        # sum() uses Neumaier compensated summation for floats, which is MORE
+        # accurate than the program's naive left-to-right addition and so can
+        # disagree with the (exactly satisfied) symbolic result by an ulp.
+        seq_sum = functools.reduce(operator.add, args_conc)
+        assert seq_sum == 27.7
 
     def test_fauxware_armel(self):
         self.run_fauxware("armel")
