@@ -80,7 +80,9 @@ def _result_path(binary_results_name):
 
 
 class TestReachingDefinitions(TestCase):
-    def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result, _assert_result=None):
+    def _run_reaching_definition_analysis_test(
+        self, project, function, result_path, _extract_result, _assert_result=None
+    ):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses[ReachingDefinitionsAnalysis].prep(kb=tmp_kb)(
             subject=function,
