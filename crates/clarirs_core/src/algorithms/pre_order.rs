@@ -122,7 +122,7 @@ mod tests {
         let y = ctx.bvs("y", 64)?;
         let add = ctx.add(&x, &y)?;
 
-        let replacement = ctx.bvv_prim(99u64)?.clone();
+        let replacement = ctx.bvv(BitVec::from((99, 64)))?.clone();
 
         // Short-circuit the entire tree
         let result = walk_pre_order(

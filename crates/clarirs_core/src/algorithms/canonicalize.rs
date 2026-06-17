@@ -200,8 +200,8 @@ mod tests {
 
         // Create AST with no variables
         let ast = ctx.add(
-            &ctx.bvv_prim_with_size(5u64, 32)?,
-            &ctx.bvv_prim_with_size(10u64, 32)?,
+            &ctx.bvv(BitVec::from((5, 32)))?,
+            &ctx.bvv(BitVec::from((10, 32)))?,
         )?;
         let dyn_ast = ast.clone();
 
@@ -219,14 +219,13 @@ mod tests {
     fn test_canonicalize_single_var() -> Result<(), ClarirsError> {
         let ctx = Context::new();
 
-        let ast = ctx.add(&ctx.bvs("x", 64)?, &ctx.bvv_prim_with_size(5u64, 64)?)?;
+        let ast = ctx.add(&ctx.bvs("x", 64)?, &ctx.bvv(BitVec::from((5, 64)))?)?;
         let dyn_ast = ast.clone();
 
         let (map, counter, canonical) = canonicalize(&dyn_ast)?;
 
         // Check that the variable was renamed to v0
-        let canonical_expected =
-            ctx.add(&ctx.bvs("v0", 64)?, &ctx.bvv_prim_with_size(5u64, 64)?)?;
+        let canonical_expected = ctx.add(&ctx.bvs("v0", 64)?, &ctx.bvv(BitVec::from((5, 64)))?)?;
         let dyn_canonical_expected = canonical_expected.clone();
 
         assert_eq!(canonical, dyn_canonical_expected);
@@ -380,9 +379,9 @@ mod tests {
         let ctx = Context::new();
 
         // ASTs with constants and variables
-        let ast1 = ctx.add(&ctx.bvs("x", 64)?, &ctx.bvv_prim_with_size(5u64, 64)?)?;
-        let ast2 = ctx.add(&ctx.bvs("y", 64)?, &ctx.bvv_prim_with_size(5u64, 64)?)?;
-        let ast3 = ctx.add(&ctx.bvs("z", 64)?, &ctx.bvv_prim_with_size(10u64, 64)?)?;
+        let ast1 = ctx.add(&ctx.bvs("x", 64)?, &ctx.bvv(BitVec::from((5, 64)))?)?;
+        let ast2 = ctx.add(&ctx.bvs("y", 64)?, &ctx.bvv(BitVec::from((5, 64)))?)?;
+        let ast3 = ctx.add(&ctx.bvs("z", 64)?, &ctx.bvv(BitVec::from((10, 64)))?)?;
 
         let dyn_ast1 = ast1.clone();
         let dyn_ast2 = ast2.clone();
@@ -404,11 +403,11 @@ mod tests {
         // e.g. (x + y) == 5 where x,y are BVS and the result is Bool
         let ast1 = ctx.eq_(
             &ctx.add(&ctx.bvs("x", 32)?, &ctx.bvs("y", 32)?)?,
-            &ctx.bvv_prim_with_size(5u64, 32)?,
+            &ctx.bvv(BitVec::from((5, 32)))?,
         )?;
         let ast2 = ctx.eq_(
             &ctx.add(&ctx.bvs("a", 32)?, &ctx.bvs("b", 32)?)?,
-            &ctx.bvv_prim_with_size(5u64, 32)?,
+            &ctx.bvv(BitVec::from((5, 32)))?,
         )?;
 
         let dyn_ast1 = ast1.clone();

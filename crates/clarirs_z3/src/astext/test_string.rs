@@ -107,8 +107,8 @@ mod to_z3 {
     fn substr() {
         let ctx = Context::new();
         let s = ctx.stringv("hello world").unwrap();
-        let start = ctx.bvv_prim(6u32).unwrap();
-        let length = ctx.bvv_prim(5u32).unwrap();
+        let start = ctx.bvv(BitVec::from((6, 32))).unwrap();
+        let length = ctx.bvv(BitVec::from((5, 32))).unwrap();
         let sub = ctx.str_substr(s, start, length).unwrap();
         let z3_ast = sub.to_z3().unwrap();
 
@@ -259,8 +259,8 @@ mod from_z3 {
         let expected = ctx
             .str_substr(
                 ctx.stringv("hello world").unwrap(),
-                ctx.bvv_prim(6u64).unwrap(),
-                ctx.bvv_prim(5u64).unwrap(),
+                ctx.bvv(BitVec::from((6, 64))).unwrap(),
+                ctx.bvv(BitVec::from((5, 64))).unwrap(),
             )
             .unwrap();
         assert_eq!(expected, result);
@@ -438,8 +438,8 @@ mod roundtrip {
     fn substr_value() {
         let ctx = Context::new();
         let s = ctx.stringv("hello world").unwrap();
-        let start = ctx.bvv_prim(6u64).unwrap();
-        let length = ctx.bvv_prim(5u64).unwrap();
+        let start = ctx.bvv(BitVec::from((6, 64))).unwrap();
+        let length = ctx.bvv(BitVec::from((5, 64))).unwrap();
         let ast = ctx.str_substr(s, start, length).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
@@ -448,8 +448,8 @@ mod roundtrip {
     fn substr_symbol() {
         let ctx = Context::new();
         let s = ctx.strings("s").unwrap();
-        let start = ctx.bvv_prim(0u64).unwrap();
-        let length = ctx.bvv_prim(3u64).unwrap();
+        let start = ctx.bvv(BitVec::from((0, 64))).unwrap();
+        let length = ctx.bvv(BitVec::from((3, 64))).unwrap();
         let ast = ctx.str_substr(s, start, length).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
@@ -458,8 +458,8 @@ mod roundtrip {
     fn substr_from_start() {
         let ctx = Context::new();
         let s = ctx.stringv("abcdef").unwrap();
-        let start = ctx.bvv_prim(0u64).unwrap();
-        let length = ctx.bvv_prim(3u64).unwrap();
+        let start = ctx.bvv(BitVec::from((0, 64))).unwrap();
+        let length = ctx.bvv(BitVec::from((3, 64))).unwrap();
         let ast = ctx.str_substr(s, start, length).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
@@ -541,7 +541,7 @@ mod roundtrip {
     #[test]
     fn bv_to_str_value() {
         let ctx = Context::new();
-        let bv = ctx.bvv_prim(42u64).unwrap();
+        let bv = ctx.bvv(BitVec::from((42, 64))).unwrap();
         let ast = ctx.bv_to_str(bv).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }

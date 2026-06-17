@@ -29,7 +29,7 @@ mod to_z3 {
     #[test]
     fn value_8bit() {
         let ctx = Context::new();
-        let bv = ctx.bvv_prim(42u8).unwrap();
+        let bv = ctx.bvv(BitVec::from((42, 8))).unwrap();
         let z3_ast = bv.to_z3().unwrap();
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Bnum);
     }
@@ -37,7 +37,7 @@ mod to_z3 {
     #[test]
     fn value_32bit() {
         let ctx = Context::new();
-        let bv = ctx.bvv_prim(0xDEADBEEFu32).unwrap();
+        let bv = ctx.bvv(BitVec::from((0xDEADBEEF, 32))).unwrap();
         let z3_ast = bv.to_z3().unwrap();
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Bnum);
     }
@@ -45,7 +45,7 @@ mod to_z3 {
     #[test]
     fn value_64bit() {
         let ctx = Context::new();
-        let bv = ctx.bvv_prim(0x0123456789ABCDEFu64).unwrap();
+        let bv = ctx.bvv(BitVec::from((0x0123456789ABCDEF, 64))).unwrap();
         let z3_ast = bv.to_z3().unwrap();
         assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Bnum);
     }
@@ -406,7 +406,7 @@ mod from_z3 {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv_val("42", 8);
         let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
-        assert_eq!(result, ctx.bvv_prim(42u8).unwrap());
+        assert_eq!(result, ctx.bvv(BitVec::from((42, 8))).unwrap());
     }
 
     #[test]
@@ -414,7 +414,7 @@ mod from_z3 {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv_val("3735928559", 32); // 0xDEADBEEF
         let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
-        assert_eq!(result, ctx.bvv_prim(0xDEADBEEFu32).unwrap());
+        assert_eq!(result, ctx.bvv(BitVec::from((0xDEADBEEF, 32))).unwrap());
     }
 
     #[test]
@@ -422,7 +422,10 @@ mod from_z3 {
         let ctx = Context::new();
         let z3_ast = RcAst::mk_bv_val("81985529216486895", 64); // 0x0123456789ABCDEF
         let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
-        assert_eq!(result, ctx.bvv_prim(0x0123456789ABCDEFu64).unwrap());
+        assert_eq!(
+            result,
+            ctx.bvv(BitVec::from((0x0123456789ABCDEF, 64))).unwrap()
+        );
     }
 
     // -- Unary ops --
@@ -798,21 +801,21 @@ mod roundtrip {
     #[test]
     fn value_8bit() {
         let ctx = Context::new();
-        let ast = ctx.bvv_prim(42u8).unwrap();
+        let ast = ctx.bvv(BitVec::from((42, 8))).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
     #[test]
     fn value_32bit() {
         let ctx = Context::new();
-        let ast = ctx.bvv_prim(0xDEADBEEFu32).unwrap();
+        let ast = ctx.bvv(BitVec::from((0xDEADBEEF, 32))).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
     #[test]
     fn value_64bit() {
         let ctx = Context::new();
-        let ast = ctx.bvv_prim(0x0123456789ABCDEFu64).unwrap();
+        let ast = ctx.bvv(BitVec::from((0x0123456789ABCDEF, 64))).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
@@ -1071,7 +1074,7 @@ mod roundtrip {
         let ctx = Context::new();
         let s = ctx.strings("s").unwrap();
         let t = ctx.strings("t").unwrap();
-        let offset = ctx.bvv_prim(0u64).unwrap();
+        let offset = ctx.bvv(BitVec::from((0, 64))).unwrap();
         let ast = ctx.str_index_of(s, t, offset).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
@@ -1081,7 +1084,7 @@ mod roundtrip {
         let ctx = Context::new();
         let s = ctx.stringv("hello world").unwrap();
         let t = ctx.stringv("world").unwrap();
-        let offset = ctx.bvv_prim(0u64).unwrap();
+        let offset = ctx.bvv(BitVec::from((0, 64))).unwrap();
         let ast = ctx.str_index_of(s, t, offset).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
@@ -1091,7 +1094,7 @@ mod roundtrip {
         let ctx = Context::new();
         let s = ctx.strings("s").unwrap();
         let t = ctx.strings("t").unwrap();
-        let offset = ctx.bvv_prim(5u64).unwrap();
+        let offset = ctx.bvv(BitVec::from((5, 64))).unwrap();
         let ast = ctx.str_index_of(s, t, offset).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }

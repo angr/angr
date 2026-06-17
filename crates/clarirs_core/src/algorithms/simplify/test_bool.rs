@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clarirs_num::BitVec;
 
 use crate::{
     ast::{
@@ -274,9 +275,21 @@ fn test_ult() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.true_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.false_()?),
     ];
 
@@ -296,9 +309,21 @@ fn test_ule() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.true_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.true_()?),
     ];
 
@@ -318,9 +343,21 @@ fn test_ugt() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.false_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.false_()?),
     ];
 
@@ -340,9 +377,21 @@ fn test_uge() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.false_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.true_()?),
     ];
 
@@ -362,11 +411,31 @@ fn test_slt() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.true_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(255u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(255u8)?, ctx.false_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.false_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.false_()?),
     ];
 
@@ -386,11 +455,31 @@ fn test_sle() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.true_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(255u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(255u8)?, ctx.false_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.false_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.true_()?),
     ];
 
@@ -410,11 +499,31 @@ fn test_sgt() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.false_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(255u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(255u8)?, ctx.true_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.true_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.false_()?),
     ];
 
@@ -434,11 +543,31 @@ fn test_sge() -> Result<()> {
     let ctx = Context::new();
 
     let table = vec![
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(2u8)?, ctx.false_()?),
-        (ctx.bvv_prim(2u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(1u8)?, ctx.true_()?),
-        (ctx.bvv_prim(255u8)?, ctx.bvv_prim(1u8)?, ctx.false_()?),
-        (ctx.bvv_prim(1u8)?, ctx.bvv_prim(255u8)?, ctx.true_()?),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((2, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.true_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.false_()?,
+        ),
+        (
+            ctx.bvv(BitVec::from((1, 8)))?,
+            ctx.bvv(BitVec::from((255, 8)))?,
+            ctx.true_()?,
+        ),
         (ctx.bvs("a", 8)?, ctx.bvs("a", 8)?, ctx.true_()?),
     ];
 

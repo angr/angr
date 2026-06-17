@@ -73,8 +73,10 @@ impl BV {
     ) -> Result<Py<BV>, ClaripyError> {
         let inner = match op {
             "BVS" => GLOBAL_CONTEXT.bvs(args[0].extract::<String>(py)?, args[1].extract(py)?)?,
-            "BVV" => GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&args[0].extract(py)?, args[1].extract(py)?)?,
+            "BVV" => GLOBAL_CONTEXT.bvv(BitVec::from((
+                args[0].extract::<BigUint>(py)?,
+                args[1].extract::<u32>(py)?,
+            )))?,
             "__and__" => GLOBAL_CONTEXT.and2(
                 &args[0].cast_bound::<BV>(py)?.get().inner,
                 &args[1].cast_bound::<BV>(py)?.get().inner,
@@ -859,7 +861,7 @@ impl BV {
         // Handle size = 0
         if size == 0 {
             let a = GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&BigUint::from(0u32), 0)
+                .bvv(BitVec::from((BigUint::from(0u32), 0)))
                 .map_err(ClaripyError::from)?;
             return BV::new(py, &a);
         }
@@ -879,7 +881,7 @@ impl BV {
                 // Create a BVV with the concrete value
                 let result_size = extracted.get().size() as u32;
                 let a = GLOBAL_CONTEXT
-                    .bvv_from_biguint_with_size(&concrete_value, result_size)
+                    .bvv(BitVec::from((concrete_value, result_size)))
                     .map_err(ClaripyError::from)?;
                 return BV::new(py, &a);
             }
@@ -910,7 +912,7 @@ impl BV {
                 // Create a BVV with the concrete value
                 let result_size = extracted.get().size() as u32;
                 let a = GLOBAL_CONTEXT
-                    .bvv_from_biguint_with_size(&concrete_value, result_size)
+                    .bvv(BitVec::from((concrete_value, result_size)))
                     .map_err(ClaripyError::from)?;
                 return BV::new(py, &a);
             }
@@ -935,7 +937,7 @@ impl BV {
             // Create a BVV with the concrete value
             let result_size = final_size.get().size() as u32;
             let a = GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&concrete_value, result_size)
+                .bvv(BitVec::from((concrete_value, result_size)))
                 .map_err(ClaripyError::from)?;
             return BV::new(py, &a);
         }
@@ -1067,7 +1069,7 @@ pub fn BVV<'py>(
     if let Ok(int_val) = value.extract::<BigUint>() {
         if let Some(size) = size {
             let a = GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&int_val, size)
+                .bvv(BitVec::from((int_val, size)))
                 .map_err(ClaripyError::from)?;
             return Ok(BV::new(py, &a)?);
         } else {
@@ -1082,7 +1084,7 @@ pub fn BVV<'py>(
                     .expect("BigInt to BigUInt failed"),
             );
             let a = GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&uint_value, size)
+                .bvv(BitVec::from((uint_value, size)))
                 .map_err(ClaripyError::from)?;
             return Ok(BV::new(py, &a)?);
         } else {
@@ -1099,7 +1101,7 @@ pub fn BVV<'py>(
         return Ok(BV::new(
             py,
             &GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&int_val, bytes_val.len() as u32 * 8)
+                .bvv(BitVec::from((int_val, bytes_val.len() as u32 * 8)))
                 .map_err(ClaripyError::from)?,
         )?);
     }
@@ -1113,7 +1115,7 @@ pub fn BVV<'py>(
         return Ok(BV::new(
             py,
             &GLOBAL_CONTEXT
-                .bvv_from_biguint_with_size(&int_val, bytes_val.len() as u32 * 8)
+                .bvv(BitVec::from((int_val, bytes_val.len() as u32 * 8)))
                 .map_err(ClaripyError::from)?,
         )?);
     }

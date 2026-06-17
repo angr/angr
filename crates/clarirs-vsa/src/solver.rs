@@ -67,7 +67,7 @@ impl<'c> Solver<'c> for VSASolver<'c> {
                 }
                 si.eval(n)
                     .into_iter()
-                    .map(|bv| self.context().bvv_from_biguint_with_size(&bv, expr.size()))
+                    .map(|bv| self.context().bvv(BitVec::from((bv, expr.size()))))
                     .collect()
             }),
             AstType::Float(_) | AstType::String => Err(ClarirsError::UnsupportedOperation(
@@ -107,16 +107,14 @@ impl<'c> Solver<'c> for VSASolver<'c> {
     fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         expr.simplify()?.reduce()?.into_bv().and_then(|si| {
             let (min_bound, _) = si.get_unsigned_bounds();
-            expr.context()
-                .bvv_from_biguint_with_size(&min_bound, expr.size())
+            expr.context().bvv(BitVec::from((min_bound, expr.size())))
         })
     }
 
     fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         expr.simplify()?.reduce()?.into_bv().and_then(|si| {
             let (_, max_bound) = si.get_unsigned_bounds();
-            expr.context()
-                .bvv_from_biguint_with_size(&max_bound, expr.size())
+            expr.context().bvv(BitVec::from((max_bound, expr.size())))
         })
     }
 
@@ -132,7 +130,7 @@ impl<'c> Solver<'c> for VSASolver<'c> {
                 min_bound.to_biguint().unwrap()
             };
             expr.context()
-                .bvv_from_biguint_with_size(&unsigned_min, expr.size())
+                .bvv(BitVec::from((unsigned_min, expr.size())))
         })
     }
 
@@ -148,7 +146,7 @@ impl<'c> Solver<'c> for VSASolver<'c> {
                 max_bound.to_biguint().unwrap()
             };
             expr.context()
-                .bvv_from_biguint_with_size(&unsigned_max, expr.size())
+                .bvv(BitVec::from((unsigned_max, expr.size())))
         })
     }
 }

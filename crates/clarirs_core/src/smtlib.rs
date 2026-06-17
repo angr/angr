@@ -300,7 +300,7 @@ mod tests {
         let x = ctx.bvs("x", 32).unwrap();
         assert_eq!(x.to_smtlib(), "x");
 
-        let v = ctx.bvv_prim(42u64).unwrap();
+        let v = ctx.bvv(BitVec::from((42, 64))).unwrap();
         assert_eq!(v.to_smtlib(), "(_ bv42 64)");
     }
 

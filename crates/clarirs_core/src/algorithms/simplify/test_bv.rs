@@ -23,8 +23,8 @@ fn test_neg() -> Result<()> {
     ];
 
     for (a, expected) in table.clone() {
-        let a = ctx.bvv_prim(a).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.neg(&a)?.simplify()?;
         assert_eq!(result, expected);
@@ -48,8 +48,8 @@ fn test_double_negation() -> Result<()> {
     ];
 
     for (a, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let neg_a = ctx.neg(&a)?;
         let double_neg = ctx.neg(&neg_a)?.simplify()?;
@@ -88,9 +88,9 @@ fn test_add() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.add(&a, &b)?;
         let simplified = result.simplify()?;
@@ -127,9 +127,9 @@ fn test_sub() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.sub(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -165,9 +165,9 @@ fn test_mul() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.mul(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -199,9 +199,9 @@ fn test_udiv() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((u64::from(a), 8))).unwrap();
+        let b = ctx.bvv(BitVec::from((u64::from(b), 8))).unwrap();
+        let expected = ctx.bvv(BitVec::from((u64::from(expected), 8))).unwrap();
 
         let result = ctx.udiv(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -257,9 +257,9 @@ fn test_sdiv() -> Result<()> {
         let b_bits = b_i64 as u64;
         let expected_bits = expected_i64 as u64;
 
-        let a = ctx.bvv_prim(a_bits)?;
-        let b = ctx.bvv_prim(b_bits)?;
-        let expected = ctx.bvv_prim(expected_bits)?;
+        let a = ctx.bvv(BitVec::from((a_bits, 64)))?;
+        let b = ctx.bvv(BitVec::from((b_bits, 64)))?;
+        let expected = ctx.bvv(BitVec::from((expected_bits, 64)))?;
 
         let result = ctx.sdiv(&a, &b)?.simplify()?;
         assert_eq!(result, expected, "Failed for a={a_i64}, b={b_i64}");
@@ -300,9 +300,9 @@ fn test_urem() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.urem(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -352,9 +352,9 @@ fn test_srem() -> Result<()> {
         let b_bits = b_i64 as u64;
         let expected_bits = expected_i64 as u64;
 
-        let a = ctx.bvv_prim(a_bits)?;
-        let b = ctx.bvv_prim(b_bits)?;
-        let expected = ctx.bvv_prim(expected_bits)?;
+        let a = ctx.bvv(BitVec::from((a_bits, 64)))?;
+        let b = ctx.bvv(BitVec::from((b_bits, 64)))?;
+        let expected = ctx.bvv(BitVec::from((expected_bits, 64)))?;
 
         let result = ctx.srem(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -385,9 +385,9 @@ fn test_and() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.and2(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -418,9 +418,9 @@ fn test_or() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.or2(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -451,9 +451,9 @@ fn test_xor() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.xor2(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -483,8 +483,8 @@ fn test_not() -> Result<()> {
     ];
 
     for (a, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.not(&a)?.simplify()?;
         assert_eq!(result, expected);
@@ -517,9 +517,9 @@ fn test_shl() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.shl(&a, &b)?.simplify()?;
         assert_eq!(result, expected, "shl({a:?}, {b:?})");
@@ -527,7 +527,7 @@ fn test_shl() -> Result<()> {
 
     // Test zero-shift with symbolic value
     let x = ctx.bvs("x", 64)?;
-    let zero = ctx.bvv_prim(0u64)?;
+    let zero = ctx.bvv(BitVec::from((0, 64)))?;
     let result = ctx.shl(&x, &zero)?.simplify()?;
     assert_eq!(result, x);
 
@@ -568,9 +568,9 @@ fn test_lshr() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.lshr(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -578,7 +578,7 @@ fn test_lshr() -> Result<()> {
 
     // Test zero-shift with symbolic value
     let x = ctx.bvs("x", 64)?;
-    let zero = ctx.bvv_prim(0u64)?;
+    let zero = ctx.bvv(BitVec::from((0, 64)))?;
     let result = ctx.lshr(&x, &zero)?.simplify()?;
     assert_eq!(result, x);
 
@@ -619,9 +619,9 @@ fn test_ashr() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = ctx.bvv_prim(a).unwrap();
-        let b = ctx.bvv_prim(b).unwrap();
-        let expected = ctx.bvv_prim(expected).unwrap();
+        let a = ctx.bvv(BitVec::from((a, 64))).unwrap();
+        let b = ctx.bvv(BitVec::from((b, 64))).unwrap();
+        let expected = ctx.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = ctx.ashr(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -629,7 +629,7 @@ fn test_ashr() -> Result<()> {
 
     // Test zero-shift with symbolic value
     let x = ctx.bvs("x", 64)?;
-    let zero = ctx.bvv_prim(0u64)?;
+    let zero = ctx.bvv(BitVec::from((0, 64)))?;
     let result = ctx.ashr(&x, &zero)?.simplify()?;
     assert_eq!(result, x);
 
@@ -642,24 +642,24 @@ fn test_zext() -> Result<()> {
 
     let table = vec![
         (
-            ctx.bvv_prim_with_size(0u8, 4)?,
+            ctx.bvv(BitVec::from((0, 4)))?,
             0,
-            ctx.bvv_prim_with_size(0u8, 4)?,
+            ctx.bvv(BitVec::from((0, 4)))?,
         ),
         (
-            ctx.bvv_prim_with_size(0u8, 4)?,
+            ctx.bvv(BitVec::from((0, 4)))?,
             1,
-            ctx.bvv_prim_with_size(0u8, 5)?,
+            ctx.bvv(BitVec::from((0, 5)))?,
         ),
         (
-            ctx.bvv_prim_with_size(1u8, 4)?,
+            ctx.bvv(BitVec::from((1, 4)))?,
             0,
-            ctx.bvv_prim_with_size(1u8, 4)?,
+            ctx.bvv(BitVec::from((1, 4)))?,
         ),
         (
-            ctx.bvv_prim_with_size(1u8, 4)?,
+            ctx.bvv(BitVec::from((1, 4)))?,
             1,
-            ctx.bvv_prim_with_size(1u8, 5)?,
+            ctx.bvv(BitVec::from((1, 5)))?,
         ),
     ];
 
@@ -676,54 +676,54 @@ fn test_sext() -> Result<()> {
 
     let table = vec![
         (
-            ctx.bvv_prim_with_size(0u8, 4)?,
+            ctx.bvv(BitVec::from((0, 4)))?,
             0,
-            ctx.bvv_prim_with_size(0u8, 4)?,
+            ctx.bvv(BitVec::from((0, 4)))?,
         ),
         (
-            ctx.bvv_prim_with_size(0u8, 4)?,
+            ctx.bvv(BitVec::from((0, 4)))?,
             1,
-            ctx.bvv_prim_with_size(0u8, 5)?,
+            ctx.bvv(BitVec::from((0, 5)))?,
         ),
         (
-            ctx.bvv_prim_with_size(1u8, 4)?,
+            ctx.bvv(BitVec::from((1, 4)))?,
             0,
-            ctx.bvv_prim_with_size(1u8, 4)?,
+            ctx.bvv(BitVec::from((1, 4)))?,
         ),
         (
-            ctx.bvv_prim_with_size(1u8, 4)?,
+            ctx.bvv(BitVec::from((1, 4)))?,
             1,
-            ctx.bvv_prim_with_size(1u8, 5)?,
+            ctx.bvv(BitVec::from((1, 5)))?,
         ),
         (
-            ctx.bvv_prim_with_size(15u8, 4)?,
+            ctx.bvv(BitVec::from((15, 4)))?,
             0,
-            ctx.bvv_prim_with_size(15u8, 4)?,
+            ctx.bvv(BitVec::from((15, 4)))?,
         ),
         (
-            ctx.bvv_prim_with_size(15u8, 4)?,
+            ctx.bvv(BitVec::from((15, 4)))?,
             1,
-            ctx.bvv_prim_with_size(31u8, 5)?,
+            ctx.bvv(BitVec::from((31, 5)))?,
         ),
         (
-            ctx.bvv_prim_with_size(0u8, 1)?,
+            ctx.bvv(BitVec::from((0, 1)))?,
             1,
-            ctx.bvv_prim_with_size(0u8, 2)?,
+            ctx.bvv(BitVec::from((0, 2)))?,
         ),
         (
-            ctx.bvv_prim_with_size(1u8, 1)?,
+            ctx.bvv(BitVec::from((1, 1)))?,
             1,
-            ctx.bvv_prim_with_size(3u8, 2)?,
+            ctx.bvv(BitVec::from((3, 2)))?,
         ),
         (
-            ctx.bvv_prim_with_size(8u8, 4)?,
+            ctx.bvv(BitVec::from((8, 4)))?,
             4,
-            ctx.bvv_prim_with_size(248u8, 8)?,
+            ctx.bvv(BitVec::from((248, 8)))?,
         ),
         (
-            ctx.bvv_prim_with_size(5u8, 4)?,
+            ctx.bvv(BitVec::from((5, 4)))?,
             4,
-            ctx.bvv_prim_with_size(5u8, 8)?,
+            ctx.bvv(BitVec::from((5, 8)))?,
         ),
     ];
 
@@ -751,8 +751,8 @@ fn test_byte_reverse() -> Result<()> {
     ];
 
     for (a, expected) in table {
-        let a = context.bvv_prim(a).unwrap();
-        let expected = context.bvv_prim(expected).unwrap();
+        let a = context.bvv(BitVec::from((a, 64))).unwrap();
+        let expected = context.bvv(BitVec::from((expected, 64))).unwrap();
 
         let result = context.byte_reverse(&a)?.simplify()?;
         assert_eq!(result, expected);
@@ -819,9 +819,9 @@ fn test_rotate_left() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = context.bvv_prim_with_size(a, 4).unwrap();
-        let b = context.bvv_prim_with_size(b, 4).unwrap();
-        let expected = context.bvv_prim_with_size(expected, 4).unwrap();
+        let a = context.bvv(BitVec::from((a, 4))).unwrap();
+        let b = context.bvv(BitVec::from((b, 4))).unwrap();
+        let expected = context.bvv(BitVec::from((expected, 4))).unwrap();
 
         let result = context.rotate_left(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -829,7 +829,7 @@ fn test_rotate_left() -> Result<()> {
 
     // Test zero-rotation with symbolic value
     let x = context.bvs("x", 4)?;
-    let zero = context.bvv_prim_with_size(0u64, 4)?;
+    let zero = context.bvv(BitVec::from((0, 4)))?;
     let result = context.rotate_left(&x, &zero)?.simplify()?;
     assert_eq!(result, x);
 
@@ -866,9 +866,9 @@ fn test_rotate_right() -> Result<()> {
     ];
 
     for (a, b, expected) in table {
-        let a = context.bvv_prim_with_size(a, 4).unwrap();
-        let b = context.bvv_prim_with_size(b, 4).unwrap();
-        let expected = context.bvv_prim_with_size(expected, 4).unwrap();
+        let a = context.bvv(BitVec::from((a, 4))).unwrap();
+        let b = context.bvv(BitVec::from((b, 4))).unwrap();
+        let expected = context.bvv(BitVec::from((expected, 4))).unwrap();
 
         let result = context.rotate_right(&a, &b)?.simplify()?;
         assert_eq!(result, expected);
@@ -876,7 +876,7 @@ fn test_rotate_right() -> Result<()> {
 
     // Test zero-rotation with symbolic value
     let x = context.bvs("x", 4)?;
-    let zero = context.bvv_prim_with_size(0u64, 4)?;
+    let zero = context.bvv(BitVec::from((0, 4)))?;
     let result = context.rotate_right(&x, &zero)?.simplify()?;
     assert_eq!(result, x);
 
@@ -888,7 +888,7 @@ fn test_extract() -> Result<()> {
     let ctx = Context::new();
 
     // Whole bitvector, concrete
-    let bv = ctx.bvv_prim(0x1234_5678_9ABC_DEF0_u64).unwrap();
+    let bv = ctx.bvv(BitVec::from((0x1234_5678_9ABC_DEF0_, 64))).unwrap();
     let extract = ctx.extract(&bv, 63, 0)?.simplify()?;
     assert_eq!(extract, bv);
 
@@ -899,7 +899,7 @@ fn test_extract() -> Result<()> {
 
     // Partial extraction, concrete
     let extract = ctx.extract(&bv, 63, 32)?.simplify()?;
-    let expected = ctx.bvv_prim(0x1234_5678_u32).unwrap();
+    let expected = ctx.bvv(BitVec::from((0x1234_5678_, 32))).unwrap();
     assert_eq!(extract, expected);
 
     Ok(())
@@ -937,9 +937,9 @@ fn test_identity_simplifications() -> anyhow::Result<()> {
 
     let x = ctx.bvs("x", 64)?;
 
-    let zero = ctx.bvv_prim(0u64)?;
-    let one = ctx.bvv_prim(1u64)?;
-    let all_ones = ctx.bvv_prim(u64::MAX)?;
+    let zero = ctx.bvv(BitVec::from((0, 64)))?;
+    let one = ctx.bvv(BitVec::from((1, 64)))?;
+    let all_ones = ctx.bvv(BitVec::from((u64::MAX, 64)))?;
 
     // AND identities
     let simplified = ctx.and2(&x, &zero)?.simplify()?;
@@ -1025,8 +1025,8 @@ fn test_bitvec_not_identities() -> Result<()> {
 
     let x = ctx.bvs("x", 64)?;
     let not_x = ctx.not(&x)?;
-    let zero = ctx.bvv_prim(0u64)?;
-    let all_ones = ctx.bvv_prim(u64::MAX)?;
+    let zero = ctx.bvv(BitVec::from((0, 64)))?;
+    let all_ones = ctx.bvv(BitVec::from((u64::MAX, 64)))?;
 
     // x & ¬x = 0
     let simplified = ctx.and2(&x, &not_x)?.simplify()?;
@@ -1058,7 +1058,7 @@ fn test_extract_full_width() -> Result<()> {
     assert_eq!(simplified, bvs);
 
     // Test extracting full width of a BVV
-    let bvv = ctx.bvv_prim(42u32)?;
+    let bvv = ctx.bvv(BitVec::from((42, 32)))?;
     let extract_full_bvv = ctx.extract(&bvv, 31, 0)?;
     let simplified_bvv = extract_full_bvv.simplify()?;
 

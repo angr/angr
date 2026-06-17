@@ -544,7 +544,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             let numeral_string = z3::get_numeral_string(z3_ctx, *ast);
                             let numeral_str = CStr::from_ptr(numeral_string).to_str().unwrap();
                             let width = z3::get_bv_sort_size(z3_ctx, sort);
-                            ctx.bvv(BitVec::from_str(numeral_str, width).unwrap())
+                            ctx.bvv(BitVec::try_from((numeral_str.to_string(), width)).unwrap())
                         }
                         z3::SortKind::FloatingPoint => {
                             let fsort = FSort::new(
@@ -790,7 +790,9 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                         CStr::from_ptr(numeral_string).to_str().unwrap();
                                     let s = z3::get_sort(z3_ctx, inner_int);
                                     let width = z3::get_bv_sort_size(z3_ctx, s);
-                                    ctx.bvv(BitVec::from_str(numeral_str, width).unwrap())
+                                    ctx.bvv(
+                                        BitVec::try_from((numeral_str.to_string(), width)).unwrap(),
+                                    )
                                 }
                                 z3::AstKind::App => {
                                     let inner_app = z3::to_app(z3_ctx, inner_int);

@@ -111,7 +111,7 @@ mod tests {
         let mut solver = SimplificationMixin::new(base_solver);
 
         // Create an expression that needs simplification: 5 & 5 (should simplify to 5)
-        let five = ctx.bvv_prim(5u64).unwrap();
+        let five = ctx.bvv(BitVec::from((5, 64))).unwrap();
         let and_expr = ctx.and2(&five, &five).unwrap();
 
         // The mixin should simplify this to just 5 before evaluation

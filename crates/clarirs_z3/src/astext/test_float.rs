@@ -239,7 +239,7 @@ mod to_z3 {
     #[test]
     fn fp_fp() {
         let ctx = Context::new();
-        let sign = ctx.bvv_prim(0u8).unwrap();
+        let sign = ctx.bvv(BitVec::from((0, 8))).unwrap();
         let sign = ctx.extract(sign, 0, 0).unwrap(); // 1-bit
         let exp = ctx.bvs("exp", 8).unwrap();
         let sig = ctx.bvs("sig", 23).unwrap();
@@ -711,7 +711,7 @@ mod roundtrip {
     #[test]
     fn fp_fp() {
         let ctx = Context::new();
-        let sign = ctx.bvv_prim(0u8).unwrap();
+        let sign = ctx.bvv(BitVec::from((0, 8))).unwrap();
         let sign = ctx.extract(sign, 0, 0).unwrap(); // 1-bit
         let exp = ctx.bvs("exp", 8).unwrap();
         let sig = ctx.bvs("sig", 23).unwrap();

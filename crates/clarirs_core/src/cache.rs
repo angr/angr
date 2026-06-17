@@ -156,7 +156,7 @@ mod tests {
         let cache = AstCache::default();
 
         // Create a simple AST
-        let ast1 = ctx.bvv_prim_with_size(42u64, 64)?;
+        let ast1 = ctx.bvv(BitVec::from((42, 64)))?;
         let hash1 = 12345u64; // Arbitrary hash for testing
 
         // Insert into cache
@@ -177,14 +177,14 @@ mod tests {
         let cache = AstCache::default();
 
         // Create a simple AST
-        let ast1 = ctx.bvv_prim_with_size(42u64, 64)?;
+        let ast1 = ctx.bvv(BitVec::from((42, 64)))?;
         let hash1 = 12345u64; // Arbitrary hash for testing
 
         // Insert into cache
         let result1 = cache.get_or_insert::<ClarirsError>(hash1, || Ok(ast1.clone()))?;
 
         // In collision mode, it will always recompute, so provide a valid computation
-        let ast2 = ctx.bvv_prim_with_size(42u64, 64)?;
+        let ast2 = ctx.bvv(BitVec::from((42, 64)))?;
         let result2 = cache.get_or_insert::<ClarirsError>(hash1, || Ok(ast2.clone()))?;
         assert_eq!(result1, result2);
         Ok(())
@@ -195,8 +195,8 @@ mod tests {
         let ctx = crate::context::Context::new();
         let cache = AstCache::default();
 
-        let ast1 = ctx.bvv_prim_with_size(42u64, 64)?;
-        let ast2 = ctx.bvv_prim_with_size(99u64, 64)?;
+        let ast1 = ctx.bvv(BitVec::from((42, 64)))?;
+        let ast2 = ctx.bvv(BitVec::from((99, 64)))?;
 
         let result1 = cache.get_or_insert::<ClarirsError>(1, || Ok(ast1.clone()))?;
         let result2 = cache.get_or_insert::<ClarirsError>(2, || Ok(ast2.clone()))?;
@@ -215,14 +215,14 @@ mod tests {
 
         {
             // Create and cache an AST
-            let ast = ctx.bvv_prim_with_size(42u64, 64)?;
+            let ast = ctx.bvv(BitVec::from((42, 64)))?;
             let _result = cache.get_or_insert::<ClarirsError>(hash, || Ok(ast.clone()))?;
             // ast and _result go out of scope here
         }
 
         // The weak reference should be expired now, so this should compute a new value
         let mut computed = false;
-        let ast2 = ctx.bvv_prim_with_size(42u64, 64)?;
+        let ast2 = ctx.bvv(BitVec::from((42, 64)))?;
         let _result = cache.get_or_insert::<ClarirsError>(hash, || {
             computed = true;
             Ok(ast2.clone())
@@ -245,13 +245,13 @@ mod tests {
         let hash = 777u64;
 
         // Insert first value
-        let ast1 = ctx.bvv_prim_with_size(42u64, 64).unwrap();
+        let ast1 = ctx.bvv(BitVec::from((42, 64))).unwrap();
         let _ = cache
             .get_or_insert::<ClarirsError>(hash, || Ok(ast1.clone()))
             .unwrap();
 
         // Try to insert different value with same hash - should panic
-        let ast2 = ctx.bvv_prim_with_size(99u64, 64).unwrap();
+        let ast2 = ctx.bvv(BitVec::from((99, 64))).unwrap();
         let _ = cache
             .get_or_insert::<ClarirsError>(hash, || Ok(ast2.clone()))
             .unwrap();
@@ -265,11 +265,11 @@ mod tests {
         let hash = 888u64;
 
         // Insert first value
-        let ast1 = ctx.bvv_prim_with_size(42u64, 64)?;
+        let ast1 = ctx.bvv(BitVec::from((42, 64)))?;
         let result1 = cache.get_or_insert::<ClarirsError>(hash, || Ok(ast1.clone()))?;
 
         // Insert same value with same hash - should be fine
-        let ast2 = ctx.bvv_prim_with_size(42u64, 64)?;
+        let ast2 = ctx.bvv(BitVec::from((42, 64)))?;
         let result2 = cache.get_or_insert::<ClarirsError>(hash, || Ok(ast2.clone()))?;
 
         assert_eq!(result1, result2);
@@ -284,14 +284,14 @@ mod tests {
         let hash = 999u64;
 
         // Insert first value
-        let ast1 = ctx.bvv_prim_with_size(42u64, 64).unwrap();
+        let ast1 = ctx.bvv(BitVec::from((42, 64))).unwrap();
         let _ = cache
             .get_or_insert::<ClarirsError>(hash, || Ok(ast1.clone()))
             .unwrap();
 
         // This should always compute, even though the value is in cache
         let mut computed = false;
-        let ast2 = ctx.bvv_prim_with_size(42u64, 64).unwrap();
+        let ast2 = ctx.bvv(BitVec::from((42, 64))).unwrap();
         let _ = cache
             .get_or_insert::<ClarirsError>(hash, || {
                 computed = true;

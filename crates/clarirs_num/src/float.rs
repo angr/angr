@@ -122,11 +122,11 @@ impl Float {
         match self {
             Float::F32(f) => {
                 let (_, exp, _) = decompose_f32(*f);
-                BitVec::from_prim_with_size(exp, 8).unwrap()
+                BitVec::from((u64::from(exp), 8))
             }
             Float::F64(f) => {
                 let (_, exp, _) = decompose_f64(*f);
-                BitVec::from_prim_with_size(exp, 11).unwrap()
+                BitVec::from((u64::from(exp), 11))
             }
         }
     }
@@ -135,11 +135,11 @@ impl Float {
         match self {
             Float::F32(f) => {
                 let (_, _, mant) = decompose_f32(*f);
-                BitVec::from_prim_with_size(mant, 23).unwrap()
+                BitVec::from((u64::from(mant), 23))
             }
             Float::F64(f) => {
                 let (_, _, mant) = decompose_f64(*f);
-                BitVec::from_prim_with_size(mant, 52).unwrap()
+                BitVec::from((mant, 52))
             }
         }
     }

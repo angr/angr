@@ -405,7 +405,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         // For signed minimization, the sign bit should be 1 (for negative numbers)
         // Extract the sign bit
         let sign_bit = self.ctx.extract(expr, size - 1, size - 1)?;
-        let one_bit = self.ctx.bvv_prim_with_size(1u64, 1)?;
+        let one_bit = self.ctx.bvv(BitVec::from((1, 1)))?;
 
         // Create a target variable equal to the expression
         let target_name = format!("min_signed_target_{size}");
@@ -440,7 +440,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         // For signed maximization, the sign bit should be 0 (for positive numbers)
         // Extract the sign bit
         let sign_bit = self.ctx.extract(expr, size - 1, size - 1)?;
-        let zero_bit = self.ctx.bvv_prim_with_size(0u64, 1)?;
+        let zero_bit = self.ctx.bvv(BitVec::from((0, 1)))?;
 
         // Create a target variable equal to the expression
         let target_name = format!("max_signed_target_{size}");
@@ -831,7 +831,7 @@ mod tests {
             let mut solver = Z3Solver::new(&ctx);
 
             // Using a concrete value should return the same value
-            let bv = ctx.bvv_prim(42u64)?;
+            let bv = ctx.bvv(BitVec::from((42, 64)))?;
             let result = solver.min_unsigned(&bv)?;
 
             assert_eq!(result, bv);
@@ -845,7 +845,7 @@ mod tests {
             let mut solver = Z3Solver::new(&ctx);
 
             // Using a concrete value should return the same value
-            let bv = ctx.bvv_prim(42u64)?;
+            let bv = ctx.bvv(BitVec::from((42, 64)))?;
             let result = solver.max_unsigned(&bv)?;
 
             assert_eq!(result, bv);
@@ -862,8 +862,8 @@ mod tests {
             let x = ctx.bvs("x", 64)?;
 
             // Add constraints: 10 <= x <= 20
-            let lower_bound = ctx.bvv_prim(10u64)?;
-            let upper_bound = ctx.bvv_prim(20u64)?;
+            let lower_bound = ctx.bvv(BitVec::from((10, 64)))?;
+            let upper_bound = ctx.bvv(BitVec::from((20, 64)))?;
 
             solver.add(&ctx.uge(&x, &lower_bound)?)?;
             solver.add(&ctx.ule(&x, &upper_bound)?)?;
@@ -884,8 +884,8 @@ mod tests {
             let x = ctx.bvs("x", 64)?;
 
             // Add constraints: 10 <= x <= 20
-            let lower_bound = ctx.bvv_prim(10u64)?;
-            let upper_bound = ctx.bvv_prim(20u64)?;
+            let lower_bound = ctx.bvv(BitVec::from((10, 64)))?;
+            let upper_bound = ctx.bvv(BitVec::from((20, 64)))?;
 
             solver.add(&ctx.uge(&x, &lower_bound)?)?;
             solver.add(&ctx.ule(&x, &upper_bound)?)?;
@@ -910,15 +910,15 @@ mod tests {
             // x must be greater than 5
             // y must be less than 10
             // x + y must be even (lowest bit is 0)
-            let five = ctx.bvv_prim(5u8)?;
-            let ten = ctx.bvv_prim(10u8)?;
+            let five = ctx.bvv(BitVec::from((5, 8)))?;
+            let ten = ctx.bvv(BitVec::from((10, 8)))?;
 
             solver.add(&ctx.ugt(&x, &five)?)?;
             solver.add(&ctx.ult(&y, &ten)?)?;
 
             // x + y must be even
             let sum = ctx.add(&x, &y)?;
-            let zero = ctx.bvv_prim_with_size(0u64, 1)?;
+            let zero = ctx.bvv(BitVec::from((0, 1)))?;
             solver.add(&ctx.eq_(&ctx.extract(&sum, 0, 0)?, &zero)?)?;
 
             // Find min value of x
@@ -926,7 +926,7 @@ mod tests {
 
             // Min value should be 6
             // Because x > 5, and if x = 6 and y = 0, then 6+0=6 which is even
-            let six = ctx.bvv_prim(6u8)?;
+            let six = ctx.bvv(BitVec::from((6, 8)))?;
             assert_eq!(result, six);
 
             Ok(())
@@ -945,8 +945,8 @@ mod tests {
             // x must be less than 100
             // y must be greater than 20
             // x must be greater than y
-            let hundred = ctx.bvv_prim(100u8)?;
-            let twenty = ctx.bvv_prim(20u8)?;
+            let hundred = ctx.bvv(BitVec::from((100, 8)))?;
+            let twenty = ctx.bvv(BitVec::from((20, 8)))?;
 
             solver.add(&ctx.ult(&x, &hundred)?)?;
             solver.add(&ctx.ugt(&y, &twenty)?)?;
@@ -956,7 +956,7 @@ mod tests {
             let result = solver.max_unsigned(&x)?;
 
             // Max value should be 99 (since x < 100)
-            let ninety_nine = ctx.bvv_prim(99u8)?;
+            let ninety_nine = ctx.bvv(BitVec::from((99, 8)))?;
             assert_eq!(result, ninety_nine);
 
             Ok(())
@@ -970,7 +970,7 @@ mod tests {
             let mut solver = Z3Solver::new(&ctx);
 
             // Using a concrete value should return the same value
-            let bv = ctx.bvv_prim(42u64)?;
+            let bv = ctx.bvv(BitVec::from((42, 64)))?;
             let result = solver.min_signed(&bv)?;
 
             assert_eq!(result, bv);
@@ -984,7 +984,7 @@ mod tests {
             let mut solver = Z3Solver::new(&ctx);
 
             // Using a concrete value should return the same value
-            let bv = ctx.bvv_prim(42u64)?;
+            let bv = ctx.bvv(BitVec::from((42, 64)))?;
             let result = solver.max_signed(&bv)?;
 
             assert_eq!(result, bv);
@@ -1002,8 +1002,8 @@ mod tests {
 
             // Add constraints: -10 <= x <= 20 (in signed interpretation)
             // -10 in 64-bit two's complement is 0xfffffffffffffff6
-            let lower_bound = ctx.bvv_prim(0xfffffffffffffff6u64)?;
-            let upper_bound = ctx.bvv_prim(20u64)?;
+            let lower_bound = ctx.bvv(BitVec::from((0xfffffffffffffff6, 64)))?;
+            let upper_bound = ctx.bvv(BitVec::from((20, 64)))?;
 
             solver.add(&ctx.sge(&x, &lower_bound)?)?;
             solver.add(&ctx.sle(&x, &upper_bound)?)?;
@@ -1025,8 +1025,8 @@ mod tests {
 
             // Add constraints: -10 <= x <= 20 (in signed interpretation)
             // -10 in 64-bit two's complement is 0xfffffffffffffff6
-            let lower_bound = ctx.bvv_prim(0xfffffffffffffff6u64)?;
-            let upper_bound = ctx.bvv_prim(20u64)?;
+            let lower_bound = ctx.bvv(BitVec::from((0xfffffffffffffff6, 64)))?;
+            let upper_bound = ctx.bvv(BitVec::from((20, 64)))?;
 
             solver.add(&ctx.sge(&x, &lower_bound)?)?;
             solver.add(&ctx.sle(&x, &upper_bound)?)?;
@@ -1053,15 +1053,15 @@ mod tests {
             // x + y must be even (lowest bit is 0)
 
             // -5 in 8-bit two's complement is 0xfb (251 in unsigned)
-            let neg_five = ctx.bvv_prim(0xfbu8)?;
-            let ten = ctx.bvv_prim(10u8)?;
+            let neg_five = ctx.bvv(BitVec::from((0xfb, 8)))?;
+            let ten = ctx.bvv(BitVec::from((10, 8)))?;
 
             solver.add(&ctx.sgt(&x, &neg_five)?)?;
             solver.add(&ctx.slt(&y, &ten)?)?;
 
             // x + y must be even
             let sum = ctx.add(&x, &y)?;
-            let zero = ctx.bvv_prim_with_size(0u64, 1)?;
+            let zero = ctx.bvv(BitVec::from((0, 1)))?;
             solver.add(&ctx.eq_(&ctx.extract(&sum, 0, 0)?, &zero)?)?;
 
             // Find min value of x
@@ -1069,7 +1069,7 @@ mod tests {
 
             // Min value should be -4 (0xfc in 8-bit two's complement)
             // Because x > -5, and if x = -4 and y = 0, then -4+0=-4 which is even
-            let neg_four = ctx.bvv_prim(0xfcu8)?;
+            let neg_four = ctx.bvv(BitVec::from((0xfc, 8)))?;
             assert_eq!(result, neg_four);
 
             Ok(())
@@ -1088,10 +1088,10 @@ mod tests {
             // x must be less than 100 (signed)
             // y must be greater than -20 (signed)
             // x must be greater than y (signed)
-            let hundred = ctx.bvv_prim(100u8)?;
+            let hundred = ctx.bvv(BitVec::from((100, 8)))?;
 
             // -20 in 8-bit two's complement is 0xec (236 in unsigned)
-            let neg_twenty = ctx.bvv_prim(0xecu8)?;
+            let neg_twenty = ctx.bvv(BitVec::from((0xec, 8)))?;
 
             solver.add(&ctx.slt(&x, &hundred)?)?;
             solver.add(&ctx.sgt(&y, &neg_twenty)?)?;
@@ -1101,7 +1101,7 @@ mod tests {
             let result = solver.max_signed(&x)?;
 
             // Max value should be 99 (since x < 100)
-            let ninety_nine = ctx.bvv_prim(99u8)?;
+            let ninety_nine = ctx.bvv(BitVec::from((99, 8)))?;
             assert_eq!(result, ninety_nine);
 
             Ok(())
@@ -1118,8 +1118,8 @@ mod tests {
             // Add constraints: -100 <= x <= -10 (in signed interpretation)
             // -100 in 8-bit two's complement is 0x9c (156 in unsigned)
             // -10 in 8-bit two's complement is 0xf6 (246 in unsigned)
-            let lower_bound = ctx.bvv_prim(0x9cu8)?;
-            let upper_bound = ctx.bvv_prim(0xf6u8)?;
+            let lower_bound = ctx.bvv(BitVec::from((0x9c, 8)))?;
+            let upper_bound = ctx.bvv(BitVec::from((0xf6, 8)))?;
 
             solver.add(&ctx.sge(&x, &lower_bound)?)?;
             solver.add(&ctx.sle(&x, &upper_bound)?)?;
@@ -1142,8 +1142,8 @@ mod tests {
             // Add constraints: -100 <= x <= -10 (in signed interpretation)
             // -100 in 8-bit two's complement is 0x9c (156 in unsigned)
             // -10 in 8-bit two's complement is 0xf6 (246 in unsigned)
-            let lower_bound = ctx.bvv_prim(0x9cu8)?;
-            let upper_bound = ctx.bvv_prim(0xf6u8)?;
+            let lower_bound = ctx.bvv(BitVec::from((0x9c, 8)))?;
+            let upper_bound = ctx.bvv(BitVec::from((0xf6, 8)))?;
 
             solver.add(&ctx.sge(&x, &lower_bound)?)?;
             solver.add(&ctx.sle(&x, &upper_bound)?)?;
@@ -1192,9 +1192,9 @@ mod tests {
         let x = ctx.bvs("x", 8)?;
 
         // Add constraints
-        let c0 = ctx.ugt(&x, &ctx.bvv_prim(10u8)?)?; // x > 10
-        let c1 = ctx.ult(&x, &ctx.bvv_prim(5u8)?)?; // x < 5 - contradicts c0
-        let c2 = ctx.ugt(&x, &ctx.bvv_prim(0u8)?)?; // x > 0 - doesn't contribute to unsat
+        let c0 = ctx.ugt(&x, &ctx.bvv(BitVec::from((10, 8)))?)?; // x > 10
+        let c1 = ctx.ult(&x, &ctx.bvv(BitVec::from((5, 8)))?)?; // x < 5 - contradicts c0
+        let c2 = ctx.ugt(&x, &ctx.bvv(BitVec::from((0, 8)))?)?; // x > 0 - doesn't contribute to unsat
 
         solver.add(&c0)?; // constraint 0
         solver.add(&c1)?; // constraint 1

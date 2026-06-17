@@ -1,6 +1,6 @@
 use std::{cmp::max, str};
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, BigUint};
 use pyo3::types::{PyFloat, PyInt};
 
 use crate::prelude::*;
@@ -18,7 +18,7 @@ fn bv_to_bool(bv: &BV) -> Result<AstRef<'static>, ClaripyError> {
             GLOBAL_CONTEXT.true_()?
         });
     }
-    let zero = GLOBAL_CONTEXT.bvv(BitVec::from_prim_with_size(0u8, bv.size() as u32)?)?;
+    let zero = GLOBAL_CONTEXT.bvv(BitVec::from((0, bv.size() as u32)))?;
     Ok(GLOBAL_CONTEXT.neq(inner, &zero)?)
 }
 
@@ -84,13 +84,13 @@ impl<'py> CoerceBV<'py> {
                 }
             }
             CoerceBV::Int(int) => {
-                let bv = BitVec::from_bigint(int, size);
+                let bv = BitVec::from((int.clone(), size));
                 BV::new(py, &GLOBAL_CONTEXT.bvv(bv)?)
             }
             CoerceBV::Bool(bool_val) => {
                 // Convert Bool to BV of the requested size: If(bool, 1, 0).
-                let one = GLOBAL_CONTEXT.bvv(BitVec::from_prim_with_size(1u8, size)?)?;
-                let zero = GLOBAL_CONTEXT.bvv(BitVec::from_prim_with_size(0u8, size)?)?;
+                let one = GLOBAL_CONTEXT.bvv(BitVec::from((1, size)))?;
+                let zero = GLOBAL_CONTEXT.bvv(BitVec::from((0, size)))?;
                 let bv_ast = GLOBAL_CONTEXT.ite(&bool_val.get().inner, &one, &zero)?;
                 BV::new(py, &bv_ast)
             }
@@ -205,11 +205,15 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBV<'py> {
         } else if let Ok(bool_val) = val.cast::<Bool>() {
             Ok(CoerceBV::Bool(bool_val.to_owned()))
         } else if let Ok(bytes_val) = val.extract::<Vec<u8>>() {
+            // Interpret the raw bytes as a big-endian bitvector of len(bytes) * 8 bits.
+            let length = bytes_val.len() as u32 * 8;
+            let words = BigUint::from_bytes_be(&bytes_val)
+                .iter_u64_digits()
+                .collect();
+            let bv = BitVec::new(words, length).expect("BitVec::new is infallible");
             Ok(CoerceBV::BV(BV::new(
                 val.py(),
-                &GLOBAL_CONTEXT
-                    .bvv(BitVec::from_bytes_be(&bytes_val))
-                    .map_err(ClaripyError::from)?,
+                &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
             )?))
         } else {
             Err(ClaripyError::InvalidArgumentType("Expected BV".to_string()).into())
@@ -382,7 +386,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase<'py> {
         } else if let Ok(int_val) = val.cast::<PyInt>() {
             // Handle Python int literals by wrapping in BVV (64-bit default)
             let int: BigInt = int_val.extract()?;
-            let bv = BitVec::from_bigint(&int, 64);
+            let bv = BitVec::from((int, 64));
             let bv_ast = BV::new(
                 val.py(),
                 &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,

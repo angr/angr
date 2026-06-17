@@ -10,11 +10,9 @@ mod reference_tests;
 mod tests;
 
 use std::fmt::Debug;
-use std::mem::size_of;
 
-use num_bigint::{BigInt, BigUint, Sign};
+use num_bigint::{BigInt, BigUint};
 use num_traits::cast::ToPrimitive;
-use num_traits::{Num, Zero};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use thiserror::Error;
@@ -94,74 +92,6 @@ impl BitVec {
         }
     }
 
-    // From Conversions
-
-    pub fn from_prim<T>(value: T) -> Result<Self, BitVecError>
-    where
-        T: Into<u64>,
-    {
-        Self::from_prim_with_size(value, (size_of::<T>() * 8) as u32)
-    }
-
-    pub fn from_prim_with_size<T>(value: T, length: u32) -> Result<Self, BitVecError>
-    where
-        T: Into<u64>,
-    {
-        let value_u64: u64 = value.into();
-
-        // Truncate the value to fit within the given length
-        let truncated_value = if length < 64 {
-            value_u64 & ((1u64 << length) - 1)
-        } else {
-            value_u64
-        };
-
-        let mut words = SmallVec::new();
-        words.push(truncated_value);
-        Self::new(words, length)
-    }
-
-    /// Builds a `BitVec` of `length` bits from `value`, truncating to the low
-    /// `length` bits. Infallible: any `BigUint` maps onto `length` bits.
-    pub fn from_biguint(value: &BigUint, length: u32) -> BitVec {
-        let truncated = if value.bits() as u32 > length {
-            value % (BigUint::from(1u8) << length)
-        } else {
-            value.clone()
-        };
-
-        // A zero value yields an empty digit list, which `new` pads out.
-        let digits: SmallVec<[u64; 1]> = truncated.iter_u64_digits().collect();
-        BitVec::new(digits, length).expect("BitVec::new is infallible")
-    }
-
-    /// Creates a `BitVec` from a big-endian byte slice with bit-width equal to the
-    /// slice length times eight.
-    pub fn from_bytes_be(bytes: &[u8]) -> BitVec {
-        let length = (bytes.len() as u32) * 8;
-        let big_uint = BigUint::from_bytes_be(bytes);
-        BitVec::from_biguint(&big_uint, length)
-    }
-
-    /// Builds a `BitVec` of `length` bits from a signed `value`, using two's
-    /// complement and truncating to `length` bits. Infallible.
-    pub fn from_bigint(value: &BigInt, length: u32) -> BitVec {
-        let big_uint = if value.sign() == Sign::Minus {
-            // For negative values, compute 2's complement: 2^length - (|value| % 2^length)
-            let modulus = BigUint::from(1u8) << length;
-            let truncated_magnitude = value.magnitude() % &modulus;
-            if truncated_magnitude.is_zero() {
-                BigUint::zero()
-            } else {
-                &modulus - truncated_magnitude
-            }
-        } else {
-            // For positive values, truncate the magnitude
-            value.magnitude() % (BigUint::from(1u8) << length)
-        };
-        BitVec::from_biguint(&big_uint, length)
-    }
-
     pub fn to_biguint(&self) -> BigUint {
         // Convert the BitVec to a BigUint
         // The internal representation of BitVec uses little-endian word order
@@ -185,11 +115,6 @@ impl BitVec {
         } else {
             magnitude
         }
-    }
-
-    pub fn from_str(s: &str, length: u32) -> Result<BitVec, BitVecError> {
-        let value = BigUint::from_str_radix(s, 10).map_err(|_| BitVecError::ConversionError)?;
-        Ok(BitVec::from_biguint(&value, length))
     }
 
     #[allow(clippy::len_without_is_empty)]
@@ -433,7 +358,7 @@ impl BitVec {
 
     // Creates and returns a BitVec with these one-filled words.
     pub fn ones(length: u32) -> BitVec {
-        BitVec::from_biguint(&((BigUint::one() << length) - 1u8), length)
+        BitVec::from(((BigUint::one() << length) - 1u8, length))
     }
 }
 
@@ -449,6 +374,7 @@ impl Debug for BitVec {
 #[cfg(test)]
 mod is_mask_tests {
     use super::*;
+    use num_traits::Zero;
 
     #[test]
     fn test_is_mask_all_zeros() {
@@ -477,63 +403,63 @@ mod is_mask_tests {
     #[test]
     fn test_is_mask_single_bit() {
         // Single bit at position 0
-        let bv = BitVec::from_prim_with_size(1u8, 8).unwrap();
+        let bv = BitVec::from((1, 8));
         assert_eq!(bv.is_mask(), Some((0, 0)));
 
         // Single bit at position 3
-        let bv = BitVec::from_prim_with_size(0b1000u8, 8).unwrap();
+        let bv = BitVec::from((0b1000, 8));
         assert_eq!(bv.is_mask(), Some((3, 3)));
 
         // Single bit at position 7
-        let bv = BitVec::from_prim_with_size(0b10000000u8, 8).unwrap();
+        let bv = BitVec::from((0b10000000, 8));
         assert_eq!(bv.is_mask(), Some((7, 7)));
     }
 
     #[test]
     fn test_is_mask_consecutive_low() {
         // Consecutive 1s at low end: 0b00001111
-        let bv = BitVec::from_prim_with_size(0x0Fu8, 8).unwrap();
+        let bv = BitVec::from((0x0F, 8));
         assert_eq!(bv.is_mask(), Some((3, 0)));
 
         // Consecutive 1s at low end: 0b00000111
-        let bv = BitVec::from_prim_with_size(0x07u8, 8).unwrap();
+        let bv = BitVec::from((0x07, 8));
         assert_eq!(bv.is_mask(), Some((2, 0)));
     }
 
     #[test]
     fn test_is_mask_consecutive_high() {
         // Consecutive 1s at high end: 0b11110000
-        let bv = BitVec::from_prim_with_size(0xF0u8, 8).unwrap();
+        let bv = BitVec::from((0xF0, 8));
         assert_eq!(bv.is_mask(), Some((7, 4)));
 
         // Consecutive 1s at high end: 0b11100000
-        let bv = BitVec::from_prim_with_size(0xE0u8, 8).unwrap();
+        let bv = BitVec::from((0xE0, 8));
         assert_eq!(bv.is_mask(), Some((7, 5)));
     }
 
     #[test]
     fn test_is_mask_consecutive_middle() {
         // Consecutive 1s in middle: 0b00111100
-        let bv = BitVec::from_prim_with_size(0x3Cu8, 8).unwrap();
+        let bv = BitVec::from((0x3C, 8));
         assert_eq!(bv.is_mask(), Some((5, 2)));
 
         // Consecutive 1s in middle: 0b01111110
-        let bv = BitVec::from_prim_with_size(0x7Eu8, 8).unwrap();
+        let bv = BitVec::from((0x7E, 8));
         assert_eq!(bv.is_mask(), Some((6, 1)));
     }
 
     #[test]
     fn test_is_mask_non_consecutive() {
         // Non-consecutive: 0b10101010
-        let bv = BitVec::from_prim_with_size(0xAAu8, 8).unwrap();
+        let bv = BitVec::from((0xAA, 8));
         assert_eq!(bv.is_mask(), None);
 
         // Non-consecutive: 0b11011011
-        let bv = BitVec::from_prim_with_size(0xDBu8, 8).unwrap();
+        let bv = BitVec::from((0xDB, 8));
         assert_eq!(bv.is_mask(), None);
 
         // Gap in middle: 0b11100111
-        let bv = BitVec::from_prim_with_size(0xE7u8, 8).unwrap();
+        let bv = BitVec::from((0xE7, 8));
         assert_eq!(bv.is_mask(), None);
     }
 
@@ -545,14 +471,14 @@ mod is_mask_tests {
         for i in 60..=67 {
             value |= BigUint::one() << i;
         }
-        let bv = BitVec::from_biguint(&value, 128);
+        let bv = BitVec::from((value, 128));
         assert_eq!(bv.is_mask(), Some((67, 60)));
 
         // Create a non-consecutive pattern across boundary
         let mut value = BigUint::zero();
         value |= BigUint::one() << 63; // Last bit of first word
         value |= BigUint::one() << 65; // Skip bit 64, non-consecutive
-        let bv = BitVec::from_biguint(&value, 128);
+        let bv = BitVec::from((value, 128));
         assert_eq!(bv.is_mask(), None);
     }
 
@@ -563,7 +489,7 @@ mod is_mask_tests {
         for i in 0..32 {
             value |= BigUint::one() << i;
         }
-        let bv = BitVec::from_biguint(&value, 256);
+        let bv = BitVec::from((value, 256));
         assert_eq!(bv.is_mask(), Some((31, 0)));
 
         // Large BitVec with mask at end
@@ -571,7 +497,7 @@ mod is_mask_tests {
         for i in 224..256 {
             value |= BigUint::one() << i;
         }
-        let bv = BitVec::from_biguint(&value, 256);
+        let bv = BitVec::from((value, 256));
         assert_eq!(bv.is_mask(), Some((255, 224)));
 
         // Large BitVec with mask in middle
@@ -579,7 +505,7 @@ mod is_mask_tests {
         for i in 100..150 {
             value |= BigUint::one() << i;
         }
-        let bv = BitVec::from_biguint(&value, 256);
+        let bv = BitVec::from((value, 256));
         assert_eq!(bv.is_mask(), Some((149, 100)));
     }
 
@@ -590,30 +516,30 @@ mod is_mask_tests {
         assert_eq!(bv.is_mask(), None);
 
         // 1-bit BitVec with 0
-        let bv = BitVec::from_prim_with_size(0u8, 1).unwrap();
+        let bv = BitVec::from((0, 1));
         assert_eq!(bv.is_mask(), None);
 
         // 1-bit BitVec with 1
-        let bv = BitVec::from_prim_with_size(1u8, 1).unwrap();
+        let bv = BitVec::from((1, 1));
         assert_eq!(bv.is_mask(), Some((0, 0)));
 
         // Exactly 64 bits, all ones
-        let bv = BitVec::from_prim_with_size(u64::MAX, 64).unwrap();
+        let bv = BitVec::from((u64::MAX, 64));
         assert_eq!(bv.is_mask(), Some((63, 0)));
 
         // Exactly 64 bits, mask in middle
-        let bv = BitVec::from_prim_with_size(0x00FFFF0000000000u64, 64).unwrap();
+        let bv = BitVec::from((0x00FFFF0000000000, 64));
         assert_eq!(bv.is_mask(), Some((55, 40)));
     }
 
     #[test]
     fn test_is_mask_non_byte_aligned() {
         // 7-bit BitVec, all ones
-        let bv = BitVec::from_prim_with_size(0x7Fu8, 7).unwrap();
+        let bv = BitVec::from((0x7F, 7));
         assert_eq!(bv.is_mask(), Some((6, 0)));
 
         // 13-bit BitVec with mask
-        let bv = BitVec::from_prim_with_size(0x0FC0u16, 13).unwrap(); // bits 6-11 set
+        let bv = BitVec::from((0x0FC0, 13)); // bits 6-11 set
         assert_eq!(bv.is_mask(), Some((11, 6)));
 
         // 100-bit BitVec with mask at high end
@@ -621,7 +547,7 @@ mod is_mask_tests {
         for i in 90..100 {
             value |= BigUint::one() << i;
         }
-        let bv = BitVec::from_biguint(&value, 100);
+        let bv = BitVec::from((value, 100));
         assert_eq!(bv.is_mask(), Some((99, 90)));
     }
 }

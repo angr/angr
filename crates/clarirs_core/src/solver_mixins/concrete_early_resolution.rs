@@ -280,7 +280,7 @@ mod tests {
         let mut solver = ConcreteEarlyResolutionMixin::new(panicking_solver);
 
         // Test concrete bitvec value - should NOT call underlying solver
-        let value = ctx.bvv_prim(42u64).unwrap();
+        let value = ctx.bvv(BitVec::from((42, 64))).unwrap();
         let results = solver.eval_n(&value, 1).unwrap();
 
         assert_eq!(results.len(), 1);
@@ -295,7 +295,7 @@ mod tests {
         let mut solver = ConcreteEarlyResolutionMixin::new(panicking_solver);
 
         // For concrete values, min/max should return the value itself WITHOUT calling solver
-        let value = ctx.bvv_prim(42u64).unwrap();
+        let value = ctx.bvv(BitVec::from((42, 64))).unwrap();
 
         let min = solver.min_unsigned(&value).unwrap();
         let max = solver.max_unsigned(&value).unwrap();
@@ -332,7 +332,7 @@ mod tests {
         let mut solver = ConcreteEarlyResolutionMixin::new(panicking_solver);
 
         // Test that requesting 0 results returns empty vec WITHOUT calling solver
-        let value = ctx.bvv_prim(42u64).unwrap();
+        let value = ctx.bvv(BitVec::from((42, 64))).unwrap();
         let results = solver.eval_n(&value, 0).unwrap();
 
         assert_eq!(results.len(), 0);

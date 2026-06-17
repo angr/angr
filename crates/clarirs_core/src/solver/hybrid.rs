@@ -210,11 +210,11 @@ mod tests {
         assert!(!solver.is_true(&f)?);
         assert!(!solver.is_false(&t)?);
 
-        let a = ctx.bvv_prim(10u8)?;
-        let b = ctx.bvv_prim(20u8)?;
+        let a = ctx.bvv(BitVec::from((10, 8)))?;
+        let b = ctx.bvv(BitVec::from((20, 8)))?;
         let sum = ctx.add(&a, &b)?;
         let result = solver.eval(&sum)?;
-        assert_eq!(result, ctx.bvv_prim(30u8)?);
+        assert_eq!(result, ctx.bvv(BitVec::from((30, 8)))?);
 
         assert!(solver.satisfiable()?);
 

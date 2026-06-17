@@ -104,8 +104,10 @@ mod tests {
 
         // BV tests
         assert!(
-            solver.eval(&context.add(&context.bvv_prim(1u8)?, &context.bvv_prim(1u8)?)?)?
-                == context.bvv_prim(2u8)?
+            solver.eval(&context.add(
+                &context.bvv(BitVec::from((1, 8)))?,
+                &context.bvv(BitVec::from((1, 8)))?
+            )?)? == context.bvv(BitVec::from((2, 8)))?
         );
         assert!(solver.eval(&context.bvs("test", 8)?).is_err());
 

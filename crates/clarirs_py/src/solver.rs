@@ -570,7 +570,7 @@ impl PySolver {
                     // For symbolic BVs, check if it can be non-zero
                     let zero = solver
                         .context()
-                        .bvv_prim_with_size(0u64, bv_expr.get().inner.size())?;
+                        .bvv(BitVec::from((0, bv_expr.get().inner.size())))?;
                     let eq_zero = solver.context().eq_(&bv_expr.get().inner, &zero)?;
                     let is_zero = solver.is_true(&eq_zero)?;
                     Ok(!is_zero)
@@ -611,7 +611,7 @@ impl PySolver {
                     // For symbolic BVs, check if it must be zero
                     let zero = solver
                         .context()
-                        .bvv_prim_with_size(0u64, bv_expr.get().inner.size())?;
+                        .bvv(BitVec::from((0, bv_expr.get().inner.size())))?;
                     let eq_zero = solver.context().eq_(&bv_expr.get().inner, &zero)?;
                     Ok(solver.is_true(&eq_zero)?)
                 }

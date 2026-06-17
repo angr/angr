@@ -210,7 +210,7 @@ mod tests {
         let mut solver = ReplacementSolver::new(inner);
 
         let x = ctx.bvs("x", 8)?;
-        let five = ctx.bvv_prim(5u8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
 
         // Add explicit replacement: x -> 5
         solver.add_replacement(x.clone(), five.clone());
@@ -229,7 +229,7 @@ mod tests {
         let mut solver = ReplacementSolver::new(inner);
 
         let x = ctx.bvs("x", 8)?;
-        let five = ctx.bvv_prim(5u8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
 
         // Add constraint: x == 5 (should auto-extract replacement)
         let eq_constraint = ctx.eq_(&x, &five)?;
@@ -249,8 +249,8 @@ mod tests {
         let mut solver = ReplacementSolver::new(inner);
 
         let x = ctx.bvs("x", 8)?;
-        let five = ctx.bvv_prim(5u8)?;
-        let three = ctx.bvv_prim(3u8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+        let three = ctx.bvv(BitVec::from((3, 8)))?;
 
         // Replace x with 5
         solver.add_replacement(x.clone(), five.clone());
@@ -258,7 +258,7 @@ mod tests {
         // Evaluating x + 3 should return 8
         let expr = ctx.add(&x, &three)?;
         let result = solver.eval(&expr)?;
-        let expected = ctx.bvv_prim(8u8)?;
+        let expected = ctx.bvv(BitVec::from((8, 8)))?;
         assert_eq!(result, expected);
 
         Ok(())
@@ -271,7 +271,7 @@ mod tests {
         let mut solver = ReplacementSolver::new(inner);
 
         let x = ctx.bvs("x", 8)?;
-        let five = ctx.bvv_prim(5u8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
 
         solver.add_replacement(x.clone(), five.clone());
         assert!(!solver.replacements().is_empty());
@@ -306,9 +306,9 @@ mod tests {
         let mut solver = ReplacementSolver::new(inner);
 
         let x = ctx.bvs("x", 8)?;
-        let one = ctx.bvv_prim(1u8)?;
-        let five = ctx.bvv_prim(5u8)?;
-        let six = ctx.bvv_prim(6u8)?;
+        let one = ctx.bvv(BitVec::from((1, 8)))?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+        let six = ctx.bvv(BitVec::from((6, 8)))?;
 
         // x == 5 auto-extracts the replacement x -> 5.
         let eq = ctx.eq_(&x, &five)?;
