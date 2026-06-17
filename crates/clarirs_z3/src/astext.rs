@@ -925,6 +925,9 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             let sig = AstRef::from_z3(ctx, arg(2)?)?;
                             ctx.fp_fp(sign, exp, sig)
                         }
+                        z3::DeclKind::FpaToIeeeBv => {
+                            ctx.fp_to_ieeebv(AstRef::from_z3(ctx, arg(0)?)?)
+                        }
                         // Zero/infinity special values present as zero-argument
                         // apps, not numerals (e.g. in models: (_ -zero 8 24)).
                         // (FpaNan is handled above.)

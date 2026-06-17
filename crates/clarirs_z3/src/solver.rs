@@ -476,8 +476,40 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             return Ok(vec![expr; n as usize]);
         }
 
-        // Convert to Z3 once
-        let z3_expr = expr.to_z3()?;
+        let ctx = self.context();
+
+        // Evaluate through a fresh variable asserted equal to the expression.
+        // Z3 keeps some operators (notably fp.to_ieee_bv) uninterpreted in
+        // models even with model completion, so evaluating the expression
+        // directly can return a non-constant term; an asserted equality forces
+        // the model to assign the variable a constant. Floats are bound via
+        // their IEEE bit pattern (fp equality would make the query unsat for
+        // NaN) and converted back after evaluation.
+        let aux_name = format!("__eval_{:x}", expr.hash());
+        let (aux, link, fp_sort) = match expr.ast_type() {
+            AstType::Float(fsort) => {
+                let aux = ctx.bvs(&aux_name, fsort.size())?;
+                let link = ctx.eq_(&aux, &ctx.fp_to_ieeebv(&expr)?)?;
+                (aux, link, Some(fsort))
+            }
+            AstType::Bool => {
+                let aux = ctx.bools(&aux_name)?;
+                let link = ctx.eq_(&aux, &expr)?;
+                (aux, link, None)
+            }
+            AstType::BitVec(width) => {
+                let aux = ctx.bvs(&aux_name, width)?;
+                let link = ctx.eq_(&aux, &expr)?;
+                (aux, link, None)
+            }
+            AstType::String => {
+                let aux = ctx.strings(&aux_name)?;
+                let link = ctx.eq_(&aux, &expr)?;
+                (aux, link, None)
+            }
+        };
+
+        let z3_aux = aux.to_z3()?;
 
         // Create and fill the Z3 solver once
         let mut z3_solver = RcSolver::new()?;
@@ -486,6 +518,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             let converted = assertion.to_z3()?;
             z3_solver.assert(&converted)?;
         }
+        z3_solver.assert(&link.to_z3()?)?;
 
         for _ in 0..n {
             if z3_solver.check()? != z3::Lbool::True {
@@ -493,15 +526,22 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             }
 
             let model = z3_solver.model()?;
-            let eval_result = model.eval(&z3_expr)?;
+            let eval_result = model.eval(&z3_aux)?;
 
-            let solution = AstRef::from_z3(self.context(), eval_result)?;
-            results.push(solution.clone());
+            let solution = AstRef::from_z3(ctx, eval_result)?;
 
             // Add constraint to exclude this solution
-            let neq_constraint = self.context().neq(&expr, &solution)?;
+            let neq_constraint = ctx.neq(&aux, &solution)?;
             let z3_neq = neq_constraint.to_z3()?;
             z3_solver.assert(&z3_neq)?;
+
+            // Convert the IEEE bit pattern back to a float constant. The
+            // bitvector width (32 or 64) selects the format.
+            let solution = match (&fp_sort, solution.op()) {
+                (Some(_), AstOp::BVV(bv)) => ctx.fpv(Float::try_from_ieee_bits(bv)?)?,
+                _ => solution,
+            };
+            results.push(solution);
         }
 
         Ok(results)

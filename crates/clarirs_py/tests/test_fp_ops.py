@@ -733,6 +733,23 @@ class TestFPOperations(unittest.TestCase):
         result = claripy.fpAdd(rm, sym_x, concrete)
         self.assertTrue(result.symbolic)
 
+    def test_eval_symbolic_fp(self):
+        """Evaluate a symbolic FP through the solver.
+
+        Z3 leaves fp.to_ieee_bv uninterpreted in models, so eval binds the
+        value through an auxiliary variable and converts the resulting IEEE
+        bits back to a float; the bitvector width selects f32 vs f64.
+        """
+        s = claripy.SolverZ3()
+        x = claripy.FPS("x", FSORT_FLOAT)
+        s.add(x == claripy.FPV(1.5, FSORT_FLOAT))
+        self.assertEqual(list(s.eval(x, 2)), [1.5])
+
+        s64 = claripy.SolverZ3()
+        y = claripy.FPS("y", claripy.FSORT_DOUBLE)
+        s64.add(y == claripy.FPV(2.5, claripy.FSORT_DOUBLE))
+        self.assertEqual(list(s64.eval(y, 2)), [2.5])
+
     def test_conversions(self):
         """Test FP conversion operations"""
         rm = RM.default()
