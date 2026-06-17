@@ -1399,11 +1399,7 @@ pub(crate) fn simplify_bv<'c>(
             match arc.op() {
                 AstOp::FPV(float) => {
                     // Convert the floating-point value to its IEEE 754 bit representation
-                    let ieee_bits = float.to_ieee_bits();
-                    let bit_length = float.fsort().size();
-
-                    // Create a BitVec with the IEEE 754 representation
-                    Ok(ctx.bvv(BitVec::from((ieee_bits, bit_length)))?)
+                    Ok(ctx.bvv(float.to_ieee_bits())?)
                 }
                 _ => Ok(ctx.fp_to_ieeebv(arc)?), // Fallback for non-concrete values
             }

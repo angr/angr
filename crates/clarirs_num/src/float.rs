@@ -292,10 +292,29 @@ impl Float {
         }
     }
 
-    pub fn to_ieee_bits(&self) -> BigUint {
+    /// Returns the IEEE 754 bit representation of this float as a [`BitVec`]
+    /// whose width matches the float's sort (32 bits for f32, 64 bits for f64).
+    pub fn to_ieee_bits(&self) -> BitVec {
         match self {
-            Float::F32(f) => BigUint::from(f.to_bits()),
-            Float::F64(f) => BigUint::from(f.to_bits()),
+            Float::F32(f) => BitVec::from((u64::from(f.to_bits()), 32)),
+            Float::F64(f) => BitVec::from((f.to_bits(), 64)),
+        }
+    }
+
+    /// Reinterprets the bits of `bits` as an IEEE 754 float. The width of the
+    /// bitvector selects the format: 32 bits yields an f32 and 64 bits an f64.
+    /// Any other width returns [`BitVecError::ConversionError`].
+    pub fn try_from_ieee_bits(bits: &BitVec) -> Result<Self, BitVecError> {
+        match bits.len() {
+            32 => {
+                let value = bits.to_u64().ok_or(BitVecError::ConversionError)? as u32;
+                Ok(Float::F32(f32::from_bits(value)))
+            }
+            64 => {
+                let value = bits.to_u64().ok_or(BitVecError::ConversionError)?;
+                Ok(Float::F64(f64::from_bits(value)))
+            }
+            _ => Err(BitVecError::ConversionError),
         }
     }
 
@@ -714,5 +733,87 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_to_ieee_bits() {
+        let f32_values: &[f32] = &[0.0, -0.0, 1.0, -1.0, 42.0, f32::INFINITY, f32::NAN];
+        for &value in f32_values {
+            let bits = Float::F32(value).to_ieee_bits();
+            assert_eq!(bits.len(), 32);
+            assert_eq!(bits.to_u64().unwrap() as u32, value.to_bits());
+        }
+
+        let f64_values: &[f64] = &[0.0, -0.0, 1.0, -1.0, 42.0, f64::INFINITY, f64::NAN];
+        for &value in f64_values {
+            let bits = Float::F64(value).to_ieee_bits();
+            assert_eq!(bits.len(), 64);
+            assert_eq!(bits.to_u64().unwrap(), value.to_bits());
+        }
+    }
+
+    #[test]
+    fn test_ieee_bits_round_trip() -> Result<(), BitVecError> {
+        let f32_values: &[f32] = &[
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            42.0,
+            -42.0,
+            1.5,
+            -1.5,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+            f32::MIN_POSITIVE,
+        ];
+        for &value in f32_values {
+            let start = Float::F32(value);
+            let round_trip = Float::try_from_ieee_bits(&start.to_ieee_bits())?;
+            assert_eq!(round_trip.fsort(), F32_SORT);
+            let result = round_trip.to_f32().unwrap();
+            if value.is_nan() {
+                assert!(result.is_nan());
+            } else {
+                assert_eq!(result.to_bits(), value.to_bits());
+            }
+        }
+
+        let f64_values: &[f64] = &[
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            42.0,
+            -42.0,
+            1.5,
+            -1.5,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+            f64::MIN_POSITIVE,
+        ];
+        for &value in f64_values {
+            let start = Float::F64(value);
+            let round_trip = Float::try_from_ieee_bits(&start.to_ieee_bits())?;
+            assert_eq!(round_trip.fsort(), F64_SORT);
+            let result = round_trip.to_f64().unwrap();
+            if value.is_nan() {
+                assert!(result.is_nan());
+            } else {
+                assert_eq!(result.to_bits(), value.to_bits());
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_try_from_ieee_bits_invalid_width() {
+        // Only 32- and 64-bit widths map onto the supported float formats.
+        assert!(Float::try_from_ieee_bits(&BitVec::zeros(16)).is_err());
+        assert!(Float::try_from_ieee_bits(&BitVec::zeros(31)).is_err());
+        assert!(Float::try_from_ieee_bits(&BitVec::zeros(128)).is_err());
     }
 }
