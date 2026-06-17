@@ -13,7 +13,7 @@ import capstone
 import networkx
 
 from angr import ailment
-from angr.ailment import AILBlockRewriter, Block, Statement
+from angr.ailment import AILBlockRewriter, Block, Manager, Statement
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
@@ -44,6 +44,7 @@ from angr.knowledge_plugins.variables.variable_manager import VariableManagerInt
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.sim_type import (
+    PointerDisposition,
     SimCppClass,
     SimStruct,
     SimType,
@@ -143,6 +144,7 @@ class ClinicStage(enum.IntEnum):
     RECOVER_VARIABLES = 13
     SEMANTIC_VARIABLE_NAMING = 14
     COLLECT_EXTERNS = 15
+    LAST = 16
 
 
 class ComboRegReferenceWalker(AILBlockRewriter):
@@ -190,8 +192,6 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
 
-    _ail_manager: ailment.Manager
-
     def __init__(
         self,
         func: Function,
@@ -226,6 +226,7 @@ class Clinic(Analysis):
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
+        entry_node_addr: ailment.Address | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
         end_stage: ClinicStage | None = None,
@@ -238,6 +239,7 @@ class Clinic(Analysis):
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
+        ail_manager: Manager | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -269,7 +271,10 @@ class Clinic(Analysis):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: ailment.Address = self.function.addr, None
+        if entry_node_addr is not None:
+            self.entry_node_addr = entry_node_addr
+        else:
+            self.entry_node_addr: ailment.Address = self.function.addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
@@ -296,6 +301,7 @@ class Clinic(Analysis):
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
         self._typehoon_cls = typehoon_cls
+        self._ail_manager = ail_manager or Manager(arch=self.project.arch)
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -403,10 +409,11 @@ class Clinic(Analysis):
     #
 
     def _analyze_for_decompiling(self):
-        # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
         # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
         self._ail_manager.variable_map = self.variable_map
+        # initialize the AIL conversion manager
+        if self._ail_manager is not None:
+            self._ail_manager = Manager(arch=self.project.arch)
 
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
@@ -866,7 +873,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=self._removed_vvar_ids,
@@ -889,7 +896,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
@@ -902,7 +909,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
@@ -1010,7 +1017,8 @@ class Clinic(Analysis):
             return
 
         # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
+        if self._ail_manager is not None:
+            self._ail_manager = Manager(arch=self.project.arch)
         self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers
@@ -4033,7 +4041,15 @@ class Clinic(Analysis):
                 )
                 for i in range(func_arg_count):
                     if i in arg_result:
-                        new_arg_types.append(arg_result[i])
+                        argty = arg_result[i]
+                        if (
+                            isinstance(argty, SimTypePointer)
+                            and argty.disposition == PointerDisposition.UNKNOWN
+                            and func.prototype is not None
+                            and isinstance((oldargty := func.prototype.args[i]), SimTypePointer)
+                        ):
+                            argty.disposition = oldargty.disposition
+                        new_arg_types.append(argty)
                     else:
                         if func.prototype is not None:
                             new_arg_types.append(func.prototype.args[i])

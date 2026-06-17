@@ -144,20 +144,22 @@ def subgraph_between_nodes[T](
     """
 
     graph = networkx.DiGraph(graph)  # make a copy
+    potential_back_edges = []
     for pred in list(graph.predecessors(source)):
         # make sure we cannot go from any other node to the source node
         graph.remove_edge(pred, source)
+        potential_back_edges.append(pred)
 
     g0 = networkx.DiGraph()
 
+    frontier = set(frontier)
     if source not in graph or any(node not in graph for node in frontier):
         raise KeyError("Source node or frontier nodes are not in the source graph.")
 
     # BFS on graph and add new nodes to g0
     queue = [source]
     traversed = set()
-
-    frontier = set(frontier)
+    g0.add_node(source)
 
     while queue:
         node = queue.pop(0)
@@ -176,22 +178,23 @@ def subgraph_between_nodes[T](
                     break
 
     # recursively remove all nodes that have less than two neighbors
-    to_remove = [
-        n
-        for n in g0.nodes()
-        if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
-    ]
-    while to_remove:
-        g0.remove_nodes_from(to_remove)
+    while True:
         to_remove = [
             n
             for n in g0.nodes()
             if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
         ]
+        if not to_remove:
+            break
+        g0.remove_nodes_from(to_remove)
 
     if not include_frontier:
         # remove the frontier nodes
         g0.remove_nodes_from(frontier)
+
+    for pred in potential_back_edges:
+        if pred in g0:
+            g0.add_edge(pred, source)
 
     return g0
 

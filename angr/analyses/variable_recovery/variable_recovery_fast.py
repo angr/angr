@@ -37,6 +37,7 @@ from angr.sim_variable import (
     SimMemoryVariable,
     SimRegisterVariable,
     SimStackVariable,
+    SimTemporaryVariable,
     SimVariable,
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -473,6 +474,14 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                         arg_vvar_id = self.vvar_to_vvar.get(arg_vvar_id, arg_vvar_id)
                     self._ail_engine.vvar_region[arg_vvar_id] = v
                     internal_manager.add_variable("register", arg.reg_offsets[0], arg)
+                elif isinstance(arg, SimTemporaryVariable):
+                    v = claripy.BVS("tmp_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    arg_vvar_id = arg_vvar.varid
+                    if self.vvar_to_vvar:
+                        arg_vvar_id = self.vvar_to_vvar.get(arg_vvar_id, arg_vvar_id)
+                    self._ail_engine.vvar_region[arg_vvar_id] = v
+                    internal_manager.add_variable("tmp", arg.tmp_id, arg)
                 else:
                     raise TypeError(f"Unsupported function argument type {type(arg)}")
         elif self._func_args:

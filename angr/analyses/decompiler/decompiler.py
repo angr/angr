@@ -10,6 +10,7 @@ import networkx
 from cle import SymbolType
 
 from angr import ailment
+from angr.ailment import Manager
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
 from angr.analyses.s_propagator import sprop_cache_scope
@@ -21,7 +22,7 @@ from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_type import parse_type
-from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
 from angr.utils import timethis
 
 from .ailgraph_walker import AILGraphWalker
@@ -43,6 +44,7 @@ from .utils import remove_edges_in_ailgraph
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.clinic import Clinic
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 
@@ -90,11 +92,15 @@ class Decompiler(Analysis):
         use_cache: bool = True,
         update_cache: bool = True,
         expr_collapse_depth: int = 16,
+        clinic: Clinic | None = None,
         clinic_graph=None,
-        clinic_arg_vvars=None,
+        clinic_entry_node_addr=None,
+        clinic_arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
+        clinic_vvar_id_start=0,
         clinic_start_stage=None,
         clinic_end_stage=None,
         clinic_skip_stages=(),
+        ail_manager: Manager | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
@@ -174,12 +180,15 @@ class Decompiler(Analysis):
             else None
         )
 
-        self.clinic = None  # mostly for debugging purposes
+        self.clinic = clinic  # mostly for debugging purposes
         self._clinic_graph = clinic_graph
+        self._clinic_entry_node_addr = clinic_entry_node_addr
         self._clinic_arg_vvars = clinic_arg_vvars
+        self._clinic_vvar_id_start = clinic_vvar_id_start
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
+        self._ail_manager = ail_manager or Manager(arch=self.project.arch)
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
@@ -188,7 +197,7 @@ class Decompiler(Analysis):
         self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
-        self.vvar_id_start = None
+        self.vvar_id_start = 0
         self._copied_var_ids: set[int] = set()
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
@@ -283,7 +292,7 @@ class Decompiler(Analysis):
             l.debug("Decompilation cache hit")
         else:
             old_codegen = None
-            old_clinic = None
+            old_clinic = self.clinic
             ite_exprs = self._ite_exprs
             binop_operators = self._binop_operators
             l.debug("Decompilation cache miss")
@@ -364,13 +373,16 @@ class Decompiler(Analysis):
                 expose_loop_head_backedges=self._expose_loop_head_backedges,
                 typehoon_cls=self._typehoon_cls,
                 ail_graph=self._clinic_graph,
+                entry_node_addr=self._clinic_entry_node_addr,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
                 end_stage=self._clinic_end_stage,
                 skip_stages=self._clinic_skip_stages,
+                vvar_id_start=self._clinic_vvar_id_start,
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                ail_manager=self._ail_manager,
                 flavor=self._flavor,
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
@@ -401,7 +413,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph = (
             clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
         )
-        cond_proc = ConditionProcessor(self.project.arch, clinic._ail_manager)
+        cond_proc = ConditionProcessor(self.project.arch, self._ail_manager)
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,

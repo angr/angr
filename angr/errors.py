@@ -620,6 +620,25 @@ class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass
 
 
+# outliner specifically
+
+
+class AngrOutlinerError(AngrError):
+    pass
+
+
+class AngrOutlinerEmptySubgraphError(AngrOutlinerError):
+    pass
+
+
+class AngrOutlinerMultiEntranceError(AngrOutlinerError):
+    pass
+
+
+class AngrOutlinerUnreachedExitError(AngrOutlinerError):
+    pass
+
+
 #
 # LLM / AI errors
 #
