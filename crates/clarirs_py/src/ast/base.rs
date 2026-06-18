@@ -1,7 +1,7 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
-use clarirs_core::algorithms::{canonicalize, structurally_match};
-use pyo3::types::{PyFrozenSet, PySet, PyType};
+use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
+use pyo3::types::{PyDict, PyFrozenSet, PySet, PyType};
 
 use crate::prelude::*;
 
@@ -136,21 +136,80 @@ impl Base {
         self.inner.to_smtlib_shallow(max_depth)
     }
 
+    /// Canonicalize variable names to v0, v1, ... like claripy's
+    /// `canonicalize(var_map=None, counter=None)`.
+    ///
+    /// `var_map` (hash -> canonical variable) is mutated in place when
+    /// provided, so a mapping can be shared across several expressions.
+    /// `counter` may be an int (the value clarirs returns) or any iterator of
+    /// ints such as `itertools.count` (which claripy returns); when an
+    /// iterator is passed it is advanced in place and returned as-is.
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::mutable_key_type)]
+    #[pyo3(signature = (var_map = None, counter = None))]
     pub fn canonicalize<'py>(
         &self,
         py: Python<'py>,
-    ) -> Result<(HashMap<u64, Bound<'py, PyAny>>, usize, Bound<'py, Base>), ClaripyError> {
-        let (replacement_map, counter, canonical) = canonicalize(&self.inner.clone())?;
-        let canonical_py = Base::from_ast(py, canonical)?;
+        var_map: Option<Bound<'py, PyDict>>,
+        counter: Option<Bound<'py, PyAny>>,
+    ) -> Result<(Bound<'py, PyDict>, Bound<'py, PyAny>, Bound<'py, Base>), ClaripyError> {
+        let dict = var_map.unwrap_or_else(|| PyDict::new(py));
+        let counter_is_iter = matches!(&counter, Some(c) if c.hasattr("__next__").unwrap_or(false));
+        let mut int_counter: usize = match &counter {
+            Some(c) if !counter_is_iter => c.extract::<usize>()?,
+            _ => 0,
+        };
 
-        let mut py_map = HashMap::new();
-        for (hash, ast) in replacement_map {
-            let py_ast = Base::from_ast(py, ast)?;
-            py_map.insert(hash, py_ast.into_any());
+        let vars = collect_vars(&self.inner)?;
+        let mut sorted_vars: Vec<_> = vars.into_iter().collect();
+        sorted_vars.sort_by_key(|v| v.variables().iter().next().cloned());
+
+        let ctx = self.inner.context();
+        let mut replacements: Vec<(AstRef<'static>, AstRef<'static>)> = Vec::new();
+        for var in sorted_vars {
+            let key = var.hash();
+            let canonical_ast = match dict.get_item(key)? {
+                Some(existing) => Base::to_ast(existing.cast_into::<Base>()?)?,
+                None => {
+                    let idx = if counter_is_iter {
+                        counter
+                            .as_ref()
+                            .expect("counter_is_iter implies counter")
+                            .call_method0("__next__")?
+                            .extract::<usize>()?
+                    } else {
+                        let idx = int_counter;
+                        int_counter += 1;
+                        idx
+                    };
+                    let name = format!("v{idx}");
+                    let canonical = match var.ast_type() {
+                        AstType::Bool => ctx.bools(name.as_str())?,
+                        AstType::BitVec(size) => ctx.bvs(name.as_str(), size)?,
+                        AstType::Float(sort) => ctx.fps(name.as_str(), sort)?,
+                        AstType::String => ctx.strings(name.as_str())?,
+                    };
+                    dict.set_item(key, Base::from_ast(py, canonical.clone())?)?;
+                    canonical
+                }
+            };
+            replacements.push((var, canonical_ast));
         }
 
-        Ok((py_map, counter, canonical_py))
+        let mut result = self.inner.clone();
+        for (from, to) in &replacements {
+            result = result.replace(from, to)?;
+        }
+
+        let counter_ret: Bound<'py, PyAny> = match counter {
+            Some(c) if counter_is_iter => c,
+            _ => int_counter
+                .into_pyobject(py)
+                .map_err(PyErr::from)?
+                .into_any(),
+        };
+
+        Ok((dict, counter_ret, Base::from_ast(py, result)?))
     }
 
     pub fn identical(&self, other: Bound<'_, Base>) -> Result<bool, ClaripyError> {
