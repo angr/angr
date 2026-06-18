@@ -349,6 +349,25 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         self.eval_in_model(expr)
     }
 
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if exprs.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Draw every value from one model so the results are mutually
+        // consistent (a usable model), unlike eval() called in a loop.
+        let model = self.make_model()?;
+        exprs
+            .iter()
+            .map(|expr| {
+                let expr = expr.simplify()?.simplify_z3()?;
+                if expr.concrete() {
+                    return Ok(expr);
+                }
+                AstRef::from_z3(expr.context(), model.eval(&expr.to_z3()?)?)
+            })
+            .collect()
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         let expr = expr.simplify_z3()?;
         Ok(expr.concrete() && expr.is_true())
@@ -551,6 +570,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clarirs_core::solver_mixins::ModelCacheMixin;
 
     #[test]
     fn test_solver_simple() -> Result<(), ClarirsError> {
@@ -568,6 +588,92 @@ mod tests {
 
         assert_ne!(x_val, y_val);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_batch_eval_consistent_model() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+
+        let x = ctx.bvs("x", 8)?;
+        let y = ctx.bvs("y", 8)?;
+        // y == x + 1, so any model must keep that relationship.
+        solver.add(&ctx.eq_(&y, &ctx.add(&x, &ctx.bvv(BitVec::from((1, 8)))?)?)?)?;
+
+        let values = solver.batch_eval(&[x.clone(), y.clone()])?;
+        assert_eq!(values.len(), 2);
+        let (x_val, y_val) = (values[0].clone(), values[1].clone());
+
+        // The two values come from one model, so y_val == x_val + 1.
+        let expected_y = ctx
+            .add(&x_val, &ctx.bvv(BitVec::from((1, 8)))?)?
+            .simplify()?;
+        assert_eq!(y_val, expected_y);
+        Ok(())
+    }
+
+    /// The model cache must never change an answer: a cached and a cacheless
+    /// Z3 solver agree on satisfiability and evaluation.
+    #[test]
+    fn test_model_cache_matches_cacheless() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut cached = ModelCacheMixin::new(Z3Solver::new(&ctx));
+        let mut cacheless = Z3Solver::new(&ctx);
+
+        let x = ctx.bvs("x", 32)?;
+        // 10 <= x <= 20
+        let c1 = ctx.uge(&x, &ctx.bvv(BitVec::from((10, 32)))?)?;
+        let c2 = ctx.ule(&x, &ctx.bvv(BitVec::from((20, 32)))?)?;
+        cached.add(&c1)?;
+        cached.add(&c2)?;
+        cacheless.add(&c1)?;
+        cacheless.add(&c2)?;
+
+        // Satisfiability agrees, and a second (cached) check still agrees.
+        assert_eq!(cached.satisfiable()?, cacheless.satisfiable()?);
+        assert!(cached.satisfiable()?);
+
+        // Any value the cache yields for x must lie within the constraints.
+        let v = cached.eval(&x)?;
+        let in_range = cached.is_true(&ctx.and2(
+            &ctx.uge(&v, &ctx.bvv(BitVec::from((10, 32)))?)?,
+            &ctx.ule(&v, &ctx.bvv(BitVec::from((20, 32)))?)?,
+        )?)?;
+        assert!(
+            in_range,
+            "cached eval produced an out-of-range value: {v:?}"
+        );
+
+        // A satisfiable extra constraint reachable by a cached model.
+        let extra_sat = ctx.eq_(&x, &v.clone().into_bitvec().unwrap())?;
+        assert!(cached.satisfiable_with_extra(&[extra_sat])?);
+
+        // An unsatisfiable extra constraint must fall through and report unsat.
+        let extra_unsat = ctx.eq_(&x, &ctx.bvv(BitVec::from((100, 32)))?)?;
+        assert_eq!(
+            cached.satisfiable_with_extra(&[extra_unsat.clone()])?,
+            cacheless.satisfiable_with_extra(&[extra_unsat])?,
+        );
+        assert!(
+            !cached.satisfiable_with_extra(&[ctx.eq_(&x, &ctx.bvv(BitVec::from((100, 32)))?)?])?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_model_cache_unsat() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut cached = ModelCacheMixin::new(Z3Solver::new(&ctx));
+
+        let x = ctx.bvs("x", 8)?;
+        cached.add(&ctx.eq_(&x, &ctx.bvv(BitVec::from((1, 8)))?)?)?;
+        cached.add(&ctx.eq_(&x, &ctx.bvv(BitVec::from((2, 8)))?)?)?;
+
+        // Unsat, and the cached flag keeps it unsat on repeated checks.
+        assert!(!cached.satisfiable()?);
+        assert!(!cached.satisfiable()?);
         Ok(())
     }
 

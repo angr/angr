@@ -1,25 +1,36 @@
 use clarirs_core::prelude::*;
-use clarirs_core::solver_mixins::{ConcreteEarlyResolutionMixin, SimplificationMixin};
+use clarirs_core::solver_mixins::{
+    ConcreteEarlyResolutionMixin, ModelCacheMixin, SimplificationMixin,
+};
 use clarirs_vsa::VSASolver;
 use clarirs_z3::Z3Solver;
 
-// Type aliases for the wrapped solvers with mixins
+// Type aliases for the wrapped solvers with mixins.
+//
+// `WrappedZ3Solver` is the caching Z3 stack used by the default `Solver` (and,
+// like claripy, by the composite/replacement/hybrid frontends): the
+// `ModelCacheMixin` sits just above the Z3 backend and caches satisfiability
+// and models. `WrappedZ3CachelessSolver` omits that mixin, mirroring claripy's
+// `SolverCacheless`.
 type WrappedConcreteSolver<'c> = ConcreteSolver<'c>;
-type WrappedZ3Solver<'c> = SimplificationMixin<'c, ConcreteEarlyResolutionMixin<'c, Z3Solver<'c>>>;
+type WrappedZ3Solver<'c> =
+    SimplificationMixin<'c, ConcreteEarlyResolutionMixin<'c, ModelCacheMixin<'c, Z3Solver<'c>>>>;
+type WrappedZ3CachelessSolver<'c> =
+    SimplificationMixin<'c, ConcreteEarlyResolutionMixin<'c, Z3Solver<'c>>>;
 type WrappedVSASolver<'c> =
     SimplificationMixin<'c, ConcreteEarlyResolutionMixin<'c, VSASolver<'c>>>;
 type WrappedHybridSolver<'c> = SimplificationMixin<
     'c,
     ConcreteEarlyResolutionMixin<'c, HybridSolver<'c, WrappedVSASolver<'c>, WrappedZ3Solver<'c>>>,
 >;
-type WrappedReplacementSolver<'c> =
-    ReplacementSolver<'c, SimplificationMixin<'c, ConcreteEarlyResolutionMixin<'c, Z3Solver<'c>>>>;
+type WrappedReplacementSolver<'c> = ReplacementSolver<'c, WrappedZ3Solver<'c>>;
 type WrappedCompositeSolver<'c> = CompositeSolver<'c, WrappedZ3Solver<'c>>;
 
 #[derive(Clone, Debug)]
 pub(crate) enum DynSolver {
     Concrete(WrappedConcreteSolver<'static>),
     Z3(WrappedZ3Solver<'static>),
+    Z3Cacheless(WrappedZ3CachelessSolver<'static>),
     Vsa(WrappedVSASolver<'static>),
     Hybrid(WrappedHybridSolver<'static>),
     Replacement(WrappedReplacementSolver<'static>),
@@ -31,6 +42,7 @@ impl HasContext<'static> for DynSolver {
         match self {
             DynSolver::Concrete(solver) => solver.context(),
             DynSolver::Z3(solver) => solver.context(),
+            DynSolver::Z3Cacheless(solver) => solver.context(),
             DynSolver::Vsa(solver) => solver.context(),
             DynSolver::Hybrid(solver) => solver.context(),
             DynSolver::Replacement(solver) => solver.context(),
@@ -45,6 +57,11 @@ impl DynSolver {
         match self {
             DynSolver::Z3(wrapped_solver) => {
                 // Access through the mixin layers
+                // SimplificationMixin -> ConcreteEarlyResolutionMixin -> ModelCacheMixin -> Z3Solver
+                let z3_solver = wrapped_solver.inner_mut().inner_mut().inner_mut();
+                z3_solver.unsat_core()
+            }
+            DynSolver::Z3Cacheless(wrapped_solver) => {
                 // SimplificationMixin -> ConcreteEarlyResolutionMixin -> Z3Solver
                 let z3_solver = wrapped_solver.inner_mut().inner_mut();
                 z3_solver.unsat_core()
@@ -52,7 +69,7 @@ impl DynSolver {
             DynSolver::Hybrid(wrapped_solver) => {
                 // Access through mixin layers to the HybridSolver, then to its exact (Z3) solver
                 let hybrid = wrapped_solver.inner_mut().inner_mut();
-                let z3_solver = hybrid.exact_mut().inner_mut().inner_mut();
+                let z3_solver = hybrid.exact_mut().inner_mut().inner_mut().inner_mut();
                 z3_solver.unsat_core()
             }
             _ => Err(ClarirsError::UnsupportedOperation(
@@ -97,6 +114,7 @@ macro_rules! dispatch {
         match $self {
             DynSolver::Concrete(solver) => solver.$method($($arg),*),
             DynSolver::Z3(solver) => solver.$method($($arg),*),
+            DynSolver::Z3Cacheless(solver) => solver.$method($($arg),*),
             DynSolver::Vsa(solver) => solver.$method($($arg),*),
             DynSolver::Hybrid(solver) => solver.$method($($arg),*),
             DynSolver::Replacement(solver) => solver.$method($($arg),*),
