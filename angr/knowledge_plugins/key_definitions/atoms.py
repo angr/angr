@@ -40,6 +40,27 @@ class Atom:
         self.size = size
         self._hash = None
 
+    def __getstate__(self):
+        # Exclude the cached hash from the pickle: it folds in per-process-salted
+        # string hashes (e.g. register names), so a persisted value is stale when
+        # unpickled in another process. It is recomputed lazily instead.
+        slotstate = {
+            slot: getattr(self, slot)
+            for klass in type(self).__mro__
+            for slot in getattr(klass, "__slots__", ())
+            if slot != "_hash" and hasattr(self, slot)
+        }
+        return getattr(self, "__dict__", None), slotstate
+
+    def __setstate__(self, state):
+        dictstate, slotstate = state if isinstance(state, tuple) else (None, state)
+        if dictstate:
+            self.__dict__.update(dictstate)
+        for slot, value in (slotstate or {}).items():
+            if slot != "_hash":
+                setattr(self, slot, value)
+        self._hash = None
+
     def __repr__(self):
         raise NotImplementedError
 
