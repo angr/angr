@@ -18,6 +18,10 @@ pub struct CompositeSolver<'c, S: Solver<'c>> {
     children: HashMap<usize, S>,
     var_to_child: HashMap<InternedString, usize>,
     next_id: usize,
+    /// Set when a concretely-false constraint is added. claripy's
+    /// CompositeFrontend records the unsat state instead of raising from
+    /// add(); unsat is reported by satisfiable() and value queries.
+    unsat: bool,
 }
 
 impl<'c, S: Solver<'c>> HasContext<'c> for CompositeSolver<'c, S> {
@@ -34,6 +38,7 @@ impl<'c, S: Solver<'c>> CompositeSolver<'c, S> {
             children: HashMap::new(),
             var_to_child: HashMap::new(),
             next_id: 0,
+            unsat: false,
         }
     }
 
@@ -121,9 +126,10 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
         let vars: BTreeSet<InternedString> = constraint.variables().clone();
 
         if vars.is_empty() {
-            // Concrete constraint — reject immediately if false.
+            // Concrete constraint — record unsat if false. claripy does not
+            // raise from add(); the unsat state surfaces on later queries.
             if constraint.is_false() {
-                return Err(ClarirsError::Unsat);
+                self.unsat = true;
             }
             return Ok(());
         }
@@ -149,6 +155,7 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
     fn clear(&mut self) -> Result<(), ClarirsError> {
         self.children.clear();
         self.var_to_child.clear();
+        self.unsat = false;
         Ok(())
     }
 
@@ -168,6 +175,9 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
     }
 
     fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
+        if self.unsat {
+            return Ok(false);
+        }
         for child in self.children.values_mut() {
             if !child.satisfiable()? {
                 return Ok(false);
@@ -265,26 +275,41 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
     }
 
     fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        if self.unsat {
+            return Err(ClarirsError::Unsat);
+        }
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.min_unsigned(expr))
     }
 
     fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        if self.unsat {
+            return Err(ClarirsError::Unsat);
+        }
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.max_unsigned(expr))
     }
 
     fn min_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        if self.unsat {
+            return Err(ClarirsError::Unsat);
+        }
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.min_signed(expr))
     }
 
     fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        if self.unsat {
+            return Err(ClarirsError::Unsat);
+        }
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.max_signed(expr))
     }
 
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if self.unsat {
+            return Err(ClarirsError::Unsat);
+        }
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.eval_n(expr, n))
     }
@@ -315,9 +340,14 @@ mod tests {
         let template = ConcreteSolver::new(&ctx);
         let mut solver = CompositeSolver::new(&ctx, template);
 
-        // Adding false should return Unsat
-        let result = solver.add(&ctx.false_().unwrap());
-        assert!(result.is_err());
+        // Adding false succeeds (claripy does not raise from add); the unsat
+        // state is reported by satisfiable().
+        solver.add(&ctx.false_().unwrap()).unwrap();
+        assert!(!solver.satisfiable().unwrap());
+
+        // clear() resets the unsat state.
+        solver.clear().unwrap();
+        assert!(solver.satisfiable().unwrap());
     }
 
     #[test]
