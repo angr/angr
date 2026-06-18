@@ -57,7 +57,12 @@ impl PySolver {
         exact: Option<bool>,
         f: impl FnOnce(&mut DynSolver) -> Result<T, ClaripyError>,
     ) -> Result<T, ClaripyError> {
-        let has_extra = matches!(&extra_constraints, Some(ec) if !ec.is_empty());
+        let asts: Vec<AstRef<'static>> = extra_constraints
+            .into_iter()
+            .flatten()
+            .map(|c| c.0.get().inner.clone())
+            .collect();
+        let has_extra = !asts.is_empty();
         let needs_sub_solver = exact.is_some() && matches!(&self.inner, DynSolver::Hybrid(_));
 
         if has_extra || needs_sub_solver {
@@ -70,10 +75,8 @@ impl PySolver {
                 }
                 _ => self.inner.clone(),
             };
-            if let Some(ec) = extra_constraints {
-                for constraint in ec {
-                    solver.add(&constraint.0.get().inner)?;
-                }
+            for constraint in &asts {
+                solver.add(constraint)?;
             }
             f(&mut solver)
         } else {
@@ -474,6 +477,12 @@ impl PySolver {
         }
     }
 
+    /// Returns up to `n` tuples, each holding one value per expression, with
+    /// all values in a tuple drawn from a single model (claripy semantics).
+    /// Models are enumerated one at a time: within a model every expression is
+    /// evaluated against the same assignment (pinned on a throwaway copy of the
+    /// solver so later evaluations stay consistent with the earlier ones), then
+    /// that whole assignment is excluded before the next model is sought.
     #[pyo3(signature = (exprs, n, extra_constraints = None, exact = None))]
     fn batch_eval<'py>(
         &mut self,
@@ -482,11 +491,81 @@ impl PySolver {
         n: u32,
         extra_constraints: Option<Vec<CoerceBool<'py>>>,
         exact: Option<Bound<'py, PyAny>>,
-    ) -> PyResult<Vec<Vec<Bound<'py, PyAny>>>> {
-        exprs
-            .into_iter()
-            .map(|expr| self.eval(py, expr, n, extra_constraints.clone(), exact.clone()))
-            .collect::<Result<Vec<Vec<Bound<PyAny>>>, pyo3::PyErr>>()
+    ) -> PyResult<Vec<Bound<'py, PyTuple>>> {
+        if exprs.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let asts: Vec<AstRef<'static>> = exprs
+            .iter()
+            .map(|expr| Base::to_ast(expr.clone()))
+            .collect::<Result<_, _>>()?;
+        let exact = Self::extract_exact(exact);
+
+        let rows: Vec<Vec<AstRef<'static>>> = self
+            .with_extra_constraints(extra_constraints, exact, |solver| {
+                let mut rows = Vec::new();
+                for _ in 0..n {
+                    if !solver.satisfiable().map_err(ClaripyError::from)? {
+                        break;
+                    }
+                    let mut model = solver.clone();
+                    let mut row = Vec::with_capacity(asts.len());
+                    let mut disequalities = Vec::with_capacity(asts.len());
+                    for ast in &asts {
+                        // Evaluate against the current model, pinning the value
+                        // so the remaining expressions stay consistent with it.
+                        let value = model.eval(ast).map_err(ClaripyError::from)?;
+                        let eq = GLOBAL_CONTEXT
+                            .eq_(ast, &value)
+                            .map_err(ClaripyError::from)?;
+                        model.add(&eq).map_err(ClaripyError::from)?;
+                        disequalities.push(
+                            GLOBAL_CONTEXT
+                                .neq(ast, &value)
+                                .map_err(ClaripyError::from)?,
+                        );
+                        row.push(value);
+                    }
+                    // Exclude this whole assignment from subsequent models.
+                    let blocker = GLOBAL_CONTEXT
+                        .or(disequalities)
+                        .map_err(ClaripyError::from)?;
+                    solver.add(&blocker).map_err(ClaripyError::from)?;
+                    rows.push(row);
+                }
+                Ok(rows)
+            })
+            .map_err(PyErr::from)?;
+
+        let to_py = |ast: &AstRef<'static>| -> PyResult<Bound<'py, PyAny>> {
+            Ok(match ast.op() {
+                AstOp::BVV(bv) => bv.to_biguint().into_bound_py_any(py)?,
+                AstOp::BoolV(b) => b.into_bound_py_any(py)?,
+                AstOp::FPV(fp) => fp
+                    .to_f64()
+                    .ok_or_else(|| {
+                        ClaripyError::UnsupportedOperation(
+                            "batch_eval: non-finite float solution".to_string(),
+                        )
+                    })?
+                    .into_bound_py_any(py)?,
+                AstOp::StringV(s) => s.into_bound_py_any(py)?,
+                _ => {
+                    return Err(ClaripyError::UnsupportedOperation(
+                        "batch_eval: solver returned a non-constant solution".to_string(),
+                    )
+                    .into());
+                }
+            })
+        };
+
+        let mut tuples = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let values = row.iter().map(&to_py).collect::<PyResult<Vec<_>>>()?;
+            tuples.push(PyTuple::new(py, values)?);
+        }
+        Ok(tuples)
     }
 
     #[pyo3(signature = (expr, value, extra_constraints = None, exact = None))]
