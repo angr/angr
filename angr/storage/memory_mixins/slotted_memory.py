@@ -111,7 +111,12 @@ class SlottedMemoryMixin(MemoryMixin):
     def load(self, addr, size=None, *, endness=None, **kwargs):
         accesses = self._resolve_access(addr, size)
 
-        value = claripy.Concat(*(self._single_load(addr, offset, size) for addr, offset, size in accesses))
+        pieces = [self._single_load(addr, offset, size) for addr, offset, size in accesses]
+        # A single access is the whole value; wrapping it in a one-element
+        # Concat would rebuild a fresh node and drop any non-relocatable
+        # annotations (e.g. StackLocationAnnotation) the backend doesn't carry
+        # onto derived ASTs.
+        value = pieces[0] if len(pieces) == 1 else claripy.Concat(*pieces)
         if endness != self.endness:
             value = value.reversed
 
@@ -122,6 +127,14 @@ class SlottedMemoryMixin(MemoryMixin):
             data = data.reversed
 
         accesses = self._resolve_access(addr, size)
+        # When a single slot covers the whole value, store it verbatim rather
+        # than slicing with get_bytes, which would rebuild a fresh node and drop
+        # any non-relocatable annotations.
+        if len(accesses) == 1:
+            addr, offset, size = accesses[0]
+            self._single_store(addr, offset, size, data)
+            return
+
         cur_offset = 0
         for addr, offset, size in accesses:
             piece = data.get_bytes(cur_offset, size)
