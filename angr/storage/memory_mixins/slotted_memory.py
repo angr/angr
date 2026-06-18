@@ -111,7 +111,10 @@ class SlottedMemoryMixin(MemoryMixin):
     def load(self, addr, size=None, *, endness=None, **kwargs):
         accesses = self._resolve_access(addr, size)
 
-        value = claripy.Concat(*(self._single_load(addr, offset, size) for addr, offset, size in accesses))
+        pieces = [self._single_load(addr, offset, size) for addr, offset, size in accesses]
+        # Concat pieces if there are multiple
+        value = pieces[0] if len(pieces) == 1 else claripy.Concat(*pieces)
+
         if endness != self.endness:
             value = value.reversed
 
@@ -122,6 +125,14 @@ class SlottedMemoryMixin(MemoryMixin):
             data = data.reversed
 
         accesses = self._resolve_access(addr, size)
+
+        # If we only have one access, we can skip the splitting and concatenation logic
+        # which has the side affect of creating extra claripy ASTs
+        if len(accesses) == 1:
+            addr, offset, size = accesses[0]
+            self._single_store(addr, offset, size, data)
+            return
+
         cur_offset = 0
         for addr, offset, size in accesses:
             piece = data.get_bytes(cur_offset, size)
