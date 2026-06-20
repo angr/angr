@@ -140,7 +140,9 @@ class ConditionConstantPropagation(OptimizationPass):
         entry_node_addr, entry_node_idx = self.entry_node_addr
         entry_node = self._get_block(entry_node_addr, idx=entry_node_idx)
         idoms = networkx.algorithms.immediate_dominators(self._graph, entry_node)
-        rda: SRDAModel = self.project.analyses.SReachingDefinitions(self._func, func_graph=self._graph).model
+        rda: SRDAModel = self.project.analyses.SReachingDefinitions(
+            self._func, func_graph=self._graph, block_defuses_cache=self._block_defuses_cache
+        ).model
 
         for src, cconds in cconds_by_src.items():
             head_block = self._get_block(src[0], idx=src[1])

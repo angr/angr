@@ -148,6 +148,7 @@ class OptimizationPass(BaseOptimizationPass):
         peephole_optimizations=None,
         stack_pointer_tracker=None,
         notes: dict | None = None,
+        block_defuses_cache=None,
         **kwargs,
     ):
         super().__init__(func, manager)
@@ -172,6 +173,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._fold_expressions = fold_expressions
         self._peephole_optimizations = peephole_optimizations
         self._stack_pointer_tracker = stack_pointer_tracker
+        self._block_defuses_cache = block_defuses_cache
         self.notes = notes if notes is not None else {}
 
         # output

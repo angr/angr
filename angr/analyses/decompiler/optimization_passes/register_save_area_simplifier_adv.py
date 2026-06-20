@@ -40,6 +40,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
             subject=self._func,
             func_graph=self._graph,
             func_args={vvar for vvar, _ in arg_vvars.values()} if (arg_vvars := self._arg_vvars) is not None else set(),
+            block_defuses_cache=self._block_defuses_cache,
         )
         info = self._find_reg_store_and_restore_locations()
         if not info:

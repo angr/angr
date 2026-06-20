@@ -1,6 +1,9 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
+import os
+from collections import Counter, defaultdict
+
 import networkx
 
 from angr.ailment.block import Block
@@ -15,6 +18,10 @@ from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, g
 
 from .s_rda_model import SRDAModel
 from .s_rda_view import SRDAView
+
+# When enabled (env var VERIFY_BLOCK_DEFUSES_CACHE), every cache-served per-block def/use collection is checked against
+# a fresh whole-graph scan. Used to validate the cache; off by default because the fresh scan defeats its purpose.
+_VERIFY_BLOCK_DEFUSES_CACHE = os.environ.get("VERIFY_BLOCK_DEFUSES_CACHE", "").lower() not in {"", "0", "no", "false"}
 
 
 class SReachingDefinitionsAnalysis(Analysis):
@@ -31,6 +38,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         use_callee_saved_regs_at_return: bool = False,
         track_tmps: bool = False,
         variable_map=None,
+        block_defuses_cache=None,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -48,14 +56,82 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.func_args = func_args
         self._track_tmps = track_tmps
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        # The per-block def/use cache is only consulted in function mode (the per-block scan does not depend on
+        # func_args/use_callee_saved_regs_at_return, so a single cache is valid across all function-mode call sites).
+        # Temporaries are never cached, so it is not used when tmps are tracked.
+        self._block_defuses_cache = block_defuses_cache if self.mode == "function" and not track_tmps else None
 
         self._bp_as_gpr = False
         if self.func is not None:
             self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
 
-        self.model = SRDAModel(func_graph, func_args, self.project.arch, variable_map=variable_map)
+        self.model = SRDAModel(
+            func_graph,
+            func_args,
+            self.project.arch,
+            variable_map=variable_map,
+            block_defuses_cache=self._block_defuses_cache,
+        )
 
         self._analyze()
+
+    def _collect_vvar_defuses(self, blocks):
+        """
+        Collect per-block vvar definitions, explicit uses, and phi sources for ``blocks``.
+
+        When a BlockDefUsesCache is available (function mode), unchanged blocks are served from the cache instead of
+        being re-scanned; otherwise the whole-graph scan is used. The two paths are equivalent: the merged result is
+        order-insensitively identical to a fresh scan (verified when VERIFY_BLOCK_DEFUSES_CACHE is set).
+
+        :return: a tuple of (vvar_deflocs, vvar_uselocs, phi_vvars), matching ``get_vvar_deflocs``/``get_vvar_uselocs``.
+        """
+        if self._block_defuses_cache is None:
+            phi_vvars: dict[int, set[int | None]] = {}
+            vvar_deflocs = get_vvar_deflocs(blocks, phi_vvars=phi_vvars)
+            vvar_uselocs = get_vvar_uselocs(blocks)
+            return vvar_deflocs, vvar_uselocs, phi_vvars
+
+        cache = self._block_defuses_cache
+        vvar_deflocs = {}
+        phi_vvars = {}
+        vvar_uselocs = defaultdict(list)
+        # Merge per-block results in func_graph iteration order, matching the whole-graph scan (later definitions
+        # overwrite earlier ones; uses are concatenated in block order). vvar definitions are unique per varid in SSA,
+        # so the merge order only matters for the rare extra-def overwrite and for deterministic use ordering.
+        for block in blocks:
+            bdu = cache.get(block)
+            vvar_deflocs.update(bdu.vvar_deflocs)
+            phi_vvars.update(bdu.phi_vvars)
+            for varid, uses in bdu.vvar_uselocs.items():
+                vvar_uselocs[varid].extend(uses)
+
+        if _VERIFY_BLOCK_DEFUSES_CACHE:
+            self._verify_block_defuses(blocks, vvar_deflocs, vvar_uselocs, phi_vvars)
+        return vvar_deflocs, vvar_uselocs, phi_vvars
+
+    @staticmethod
+    def _verify_block_defuses(blocks, vvar_deflocs, vvar_uselocs, phi_vvars) -> None:
+        # Debug-only (env var VERIFY_BLOCK_DEFUSES_CACHE): assert the cache-served collection matches a fresh scan.
+        ref_phi: dict[int, set[int | None]] = {}
+        ref_deflocs = get_vvar_deflocs(blocks, phi_vvars=ref_phi)
+        ref_uselocs = get_vvar_uselocs(blocks)
+
+        def canon_defs(d):
+            return {vid: loc for vid, (_vvar, loc) in d.items()}
+
+        def canon_uses(d):
+            return {
+                vid: Counter((e.varid if e is not None else None, loc) for e, loc in lst)
+                for vid, lst in d.items()
+                if lst
+            }
+
+        if canon_defs(vvar_deflocs) != canon_defs(ref_deflocs):
+            raise AssertionError("BlockDefUsesCache: vvar definitions diverged from a fresh scan")
+        if canon_uses(vvar_uselocs) != canon_uses(ref_uselocs):
+            raise AssertionError("BlockDefUsesCache: vvar uses diverged from a fresh scan")
+        if {k: frozenset(v) for k, v in phi_vvars.items()} != {k: frozenset(v) for k, v in ref_phi.items()}:
+            raise AssertionError("BlockDefUsesCache: phi sources diverged from a fresh scan")
 
     def _analyze(self):
         match self.mode:
@@ -68,11 +144,8 @@ class SReachingDefinitionsAnalysis(Analysis):
             case _:
                 raise NotImplementedError
 
-        phi_vvars: dict[int, set[int | None]] = {}
-        # find all vvar definitions
-        vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
-        # find all explicit vvar uses
-        vvar_uselocs = get_vvar_uselocs(blocks.values())
+        # find all vvar definitions, explicit uses, and phi sources (served from the per-block cache when available)
+        vvar_deflocs, vvar_uselocs, phi_vvars = self._collect_vvar_defuses(blocks.values())
 
         # update vvar definitions using function arguments
         if self.func_args:

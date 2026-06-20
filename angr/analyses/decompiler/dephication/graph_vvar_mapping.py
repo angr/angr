@@ -36,6 +36,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         entry=None,
         vvar_id_start: int = 0,
         arg_vvars: list[VirtualVariable] | None = None,
+        block_defuses_cache=None,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -61,7 +62,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self.vvar_to_vvar_mapping = None
         self.copied_vvar_ids: set[int] = set()
         self._rd: SRDAModel = self.project.analyses.SReachingDefinitions(
-            subject=self._function, func_graph=self._graph
+            subject=self._function, func_graph=self._graph, block_defuses_cache=block_defuses_cache
         ).model
         self._blocks: dict[tuple[int, int | None], Block] = {(block.addr, block.idx): block for block in self._graph}
 

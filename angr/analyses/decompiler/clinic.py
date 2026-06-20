@@ -20,6 +20,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.s_liveness import SLivenessAnalysis
+from angr.analyses.s_reaching_definitions import BlockDefUsesCache
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
@@ -284,6 +285,9 @@ class Clinic(Analysis):
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
         self._rewrite_ites_to_diamond_max_cases = rewrite_ites_to_diamond_max_cases
         self.reaching_definitions: SRDAModel | None = None
+        # Decompilation-scoped per-block def/use cache, threaded through every function-mode SRDA invocation so that
+        # unchanged blocks are not re-scanned on each run.
+        self._srda_block_cache = BlockDefUsesCache()
         self._cache = cache
         self._mode = mode
         self._max_type_constraints = max_type_constraints
@@ -1753,6 +1757,10 @@ class Clinic(Analysis):
             if cache_item:
                 del cache[cache_key]
             cache[cache_key] = BlockCache(simp._reaching_definitions, simp._propagator)
+        # BlockSimplifier may peephole-optimize expressions in place (mutating the block's statements without replacing
+        # the list object), which the per-block def/use cache cannot detect by statement-list identity. Invalidate the
+        # cached entry for this block so the next function-mode SRDA re-scans it.
+        self._srda_block_cache.mark_dirty(*cache_key)
         return simp.result_block
 
     @timethis
@@ -1840,6 +1848,7 @@ class Clinic(Analysis):
             removed_vvar_ids=removed_vvar_ids,
             arg_vvars=arg_vvars,
             avoid_vvar_ids=preserve_vvar_ids,
+            block_defuses_cache=self._srda_block_cache,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -1911,6 +1920,7 @@ class Clinic(Analysis):
                 notes=self.notes,
                 static_vvars=self.static_vvars,
                 static_buffers=self.static_buffers,
+                block_defuses_cache=self._srda_block_cache,
                 **kwargs,
             )
             if a.out_graph:
@@ -2049,6 +2059,7 @@ class Clinic(Analysis):
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             vvar_id_start=self.vvar_id_start,
             arg_vvars=[arg_vvar for arg_vvar, _ in arg_vvars.values()],
+            block_defuses_cache=self._srda_block_cache,
         )
         self.vvar_id_start = dephication.vvar_id_start + 1
         return dephication.vvar_to_vvar_mapping, dephication.copied_vvar_ids
@@ -2163,6 +2174,7 @@ class Clinic(Analysis):
                 func_args=func_args,
                 fail_fast=self._fail_fast,
                 use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+                block_defuses_cache=self._srda_block_cache,
             )
         else:
             rd = None

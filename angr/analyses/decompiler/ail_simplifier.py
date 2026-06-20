@@ -184,9 +184,11 @@ class AILSimplifier(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
+        block_defuses_cache=None,
     ):
         self.func = func
         self.func_graph = func_graph
+        self._block_defuses_cache = block_defuses_cache
         self._reaching_definitions: SRDAModel | None = None
         self._propagator: SPropagatorAnalysis | None = None
 
@@ -347,6 +349,7 @@ class AILSimplifier(Analysis):
                 func_graph=self.func_graph,
                 func_args=func_args,
                 use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+                block_defuses_cache=self._block_defuses_cache,
                 # track_tmps=True,
             )
             .model
@@ -1880,6 +1883,7 @@ class AILSimplifier(Analysis):
                 func_graph=self.func_graph,
                 func_args=func_args,
                 use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+                block_defuses_cache=self._block_defuses_cache,
             )
             .model
         )

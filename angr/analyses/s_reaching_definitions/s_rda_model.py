@@ -15,11 +15,14 @@ class SRDAModel:
     The model for SRDA.
     """
 
-    def __init__(self, func_graph, func_args, arch, variable_map=None):
+    def __init__(self, func_graph, func_args, arch, variable_map=None, block_defuses_cache=None):
         self.func_graph = func_graph
         self.func_args = func_args
         self.arch = arch
         self.variable_map = variable_map
+        # Optional, decompilation-scoped per-block def/use cache (BlockDefUsesCache). When set, the per-block vvar
+        # definitions and uses are keyed by (block addr, block idx) and reused across SRDA runs for unchanged blocks.
+        self.block_defuses_cache = block_defuses_cache
         self.varid_to_vvar: dict[int, VirtualVariable] = {}
         self.all_vvar_definitions: dict[int, AILCodeLocation] = {}
         self.all_vvar_uses: dict[int, list[tuple[VirtualVariable | None, AILCodeLocation]]] = defaultdict(list)
@@ -136,6 +139,12 @@ class SRDAModel:
             self.phi_vvar_ids.discard(vid)
             self.phivarid_to_varids.pop(vid, None)
             self.phivarid_to_varids_with_unknown.pop(vid, None)
+
+        # Keep the per-block cache warm: the edited blocks were rebuilt in place (new statement lists), so refresh their
+        # cached def/use info now instead of letting the next full SRDA run re-scan them.
+        if self.block_defuses_cache is not None:
+            for b in edited_blocks:
+                self.block_defuses_cache.refresh(b)
 
     def canonical_form(self):
         """
