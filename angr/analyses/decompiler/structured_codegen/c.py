@@ -191,6 +191,51 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
     return t0 == t1
 
 
+def _safe_type_size(ty) -> int:
+    try:
+        sz = ty.size
+    except Exception:  # pylint:disable=broad-except
+        return -1
+    return sz if isinstance(sz, int) else -1
+
+
+def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
+    """
+    A structural sort key for a type, derived purely from its memory layout -- sizes, field offsets, and the
+    layouts of field/element/pointee types -- and never from any user-renamable struct or field name. This lets
+    the code generator order type definitions stably without their order changing when the user renames a struct
+    or a field. Cycles through recursive struct/pointer references are broken with a marker.
+    """
+    ty = unpack_typeref(ty)
+    if isinstance(ty, SimStruct):
+        if id(ty) in _seen:
+            return "@"  # a reference back to an enclosing struct (recursive type)
+        _seen = _seen | {id(ty)}
+        try:
+            offsets = ty.offsets
+        except Exception:  # pylint:disable=broad-except
+            offsets = {}
+        fields = sorted(f"{offsets.get(fname, -1)}:{type_layout_key(fty, _seen)}" for fname, fty in ty.fields.items())
+        return f"S[{_safe_type_size(ty)};{int(bool(getattr(ty, 'packed', False)))};{';'.join(fields)}]"
+    if isinstance(ty, SimTypePointer):
+        return f"P({type_layout_key(ty.pts_to, _seen)})"
+    if isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+        return f"A{getattr(ty, 'length', None)}({type_layout_key(ty.elem_type, _seen)})"
+    return f"T:{type(ty).__name__}:{_safe_type_size(ty)}:{getattr(ty, 'signed', None)}"
+
+
+def cextern_sort_key(cextern) -> tuple:
+    """
+    A stable sort key for extern variables, based on the variable's address. Unlike the variable name, the
+    address does not change when the user renames the variable, so the ordering of extern definitions stays put
+    across renames.
+    """
+    addr = getattr(cextern.variable, "addr", None)
+    if isinstance(addr, int):
+        return (0, addr)
+    return (1, str(addr) if addr is not None else "")
+
+
 def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -552,6 +597,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         if self.codegen.show_local_types:
             name_to_structtypes = {}
             local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
+            # First, discover all (possibly nested) struct types. This must run to completion before emitting,
+            # so that emission can be reordered without disturbing discovery.
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
@@ -570,6 +617,15 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                                 name_to_structtypes[field.name] = field
                             local_types.append(field)
 
+            # Emit in a stable order. variable_manager.types iterates in the (run-dependent) order variables were
+            # typed, so emitting in iteration order makes the output non-deterministic. Sort by the type's
+            # structural layout so the ordering is deterministic AND does not change when the user renames a
+            # struct or a field. The name is only a last-resort tiebreaker between structurally identical types.
+            def _local_type_sort_key(ty) -> tuple:
+                name = ty.name if isinstance(ty, SimStruct) and ty.name else ""
+                return (type_layout_key(ty), name)
+
+            for ty in sorted(local_types, key=_local_type_sort_key):
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
@@ -580,7 +636,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 if self.codegen.show_local_types
                 else set()
             )
-            for v in self.codegen.cexterns:
+            # iterate externs in a stable, rename-independent order (by variable address) so the discovered
+            # struct types -- and therefore their emission order -- are deterministic
+            for v in sorted(self.codegen.cexterns, key=cextern_sort_key):
                 if v.variable not in self.variables_in_use or v.type is None:
                     continue
                 ty = unpack_typeref(v.type)
@@ -612,8 +670,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 defined_struct_names.add(ty.name)
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
-            # Emit extern declarations
-            for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
+            # Emit extern declarations (ordered by variable address so renames do not reshuffle them)
+            for v in sorted(self.codegen.cexterns, key=cextern_sort_key):
                 if v.variable not in self.variables_in_use:
                     continue
                 varname = v.c_repr() if v.type is None else v.variable.name
