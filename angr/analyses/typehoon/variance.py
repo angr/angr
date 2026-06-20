@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import enum
 
+from ._typehash import type_tag
+
 
 class Variance(enum.Enum):
     """
@@ -10,3 +12,7 @@ class Variance(enum.Enum):
 
     COVARIANT = 0
     CONTRAVARIANT = 1
+
+    def __hash__(self):
+        # hash by value (not by member identity, which varies across processes)
+        return hash((type_tag(Variance), self.value))
