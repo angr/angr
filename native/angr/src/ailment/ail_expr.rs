@@ -668,17 +668,17 @@ impl AilExpression {
                 HashItem::TypeName("Const"),
                 value.hash_item(),
                 HashItem::Int(self.header.bits as i128),
-            ]) as i64,
+            ]),
             ExprInner::Tmp { tmp_idx, .. } => stable_hash(&[
                 HashItem::Str("tmp"),
                 HashItem::Int(*tmp_idx as i128),
                 HashItem::Int(self.header.bits as i128),
-            ]) as i64,
+            ]),
             ExprInner::Register { reg_offset, .. } => stable_hash(&[
                 HashItem::Str("reg"),
                 HashItem::Int(*reg_offset as i128),
                 HashItem::Int(self.header.bits as i128),
-            ]) as i64,
+            ]),
             ExprInner::ComboRegister { registers, .. } => {
                 let mut inner = Vec::with_capacity(registers.len());
                 for r in registers {
@@ -689,7 +689,7 @@ impl AilExpression {
                     HashItem::Tuple(inner),
                     HashItem::Int(self.header.bits as i128),
                     HashItem::Int(self.header.idx as i128),
-                ]) as i64
+                ])
             }
             ExprInner::Phi { src_and_vvars, .. } => {
                 let mut items: Vec<HashItem> = Vec::with_capacity(src_and_vvars.len() * 3);
@@ -708,7 +708,7 @@ impl AilExpression {
                     HashItem::TypeName("Phi"),
                     HashItem::Tuple(items),
                     HashItem::Int(self.header.bits as i128),
-                ]) as i64
+                ])
             }
             ExprInner::VirtualVariable {
                 varid,
@@ -721,14 +721,14 @@ impl AilExpression {
                 HashItem::Int(self.header.bits as i128),
                 HashItem::Int(*category as u8 as i128),
                 oident.hash_item(),
-            ]) as i64,
+            ]),
             ExprInner::UnaryOp { op, operand, .. } => {
                 let oh = operand.cached_hash_or_compute();
                 stable_hash(&[
                     HashItem::Str(op.as_str()),
                     HashItem::U64Hash(oh as u64),
                     HashItem::Int(self.header.bits as i128),
-                ]) as i64
+                ])
             }
             ExprInner::Convert {
                 operand,
@@ -754,7 +754,7 @@ impl AilExpression {
                     HashItem::Int(*from_type as u8 as i128),
                     HashItem::Int(*to_type as u8 as i128),
                     rm,
-                ]) as i64
+                ])
             }
             ExprInner::Reinterpret {
                 operand,
@@ -771,7 +771,7 @@ impl AilExpression {
                     HashItem::Str(from_type.as_str()),
                     HashItem::Int(*to_bits as i128),
                     HashItem::Str(to_type.as_str()),
-                ]) as i64
+                ])
             }
             ExprInner::BinaryOp {
                 op,
@@ -788,7 +788,7 @@ impl AilExpression {
                     HashItem::Int(self.header.bits as i128),
                     HashItem::Bool(*signed),
                     HashItem::Bool(*floating_point),
-                ]) as i64
+                ])
             }
             ExprInner::Load {
                 addr,
@@ -802,7 +802,7 @@ impl AilExpression {
                     HashItem::U64Hash(addr_h as u64),
                     HashItem::Int(*size as i128),
                     HashItem::Str(endness.as_str()),
-                ]) as i64
+                ])
             }
             ExprInner::DirtyExpression {
                 callee,
@@ -841,7 +841,7 @@ impl AilExpression {
                     maddr_item,
                     msize_item,
                     HashItem::Int(self.header.bits as i128),
-                ]) as i64
+                ])
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
                 let op_items: Vec<HashItem> = operands
@@ -853,7 +853,7 @@ impl AilExpression {
                     HashItem::Str(callee.as_str()),
                     HashItem::Int(self.header.bits as i128),
                     HashItem::Tuple(op_items),
-                ]) as i64
+                ])
             }
             ExprInner::Struct {
                 name,
@@ -884,7 +884,7 @@ impl AilExpression {
                     HashItem::Tuple(fi),
                     HashItem::Tuple(oi),
                     HashItem::Int(self.header.bits as i128),
-                ]) as i64
+                ])
             }
             ExprInner::RustEnum { name, fields } => {
                 let inner: Vec<HashItem> = fields
@@ -895,7 +895,7 @@ impl AilExpression {
                     HashItem::Str(name.as_str()),
                     HashItem::Tuple(inner),
                     HashItem::Int(self.header.bits as i128),
-                ]) as i64
+                ])
             }
             ExprInner::Array { elements } => {
                 let inner: Vec<HashItem> = elements
@@ -905,30 +905,30 @@ impl AilExpression {
                 stable_hash(&[
                     HashItem::Tuple(inner),
                     HashItem::Int(self.header.bits as i128),
-                ]) as i64
+                ])
             }
             ExprInner::Let { src, .. } => stable_hash(&[
                 HashItem::TypeName("Let"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-            ]) as i64,
+            ]),
             ExprInner::Macro { name, .. } => stable_hash(&[
                 HashItem::TypeName("Macro"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::Str(name.as_str()),
-            ]) as i64,
+            ]),
             ExprInner::FunctionLikeMacro { name, .. } => stable_hash(&[
                 HashItem::TypeName("FunctionLikeMacro"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::Str(name.as_str()),
-            ]) as i64,
+            ]),
             ExprInner::MultiStatementExpression { stmts, expr } => {
                 let mut items = vec![HashItem::TypeName("MultiStatementExpression")];
                 for s in stmts {
                     items.push(HashItem::U64Hash(s.cached_hash_or_compute() as u64));
                 }
                 items.push(HashItem::U64Hash(expr.cached_hash_or_compute() as u64));
-                stable_hash(&items) as i64
+                stable_hash(&items)
             }
             ExprInner::Call { target, args, .. } => {
                 let args_h = match args {
@@ -946,7 +946,7 @@ impl AilExpression {
                     HashItem::Int(self.header.idx as i128),
                     target.hash_item(),
                     args_h,
-                ]) as i64
+                ])
             }
             ExprInner::ITE {
                 cond,
@@ -959,7 +959,7 @@ impl AilExpression {
                 HashItem::U64Hash(iffalse.cached_hash_or_compute() as u64),
                 HashItem::U64Hash(iftrue.cached_hash_or_compute() as u64),
                 HashItem::Int(self.header.bits as i128),
-            ]) as i64,
+            ]),
             ExprInner::Extract {
                 base,
                 offset,
@@ -969,7 +969,7 @@ impl AilExpression {
                 HashItem::U64Hash(base.cached_hash_or_compute() as u64),
                 HashItem::U64Hash(offset.cached_hash_or_compute() as u64),
                 HashItem::Str(endness.as_str()),
-            ]) as i64,
+            ]),
             ExprInner::Insert {
                 base,
                 offset,
@@ -981,23 +981,23 @@ impl AilExpression {
                 HashItem::U64Hash(offset.cached_hash_or_compute() as u64),
                 HashItem::U64Hash(value.cached_hash_or_compute() as u64),
                 HashItem::Str(endness.as_str()),
-            ]) as i64,
+            ]),
             ExprInner::StringLiteral { data } => stable_hash(&[
                 HashItem::TypeName("StringLiteral"),
                 HashItem::Str(data.as_str()),
                 HashItem::Int(self.header.bits as i128),
-            ]) as i64,
+            ]),
             ExprInner::BasePointerOffset { base, offset, .. } => stable_hash(&[
                 HashItem::TypeName("BasePointerOffset"),
                 HashItem::Int(self.header.bits as i128),
                 HashItem::Str(base.as_str()),
                 HashItem::Int(*offset as i128),
-            ]) as i64,
+            ]),
             ExprInner::StackBaseOffset { offset } => stable_hash(&[
                 HashItem::TypeName("StackBaseOffset"),
                 HashItem::Int(*offset),
                 HashItem::Int(self.header.bits as i128),
-            ]) as i64,
+            ]),
         }
     }
 
