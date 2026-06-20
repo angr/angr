@@ -8,6 +8,8 @@ from __future__ import annotations
 import functools
 import itertools
 
+from ._typehash import type_tag
+
 
 def memoize(f):
     @functools.wraps(f)
@@ -33,7 +35,7 @@ class TypeConstant:
         return repr(self)
 
     def _hash(self, visited: set[int]):  # pylint:disable=unused-argument
-        return hash(type(self))
+        return type_tag(type(self))
 
     def __eq__(self, other):
         return type(self) is type(other)
@@ -219,8 +221,8 @@ class Pointer(TypeConstant):
 
     def _hash(self, visited: set[int]):
         if self.basetype is None:
-            return hash(type(self))
-        return hash((type(self), self.basetype._hash(visited)))
+            return type_tag(type(self))
+        return hash((type_tag(type(self)), self.basetype._hash(visited)))
 
     def new(self, basetype, name: str | None = None):
         return self.__class__(basetype, name=name)
@@ -300,7 +302,7 @@ class Array(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type(self), self.element, self.count))
+        return hash((type_tag(type(self)), self.element, self.count))
 
     def __hash__(self):
         return self._hash(set())
@@ -331,7 +333,7 @@ class Struct(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type(self), self.idx, self._hash_fields(visited)))
+        return hash((type_tag(type(self)), self.idx, self._hash_fields(visited)))
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
@@ -386,7 +388,9 @@ class EnumVariant:
         )
 
     def __hash__(self):
-        return hash((type(self), self.name, tuple(self.fields), self.discriminant, self.discriminant_size, self.size))
+        return hash(
+            (type_tag(type(self)), self.name, tuple(self.fields), self.discriminant, self.discriminant_size, self.size)
+        )
 
 
 class RustEnum(TypeConstant):
@@ -398,7 +402,7 @@ class RustEnum(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type(self), self._hash_fields(visited)))
+        return hash((type_tag(type(self)), self._hash_fields(visited)))
 
     def _hash_fields(self, visited: set[int]):  # pylint:disable=unused-argument
         tpl = tuple(hash(variant) for variant in self.variants)
@@ -483,7 +487,7 @@ class Enum(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type(self), self.idx, tuple(sorted(self.members.items()))))
+        return hash((type_tag(type(self)), self.idx, tuple(sorted(self.members.items()))))
 
     def __hash__(self):
         return self._hash(set())
@@ -567,7 +571,7 @@ class TypeVariableReference(TypeConstant):
         return type(other) is type(self) and self.typevar == other.typevar
 
     def __hash__(self):
-        return hash((type(self), self.typevar))
+        return hash((type_tag(type(self)), self.typevar))
 
 
 #
