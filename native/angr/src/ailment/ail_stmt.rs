@@ -166,18 +166,18 @@ impl AilStatement {
                 HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(dst.cached_hash_or_compute() as u64),
                 HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-            ]) as i64,
+            ]),
             StmtInner::WeakAssignment { dst, src } => stable_hash(&[
                 HashItem::TypeName("WeakAssignment"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(dst.cached_hash_or_compute() as u64),
                 HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-            ]) as i64,
+            ]),
             StmtInner::Label { name } => stable_hash(&[
                 HashItem::TypeName("Label"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::Str(name.as_str()),
-            ]) as i64,
+            ]),
             StmtInner::Store {
                 addr, data, size, endness, ..
             } => stable_hash(&[
@@ -187,7 +187,7 @@ impl AilStatement {
                 HashItem::U64Hash(data.cached_hash_or_compute() as u64),
                 HashItem::Int(*size as i128),
                 HashItem::Str(endness.as_str()),
-            ]) as i64,
+            ]),
             StmtInner::Jump { target, target_idx } => {
                 let ti = match target_idx {
                     Some(v) => HashItem::Int(*v as i128),
@@ -198,7 +198,7 @@ impl AilStatement {
                     HashItem::Int(self.header.idx as i128),
                     target.hash_item(),
                     ti,
-                ]) as i64
+                ])
             }
             StmtInner::ConditionalJump {
                 condition,
@@ -220,13 +220,13 @@ impl AilStatement {
                     HashItem::U64Hash(condition.cached_hash_or_compute() as u64),
                     tt,
                     ft,
-                ]) as i64
+                ])
             }
             StmtInner::SideEffectStatement { expr, .. } => stable_hash(&[
                 HashItem::TypeName("SideEffectStatement"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(expr.cached_hash_or_compute() as u64),
-            ]) as i64,
+            ]),
             StmtInner::Return { ret_exprs } => {
                 let items: Vec<HashItem> = ret_exprs
                     .iter()
@@ -236,7 +236,7 @@ impl AilStatement {
                     HashItem::TypeName("Return"),
                     HashItem::Int(self.header.idx as i128),
                     HashItem::Tuple(items),
-                ]) as i64
+                ])
             }
             StmtInner::CAS {
                 addr,
@@ -253,13 +253,13 @@ impl AilStatement {
                 HashItem::U64Hash(expd_lo.cached_hash_or_compute() as u64),
                 HashItem::U64Hash(old_lo.cached_hash_or_compute() as u64),
                 HashItem::Str(endness.as_str()),
-            ]) as i64,
+            ]),
             StmtInner::DirtyStatement { dirty } => stable_hash(&[
                 HashItem::TypeName("DirtyStatement"),
                 HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(dirty.cached_hash_or_compute() as u64),
-            ]) as i64,
-            StmtInner::NoOp => stable_hash(&[HashItem::TypeName("NoOp")]) as i64,
+            ]),
+            StmtInner::NoOp => stable_hash(&[HashItem::TypeName("NoOp")]),
         }
     }
 

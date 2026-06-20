@@ -1,110 +1,129 @@
-//! Port of `angr.ailment.utils.stable_hash`.
+//! Stable structural hash for AIL data classes.
 //!
-//! The Python implementation MD5s a serialized form of a tuple and returns the
-//! first 32 bits as an int. We reproduce the exact byte format so that hashes
-//! computed in Rust agree with hashes computed in Python.
+//! Used by ``Expression.__hash__`` / ``Statement.__hash__`` / ``Block.__hash__``
+//! on the Rust side. The value just needs to be:
 //!
-//! Encoding rules (see `_dump_tuple` / `_dump_int` / `_dump_str` /
-//! `_dump_type` in `angr/ailment/utils.py`):
-//! * `None`           -> 0 bytes
-//! * `str`            -> UTF-8 bytes
-//! * `int`            -> optional `b"-"` prefix when negative, then little-endian
-//!   u16 / u32 / u64 chunks (smallest that fits the absolute value, with larger
-//!   ints recursively encoded in 64-bit chunks).
-//! * Python `type`    -> the class name as ASCII bytes
-//! * tuple            -> concatenation of dumped elements
-//! * Anything else    -> `hash(item) & 0xFFFF_FFFF_FFFF_FFFF` packed as little-
-//!   endian u64 (we use that escape hatch for nested PyObjects whose
-//!   `__hash__` is stable).
+//! - **Deterministic within a process** -- cached hashes (see
+//!   [`crate::ailment::base::CachedHash`]) must stay valid until the
+//!   instance is mutated.
+//! - **Well-distributed** -- Python uses the result as a dict / set
+//!   key on every visit.
+//! - **Cheap to compute** -- decompiles hash millions of AIL nodes.
 //!
-//! Each element (including `None`) is followed by a single `0xF0` separator byte.
+//! The previous implementation mirrored Python's
+//! ``angr.ailment.utils.stable_hash`` byte format and ran the result
+//! through MD5 -- holding both an exact-format requirement and a
+//! cryptographic-strength hash. The format match was no longer needed
+//! (Phase D collapsed the per-class Python AIL pyclasses into a single
+//! Rust pyclass, so there is no parallel Python value whose hash needs
+//! to match) and the MD5 strength was overkill.
+//!
+//! ## Implementation
+//!
+//! We use [`rustc_hash::FxHasher`] -- the same hash rustc uses for its
+//! internal symbol tables. It is:
+//!
+//! - Compiler-strength quality (well-distributed for the small-integer
+//!   / short-string inputs that dominate AIL hashing).
+//! - Deterministic (no random seed).
+//! - Trivially fast for short inputs -- each ``write_u8`` is one mul +
+//!   one rotate + one xor, with no streaming-state setup overhead. An
+//!   intermediate ``xxh3`` attempt over a tagged + length-prefixed
+//!   byte stream was ~2.4x *slower* than the original MD5 path for
+//!   typical AIL inputs because of streaming-state overhead and the
+//!   length-prefix padding on tiny payloads. FxHasher sidesteps both.
+//!
+//! The std [`Hash`] trait handles disambiguation: ``str::hash`` writes
+//! a length prefix, slices include their length, and our per-variant
+//! discriminant byte separates payloads. ``Str`` vs ``TypeName`` get
+//! distinct discriminants so the same text under each variant hashes
+//! differently.
 
-use md5::{Digest, Md5};
+use std::hash::{Hash, Hasher};
 
-/// Byte-level item used to build a `stable_hash` input.
+use rustc_hash::FxHasher;
+
+/// One item in a [`stable_hash`] input stream.
 #[derive(Debug, Clone)]
 pub enum HashItem<'a> {
     None,
     Bool(bool),
     Int(i128),
-    /// A precomputed unsigned 64-bit hash (used for foreign objects whose
-    /// Python `__hash__` we trust to be stable).
+    /// A precomputed unsigned 64-bit hash (typically another AIL node's
+    /// already-cached structural hash, mixed in by reference).
     U64Hash(u64),
     Str(&'a str),
-    /// A Python class name; encoded as raw ASCII bytes (no length prefix).
+    /// A Python class name; same payload as ``Str`` but a distinct
+    /// discriminant so ``Str("Foo")`` and ``TypeName("Foo")`` hash
+    /// differently.
     TypeName(&'a str),
-    /// Nested tuple.
+    /// Nested tuple. Bracketed in the stream so a flat sequence cannot
+    /// alias with a nested one of the same items.
     Tuple(Vec<HashItem<'a>>),
-    /// Pre-dumped bytes (escape hatch for items that already know how to render
-    /// themselves into the stable-hash byte stream).
+    /// Pre-rendered bytes (escape hatch for callers that already know
+    /// how to project themselves into the hash stream).
     Raw(Vec<u8>),
 }
 
-impl<'a> HashItem<'a> {
-    fn is_none(&self) -> bool {
-        matches!(self, HashItem::None)
-    }
-}
+// One byte per variant -- the values themselves do not matter, only
+// that each variant has a distinct discriminant.
+const TAG_NONE: u8 = 1;
+const TAG_BOOL: u8 = 2;
+const TAG_INT: u8 = 3;
+const TAG_U64HASH: u8 = 4;
+const TAG_STR: u8 = 5;
+const TAG_TYPENAME: u8 = 6;
+const TAG_TUPLE_OPEN: u8 = 7;
+const TAG_TUPLE_CLOSE: u8 = 8;
+const TAG_RAW: u8 = 9;
 
-fn dump_int(buf: &mut Vec<u8>, v: i128) {
-    if v < 0 {
-        buf.push(b'-');
-    }
-    dump_unsigned(buf, v.unsigned_abs());
-}
-
-fn dump_unsigned(buf: &mut Vec<u8>, u: u128) {
-    if u <= 0xFFFF {
-        buf.extend_from_slice(&(u as u16).to_le_bytes());
-    } else if u <= 0xFFFF_FFFF {
-        buf.extend_from_slice(&(u as u32).to_le_bytes());
-    } else if u <= 0xFFFF_FFFF_FFFF_FFFF {
-        buf.extend_from_slice(&(u as u64).to_le_bytes());
-    } else {
-        // Mirror Python's recursion: emit 64-bit chunks, low to high, each
-        // chunk re-encoded by the smaller-int rules.
-        let mut remaining = u;
-        while remaining > 0 {
-            let chunk = remaining & 0xFFFF_FFFF_FFFF_FFFF;
-            dump_unsigned(buf, chunk);
-            remaining >>= 64;
+fn write_item(h: &mut FxHasher, item: &HashItem<'_>) {
+    match item {
+        HashItem::None => h.write_u8(TAG_NONE),
+        HashItem::Bool(b) => {
+            h.write_u8(TAG_BOOL);
+            h.write_u8(*b as u8);
+        }
+        HashItem::Int(v) => {
+            h.write_u8(TAG_INT);
+            h.write_i128(*v);
+        }
+        HashItem::U64Hash(v) => {
+            h.write_u8(TAG_U64HASH);
+            h.write_u64(*v);
+        }
+        HashItem::Str(s) => {
+            h.write_u8(TAG_STR);
+            s.hash(h);
+        }
+        HashItem::TypeName(s) => {
+            h.write_u8(TAG_TYPENAME);
+            s.hash(h);
+        }
+        HashItem::Tuple(items) => {
+            h.write_u8(TAG_TUPLE_OPEN);
+            for inner in items {
+                write_item(h, inner);
+            }
+            h.write_u8(TAG_TUPLE_CLOSE);
+        }
+        HashItem::Raw(bytes) => {
+            h.write_u8(TAG_RAW);
+            bytes.as_slice().hash(h);
         }
     }
 }
 
-fn dump_item(buf: &mut Vec<u8>, item: &HashItem<'_>) {
-    if !item.is_none() {
-        match item {
-            HashItem::None => unreachable!(),
-            HashItem::Bool(b) => {
-                // Python booleans are subclasses of int and serialize as ints.
-                dump_int(buf, if *b { 1 } else { 0 });
-            }
-            HashItem::Int(v) => dump_int(buf, *v),
-            HashItem::U64Hash(h) => buf.extend_from_slice(&h.to_le_bytes()),
-            HashItem::Str(s) => buf.extend_from_slice(s.as_bytes()),
-            HashItem::TypeName(s) => buf.extend_from_slice(s.as_bytes()),
-            HashItem::Tuple(items) => {
-                for inner in items {
-                    dump_item(buf, inner);
-                }
-            }
-            HashItem::Raw(bytes) => buf.extend_from_slice(bytes),
-        }
-    }
-    buf.push(0xF0);
-}
-
-/// Compute the stable hash of a tuple-like sequence of items.
+/// Compute the stable hash of a sequence of items.
 ///
-/// Returns the first 32 bits of MD5(payload) as in the Python implementation.
-pub fn stable_hash(items: &[HashItem<'_>]) -> u32 {
-    let mut buf = Vec::new();
+/// Returns ``i64`` (not ``u64``) so callers can drop the result
+/// directly into Python's signed-int hash slot.
+pub fn stable_hash(items: &[HashItem<'_>]) -> i64 {
+    let mut h = FxHasher::default();
     for item in items {
-        dump_item(&mut buf, item);
+        write_item(&mut h, item);
     }
-    let digest = Md5::digest(&buf);
-    u32::from_le_bytes([digest[0], digest[1], digest[2], digest[3]])
+    h.finish() as i64
 }
 
 #[cfg(test)]
@@ -112,30 +131,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_tuple() {
-        // Python: stable_hash(()) -> first 32 bits of md5(b"") little-endian.
-        // md5("") = d41d8cd98f00b204e9800998ecf8427e
-        // first 4 bytes LE -> 0xd98c1dd4
-        assert_eq!(stable_hash(&[]), 0xd98c1dd4);
+    fn empty_input_is_deterministic() {
+        assert_eq!(stable_hash(&[]), stable_hash(&[]));
     }
 
     #[test]
-    fn small_int() {
-        // Python: stable_hash((5,))
-        //   _dump_int(5)  -> b"\x05\x00"            (LE u16)
-        //   then separator 0xf0
-        // md5(b"\x05\x00\xf0") first 4 bytes LE.
-        let bytes = [0x05u8, 0x00, 0xF0];
-        let d = Md5::digest(bytes);
-        let want = u32::from_le_bytes([d[0], d[1], d[2], d[3]]);
-        assert_eq!(stable_hash(&[HashItem::Int(5)]), want);
+    fn distinct_variants_with_same_value_differ() {
+        // ``Int(5)``, ``U64Hash(5)``, ``Bool(true)`` all share the bit
+        // pattern of ``5`` but should not collide because of the tag byte.
+        let a = stable_hash(&[HashItem::Int(5)]);
+        let b = stable_hash(&[HashItem::U64Hash(5)]);
+        let c = stable_hash(&[HashItem::Bool(true)]);
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(b, c);
     }
 
     #[test]
-    fn none_only_writes_separator() {
-        // dump([None]) -> b"\xf0" only.
-        let d = Md5::digest([0xF0u8]);
-        let want = u32::from_le_bytes([d[0], d[1], d[2], d[3]]);
-        assert_eq!(stable_hash(&[HashItem::None]), want);
+    fn str_and_typename_with_same_text_differ() {
+        let a = stable_hash(&[HashItem::Str("Const")]);
+        let b = stable_hash(&[HashItem::TypeName("Const")]);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn concatenation_does_not_alias_with_split() {
+        // ``Str("ab") + Str("c")`` vs ``Str("a") + Str("bc")`` --
+        // std's ``str::hash`` writes a length prefix so these cannot
+        // collide.
+        let a = stable_hash(&[HashItem::Str("ab"), HashItem::Str("c")]);
+        let b = stable_hash(&[HashItem::Str("a"), HashItem::Str("bc")]);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn nested_tuple_does_not_alias_with_flat() {
+        let flat = stable_hash(&[HashItem::Int(1), HashItem::Int(2)]);
+        let nested = stable_hash(&[HashItem::Tuple(vec![
+            HashItem::Int(1),
+            HashItem::Int(2),
+        ])]);
+        assert_ne!(flat, nested);
+    }
+
+    #[test]
+    fn none_writes_just_a_tag() {
+        let n1 = stable_hash(&[HashItem::None]);
+        let n2 = stable_hash(&[HashItem::None]);
+        assert_eq!(n1, n2);
+        assert_ne!(n1, stable_hash(&[HashItem::Int(0)]));
+        assert_ne!(n1, stable_hash(&[HashItem::Bool(false)]));
     }
 }

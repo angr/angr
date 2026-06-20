@@ -266,7 +266,7 @@ impl Block {
             HashItem::TypeName("Block"),
             HashItem::Int(self.addr as i128),
             idx_item,
-        ]) as i64;
+        ]);
         self.cached_hash.set(h);
         // suppress the unused-import lint for Ordering when atomic isn't used directly
         let _ = Ordering::Relaxed;
