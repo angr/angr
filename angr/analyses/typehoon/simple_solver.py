@@ -13,6 +13,7 @@ from sortedcontainers import SortedDict
 import angr
 from angr.utils.constants import MAX_POINTSTO_BITS
 
+from ._typehash import type_tag
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
 from .typeconsts import (
     Array,
@@ -269,7 +270,7 @@ class SketchNode(SketchNodeBase):
         return isinstance(other, SketchNode) and self.typevar == other.typevar
 
     def __hash__(self):
-        return hash((SketchNode, self.typevar))
+        return hash((type_tag(SketchNode), self.typevar))
 
     @property
     def size(self) -> int | None:
@@ -304,7 +305,7 @@ class RecursiveRefNode(SketchNodeBase):
         return f"Ref({self.target})"
 
     def __hash__(self):
-        return hash((RecursiveRefNode, self.target))
+        return hash((type_tag(RecursiveRefNode), self.target))
 
     def __eq__(self, other):
         return type(other) is RecursiveRefNode and other.target == self.target
@@ -491,7 +492,7 @@ class ConstraintGraphNode:
         )
 
     def __hash__(self):
-        return hash((ConstraintGraphNode, self.typevar, self.variance, self.tag, self.forgotten))
+        return hash((type_tag(ConstraintGraphNode), self.typevar, self.variance, self.tag, self.forgotten))
 
     def forget_last_label(self) -> tuple[ConstraintGraphNode, BaseLabel] | None:
         if isinstance(self.typevar, DerivedTypeVariable) and self.typevar.labels:
