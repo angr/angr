@@ -2932,10 +2932,12 @@ class PhoenixStructurer(StructurerBase):
         graph = graph_raw.filtered()
 
         idoms = networkx.immediate_dominators(full_graph, head)
+        # acyclic_graph is read-only here (edges, in_degree, has_edge, iteration), so use a zero-copy overlay view
+        # instead of materializing the whole region graph on every last-resort attempt.
         if networkx.is_directed_acyclic_graph(full_graph):
-            acyclic_graph = full_graph.materialize()
+            acyclic_graph = full_graph
         else:
-            acyclic_graph = full_graph.to_acyclic_by_order(self._node_order).materialize()
+            acyclic_graph = full_graph.to_acyclic_by_order(self._node_order)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
@@ -2959,20 +2961,16 @@ class PhoenixStructurer(StructurerBase):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     other_edges.append((src, dst))
 
-        # acyclic graph may contain more than one entry node, so we may add a temporary head node to ensure all nodes
-        # are accounted for in node_seq
+        # acyclic_graph may contain more than one entry node. Cover every entry in the post-order without mutating the
+        # graph (it is a zero-copy overlay view) via a deterministic multi-source DFS seeded with all entries -- this
+        # reproduces the old synthetic-head traversal (entries visited in _sort_node order) with no temporary node.
         graph_entries = [nn for nn in acyclic_graph if acyclic_graph.in_degree[nn] == 0]
-        postorder_head = head
         if len(graph_entries) > 1:
-            postorder_head = Block(0, 0)
-            for nn in graph_entries:
-                acyclic_graph.add_edge(postorder_head, nn)
-        ordered_nodes = list(
-            reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, postorder_head)))
-        )
-        if len(graph_entries) > 1:
-            ordered_nodes.remove(postorder_head)
-            acyclic_graph.remove_node(postorder_head)
+            ordered_nodes = list(
+                reversed(list(GraphUtils.dfs_postorder_nodes_deterministic_multi(acyclic_graph, graph_entries)))
+            )
+        else:
+            ordered_nodes = list(reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, head))))
         node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
         if len(node_seq) < len(acyclic_graph):
             # some nodes are not reachable from head - add them to node_seq as well

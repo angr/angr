@@ -1497,7 +1497,19 @@ class RegionOverlayGraph(networkx.DiGraph):
         return self.materialize()
 
     def subgraph(self, nodes) -> networkx.DiGraph:
-        return self.materialize().subgraph(nodes)
+        # Build only the induced subgraph (cost O(induced subgraph)) instead of materialize()+restrict (cost O(whole
+        # region graph)): callers (e.g. quasi_topological_sort_nodes' SCC handling) want a small induced subgraph and
+        # then mutate it. Returns an independent, mutable networkx.DiGraph with exactly the nodes/edges/data (and the
+        # same node/edge iteration order) that self.materialize().subgraph(nodes) would have produced.
+        node_set = self._node_set()
+        selset = {n for n in nodes if n in node_set}
+        g: networkx.DiGraph = networkx.DiGraph()
+        g.add_nodes_from(n for n in node_set if n in selset)
+        for u in g:
+            for v, data in self._adj[u].items():
+                if v in selset:
+                    g.add_edge(u, v, **data)
+        return g
 
     def to_directed(self, as_view: bool = False) -> networkx.DiGraph:
         return self.materialize()
