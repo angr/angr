@@ -56,7 +56,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         region_identifier=None,
         vvar_id_start: int = 0,
         scratch: dict[str, Any] | None = None,
-        max_func_blocks: int = 500,
+        max_func_blocks: int = 300,
         **kwargs,
     ):
         StructuringOptimizationPass.__init__(
