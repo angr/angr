@@ -112,6 +112,8 @@ class SReachingDefinitionsAnalysis(Analysis):
                         self.model.add_vvar_use(vvar_id, *vvar_useloc)
 
             srda_view = SRDAView(self.model)
+            # the function entry block, used by observe()'s dominance-based fast path to build the dominator tree
+            entry_block = blocks.get((self.func_addr, None))
 
             # fix register uses at call sites
 
@@ -127,7 +129,8 @@ class SReachingDefinitionsAnalysis(Analysis):
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
             observations = srda_view.observe(
-                [("stmt", insn_stmt_id, ObservationPointType.OP_BEFORE) for insn_stmt_id in call_stmt_ids]
+                [("stmt", insn_stmt_id, ObservationPointType.OP_BEFORE) for insn_stmt_id in call_stmt_ids],
+                entry=entry_block,
             )
             for key, reg_to_vvarids in observations.items():
                 _, ((block_addr, block_idx), stmt_idx), _ = key
@@ -189,7 +192,7 @@ class SReachingDefinitionsAnalysis(Analysis):
                 for block in blocks.values():
                     if block.addr in endpoint_addrs:
                         ob_points.append(("node", (block.addr, block.idx), ObservationPointType.OP_AFTER))
-                func_end_observations = srda_view.observe(ob_points)
+                func_end_observations = srda_view.observe(ob_points, entry=entry_block)
                 ignore_reg_offsets = {arch.sp_offset, arch.ip_offset}
                 if not self._bp_as_gpr:
                     ignore_reg_offsets.add(arch.bp_offset)

@@ -4,6 +4,8 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable
 
+import networkx
+
 from angr.ailment import Block
 from angr.ailment.expression import Call, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, SideEffectStatement, Statement
@@ -121,6 +123,10 @@ class SRDAView:
     def __init__(self, model: SRDAModel):
         self.model = model
         self._traversal_order: list[Block] | None = None
+        # caches for the dominance-based observe() fast path (func_graph is immutable for this view's lifetime)
+        self._idoms: dict[Block, Block] | None = None
+        self._block_reg_defs: dict[tuple[int, int | None], dict[tuple[int, int], int]] | None = None
+        self._blocks_by_key: dict[tuple[int, int | None], Block] | None = None
 
     def _get_vvar_by_stmt(
         self,
@@ -288,7 +294,7 @@ class SRDAView:
                 break
         return None
 
-    def observe(self, observation_points: list[ObservationPoint]):
+    def observe(self, observation_points: list[ObservationPoint], entry: Block | None = None):
         insn_ops: dict[int, ObservationPointType] = {op[1]: op[2] for op in observation_points if op[0] == "insn"}
         stmt_ops: dict[tuple[tuple[int, int | None], int], ObservationPointType] = {
             op[1]: op[2] for op in observation_points if op[0] == "stmt"
@@ -298,74 +304,158 @@ class SRDAView:
         }
         # TODO: Other types
 
+        # Fast path: dominance-based and demand-driven. Only the observed blocks are processed; the reg2vvarid reaching
+        # a block's entry is the closest dominating definition per register (which in SSA is exactly the reaching
+        # definition), so no whole-graph quasi-topological sort or per-edge map copy is needed. Requires an entry
+        # block (to build the dominator tree); insn observation points fall back to the legacy forward path (resolving
+        # an instruction address to its block(s) is only needed there -- SRDA's callers use only stmt/node points).
+        if entry is None or insn_ops:
+            return self._observe_forward(insn_ops, stmt_ops, node_ops)
+        return self._observe_dominance(entry, stmt_ops, node_ops)
+
+    def _observe_block(self, block, reg2vvarid, insn_ops, stmt_ops, node_ops, observations) -> None:
+        """
+        Walk one block forward from the given entry ``reg2vvarid`` (mutated in place), writing snapshots into
+        ``observations`` at this block's node/insn/stmt observation points. Shared by both observe() paths so their
+        per-block snapshot semantics are byte-for-byte identical; the paths differ only in how the entry map is seeded.
+        """
+        arch = self.model.arch
+        block_key = block.addr, block.idx
+
+        if block_key in node_ops and node_ops[block_key] == ObservationPointType.OP_BEFORE:
+            observations[("node", block_key, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(reg2vvarid)
+
+        last_insn_addr = None
+        for stmt_idx, stmt in enumerate(block.statements):
+            if last_insn_addr != stmt.tags["ins_addr"]:
+                if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
+                    observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(
+                        reg2vvarid
+                    )
+                if (
+                    stmt.tags["ins_addr"] in insn_ops
+                    and insn_ops[stmt.tags["ins_addr"]] == ObservationPointType.OP_BEFORE
+                ):
+                    observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(
+                        reg2vvarid
+                    )
+                last_insn_addr = stmt.tags["ins_addr"]
+
+            stmt_key = block_key, stmt_idx
+            if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
+                observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(reg2vvarid)
+
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+                base_offset = get_reg_offset_base(stmt.dst.reg_offset, arch)
+                if base_offset not in reg2vvarid:
+                    reg2vvarid[base_offset] = {}
+                reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
+            elif (
+                isinstance(stmt, SideEffectStatement)
+                and isinstance(stmt.ret_expr, VirtualVariable)
+                and stmt.ret_expr.was_reg
+            ):
+                base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, arch)
+                if base_offset not in reg2vvarid:
+                    reg2vvarid[base_offset] = {}
+                reg2vvarid[base_offset][stmt.ret_expr.size] = stmt.ret_expr.varid
+
+            if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
+                observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(reg2vvarid)
+
+        if block_key in node_ops and node_ops[block_key] == ObservationPointType.OP_AFTER:
+            observations[("node", block_key, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(reg2vvarid)
+
+    def _observe_forward(self, insn_ops, stmt_ops, node_ops):
         # The traversal order depends only on func_graph, which is immutable for the lifetime of this view. observe()
         # is frequently called more than once per analysis (e.g. call-site uses and callee-saved-register uses), and
         # the quasi-topological sort dominates observe(), so cache it across calls.
         if self._traversal_order is None:
             self._traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
-        traversal_order = self._traversal_order
         all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, dict[int, int]]] = defaultdict(dict)
 
         observations = {}
-        for block in traversal_order:
+        for block in self._traversal_order:
             reg2vvarid = all_reg2vvarid[block.addr, block.idx]
-
-            if (block.addr, block.idx) in node_ops and node_ops[
-                (block.addr, block.idx)
-            ] == ObservationPointType.OP_BEFORE:
-                observations[("node", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(
-                    reg2vvarid
-                )
-
-            last_insn_addr = None
-            for stmt_idx, stmt in enumerate(block.statements):
-                if last_insn_addr != stmt.tags["ins_addr"]:
-                    # observe
-                    if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(
-                            reg2vvarid
-                        )
-                    if (
-                        stmt.tags["ins_addr"] in insn_ops
-                        and insn_ops[stmt.tags["ins_addr"]] == ObservationPointType.OP_BEFORE
-                    ):
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(
-                            reg2vvarid
-                        )
-                    last_insn_addr = stmt.tags["ins_addr"]
-
-                stmt_key = (block.addr, block.idx), stmt_idx
-                if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(reg2vvarid)
-
-                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
-                    base_offset = get_reg_offset_base(stmt.dst.reg_offset, self.model.arch)
-                    if base_offset not in reg2vvarid:
-                        reg2vvarid[base_offset] = {}
-                    reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
-                elif (
-                    isinstance(stmt, SideEffectStatement)
-                    and isinstance(stmt.ret_expr, VirtualVariable)
-                    and stmt.ret_expr.was_reg
-                ):
-                    base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
-                    if base_offset not in reg2vvarid:
-                        reg2vvarid[base_offset] = {}
-                    reg2vvarid[base_offset][stmt.ret_expr.size] = stmt.ret_expr.varid
-
-                if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(reg2vvarid)
-
-            if (block.addr, block.idx) in node_ops and node_ops[
-                (block.addr, block.idx)
-            ] == ObservationPointType.OP_AFTER:
-                observations[("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(
-                    reg2vvarid
-                )
-
+            self._observe_block(block, reg2vvarid, insn_ops, stmt_ops, node_ops, observations)
             for succ in self.model.func_graph.successors(block):
                 if succ is block:
                     continue
                 all_reg2vvarid[succ.addr, succ.idx] = _copy_reg2vvarid(reg2vvarid)
 
+        return observations
+
+    def _build_block_reg_defs(self) -> dict[tuple[int, int | None], dict[tuple[int, int], int]]:
+        """
+        Per-block index of register-vvar definitions: ``(block addr, idx) -> {(base reg offset, size): vvar id}``,
+        keeping the last (highest stmt_idx) definition per ``(base, size)`` in each block. Derived from the model's
+        definition locations -- no graph traversal. Extern (function-argument) definitions are skipped, matching the
+        forward path which starts the entry block with an empty register map.
+        """
+        arch = self.model.arch
+        tmp: dict[tuple[int, int | None], dict[tuple[int, int], tuple[int, int]]] = defaultdict(dict)
+        for vid, defloc in self.model.all_vvar_definitions.items():
+            if defloc.is_extern:
+                continue
+            vvar = self.model.varid_to_vvar.get(vid)
+            if vvar is None or not vvar.was_reg:
+                continue
+            key = (get_reg_offset_base(vvar.reg_offset, arch), vvar.size)
+            block_key = defloc.addr, defloc.block_idx
+            cur = tmp[block_key].get(key)
+            if cur is None or defloc.stmt_idx > cur[0]:
+                tmp[block_key][key] = (defloc.stmt_idx, vid)
+        return {bk: {k: v[1] for k, v in d.items()} for bk, d in tmp.items()}
+
+    def _seed_from_dominators(self, block, idoms, block_reg_defs) -> dict[int, dict[int, int]]:
+        """
+        The register map reaching ``block``'s entry: for each ``(base register, size)``, the definition in the closest
+        strict dominator that defines it. In SSA this is exactly the reaching definition at the block entry (phis are
+        defs in the merge block and so are picked up by the in-block walk, not here).
+        """
+        reg2vvarid: dict[int, dict[int, int]] = {}
+        d = idoms.get(block)
+        if d is None or d is block:
+            # entry block (its immediate dominator is itself) or unreachable node: no strict dominators
+            return reg2vvarid
+        found: set[tuple[int, int]] = set()
+        while True:
+            defs = block_reg_defs.get((d.addr, d.idx))
+            if defs:
+                for key, vid in defs.items():
+                    if key not in found:
+                        found.add(key)
+                        base, size = key
+                        if base not in reg2vvarid:
+                            reg2vvarid[base] = {}
+                        reg2vvarid[base][size] = vid
+            nd = idoms.get(d)
+            if nd is None or nd is d:
+                break
+            d = nd
+        return reg2vvarid
+
+    def _observe_dominance(self, entry, stmt_ops, node_ops):
+        if self._idoms is None:
+            self._idoms = networkx.immediate_dominators(self.model.func_graph, entry)
+        idoms = self._idoms
+        if self._block_reg_defs is None:
+            self._block_reg_defs = self._build_block_reg_defs()
+        block_reg_defs = self._block_reg_defs
+        if self._blocks_by_key is None:
+            self._blocks_by_key = {(b.addr, b.idx): b for b in self.model.func_graph}
+        blocks_by_key = self._blocks_by_key
+
+        observed_blocks: set[tuple[int, int | None]] = set(node_ops.keys())
+        for block_key, _stmt_idx in stmt_ops:
+            observed_blocks.add(block_key)
+
+        observations = {}
+        no_insn_ops: dict[int, ObservationPointType] = {}
+        for block_key in observed_blocks:
+            block = blocks_by_key.get(block_key)
+            if block is None:
+                continue
+            reg2vvarid = self._seed_from_dominators(block, idoms, block_reg_defs)
+            self._observe_block(block, reg2vvarid, no_insn_ops, stmt_ops, node_ops, observations)
         return observations
