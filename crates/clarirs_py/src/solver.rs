@@ -163,6 +163,51 @@ impl PySolver {
             .collect())
     }
 
+    /// Split into one solver per independent (variable-connected) constraint
+    /// group, like claripy's `constrained_frontend.split()`. Each returned
+    /// solver is a blank copy of this one holding one group's constraints.
+    fn split<'py>(&mut self, py: Python<'py>) -> Result<Vec<Bound<'py, PySolver>>, ClaripyError> {
+        let constraints = self.inner.constraints()?;
+
+        // Group constraints by shared variables (transitively).
+        let mut groups: Vec<(BTreeSet<InternedString>, Vec<AstRef<'static>>)> = Vec::new();
+        for constraint in constraints {
+            let vars = constraint.variables().clone();
+            let (mut merged_vars, mut merged_constraints) = (vars, vec![constraint]);
+            let mut remaining = Vec::with_capacity(groups.len());
+            for (group_vars, group_constraints) in groups {
+                if group_vars.intersection(&merged_vars).next().is_some() {
+                    merged_vars.extend(group_vars);
+                    merged_constraints.extend(group_constraints);
+                } else {
+                    remaining.push((group_vars, group_constraints));
+                }
+            }
+            remaining.push((merged_vars, merged_constraints));
+            groups = remaining;
+        }
+
+        groups
+            .into_iter()
+            .map(|(_, group_constraints)| {
+                let mut solver = self.inner.clone();
+                solver.clear()?;
+                for constraint in &group_constraints {
+                    solver.add(constraint)?;
+                }
+                Bound::new(
+                    py,
+                    PySolver {
+                        inner: solver,
+                        timeout: self.timeout,
+                        unsat_core: self.unsat_core,
+                    },
+                )
+                .map_err(ClaripyError::from)
+            })
+            .collect()
+    }
+
     fn branch<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PySolver>, ClaripyError> {
         match &self.inner {
             DynSolver::Concrete(concrete_solver) => Ok(Bound::new(
