@@ -711,6 +711,29 @@ class GraphUtils:
                 yield node
 
     @staticmethod
+    def dfs_postorder_nodes_deterministic_multi[T](graph: networkx.DiGraph[T], sources: Iterable[T]) -> Iterator[T]:
+        """
+        Deterministic post-order DFS covering multiple source nodes with a single shared ``visited`` set. Equivalent to
+        ``dfs_postorder_nodes_deterministic`` over a synthetic super-source connected to every node in ``sources``
+        (sources are traversed in ``_sort_node`` order), but without mutating the graph -- so it works directly on a
+        zero-copy overlay view. Use it for multi-entry acyclic graphs.
+        """
+        visited: set = set()
+        # seeding the stack with the sources in ascending _sort_node order makes the LIFO stack pop them largest-first,
+        # exactly as a synthetic super-source's sorted successors would have been expanded.
+        stack: list[tuple[Any, bool]] = [(s, True) for s in sorted(sources, key=GraphUtils._sort_node)]
+        while stack:
+            node, pre_visit = stack.pop()
+            if pre_visit and node not in visited:
+                visited.add(node)
+                stack.append((node, False))
+                for succ in sorted(graph.successors(node), key=GraphUtils._sort_node):
+                    if succ not in visited:
+                        stack.append((succ, True))
+            elif not pre_visit:
+                yield node
+
+    @staticmethod
     def reverse_post_order_sort_nodes(graph, nodes=None):
         """
         Sort a given set of nodes in reverse post ordering.
