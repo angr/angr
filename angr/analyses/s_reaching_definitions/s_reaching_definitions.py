@@ -113,6 +113,7 @@ class SReachingDefinitionsAnalysis(Analysis):
 
             srda_view = SRDAView(self.model)
             # the function entry block, used by observe()'s dominance-based fast path to build the dominator tree
+            assert self.func_addr is not None
             entry_block = blocks.get((self.func_addr, None))
 
             # fix register uses at call sites
@@ -122,7 +123,11 @@ class SReachingDefinitionsAnalysis(Analysis):
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
                     if (  # pylint:disable=too-many-boolean-expressions
-                        (isinstance(stmt, SideEffectStatement) and stmt.expr.args is None)
+                        (
+                            isinstance(stmt, SideEffectStatement)
+                            and isinstance(stmt.expr, Call)
+                            and stmt.expr.args is None
+                        )
                         or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
                         or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call))
                     ):

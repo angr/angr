@@ -405,7 +405,8 @@ class SRDAView:
                 tmp[block_key][key] = (defloc.stmt_idx, vid)
         return {bk: {k: v[1] for k, v in d.items()} for bk, d in tmp.items()}
 
-    def _seed_from_dominators(self, block, idoms, block_reg_defs) -> dict[int, dict[int, int]]:
+    @staticmethod
+    def _seed_from_dominators(block, idoms, block_reg_defs) -> dict[int, dict[int, int]]:
         """
         The register map reaching ``block``'s entry: for each ``(base register, size)``, the definition in the closest
         strict dominator that defines it. In SSA this is exactly the reaching definition at the block entry (phis are
