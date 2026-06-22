@@ -2219,39 +2219,73 @@ class PhoenixStructurer(StructurerBase):
 
         return case_and_entry_addrs
 
-    def _is_node_unstructured_switch_case_head(self, graph, node) -> bool:
-        # scan forward by at least one step to see if we can get to a jump table node
-        steps = 0
-        while node.addr not in self.jump_tables and steps < 1:
-            steps += 1
-            nodes = list(graph.successors(node))
-            if len(nodes) != 1:
-                return False
-            node = nodes[0]
+    def _find_unstructured_switch_case_dispatch_nodes(self, graph) -> set[Block | BaseNode]:
+        """
+        Return a set of nodes that are unstructured switch-case dispatch nodes.
+        """
+        if not self.jump_tables:
+            return set()
+        switch_case_dispatch_nodes = set()
+        for node in graph:
+            if node.addr in self.jump_tables:
+                # maybe it has been structured?
+                try:
+                    last_stmts = self.cond_proc.get_last_statements(node)
+                except EmptyBlockNotice:
+                    continue
+                if (
+                    len(last_stmts) == 1
+                    and isinstance(last_stmts[0], Jump)
+                    and not isinstance(last_stmts[0].target, Const)
+                ):
+                    switch_case_dispatch_nodes.add(node)
 
-        if node.addr in self.jump_tables:
-            # maybe it has been structured?
-            try:
-                last_stmts = self.cond_proc.get_last_statements(node)
-            except EmptyBlockNotice:
-                return False
-            return (
-                len(last_stmts) == 1 and isinstance(last_stmts[0], Jump) and not isinstance(last_stmts[0].target, Const)
-            )
-        return False
+        return switch_case_dispatch_nodes
+
+    def _build_switch_case_check_cache(self, graph) -> None:
+        """
+        Build a cache for switch-case-related checks; used by the following methods:
+        - _is_node_unstructured_switch_case_head
+        - _is_switch_cases_address_loaded_from_memory_head
+        """
+
+        switch_case_heads: set[Block | BaseNode] = set()
+        switch_case_dispatch_nodes = self._find_unstructured_switch_case_dispatch_nodes(graph)
+        for node in switch_case_dispatch_nodes:
+            preds = list(graph.predecessors(node))
+            if len(preds) == 1:
+                pred = preds[0]
+                # two situations:
+                # A. pred is switch-case head: pred has two successors: one is the dispatch node, the other is the default case node
+                # B. pred has a predecessor that is a switch-case head: pred has exactly one successor
+                switch_case_heads.add(pred)
+                if graph.out_degree[pred] == 1:
+                    # case B: step back to find the switch-case head
+                    pred_pred = list(graph.predecessors(pred))
+                    if len(pred_pred) == 1 and pred_pred[0] is not pred:
+                        switch_case_heads.add(pred_pred[0])
+
+        self._unstructured_switch_case_heads_and_dispatch_nodes = switch_case_heads | set(switch_case_dispatch_nodes)
+
+    def _is_node_unstructured_switch_case_head_or_dispatch_node(self, graph, node) -> bool:
+        if self._unstructured_switch_case_heads_and_dispatch_nodes is None:
+            # build cache
+            self._build_switch_case_check_cache(graph)
+        return node in self._unstructured_switch_case_heads_and_dispatch_nodes
 
     def _is_switch_cases_address_loaded_from_memory_head(self, graph, node) -> bool:
-        for succ in graph.successors(node):
-            if self._is_node_unstructured_switch_case_head(graph, succ):
-                return True
-        return node in self.switch_case_known_heads
+        if self._unstructured_switch_case_heads_and_dispatch_nodes is None:
+            # build cache
+            self._build_switch_case_check_cache(graph)
+        return node in self._unstructured_switch_case_heads_and_dispatch_nodes or node in self.switch_case_known_heads
 
     def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
-        if self._is_node_unstructured_switch_case_head(graph, node):
+        if self._unstructured_switch_case_heads_and_dispatch_nodes is None:
+            # build cache
+            self._build_switch_case_check_cache(graph)
+        if node in self._unstructured_switch_case_heads_and_dispatch_nodes or node in self.switch_case_known_heads:
             return True
-        if isinstance(node, IncompleteSwitchCaseNode):
-            return True
-        return self._is_switch_cases_address_loaded_from_memory_head(graph, node)
+        return isinstance(node, IncompleteSwitchCaseNode)
 
     def _is_switch_case_address_loaded_from_memory_default_node(self, graph, node) -> bool:
         # the default node should have a predecessor that is a switch-case head node
@@ -2270,13 +2304,11 @@ class PhoenixStructurer(StructurerBase):
         full_graph = full_graph_raw.filtered()
         graph = graph_raw.filtered()
 
-        succs = list(graph.successors(start_node))
-        if len(succs) != 1:
+        if graph.out_degree[start_node] != 1 or full_graph.out_degree[start_node] != 1:
             return False
-        end_node = succs[0]
+        end_node = next(iter(graph.successors(start_node)))
         if (
-            full_graph.out_degree[start_node] == 1
-            and full_graph.in_degree[end_node] == 1
+            full_graph.in_degree[end_node] == 1
             and not full_graph.has_edge(end_node, start_node)
             and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
             and end_node not in self.dowhile_known_tail_nodes
@@ -2336,8 +2368,8 @@ class PhoenixStructurer(StructurerBase):
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
-                    and not self._is_node_unstructured_switch_case_head(full_graph, left)
-                    and not self._is_node_unstructured_switch_case_head(full_graph, right)
+                    and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, left)
+                    and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, right)
                 ):
                     if self.cond_proc.have_opposite_edge_conditions(full_graph, start_node, left, right):
                         # c = !c
@@ -2367,9 +2399,9 @@ class PhoenixStructurer(StructurerBase):
                 left_succs, right_succs = right_succs, left_succs
             if left in graph and not left_succs and full_graph.in_degree[left] == 1 and right in graph:
                 # potentially If-Then
-                if not self._is_node_unstructured_switch_case_head(
+                if not self._is_node_unstructured_switch_case_head_or_dispatch_node(
                     full_graph, left
-                ) and not self._is_node_unstructured_switch_case_head(full_graph, right):
+                ) and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, right):
                     if self.cond_proc.have_opposite_edge_conditions(full_graph, start_node, left, right):
                         # c = !c
                         edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
