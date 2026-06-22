@@ -168,6 +168,9 @@ class PhoenixStructurer(StructurerBase):
 
         has_cycle = self._has_cycle()
 
+        # initialize the directed graph helper
+        self._graph_helper = DirectedGraphHelper(self._region.graph_with_successors, has_cycle, self._region.head)
+
         # special handling for single-node loops
         if len(self._region.graph.nodes) == 1 and has_cycle:
             self._analyze_cyclic()
@@ -175,9 +178,6 @@ class PhoenixStructurer(StructurerBase):
         # checkpoint the region prior to conducting a cyclic refinement because we may not be able to structure a
         # cycle out of the refined graph. in that case, we roll the region back and return.
         pre_refinement_checkpoint: int | None = None
-
-        # initialize the directed graph helper
-        self._graph_helper = DirectedGraphHelper(self._region.graph_with_successors, has_cycle, self._region.head)
 
         while len(self._region.graph.nodes) > 1:
             progressed = self._analyze_acyclic()
