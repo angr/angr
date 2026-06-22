@@ -1440,6 +1440,18 @@ class RegionOverlayGraph(networkx.DiGraph):
             blacklisted_edges=self.blacklisted_edges | extra,
         )
 
+    def reverse_view(self) -> RegionOverlayGraph:
+        """The reversed view of this graph (zero-copy)."""
+        g = RegionOverlayGraph(
+            self.overlay,
+            full=self.full,
+            include_marked=self.include_marked,
+            blacklisted_edges=frozenset({(v, u) for u, v in self.blacklisted_edges}),
+        )
+        g._succ, g._pred = g._pred, g._succ  # swap the adjacency mappings to reverse the graph
+        # g._adj is synced with _succ
+        return g
+
     def materialize(self) -> networkx.DiGraph:
         """An independent networkx.DiGraph copy of this view."""
         g: networkx.DiGraph = networkx.DiGraph()
