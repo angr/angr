@@ -673,7 +673,7 @@ class PhoenixStructurer(StructurerBase):
 
         for head in sorted_loop_heads:
             l.debug("... refining cyclic at %r", head)
-            refined = self._refine_cyclic_core(head)
+            refined = self._refine_cyclic_core(head, loop_heads)
             l.debug("... refined: %s", refined)
             if refined:
                 self._assert_graph_ok(self._region.graph, "Refinement went wrong")
@@ -681,7 +681,7 @@ class PhoenixStructurer(StructurerBase):
                 return True
         return False
 
-    def _refine_cyclic_core(self, loop_head) -> bool:
+    def _refine_cyclic_core(self, loop_head, loop_heads) -> bool:
         graph_raw = self._region.raw_graph
         fullgraph_raw = self._region.raw_graph_with_successors
 
@@ -696,7 +696,7 @@ class PhoenixStructurer(StructurerBase):
         continue_node = loop_head
 
         is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, head_succs)
-        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head)
+        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head, loop_heads)
 
         continue_edges: list[tuple[BaseNode, BaseNode]] = []
         outgoing_edges: list = []
@@ -737,7 +737,7 @@ class PhoenixStructurer(StructurerBase):
 
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
-            is_natural, result_natural = self._refine_cyclic_make_natural_loop(graph, fullgraph, loop_head)
+            is_natural, result_natural = self._refine_cyclic_make_natural_loop(graph, fullgraph, loop_head, loop_heads)
             if not is_natural:
                 # cannot refine this loop
                 return False
@@ -980,7 +980,7 @@ class PhoenixStructurer(StructurerBase):
         return bool(outgoing_edges or len(continue_edges) > 1)
 
     @staticmethod
-    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, successor=None) -> set[BaseNode]:
+    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, loop_heads, successor=None) -> set[BaseNode]:
         # determine the loop body: all nodes that have paths going to loop_head
         # networkx.has_path(graph, node, loop_head) is too expensive though.
         loop_body = {loop_head}
@@ -989,6 +989,10 @@ class PhoenixStructurer(StructurerBase):
         for node in networkx.descendants(fullgraph, loop_head):
             if node in graph and node in inverted_loophead_descendants:
                 loop_body.add(node)
+
+        if any(other_loop_head in loop_body for other_loop_head in loop_heads if other_loop_head is not loop_head):
+            # the loop body cannot contain other loop heads
+            return set()
 
         # extend the loop body if possible
         while True:
@@ -1053,7 +1057,7 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     def _refine_cyclic_is_dowhile_loop(
-        self, graph, fullgraph, loop_head
+        self, graph, fullgraph, loop_head, loop_heads
     ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         # check if there is an out-going edge from the loop tail
         head_preds = list(fullgraph.predecessors(loop_head))
@@ -1072,7 +1076,7 @@ class PhoenixStructurer(StructurerBase):
                     # virtualize all other edges
                     continue_node = head_pred
                     loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(
-                        graph, fullgraph, loop_head, successor=successor
+                        graph, fullgraph, loop_head, loop_heads, successor=successor
                     )
                     for node in loop_body:
                         if node is head_pred:
@@ -1094,11 +1098,15 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     @staticmethod
-    def _refine_cyclic_make_natural_loop(graph, fullgraph, loop_head) -> tuple[bool, tuple[list, list, Any] | None]:
+    def _refine_cyclic_make_natural_loop(
+        graph, fullgraph, loop_head, loop_heads
+    ) -> tuple[bool, tuple[list, list, Any] | None]:
         continue_edges = []
         outgoing_edges = []
 
-        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(graph, fullgraph, loop_head)
+        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, loop_heads)
+        if not loop_body:
+            return False, None
 
         # determine successor candidates using the loop body
         successor_candidates = set()
