@@ -115,8 +115,6 @@ class PhoenixStructurer(StructurerBase):
         # also whitelist certain nodes that are definitely header for switch-case constructs. they should not be merged
         # into another node before we successfully structure the entire switch-case.
         self.switch_case_known_heads: set[Block | BaseNode] = set()
-        # a cache of unstructured switch-case heads and dispatch nodes
-        self._unstructured_switch_case_heads_and_dispatch_nodes: set[Block | BaseNode] | None = None
 
         # whitelist certain nodes that should be treated as a tail node for do-whiles. these nodes should not be
         # absorbed into other SequenceNodes
