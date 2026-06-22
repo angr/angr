@@ -72,6 +72,18 @@ impl DynSolver {
                 let z3_solver = hybrid.exact_mut().inner_mut().inner_mut().inner_mut();
                 z3_solver.unsat_core()
             }
+            DynSolver::Composite(composite) => {
+                // The composite's core is the core of whichever independent
+                // child is unsat (claripy's CompositeFrontend does the same).
+                for child in composite.children_mut() {
+                    if !child.satisfiable()? {
+                        // SimplificationMixin -> ConcreteEarlyResolutionMixin -> ModelCacheMixin -> Z3Solver
+                        let z3_solver = child.inner_mut().inner_mut().inner_mut();
+                        return z3_solver.unsat_core();
+                    }
+                }
+                Ok(vec![])
+            }
             _ => Err(ClarirsError::UnsupportedOperation(
                 "unsat_core is only supported for Z3 and Hybrid solvers".to_string(),
             )),

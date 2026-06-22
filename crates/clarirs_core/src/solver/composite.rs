@@ -42,6 +42,11 @@ impl<'c, S: Solver<'c>> CompositeSolver<'c, S> {
         }
     }
 
+    /// Iterate over the child solvers (one per independent constraint set).
+    pub fn children_mut(&mut self) -> impl Iterator<Item = &mut S> {
+        self.children.values_mut()
+    }
+
     /// Return the child IDs that own any of the given variables (deduplicated).
     fn child_ids_for_vars(&self, vars: &BTreeSet<InternedString>) -> Vec<usize> {
         let set: HashSet<usize> = vars

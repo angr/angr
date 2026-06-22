@@ -103,10 +103,46 @@ def test_unsat_core_complex():
     assert 2 in core
 
 
+def test_unsat_core_composite():
+    """SolverComposite returns the core of whichever independent child is unsat."""
+    s = claripy.SolverComposite(track=True)
+
+    x = claripy.BVS("x", 8)
+    y = claripy.BVS("y", 8)
+
+    # Contradictory group on x (constraints 0, 1) plus an independent,
+    # satisfiable group on y (constraint 2).
+    s.add(x > 10)
+    s.add(x < 5)
+    s.add(y == 3)
+
+    assert not s.satisfiable()
+
+    core = s.unsat_core()
+    assert len(core) > 0
+    assert 0 in core
+    assert 1 in core
+    # The independent, satisfiable constraint is not part of the core.
+    assert 2 not in core
+
+
+def test_unsat_core_composite_on_sat():
+    """A satisfiable composite solver has an empty unsat core."""
+    s = claripy.SolverComposite(track=True)
+    x = claripy.BVS("x", 8)
+    y = claripy.BVS("y", 8)
+    s.add(x > 1)
+    s.add(y < 10)
+    assert s.satisfiable()
+    assert s.unsat_core() == []
+
+
 if __name__ == "__main__":
     test_unsat_core_simple()
     test_unsat_core_bool()
     test_unsat_core_not_enabled()
     test_unsat_core_on_sat()
     test_unsat_core_complex()
+    test_unsat_core_composite()
+    test_unsat_core_composite_on_sat()
     print("All tests passed!")
