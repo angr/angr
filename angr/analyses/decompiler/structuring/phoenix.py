@@ -988,9 +988,12 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, successor=None) -> set[BaseNode]:
         # determine the loop body: all nodes that have paths going to loop_head
+        # networkx.has_path(graph, node, loop_head) is too expensive though.
         loop_body = {loop_head}
+        inverted_graph = graph.reverse_view()
+        inverted_loophead_descendants = set(networkx.descendants(inverted_graph, loop_head))
         for node in networkx.descendants(fullgraph, loop_head):
-            if node in graph and networkx.has_path(graph, node, loop_head):
+            if node in graph and node in inverted_loophead_descendants:
                 loop_body.add(node)
 
         # extend the loop body if possible
