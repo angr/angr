@@ -1047,6 +1047,11 @@ class DirectedGraphHelper[T]:
 
         if self._node_order is None and self._cyclic_graph:
             self._generate_node_order()
+
+            from angr.analyses.decompiler.region_overlay import (
+                RegionOverlayGraph,  # pylint:disable=import-outside-toplevel
+            )
+
             acyclic_graph = cast(RegionOverlayGraph[T], self._graph).to_acyclic_by_order(self._node_order)
         else:
             acyclic_graph = self._graph
