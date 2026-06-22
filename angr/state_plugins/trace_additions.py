@@ -249,7 +249,7 @@ def end_info_hook(state):
     chall_resp_plugin.vars_we_added.update(new_var.variables)
     chall_resp_plugin.vars_we_added.update(input_bvs.variables)
     # don't add constraints just add replacement
-    state.solver._solver.add_replacement(new_var, result, invalidate_cache=False)
+    state.solver._solver.add_replacement(new_var, result)
     # dont add this constraint to preconstraints or we lose real constraints
     # chall_resp_plugin.tracer.preconstraints.append(constraint)
     chall_resp_plugin.state.preconstrainer.variable_map[next(iter(new_var.variables))] = constraint
@@ -295,7 +295,7 @@ def syscall_hook(state):
         if num_bytes != 0:
             rand_bytes = claripy.BVS("random", num_bytes * 8)
             concrete_val = claripy.BVV("A" * num_bytes)
-            state.solver._solver.add_replacement(rand_bytes, concrete_val, invalidate_cache=False)
+            state.solver._solver.add_replacement(rand_bytes, concrete_val)
             state.memory.store(buf, rand_bytes)
 
 
@@ -576,7 +576,7 @@ def zen_hook(state, expr):
                 # we need to make a new replacement
                 replacement = claripy.BVS("cgc-flag-zen", expr.size())
                 concrete_val = state.solver.eval(expr)
-                state.solver._solver.add_replacement(replacement, concrete_val, invalidate_cache=False)
+                state.solver._solver.add_replacement(replacement, concrete_val)
 
                 # if the depth is less than the max add the constraint and get which bytes it contains
                 depth = zen_plugin.get_expr_depth(expr)
