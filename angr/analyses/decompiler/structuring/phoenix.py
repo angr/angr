@@ -2949,7 +2949,7 @@ class PhoenixStructurer(StructurerBase):
                 acyclic_graph = full_graph.materialize()
             else:
                 # get the acyclic version of the full graph using node order
-                acyclic_graph = self._graph_helper.to_acyclic_by_order(full_graph).materialize()
+                acyclic_graph = full_graph.to_acyclic_by_order(self._node_order).materialize()
             for src, dst in acyclic_graph.edges:
                 if src is dst:
                     continue
