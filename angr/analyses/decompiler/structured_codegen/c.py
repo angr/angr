@@ -687,10 +687,15 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             # Emit in a stable order. variable_manager.types iterates in the (run-dependent) order variables were
             # typed, so emitting in iteration order makes the output non-deterministic. Sort by the type's
             # structural layout so the ordering is deterministic AND does not change when the user renames a
-            # struct or a field. The name is only a last-resort tiebreaker between structurally identical types.
+            # struct or a field. Structurally identical structs (e.g. isomorphic recursive types) are broken by
+            # the translator's name-independent definition order, also rename-proof; the name is only a final
+            # fallback for types with no such order (e.g. library structs not produced by type inference).
             def _local_type_sort_key(ty) -> tuple:
-                name = ty.name if isinstance(ty, SimStruct) and ty.name else ""
-                return (type_layout_key(ty), name)
+                order = getattr(ty, "_def_order", None)
+                tiebreak = (
+                    (0, order) if order is not None else (1, ty.name if isinstance(ty, SimStruct) and ty.name else "")
+                )
+                return (type_layout_key(ty), tiebreak)
 
             for ty in sorted(local_types, key=_local_type_sort_key):
                 # drop unreferenced structs
