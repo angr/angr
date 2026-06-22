@@ -15,7 +15,6 @@ anyhow = { workspace = true }
 clarirs_num = { path = "../clarirs_num" }
 num-bigint = { version = "0.4.6", features = ["serde"] }
 num-traits = "0.2"
-paste = "1.0.15"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 smallvec = { version = "1.15.1", features = ["serde"] }
 thiserror = { workspace = true }
