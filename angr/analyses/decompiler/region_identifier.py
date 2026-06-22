@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Iterable
 from itertools import count
 from typing import Any, Literal, cast, overload
@@ -253,39 +253,51 @@ class RegionIdentifier(Analysis):
         if self.entry_node_addr is not None:
             entry_node = next(iter(nn for nn in graph if nn.addr == self.entry_node_addr[0]), None)
 
-        while True:
-            for src, dst, data in graph.edges(data=True):
+        # Worklist-driven single pass (see to_ail_supergraph for the rationale): only re-examine nodes whose in/out
+        # degree could have changed (the merged node and its neighbors) instead of restarting a full edge scan after
+        # every merge or removal, which is quadratic in the number of nodes.
+        worklist: deque = deque(graph.nodes())
+        while worklist:
+            src = worklist.popleft()
+            if src not in graph:
+                # already merged away or removed
+                continue
+            for dst in list(graph.successors(src)):
                 if entry_node is not None and dst is entry_node:
                     # the entry node must be kept instead of merged with its predecessor (which can happen in real
                     # binaries! e.g., 444a401b900eb825f216e95111dcb6ef94b01a81fc7b88a48599867db8c50365, function
                     # 0x1802BEA28, block 0x1802BEA05 and 0x1802BEA28)
                     continue
 
-                type_ = data.get("type", None)
+                type_ = graph.edges[src, dst].get("type", None)
+                merged_node = None
                 if type_ == "fake_return":
-                    if len(list(graph.successors(src))) == 1 and len(list(graph.predecessors(dst))) == 1:
+                    if graph.out_degree(src) == 1 and graph.in_degree(dst) == 1:
                         merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
-                        # update the entry_node if necessary
-                        if entry_node is not None and entry_node is src:
-                            entry_node = merged_node
-                        break
                 elif type_ == "call":
                     graph.remove_node(dst)
+                    # src lost a successor, so it (and its predecessors) may now be mergeable
+                    worklist.append(src)
+                    worklist.extend(graph.predecessors(src))
                     break
                 elif (
                     type_ == "transition"
-                    and graph.out_degree[src] == 1
-                    and graph.in_degree[dst] == 1
+                    and graph.out_degree(src) == 1
+                    and graph.in_degree(dst) == 1
                     and src is not dst
                     and not self._block_ends_with_indirect_jump_or_call(dst)
                 ):
                     merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
+
+                if merged_node is not None:
                     # update the entry_node if necessary
                     if entry_node is not None and entry_node is src:
                         entry_node = merged_node
+                    # the merged node and its neighbors may now be mergeable
+                    worklist.append(merged_node)
+                    worklist.extend(graph.predecessors(merged_node))
+                    worklist.extend(graph.successors(merged_node))
                     break
-            else:
-                break
 
     def _find_loop_headers(self, graph: TGraph) -> list[TNode]:
         assert self._start_node is not None

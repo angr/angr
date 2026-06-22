@@ -5,6 +5,7 @@ import contextlib
 import copy
 import logging
 import pathlib
+from collections import deque
 from collections.abc import Iterable
 from types import FunctionType
 from typing import Any, cast
@@ -560,22 +561,35 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph, allow_fake=False) -> n
     transition_graph = networkx.DiGraph(transition_graph)
     networkx.set_node_attributes(transition_graph, {node: [node] for node in transition_graph.nodes}, "original_nodes")
 
-    while True:
-        for src, dst, data in transition_graph.edges(data=True):
-            type_ = data.get("type", None)
+    # Worklist-driven single pass. The original implementation restarted a full edge scan after every single merge or
+    # removal, which is quadratic in the number of nodes. Here we only re-examine the nodes whose in/out degree could
+    # have changed (the merged node and its neighbors), so the whole contraction is roughly linear.
+    worklist: deque = deque(transition_graph.nodes())
+    while worklist:
+        src = worklist.popleft()
+        if src not in transition_graph:
+            # already merged away or removed
+            continue
+        for dst in list(transition_graph.successors(src)):
+            type_ = transition_graph.edges[src, dst].get("type", None)
 
-            if len(list(transition_graph.successors(src))) == 1 and len(list(transition_graph.predecessors(dst))) == 1:
+            if transition_graph.out_degree(src) == 1 and transition_graph.in_degree(dst) == 1:
                 # calls in the middle of blocks OR boring jumps
                 if (type_ == "fake_return") or (src.addr + src.original_size == dst.addr) or allow_fake:
-                    _merge_ail_nodes(transition_graph, src, dst)
+                    new_node = _merge_ail_nodes(transition_graph, src, dst)
+                    # the merged node and its neighbors may now be mergeable
+                    worklist.append(new_node)
+                    worklist.extend(transition_graph.predecessors(new_node))
+                    worklist.extend(transition_graph.successors(new_node))
                     break
 
             # calls to functions with no return
             elif type_ == "call":
                 transition_graph.remove_node(dst)
+                # src lost a successor, so it (and its predecessors) may now be mergeable
+                worklist.append(src)
+                worklist.extend(transition_graph.predecessors(src))
                 break
-        else:
-            break
 
     return transition_graph
 
