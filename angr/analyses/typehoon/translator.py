@@ -35,6 +35,7 @@ class TypeTranslator:
     __slots__ = (
         "_has_nonexistent_ref",
         "_struct_ctr",
+        "_struct_def_ctr",
         "arch",
         "memo",
         "named_struct_id_counter",
@@ -51,6 +52,9 @@ class TypeTranslator:
         self.translated_simtypes: dict[SimType, TypeConstant] = {}
         self.structs = {}
         self._struct_ctr = count()
+        # a name-independent, deterministic per-function ordering id stamped onto each translated struct, used by
+        # the code generator to break ties when sorting structurally identical structs (see SimStruct._def_order)
+        self._struct_def_ctr = count()
         self.memo = {}
         self.named_struct_id_counter = count(133337)
         self.struct_name_to_idx = {}
@@ -137,6 +141,8 @@ class TypeTranslator:
             s = sim_type.SimCppClass(name=name).with_arch(self.arch)
         else:
             s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
+        # stamp a stable, name-independent definition order for deterministic, rename-proof codegen ordering
+        s._def_order = next(self._struct_def_ctr)
         self.structs[tc] = s
 
         next_offset = 0

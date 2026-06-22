@@ -1641,6 +1641,10 @@ class SimStruct(NamedTypeMixin, SimType):
             self.anonymous = True
 
         self._arch_memo = {}
+        # An optional, name-independent ordering id assigned by the type translator (see analyses/typehoon/
+        # translator.py). The code generator uses it to break ties when sorting structurally identical struct
+        # types, so that the emission order stays put when the user renames a struct or a field.
+        self._def_order: int | None = None
 
     #
     # pack and align are for supporting SimType.from_json and SimType.to_json
@@ -1729,6 +1733,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
+        out._def_order = self._def_order
         self._arch_memo[arch.name] = out
 
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
@@ -2441,6 +2446,7 @@ class SimCppClass(SimStruct):
             size=self._size,
         )
         out._arch = arch
+        out._def_order = self._def_order
         self._arch_memo[arch.name] = out
 
         out.members = OrderedDict((k, v.with_arch(arch)) for k, v in self.members.items())
