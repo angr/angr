@@ -1145,8 +1145,8 @@ class DirectedGraphHelper[T]:
                 llnode_1 = self._postorder_node_to_llnode.pop(old_node_1)
                 if llnode_0.prev == llnode_1:
                     llnode_0.prev = llnode_1.prev
-                if llnode_1.prev is not None:
-                    llnode_1.prev.next = llnode_0
+                    if llnode_1.prev is not None:
+                        llnode_1.prev.next = llnode_0
             elif not old_nodes_succs:
                 raise ValueError("Cannot replace nodes with no parent in postorder cache")
             else:
