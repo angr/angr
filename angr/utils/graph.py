@@ -1048,8 +1048,8 @@ class DirectedGraphHelper[T]:
         if self._node_order is None and self._cyclic_graph:
             self._generate_node_order()
 
-            from angr.analyses.decompiler.region_overlay import (
-                RegionOverlayGraph,  # pylint:disable=import-outside-toplevel
+            from angr.analyses.decompiler.region_overlay import (  # pylint:disable=import-outside-toplevel
+                RegionOverlayGraph,
             )
 
             acyclic_graph = cast(RegionOverlayGraph[T], self._graph).to_acyclic_by_order(self._node_order)
@@ -1158,7 +1158,7 @@ class DirectedGraphHelper[T]:
             order_1 = self._node_order.pop(old_node_1)
             self._node_order[new_node] = min(order_0, order_1)
 
-        if old_node_0 == self._head or old_node_1 == self._head:
+        if self._head in [old_node_0, old_node_1]:
             self._head = new_node
 
     def remove_node(self, node: T):
