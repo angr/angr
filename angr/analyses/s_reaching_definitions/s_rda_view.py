@@ -329,9 +329,7 @@ class SRDAView:
         for stmt_idx, stmt in enumerate(block.statements):
             if last_insn_addr != stmt.tags["ins_addr"]:
                 if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
-                    observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(
-                        reg2vvarid
-                    )
+                    observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(reg2vvarid)
                 if (
                     stmt.tags["ins_addr"] in insn_ops
                     and insn_ops[stmt.tags["ins_addr"]] == ObservationPointType.OP_BEFORE
