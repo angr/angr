@@ -3,10 +3,15 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx
 import networkx.algorithms
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
+
+l = logging.getLogger(__name__)
 
 
 def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
@@ -1001,3 +1006,228 @@ class GraphUtils:
             graph_copy.remove_edge(*loop_backedge)
 
         return loop_head_to_loop_nodes
+
+
+class LinkedListNode[T]:
+    """
+    A node in a linked list.
+    """
+
+    __slots__ = ("next", "prev", "v")
+
+    def __init__(self, v: T):
+        self.v: T = v
+        self.next: LinkedListNode[T] | None = None
+        self.prev: LinkedListNode[T] | None = None
+
+    def __repr__(self):
+        return f"LLNode({self.v!r})"
+
+
+class DirectedGraphHelper[T]:
+    """
+    A helper class for accelerating some graph algorithms on directed graphs.
+
+    _node_order keeps a dictionary of nodes and their order in a quasi-topological sort of the region full graph
+    (graph_with_successors). _generate_node_order() initializes this dictionary. we then update this dictionary when
+    new nodes are created.
+
+    We do not populate _node_order when working on acyclic graphs because it's not used for acyclic graphs.
+    """
+
+    def __init__(self, graph: networkx.DiGraph[T], cyclic_graph: bool, head: T):
+        self._graph: networkx.DiGraph[T] = graph
+        self._cyclic_graph = cyclic_graph
+        self._head: T | None = head
+        self._node_order: dict[T, int] | None = None
+        self._postorder_node_to_llnode: dict[T, LinkedListNode[T]] | None = None
+        self._postorder_node_ll: LinkedListNode[T] | None = None
+        self._postorder_node_head: LinkedListNode[T] | None = None
+
+    def _generate_postorder_cache(self):
+        self._postorder_node_to_llnode = {}
+
+        if self._node_order is None and self._cyclic_graph:
+            self._generate_node_order()
+
+            from angr.analyses.decompiler.region_overlay import (  # pylint:disable=import-outside-toplevel
+                RegionOverlayGraph,
+            )
+
+            acyclic_graph = cast(RegionOverlayGraph[T], self._graph).to_acyclic_by_order(self._node_order)
+        else:
+            acyclic_graph = self._graph
+
+        assert self._head is not None
+        sorted_nodes = list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, self._head))
+        for i, node in enumerate(sorted_nodes):
+            llnode = LinkedListNode(node)
+            self._postorder_node_to_llnode[node] = llnode
+            if i == 0:
+                self._postorder_node_head = llnode
+            else:
+                prev_node = sorted_nodes[i - 1]
+                assert self._postorder_node_to_llnode is not None
+                prev_llnode = self._postorder_node_to_llnode[prev_node]
+                prev_llnode.next = llnode
+                llnode.prev = prev_llnode
+
+    def _generate_node_order(self):
+        ordered_nodes = GraphUtils.quasi_topological_sort_nodes(
+            self._graph,
+            loop_heads=[self._head],
+        )
+        self._node_order = {n: i for i, n in enumerate(ordered_nodes)}
+
+    def reset(self):
+        self._node_order = None
+        self._postorder_node_to_llnode = None
+        self._postorder_node_ll = None
+        self._postorder_node_head = None
+
+    def dfs_postorder_nodes_deterministic(self, source: T) -> Iterator[T]:
+        """
+        Post-order DFS traversal of the directed graph using cache. Avoids acyclic-graph conversion or full-graph
+        traversal when cache is available.
+        """
+
+        if self._postorder_node_to_llnode is None:
+            self._generate_postorder_cache()
+
+        assert self._postorder_node_to_llnode is not None
+        llnode = self._postorder_node_head
+        while llnode is not None:
+            yield llnode.v
+            if llnode.v == source:
+                break
+            llnode = llnode.next
+
+    def replace_node(self, old_node: T, new_node: T):
+        """
+        Update cache when a node is replaced in the graph.
+        """
+
+        if self._postorder_node_to_llnode is not None and old_node in self._postorder_node_to_llnode:
+            llnode = self._postorder_node_to_llnode.pop(old_node)
+            self._postorder_node_to_llnode[new_node] = llnode
+            llnode.v = new_node
+
+        if self._node_order is not None:
+            if old_node not in self._node_order:
+                l.debug("Old node %r is not in node order cache. This should not happen.", old_node)
+            order = self._node_order.pop(old_node, 0)
+            self._node_order[new_node] = order
+
+        if old_node == self._head:
+            self._head = new_node
+
+    def replace_nodes(self, old_node_0: T, old_node_1: T, new_node: T) -> None:
+        """
+        Update cache when multiple nodes are replaced by a single node in the graph.
+        """
+
+        if self._postorder_node_to_llnode is not None:
+            old_nodes_succs: set[T | None] = set()
+            for old_node in [old_node_0, old_node_1]:
+                llnode = self._postorder_node_to_llnode[old_node]
+                if llnode.next is None:
+                    old_nodes_succs.add(None)
+                if llnode.next is not None and llnode.next.v not in [old_node_0, old_node_1]:
+                    old_nodes_succs.add(llnode.next.v)
+
+            if len(old_nodes_succs) == 1:
+                # old nodes have the same parent or they are consecutive
+                succ = old_nodes_succs.pop()
+                llnode_0 = self._postorder_node_to_llnode[old_node_0]
+                llnode_0.v = new_node
+                llnode_0.next = self._postorder_node_to_llnode[succ] if succ is not None else None
+                if llnode_0.next is not None:
+                    llnode_0.next.prev = llnode_0
+                self._postorder_node_to_llnode[new_node] = llnode_0
+                # clean up the old nodes
+                self._postorder_node_to_llnode.pop(old_node_0)
+                llnode_1 = self._postorder_node_to_llnode.pop(old_node_1)
+                if llnode_0.prev == llnode_1:
+                    llnode_0.prev = llnode_1.prev
+                    if llnode_1.prev is not None:
+                        llnode_1.prev.next = llnode_0
+            elif not old_nodes_succs:
+                raise ValueError("Cannot replace nodes with no parent in postorder cache")
+            else:
+                # two parents; nothing we can do here, we have to invalidate the postorder cache
+                self._postorder_node_to_llnode = None
+
+        if self._node_order is not None:
+            order_0 = self._node_order.pop(old_node_0)
+            order_1 = self._node_order.pop(old_node_1)
+            self._node_order[new_node] = min(order_0, order_1)
+
+        if self._head in [old_node_0, old_node_1]:
+            self._head = new_node
+
+    def remove_node(self, node: T):
+        """
+        Update cache when a node is removed from the graph.
+        """
+
+        if self._postorder_node_to_llnode is not None and node in self._postorder_node_to_llnode:
+            llnode = self._postorder_node_to_llnode.pop(node)
+            if llnode.prev is not None:
+                llnode.prev.next = llnode.next
+            if llnode.next is not None:
+                llnode.next.prev = llnode.prev
+
+        if self._node_order is not None:
+            self._node_order.pop(node, None)
+
+        if node == self._head:
+            self._head = None  # type: ignore
+
+    def add_node_successor(self, node: T, successor: T) -> None:
+        if self._postorder_node_to_llnode is not None and successor not in self._postorder_node_to_llnode:
+            assert node in self._postorder_node_to_llnode
+            llnode = self._postorder_node_to_llnode[node]
+            succ_node = LinkedListNode(successor)
+            succ_node.next = llnode.next
+            succ_node.prev = llnode
+            if llnode.next is not None:
+                llnode.next.prev = succ_node
+            llnode.next = succ_node
+            self._postorder_node_to_llnode[successor] = succ_node
+
+        if self._node_order is not None and successor not in self._node_order:
+            assert node in self._node_order
+            for nn, o in list(self._node_order.items()):
+                if o > self._node_order[node]:
+                    self._node_order[nn] = o + 1
+            order = self._node_order[node]
+            self._node_order[successor] = order + 1
+
+    def to_acyclic_by_order(self, graph: RegionOverlayGraph[T]) -> networkx.DiGraph[T]:
+        if self._node_order is None:
+            self._generate_node_order()
+
+        assert self._node_order is not None
+        return graph.to_acyclic_by_order(self._node_order)
+
+    def sort_nodes_by_order(self, nodes: list[T]) -> list[T]:
+        if self._node_order is None:
+            self._generate_node_order()
+
+        assert self._node_order is not None
+        return sorted(nodes, key=lambda n: self._node_order[n])  # type: ignore
+
+    def loop_heads(self) -> set[T]:
+        loop_heads = set()
+
+        if not self._cyclic_graph:
+            return loop_heads
+
+        if self._node_order is None:
+            self._generate_node_order()
+        assert self._node_order is not None
+
+        for src, dst in self._graph.edges():
+            if self._node_order[src] >= self._node_order[dst]:
+                loop_heads.add(dst)
+        return loop_heads

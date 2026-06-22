@@ -46,7 +46,7 @@ from angr.analyses.decompiler.utils import (
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from angr.utils.graph import GraphUtils, dfs_back_edges, dominates
+from angr.utils.graph import DirectedGraphHelper, GraphUtils, dfs_back_edges, dominates
 
 from .structurer_base import StructurerBase
 
@@ -136,11 +136,7 @@ class PhoenixStructurer(StructurerBase):
         # TestDecompiler.test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump captures this case.
         self._matched_incomplete_switch_case_addrs: set[int] = set()
 
-        # node_order keeps a dictionary of nodes and their order in a quasi-topological sort of the region full graph
-        # (graph_with_successors). _generate_node_order() initializes this dictionary. we then update this dictionary
-        # when new nodes are created. we do not populate this dictionary when working on acyclic graphs because it's
-        # not used for acyclic graphs.
-        self._node_order: dict[Any, int] | None = None
+        self._graph_helper: DirectedGraphHelper[Block | BaseNode] = None  # type: ignore[assignment]
 
         self._use_multistmtexprs = use_multistmtexprs
         self._multistmtexpr_stmt_threshold = multistmtexpr_stmt_threshold
@@ -169,6 +165,9 @@ class PhoenixStructurer(StructurerBase):
         self._assert_graph_ok(self._region.graph, "Incorrect region graph")
 
         has_cycle = self._has_cycle()
+
+        # initialize the directed graph helper
+        self._graph_helper = DirectedGraphHelper(self._region.graph_with_successors, has_cycle, self._region.head)
 
         # special handling for single-node loops
         if len(self._region.graph.nodes) == 1 and has_cycle:
@@ -239,11 +238,9 @@ class PhoenixStructurer(StructurerBase):
 
     def _analyze_cyclic(self) -> bool:
         any_matches = False
+        loop_heads = list(self._graph_helper.loop_heads())
 
-        if self._node_order is None:
-            self._generate_node_order()
-        acyclic_graph = self._region.graph.to_acyclic_by_order(self._node_order)
-        for node in list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, self._region.head)):
+        for node in reversed(self._graph_helper.sort_nodes_by_order(loop_heads)):
             if node not in self._region.graph:
                 continue
             matched = self._match_cyclic_schemas(
@@ -514,9 +511,8 @@ class PhoenixStructurer(StructurerBase):
         self.replace_nodes_both(node, loop_node, self_loop=False, drop_refinement_marks=True)
         self._region.add_edge(loop_node, successor_node)
 
-        if self._node_order is not None:
-            self._node_order[loop_node] = self._node_order[node]
-            self._node_order[successor_node] = self._node_order[loop_node]
+        self._graph_helper.replace_node(node, loop_node)
+        self._graph_helper.replace_node(loop_node, successor_node)
 
         return True, loop_node, successor_node
 
@@ -673,11 +669,11 @@ class PhoenixStructurer(StructurerBase):
     def _refine_cyclic(self) -> bool:
         graph = self._region.graph
         loop_heads = {t for _, t in dfs_back_edges(graph, self._region.head, visit_all_nodes=True)}
-        sorted_loop_heads = GraphUtils.quasi_topological_sort_nodes(graph, nodes=list(loop_heads))
+        sorted_loop_heads = self._graph_helper.sort_nodes_by_order(list(loop_heads))
 
         for head in sorted_loop_heads:
             l.debug("... refining cyclic at %r", head)
-            refined = self._refine_cyclic_core(head)
+            refined = self._refine_cyclic_core(head, loop_heads)
             l.debug("... refined: %s", refined)
             if refined:
                 self._assert_graph_ok(self._region.graph, "Refinement went wrong")
@@ -685,7 +681,7 @@ class PhoenixStructurer(StructurerBase):
                 return True
         return False
 
-    def _refine_cyclic_core(self, loop_head) -> bool:
+    def _refine_cyclic_core(self, loop_head, loop_heads) -> bool:
         graph_raw = self._region.raw_graph
         fullgraph_raw = self._region.raw_graph_with_successors
 
@@ -700,7 +696,7 @@ class PhoenixStructurer(StructurerBase):
         continue_node = loop_head
 
         is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, head_succs)
-        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head)
+        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head, loop_heads)
 
         continue_edges: list[tuple[BaseNode, BaseNode]] = []
         outgoing_edges: list = []
@@ -741,7 +737,7 @@ class PhoenixStructurer(StructurerBase):
 
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
-            is_natural, result_natural = self._refine_cyclic_make_natural_loop(graph, fullgraph, loop_head)
+            is_natural, result_natural = self._refine_cyclic_make_natural_loop(graph, fullgraph, loop_head, loop_heads)
             if not is_natural:
                 # cannot refine this loop
                 return False
@@ -907,9 +903,7 @@ class PhoenixStructurer(StructurerBase):
         if len(continue_edges) > 1:
             # convert all but one (the one that is the farthest from the head, topological-wise) head-going edges into
             # continues
-            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(
-                fullgraph, nodes=[src for src, _ in continue_edges], loop_heads=[loop_head]
-            )
+            sorted_nodes = self._graph_helper.sort_nodes_by_order([src for src, _ in continue_edges])
             src_to_ignore = sorted_nodes[-1]
             replacements = {}
 
@@ -986,7 +980,7 @@ class PhoenixStructurer(StructurerBase):
         return bool(outgoing_edges or len(continue_edges) > 1)
 
     @staticmethod
-    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, successor=None) -> set[BaseNode]:
+    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, loop_heads, successor=None) -> set[BaseNode]:
         # determine the loop body: all nodes that have paths going to loop_head
         # networkx.has_path(graph, node, loop_head) is too expensive though.
         loop_body = {loop_head}
@@ -995,6 +989,10 @@ class PhoenixStructurer(StructurerBase):
         for node in networkx.descendants(fullgraph, loop_head):
             if node in graph and node in inverted_loophead_descendants:
                 loop_body.add(node)
+
+        if any(other_loop_head in loop_body for other_loop_head in loop_heads if other_loop_head is not loop_head):
+            # the loop body cannot contain other loop heads
+            return set()
 
         # extend the loop body if possible
         while True:
@@ -1059,7 +1057,7 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     def _refine_cyclic_is_dowhile_loop(
-        self, graph, fullgraph, loop_head
+        self, graph, fullgraph, loop_head, loop_heads
     ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         # check if there is an out-going edge from the loop tail
         head_preds = list(fullgraph.predecessors(loop_head))
@@ -1078,7 +1076,7 @@ class PhoenixStructurer(StructurerBase):
                     # virtualize all other edges
                     continue_node = head_pred
                     loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(
-                        graph, fullgraph, loop_head, successor=successor
+                        graph, fullgraph, loop_head, loop_heads, successor=successor
                     )
                     for node in loop_body:
                         if node is head_pred:
@@ -1100,11 +1098,15 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     @staticmethod
-    def _refine_cyclic_make_natural_loop(graph, fullgraph, loop_head) -> tuple[bool, tuple[list, list, Any] | None]:
+    def _refine_cyclic_make_natural_loop(
+        graph, fullgraph, loop_head, loop_heads
+    ) -> tuple[bool, tuple[list, list, Any] | None]:
         continue_edges = []
         outgoing_edges = []
 
-        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(graph, fullgraph, loop_head)
+        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, loop_heads)
+        if not loop_body:
+            return False, None
 
         # determine successor candidates using the loop body
         successor_candidates = set()
@@ -1179,13 +1181,7 @@ class PhoenixStructurer(StructurerBase):
 
         self._assert_graph_ok(self._region.graph, "Got a wrong graph to work on")
 
-        if graph.in_degree[head] == 0 or any(graph.in_degree[n] == 0 for n in graph):
-            acyclic_graph = graph
-        else:
-            acyclic_graph = graph.to_acyclic(list(graph.in_edges(head)))
-            self._assert_graph_ok(acyclic_graph, "Removed wrong edges")
-
-        for node in list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, head)):
+        for node in self._graph_helper.dfs_postorder_nodes_deterministic(head):
             if node not in graph:
                 continue
             if graph.has_edge(node, head):
@@ -1308,8 +1304,8 @@ class PhoenixStructurer(StructurerBase):
             node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
             self._region.add_edge(node, node_default)
             fake_node_default = True
-            if self._node_order is not None:
-                self._node_order[node_default] = self._node_order[node]
+            self._graph_helper.add_node_successor(node, node_default)
+
         r = self._make_switch_cases_core(
             node,
             self.cond_proc.claripy_ast_from_ail_condition(last_stmt.switch_variable),
@@ -1327,8 +1323,7 @@ class PhoenixStructurer(StructurerBase):
                 # a failed match must leave the graph unchanged: drop the fake default node we just inserted, or it
                 # accumulates as a phantom successor and blocks cyclic matchers on later rounds
                 self._region.remove_node(node_default)
-                if self._node_order is not None:
-                    self._node_order.pop(node_default, None)
+                self._graph_helper.remove_node(node_default)
             return False
 
         # special handling of duplicated default nodes
@@ -1485,8 +1480,9 @@ class PhoenixStructurer(StructurerBase):
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
             _, new_seq_node = self._unpack_sequencenode_head_overlay(node_a)
-            if new_seq_node is not None and self._node_order is not None:
-                self._node_order[new_seq_node] = self._node_order[node_a]
+            if new_seq_node is not None:
+                self._graph_helper.replace_node(node_a, new_seq_node)
+
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
@@ -1507,8 +1503,8 @@ class PhoenixStructurer(StructurerBase):
                 return False
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
-            if self._node_order is not None:
-                self._generate_node_order()
+            # graph is changed; update the graph helper cache
+            self._graph_helper.reset()
 
         better_node_a = node_a
         if isinstance(node_a, SequenceNode) and is_empty_or_label_only_node(node_a.nodes[0]) and len(node_a.nodes) == 2:
@@ -1547,8 +1543,7 @@ class PhoenixStructurer(StructurerBase):
             for succ in all_succs:
                 region.add_edge(newsc, succ)
 
-            if self._node_order is not None:
-                self._node_order[newsc] = self._node_order[better_node_a]
+            self._graph_helper.replace_node(better_node_a, newsc)
 
             return True
 
@@ -1649,6 +1644,9 @@ class PhoenixStructurer(StructurerBase):
                 return False
             # update node
             node = next(iter(nn for nn in graph.nodes if nn.addr == jump_table.addr))
+            # _unpack_incompleteswitchcasenode_overlay() unpacks a bunch of nodes.
+            # Reset the cache so it's rebuilt from the current graph.
+            self._graph_helper.reset()
 
         case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
 
@@ -1888,8 +1886,7 @@ class PhoenixStructurer(StructurerBase):
                         self._region.remove_node(succ_node, absorbed_into=new_node)
                     if out_nodes:
                         self._region.add_edge(new_node, out_nodes[0])
-                    if self._node_order:
-                        self._node_order[new_node] = self._node_order[node]
+                    self._graph_helper.replace_node(node, new_node)
                     return True
         return False
 
@@ -2076,23 +2073,6 @@ class PhoenixStructurer(StructurerBase):
             # there will definitely be dangling nodes after structuring. it's not ready to be structured yet.
             return False
 
-        if node_default is not None:
-            # the head no longer goes to the default case
-            self._region.detach_edge(head, node_default)
-        elif node_default_addr is not None:
-            # the default node is not in the current graph, but it might be in the full graph
-            node_default_in_full_graph = next(iter(nn for nn in full_graph if nn.addr == node_default_addr), None)
-            if node_default_in_full_graph is not None and full_graph.has_edge(head, node_default_in_full_graph):
-                # the head no longer jumps to the default node - the switch jumps to it
-                self._region.hide_edge(head, node_default_in_full_graph)
-
-        self._region.add_edge(head, scnode)
-        for nn in to_remove:
-            self._region.remove_node(nn, absorbed_into=scnode)
-
-        if self._node_order is not None:
-            self._node_order[scnode] = self._node_order[head]
-
         if out_edges:
             # sort out_edges
             out_edges_to_head = [edge for edge in out_edges if edge[1] is head]
@@ -2146,13 +2126,16 @@ class PhoenixStructurer(StructurerBase):
                     sorted(out_dst_succs_fullgraph, key=lambda o: o.addr)[0] if out_dst_succs_fullgraph else None
                 )
                 if len(out_dst_succs) > 1:
-                    assert out_dst_succ is not None
-                    l.warning(
-                        "Multiple in-region successors detected for switch-case node at %#x. Picking %#x as the "
-                        "successor and dropping others.",
-                        scnode.addr,
-                        out_dst_succ.addr,
-                    )
+                    if self.dowhile_known_tail_nodes:
+                        assert out_dst_succ is not None
+                        l.warning(
+                            "Multiple in-region successors detected for switch-case node at %#x. Picking %#x as the "
+                            "successor and dropping others.",
+                            scnode.addr,
+                            out_dst_succ.addr,
+                        )
+                    else:
+                        return False
                 if len(out_dst_succs_fullgraph) > 1:
                     assert out_dst_succ_fullgraph is not None
                     l.warning(
@@ -2180,6 +2163,22 @@ class PhoenixStructurer(StructurerBase):
                     and full_graph.in_degree[out_dst] == 0
                 ):
                     self._region.remove_node(out_dst)
+
+        if node_default is not None:
+            # the head no longer goes to the default case
+            self._region.detach_edge(head, node_default)
+        elif node_default_addr is not None:
+            # the default node is not in the current graph, but it might be in the full graph
+            node_default_in_full_graph = next(iter(nn for nn in full_graph if nn.addr == node_default_addr), None)
+            if node_default_in_full_graph is not None and full_graph.has_edge(head, node_default_in_full_graph):
+                # the head no longer jumps to the default node - the switch jumps to it
+                self._region.hide_edge(head, node_default_in_full_graph)
+
+        self._region.add_edge(head, scnode)
+        for nn in to_remove:
+            self._region.remove_node(nn, absorbed_into=scnode)
+
+        self._graph_helper.add_node_successor(head, scnode)
 
         # the head's own out-of-region case targets (e.g., the region successor when a case continues to the
         # enclosing loop head) are represented as goto-cases inside scnode, but the head's direct edges to them
@@ -2937,7 +2936,7 @@ class PhoenixStructurer(StructurerBase):
         if networkx.is_directed_acyclic_graph(full_graph):
             acyclic_graph = full_graph
         else:
-            acyclic_graph = full_graph.to_acyclic_by_order(self._node_order)
+            acyclic_graph = self._graph_helper.to_acyclic_by_order(full_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
@@ -3440,15 +3439,6 @@ class PhoenixStructurer(StructurerBase):
 
         return sorted(edges, key=_sort_edge, reverse=True)
 
-    def _generate_node_order(self):
-        the_graph = self._region.graph_with_successors
-        the_head = self._region.head
-        ordered_nodes = GraphUtils.quasi_topological_sort_nodes(
-            the_graph,
-            loop_heads=[the_head],
-        )
-        self._node_order = {n: i for i, n in enumerate(ordered_nodes)}
-
     def replace_nodes_both(
         self,
         old_node_0,
@@ -3470,11 +3460,11 @@ class PhoenixStructurer(StructurerBase):
             region.absorb_successor_into(old_node_1, new_node)
         if drop_refinement_marks:
             region.drop_edge_marks_from(new_node, "cyclic_refinement_outgoing")
-        if self._node_order is not None:
-            if old_node_1 is not None and old_node_1 in self._node_order:
-                self._node_order[new_node] = min(self._node_order[old_node_0], self._node_order[old_node_1])
-            else:
-                self._node_order[new_node] = self._node_order[old_node_0]
+
+        if old_node_1 is not None:
+            self._graph_helper.replace_nodes(old_node_0, old_node_1, new_node)
+        else:
+            self._graph_helper.replace_node(old_node_0, new_node)
 
     def _remove_edges_except_overlay(self, src, dst) -> None:
         """

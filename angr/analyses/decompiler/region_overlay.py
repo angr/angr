@@ -1330,7 +1330,7 @@ class _OverlayAdjAtlas(Mapping):
         return entry[1]
 
 
-class RegionOverlayGraph(networkx.DiGraph):
+class RegionOverlayGraph[T](networkx.DiGraph):
     """
     A read-only, networkx-compatible view of a RegionOverlay that stores no copy of the region's subgraph: all
     queries traverse the original shared graph through the overlay's membership. Compatible with every networkx
