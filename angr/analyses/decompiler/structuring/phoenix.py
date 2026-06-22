@@ -1304,7 +1304,7 @@ class PhoenixStructurer(StructurerBase):
             node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
             self._region.add_edge(node, node_default)
             fake_node_default = True
-            self._graph_helper.replace_node(node, node_default)
+            self._graph_helper.add_node_successor(node, node_default)
 
         r = self._make_switch_cases_core(
             node,
@@ -1644,6 +1644,9 @@ class PhoenixStructurer(StructurerBase):
                 return False
             # update node
             node = next(iter(nn for nn in graph.nodes if nn.addr == jump_table.addr))
+            # _unpack_incompleteswitchcasenode_overlay() unpacks a bunch of nodes.
+            # Reset the cache so it's rebuilt from the current graph.
+            self._graph_helper.reset()
 
         case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
 
