@@ -77,7 +77,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         self.variable_map[next(iter(variable.variables))] = constraint
         self.preconstraints.append(constraint)
         if o.REPLACEMENT_SOLVER in self.state.options:
-            self.state.solver._solver.add_replacement(variable, value, invalidate_cache=False)
+            self.state.solver._solver.add_replacement(variable, value)
         else:
             self.state.add_constraints(constraint)
         if not self.state.satisfiable():
