@@ -1614,8 +1614,9 @@ class SimTypeDouble(SimTypeFloat):
 
 
 class SimStruct(NamedTypeMixin, SimType):
+    # note: def_order is NOT in _fields; it must not participate in equality/hashing
     _fields = ("name", "fields", "anonymous")
-    _args = ("fields", "name", "pack", "align", "anonymous", "qualifier")
+    _args = ("fields", "name", "pack", "align", "anonymous", "qualifier", "def_order")
     _ident = "struct"
 
     def __init__(
@@ -1626,6 +1627,7 @@ class SimStruct(NamedTypeMixin, SimType):
         align=None,
         anonymous: bool = False,
         qualifier: Iterable | None = None,
+        def_order: int | None = None,
     ):
         super().__init__(None, name="<anon>" if name is None else name)
 
@@ -1644,7 +1646,7 @@ class SimStruct(NamedTypeMixin, SimType):
         # An optional, name-independent ordering id assigned by the type translator (see analyses/typehoon/
         # translator.py). The code generator uses it to break ties when sorting structurally identical struct
         # types, so that the emission order stays put when the user renames a struct or a field.
-        self._def_order: int | None = None
+        self._def_order: int | None = def_order
 
     #
     # pack and align are for supporting SimType.from_json and SimType.to_json
@@ -1653,6 +1655,11 @@ class SimStruct(NamedTypeMixin, SimType):
     @property
     def pack(self):
         return self._pack
+
+    @property
+    def def_order(self):
+        # exposed so SimType.to_json / from_json can round-trip the field via _args
+        return self._def_order
 
     @property
     def align(self):
@@ -1713,6 +1720,8 @@ class SimStruct(NamedTypeMixin, SimType):
             d.pop("anonymous")
         if "q" in d and not d["q"]:
             d.pop("q")
+        if d.get("def_order") is None:
+            d.pop("def_order", None)
         return d
 
     def extract(self, state, addr, concrete=False) -> SimStructValue:
@@ -2341,6 +2350,7 @@ class SimCppClass(SimStruct):
         "align",
         "size",
         "anonymous",
+        "def_order",
     )
     _ident = "cppclass"
 
@@ -2356,8 +2366,9 @@ class SimCppClass(SimStruct):
         align=None,
         size: int | None = None,
         anonymous: bool = False,
+        def_order: int | None = None,
     ):
-        super().__init__(members or {}, name=name, pack=pack, align=align, anonymous=anonymous)
+        super().__init__(members or {}, name=name, pack=pack, align=align, anonymous=anonymous, def_order=def_order)
         self.unique_name = unique_name
         # these are actually addresses in the binary
         self.function_members = function_members
