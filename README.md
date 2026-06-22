@@ -26,7 +26,7 @@ cargo build
 cargo test
 ```
 
-To build and test the python bindings, Python 3.10 or later is required. A venv
+To build and test the python bindings, Python 3.12 or later is required. A venv
 is reccomended. To build and install the python bindings, install with pip:
 
 ```bash
