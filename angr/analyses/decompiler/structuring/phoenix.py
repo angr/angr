@@ -2927,7 +2927,7 @@ class PhoenixStructurer(StructurerBase):
         if networkx.is_directed_acyclic_graph(full_graph):
             acyclic_graph = full_graph
         else:
-            acyclic_graph = full_graph.to_acyclic_by_order(self._node_order)
+            acyclic_graph = self._graph_helper.to_acyclic_by_order(full_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue

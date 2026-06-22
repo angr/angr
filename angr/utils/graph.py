@@ -3,10 +3,13 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx
 import networkx.algorithms
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
 
 
 def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
@@ -1044,7 +1047,7 @@ class DirectedGraphHelper[T]:
 
         if self._node_order is None and self._cyclic_graph:
             self._generate_node_order()
-            acyclic_graph = self._graph.to_acyclic_by_order(self._node_order)
+            acyclic_graph = cast(RegionOverlayGraph[T], self._graph).to_acyclic_by_order(self._node_order)
         else:
             acyclic_graph = self._graph
 
@@ -1191,7 +1194,7 @@ class DirectedGraphHelper[T]:
             order = self._node_order[node]
             self._node_order[successor] = order + 1
 
-    def to_acyclic_by_order(self, graph: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
+    def to_acyclic_by_order(self, graph: RegionOverlayGraph[T]) -> networkx.DiGraph[T]:
         if self._node_order is None:
             self._generate_node_order()
 
@@ -1203,7 +1206,7 @@ class DirectedGraphHelper[T]:
             self._generate_node_order()
 
         assert self._node_order is not None
-        return sorted(nodes, key=lambda n: self._node_order[n])
+        return sorted(nodes, key=lambda n: self._node_order[n])  # type: ignore
 
     def loop_heads(self) -> set[T]:
         loop_heads = set()
