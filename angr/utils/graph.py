@@ -11,6 +11,8 @@ import networkx.algorithms
 if TYPE_CHECKING:
     from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
 
+l = logging.getLogger(__name__)
+
 
 def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
     """
@@ -1111,7 +1113,9 @@ class DirectedGraphHelper[T]:
             llnode.v = new_node
 
         if self._node_order is not None:
-            order = self._node_order.pop(old_node)
+            if old_node not in self._node_order:
+                l.debug("Old node %r is not in node order cache. This should not happen.", old_node)
+            order = self._node_order.pop(old_node, 0)
             self._node_order[new_node] = order
 
         if old_node == self._head:
