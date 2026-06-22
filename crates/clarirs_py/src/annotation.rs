@@ -149,10 +149,14 @@ impl PyAnnotation {
                 .extract::<String>()?;
             let pickle_dumps = slf.py().import("pickle")?.getattr("dumps")?;
             let pickled = pickle_dumps.call1((slf,))?.extract::<Vec<u8>>()?;
+            // Identify the annotation by the object's hash; the pickled bytes
+            // are kept only to reconstruct it.
+            let obj_hash = slf.hash()? as i64;
             Annotation::new(
                 AnnotationType::Unknown {
                     name: format!("{module_name}:{class_name}"),
-                    value: pickled,
+                    value: pickled.into(),
+                    obj_hash,
                 },
                 eliminatable,
                 relocatable,
@@ -183,7 +187,9 @@ impl PyAnnotation {
         match annotation.type_() {
             AnnotationType::Unknown { value, .. } => {
                 let pickle_loads = py.import("pickle")?.getattr("loads")?;
-                Ok(pickle_loads.call1((value,))?.cast_into::<PyAnnotation>()?)
+                Ok(pickle_loads
+                    .call1((value.0.clone(),))?
+                    .cast_into::<PyAnnotation>()?)
             }
             AnnotationType::SimplificationAvoidance => upcast(Bound::new(
                 py,
