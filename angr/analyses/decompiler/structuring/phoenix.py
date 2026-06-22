@@ -174,6 +174,9 @@ class PhoenixStructurer(StructurerBase):
         if len(self._region.graph.nodes) == 1 and has_cycle:
             self._analyze_cyclic()
 
+        # cache of sorted edges for last-resort refinement
+        last_resort_refinement_cache: dict[str, Any] = {}
+
         # checkpoint the region prior to conducting a cyclic refinement because we may not be able to structure a
         # cycle out of the refined graph. in that case, we roll the region back and return.
         pre_refinement_checkpoint: int | None = None
@@ -220,11 +223,15 @@ class PhoenixStructurer(StructurerBase):
                     self._region.head,
                     self._region.raw_graph,
                     self._region.raw_graph_with_successors,
+                    last_resort_refinement_cache,
                 )
                 self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
                 if not removed_edge:
                     # cannot make any progress in this region. return the subgraph directly
                     break
+            else:
+                # clear the last resort refinement cache because the graph has changed
+                last_resort_refinement_cache = {}
 
         if len(self._region.graph.nodes) == 1:
             # successfully structured
@@ -2913,7 +2920,9 @@ class PhoenixStructurer(StructurerBase):
                             return left, edge_cond_left, right, edge_cond_left_right, else_node
         return None
 
-    def _last_resort_refinement(self, head, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph) -> bool:
+    def _last_resort_refinement(
+        self, head, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph, cache: dict[str, Any]
+    ) -> bool:
         if self._improve_algorithm:
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
@@ -2922,115 +2931,130 @@ class PhoenixStructurer(StructurerBase):
                     l.debug("last_resort: Removed edge %r -> %r (type 3)", src, dst)
                     return True
 
-        # virtualize an edge to allow progressing in structuring
-        all_edges_wo_dominance = []  # to ensure determinism, edges in this list are ordered by a tuple of
-        # (src_addr, dst_addr)
-        secondary_edges = []  # likewise, edges in this list are ordered by a tuple of (src_addr, dst_addr)
-        other_edges = []
-
         full_graph = full_graph_raw.filtered()
         graph = graph_raw.filtered()
 
-        idoms = networkx.immediate_dominators(full_graph, head)
-        if networkx.is_directed_acyclic_graph(full_graph):
-            acyclic_graph = full_graph.materialize()
-        else:
-            acyclic_graph = full_graph.to_acyclic_by_order(self._node_order).materialize()
-        for src, dst in acyclic_graph.edges:
-            if src is dst:
-                continue
-            if src not in graph:
-                continue
-            if (
-                isinstance(src, Block)
-                and src.statements
-                and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
-            ):
-                # this is a head of an incomplete switch-case construct (that we will definitely be structuring later),
-                # so we do not want to remove any edges going out of this block
-                continue
-            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
-                if (src.addr, dst.addr) not in self.whitelist_edges:
-                    all_edges_wo_dominance.append((src, dst))
-            elif not dominates(idoms, src, dst):
-                if (src.addr, dst.addr) not in self.whitelist_edges:
-                    secondary_edges.append((src, dst))
-            else:
-                if (src.addr, dst.addr) not in self.whitelist_edges:
-                    other_edges.append((src, dst))
+        # virtualize an edge to allow progressing in structuring
+        all_edges_wo_dominance = cache.get("all_edges_wo_dominance")
+        secondary_edges = cache.get("secondary_edges")
+        cycle_edges = cache.get("cycle_edges")
 
-        # acyclic graph may contain more than one entry node, so we may add a temporary head node to ensure all nodes
-        # are accounted for in node_seq
-        graph_entries = [nn for nn in acyclic_graph if acyclic_graph.in_degree[nn] == 0]
-        postorder_head = head
-        if len(graph_entries) > 1:
-            postorder_head = Block(0, 0)
-            for nn in graph_entries:
-                acyclic_graph.add_edge(postorder_head, nn)
-        ordered_nodes = list(
-            reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, postorder_head)))
-        )
-        if len(graph_entries) > 1:
-            ordered_nodes.remove(postorder_head)
-            acyclic_graph.remove_node(postorder_head)
-        node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
-        if len(node_seq) < len(acyclic_graph):
-            # some nodes are not reachable from head - add them to node_seq as well
-            # but this is usually the result of incorrect structuring, so we may still fail at a later point
-            l.warning("Adding %d unreachable nodes to node_seq", len(acyclic_graph) - len(node_seq))
-            unreachable_nodes = sorted(
-                (nn for nn in acyclic_graph if nn not in node_seq),
-                key=lambda n: (n.addr, (-1 if n.idx is None else n.idx) if hasattr(n, "idx") else 0),
-            )
-            max_seq = max(node_seq.values(), default=0)
-            for i, nn in enumerate(unreachable_nodes):
-                node_seq[nn] = max_seq + i
+        if all_edges_wo_dominance is None or secondary_edges is None or cycle_edges is None:
+            # no cache available; populate the cache
 
-        if all_edges_wo_dominance:
-            all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
-            # virtualize the first edge
-            src, dst = all_edges_wo_dominance[0]
-            self._virtualize_edge(src, dst)
-            l.debug("last_resort: Removed edge %r -> %r (type 1)", src, dst)
-            return True
-
-        if secondary_edges:
-            secondary_edges = self._order_virtualizable_edges(full_graph, secondary_edges, node_seq)
-            # virtualize the first edge
-            src, dst = secondary_edges[0]
-            self._virtualize_edge(src, dst)
-            l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
-            return True
-
-        if (
-            self._region.parent is None
-            and not self._region.cyclic
-            and not networkx.is_directed_acyclic_graph(full_graph)
-        ):
-            # an acyclic region must not contain cycles; one can appear as debris when an inner cyclic region
-            # fails to structure and dissolves its partially-refined body into this region. the cycle-closing
-            # edges are excluded from the candidate lists above (to_acyclic_by_order dropped them from
-            # acyclic_graph), so without this fallback the region can never become structurable. only the root
-            # region recovers this way (a goto): anywhere else, failing and dissolving into an enclosing region
-            # gives a cyclic ancestor the chance to structure the loop properly first.
-            # virtualize one cycle edge to recover.
+            # to ensure determinism, edges in these lists are ordered by a tuple of (src_addr, dst_addr)
+            all_edges_wo_dominance = []
+            secondary_edges = []
             cycle_edges = []
-            for src, dst in full_graph.edges:
-                if src is dst or acyclic_graph.has_edge(src, dst) or src not in graph:
+
+            idoms = networkx.immediate_dominators(full_graph, head)
+            if networkx.is_directed_acyclic_graph(full_graph):
+                acyclic_graph = full_graph.materialize()
+            else:
+                # get the acyclic version of the full graph using node order
+                acyclic_graph = full_graph.to_acyclic_by_order(self._node_order).materialize()
+            for src, dst in acyclic_graph.edges:
+                if src is dst:
+                    continue
+                if src not in graph:
                     continue
                 if (
                     isinstance(src, Block)
                     and src.statements
                     and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
                 ):
+                    # this is a head of an incomplete switch-case construct (that we will definitely be structuring later),
+                    # so we do not want to remove any edges going out of this block
                     continue
-                cycle_edges.append((src, dst))
-            if cycle_edges:
+                if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
+                    if (src.addr, dst.addr) not in self.whitelist_edges:
+                        all_edges_wo_dominance.append((src, dst))
+                elif not dominates(idoms, src, dst):
+                    if (src.addr, dst.addr) not in self.whitelist_edges:
+                        secondary_edges.append((src, dst))
+
+            # acyclic graph may contain more than one entry node, so we may add a temporary head node to ensure all nodes
+            # are accounted for in node_seq
+            graph_entries = [nn for nn in acyclic_graph if acyclic_graph.in_degree[nn] == 0]
+            postorder_head = head
+            if len(graph_entries) > 1:
+                postorder_head = Block(0, 0)
+                for nn in graph_entries:
+                    acyclic_graph.add_edge(postorder_head, nn)
+            ordered_nodes = list(
+                reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, postorder_head)))
+            )
+            if len(graph_entries) > 1:
+                ordered_nodes.remove(postorder_head)
+                acyclic_graph.remove_node(postorder_head)
+            node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
+            if len(node_seq) < len(acyclic_graph):
+                # some nodes are not reachable from head - add them to node_seq as well
+                # but this is usually the result of incorrect structuring, so we may still fail at a later point
+                l.warning("Adding %d unreachable nodes to node_seq", len(acyclic_graph) - len(node_seq))
+                unreachable_nodes = sorted(
+                    (nn for nn in acyclic_graph if nn not in node_seq),
+                    key=lambda n: (n.addr, (-1 if n.idx is None else n.idx) if hasattr(n, "idx") else 0),
+                )
+                max_seq = max(node_seq.values(), default=0)
+                for i, nn in enumerate(unreachable_nodes):
+                    node_seq[nn] = max_seq + i
+
+            if all_edges_wo_dominance:
+                all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
+            cache["all_edges_wo_dominance"] = all_edges_wo_dominance
+
+            if secondary_edges:
+                secondary_edges = self._order_virtualizable_edges(full_graph, secondary_edges, node_seq)
+            cache["secondary_edges"] = secondary_edges
+
+            if (
+                self._region.parent is None
+                and not self._region.cyclic
+                and not networkx.is_directed_acyclic_graph(full_graph)
+            ):
+                # an acyclic region must not contain cycles; one can appear as debris when an inner cyclic region
+                # fails to structure and dissolves its partially-refined body into this region. the cycle-closing
+                # edges are excluded from the candidate lists above (to_acyclic_by_order dropped them from
+                # acyclic_graph), so without this fallback the region can never become structurable. only the root
+                # region recovers this way (a goto): anywhere else, failing and dissolving into an enclosing region
+                # gives a cyclic ancestor the chance to structure the loop properly first.
+                # virtualize one cycle edge to recover.
+                for src, dst in full_graph.edges:
+                    if src is dst or acyclic_graph.has_edge(src, dst) or src not in graph:
+                        continue
+                    if (
+                        isinstance(src, Block)
+                        and src.statements
+                        and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
+                    ):
+                        continue
+                    cycle_edges.append((src, dst))
                 cycle_edges = sorted(cycle_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
-                src, dst = cycle_edges[0]
-                self._virtualize_edge(src, dst)
-                l.debug("last_resort: Removed cycle edge %r -> %r in an acyclic region (type 4)", src, dst)
-                return True
+            cache["cycle_edges"] = cycle_edges
+
+        if all_edges_wo_dominance:
+            # virtualize the first edge
+            src, dst = all_edges_wo_dominance[0]
+            all_edges_wo_dominance.pop(0)
+            self._virtualize_edge(src, dst)
+            l.debug("last_resort: Removed edge %r -> %r (type 1)", src, dst)
+            return True
+
+        if secondary_edges:
+            # virtualize the first edge
+            src, dst = secondary_edges[0]
+            secondary_edges.pop(0)
+            self._virtualize_edge(src, dst)
+            l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
+            return True
+
+        if cycle_edges:
+            src, dst = cycle_edges[0]
+            cycle_edges.pop(0)
+            self._virtualize_edge(src, dst)
+            l.debug("last_resort: Removed cycle edge %r -> %r in an acyclic region (type 4)", src, dst)
+            return True
 
         l.debug("last_resort: No edge to remove")
         return False
