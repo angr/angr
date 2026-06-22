@@ -8,6 +8,7 @@ from angr.ailment import Address
 from angr.ailment.expression import Tmp, VirtualVariable
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import Definition, atoms
+from angr.utils.graph import GraphUtils
 
 
 class SRDAModel:
@@ -29,6 +30,8 @@ class SRDAModel:
         self.phivarid_to_varids_with_unknown: dict[int, set[int | None]] = {}
         self.phivarid_to_varids: dict[int, set[int]] = {}
         self.vvar_uses_by_loc: dict[AILCodeLocation, list[int]] = {}
+        # cached quasi-topological sort of the function graph; used by observe() and get_uses_by_location()
+        self._traversal_order: list | None = None
 
     def add_vvar_use(self, vvar_id: int, expr: VirtualVariable | None, loc: AILCodeLocation) -> None:
         self.all_vvar_uses[vvar_id].append((expr, loc))
@@ -264,3 +267,13 @@ class SRDAModel:
         if isinstance(def_.atom, atoms.VirtualVariable):
             return self.get_vvar_uses(def_.atom)
         return set()
+
+    def get_traversal_order(self) -> list:
+        """
+        Get a quasi-topological sort of the function graph's nodes, cached across calls. This is used by observe() and
+        get_uses_by_location(), which are frequently called more than once per analysis (e.g. call-site uses and
+        callee-saved-register uses), and the quasi-topological sort dominates observe(), so cache it across calls.
+        """
+        if self._traversal_order is None:
+            self._traversal_order = GraphUtils.quasi_topological_sort_nodes(self.func_graph)
+        return self._traversal_order

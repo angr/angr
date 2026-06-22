@@ -10,7 +10,6 @@ from angr.ailment.statement import Assignment, Label, SideEffectStatement, State
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
 from angr.utils.ail import is_phi_assignment
-from angr.utils.graph import GraphUtils
 from angr.utils.ssa import get_reg_offset_base
 
 from .s_rda_model import SRDAModel
@@ -120,7 +119,6 @@ class SRDAView:
 
     def __init__(self, model: SRDAModel):
         self.model = model
-        self._traversal_order: list[Block] | None = None
 
     def _get_vvar_by_stmt(
         self,
@@ -298,12 +296,7 @@ class SRDAView:
         }
         # TODO: Other types
 
-        # The traversal order depends only on func_graph, which is immutable for the lifetime of this view. observe()
-        # is frequently called more than once per analysis (e.g. call-site uses and callee-saved-register uses), and
-        # the quasi-topological sort dominates observe(), so cache it across calls.
-        if self._traversal_order is None:
-            self._traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
-        traversal_order = self._traversal_order
+        traversal_order = self.model.get_traversal_order()
         all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, dict[int, int]]] = defaultdict(dict)
 
         observations = {}
