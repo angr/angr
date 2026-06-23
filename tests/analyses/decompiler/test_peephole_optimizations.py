@@ -107,9 +107,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         assert opt.optimize(expr) is None
 
         # constant too wide for the compared width: not this pattern
-        conv = ailment.Expr.Convert(
-            None, 32, 28, False, BinaryOp(None, "Shr", [x, Const(None, 4, 32)], False, bits=32)
-        )
+        conv = ailment.Expr.Convert(None, 32, 28, False, BinaryOp(None, "Shr", [x, Const(None, 4, 32)], False, bits=32))
         expr = BinaryOp(None, "CmpEQ", [conv, Const(None, 1 << 28, 32)], False, bits=1)
         assert opt.optimize(expr) is None
 
