@@ -1195,6 +1195,8 @@ class PhoenixStructurer(StructurerBase):
             l.debug("... matched: %s", matched)
             any_matches |= matched
             if matched:
+                # clear the cached switch-case heads and dispatch nodes because we have created a switch-case
+                self._unstructured_switch_case_heads_and_dispatch_nodes = None
                 break
             l.debug("... matching acyclic sequence at %r", node)
             matched = self._match_acyclic_sequence(graph, full_graph, node)
