@@ -145,6 +145,7 @@ jobs:
           CMAKE_GENERATOR: Ninja
           CC: "clang"
           CXX: "clang++"
+          MACOSX_DEPLOYMENT_TARGET: "13.3"
 
       - name: Upload Wheel Artifact
         uses: actions/upload-artifact@v4
