@@ -290,7 +290,7 @@ class TypeDBLoader(Analysis):
         rustc_version = self.project.rustc_version
         l.info("Rust version: %s", rustc_version)
         type_db_filename = f"{rustc_version}.json"
-        type_db_path = Path(angr_data.get_path("rust", "analyses", "type_db")).joinpath(type_db_filename)
+        type_db_path = Path(angr_data.get_path("rust", "type_db")).joinpath(type_db_filename)
         if not type_db_path.exists():
             l.warning("Type database for Rust version %s not found at %s.", rustc_version, type_db_path)
             return
