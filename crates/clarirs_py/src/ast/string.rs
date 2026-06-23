@@ -27,12 +27,13 @@ impl PyAstString {
         Self::new_with_name(py, inner, None)
     }
 
+    /// Wrap an AST without simplifying it, keeping its annotation set exactly as
+    /// given.
     pub fn new_with_name<'py>(
         py: Python<'py>,
         inner: &AstRef<'static>,
         name: Option<String>,
     ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-        let inner = &inner.simplify()?;
         if let Some(cache_hit) = PY_STRING_CACHE.get(&inner.hash()).and_then(|cache_hit| {
             cache_hit
                 .bind(py)
@@ -103,6 +104,8 @@ impl PyAstString {
             inner
         };
 
+        // `__new__` reconstructs a node from (op, args, annotations) verbatim,
+        // without simplifying (e.g. when unpickling).
         Ok(PyAstString::new(py, &inner_with_annotations)?.unbind())
     }
 
@@ -121,7 +124,9 @@ impl PyAstString {
     ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
         PyAstString::new(
             py,
-            &GLOBAL_CONTEXT.str_concat(&self.inner, &other.get().inner)?,
+            &GLOBAL_CONTEXT
+                .str_concat(&self.inner, &other.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -130,7 +135,12 @@ impl PyAstString {
         py: Python<'py>,
         other: Bound<'py, PyAstString>,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.str_eq(&self.inner, &other.get().inner)?)
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .str_eq(&self.inner, &other.get().inner)?
+                .simplify()?,
+        )
     }
 
     pub fn __ne__<'py>(
@@ -140,7 +150,9 @@ impl PyAstString {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.str_neq(&self.inner, &other.get().inner)?,
+            &GLOBAL_CONTEXT
+                .str_neq(&self.inner, &other.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -203,7 +215,12 @@ pub fn StrLen<'py>(
     py: Python<'py>,
     s: Bound<'py, PyAstString>,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    BV::new(py, &GLOBAL_CONTEXT.str_len(&s.get().inner)?)
+    BV::new(
+        py,
+        &GLOBAL_CONTEXT
+            .str_len(&s.get().inner)?
+            .simplify_ext(true, true)?,
+    )
 }
 
 #[pyfunction]
@@ -214,7 +231,9 @@ pub fn StrConcat<'py>(
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
     PyAstString::new(
         py,
-        &GLOBAL_CONTEXT.str_concat(&s1.get().inner, &s2.get().inner)?,
+        &GLOBAL_CONTEXT
+            .str_concat(&s1.get().inner, &s2.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -227,11 +246,13 @@ pub fn StrSubstr<'py>(
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
     PyAstString::new(
         py,
-        &GLOBAL_CONTEXT.str_substr(
-            &base.get().inner,
-            &start.unpack(py, 64, false)?.get().inner,
-            &size.unpack(py, 64, false)?.get().inner,
-        )?,
+        &GLOBAL_CONTEXT
+            .str_substr(
+                &base.get().inner,
+                &start.unpack(py, 64, false)?.get().inner,
+                &size.unpack(py, 64, false)?.get().inner,
+            )?
+            .simplify()?,
     )
 }
 
@@ -243,7 +264,9 @@ pub fn StrContains<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.str_contains(&haystack.get().inner, &needle.get().inner)?,
+        &GLOBAL_CONTEXT
+            .str_contains(&haystack.get().inner, &needle.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -256,11 +279,13 @@ pub fn StrIndexOf<'py>(
 ) -> Result<Bound<'py, BV>, ClaripyError> {
     BV::new(
         py,
-        &GLOBAL_CONTEXT.str_index_of(
-            &haystack.get().inner,
-            &needle.get().inner,
-            &start.unpack(py, 64, false)?.get().inner,
-        )?,
+        &GLOBAL_CONTEXT
+            .str_index_of(
+                &haystack.get().inner,
+                &needle.get().inner,
+                &start.unpack(py, 64, false)?.get().inner,
+            )?
+            .simplify_ext(true, true)?,
     )
 }
 
@@ -273,11 +298,13 @@ pub fn StrReplace<'py>(
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
     PyAstString::new(
         py,
-        &GLOBAL_CONTEXT.str_replace(
-            &haystack.get().inner,
-            &needle.get().inner,
-            &replacement.get().inner,
-        )?,
+        &GLOBAL_CONTEXT
+            .str_replace(
+                &haystack.get().inner,
+                &needle.get().inner,
+                &replacement.get().inner,
+            )?
+            .simplify()?,
     )
 }
 
@@ -289,7 +316,9 @@ pub fn StrPrefixOf<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.str_prefix_of(&needle.get().inner, &haystack.get().inner)?,
+        &GLOBAL_CONTEXT
+            .str_prefix_of(&needle.get().inner, &haystack.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -301,7 +330,9 @@ pub fn StrSuffixOf<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.str_suffix_of(&needle.get().inner, &haystack.get().inner)?,
+        &GLOBAL_CONTEXT
+            .str_suffix_of(&needle.get().inner, &haystack.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -310,7 +341,12 @@ pub fn StrToInt<'py>(
     py: Python<'py>,
     s: Bound<'py, PyAstString>,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    BV::new(py, &GLOBAL_CONTEXT.str_to_bv(&s.get().inner)?)
+    BV::new(
+        py,
+        &GLOBAL_CONTEXT
+            .str_to_bv(&s.get().inner)?
+            .simplify_ext(true, true)?,
+    )
 }
 
 #[pyfunction]
@@ -318,7 +354,7 @@ pub fn IntToStr<'py>(
     py: Python<'py>,
     bv: Bound<'py, BV>,
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-    PyAstString::new(py, &GLOBAL_CONTEXT.bv_to_str(&bv.get().inner)?)
+    PyAstString::new(py, &GLOBAL_CONTEXT.bv_to_str(&bv.get().inner)?.simplify()?)
 }
 
 #[pyfunction]
@@ -326,7 +362,10 @@ pub fn StrIsDigit<'py>(
     py: Python<'py>,
     s: Bound<'py, PyAstString>,
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(py, &GLOBAL_CONTEXT.str_is_digit(&s.get().inner)?)
+    Bool::new(
+        py,
+        &GLOBAL_CONTEXT.str_is_digit(&s.get().inner)?.simplify()?,
+    )
 }
 
 #[pyfunction]
@@ -337,7 +376,9 @@ pub fn StrEq<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.str_eq(&s1.get().inner, &s2.get().inner)?,
+        &GLOBAL_CONTEXT
+            .str_eq(&s1.get().inner, &s2.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -349,7 +390,9 @@ pub fn StrNeq<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.str_neq(&s1.get().inner, &s2.get().inner)?,
+        &GLOBAL_CONTEXT
+            .str_neq(&s1.get().inner, &s2.get().inner)?
+            .simplify()?,
     )
 }
 

@@ -166,12 +166,13 @@ impl FP {
         Self::new_with_name(py, inner, None)
     }
 
+    /// Wrap an AST without simplifying it, keeping its annotation set exactly as
+    /// given.
     pub fn new_with_name<'py>(
         py: Python<'py>,
         inner: &AstRef<'static>,
         name: Option<String>,
     ) -> Result<Bound<'py, FP>, ClaripyError> {
-        let inner = &inner.simplify()?;
         if let Some(cache_hit) = PY_FP_CACHE.get(&inner.hash()).and_then(|cache_hit| {
             cache_hit
                 .bind(py)
@@ -299,6 +300,8 @@ impl FP {
             inner
         };
 
+        // `__new__` reconstructs a node from (op, args, annotations) verbatim,
+        // without simplifying (e.g. when unpickling).
         Ok(FP::new(py, &inner_with_annotations)?.unbind())
     }
 
@@ -341,7 +344,9 @@ impl FP {
     pub fn raw_to_bv(self_: Bound<'_, FP>) -> Result<Bound<'_, BV>, ClaripyError> {
         BV::new(
             self_.py(),
-            &GLOBAL_CONTEXT.fp_to_ieeebv(&self_.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_to_ieeebv(&self_.get().inner)?
+                .simplify_ext(true, true)?,
         )
     }
 
@@ -352,7 +357,9 @@ impl FP {
     pub fn to_bv(self_: Bound<'_, FP>) -> Result<Bound<'_, BV>, ClaripyError> {
         BV::new(
             self_.py(),
-            &GLOBAL_CONTEXT.fp_to_ieeebv(&self_.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_to_ieeebv(&self_.get().inner)?
+                .simplify_ext(true, true)?,
         )
     }
 
@@ -364,7 +371,9 @@ impl FP {
     ) -> Result<Bound<'py, FP>, ClaripyError> {
         FP::new(
             self_.py(),
-            &GLOBAL_CONTEXT.fp_to_fp(&self_.get().inner, sort, rm.unwrap_or_default())?,
+            &GLOBAL_CONTEXT
+                .fp_to_fp(&self_.get().inner, sort, rm.unwrap_or_default())?
+                .simplify()?,
         )
     }
 
@@ -375,7 +384,9 @@ impl FP {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.fp_eq(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_eq(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -386,7 +397,9 @@ impl FP {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.fp_neq(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_neq(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -403,7 +416,9 @@ impl FP {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.fp_lt(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_lt(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -414,7 +429,9 @@ impl FP {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.fp_leq(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_leq(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -425,7 +442,9 @@ impl FP {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.fp_gt(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_gt(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .simplify()?,
         )
     }
 
@@ -436,16 +455,18 @@ impl FP {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.fp_geq(&self.inner, &other.unpack_like(py, self)?.get().inner)?,
+            &GLOBAL_CONTEXT
+                .fp_geq(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .simplify()?,
         )
     }
 
     pub fn __abs__<'py>(&self, py: Python<'py>) -> Result<Bound<'py, FP>, ClaripyError> {
-        FP::new(py, &GLOBAL_CONTEXT.fp_abs(&self.inner)?)
+        FP::new(py, &GLOBAL_CONTEXT.fp_abs(&self.inner)?.simplify()?)
     }
 
     pub fn __neg__<'py>(&self, py: Python<'py>) -> Result<Bound<'py, FP>, ClaripyError> {
-        FP::new(py, &GLOBAL_CONTEXT.fp_neg(&self.inner)?)
+        FP::new(py, &GLOBAL_CONTEXT.fp_neg(&self.inner)?.simplify()?)
     }
 
     pub fn __add__<'py>(
@@ -455,11 +476,13 @@ impl FP {
     ) -> Result<Bound<'py, FP>, ClaripyError> {
         FP::new(
             py,
-            &GLOBAL_CONTEXT.fp_add(
-                &self.inner,
-                &other.unpack_like(py, self)?.get().inner,
-                PyRM::default(),
-            )?,
+            &GLOBAL_CONTEXT
+                .fp_add(
+                    &self.inner,
+                    &other.unpack_like(py, self)?.get().inner,
+                    PyRM::default(),
+                )?
+                .simplify()?,
         )
     }
 
@@ -470,11 +493,13 @@ impl FP {
     ) -> Result<Bound<'py, FP>, ClaripyError> {
         FP::new(
             py,
-            &GLOBAL_CONTEXT.fp_sub(
-                &self.inner,
-                &other.unpack_like(py, self)?.get().inner,
-                PyRM::default(),
-            )?,
+            &GLOBAL_CONTEXT
+                .fp_sub(
+                    &self.inner,
+                    &other.unpack_like(py, self)?.get().inner,
+                    PyRM::default(),
+                )?
+                .simplify()?,
         )
     }
 
@@ -485,11 +510,13 @@ impl FP {
     ) -> Result<Bound<'py, FP>, ClaripyError> {
         FP::new(
             py,
-            &GLOBAL_CONTEXT.fp_mul(
-                &self.inner,
-                &other.unpack_like(py, self)?.get().inner,
-                PyRM::default(),
-            )?,
+            &GLOBAL_CONTEXT
+                .fp_mul(
+                    &self.inner,
+                    &other.unpack_like(py, self)?.get().inner,
+                    PyRM::default(),
+                )?
+                .simplify()?,
         )
     }
 
@@ -500,11 +527,13 @@ impl FP {
     ) -> Result<Bound<'py, FP>, ClaripyError> {
         FP::new(
             py,
-            &GLOBAL_CONTEXT.fp_div(
-                &self.inner,
-                &other.unpack_like(py, self)?.get().inner,
-                PyRM::default(),
-            )?,
+            &GLOBAL_CONTEXT
+                .fp_div(
+                    &self.inner,
+                    &other.unpack_like(py, self)?.get().inner,
+                    PyRM::default(),
+                )?
+                .simplify()?,
         )
     }
 
@@ -555,12 +584,16 @@ impl FP {
         if signed {
             BV::new(
                 self_.py(),
-                &GLOBAL_CONTEXT.fp_to_sbv(&self_.get().inner, size, rm.unwrap_or_default())?,
+                &GLOBAL_CONTEXT
+                    .fp_to_sbv(&self_.get().inner, size, rm.unwrap_or_default())?
+                    .simplify_ext(true, true)?,
             )
         } else {
             BV::new(
                 self_.py(),
-                &GLOBAL_CONTEXT.fp_to_ubv(&self_.get().inner, size, rm.unwrap_or_default())?,
+                &GLOBAL_CONTEXT
+                    .fp_to_ubv(&self_.get().inner, size, rm.unwrap_or_default())?
+                    .simplify_ext(true, true)?,
             )
         }
     }
@@ -574,7 +607,9 @@ impl FP {
     ) -> Result<Bound<'py, FP>, ClaripyError> {
         FP::new(
             py,
-            &GLOBAL_CONTEXT.fp_sqrt(&lhs.get().inner, rm.unwrap_or_default())?,
+            &GLOBAL_CONTEXT
+                .fp_sqrt(&lhs.get().inner, rm.unwrap_or_default())?
+                .simplify()?,
         )
     }
 }
@@ -600,7 +635,9 @@ pub fn FPV(py: Python<'_>, value: f64, sort: PyFSort) -> Result<Bound<'_, FP>, C
     let float_value = Float::from(value);
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fpv(float_value.to_fsort(sort.into(), FPRM::default())?)?,
+        &GLOBAL_CONTEXT
+            .fpv(float_value.to_fsort(sort.into(), FPRM::default())?)?
+            .simplify()?,
     )
 }
 
@@ -613,11 +650,13 @@ pub fn fpFP<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fp_fp(
-            &sign.get().inner,
-            &exponent.get().inner,
-            &significand.get().inner,
-        )?,
+        &GLOBAL_CONTEXT
+            .fp_fp(
+                &sign.get().inner,
+                &exponent.get().inner,
+                &significand.get().inner,
+            )?
+            .simplify()?,
     )
 }
 
@@ -633,14 +672,22 @@ pub fn FpToFP<'py>(
         let bv_item = args.get_item(0)?;
         let bv = bv_item.cast::<BV>()?;
         let sort: PyFSort = args.get_item(1)?.extract()?;
-        FP::new(py, &GLOBAL_CONTEXT.bv_to_fp(&bv.get().inner, sort)?)
+        FP::new(
+            py,
+            &GLOBAL_CONTEXT.bv_to_fp(&bv.get().inner, sort)?.simplify()?,
+        )
     } else if args.len() == 3 {
         // (RM, FP, FSort) case
         let rm: PyRM = args.get_item(0)?.extract()?;
         let fp_item = args.get_item(1)?;
         let fp = fp_item.cast::<FP>()?;
         let sort: PyFSort = args.get_item(2)?.extract()?;
-        FP::new(py, &GLOBAL_CONTEXT.fp_to_fp(&fp.get().inner, sort, rm)?)
+        FP::new(
+            py,
+            &GLOBAL_CONTEXT
+                .fp_to_fp(&fp.get().inner, sort, rm)?
+                .simplify()?,
+        )
     } else {
         Err(ClaripyError::InvalidOperation(
             "fpToFP requires 2 or 3 arguments".to_string(),
@@ -657,7 +704,9 @@ pub fn BvToFpUnsigned<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     FP::new(
         py,
-        &GLOBAL_CONTEXT.bv_to_fp_unsigned(&bv.get().inner, sort, rm)?,
+        &GLOBAL_CONTEXT
+            .bv_to_fp_unsigned(&bv.get().inner, sort, rm)?
+            .simplify()?,
     )
 }
 
@@ -666,7 +715,12 @@ pub fn fpToIEEEBV<'py>(
     py: Python<'py>,
     fp: Bound<'py, FP>,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    BV::new(py, &GLOBAL_CONTEXT.fp_to_ieeebv(&fp.get().inner)?)
+    BV::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_to_ieeebv(&fp.get().inner)?
+            .simplify_ext(true, true)?,
+    )
 }
 
 #[pyfunction(name = "fpToUBV", signature = (rm, fp, len))]
@@ -676,7 +730,12 @@ pub fn FpToUbv<'py>(
     fp: Bound<'py, FP>,
     len: u32,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    BV::new(py, &GLOBAL_CONTEXT.fp_to_ubv(&fp.get().inner, len, rm)?)
+    BV::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_to_ubv(&fp.get().inner, len, rm)?
+            .simplify_ext(true, true)?,
+    )
 }
 
 #[pyfunction(name = "fpToSBV", signature = (rm, fp, len))]
@@ -686,17 +745,22 @@ pub fn FpToBv<'py>(
     fp: Bound<'py, FP>,
     len: u32,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    BV::new(py, &GLOBAL_CONTEXT.fp_to_sbv(&fp.get().inner, len, rm)?)
+    BV::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_to_sbv(&fp.get().inner, len, rm)?
+            .simplify_ext(true, true)?,
+    )
 }
 
 #[pyfunction(name = "fpNeg", signature = (lhs))]
 pub fn FpNeg<'py>(py: Python<'py>, lhs: Bound<'py, FP>) -> Result<Bound<'py, FP>, ClaripyError> {
-    FP::new(py, &GLOBAL_CONTEXT.fp_neg(&lhs.get().inner)?)
+    FP::new(py, &GLOBAL_CONTEXT.fp_neg(&lhs.get().inner)?.simplify()?)
 }
 
 #[pyfunction(name = "fpAbs", signature = (lhs))]
 pub fn FpAbs<'py>(py: Python<'py>, lhs: Bound<'py, FP>) -> Result<Bound<'py, FP>, ClaripyError> {
-    FP::new(py, &GLOBAL_CONTEXT.fp_abs(&lhs.get().inner)?)
+    FP::new(py, &GLOBAL_CONTEXT.fp_abs(&lhs.get().inner)?.simplify()?)
 }
 
 #[pyfunction(name = "fpAdd", signature = (rm, lhs, rhs))]
@@ -708,7 +772,9 @@ pub fn FpAdd<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fp_add(&lhs.get().inner, &rhs.get().inner, rm)?,
+        &GLOBAL_CONTEXT
+            .fp_add(&lhs.get().inner, &rhs.get().inner, rm)?
+            .simplify()?,
     )
 }
 
@@ -721,7 +787,9 @@ pub fn FpSub<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fp_sub(&lhs.get().inner, &rhs.get().inner, rm)?,
+        &GLOBAL_CONTEXT
+            .fp_sub(&lhs.get().inner, &rhs.get().inner, rm)?
+            .simplify()?,
     )
 }
 
@@ -734,7 +802,9 @@ pub fn FpMul<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fp_mul(&lhs.get().inner, &rhs.get().inner, rm)?,
+        &GLOBAL_CONTEXT
+            .fp_mul(&lhs.get().inner, &rhs.get().inner, rm)?
+            .simplify()?,
     )
 }
 
@@ -747,7 +817,9 @@ pub fn FpDiv<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fp_div(&lhs.get().inner, &rhs.get().inner, rm)?,
+        &GLOBAL_CONTEXT
+            .fp_div(&lhs.get().inner, &rhs.get().inner, rm)?
+            .simplify()?,
     )
 }
 
@@ -781,7 +853,9 @@ pub fn FpSqrt<'py>(
 
     FP::new(
         py,
-        &GLOBAL_CONTEXT.fp_sqrt(&lhs.get().inner, rm.unwrap_or_default())?,
+        &GLOBAL_CONTEXT
+            .fp_sqrt(&lhs.get().inner, rm.unwrap_or_default())?
+            .simplify()?,
     )
 }
 
@@ -793,7 +867,9 @@ pub fn FpEq<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.fp_eq(&lhs.get().inner, &rhs.get().inner)?,
+        &GLOBAL_CONTEXT
+            .fp_eq(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -805,7 +881,9 @@ pub fn FpNEQ<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.fp_neq(&lhs.get().inner, &rhs.get().inner)?,
+        &GLOBAL_CONTEXT
+            .fp_neq(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -817,7 +895,9 @@ pub fn FpLt<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.fp_lt(&lhs.get().inner, &rhs.get().inner)?,
+        &GLOBAL_CONTEXT
+            .fp_lt(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -829,7 +909,9 @@ pub fn FpLeq<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.fp_leq(&lhs.get().inner, &rhs.get().inner)?,
+        &GLOBAL_CONTEXT
+            .fp_leq(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -841,7 +923,9 @@ pub fn FpGt<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.fp_gt(&lhs.get().inner, &rhs.get().inner)?,
+        &GLOBAL_CONTEXT
+            .fp_gt(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
     )
 }
 
@@ -853,18 +937,20 @@ pub fn FpGeq<'py>(
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
     Bool::new(
         py,
-        &GLOBAL_CONTEXT.fp_geq(&lhs.get().inner, &rhs.get().inner)?,
+        &GLOBAL_CONTEXT
+            .fp_geq(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
     )
 }
 
 #[pyfunction(name = "fpIsNaN", signature = (fp))]
 pub fn FpIsNan<'py>(py: Python<'py>, fp: Bound<'py, FP>) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(py, &GLOBAL_CONTEXT.fp_is_nan(&fp.get().inner)?)
+    Bool::new(py, &GLOBAL_CONTEXT.fp_is_nan(&fp.get().inner)?.simplify()?)
 }
 
 #[pyfunction(name = "fpIsInf", signature = (fp))]
 pub fn FpIsInf<'py>(py: Python<'py>, fp: Bound<'py, FP>) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(py, &GLOBAL_CONTEXT.fp_is_inf(&fp.get().inner)?)
+    Bool::new(py, &GLOBAL_CONTEXT.fp_is_inf(&fp.get().inner)?.simplify()?)
 }
 
 pub(crate) fn import(_: Python, m: &Bound<PyModule>) -> PyResult<()> {

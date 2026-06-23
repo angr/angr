@@ -19,11 +19,16 @@ pub static GLOBAL_CONTEXT: LazyLock<Context<'static>> = LazyLock::new(Context::n
 #[pyfunction(name = "Not")]
 pub fn not<'py>(py: Python<'py>, b: Bound<'py, Base>) -> Result<Bound<'py, Base>, ClaripyError> {
     if let Ok(b_bool) = b.clone().into_any().cast::<Bool>() {
-        return Bool::new(py, &GLOBAL_CONTEXT.not(&b_bool.get().inner)?)
+        return Bool::new(py, &GLOBAL_CONTEXT.not(&b_bool.get().inner)?.simplify()?)
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     } else if let Ok(b_bv) = b.clone().into_any().cast::<BV>() {
-        return BV::new(py, &GLOBAL_CONTEXT.not(&b_bv.get().inner)?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+        return BV::new(
+            py,
+            &GLOBAL_CONTEXT
+                .not(&b_bv.get().inner)?
+                .simplify_ext(true, true)?,
+        )
+        .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     } else {
         panic!("unsupported type")
     }
@@ -54,7 +59,7 @@ pub fn and<'py>(
                     .map_err(|_| ClaripyError::TypeError("And arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        return Bool::new(py, &GLOBAL_CONTEXT.and(bool_args)?)
+        return Bool::new(py, &GLOBAL_CONTEXT.and(bool_args)?.simplify()?)
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
     if args.len() == 2
@@ -64,7 +69,9 @@ pub fn and<'py>(
         let (lhs, rhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
         return BV::new(
             py,
-            &GLOBAL_CONTEXT.and2(&lhs.get().inner, &rhs.get().inner)?,
+            &GLOBAL_CONTEXT
+                .and2(&lhs.get().inner, &rhs.get().inner)?
+                .simplify_ext(true, true)?,
         )
         .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
@@ -96,7 +103,7 @@ pub fn or<'py>(
                     .map_err(|_| ClaripyError::TypeError("Or arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        return Bool::new(py, &GLOBAL_CONTEXT.or(bool_args)?)
+        return Bool::new(py, &GLOBAL_CONTEXT.or(bool_args)?.simplify()?)
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
     if args.len() == 2
@@ -104,8 +111,13 @@ pub fn or<'py>(
         && let Some(rhs) = args[1].extract::<CoerceBV>().ok()
     {
         let (lhs, rhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
-        return BV::new(py, &GLOBAL_CONTEXT.or2(&lhs.get().inner, &rhs.get().inner)?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+        return BV::new(
+            py,
+            &GLOBAL_CONTEXT
+                .or2(&lhs.get().inner, &rhs.get().inner)?
+                .simplify_ext(true, true)?,
+        )
+        .map(|b| b.into_any().cast::<Base>().unwrap().clone());
     }
     Err(ClaripyError::TypeError(
         "Or: expected Bools or exactly two BVs".to_string(),
@@ -123,7 +135,9 @@ pub fn xor<'py>(
         if let Ok(b_bool) = b.clone().into_any().cast::<Bool>() {
             return Bool::new(
                 py,
-                &GLOBAL_CONTEXT.xor2(&a_bool.get().inner, &b_bool.get().inner)?,
+                &GLOBAL_CONTEXT
+                    .xor2(&a_bool.get().inner, &b_bool.get().inner)?
+                    .simplify()?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
         } else {
@@ -134,7 +148,9 @@ pub fn xor<'py>(
             let (a_bv, b_bv) = CoerceBV::unpack_pair(py, &a_bv, &b_bv)?;
             return BV::new(
                 py,
-                &GLOBAL_CONTEXT.xor2(&a_bv.get().inner, &b_bv.get().inner)?,
+                &GLOBAL_CONTEXT
+                    .xor2(&a_bv.get().inner, &b_bv.get().inner)?
+                    .simplify_ext(true, true)?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone());
         } else {
@@ -157,11 +173,13 @@ pub fn r#if<'py>(
             let (then_bv, else_bv) = CoerceBV::unpack_pair(py, &then_bv, &else_bv)?;
             BV::new(
                 py,
-                &GLOBAL_CONTEXT.ite(
-                    &cond.0.get().inner,
-                    &then_bv.get().inner,
-                    &else_bv.get().inner,
-                )?,
+                &GLOBAL_CONTEXT
+                    .ite(
+                        &cond.0.get().inner,
+                        &then_bv.get().inner,
+                        &else_bv.get().inner,
+                    )?
+                    .simplify_ext(true, true)?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone())
         } else {
@@ -175,7 +193,9 @@ pub fn r#if<'py>(
             let else_bv = else_bv.0.get().inner.clone();
             Bool::new(
                 py,
-                &GLOBAL_CONTEXT.ite(&cond.0.get().inner, &then_bv, &else_bv)?,
+                &GLOBAL_CONTEXT
+                    .ite(&cond.0.get().inner, &then_bv, &else_bv)?
+                    .simplify()?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone())
         } else {
@@ -188,11 +208,13 @@ pub fn r#if<'py>(
             let (then_fp, else_fp) = CoerceFP::unpack_pair(py, &then_fp, &else_fp)?;
             FP::new(
                 py,
-                &GLOBAL_CONTEXT.ite(
-                    &cond.0.get().inner,
-                    &then_fp.get().inner,
-                    &else_fp.get().inner,
-                )?,
+                &GLOBAL_CONTEXT
+                    .ite(
+                        &cond.0.get().inner,
+                        &then_fp.get().inner,
+                        &else_fp.get().inner,
+                    )?
+                    .simplify()?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone())
         } else {
@@ -206,7 +228,9 @@ pub fn r#if<'py>(
             let else_bv = else_string.0.get().inner.clone();
             PyAstString::new(
                 py,
-                &GLOBAL_CONTEXT.ite(&cond.0.get().inner, &then_bv, &else_bv)?,
+                &GLOBAL_CONTEXT
+                    .ite(&cond.0.get().inner, &then_bv, &else_bv)?
+                    .simplify()?,
             )
             .map(|b| b.into_any().cast::<Base>().unwrap().clone())
         } else {

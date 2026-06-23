@@ -94,7 +94,9 @@ fn py_replace<'py>(
 
     Base::from_ast(
         expr.py(),
-        Base::to_ast(expr)?.replace(&old_dyn, &new_coerced)?,
+        Base::to_ast(expr)?
+            .replace(&old_dyn, &new_coerced)?
+            .simplify()?,
     )
 }
 
@@ -103,7 +105,7 @@ fn py_excavate_ite<'py>(
     py: Python<'py>,
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    Base::from_ast(py, Base::to_ast(expr)?.excavate_ite()?)
+    Base::from_ast(py, Base::to_ast(expr)?.excavate_ite()?.simplify()?)
 }
 
 #[pyfunction]

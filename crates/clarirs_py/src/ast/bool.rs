@@ -33,12 +33,13 @@ impl Bool {
         Self::new_with_name(py, inner, None)
     }
 
+    /// Wrap an AST without simplifying it, keeping its annotation set exactly as
+    /// given.
     pub fn new_with_name<'py>(
         py: Python<'py>,
         inner: &AstRef<'static>,
         name: Option<String>,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        let inner = &inner.simplify()?;
         if let Some(cache_hit) = PY_BOOL_CACHE.get(&inner.hash()).and_then(|cache_hit| {
             cache_hit
                 .bind(py)
@@ -214,6 +215,8 @@ impl Bool {
             inner
         };
 
+        // `__new__` reconstructs a node from (op, args, annotations) verbatim,
+        // without simplifying (e.g. when unpickling).
         Ok(Bool::new(py, &inner_with_annotations)?.unbind())
     }
 
@@ -242,7 +245,7 @@ impl Bool {
     }
 
     pub fn __invert__<'py>(&self, py: Python<'py>) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.not(&self.inner)?)
+        Bool::new(py, &GLOBAL_CONTEXT.not(&self.inner)?.simplify()?)
     }
 
     pub fn __and__<'py>(
@@ -252,7 +255,9 @@ impl Bool {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.and2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?,
+            &GLOBAL_CONTEXT
+                .and2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
+                .simplify()?,
         )
     }
 
@@ -263,7 +268,9 @@ impl Bool {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.or2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?,
+            &GLOBAL_CONTEXT
+                .or2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
+                .simplify()?,
         )
     }
 
@@ -274,7 +281,9 @@ impl Bool {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.xor2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?,
+            &GLOBAL_CONTEXT
+                .xor2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
+                .simplify()?,
         )
     }
 
@@ -285,7 +294,9 @@ impl Bool {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.eq_(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?,
+            &GLOBAL_CONTEXT
+                .eq_(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
+                .simplify()?,
         )
     }
 
@@ -296,7 +307,9 @@ impl Bool {
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
         Bool::new(
             py,
-            &GLOBAL_CONTEXT.neq(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?,
+            &GLOBAL_CONTEXT
+                .neq(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
+                .simplify()?,
         )
     }
 
@@ -369,7 +382,12 @@ pub fn Eq_<'py>(
     a: Bound<Bool>,
     b: Bound<Bool>,
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(py, &GLOBAL_CONTEXT.eq_(&a.get().inner, &b.get().inner)?)
+    Bool::new(
+        py,
+        &GLOBAL_CONTEXT
+            .eq_(&a.get().inner, &b.get().inner)?
+            .simplify()?,
+    )
 }
 
 #[pyfunction]
@@ -378,7 +396,12 @@ pub fn Neq<'py>(
     a: Bound<Bool>,
     b: Bound<Bool>,
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(py, &GLOBAL_CONTEXT.neq(&a.get().inner, &b.get().inner)?)
+    Bool::new(
+        py,
+        &GLOBAL_CONTEXT
+            .neq(&a.get().inner, &b.get().inner)?
+            .simplify()?,
+    )
 }
 
 #[pyfunction(name = "true")]

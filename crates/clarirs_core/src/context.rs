@@ -141,20 +141,14 @@ impl<'c> AstFactory<'c> for Context<'c> {
         self.intern_string(s)
     }
 
-    fn make_ast_annotated(
+    fn make_ast_exact(
         &'c self,
         op: AstOp<'c>,
-        mut annotations: BTreeSet<Annotation>,
+        annotations: BTreeSet<Annotation>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         // Every construction funnels through here, so checking the op's child
         // types in this one place gives the whole API runtime type checking.
         op.validate()?;
-
-        annotations.extend(
-            op.child_iter()
-                .flat_map(|c| c.annotations().clone())
-                .filter(|a| a.relocatable()),
-        );
 
         // The node's type is inferred from the op and its children's cached
         // types; this also provides domain separation in the hash so that

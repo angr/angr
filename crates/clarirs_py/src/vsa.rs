@@ -44,11 +44,18 @@ pub fn reduce<'py>(
                 upper_bound,
             } => {
                 if lower_bound == upper_bound {
-                    BV::new(py, &GLOBAL_CONTEXT.bvv(BitVec::from((lower_bound, bits)))?)?
+                    BV::new(
+                        py,
+                        &GLOBAL_CONTEXT
+                            .bvv(BitVec::from((lower_bound, bits)))?
+                            .simplify_ext(true, true)?,
+                    )?
                 } else {
                     BV::new(
                         py,
-                        &GLOBAL_CONTEXT.si(bits, stride, lower_bound, upper_bound)?,
+                        &GLOBAL_CONTEXT
+                            .si(bits, stride, lower_bound, upper_bound)?
+                            .simplify_ext(true, true)?,
                     )?
                 }
             }
