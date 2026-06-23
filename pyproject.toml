@@ -18,7 +18,7 @@ requires-python = ">=3.12"
 dependencies = [
     "cxxheaderparser",
     "GitPython",
-    "angr-data~=9.2.222",
+    "angr-data~=0.1.0",
     "archinfo==9.2.222.dev0",
     "cachetools",
     "capstone==5.0.6",
