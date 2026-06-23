@@ -180,8 +180,8 @@ You can customize the state through several arguments to these constructors:
 
 * To specify the calling convention used for a function with ``call_state``, you
   can pass a :py:class:`~angr.calling_conventions.SimCC` instance as the ``cc``
-  argument.:raw-html-m2r:`<br>` We try to pick a sane default, but for special
-  cases you will need to help angr out.
+  argument. We try to pick a sane default, but for special cases you will need
+  to help angr out.
 
 There are several more options that can be used in any of these constructors!
 See the docs on the ``project.factory`` object (an

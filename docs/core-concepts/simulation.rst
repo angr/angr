@@ -104,7 +104,7 @@ cool! A point is set as follows:
    # on the other hand, we can have a breakpoint trigger right *after* a memory write happens.
    # we can also have a callback function run instead of opening ipdb.
    >>> def debug_func(state):
-   ...     print("State %s is about to do a memory write!")
+   ...     print(f"State {state} is about to do a memory write!")
 
    >>> s.inspect.b('mem_write', when=angr.BP_AFTER, action=debug_func)
 
