@@ -74,15 +74,7 @@ class AILExprIdAnnotation(claripy.Annotation):
     """
     An annotation that we use to annotate BVVs so that they are differentiable between other BVVs with the same value
     and size.
-
-    Identity is keyed on the originating AIL expression's ``idx``: two annotations compare equal iff they carry the
-    same id, giving the annotated constant a stable, deterministic hash (unlike Python's default object-identity hash).
-    Constants from the same AIL expression therefore annotate identically (so structurally-equal conditions compare
-    equal regardless of process), while constants from different AIL expressions stay distinguishable.
     """
-
-    def __init__(self, expr_id):
-        self.expr_id = expr_id
 
     @property
     def eliminatable(self):
@@ -93,10 +85,10 @@ class AILExprIdAnnotation(claripy.Annotation):
         return False
 
     def __hash__(self):
-        return hash((AILExprIdAnnotation, self.expr_id))
+        return 1
 
     def __eq__(self, other):
-        return isinstance(other, AILExprIdAnnotation) and self.expr_id == other.expr_id
+        return isinstance(other, AILExprIdAnnotation)
 
 
 #
@@ -1039,7 +1031,7 @@ class ConditionProcessor:
                 var = claripy.BVV(condition.value, condition.bits)
                 if condition.idx is not None:
                     # we do not want to lose track of this constant when it has idx
-                    var = var.annotate(AILExprIdAnnotation(condition.idx))
+                    var = var.annotate(AILExprIdAnnotation())
                     self._condition_mapping[var] = condition
             if isinstance(var, claripy.ast.Bits) and var.size() == 1:
                 var = claripy.true() if var.concrete_value == 1 else claripy.false()
