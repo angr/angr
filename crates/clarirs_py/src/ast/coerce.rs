@@ -92,7 +92,7 @@ impl<'py> CoerceBV<'py> {
                 let one = GLOBAL_CONTEXT.bvv(BitVec::from((1, size)))?;
                 let zero = GLOBAL_CONTEXT.bvv(BitVec::from((0, size)))?;
                 let bv_ast = GLOBAL_CONTEXT.ite(&bool_val.get().inner, &one, &zero)?;
-                BV::new(py, &bv_ast)
+                BV::new(py, &bv_ast.simplify_ext(true, true)?)
             }
         }
     }

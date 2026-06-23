@@ -1058,7 +1058,7 @@ impl BV {
     ) -> Result<Vec<Bound<'py, BV>>, ClaripyError> {
         self_.get().inner.chop(bits).map(|r| {
             r.into_iter()
-                .map(|r| BV::new(py, &r))
+                .map(|r| BV::new(py, &r.simplify_ext(true, true)?))
                 .collect::<Result<Vec<_>, _>>()
         })?
     }
@@ -1271,7 +1271,7 @@ pub fn Concat<'py>(
     }
     let inner_args: Vec<_> = unpacked.iter().map(|b| b.get().inner.clone()).collect();
     let result = GLOBAL_CONTEXT.concat(inner_args)?;
-    BV::new(py, &result)
+    BV::new(py, &result.simplify_ext(true, true)?)
 }
 
 #[pyfunction]
