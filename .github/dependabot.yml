@@ -12,3 +12,11 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "rust"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    allow:
+      - dependency-name: "angr-data"
