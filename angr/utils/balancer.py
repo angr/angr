@@ -68,8 +68,8 @@ class Balancer:
             ast = self._ast_hash_map[k]
             max_int = (1 << len(ast)) - 1
             min_int = 0
-            mn = self._lower_bounds.get(k, min_int)
-            mx = self._upper_bounds.get(k, max_int)
+            mn = self._lower_bounds.get(k, min_int) & max_int
+            mx = self._upper_bounds.get(k, max_int) & max_int
             bound_si = claripy.BVS("bound", len(ast)).annotate(StridedIntervalAnnotation(1, mn, mx))
             log.debug("Yielding bound %s for %s.", bound_si, ast)
             if ast.op == "Reverse":
@@ -104,8 +104,9 @@ class Balancer:
     @staticmethod
     def _same_bound_bv(a: BV) -> BV:
         si = claripy.backends.vsa.simplify(a)
-        mx = Balancer._max(a)
-        mn = Balancer._min(a)
+        mask = (1 << len(a)) - 1
+        mx = Balancer._max(a) & mask
+        mn = Balancer._min(a) & mask
         si_anno = si.get_annotation(StridedIntervalAnnotation)
         stride = si_anno.stride if si_anno is not None else 0
         return claripy.BVS("bounds", len(a)).annotate(StridedIntervalAnnotation(stride, mn, mx))

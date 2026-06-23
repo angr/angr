@@ -424,7 +424,12 @@ class SimSolver(SimStatePlugin):
                 **kwargs,
             )
             if any(x is not None for x in (min, max, stride)):
-                r = r.annotate(claripy.annotation.StridedIntervalAnnotation(stride, min, max))
+                # Strided-interval bounds are stored unsigned; wrap any signed
+                # bound to its two's-complement representation at this width.
+                mask = (1 << size) - 1
+                si_min = None if min is None else min & mask
+                si_max = None if max is None else max & mask
+                r = r.annotate(claripy.annotation.StridedIntervalAnnotation(stride, si_min, si_max))
             if uninitialized:
                 r = r.annotate(claripy.annotation.UninitializedAnnotation())
             if key is not None:
