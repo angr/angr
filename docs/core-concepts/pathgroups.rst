@@ -106,7 +106,7 @@ on.
 
 There are lots of fun tools that the simulation manager provides you for
 managing your stashes. We won't go into the rest of them for now, but you should
-check out the :ref:`API documentation <api/angr.sim_manager>`.
+check out the `API documentation <../api/angr.sim_manager.html>`_.
 
 Stash types
 -----------
