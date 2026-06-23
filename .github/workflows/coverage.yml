@@ -27,7 +27,7 @@ jobs:
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v6
       - name: Restore test durations cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: test_durations.json
           key: cov-test-durations-${{ github.sha }}
@@ -182,7 +182,7 @@ jobs:
           path: ./test_durations.json
           if-no-files-found: error
       - name: Update test durations cache
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: test_durations.json
           key: cov-test-durations-${{ github.sha }}
