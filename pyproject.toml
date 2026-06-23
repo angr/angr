@@ -18,6 +18,7 @@ requires-python = ">=3.12"
 dependencies = [
     "cxxheaderparser",
     "GitPython",
+    "angr-data~=9.2.222",
     "archinfo==9.2.222.dev0",
     "cachetools",
     "capstone==5.0.6",
@@ -91,8 +92,7 @@ exclude = ["tests*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-angr = ["py.typed", "unicornlib.*", "rustylib.*", "*.json"]
-"angr.rust.analyses" = ["type_db/*.json"]
+angr = ["py.typed", "unicornlib.*", "rustylib.*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
@@ -109,6 +109,7 @@ py_limited_api = "cp312"
 default-groups = ["dev", "extras"]
 
 [tool.uv.sources]
+angr-data = { git = "https://github.com/angr/angr-data.git", branch = "master" }
 archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
