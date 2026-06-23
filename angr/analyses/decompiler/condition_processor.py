@@ -84,6 +84,12 @@ class AILExprIdAnnotation(claripy.Annotation):
     def relocatable(self):
         return False
 
+    def __hash__(self):
+        return 1
+
+    def __eq__(self, other):
+        return isinstance(other, AILExprIdAnnotation)
+
 
 #
 # Util methods and mapping used during AIL AST to claripy AST conversion
