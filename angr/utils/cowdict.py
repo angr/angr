@@ -7,6 +7,33 @@ from typing import Self
 _MISSING = object()
 
 
+def merge_candidate_keys(a: ChainMapCOW, b: ChainMapCOW) -> set:
+    """
+    Return the keys that may differ between two COW chain maps which (typically) descend
+    from a common ancestor and therefore share a common suffix of layer objects.
+
+    A key whose binding lives entirely in the shared suffix -- an identical ``maps`` entry
+    (by identity) that is not shadowed by a deletion in either map -- resolves to the same
+    value in both maps, so unioning them is always a no-op and the key is omitted. The
+    result is the union of the keys held in each map's non-shared "head" layers, plus the
+    keys either map has logically deleted: a deleted key may still be bound in the other
+    map's shared suffix and therefore needs to be resurrected by a merge.
+    """
+    am, bm = a.maps, b.maps
+    i, j = len(am) - 1, len(bm) - 1
+    while i >= 0 and j >= 0 and am[i] is bm[j]:
+        i -= 1
+        j -= 1
+    cand: set = set()
+    for m in am[: i + 1]:
+        cand.update(m)
+    for m in bm[: j + 1]:
+        cand.update(m)
+    cand |= a._deleted
+    cand |= b._deleted
+    return cand
+
+
 class ChainMapCOW[K, V](ChainMap):
     """
     Implements a copy-on-write version of ChainMap that supports auto-collapsing.
