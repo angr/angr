@@ -6,6 +6,8 @@ import os
 import sys
 from collections import OrderedDict
 
+import angr_data
+
 from angr.sim_type import ALL_TYPES, PointerDisposition, SimTypePointer, parse_file
 
 l = logging.getLogger(name="parse_glibc")
@@ -102,8 +104,9 @@ def main():
         proto = protos[func_name]
         d["functions"][func_name] = {"proto": json.dumps(proto.to_json()).replace('"', "'")}
 
-    os.makedirs("common", exist_ok=True)
-    with open(os.path.join(os.path.dirname(__file__), "common/glibc.json"), "w", encoding="utf-8") as f:
+    out_path = angr_data.get_path("procedures", "definitions", "common", "glibc.json")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(d, indent="\t"))
 
 

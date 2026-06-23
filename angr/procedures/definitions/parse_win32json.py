@@ -9,6 +9,8 @@ from argparse import ArgumentParser
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 
+import angr_data
+
 import angr
 from angr.errors import AngrMissingTypeError
 from angr.procedures.definitions import SimTypeCollection
@@ -21,7 +23,9 @@ OVERRIDE_OUTPARAMS = {
 
 api_namespaces = {}
 altnames = set()
-dump_root = Path(__file__).parent
+# The migrated JSON definitions now live in the separately-released angr_data package; write the
+# regenerated win32/wdk JSON back there.
+dump_root = Path(angr_data.get_path("procedures", "definitions"))
 
 typelib = SimTypeCollection()
 typelib.names = ["win32"]
