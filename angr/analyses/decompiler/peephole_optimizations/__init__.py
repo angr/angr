@@ -18,6 +18,7 @@ from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
 from .bool_expr_xor_1 import BoolExprXor1
 from .bswap import Bswap
 from .cas_intrinsics import CASIntrinsics
+from .cmp_masked_shift import CmpMaskedShift
 from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
@@ -108,6 +109,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     InvertNegatedLogicalConjunctionsAndDisjunctions,
     RolRorRewriter,
     CmpORDRewriter,
+    CmpMaskedShift,
     CoalesceAdjacentShiftRights,
     ShlToMul,
     RewriteCxxOperatorCalls,
