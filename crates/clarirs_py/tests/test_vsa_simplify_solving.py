@@ -243,7 +243,6 @@ class TestVSASimplificationAndSolving(unittest.TestCase):
         self.assertTrue(self.solver.solution(expr, 10))
         self.assertFalse(self.solver.solution(expr, 5))
 
-    @unittest.expectedFailure
     def test_solving_with_constraints(self):
         """Test solving with added constraints."""
         # Note: VSA solver might not handle constraints in the same way as the Z3 solver
