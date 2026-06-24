@@ -614,13 +614,15 @@ class TestFPOperations(unittest.TestCase):
         result = claripy.fpSqrt(self.fp_neg_zero)
         self._check_equal(result, -0.0, check_bits=True)
 
-        # Square root of negative float - NaN
+        # Square root of negative float - NaN. Any NaN bit pattern is valid
+        # here (e.g. sqrt sets the sign bit), so only assert NaN-ness rather
+        # than comparing against a specific NaN encoding.
         result = claripy.fpSqrt(self.fp_neg)
-        self._check_equal(result, float("nan"), check_bits=True)
+        self.assertTrue(claripy.fpIsNaN(result).is_true())
 
         # Square root of negative infinity - NaN
         result = claripy.fpSqrt(self.fp_neg_inf)
-        self._check_equal(result, float("nan"), check_bits=True)
+        self.assertTrue(claripy.fpIsNaN(result).is_true())
 
         # Positive infinity
         result = claripy.fpSqrt(self.fp_inf)
