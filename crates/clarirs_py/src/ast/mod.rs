@@ -30,7 +30,9 @@ pub fn not<'py>(py: Python<'py>, b: Bound<'py, Base>) -> Result<Bound<'py, Base>
         )
         .map(|b| b.into_any().cast_into::<Base>().unwrap());
     } else {
-        panic!("unsupported type")
+        Err(ClaripyError::TypeError(format!(
+            "Not: unsupported type {b:?}, expected Bool or BV"
+        )))
     }
 }
 
@@ -141,7 +143,9 @@ pub fn xor<'py>(
             )
             .map(|b| b.into_any().cast_into::<Base>().unwrap());
         } else {
-            panic!("mismatched types")
+            Err(ClaripyError::TypeError(format!(
+                "Xor: mismatched types, expected Bool but got {b:?}"
+            )))
         }
     } else if let Ok(a_bv) = a.extract::<CoerceBV>() {
         if let Ok(b_bv) = b.extract::<CoerceBV>() {
@@ -154,10 +158,14 @@ pub fn xor<'py>(
             )
             .map(|b| b.into_any().cast_into::<Base>().unwrap());
         } else {
-            panic!("mismatched types")
+            Err(ClaripyError::TypeError(format!(
+                "Xor: mismatched types, expected BV but got {b:?}"
+            )))
         }
     } else {
-        panic!("unsupported type")
+        Err(ClaripyError::TypeError(format!(
+            "Xor: unsupported types {a:?} and {b:?}"
+        )))
     }
 }
 
@@ -251,7 +259,9 @@ pub fn r#if<'py>(
             )))
         }
     } else {
-        panic!("unsupported type")
+        Err(ClaripyError::TypeError(format!(
+            "Unsupported type in if-then-else: {then_:?}"
+        )))
     }
 }
 

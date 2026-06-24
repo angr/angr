@@ -70,7 +70,9 @@ fn py_simplify<'py>(
         PyAstString::new(py, &string_value.get().inner.simplify().unwrap())
             .map(|b| b.into_any().cast_into::<Base>().unwrap())
     } else {
-        panic!("Unsupported type");
+        Err(ClaripyError::TypeError(format!(
+            "simplify: unsupported type {expr:?}"
+        )))
     }
 }
 
