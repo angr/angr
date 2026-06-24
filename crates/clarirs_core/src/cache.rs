@@ -8,24 +8,34 @@ use crate::prelude::*;
 
 /// A trait for caching values based on a key. In the context of clarirs, this
 /// is used to cache ASTs, as well as the results of various algorithms.
-/// The `get_or_insert` method will either return the cached value or compute
-/// a new value and insert it into the cache.
+///
+/// Implementations provide `get` and `insert`; `get_or_insert` is derived from
+/// them, and need only be overridden when that default is insufficient.
 pub trait Cache<K, V> {
-    fn get_or_insert<E>(&self, key: K, value_cv: impl FnMut() -> Result<V, E>) -> Result<V, E>;
-
     /// Probe the cache without computing a value on miss.
     fn get(&self, key: &K) -> Option<V>;
 
+    fn insert(&self, key: K, value: &V);
+
     fn drop(&self, key: K);
+
+    fn get_or_insert<E>(&self, key: K, value_cv: impl FnOnce() -> Result<V, E>) -> Result<V, E> {
+        if let Some(value) = self.get(&key) {
+            return Ok(value);
+        }
+        let value = value_cv()?;
+        self.insert(key, &value);
+        Ok(value)
+    }
 }
 
 impl<K, V> Cache<K, V> for () {
-    fn get_or_insert<E>(&self, _: K, mut value_cv: impl FnMut() -> Result<V, E>) -> Result<V, E> {
-        value_cv()
-    }
-
     fn get(&self, _key: &K) -> Option<V> {
         None
+    }
+
+    fn insert(&self, _key: K, _value: &V) {
+        // No-op
     }
 
     fn drop(&self, _key: K) {
@@ -44,32 +54,16 @@ impl<K, V> Default for GenericCache<K, V> {
 }
 
 impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
-    fn get_or_insert<E>(&self, key: K, mut value_cv: impl FnMut() -> Result<V, E>) -> Result<V, E> {
-        // Fast path: check with read lock
-        {
-            let locked = self.0.read().unwrap();
-            if let Some(value) = locked.get(&key) {
-                return Ok(value.clone());
-            }
-        }
-        // Slow path: compute and insert with write lock
-        let mut locked = self.0.write().unwrap();
-        // Double-check after acquiring write lock
-        if let Some(value) = locked.get(&key) {
-            return Ok(value.clone());
-        }
-        let value = value_cv()?;
-        locked.insert(key, value.clone());
-        Ok(value)
-    }
-
     fn get(&self, key: &K) -> Option<V> {
         self.0.read().unwrap().get(key).cloned()
     }
 
+    fn insert(&self, key: K, value: &V) {
+        self.0.write().unwrap().insert(key, value.clone());
+    }
+
     fn drop(&self, key: K) {
-        let mut locked = self.0.write().unwrap();
-        locked.remove(&key);
+        self.0.write().unwrap().remove(&key);
     }
 }
 
@@ -80,68 +74,39 @@ impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
 pub struct AstCache<'c>(RwLock<HashMap<u64, Weak<AstNode<'c>>>>);
 
 impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
-    fn get_or_insert<E>(
-        &self,
-        hash: u64,
-        f: impl FnOnce() -> Result<AstRef<'c>, E>,
-    ) -> Result<AstRef<'c>, E> {
-        #[cfg(not(feature = "panic-on-hash-collision"))]
-        {
-            // Normal mode: Try to get from cache first, compute only if needed
-            // Step 1: Try to get a read lock and check if the value is already in the cache
-            {
-                let inner = self.0.read().unwrap();
-                if let Some(weak) = inner.get(&hash)
-                    && let Some(arc) = weak.upgrade()
-                {
-                    return Ok(arc);
-                }
-                // Value not found or expired; we'll compute it next
-            } // Read lock is dropped here
-
-            // Step 2: Compute the value without holding any lock
-            let arc = f()?; // This may call `simplify()` and recurse
-
-            // Step 3: Acquire a write lock to insert the new value
-            let mut inner = self.0.write().unwrap();
-            inner.insert(hash, Arc::downgrade(&arc));
-
-            Ok(arc)
-        }
-
-        #[cfg(feature = "panic-on-hash-collision")]
-        {
-            // Collision detection mode: Always compute first, then check for collisions
-            // Step 1: Compute the value without holding any lock
-            let arc = f()?; // This may call `simplify()` and recurse
-
-            // Step 2: Acquire a write lock to check for collisions and insert
-            let mut inner = self.0.write().unwrap();
-
-            // Check for hash collision
-            if let Some(weak) = inner.get(&hash)
-                && let Some(existing_arc) = weak.upgrade()
-                && existing_arc != arc
-            {
-                panic!(
-                    "Hash collision detected! Hash: {hash}, Existing: {existing_arc:?}, New: {arc:?}"
-                );
-            }
-
-            // Insert the new value
-            inner.insert(hash, Arc::downgrade(&arc));
-
-            Ok(arc)
-        }
-    }
-
     fn get(&self, key: &u64) -> Option<AstRef<'c>> {
         self.0.read().unwrap().get(key).and_then(Weak::upgrade)
     }
 
+    fn insert(&self, key: u64, value: &AstRef<'c>) {
+        let mut inner = self.0.write().unwrap();
+
+        // A different live value under this hash means two distinct ASTs collide.
+        #[cfg(feature = "panic-on-hash-collision")]
+        if let Some(existing) = inner.get(&key).and_then(Weak::upgrade)
+            && existing != *value
+        {
+            panic!("Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {value:?}");
+        }
+
+        inner.insert(key, Arc::downgrade(value));
+    }
+
     fn drop(&self, key: u64) {
-        let mut locked = self.0.write().unwrap();
-        locked.remove(&key);
+        self.0.write().unwrap().remove(&key);
+    }
+
+    // Collision detection must recompute and compare on every call, even a cache
+    // hit, which the derived get-then-insert cannot express.
+    #[cfg(feature = "panic-on-hash-collision")]
+    fn get_or_insert<E>(
+        &self,
+        key: u64,
+        value_cv: impl FnOnce() -> Result<AstRef<'c>, E>,
+    ) -> Result<AstRef<'c>, E> {
+        let arc = value_cv()?;
+        self.insert(key, &arc);
+        Ok(arc)
     }
 }
 

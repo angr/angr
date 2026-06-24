@@ -165,12 +165,11 @@ fn simplify<'c>(
                     // simplified result so that identical unsimplified
                     // sub-expressions elsewhere in the tree get a cache hit.
                     if state.expr.hash() != annotated.hash() {
-                        let ctx = state.expr.context();
-                        let hash = state.expr.hash();
-                        let annotated_ref = annotated.clone();
-                        let _ = ctx
+                        state
+                            .expr
+                            .context()
                             .simplification_cache
-                            .get_or_insert::<SimplifyError<'c>>(hash, || Ok(annotated_ref.clone()));
+                            .insert(state.expr.hash(), &annotated);
                     }
 
                     last_result = Some(annotated)
