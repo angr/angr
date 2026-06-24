@@ -193,7 +193,8 @@ impl PyAnnotation {
             }
             AnnotationType::SimplificationAvoidance => upcast(Bound::new(
                 py,
-                (SimplificationAvoidanceAnnotation, PyAnnotation),
+                PyClassInitializer::from(PyAnnotation)
+                    .add_subclass(SimplificationAvoidanceAnnotation),
             )?),
             AnnotationType::StridedInterval {
                 stride,
@@ -201,35 +202,30 @@ impl PyAnnotation {
                 upper_bound,
             } => upcast(Bound::new(
                 py,
-                (
-                    StridedIntervalAnnotation {
-                        stride: stride.clone(),
-                        lower_bound: lower_bound.clone(),
-                        upper_bound: upper_bound.clone(),
-                    },
-                    PyAnnotation,
-                ),
+                PyClassInitializer::from(PyAnnotation).add_subclass(StridedIntervalAnnotation {
+                    stride: stride.clone(),
+                    lower_bound: lower_bound.clone(),
+                    upper_bound: upper_bound.clone(),
+                }),
             )?),
             AnnotationType::EmptyStridedInterval => upcast(Bound::new(
                 py,
-                (EmptyStridedIntervalAnnotation, PyAnnotation),
+                PyClassInitializer::from(PyAnnotation).add_subclass(EmptyStridedIntervalAnnotation),
             )?),
             AnnotationType::Region {
                 region_id,
                 region_base_addr,
             } => upcast(Bound::new(
                 py,
-                (
-                    RegionAnnotation {
-                        region_id: region_id.clone(),
-                        region_base_addr: region_base_addr.clone(),
-                    },
-                    PyAnnotation,
-                ),
+                PyClassInitializer::from(PyAnnotation).add_subclass(RegionAnnotation {
+                    region_id: region_id.clone(),
+                    region_base_addr: region_base_addr.clone(),
+                }),
             )?),
-            AnnotationType::Uninitialized => {
-                upcast(Bound::new(py, (UninitializedAnnotation, PyAnnotation))?)
-            }
+            AnnotationType::Uninitialized => upcast(Bound::new(
+                py,
+                PyClassInitializer::from(PyAnnotation).add_subclass(UninitializedAnnotation),
+            )?),
         }
     }
 }
