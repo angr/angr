@@ -13,7 +13,7 @@ import angr
 from angr import ailment
 from angr.ailment.expression import BinaryOp, Const
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences, EagerEvaluation
+from angr.analyses.decompiler.peephole_optimizations import CmpMaskedShift, ConstantDereferences, EagerEvaluation
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -63,6 +63,53 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(None, "Mod", [Const(None, 12, 32), Const(None, 0, 32)])
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
+
+    def test_cmp_masked_shift(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = CmpMaskedShift(proj, proj.kb, manager)
+
+        x = ailment.Expr.Register(None, 0, 32)
+
+        # Convert(32->28, x >> 4) == 0x184d2a5  ==>  (x & 0xfffffff0) == 0x184d2a50
+        shr = BinaryOp(None, "Shr", [x, Const(None, 4, 32)], False, bits=32)
+        conv = ailment.Expr.Convert(None, 32, 28, False, shr)
+        expr = BinaryOp(None, "CmpEQ", [conv, Const(None, 0x184D2A5, 28)], False, bits=1)
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
+        and_expr, rhs = out.operands
+        assert isinstance(and_expr, BinaryOp) and and_expr.op == "And"
+        assert isinstance(and_expr.operands[1], Const) and and_expr.operands[1].value == 0xFFFFFFF0
+        assert isinstance(rhs, Const) and rhs.value == 0x184D2A50
+
+        # bare (x >> 8) != 0x12  ==>  (x & 0xffffff00) != 0x1200
+        shr = BinaryOp(None, "Shr", [x, Const(None, 8, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpNE", [shr, Const(None, 0x12, 32)], False, bits=1)
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "CmpNE"
+        and_expr, rhs = out.operands
+        assert and_expr.operands[1].value == 0xFFFFFF00
+        assert rhs.value == 0x1200
+
+        # n == 0 (low-mask / cast case) is left alone
+        expr = BinaryOp(
+            None,
+            "CmpEQ",
+            [BinaryOp(None, "Shr", [x, Const(None, 0, 32)], False, bits=32), Const(None, 5, 32)],
+            False,
+            bits=1,
+        )
+        assert opt.optimize(expr) is None
+
+        # arithmetic shift (Sar) is left alone
+        sar = BinaryOp(None, "Sar", [x, Const(None, 4, 32)], True, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [sar, Const(None, 5, 28)], False, bits=1)
+        assert opt.optimize(expr) is None
+
+        # constant too wide for the compared width: not this pattern
+        conv = ailment.Expr.Convert(None, 32, 28, False, BinaryOp(None, "Shr", [x, Const(None, 4, 32)], False, bits=32))
+        expr = BinaryOp(None, "CmpEQ", [conv, Const(None, 1 << 28, 32)], False, bits=1)
+        assert opt.optimize(expr) is None
 
 
 if __name__ == "__main__":
