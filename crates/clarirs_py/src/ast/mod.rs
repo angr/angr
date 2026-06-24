@@ -168,7 +168,35 @@ pub fn r#if<'py>(
     then_: Bound<'py, PyAny>,
     else_: Bound<'py, PyAny>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(then_bv) = then_.extract::<CoerceBV>() {
+    // Each branch's sort, or None for Python literals (which coerce freely).
+    let then_type = then_.cast::<Base>().ok().map(|b| b.get().ast().ast_type());
+    let else_type = else_.cast::<Base>().ok().map(|b| b.get().ast().ast_type());
+
+    // Two genuine ASTs must be the same type; a literal side (None) coerces freely.
+    if let (Some(then_type), Some(else_type)) = (then_type, else_type)
+        && then_type != else_type
+    {
+        return Err(ClaripyError::TypeError(format!(
+            "Mismatched types in if-then-else: then-branch is {then_type:?}, else-branch is {else_type:?}"
+        )));
+    }
+
+    // A Bool coerces to a BV, so handle Bool before the BV path to keep the result a Bool.
+    if matches!(then_type, Some(AstType::Bool)) || matches!(else_type, Some(AstType::Bool)) {
+        let then_bool = then_.extract::<CoerceBool>()?;
+        let else_bool = else_.extract::<CoerceBool>()?;
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .ite(
+                    &cond.0.get().inner,
+                    &then_bool.0.get().inner,
+                    &else_bool.0.get().inner,
+                )?
+                .simplify()?,
+        )
+        .map(|b| b.into_any().cast_into::<Base>().unwrap())
+    } else if let Ok(then_bv) = then_.extract::<CoerceBV>() {
         if let Ok(else_bv) = else_.extract::<CoerceBV>() {
             let (then_bv, else_bv) = CoerceBV::unpack_pair(py, &then_bv, &else_bv)?;
             BV::new(
@@ -180,22 +208,6 @@ pub fn r#if<'py>(
                         &else_bv.get().inner,
                     )?
                     .simplify_ext(true, true)?,
-            )
-            .map(|b| b.into_any().cast_into::<Base>().unwrap())
-        } else {
-            Err(ClaripyError::TypeError(format!(
-                "Sort mismatch in if-then-else: {then_:?} and {else_:?}"
-            )))
-        }
-    } else if let Ok(then_bool) = then_.extract::<CoerceBool>() {
-        if let Ok(else_bv) = else_.extract::<CoerceBool>() {
-            let then_bv = then_bool.0.get().inner.clone();
-            let else_bv = else_bv.0.get().inner.clone();
-            Bool::new(
-                py,
-                &GLOBAL_CONTEXT
-                    .ite(&cond.0.get().inner, &then_bv, &else_bv)?
-                    .simplify()?,
             )
             .map(|b| b.into_any().cast_into::<Base>().unwrap())
         } else {

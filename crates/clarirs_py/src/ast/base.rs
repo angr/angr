@@ -38,6 +38,11 @@ impl Base {
         Ok(self_.get().inner.clone())
     }
 
+    /// A clone of the wrapped [`AstRef`].
+    pub fn ast(&self) -> AstRef<'static> {
+        self.inner.clone()
+    }
+
     /// Wrap an existing [`AstRef`] without simplifying it, keeping its
     /// annotation set exactly as given.
     pub fn from_ast<'py>(
