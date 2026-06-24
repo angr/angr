@@ -1,3 +1,0 @@
-[submodule "crates/clarirs-z3-sys/z3"]
-	path = crates/clarirs-z3-sys/z3
-	url = https://github.com/Z3Prover/z3.git

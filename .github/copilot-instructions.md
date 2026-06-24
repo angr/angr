@@ -10,8 +10,7 @@ crates/
 ├── clarirs_core/       # Core AST, algorithms, and solver traits
 ├── clarirs_num/        # Numeric primitives (BitVec, Float)
 ├── clarirs_py/         # Python bindings (builds as 'claripy' module)
-├── clarirs_z3/         # Z3 solver implementation
-├── clarirs-z3-sys/     # Low-level Z3 FFI bindings (builds Z3 from source)
+├── clarirs_z3/         # Z3 solver implementation (links the z3-sys crate)
 └── clarirs-vsa/        # Value Set Analysis solver
 ```
 
@@ -122,12 +121,19 @@ Use `ClarirsError` from `crates/clarirs_core/src/error.rs`. Conversion from `Bit
 
 ### Z3 Bindings Build Process
 
-`clarirs-z3-sys` uses `build.rs` to:
-1. Invoke CMake on `z3/` submodule
-2. Generate Rust bindings via `bindgen` with custom callbacks (strip `Z3_` prefix, convert to PascalCase)
-3. Link statically to avoid runtime Z3 dependency
+`clarirs_z3` links against the upstream [`z3-sys`](https://crates.io/crates/z3-sys)
+crate with its `gh-release` feature, which downloads a prebuilt static Z3 library
+(Z3 4.16.0 by default; override with `Z3_SYS_Z3_VERSION`) from the official
+Z3Prover GitHub releases — no system Z3 install, git submodule, or local Z3
+compilation. The backend (`rc.rs`/`solver.rs`/`astext.rs`) calls the `z3-sys` C
+API directly (`use z3_sys::*;`). Two upstream conventions are handled at the call
+sites: pointer constructors return `Option<NonNull<_>>` (funneled through
+`RcAst::try_from(Option<_>)` or the `require()` helper in `lib.rs`), and
+`Z3_lbool` is an integer compared against the `Z3_L_*` constants.
 
-Requires: CMake, Ninja, Clang (for faster builds). On CI, sccache caches compilation.
+Requires network access at build time to fetch the Z3 release (cached in the build
+dir afterward); CI sets `READ_ONLY_GITHUB_TOKEN` to avoid GitHub API rate limits.
+sccache caches Rust compilation.
 
 ## Claripy Compatibility Notes
 

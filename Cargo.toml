@@ -4,7 +4,6 @@ members = [
     "crates/clarirs_core",
     "crates/clarirs_py",
     "crates/clarirs_z3",
-    "crates/clarirs-z3-sys",
     "crates/clarirs-vsa",
 ]
 resolver = "2"

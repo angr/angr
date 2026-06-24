@@ -1,5 +1,5 @@
 use clarirs_core::prelude::*;
-use clarirs_z3_sys as z3;
+use z3_sys::*;
 
 use super::AstExtZ3;
 use crate::{Z3_CONTEXT, rc::RcAst};
@@ -22,7 +22,7 @@ mod to_z3 {
         let x = ctx.fps("x", FSort::f32()).unwrap();
         let z3_ast = x.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Uninterpreted);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::Uninterpreted);
         assert_eq!(z3_ast.symbol_name().as_deref(), Some("x"));
     }
 
@@ -32,7 +32,7 @@ mod to_z3 {
         let x = ctx.fps("x", FSort::f64()).unwrap();
         let z3_ast = x.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Uninterpreted);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::Uninterpreted);
         assert_eq!(z3_ast.symbol_name().as_deref(), Some("x"));
     }
 
@@ -42,7 +42,7 @@ mod to_z3 {
         let f = ctx.fpv(Float::F32(3.14f32)).unwrap();
         let z3_ast = f.to_z3().unwrap();
         // Z3 represents float numerals as FpaNum
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaNum);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaNum);
     }
 
     #[test]
@@ -50,7 +50,7 @@ mod to_z3 {
         let ctx = Context::new();
         let f = ctx.fpv(Float::F64(2.718281828459045f64)).unwrap();
         let z3_ast = f.to_z3().unwrap();
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaNum);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaNum);
     }
 
     #[test]
@@ -60,7 +60,7 @@ mod to_z3 {
         let z3_ast = f.to_z3().unwrap();
         // Z3 may represent +0.0 as FpaNum or FpaPlusZero
         let dk = z3_ast.decl_kind();
-        assert!(dk == z3::DeclKind::FpaNum || dk == z3::DeclKind::FpaPlusZero);
+        assert!(dk == DeclKind::FpaNum || dk == DeclKind::FpaPlusZero);
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod to_z3 {
         let f = ctx.fpv(Float::F32(-0.0f32)).unwrap();
         let z3_ast = f.to_z3().unwrap();
         let dk = z3_ast.decl_kind();
-        assert!(dk == z3::DeclKind::FpaNum || dk == z3::DeclKind::FpaMinusZero);
+        assert!(dk == DeclKind::FpaNum || dk == DeclKind::FpaMinusZero);
     }
 
     // -- Unary ops --
@@ -81,7 +81,7 @@ mod to_z3 {
         let neg = ctx.fp_neg(x).unwrap();
         let z3_ast = neg.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaNeg);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaNeg);
         assert_eq!(z3_ast.num_args(), 1);
         assert_eq!(z3_ast.arg(0).unwrap().symbol_name().as_deref(), Some("x"));
     }
@@ -93,7 +93,7 @@ mod to_z3 {
         let abs = ctx.fp_abs(x).unwrap();
         let z3_ast = abs.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaAbs);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaAbs);
         assert_eq!(z3_ast.num_args(), 1);
         assert_eq!(z3_ast.arg(0).unwrap().symbol_name().as_deref(), Some("x"));
     }
@@ -108,12 +108,12 @@ mod to_z3 {
         let add = ctx.fp_add(a, b, FPRM::NearestTiesToEven).unwrap();
         let z3_ast = add.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaAdd);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaAdd);
         // 3 args: rounding mode, a, b
         assert_eq!(z3_ast.num_args(), 3);
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmNearestTiesToEven
+            DeclKind::FpaRmNearestTiesToEven
         );
         assert_eq!(z3_ast.arg(1).unwrap().symbol_name().as_deref(), Some("a"));
         assert_eq!(z3_ast.arg(2).unwrap().symbol_name().as_deref(), Some("b"));
@@ -127,11 +127,11 @@ mod to_z3 {
         let sub = ctx.fp_sub(a, b, FPRM::TowardZero).unwrap();
         let z3_ast = sub.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaSub);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaSub);
         assert_eq!(z3_ast.num_args(), 3);
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmTowardZero
+            DeclKind::FpaRmTowardZero
         );
     }
 
@@ -143,11 +143,11 @@ mod to_z3 {
         let mul = ctx.fp_mul(a, b, FPRM::TowardPositive).unwrap();
         let z3_ast = mul.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaMul);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaMul);
         assert_eq!(z3_ast.num_args(), 3);
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmTowardPositive
+            DeclKind::FpaRmTowardPositive
         );
     }
 
@@ -159,11 +159,11 @@ mod to_z3 {
         let div = ctx.fp_div(a, b, FPRM::TowardNegative).unwrap();
         let z3_ast = div.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaDiv);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaDiv);
         assert_eq!(z3_ast.num_args(), 3);
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmTowardNegative
+            DeclKind::FpaRmTowardNegative
         );
     }
 
@@ -174,12 +174,12 @@ mod to_z3 {
         let sqrt = ctx.fp_sqrt(x, FPRM::NearestTiesToAway).unwrap();
         let z3_ast = sqrt.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaSqrt);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaSqrt);
         // 2 args: rounding mode, operand
         assert_eq!(z3_ast.num_args(), 2);
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmNearestTiesToAway
+            DeclKind::FpaRmNearestTiesToAway
         );
         assert_eq!(z3_ast.arg(1).unwrap().symbol_name().as_deref(), Some("x"));
     }
@@ -195,7 +195,7 @@ mod to_z3 {
             .unwrap();
         let z3_ast = conv.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaToFp);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaToFp);
         // 2 args: rounding mode, operand
         assert_eq!(z3_ast.num_args(), 2);
     }
@@ -207,7 +207,7 @@ mod to_z3 {
         let conv = ctx.bv_to_fp(bv, FSort::f32()).unwrap();
         let z3_ast = conv.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaToFp);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaToFp);
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod to_z3 {
             .unwrap();
         let z3_ast = conv.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaToFp);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaToFp);
         assert_eq!(z3_ast.num_args(), 2);
     }
 
@@ -232,7 +232,7 @@ mod to_z3 {
             .unwrap();
         let z3_ast = conv.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaToFpUnsigned);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaToFpUnsigned);
         assert_eq!(z3_ast.num_args(), 2);
     }
 
@@ -246,7 +246,7 @@ mod to_z3 {
         let fp = ctx.fp_fp(sign, exp, sig).unwrap();
         let z3_ast = fp.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::FpaFp);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::FpaFp);
         assert_eq!(z3_ast.num_args(), 3);
     }
 
@@ -261,7 +261,7 @@ mod to_z3 {
         let ite = ctx.ite(c, a, b).unwrap();
         let z3_ast = ite.to_z3().unwrap();
 
-        assert_eq!(z3_ast.decl_kind(), z3::DeclKind::Ite);
+        assert_eq!(z3_ast.decl_kind(), DeclKind::Ite);
         assert_eq!(z3_ast.num_args(), 3);
         assert_eq!(z3_ast.arg(0).unwrap().symbol_name().as_deref(), Some("c"));
         assert_eq!(z3_ast.arg(1).unwrap().symbol_name().as_deref(), Some("a"));
@@ -279,7 +279,7 @@ mod to_z3 {
         let z3_ast = add.to_z3().unwrap();
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmNearestTiesToEven
+            DeclKind::FpaRmNearestTiesToEven
         );
     }
 
@@ -292,7 +292,7 @@ mod to_z3 {
         let z3_ast = add.to_z3().unwrap();
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmTowardPositive
+            DeclKind::FpaRmTowardPositive
         );
     }
 
@@ -305,7 +305,7 @@ mod to_z3 {
         let z3_ast = add.to_z3().unwrap();
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmTowardNegative
+            DeclKind::FpaRmTowardNegative
         );
     }
 
@@ -318,7 +318,7 @@ mod to_z3 {
         let z3_ast = add.to_z3().unwrap();
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmTowardZero
+            DeclKind::FpaRmTowardZero
         );
     }
 
@@ -331,7 +331,7 @@ mod to_z3 {
         let z3_ast = add.to_z3().unwrap();
         assert_eq!(
             z3_ast.arg(0).unwrap().decl_kind(),
-            z3::DeclKind::FpaRmNearestTiesToAway
+            DeclKind::FpaRmNearestTiesToAway
         );
     }
 }
@@ -387,7 +387,7 @@ mod from_z3 {
         let ctx = Context::new();
         let x = RcAst::mk_fp("x", FSort::f32());
         let z3_neg = Z3_CONTEXT
-            .with(|&z3_ctx| unsafe { RcAst::try_from(z3::mk_fpa_neg(z3_ctx, *x)).unwrap() });
+            .with(|&z3_ctx| unsafe { RcAst::try_from(Z3_mk_fpa_neg(z3_ctx, *x)).unwrap() });
         let result = AstRef::from_z3(&ctx, z3_neg).unwrap();
         let expected = ctx.fp_neg(ctx.fps("x", FSort::f32()).unwrap()).unwrap();
         assert_eq!(expected, result);
@@ -398,7 +398,7 @@ mod from_z3 {
         let ctx = Context::new();
         let x = RcAst::mk_fp("x", FSort::f32());
         let z3_abs = Z3_CONTEXT
-            .with(|&z3_ctx| unsafe { RcAst::try_from(z3::mk_fpa_abs(z3_ctx, *x)).unwrap() });
+            .with(|&z3_ctx| unsafe { RcAst::try_from(Z3_mk_fpa_abs(z3_ctx, *x)).unwrap() });
         let result = AstRef::from_z3(&ctx, z3_abs).unwrap();
         let expected = ctx.fp_abs(ctx.fps("x", FSort::f32()).unwrap()).unwrap();
         assert_eq!(expected, result);
@@ -413,7 +413,7 @@ mod from_z3 {
         let b = RcAst::mk_fp("b", FSort::f32());
         let rm = RcAst::mk_fprm(FPRM::NearestTiesToEven);
         let z3_add = Z3_CONTEXT.with(|&z3_ctx| unsafe {
-            RcAst::try_from(z3::mk_fpa_add(z3_ctx, *rm, *a, *b)).unwrap()
+            RcAst::try_from(Z3_mk_fpa_add(z3_ctx, *rm, *a, *b)).unwrap()
         });
         let result = AstRef::from_z3(&ctx, z3_add).unwrap();
         let expected = ctx
@@ -433,7 +433,7 @@ mod from_z3 {
         let b = RcAst::mk_fp("b", FSort::f32());
         let rm = RcAst::mk_fprm(FPRM::TowardZero);
         let z3_sub = Z3_CONTEXT.with(|&z3_ctx| unsafe {
-            RcAst::try_from(z3::mk_fpa_sub(z3_ctx, *rm, *a, *b)).unwrap()
+            RcAst::try_from(Z3_mk_fpa_sub(z3_ctx, *rm, *a, *b)).unwrap()
         });
         let result = AstRef::from_z3(&ctx, z3_sub).unwrap();
         let expected = ctx
@@ -453,7 +453,7 @@ mod from_z3 {
         let b = RcAst::mk_fp("b", FSort::f32());
         let rm = RcAst::mk_fprm(FPRM::TowardPositive);
         let z3_mul = Z3_CONTEXT.with(|&z3_ctx| unsafe {
-            RcAst::try_from(z3::mk_fpa_mul(z3_ctx, *rm, *a, *b)).unwrap()
+            RcAst::try_from(Z3_mk_fpa_mul(z3_ctx, *rm, *a, *b)).unwrap()
         });
         let result = AstRef::from_z3(&ctx, z3_mul).unwrap();
         let expected = ctx
@@ -473,7 +473,7 @@ mod from_z3 {
         let b = RcAst::mk_fp("b", FSort::f32());
         let rm = RcAst::mk_fprm(FPRM::TowardNegative);
         let z3_div = Z3_CONTEXT.with(|&z3_ctx| unsafe {
-            RcAst::try_from(z3::mk_fpa_div(z3_ctx, *rm, *a, *b)).unwrap()
+            RcAst::try_from(Z3_mk_fpa_div(z3_ctx, *rm, *a, *b)).unwrap()
         });
         let result = AstRef::from_z3(&ctx, z3_div).unwrap();
         let expected = ctx
@@ -492,7 +492,7 @@ mod from_z3 {
         let x = RcAst::mk_fp("x", FSort::f32());
         let rm = RcAst::mk_fprm(FPRM::NearestTiesToAway);
         let z3_sqrt = Z3_CONTEXT
-            .with(|&z3_ctx| unsafe { RcAst::try_from(z3::mk_fpa_sqrt(z3_ctx, *rm, *x)).unwrap() });
+            .with(|&z3_ctx| unsafe { RcAst::try_from(Z3_mk_fpa_sqrt(z3_ctx, *rm, *x)).unwrap() });
         let result = AstRef::from_z3(&ctx, z3_sqrt).unwrap();
         let expected = ctx
             .fp_sqrt(ctx.fps("x", FSort::f32()).unwrap(), FPRM::NearestTiesToAway)
@@ -509,7 +509,7 @@ mod from_z3 {
         let exp = RcAst::mk_bv("exp", 8);
         let sig = RcAst::mk_bv("sig", 23);
         let z3_fp = Z3_CONTEXT.with(|&z3_ctx| unsafe {
-            RcAst::try_from(z3::mk_fpa_fp(z3_ctx, *sign, *exp, *sig)).unwrap()
+            RcAst::try_from(Z3_mk_fpa_fp(z3_ctx, *sign, *exp, *sig)).unwrap()
         });
         let result = AstRef::from_z3(&ctx, z3_fp).unwrap();
 
@@ -527,7 +527,7 @@ mod from_z3 {
         let a = RcAst::mk_fp("a", FSort::f32());
         let b = RcAst::mk_fp("b", FSort::f32());
         let z3_ite = Z3_CONTEXT
-            .with(|&z3_ctx| unsafe { RcAst::try_from(z3::mk_ite(z3_ctx, *c, *a, *b)).unwrap() });
+            .with(|&z3_ctx| unsafe { RcAst::try_from(Z3_mk_ite(z3_ctx, *c, *a, *b)).unwrap() });
         let result = AstRef::from_z3(&ctx, z3_ite).unwrap();
         let expected = ctx
             .ite(

@@ -1,10 +1,10 @@
 use crate::astext::AstExtZ3;
 use crate::rc::{RcModel, RcOptimize, RcParamSet, RcSolver};
 use clarirs_core::prelude::*;
-use clarirs_z3_sys as z3;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use z3_sys::{Z3_L_FALSE, Z3_L_TRUE};
 
 /// A persistent z3 solver, incrementally extended as constraints are added.
 ///
@@ -113,7 +113,7 @@ impl<'c> Z3Solver<'c> {
 
         self.with_cached_solver(|z3_solver| {
             // Check if UNSAT
-            if z3_solver.check()? != z3::Lbool::False {
+            if z3_solver.check()? != Z3_L_FALSE {
                 return Err(ClarirsError::UnsupportedOperation(
                     "Can only get unsat core after an UNSAT result".to_string(),
                 ));
@@ -258,7 +258,7 @@ impl<'c> Z3Solver<'c> {
 
     fn make_model(&self) -> Result<RcModel, ClarirsError> {
         self.with_cached_solver(|z3_solver| {
-            if z3_solver.check()? != z3::Lbool::True {
+            if z3_solver.check()? != Z3_L_TRUE {
                 return Err(ClarirsError::Unsat);
             }
             z3_solver.model()
@@ -329,7 +329,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     }
 
     fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
-        self.with_cached_solver(|z3_solver| Ok(z3_solver.check()? == z3::Lbool::True))
+        self.with_cached_solver(|z3_solver| Ok(z3_solver.check()? == Z3_L_TRUE))
     }
 
     fn satisfiable_with_extra(&mut self, extra: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
@@ -341,7 +341,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             assumptions.push(c.simplify_z3()?.to_z3()?);
         }
         self.with_cached_solver(|z3_solver| {
-            Ok(z3_solver.check_assumptions(&assumptions)? == z3::Lbool::True)
+            Ok(z3_solver.check_assumptions(&assumptions)? == Z3_L_TRUE)
         })
     }
 
@@ -393,7 +393,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         let mut optimize = self.mk_filled_optimize()?;
         optimize.minimize(&expr.to_z3()?)?;
-        if optimize.check()? != z3::Lbool::True {
+        if optimize.check()? != Z3_L_TRUE {
             return Err(ClarirsError::Unsat);
         }
 
@@ -406,7 +406,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         let mut optimize = self.mk_filled_optimize()?;
         optimize.maximize(&expr.to_z3()?)?;
-        if optimize.check()? != z3::Lbool::True {
+        if optimize.check()? != Z3_L_TRUE {
             return Err(ClarirsError::Unsat);
         }
 
@@ -441,7 +441,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         // This will find the smallest value among those with the preferred sign bit
         optimize.minimize(&target.to_z3()?)?;
 
-        if optimize.check()? != z3::Lbool::True {
+        if optimize.check()? != Z3_L_TRUE {
             return Err(ClarirsError::Unsat);
         }
 
@@ -476,7 +476,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         // This will find the largest value among those with the preferred sign bit
         optimize.maximize(&target.to_z3()?)?;
 
-        if optimize.check()? != z3::Lbool::True {
+        if optimize.check()? != Z3_L_TRUE {
             return Err(ClarirsError::Unsat);
         }
 
@@ -540,7 +540,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         z3_solver.assert(&link.to_z3()?)?;
 
         for _ in 0..n {
-            if z3_solver.check()? != z3::Lbool::True {
+            if z3_solver.check()? != Z3_L_TRUE {
                 break;
             }
 
