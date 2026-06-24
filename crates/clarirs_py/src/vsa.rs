@@ -20,7 +20,7 @@ pub fn reduce<'py>(
     py: Python<'py>,
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(bool_expr) = expr.clone().into_any().cast::<Bool>() {
+    if let Ok(bool_expr) = expr.cast::<Bool>() {
         let reduced = bool_expr.get().inner.reduce()?.into_bool()?;
         let result = match reduced {
             ComparisonResult::True => Bool::new(py, &GLOBAL_CONTEXT.true_()?)?,
@@ -30,10 +30,10 @@ pub fn reduce<'py>(
                 BoolS(py, "maybe", false)?
             }
         };
-        return Ok(result.into_any().cast::<Base>()?.clone());
+        return Ok(result.into_any().cast_into::<Base>()?);
     }
 
-    if let Ok(bv_expr) = expr.clone().into_any().cast::<BV>() {
+    if let Ok(bv_expr) = expr.cast::<BV>() {
         let reduced = bv_expr.get().inner.reduce()?.into_bv()?;
         let result = match reduced {
             StridedInterval::Empty { .. } => bv_expr.clone(),
@@ -60,7 +60,7 @@ pub fn reduce<'py>(
                 }
             }
         };
-        return Ok(result.into_any().cast::<Base>()?.clone());
+        return Ok(result.into_any().cast_into::<Base>()?);
     }
 
     Err(ClaripyError::TypeError(
@@ -152,8 +152,8 @@ pub fn cardinality(expr: Bound<'_, BV>) -> Result<num_bigint::BigUint, ClaripyEr
 #[pyfunction]
 pub fn identical(a: Bound<'_, Base>, b: Bound<'_, Base>) -> Result<bool, ClaripyError> {
     // Try as BV first
-    if let Ok(a_bv) = a.clone().into_any().cast::<BV>()
-        && let Ok(b_bv) = b.clone().into_any().cast::<BV>()
+    if let Ok(a_bv) = a.cast::<BV>()
+        && let Ok(b_bv) = b.cast::<BV>()
     {
         let reduced_a = a_bv.get().inner.reduce()?.into_bv()?;
         let reduced_b = b_bv.get().inner.reduce()?.into_bv()?;
@@ -161,8 +161,8 @@ pub fn identical(a: Bound<'_, Base>, b: Bound<'_, Base>) -> Result<bool, Claripy
     }
 
     // Try as Bool
-    if let Ok(a_bool) = a.clone().into_any().cast::<Bool>()
-        && let Ok(b_bool) = b.clone().into_any().cast::<Bool>()
+    if let Ok(a_bool) = a.cast::<Bool>()
+        && let Ok(b_bool) = b.cast::<Bool>()
     {
         let reduced_a = a_bool.get().inner.reduce()?.into_bool()?;
         let reduced_b = b_bool.get().inner.reduce()?.into_bool()?;

@@ -57,18 +57,18 @@ fn py_simplify<'py>(
     py: Python<'py>,
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(bv_value) = expr.clone().into_any().cast::<BV>() {
+    if let Ok(bv_value) = expr.cast::<BV>() {
         BV::new(py, &bv_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
-    } else if let Ok(bool_value) = expr.clone().into_any().cast::<Bool>() {
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
+    } else if let Ok(bool_value) = expr.cast::<Bool>() {
         Bool::new(py, &bool_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
-    } else if let Ok(fp_value) = expr.clone().into_any().cast::<FP>() {
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
+    } else if let Ok(fp_value) = expr.cast::<FP>() {
         FP::new(py, &fp_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
-    } else if let Ok(string_value) = expr.clone().into_any().cast::<PyAstString>() {
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
+    } else if let Ok(string_value) = expr.cast::<PyAstString>() {
         PyAstString::new(py, &string_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
     } else {
         panic!("Unsupported type");
     }
@@ -80,8 +80,8 @@ fn py_replace<'py>(
     old: Bound<'py, Base>,
     new: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    let old_dyn = Base::to_ast(old.clone())?;
-    let new_dyn = Base::to_ast(new.clone())?;
+    let old_dyn = Base::to_ast(old)?;
+    let new_dyn = Base::to_ast(new)?;
 
     // Convert new type to old type, if they do not match and both are BV or FP
     let new_coerced = match (old_dyn.ast_type(), new_dyn.ast_type()) {
@@ -110,20 +110,20 @@ fn py_excavate_ite<'py>(
 
 #[pyfunction]
 fn is_true(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
-    if let Ok(bool_expr) = expr.clone().extract::<CoerceBool>() {
+    if let Ok(bool_expr) = expr.extract::<CoerceBool>() {
         Ok(bool_expr.0.get().inner.simplify()?.is_true())
-    } else if let Ok(bv_expr) = expr.clone().extract::<CoerceBV>() {
+    } else if let Ok(bv_expr) = expr.extract::<CoerceBV>() {
         match bv_expr {
             CoerceBV::BV(bv_expr) => Ok(bv_expr.get().inner.simplify()?.is_true()),
             CoerceBV::Int(int_expr) => Ok(int_expr != BigInt::ZERO),
             CoerceBV::Bool(bool_expr) => Ok(bool_expr.get().inner.simplify()?.is_true()),
         }
-    } else if let Ok(fp_expr) = expr.clone().extract::<CoerceFP>() {
+    } else if let Ok(fp_expr) = expr.extract::<CoerceFP>() {
         match fp_expr {
             CoerceFP::FP(fp_expr) => Ok(fp_expr.get().inner.simplify()?.is_true()),
             CoerceFP::Py(float) => Ok(float.extract::<f64>()? != 0.0),
         }
-    } else if let Ok(string_expr) = expr.clone().extract::<CoerceString>() {
+    } else if let Ok(string_expr) = expr.extract::<CoerceString>() {
         Ok(string_expr.0.get().inner.simplify()?.is_true())
     } else {
         // Anything we cannot prove true is not true. This matches claripy
@@ -136,20 +136,20 @@ fn is_true(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
 
 #[pyfunction]
 fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
-    if let Ok(bool_expr) = expr.clone().extract::<CoerceBool>() {
+    if let Ok(bool_expr) = expr.extract::<CoerceBool>() {
         Ok(bool_expr.0.get().inner.simplify()?.is_false())
-    } else if let Ok(bv_expr) = expr.clone().extract::<CoerceBV>() {
+    } else if let Ok(bv_expr) = expr.extract::<CoerceBV>() {
         match bv_expr {
             CoerceBV::BV(bv_expr) => Ok(bv_expr.get().inner.simplify()?.is_false()),
             CoerceBV::Int(int_expr) => Ok(int_expr == BigInt::ZERO),
             CoerceBV::Bool(bool_expr) => Ok(bool_expr.get().inner.simplify()?.is_false()),
         }
-    } else if let Ok(fp_expr) = expr.clone().extract::<CoerceFP>() {
+    } else if let Ok(fp_expr) = expr.extract::<CoerceFP>() {
         match fp_expr {
             CoerceFP::FP(fp_expr) => Ok(fp_expr.get().inner.simplify()?.is_false()),
             CoerceFP::Py(float) => Ok(float.extract::<f64>()? == 0.0),
         }
-    } else if let Ok(string_expr) = expr.clone().extract::<CoerceString>() {
+    } else if let Ok(string_expr) = expr.extract::<CoerceString>() {
         Ok(string_expr.0.get().inner.simplify()?.is_false())
     } else {
         // See is_true: claripy returns False for anything it cannot prove.

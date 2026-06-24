@@ -18,17 +18,17 @@ pub static GLOBAL_CONTEXT: LazyLock<Context<'static>> = LazyLock::new(Context::n
 
 #[pyfunction(name = "Not")]
 pub fn not<'py>(py: Python<'py>, b: Bound<'py, Base>) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(b_bool) = b.clone().into_any().cast::<Bool>() {
+    if let Ok(b_bool) = b.cast::<Bool>() {
         return Bool::new(py, &GLOBAL_CONTEXT.not(&b_bool.get().inner)?.simplify()?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
-    } else if let Ok(b_bv) = b.clone().into_any().cast::<BV>() {
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
+    } else if let Ok(b_bv) = b.cast::<BV>() {
         return BV::new(
             py,
             &GLOBAL_CONTEXT
                 .not(&b_bv.get().inner)?
                 .simplify_ext(true, true)?,
         )
-        .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+        .map(|b| b.into_any().cast_into::<Base>().unwrap());
     } else {
         panic!("unsupported type")
     }
@@ -42,7 +42,7 @@ pub fn and<'py>(
     // No operands: the identity element, true.
     if args.is_empty() {
         return Bool::new(py, &GLOBAL_CONTEXT.true_()?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     // If all args are actually Bools (or Python bool literals) — not BVs
     // being coerced through the Bool path — use the Bool And. Otherwise fall
@@ -60,7 +60,7 @@ pub fn and<'py>(
             })
             .collect::<Result<Vec<_>, _>>()?;
         return Bool::new(py, &GLOBAL_CONTEXT.and(bool_args)?.simplify()?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     if args.len() == 2
         && let Some(lhs) = args[0].extract::<CoerceBV>().ok()
@@ -73,7 +73,7 @@ pub fn and<'py>(
                 .and2(&lhs.get().inner, &rhs.get().inner)?
                 .simplify_ext(true, true)?,
         )
-        .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+        .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     Err(ClaripyError::TypeError(
         "And: expected Bools or exactly two BVs".to_string(),
@@ -88,7 +88,7 @@ pub fn or<'py>(
     // No operands: the identity element, false.
     if args.is_empty() {
         return Bool::new(py, &GLOBAL_CONTEXT.false_()?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     // Same policy as And: prefer the Bool path whenever every arg is a Bool.
     let all_bools = args
@@ -104,7 +104,7 @@ pub fn or<'py>(
             })
             .collect::<Result<Vec<_>, _>>()?;
         return Bool::new(py, &GLOBAL_CONTEXT.or(bool_args)?.simplify()?)
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     if args.len() == 2
         && let Some(lhs) = args[0].extract::<CoerceBV>().ok()
@@ -117,7 +117,7 @@ pub fn or<'py>(
                 .or2(&lhs.get().inner, &rhs.get().inner)?
                 .simplify_ext(true, true)?,
         )
-        .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+        .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     Err(ClaripyError::TypeError(
         "Or: expected Bools or exactly two BVs".to_string(),
@@ -131,20 +131,20 @@ pub fn xor<'py>(
     a: Bound<'py, PyAny>,
     b: Bound<'py, PyAny>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(a_bool) = a.clone().into_any().cast::<Bool>() {
-        if let Ok(b_bool) = b.clone().into_any().cast::<Bool>() {
+    if let Ok(a_bool) = a.cast::<Bool>() {
+        if let Ok(b_bool) = b.cast::<Bool>() {
             return Bool::new(
                 py,
                 &GLOBAL_CONTEXT
                     .xor2(&a_bool.get().inner, &b_bool.get().inner)?
                     .simplify()?,
             )
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
         } else {
             panic!("mismatched types")
         }
-    } else if let Ok(a_bv) = a.clone().into_any().extract::<CoerceBV>() {
-        if let Ok(b_bv) = b.clone().into_any().extract::<CoerceBV>() {
+    } else if let Ok(a_bv) = a.extract::<CoerceBV>() {
+        if let Ok(b_bv) = b.extract::<CoerceBV>() {
             let (a_bv, b_bv) = CoerceBV::unpack_pair(py, &a_bv, &b_bv)?;
             return BV::new(
                 py,
@@ -152,7 +152,7 @@ pub fn xor<'py>(
                     .xor2(&a_bv.get().inner, &b_bv.get().inner)?
                     .simplify_ext(true, true)?,
             )
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone());
+            .map(|b| b.into_any().cast_into::<Base>().unwrap());
         } else {
             panic!("mismatched types")
         }
@@ -168,8 +168,8 @@ pub fn r#if<'py>(
     then_: Bound<'py, PyAny>,
     else_: Bound<'py, PyAny>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(then_bv) = then_.clone().into_any().extract::<CoerceBV>() {
-        if let Ok(else_bv) = else_.clone().into_any().extract::<CoerceBV>() {
+    if let Ok(then_bv) = then_.extract::<CoerceBV>() {
+        if let Ok(else_bv) = else_.extract::<CoerceBV>() {
             let (then_bv, else_bv) = CoerceBV::unpack_pair(py, &then_bv, &else_bv)?;
             BV::new(
                 py,
@@ -181,14 +181,14 @@ pub fn r#if<'py>(
                     )?
                     .simplify_ext(true, true)?,
             )
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
         } else {
             Err(ClaripyError::TypeError(format!(
                 "Sort mismatch in if-then-else: {then_:?} and {else_:?}"
             )))
         }
-    } else if let Ok(then_bool) = then_.clone().into_any().extract::<CoerceBool>() {
-        if let Ok(else_bv) = else_.clone().into_any().extract::<CoerceBool>() {
+    } else if let Ok(then_bool) = then_.extract::<CoerceBool>() {
+        if let Ok(else_bv) = else_.extract::<CoerceBool>() {
             let then_bv = then_bool.0.get().inner.clone();
             let else_bv = else_bv.0.get().inner.clone();
             Bool::new(
@@ -197,14 +197,14 @@ pub fn r#if<'py>(
                     .ite(&cond.0.get().inner, &then_bv, &else_bv)?
                     .simplify()?,
             )
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
         } else {
             Err(ClaripyError::TypeError(format!(
                 "Sort mismatch in if-then-else: {then_:?} and {else_:?}"
             )))
         }
-    } else if let Ok(then_fp) = then_.clone().into_any().extract::<CoerceFP>() {
-        if let Ok(else_fp) = else_.clone().into_any().extract::<CoerceFP>() {
+    } else if let Ok(then_fp) = then_.extract::<CoerceFP>() {
+        if let Ok(else_fp) = else_.extract::<CoerceFP>() {
             let (then_fp, else_fp) = CoerceFP::unpack_pair(py, &then_fp, &else_fp)?;
             FP::new(
                 py,
@@ -216,14 +216,14 @@ pub fn r#if<'py>(
                     )?
                     .simplify()?,
             )
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
         } else {
             Err(ClaripyError::TypeError(format!(
                 "Sort mismatch in if-then-else: {then_:?} and {else_:?}"
             )))
         }
-    } else if let Ok(then_string) = then_.clone().into_any().extract::<CoerceString>() {
-        if let Ok(else_string) = else_.clone().into_any().extract::<CoerceString>() {
+    } else if let Ok(then_string) = then_.extract::<CoerceString>() {
+        if let Ok(else_string) = else_.extract::<CoerceString>() {
             let then_bv = then_string.0.get().inner.clone();
             let else_bv = else_string.0.get().inner.clone();
             PyAstString::new(
@@ -232,7 +232,7 @@ pub fn r#if<'py>(
                     .ite(&cond.0.get().inner, &then_bv, &else_bv)?
                     .simplify()?,
             )
-            .map(|b| b.into_any().cast::<Base>().unwrap().clone())
+            .map(|b| b.into_any().cast_into::<Base>().unwrap())
         } else {
             Err(ClaripyError::TypeError(format!(
                 "Sort mismatch in if-then-else: {then_:?} and {else_:?}"

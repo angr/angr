@@ -492,7 +492,7 @@ pub fn reverse_ite_cases<'py>(
                     queue.push((new_cond_true, true_branch));
 
                     // Queue: And(condition, Not(if_cond))
-                    let not_if_cond = not(py, if_cond.cast::<Base>()?.clone())?;
+                    let not_if_cond = not(py, if_cond.cast_into::<Base>()?)?;
                     let new_cond_false =
                         and(py, vec![condition.clone(), not_if_cond.into_any()])?.into_any();
                     queue.push((new_cond_false, false_branch));
@@ -531,7 +531,7 @@ pub fn ite_dict<'py>(
     if d.len() <= 4 {
         let mut cases = Vec::new();
         for (k, v) in d.iter() {
-            let cond = i.call_method1("__eq__", (k.clone(),))?;
+            let cond = i.call_method1("__eq__", (k,))?;
             let tuple = PyTuple::new(py, &[cond, v])?;
             cases.push(tuple.into_any());
         }
@@ -580,13 +580,11 @@ pub fn ite_dict<'py>(
     // Combine with an if-then-else
     let cond = i
         .call_method1("__le__", (split_val,))?
-        .cast::<Bool>()?
-        .clone();
+        .cast_into::<Bool>()?;
 
     // Create If expression: If(cond, val_low, val_high)
-    let result = r#if(py, CoerceBool(cond), val_low.clone(), val_high.clone())?;
-    let coerced = result.clone().into_any();
-    Ok(coerced)
+    let result = r#if(py, CoerceBool(cond), val_low, val_high)?;
+    Ok(result.into_any())
 }
 
 pub(crate) fn import(_: Python, m: &Bound<PyModule>) -> PyResult<()> {

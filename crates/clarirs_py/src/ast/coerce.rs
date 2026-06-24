@@ -369,20 +369,20 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase<'py> {
         // would incorrectly turn a BV expression into a Bool expression in contexts
         // like solver.solution(bv_expr, value) that need to preserve the original type.
         if let Ok(bool_val) = val.cast::<Bool>() {
-            Ok(CoerceBase(bool_val.to_owned().cast()?.clone()))
+            Ok(CoerceBase(bool_val.to_owned().cast_into()?))
         } else if let Ok(bv_val) = val.cast::<BV>() {
-            Ok(CoerceBase(bv_val.to_owned().cast()?.clone()))
+            Ok(CoerceBase(bv_val.to_owned().cast_into()?))
         } else if let Ok(fp_val) = val.cast::<FP>() {
-            Ok(CoerceBase(fp_val.to_owned().cast()?.clone()))
+            Ok(CoerceBase(fp_val.to_owned().cast_into()?))
         } else if let Ok(string_val) = val.cast::<PyAstString>() {
-            Ok(CoerceBase(string_val.to_owned().cast()?.clone()))
+            Ok(CoerceBase(string_val.to_owned().cast_into()?))
         } else if let Ok(py_bool) = val.extract::<bool>() {
             // Handle Python bool literals by wrapping in BoolV
             let bool_ast = Bool::new(
                 val.py(),
                 &GLOBAL_CONTEXT.boolv(py_bool).map_err(ClaripyError::from)?,
             )?;
-            Ok(CoerceBase(bool_ast.cast()?.clone()))
+            Ok(CoerceBase(bool_ast.cast_into()?))
         } else if let Ok(int_val) = val.cast::<PyInt>() {
             // Handle Python int literals by wrapping in BVV (64-bit default)
             let int: BigInt = int_val.extract()?;
@@ -391,16 +391,16 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase<'py> {
                 val.py(),
                 &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
             )?;
-            Ok(CoerceBase(bv_ast.cast()?.clone()))
+            Ok(CoerceBase(bv_ast.cast_into()?))
         } else if let Ok(fp) = CoerceFP::extract(val) {
             match fp {
-                CoerceFP::FP(fp) => Ok(CoerceBase(fp.cast()?.clone())),
+                CoerceFP::FP(fp) => Ok(CoerceBase(fp.cast_into()?)),
                 CoerceFP::Py(_) => {
                     Err(ClaripyError::InvalidArgumentType("Expected FP".to_string()).into())
                 }
             }
         } else if let Ok(string) = CoerceString::extract(val) {
-            Ok(CoerceBase(string.0.cast()?.clone()))
+            Ok(CoerceBase(string.0.cast_into()?))
         } else {
             Err(
                 ClaripyError::InvalidArgumentType("Expected Bool, BV, FP, or String".to_string())

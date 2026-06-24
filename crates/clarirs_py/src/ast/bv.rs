@@ -1155,12 +1155,12 @@ pub fn BVS(
     explicit_name: bool,
 ) -> Result<Bound<'_, BV>, ClaripyError> {
     let name: String = if explicit_name {
-        name.to_string()
+        name
     } else {
         let counter = BVS_COUNTER.fetch_add(1, Ordering::Relaxed);
         format!("{name}_{counter}_{size}")
     };
-    BV::new_with_name(py, &GLOBAL_CONTEXT.bvs(&name, size)?, Some(name.clone()))
+    BV::new_with_name(py, &GLOBAL_CONTEXT.bvs(&name, size)?, Some(name))
 }
 
 #[allow(non_snake_case)]
