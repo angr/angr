@@ -142,7 +142,7 @@ class TestFPOperations(unittest.TestCase):
         self._check_equal(result, 0.6)
 
         result = self.fp2 / self.fp1
-        self._check_equal(result, 1.6666665077, check_bits=True)
+        self._check_equal(result, 1.6666666269302368, check_bits=True)
 
         result = self.fp3 / self.fp4
         self._check_equal(result, 2.0)
@@ -152,11 +152,11 @@ class TestFPOperations(unittest.TestCase):
 
         # Test infinity division -> NaN
         result = self.fp_inf / self.fp_inf
-        self._check_equal(result, float("nan"), check_bits=True)
+        self.assertTrue(claripy.fpIsNaN(result).is_true())
 
         # 0/0 → NaN
         result = self.fp_zero / self.fp_zero
-        self._check_equal(result, float("nan"), check_bits=True)
+        self.assertTrue(claripy.fpIsNaN(result).is_true())
 
         # zero numerator → zero
         result = self.fp_zero / self.fp1
