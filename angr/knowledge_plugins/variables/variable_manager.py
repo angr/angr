@@ -1174,7 +1174,8 @@ class VariableManagerInternal(Serializable):
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
                 for subv in subvs:
-                    unify(subv, v)
+                    if subv in congruence_classes:
+                        unify(subv, v)
 
             # unify stack variables at the same offsets only if their corresponding vvars do not interfere
             stack_vars_by_offset: dict[int, set[SimStackVariable]] = defaultdict(set)
