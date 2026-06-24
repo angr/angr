@@ -10,8 +10,7 @@ use crate::prelude::*;
 /// (structure queries, hashing, simplification, replacement, annotation
 /// management). The sort-specific subclasses (`Bool`, `BV`, `FP`, `String`)
 /// inherit these and add only their own typed operations.
-#[pyclass(subclass, frozen, weakref, module = "claripy.ast.base", from_py_object)]
-#[derive(Clone)]
+#[pyclass(subclass, frozen, weakref, module = "claripy.ast.base")]
 pub struct Base {
     inner: AstRef<'static>,
     errored: Py<PySet>,
@@ -77,8 +76,8 @@ impl Base {
     }
 
     #[getter]
-    pub fn _errored(&self) -> Py<PySet> {
-        self.errored.clone()
+    pub fn _errored(&self, py: Python<'_>) -> Py<PySet> {
+        self.errored.clone_ref(py)
     }
 
     #[getter]
