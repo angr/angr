@@ -32,15 +32,19 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBool<'py> {
         if let Ok(bool_val) = val.cast::<Bool>() {
             Ok(CoerceBool(bool_val.to_owned()))
         } else if let Ok(bool_val) = val.extract::<bool>() {
-            Ok(CoerceBool(
-                Bool::new(val.py(), &GLOBAL_CONTEXT.boolv(bool_val).unwrap()).unwrap(),
-            ))
+            Ok(CoerceBool(Bool::new(
+                val.py(),
+                &GLOBAL_CONTEXT.boolv(bool_val).map_err(ClaripyError::from)?,
+            )?))
         } else if let Ok(int_val) = val.cast::<PyInt>() {
             // Coerce int (0 or non-zero) to Bool
             let i: BigInt = int_val.extract()?;
-            Ok(CoerceBool(
-                Bool::new(val.py(), &GLOBAL_CONTEXT.boolv(i != BigInt::ZERO).unwrap()).unwrap(),
-            ))
+            Ok(CoerceBool(Bool::new(
+                val.py(),
+                &GLOBAL_CONTEXT
+                    .boolv(i != BigInt::ZERO)
+                    .map_err(ClaripyError::from)?,
+            )?))
         } else if let Ok(bv_val) = val.cast::<BV>() {
             // Coerce BV to Bool: concrete fast-path, otherwise `bv != 0`.
             Ok(CoerceBool(Bool::new(val.py(), &bv_to_bool(bv_val.get())?)?))
@@ -201,7 +205,7 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBV<'py> {
         if let Ok(bv_val) = val.cast::<BV>() {
             Ok(CoerceBV::from(bv_val.to_owned()))
         } else if let Ok(int_val) = val.cast::<PyInt>() {
-            Ok(CoerceBV::from(int_val.to_owned()))
+            Ok(CoerceBV::Int(int_val.extract::<BigInt>()?))
         } else if let Ok(bool_val) = val.cast::<Bool>() {
             Ok(CoerceBV::Bool(bool_val.to_owned()))
         } else if let Ok(bytes_val) = val.extract::<Vec<u8>>() {
@@ -224,12 +228,6 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBV<'py> {
 impl<'py> From<Bound<'py, BV>> for CoerceBV<'py> {
     fn from(val: Bound<'py, BV>) -> Self {
         CoerceBV::BV(val)
-    }
-}
-
-impl<'py> From<Bound<'py, PyInt>> for CoerceBV<'py> {
-    fn from(val: Bound<'py, PyInt>) -> Self {
-        CoerceBV::Int(val.extract::<BigInt>().unwrap())
     }
 }
 
@@ -337,9 +335,12 @@ impl<'py> FromPyObject<'_, 'py> for CoerceString<'py> {
         if let Ok(string_val) = val.cast::<PyAstString>() {
             Ok(CoerceString(string_val.to_owned()))
         } else if let Ok(string_val) = val.extract::<&str>() {
-            Ok(CoerceString(
-                PyAstString::new(val.py(), &GLOBAL_CONTEXT.stringv(string_val).unwrap()).unwrap(),
-            ))
+            Ok(CoerceString(PyAstString::new(
+                val.py(),
+                &GLOBAL_CONTEXT
+                    .stringv(string_val)
+                    .map_err(ClaripyError::from)?,
+            )?))
         } else {
             Err(ClaripyError::InvalidArgumentType("Expected String".to_string()).into())
         }
