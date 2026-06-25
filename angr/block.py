@@ -427,6 +427,8 @@ class Block(Serializable):
 
     @property
     def _using_pcode_engine(self) -> bool:
+        if self._project is None:
+            return False
         return (pcode is not None) and isinstance(self._vex_engine, pcode.HeavyPcodeMixin)
 
     @property
