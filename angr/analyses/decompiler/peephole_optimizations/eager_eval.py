@@ -80,6 +80,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     )
             if op0.likes(op1):
                 # x + x => 2 * x
+                if expr.floating_point:
+                    count = Const(expr.idx, 2.0, op0.bits, **expr.tags)
+                    return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, floating_point=True, **expr.tags)
                 count = Const(expr.idx, 2, op0.bits, **expr.tags)
                 return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, **expr.tags)
 

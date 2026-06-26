@@ -209,6 +209,13 @@ class Float64(Float):
         return "float64"
 
 
+class Float80(Float):
+    SIZE = 10
+
+    def __repr__(self, memo=None):
+        return "float80"
+
+
 class Pointer(TypeConstant):
     def __init__(self, basetype: TypeConstant | None, name: str | None = None):
         super().__init__(name=name)
@@ -604,4 +611,6 @@ def float_type(bits: int) -> Float | None:
         return Float32()
     if bits == 64:
         return Float64()
+    if bits == 80:
+        return Float80()
     return None

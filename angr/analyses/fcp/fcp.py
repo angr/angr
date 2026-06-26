@@ -109,6 +109,7 @@ class FCPState:
 
 
 binop_handler = SimEngineNostmtVEX[FCPState, claripy.ast.BV, FCPState].binop_handler
+dirty_handler = SimEngineNostmtVEX[FCPState, claripy.ast.BV, FCPState].dirty_handler
 
 
 class SimEngineFCPVEX(
@@ -237,6 +238,16 @@ class SimEngineFCPVEX(
     _handle_expr_Unop = _dummy_handler
     _handle_expr_Triop = _dummy_handler
 
+    # x87 dirty helpers -- the FCP doesn't track float values, so top is correct.
+    @dirty_handler
+    def _handle_dirty_noop(self, expr):  # pylint:disable=unused-argument,no-self-use
+        return None
+
+    _handle_dirty_x86g_dirtyhelper_loadF80le = _handle_dirty_noop
+    _handle_dirty_x86g_dirtyhelper_storeF80le = _handle_dirty_noop
+    _handle_dirty_amd64g_dirtyhelper_loadF80le = _handle_dirty_noop
+    _handle_dirty_amd64g_dirtyhelper_storeF80le = _handle_dirty_noop
+
     @binop_handler
     def _handle_binop_Add(self, expr):
         op0, op1 = self._expr(expr.args[0]), self._expr(expr.args[1])
@@ -307,6 +318,12 @@ class FastConstantPropagation(Analysis):
         if self.project.arch.call_pushes_ret:
             init_state.sp_value = self.project.arch.bytes
         init_state.bp_value = init_state.sp_value
+
+        if self.project.arch.name in ("X86", "AMD64"):
+            init_state.register_written(
+                *self.project.arch.registers["ftop"],
+                0,
+            )
 
         sorted_nodes = reversed(list(networkx.dfs_postorder_nodes(func_graph, startpoint)))
         block_addrs = None

@@ -63,6 +63,11 @@ def get_reg_offset_base_and_size(
     :return:            A tuple of translated offset and the size of the full register.
     """
 
+    if arch.name in ("X86", "AMD64"):
+        mm_regs = [v for k, v in arch.registers.items() if k in (f"mm{v}" for v in range(8))]
+        if (reg_offset, size) in mm_regs:
+            return (reg_offset, size)
+
     base_reg_and_size = arch.get_base_register(reg_offset, size=size)
     if resilient and base_reg_and_size is None:
         base_reg_and_size = arch.get_base_register(reg_offset, size=None)
@@ -588,13 +593,24 @@ def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement, stack_arg_o
             #   02 | 0x401ea0 | return Conv(32->64, vvar_279{stack -12});
             # in this case, vvar_279 is eliminatable.
             return True
+        if (
+            isinstance(def_stmt.src, Convert)
+            and isinstance(def_stmt.src.operand, VirtualVariable)
+            and def_stmt.src.operand.was_stack
+            and def_stmt.src.operand.stack_offset == vvar.stack_offset
+        ):
+            # special case: FP narrowing at the same stack slot, e.g.:
+            #   vvar_48{s-40|8b} = Conv(80F->64F, vvar_47{s-40|10b})
+            # This arises from an x87 fstpl that narrows a long double stack slot to
+            # double.  It is a compiler-generated temporary and safe to propagate.
+            return True
     return False
 
 
 def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
-    if (  # noqa: SIM103
+    if (
         vvar.was_stack
         and isinstance(def_stmt, Assignment)
         and isinstance(def_stmt.src, VirtualVariable)
@@ -613,6 +629,38 @@ def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> b
         #   01 | 0x401e98 | vvar_279{stack -12} = vvar_277{stack -12}
         #   02 | 0x401ea0 | return Conv(32->64, vvar_279{stack -12});
         # in this case, vvar_279 is eliminatable.
+        return True
+    # FP narrowing at the same stack slot: vvar_d{s-N|8b} = Conv(fp, vvar_ld{s-N|10b})
+    # arises from x87 fstpl narrowing a long double stack slot to a double.
+    if (
+        vvar.was_stack
+        and isinstance(def_stmt, Assignment)
+        and isinstance(def_stmt.src, Convert)
+        and isinstance(def_stmt.src.operand, VirtualVariable)
+        and def_stmt.src.operand.was_stack
+        and def_stmt.src.operand.stack_offset == vvar.stack_offset
+    ):
+        return True
+    # Extract reading halves of a merged double *parameter* (i386 cdecl O0
+    # pattern).  Restricted to base.was_parameter so it doesn't match struct
+    # field extracts (whose base is typically a stack vvar of a recovered
+    # struct), which must be preserved for struct-literal recovery.
+    if (
+        vvar.was_stack
+        and isinstance(def_stmt, Assignment)
+        and isinstance(def_stmt.src, Extract)
+        and isinstance(def_stmt.src.base, VirtualVariable)
+        and def_stmt.src.base.was_parameter
+    ):
+        return True
+    # Direct copy of a *parameter* vvar to a local stack slot (compiler spill
+    # of a coalesced double parameter).  Restricted to was_parameter only.
+    if (
+        vvar.was_stack
+        and isinstance(def_stmt, Assignment)
+        and isinstance(def_stmt.src, VirtualVariable)
+        and def_stmt.src.was_parameter
+    ):
         return True
     return False
 

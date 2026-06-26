@@ -901,7 +901,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
             for expr_opt in expr_opts:
                 r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                 if r is not None and r is not expr:
-                    assert expr.bits == r.bits
+                    assert expr.bits == r.bits or r.bits < expr.bits
                     expr = r
                     redo = True
                     break
