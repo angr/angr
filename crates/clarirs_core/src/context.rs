@@ -12,6 +12,23 @@ use crate::{
     prelude::*,
 };
 
+/// The hash a node is interned under: type, op (which folds in child hashes),
+/// then annotations. Shared so construction and algorithms that need a node's
+/// key without building it (e.g. `excavate_ite`) agree.
+pub(crate) fn structural_hash(
+    ast_type: AstType,
+    op: &AstOp<'_>,
+    annotations: &BTreeSet<Annotation>,
+) -> u64 {
+    let mut hasher = AHasher::default();
+    ast_type.hash(&mut hasher);
+    op.hash(&mut hasher);
+    for a in annotations {
+        a.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
 /// An interned string that can be cloned cheaply and compared by pointer equality.
 /// This is backed by an Arc<str> so cloning only increments a reference count.
 #[derive(Clone, Debug, Eq)]
@@ -85,6 +102,7 @@ pub struct Context<'c> {
     pub(crate) ast_cache: AstCache<'c>,
     pub(crate) simplification_cache: AstCache<'c>,
     pub(crate) excavate_ite_cache: AstCache<'c>,
+    pub(crate) excavate_ite_distribute_cache: AstCache<'c>,
     string_interner: RwLock<HashMap<Arc<str>, Arc<str>>>,
 }
 
@@ -133,6 +151,7 @@ impl Context<'_> {
         self.ast_cache.drop(hash);
         self.simplification_cache.drop(hash);
         self.excavate_ite_cache.drop(hash);
+        self.excavate_ite_distribute_cache.drop(hash);
     }
 }
 
@@ -154,14 +173,7 @@ impl<'c> AstFactory<'c> for Context<'c> {
         // types; this also provides domain separation in the hash so that
         // structurally-identical ops of different sorts hash differently.
         let ast_type = op.infer_type();
-
-        let mut hasher = AHasher::default();
-        ast_type.hash(&mut hasher);
-        op.hash(&mut hasher);
-        for a in &annotations {
-            a.hash(&mut hasher);
-        }
-        let hash = hasher.finish();
+        let hash = structural_hash(ast_type, &op, &annotations);
 
         self.ast_cache.get_or_insert::<ClarirsError>(hash, || {
             Ok(Arc::new(AstNode::new(

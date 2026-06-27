@@ -3,19 +3,12 @@
 
 use crate::{ast::op::AstOp, prelude::*};
 
-/// Reconstructs a node from its operation and transformed children.
-///
-/// Leaf nodes are returned as-is. Non-leaf nodes are rebuilt by replacing the
-/// op's children with the transformed ones and re-interning via the context;
-/// the node's type is re-inferred from the (same-typed) children.
-pub fn reconstruct_node<'c>(
-    ctx: &'c Context<'c>,
-    ast: &AstRef<'c>,
-    children: &[AstRef<'c>],
-) -> Result<AstRef<'c>, ClarirsError> {
+/// Rebuilds `ast`'s op with `children` substituted in, without interning.
+/// Returns `None` for leaves. The structural half of [`reconstruct_node`].
+pub fn rebuild_op<'c>(ast: &AstRef<'c>, children: &[AstRef<'c>]) -> Option<AstOp<'c>> {
     let c = |i: usize| children[i].clone();
-    let op = match ast.op() {
-        // Leaves have no children and are returned unchanged.
+    Some(match ast.op() {
+        // Leaves have no children to substitute.
         AstOp::BoolS(..)
         | AstOp::BoolV(..)
         | AstOp::BVS(..)
@@ -23,7 +16,7 @@ pub fn reconstruct_node<'c>(
         | AstOp::FPS(..)
         | AstOp::FPV(..)
         | AstOp::StringS(..)
-        | AstOp::StringV(..) => return Ok(ast.clone()),
+        | AstOp::StringV(..) => return None,
 
         // N-ary
         AstOp::And(..) => AstOp::And(children.to_vec()),
@@ -100,6 +93,21 @@ pub fn reconstruct_node<'c>(
         AstOp::FpFP(..) => AstOp::FpFP(c(0), c(1), c(2)),
         AstOp::StrSubstr(..) => AstOp::StrSubstr(c(0), c(1), c(2)),
         AstOp::StrReplace(..) => AstOp::StrReplace(c(0), c(1), c(2)),
-    };
-    ctx.make_ast(op)
+    })
+}
+
+/// Reconstructs a node from its operation and transformed children.
+///
+/// Leaf nodes are returned as-is. Non-leaf nodes are rebuilt by replacing the
+/// op's children with the transformed ones and re-interning via the context;
+/// the node's type is re-inferred from the (same-typed) children.
+pub fn reconstruct_node<'c>(
+    ctx: &'c Context<'c>,
+    ast: &AstRef<'c>,
+    children: &[AstRef<'c>],
+) -> Result<AstRef<'c>, ClarirsError> {
+    match rebuild_op(ast, children) {
+        Some(op) => ctx.make_ast(op),
+        None => Ok(ast.clone()),
+    }
 }
