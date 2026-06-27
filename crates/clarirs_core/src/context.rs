@@ -102,7 +102,6 @@ pub struct Context<'c> {
     pub(crate) ast_cache: AstCache<'c>,
     pub(crate) simplification_cache: AstCache<'c>,
     pub(crate) excavate_ite_cache: AstCache<'c>,
-    pub(crate) excavate_ite_distribute_cache: AstCache<'c>,
     string_interner: RwLock<HashMap<Arc<str>, Arc<str>>>,
 }
 
@@ -151,7 +150,6 @@ impl Context<'_> {
         self.ast_cache.drop(hash);
         self.simplification_cache.drop(hash);
         self.excavate_ite_cache.drop(hash);
-        self.excavate_ite_distribute_cache.drop(hash);
     }
 }
 

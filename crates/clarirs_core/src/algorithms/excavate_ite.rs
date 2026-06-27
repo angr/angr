@@ -57,7 +57,7 @@ fn excavate_node<'c>(
 
     let op = rebuild_op(ast, children).expect("a node being distributed is not a leaf");
     let key = structural_hash(op.infer_type(), &op, &BTreeSet::new());
-    if let Some(cached) = ctx.excavate_ite_distribute_cache.get(&key) {
+    if let Some(cached) = ctx.excavate_ite_cache.get(&key) {
         return Ok(cached);
     }
 
@@ -72,7 +72,7 @@ fn excavate_node<'c>(
     let else_branch = excavate_node(ast, &branch)?;
     let result = ctx.ite(cond, then_branch, else_branch)?;
 
-    ctx.excavate_ite_distribute_cache.insert(key, &result);
+    ctx.excavate_ite_cache.insert(key, &result);
     Ok(result)
 }
 
