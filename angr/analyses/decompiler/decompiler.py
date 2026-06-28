@@ -881,6 +881,10 @@ class Decompiler(Analysis):
         global_variables = self.kb.variables["global"]
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type == SymbolType.TYPE_OBJECT:
+                # do not recreate a global variable that already exists; otherwise we would discard types inferred for
+                # it during earlier decompilations (global type inference accumulates across functions).
+                if global_variables.get_global_variables(symbol.rebased_addr):
+                    continue
                 ident = global_variables.next_variable_ident("global")
                 variable = SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident)
                 variable.renamed = True
