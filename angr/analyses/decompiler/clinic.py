@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard
 
 import capstone
 import networkx
+from cle import SymbolType
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
@@ -2691,6 +2692,9 @@ class Clinic(Analysis, Serializable):
         tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
+        # seed known global object boundaries so that variable recovery can group accesses that fall inside the same
+        # global object (e.g. struct members) instead of splitting them apart.
+        self._seed_global_variables(tmp_kb)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -2730,6 +2734,24 @@ class Clinic(Analysis, Serializable):
                 if pushed is not None:
                     for tv in vr.var_to_typevars[variable]:
                         groundtruth[tv] = pushed
+
+        # use previously-inferred aggregate (struct) types of global variables as ground truth so that every function
+        # that touches a global agrees on its layout. Only structs are pinned: they are the highest-confidence result
+        # and pinning scalar/array/pointer types could prevent a later function from discovering a richer layout.
+        persisted_globals = self.kb.variables["global"]
+        for variable, tvs in vr.var_to_typevars.items():
+            if not isinstance(variable, SimMemoryVariable) or isinstance(variable, SimStackVariable):
+                continue
+            if variable.addr is None:
+                continue
+            existing = persisted_globals.get_global_variables(variable.addr)
+            if not existing:
+                continue
+            persisted_ty = persisted_globals.get_variable_type(next(iter(existing)))
+            unwrapped = persisted_ty.ty if isinstance(persisted_ty, TypeRef) else persisted_ty
+            if isinstance(unwrapped, SimStruct):
+                for tv in tvs:
+                    groundtruth[tv] = persisted_ty
 
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
@@ -2802,6 +2824,9 @@ class Clinic(Analysis, Serializable):
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
                 self._unify_callee_argument_structs(vr, var_manager, arg_vvars)
                 self._register_referenced_union_structs(var_manager, vr)
+                # persist inferred global variable types into the project knowledge base so that they accumulate across
+                # functions and stay consistent throughout the decompilation.
+                self._persist_global_variable_types(tmp_kb)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise
@@ -3420,6 +3445,71 @@ class Clinic(Analysis, Serializable):
                 new_args, proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic
             ).with_arch(self.project.arch)
 
+    def _seed_global_variables(self, var_kb) -> None:
+        """
+        Seed the global variable manager of ``var_kb`` with the boundaries of known global data objects, so that
+        variable recovery groups accesses landing inside the same object (e.g. struct members) instead of creating one
+        synthetic global per accessed address.
+
+        Boundaries are taken from the object symbols of the main loaded object. Previously-inferred types are not copied
+        here; they are supplied to type inference as ground truth in :meth:`_recover_and_link_variables`.
+        """
+        global_manager = var_kb.variables["global"]
+
+        for symbol in self.project.loader.main_object.symbols:
+            if symbol.type != SymbolType.TYPE_OBJECT or not symbol.size:
+                continue
+            addr = symbol.rebased_addr
+            if global_manager.get_global_variables(addr):
+                continue
+            variable = SimMemoryVariable(
+                addr, symbol.size, name=symbol.name, ident=global_manager.next_variable_ident("global")
+            )
+            variable.renamed = True
+            global_manager.set_variable("global", addr, variable)
+
+    @staticmethod
+    def _global_type_rank(ty: SimType | None) -> int:
+        """
+        Rank inferred global types so that, when accumulating across functions, the most informative type wins.
+        """
+        if ty is None or isinstance(ty, SimTypeBottom):
+            return 0
+        inner = ty.ty if isinstance(ty, TypeRef) else ty
+        if isinstance(inner, SimStruct):
+            return 4
+        if isinstance(inner, SimTypeArray):
+            return 3
+        if isinstance(inner, SimTypePointer):
+            return 2
+        return 1
+
+    def _persist_global_variable_types(self, var_kb) -> None:
+        """
+        Copy inferred global variable types from ``var_kb`` into the project knowledge base, keeping the most
+        informative type seen so far for each global object (matched by address).
+        """
+        source = var_kb.variables["global"]
+        persisted = self.kb.variables["global"]
+
+        for var, ty in source.variable_to_types.items():
+            if not isinstance(var, SimMemoryVariable) or isinstance(var, SimStackVariable):
+                continue
+            if var.addr is None or ty is None or isinstance(ty, SimTypeBottom):
+                continue
+            existing_vars = persisted.get_global_variables(var.addr)
+            if existing_vars:
+                target = next(iter(existing_vars))
+                if self._global_type_rank(ty) <= self._global_type_rank(persisted.get_variable_type(target)):
+                    continue
+            else:
+                target = SimMemoryVariable(
+                    var.addr, var.size, name=var.name, ident=persisted.next_variable_ident("global")
+                )
+                target.renamed = var.renamed
+                persisted.set_variable("global", var.addr, target)
+            persisted.set_variable_type(target, ty, name=ty.name if isinstance(ty, SimStruct) else None)
+
     def _set_expr_variable(self, expr, variable, offset) -> None:
         self.variable_map.set_variable(expr, variable, offset)
 
@@ -3459,7 +3549,10 @@ class Clinic(Analysis, Serializable):
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
                             var = _pick_var(variables)
-                            self._set_store_variable(stmt, var, 0)
+                            # the store may target a member in the middle of a wider global object (e.g. a struct
+                            # field); record the offset within the object so the field access renders correctly.
+                            field_offset = stmt.addr.value - var.addr if var.addr is not None else 0
+                            self._set_store_variable(stmt, var, field_offset)
                     else:
                         self._link_variables_on_expr(
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr
@@ -3674,7 +3767,10 @@ class Clinic(Analysis, Serializable):
                             global_vars = {global_var}
                 if global_vars:
                     global_var = _pick_var(global_vars)
-                    self._set_reference_variable(expr, global_var, 0)
+                    # the constant may point into the middle of a wider global object (e.g. a struct member); record the
+                    # offset within the object so that the code generator can emit the correct field/element access.
+                    field_offset = expr.value_int - global_var.addr if global_var.addr is not None else 0
+                    self._set_reference_variable(expr, global_var, field_offset)
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
