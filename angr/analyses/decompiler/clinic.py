@@ -1394,25 +1394,6 @@ class Clinic(Analysis):
         return converted
 
     def _convert_vex(self, block):
-        if block.vex.jumpkind not in {"Ijk_Call", "Ijk_Boring", "Ijk_Ret"} and not block.vex.jumpkind.startswith(
-            "Ijk_Sys"
-        ):
-            # we don't support lifting this block. use a dummy block instead
-            dirty_expr = ailment.Expr.DirtyExpression(
-                self._ail_manager.next_atom,
-                f"Unsupported jumpkind {block.vex.jumpkind} at address {block.addr}",
-                [],
-                bits=0,
-            )
-            statements: list[ailment.Statement] = [
-                ailment.Stmt.DirtyStatement(
-                    self._ail_manager.next_atom(),
-                    dirty_expr,
-                    ins_addr=block.addr,
-                )
-            ]
-            return ailment.Block(block.addr, block.size, statements=statements)
-
         return ailment.IRSBConverter.convert(block.vex, self._ail_manager)
 
     @timethis
