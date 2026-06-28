@@ -13,7 +13,14 @@ import angr
 from angr import ailment
 from angr.ailment.expression import BinaryOp, Const
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import CmpMaskedShift, ConstantDereferences, EagerEvaluation
+from angr.analyses.decompiler.peephole_optimizations import (
+    EXPR_OPTS,
+    CmpMaskedShift,
+    CmpSubConst,
+    ConstantDereferences,
+    EagerEvaluation,
+)
+from angr.analyses.decompiler.utils import peephole_optimize_expr
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -110,6 +117,82 @@ class TestPeepholeOptimizations(unittest.TestCase):
         conv = ailment.Expr.Convert(None, 32, 28, False, BinaryOp(None, "Shr", [x, Const(None, 4, 32)], False, bits=32))
         expr = BinaryOp(None, "CmpEQ", [conv, Const(None, 1 << 28, 32)], False, bits=1)
         assert opt.optimize(expr) is None
+
+
+    def test_cmp_sub_const(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = CmpSubConst(proj, proj.kb, manager)
+
+        x = ailment.Expr.Register(None, 0, 32)
+
+        # (x - 50) == 0  ==>  x == 50
+        sub = BinaryOp(None, "Sub", [x, Const(None, 50, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [sub, Const(None, 0, 32)], False, bits=1)
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
+        assert out.operands[0] is x
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 50
+
+        # (x - 1) != 1  ==>  x != 2
+        sub = BinaryOp(None, "Sub", [x, Const(None, 1, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpNE", [sub, Const(None, 1, 32)], False, bits=1)
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "CmpNE"
+        assert out.operands[0] is x
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 2
+
+        # (x + 5) == 12  ==>  x == 7
+        add = BinaryOp(None, "Add", [x, Const(None, 5, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [add, Const(None, 12, 32)], False, bits=1)
+        out = opt.optimize(expr)
+        assert out.operands[0] is x
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 7
+
+        # (50 - x) == 0  ==>  x == 50  (constant minus variable)
+        sub = BinaryOp(None, "Sub", [Const(None, 50, 32), x], False, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [sub, Const(None, 0, 32)], False, bits=1)
+        out = opt.optimize(expr)
+        assert out.operands[0] is x
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 50
+
+        # the compared constant on the left is also handled: 0 == (x - 7) => x == 7
+        sub = BinaryOp(None, "Sub", [x, Const(None, 7, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [Const(None, 0, 32), sub], False, bits=1)
+        out = opt.optimize(expr)
+        assert out.operands[0] is x
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 7
+
+        # ordered comparisons must NOT be folded (unsound under wraparound)
+        sub = BinaryOp(None, "Sub", [x, Const(None, 1, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpLT", [sub, Const(None, 0, 32)], False, bits=1)
+        assert opt.optimize(expr) is None
+
+        # both sides non-constant: nothing to fold
+        sub = BinaryOp(None, "Sub", [x, ailment.Expr.Register(None, 8, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [sub, Const(None, 0, 32)], False, bits=1)
+        assert opt.optimize(expr) is None
+
+    def test_cmp_sub_const_chain_canonicalization(self):
+        # Behavior-level regression: a strength-reduced sub/dec cascade
+        # ((x - 50) - 1) - 1 == 0  must canonicalize to the absolute  x == 52
+        # via the full expression peephole pipeline (running to a fixpoint).
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opts = [cls(proj, proj.kb, manager) for cls in EXPR_OPTS]
+
+        x = ailment.Expr.Register(None, 0, 32)
+        chain = BinaryOp(None, "Sub", [x, Const(None, 50, 32)], False, bits=32)
+        chain = BinaryOp(None, "Sub", [chain, Const(None, 1, 32)], False, bits=32)
+        chain = BinaryOp(None, "Sub", [chain, Const(None, 1, 32)], False, bits=32)
+        expr = BinaryOp(None, "CmpEQ", [chain, Const(None, 0, 32)], False, bits=1)
+
+        out = peephole_optimize_expr(expr, opts)
+        assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
+        assert out.operands[0] is x, f"expected bare register on lhs, got {out.operands[0]}"
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 52, (
+            f"expected x == 52, got {out}"
+        )
 
 
 if __name__ == "__main__":
