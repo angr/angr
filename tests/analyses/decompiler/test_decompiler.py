@@ -3952,6 +3952,25 @@ class TestDecompiler(unittest.TestCase):
         assert " ^ " not in d.codegen.text
 
     @structuring_algo("sailr")
+    def test_win_security_cookie_removal_with_interleaved_ip_writes(self, decompiler_options=None):
+        # The /GS security-cookie init idiom (load __security_cookie; xor with frame; store to stack) can be
+        # interleaved with program-counter (rip) register writes. WinStackCanarySimplifier must skip those
+        # interleaved IP writes when matching the idiom.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
+        )
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        f = cfg.kb.functions[0x180036940]  # GetAndSendSigningInfo
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        print_decompilation_result(d)
+
+        assert d.codegen is not None
+        # the /GS cookie load/xor and the epilogue check call must be stripped
+        assert "_security_check_cookie" not in d.codegen.text
+        assert "security_cookie" not in d.codegen.text
+
+    @structuring_algo("sailr")
     def test_ite_region_converter_missing_break_statement(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/4574
         bin_path = os.path.join(test_location, "x86_64", "ite_region_converter_missing_breaks")
