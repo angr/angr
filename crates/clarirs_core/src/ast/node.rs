@@ -2,7 +2,7 @@ use std::{
     collections::BTreeSet,
     fmt::Debug,
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{Arc, atomic::AtomicU64},
 };
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 
 /// A node in an AST. A single node type serves every sort; the node caches its
 /// [`AstType`] so its sort can be queried in O(1) without inspecting the operation.
-#[derive(Eq, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct AstNode<'c> {
     op: AstOp<'c>,
     annotations: BTreeSet<Annotation>,
@@ -30,6 +30,9 @@ pub struct AstNode<'c> {
     symbolic: bool,
     #[serde(skip)]
     simplifiable: bool,
+    /// Hash of this node's simplified form (`0` = none), resolved via the AST cache.
+    #[serde(skip)]
+    pub(crate) simplified: AtomicU64,
 }
 
 impl Drop for AstNode<'_> {
@@ -55,6 +58,8 @@ impl PartialEq for AstNode<'_> {
         self.op == other.op && self.annotations == other.annotations
     }
 }
+
+impl Eq for AstNode<'_> {}
 
 impl<'c> HasContext<'c> for AstNode<'c> {
     fn context(&self) -> &'c Context<'c> {
@@ -94,6 +99,7 @@ impl<'c> AstNode<'c> {
             annotations,
             symbolic,
             simplifiable,
+            simplified: AtomicU64::new(0),
         }
     }
 

@@ -8,7 +8,7 @@ mod test_bool;
 #[cfg(test)]
 mod test_bv;
 
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 
 use crate::{cache::Cache, prelude::*};
 
@@ -131,20 +131,20 @@ fn simplify<'c>(
             || !state.expr.simplifiable();
         let should_simplify = !respect_annotations || !blocked;
         if should_simplify {
-            // Look up (or compute) the simplified form of this node, dispatching
-            // to the per-type simplifier. The result is memoized in the
-            // context's simplification cache so identical sub-expressions
-            // elsewhere in the tree hit the cache instead of re-simplifying.
-            let inner_result = {
-                let expr = &state.expr.clone();
-                expr.context()
-                    .simplification_cache
-                    .get_or_insert(state.expr.hash(), || match expr.ast_type() {
-                        AstType::Bool => bool::simplify_bool(&mut state),
-                        AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz),
-                        AstType::Float(_) => float::simplify_float(&mut state),
-                        AstType::String => string::simplify_string(&mut state),
-                    })
+            // Reuse the inline-cached simplified form if present (`0` = none;
+            // a dropped node resolves to a miss via the AST cache).
+            let cached = match state.expr.simplified.load(Ordering::Relaxed) {
+                0 => None,
+                hash => state.expr.context().ast_cache.get(&hash),
+            };
+            let inner_result = match cached {
+                Some(cached) => Ok(cached),
+                None => match state.expr.ast_type() {
+                    AstType::Bool => bool::simplify_bool(&mut state),
+                    AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz),
+                    AstType::Float(_) => float::simplify_float(&mut state),
+                    AstType::String => string::simplify_string(&mut state),
+                },
             };
             match inner_result {
                 Ok(result) => {
@@ -160,16 +160,11 @@ fn simplify<'c>(
                         .context()
                         .annotate(&result, relocatable_annotations)?;
 
-                    // Cache the mapping from the original expression to the
-                    // simplified result so that identical unsimplified
-                    // sub-expressions elsewhere in the tree get a cache hit.
-                    if state.expr.hash() != annotated.hash() {
-                        state
-                            .expr
-                            .context()
-                            .simplification_cache
-                            .insert(state.expr.hash(), &annotated);
-                    }
+                    // Cache the simplified form inline for shared sub-exprs.
+                    state
+                        .expr
+                        .simplified
+                        .store(annotated.as_ref().hash(), Ordering::Relaxed);
 
                     last_result = Some(annotated)
                 }

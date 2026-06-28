@@ -97,10 +97,8 @@ impl PartialOrd for InternedString {
 }
 
 #[derive(Debug, Default)]
-#[allow(dead_code)] // FIXME: reintroduce simplification cache
 pub struct Context<'c> {
     pub(crate) ast_cache: AstCache<'c>,
-    pub(crate) simplification_cache: AstCache<'c>,
     pub(crate) excavate_ite_cache: AstCache<'c>,
     string_interner: RwLock<HashMap<Arc<str>, Arc<str>>>,
 }
@@ -148,7 +146,6 @@ impl Context<'_> {
 
     pub fn drop_cache(&self, hash: u64) {
         self.ast_cache.drop(hash);
-        self.simplification_cache.drop(hash);
         self.excavate_ite_cache.drop(hash);
     }
 }
