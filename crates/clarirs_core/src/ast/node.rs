@@ -12,7 +12,7 @@ use crate::{
 
 /// A node in an AST. A single node type serves every sort; the node caches its
 /// [`AstType`] so its sort can be queried in O(1) without inspecting the operation.
-#[derive(Clone, Eq, serde::Serialize)]
+#[derive(Eq, serde::Serialize)]
 pub struct AstNode<'c> {
     op: AstOp<'c>,
     annotations: BTreeSet<Annotation>,
