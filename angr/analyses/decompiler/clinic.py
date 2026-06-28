@@ -1164,8 +1164,16 @@ class Clinic(Analysis):
                 continue
             attempted_funcs.add(target_func.addr)
 
+            # A call to a jmp_rax thunk (e.g. the Windows Control-Flow-Guard __guard_dispatch_icall dispatcher) is
+            # really an indirect call through rax; _rewrite_jump_rax_calls rewrites it as such.
+            is_indirect_call_thunk = target_func.info.get("jmp_rax", False) is True
+
             # case 0: the calling convention and prototype are available
-            if target_func.calling_convention is not None and target_func.prototype is not None:
+            if (
+                not is_indirect_call_thunk
+                and target_func.calling_convention is not None
+                and target_func.prototype is not None
+            ):
                 continue
 
             call_sites = []
