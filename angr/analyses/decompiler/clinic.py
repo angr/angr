@@ -78,6 +78,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
     SimTypeShort,
+    TypeRef,
 )
 from angr.sim_variable import (
     SimComboRegisterVariable,
@@ -118,6 +119,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
+from .struct_union import union_pointer_struct_types
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -2791,6 +2793,9 @@ class Clinic(Analysis, Serializable):
                     },
                 )
                 self.typehoon = tp
+                # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
+                # the combined type onto the caller-side value, and back-propagate it to the involved callees.
+                self._unify_callee_argument_structs(vr, var_manager)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise
@@ -2848,6 +2853,98 @@ class Clinic(Analysis, Serializable):
             self._cache.max_tv_id = vr.tv_manager.max_tv_id
 
         return tmp_kb
+
+    @staticmethod
+    def _pointee_struct(ty) -> SimStruct | None:
+        """Return the struct a pointer points to (resolving TypeRefs), or None if it is not a pointer-to-struct."""
+        if not isinstance(ty, SimTypePointer):
+            return None
+        pts_to = ty.pts_to
+        seen = set()
+        while isinstance(pts_to, TypeRef) and id(pts_to) not in seen:
+            seen.add(id(pts_to))
+            pts_to = pts_to.ty
+        return pts_to if isinstance(pts_to, SimStruct) else None
+
+    def _unify_callee_argument_structs(self, vr, var_manager) -> None:
+        """
+        Progressively unify partial struct layouts recovered for the same caller value across multiple callees.
+
+        For each caller value that is passed as a pointer argument to one or more callees, union the callee-side
+        argument layouts (plus the value's own inferred type) into a single struct, pin it onto the caller value, and
+        back-propagate the combined struct to the involved callees so subsequent decompilations stay consistent and
+        become progressively more complete.
+        """
+        observations = getattr(vr, "arg_struct_observations", None)
+        if not observations:
+            return
+        arch = self.project.arch
+        for variable, tvs in vr.var_to_typevars.items():
+            observed: list[SimType] = []
+            contributors: list[tuple[int, int]] = []
+            for tv in tvs:
+                for callee_addr, arg_idx, simtype in observations.get(tv, ()):
+                    observed.append(simtype)
+                    contributors.append((callee_addr, arg_idx))
+            if not observed:
+                continue
+
+            # include the value's own inferred type so caller-side fields are preserved in the union
+            current = var_manager.get_variable_type(variable)
+            candidates = list(observed)
+            if isinstance(current, SimTypePointer):
+                candidates.append(current)
+
+            union = union_pointer_struct_types(candidates, arch)
+            union_struct = self._pointee_struct(union)
+            if union_struct is None:
+                continue
+
+            # only synthesize a struct when there is genuine multi-field evidence; a single field at one offset is just
+            # a scalar pointer (e.g. a char*), and turning it into a struct would clobber better scalar-pointer types.
+            if len(union_struct.offsets) < 2:
+                continue
+
+            # only act when the union is strictly more detailed than what we already have for this value
+            current_struct = self._pointee_struct(current)
+            if current_struct is not None and len(current_struct.offsets) >= len(union_struct.offsets):
+                continue
+
+            # give the freshly-built unioned struct a stable, shared name (reserved in the project type store). We set
+            # the raw _name attribute because accessing SimStruct.name lazily materializes an anonymous repr.
+            name = self.kb.types.unique_type_name()
+            union_struct._name = name  # pylint:disable=protected-access
+            if name not in self.kb.types:
+                self.kb.types[name] = TypeRef(name, union_struct).with_arch(arch)
+
+            var_manager.set_variable_type(variable, union, all_unified=True)
+            registered = var_manager.get_variable_type(variable)
+            if isinstance(registered, SimTypePointer):
+                self._propagate_arg_struct_to_callees(contributors, registered)
+
+    def _propagate_arg_struct_to_callees(self, contributors: list[tuple[int, int]], union_ptr: SimTypePointer) -> None:
+        """Upgrade callee prototype argument types to the unioned struct when it is strictly more detailed."""
+        union_struct = self._pointee_struct(union_ptr)
+        if union_struct is None:
+            return
+        for callee_addr, arg_idx in set(contributors):
+            if not self.kb.functions.contains_addr(callee_addr):
+                continue
+            callee = self.kb.functions.get_by_addr(callee_addr)
+            proto = callee.prototype
+            if proto is None or arg_idx >= len(proto.args):
+                continue
+            # never override user-specified prototypes
+            if callee.prototype_source >= PrototypeSource.USER:
+                continue
+            existing_struct = self._pointee_struct(proto.args[arg_idx])
+            if existing_struct is not None and len(existing_struct.offsets) >= len(union_struct.offsets):
+                continue
+            new_args = list(proto.args)
+            new_args[arg_idx] = union_ptr
+            callee.prototype = SimTypeFunction(
+                new_args, proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic
+            ).with_arch(self.project.arch)
 
     def _set_expr_variable(self, expr, variable, offset) -> None:
         self.variable_map.set_variable(expr, variable, offset)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import networkx
 import pyvex
@@ -344,6 +344,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.delayed_type_constraints = None
         self.ret_val_size = None
         self.stack_offset_typevars: dict[int, TypeVariable] = {}
+        # records pointer/struct argument types observed at call sites, keyed by the type variable of the caller-side
+        # argument expression. Each entry is (callee_addr, arg_index, callee_arg_simtype). Used by the decompiler to
+        # union partial struct layouts recovered for the same value across multiple callees.
+        self.arg_struct_observations: defaultdict[TypeVariable, list[tuple[int, int, Any]]] = defaultdict(list)
 
         self._analyze()
 
