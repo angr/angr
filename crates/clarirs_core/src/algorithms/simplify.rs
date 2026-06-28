@@ -77,7 +77,7 @@ impl<'c> SimplifyState<'c> {
     /// missing, returns `MissingChildren` listing every missing index so the
     /// main simplify loop can schedule them in one batch. This is crucial for
     /// n-ary ops (like Concat) with many children: fetching them one at a
-    /// time causes quadratic re-runs of simplify_inner.
+    /// time causes quadratic re-runs of simplification.
     fn get_all_simplified(&self) -> Result<Vec<AstRef<'c>>, SimplifyError<'c>> {
         let missing: Vec<usize> = self
             .children
@@ -106,21 +106,6 @@ impl<'c> SimplifyState<'c> {
     }
 }
 
-fn simplify_inner<'c>(
-    state: &mut SimplifyState<'c>,
-    error_on_dbz: bool,
-) -> Result<AstRef<'c>, SimplifyError<'c>> {
-    let expr = &state.expr.clone();
-    expr.context()
-        .simplification_cache
-        .get_or_insert(state.expr.hash(), || match expr.ast_type() {
-            AstType::Bool => bool::simplify_bool(state),
-            AstType::BitVec(_) => bv::simplify_bv(state, error_on_dbz),
-            AstType::Float(_) => float::simplify_float(state),
-            AstType::String => string::simplify_string(state),
-        })
-}
-
 fn simplify<'c>(
     ast: &AstRef<'c>,
     respect_annotations: bool,
@@ -146,7 +131,21 @@ fn simplify<'c>(
             || !state.expr.simplifiable();
         let should_simplify = !respect_annotations || !blocked;
         if should_simplify {
-            let inner_result = simplify_inner(&mut state, error_on_dbz);
+            // Look up (or compute) the simplified form of this node, dispatching
+            // to the per-type simplifier. The result is memoized in the
+            // context's simplification cache so identical sub-expressions
+            // elsewhere in the tree hit the cache instead of re-simplifying.
+            let inner_result = {
+                let expr = &state.expr.clone();
+                expr.context()
+                    .simplification_cache
+                    .get_or_insert(state.expr.hash(), || match expr.ast_type() {
+                        AstType::Bool => bool::simplify_bool(&mut state),
+                        AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz),
+                        AstType::Float(_) => float::simplify_float(&mut state),
+                        AstType::String => string::simplify_string(&mut state),
+                    })
+            };
             match inner_result {
                 Ok(result) => {
                     let relocatable_annotations: Vec<Annotation> = state
@@ -199,8 +198,8 @@ fn simplify<'c>(
                         }
                     }
                     // All requested children are now cached; re-push the
-                    // state so simplify_inner will run again with children
-                    // available.
+                    // state so the simplification dispatch will run again with
+                    // children available.
                     work_stack.push(state);
                 }
                 Err(SimplifyError::ReRun(new_ast)) => {

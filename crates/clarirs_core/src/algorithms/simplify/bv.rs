@@ -1241,7 +1241,7 @@ pub(crate) fn simplify_bv<'c>(
         }
         AstOp::Concat(_) => {
             // Simplify all children in one batch. Fetching them one at a
-            // time would make simplify_inner re-run for every child and
+            // time would make simplification re-run for every child and
             // turn wide Concats into a quadratic cost.
             let simplified_args = state.get_all_simplified()?;
 
