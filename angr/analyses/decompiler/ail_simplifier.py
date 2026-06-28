@@ -2162,10 +2162,14 @@ class AILSimplifier(Analysis):
         dirty_vvar_ids = set()
         for bb in self.func_graph:
             for stmt in bb.statements:
+                # reg/tmp = ccall(...)
+                # we see tmps when it's used in a cycle;
+                # see binary ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95 function 0x18001722c
+                # block 0x18001724c
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
-                    and stmt.dst.was_reg
+                    and (stmt.dst.was_reg or stmt.dst.was_tmp)
                     and isinstance(stmt.src, (DirtyExpression, VEXCCallExpression))
                 ):
                     dirty_vvar_ids.add(stmt.dst.varid)
