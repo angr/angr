@@ -17,8 +17,6 @@ pub trait Cache<K, V> {
 
     fn insert(&self, key: K, value: &V);
 
-    fn drop(&self, key: K);
-
     fn get_or_insert<E>(&self, key: K, value_cv: impl FnOnce() -> Result<V, E>) -> Result<V, E> {
         if let Some(value) = self.get(&key) {
             return Ok(value);
@@ -35,10 +33,6 @@ impl<K, V> Cache<K, V> for () {
     }
 
     fn insert(&self, _key: K, _value: &V) {
-        // No-op
-    }
-
-    fn drop(&self, _key: K) {
         // No-op
     }
 }
@@ -60,10 +54,6 @@ impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
 
     fn insert(&self, key: K, value: &V) {
         self.0.write().unwrap().insert(key, value.clone());
-    }
-
-    fn drop(&self, key: K) {
-        self.0.write().unwrap().remove(&key);
     }
 }
 
@@ -90,10 +80,6 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         }
 
         inner.insert(key, Arc::downgrade(value));
-    }
-
-    fn drop(&self, key: u64) {
-        self.0.write().unwrap().remove(&key);
     }
 
     // Collision detection must recompute and compare on every call, even a cache

@@ -10,16 +10,26 @@ pub trait AstFactory<'c>: Sized {
     // Required methods
     fn intern_string(&self, s: impl AsRef<str>) -> InternedString;
 
-    /// The single node constructor. All other `make_*` helpers delegate here;
-    /// the node's type is inferred from the operation. The node gets exactly
-    /// `annotations`; relocatable annotations of children are NOT collected.
+    /// Intern a fully-constructed node into its canonical shared handle.
+    fn intern_ast(&'c self, node: AstNode<'c>) -> Result<AstRef<'c>, ClarirsError>;
+
+    /// The context that owns the nodes this factory builds.
+    fn context(&'c self) -> &'c Context<'c>;
+
+    // Provided methods
+
+    /// The single node constructor entry point all `make_*` helpers delegate to.
+    /// The node gets exactly `annotations`; relocatable annotations of children
+    /// are NOT collected.
     fn make_ast_exact(
         &'c self,
         op: AstOp<'c>,
         annotations: BTreeSet<Annotation>,
-    ) -> Result<AstRef<'c>, ClarirsError>;
-
-    // Provided methods
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        op.validate()?;
+        let ast_type = op.infer_type();
+        self.intern_ast(AstNode::new(self.context(), op, annotations, ast_type))
+    }
 
     /// Construct a node with `annotations` plus the relocatable annotations of
     /// the op's children, mirroring how operations propagate annotations.

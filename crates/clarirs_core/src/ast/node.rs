@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     ast::op::{AstOp, AstOpChildIter, AstType},
+    context::structural_hash,
     prelude::*,
 };
 
@@ -33,12 +34,6 @@ pub struct AstNode<'c> {
     /// Hash of this node's simplified form (`0` = none), resolved via the AST cache.
     #[serde(skip)]
     pub(crate) simplified: AtomicU64,
-}
-
-impl Drop for AstNode<'_> {
-    fn drop(&mut self) {
-        self.ctx.drop_cache(self.hash);
-    }
 }
 
 impl Debug for AstNode<'_> {
@@ -68,11 +63,11 @@ impl<'c> HasContext<'c> for AstNode<'c> {
 }
 
 impl<'c> AstNode<'c> {
+    /// Build a node, deriving its cached metadata including the structural hash.
     pub(crate) fn new(
         ctx: &'c Context<'c>,
         op: AstOp<'c>,
         annotations: BTreeSet<Annotation>,
-        hash: u64,
         ast_type: AstType,
     ) -> Self {
         let variables = op.variables();
@@ -88,6 +83,8 @@ impl<'c> AstNode<'c> {
                 .iter()
                 .any(|a| !a.eliminatable() && !a.relocatable()))
             && op.child_iter().all(|c| c.simplifiable());
+
+        let hash = structural_hash(ast_type, &op, &annotations);
 
         Self {
             op,

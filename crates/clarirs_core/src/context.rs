@@ -143,11 +143,6 @@ impl Context<'_> {
         interner.insert(Arc::clone(&arc), Arc::clone(&arc));
         InternedString(arc)
     }
-
-    pub fn drop_cache(&self, hash: u64) {
-        self.ast_cache.drop(hash);
-        self.excavate_ite_cache.drop(hash);
-    }
 }
 
 impl<'c> AstFactory<'c> for Context<'c> {
@@ -155,30 +150,14 @@ impl<'c> AstFactory<'c> for Context<'c> {
         self.intern_string(s)
     }
 
-    fn make_ast_exact(
-        &'c self,
-        op: AstOp<'c>,
-        annotations: BTreeSet<Annotation>,
-    ) -> Result<AstRef<'c>, ClarirsError> {
-        // Every construction funnels through here, so checking the op's child
-        // types in this one place gives the whole API runtime type checking.
-        op.validate()?;
+    fn context(&'c self) -> &'c Context<'c> {
+        self
+    }
 
-        // The node's type is inferred from the op and its children's cached
-        // types; this also provides domain separation in the hash so that
-        // structurally-identical ops of different sorts hash differently.
-        let ast_type = op.infer_type();
-        let hash = structural_hash(ast_type, &op, &annotations);
-
-        self.ast_cache.get_or_insert::<ClarirsError>(hash, || {
-            Ok(Arc::new(AstNode::new(
-                self,
-                op.clone(),
-                annotations.clone(),
-                hash,
-                ast_type,
-            )))
-        })
+    fn intern_ast(&'c self, node: AstNode<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        let hash = node.hash();
+        self.ast_cache
+            .get_or_insert::<ClarirsError>(hash, || Ok(Arc::new(node)))
     }
 }
 
