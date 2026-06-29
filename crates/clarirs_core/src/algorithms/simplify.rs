@@ -8,6 +8,7 @@ mod test_bool;
 #[cfg(test)]
 mod test_bv;
 
+use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};
 
 use crate::{cache::Cache, prelude::*};
@@ -148,17 +149,24 @@ fn simplify<'c>(
             };
             match inner_result {
                 Ok(result) => {
-                    let relocatable_annotations: Vec<Annotation> = state
-                        .expr
+                    let mut new_annotations: BTreeSet<Annotation> = result
                         .annotations()
                         .iter()
-                        .filter(|a| a.relocatable())
+                        .filter(|a| !a.relocatable())
                         .cloned()
                         .collect();
+                    new_annotations.extend(
+                        state
+                            .expr
+                            .annotations()
+                            .iter()
+                            .filter(|a| a.relocatable())
+                            .cloned(),
+                    );
                     let annotated = state
                         .expr
                         .context()
-                        .annotate(&result, relocatable_annotations)?;
+                        .make_ast_exact(result.op().clone(), new_annotations)?;
 
                     // Cache the simplified form inline for shared sub-exprs.
                     state
