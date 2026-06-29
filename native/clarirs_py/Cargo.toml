@@ -10,7 +10,7 @@ categories = { workspace = true }
 repository = { workspace = true }
 
 [dependencies]
-pyo3 = { version = "0.29.0", features = ["num-bigint"] }
+pyo3 = { version = "0.29.0", features = ["num-bigint", "abi3-py312"] }
 clarirs_core = { path = "../clarirs_core", features = ["runtime-checks"] }
 clarirs_num = { path = "../clarirs_num" }
 clarirs-vsa = { path = "../clarirs-vsa" }
@@ -22,6 +22,7 @@ dashmap = "6.2.1"
 
 [lib]
 name = "claripy"
+crate-type = ["cdylib"]
 
 [lints]
 workspace = true

@@ -23,7 +23,6 @@ dependencies = [
     "cachetools",
     "capstone==5.0.6",
     "cffi>=1.14.0",
-    "clarirs",
     "cle==9.2.223.dev0",
     "lmdb==2.1.1",
     "msgspec; implementation_name == 'cpython'",
@@ -102,6 +101,13 @@ target = "angr.rustylib"
 path = "native/angr/Cargo.toml"
 debug = false
 
+# claripy is the Python extension built from the vendored clarirs_py crate;
+# it builds an extension module named "claripy" and is shipped inside angr.
+[[tool.setuptools-rust.ext-modules]]
+target = "claripy"
+path = "native/clarirs_py/Cargo.toml"
+debug = false
+
 [tool.distutils.bdist_wheel]
 py_limited_api = "cp312"
 
@@ -114,9 +120,6 @@ archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
-# claripy is provided by the vendored clarirs sources (built with maturin);
-# the clarirs_py crate builds an extension module named "claripy".
-clarirs = { path = "native/clarirs_py" }
 
 [tool.ruff]
 line-length = 120
