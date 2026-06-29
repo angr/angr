@@ -1769,6 +1769,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         insn = block.capstone.insns[0]
                         if block.bytes == b"\xff\xe0":
                             func.info["jmp_rax"] = True
+                            self.kb.functions.add_key_func_addr("jmp_rax", func.addr)
                         elif (
                             insn.mnemonic == "jmp"
                             and insn.operands[0].type == capstone.x86.X86_OP_MEM
@@ -1789,12 +1790,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         == b"\xff\xe0"
                                     ):
                                         func.info["jmp_rax"] = True
+                                        self.kb.functions.add_key_func_addr("jmp_rax", func.addr)
                                 elif (
                                     len(func.block_addrs_set) == 2
                                     and func.get_block(jumpout_target).bytes == b"\xff\xe0"
                                 ):
                                     # check the second block and ensure it's jmp rax
                                     func.info["jmp_rax"] = True
+                                    self.kb.functions.add_key_func_addr("jmp_rax", func.addr)
 
         elif self.project.arch.name == "X86":
             func_block_count = self.kb.functions.get_func_block_count(func_addr)
@@ -2387,6 +2390,66 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if self.model.graph.has_edge(src_node, dst_node):
                     self.model.graph.remove_edge(src_node, dst_node)
 
+    def _trivial_jump_target(self, addr: int) -> int | None:
+        """
+        If the function at ``addr`` consists of a single instruction that unconditionally and directly jumps
+        somewhere (i.e. it "simply jumps to another function and does nothing else"), return the jump target
+        address; otherwise None.
+        """
+        try:
+            block = self.project.factory.block(addr)
+            # accessing .instructions / .vex triggers lazy lifting, which may raise -- keep it inside the try
+            if block.instructions != 1:
+                return None
+            vex = block.vex
+        except (SimMemoryError, SimTranslationError, SimEngineError):
+            return None
+        if vex.jumpkind != "Ijk_Boring":
+            return None
+        next_expr = vex.next
+        if isinstance(next_expr, pyvex.expr.Const):
+            return next_expr.con.value
+        return None
+
+    def _propagate_key_func_info_to_jump_thunks(self) -> None:
+        """
+        Copy the ``info`` metadata of every key function onto any function that is a trivial jump thunk to it.
+        """
+        functions = self.kb.functions
+
+        # Seed from the cached key-function address map (no Function deserialization).
+        key_func_addrs: set[int] = set()
+        for addrs in functions.get_key_func_type_and_addrs().values():
+            key_func_addrs |= addrs
+        if not key_func_addrs:
+            return
+
+        # Only single-block functions can be a trivial single-instruction jump thunk. Pull their addresses from the
+        # cached block-count map instead of materializing every Function.
+        single_block_addrs = functions.get_func_addr_with_block_count(1)
+        if not single_block_addrs:
+            return
+
+        # Fixpoint: a thunk that inherits key-function markers can itself be the target of another thunk.
+        changed = True
+        rounds = 0
+        while changed and rounds < 8:
+            changed = False
+            rounds += 1
+            for func_addr in single_block_addrs:
+                if func_addr in key_func_addrs:
+                    continue
+                target = self._trivial_jump_target(func_addr)
+                if target is None or target not in key_func_addrs:
+                    continue
+                src_info = functions.get_by_addr(target, meta_only=True).info
+                func = functions.get_by_addr(func_addr)
+                for key, value in src_info.items():
+                    if key not in func.info:
+                        func.info[key] = value
+                key_func_addrs.add(func_addr)
+                changed = True
+
     def _post_analysis(self):
         self.stage = "Analysis (Stage 2)"
 
@@ -2411,6 +2474,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._remove_redundant_overlapping_blocks(function_alignment=4, is_arm=True)
 
         self._updated_nonreturning_functions = set()
+
+        # Propagate special metadata from key functions to trivial jump thunks that target them.
+        self._propagate_key_func_info_to_jump_thunks()
+
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
         self._calculate_progress_and_notify(skip_percentage=True)

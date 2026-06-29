@@ -1411,12 +1411,29 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         self._func_block_counts[addr] = count
 
+    def get_func_addr_with_block_count(self, block_count: int) -> set[K]:
+        """
+        Get the addresses of all functions that have exactly ``block_count`` blocks.
+
+        :param block_count: The number of blocks to match.
+        :return:            The set of matching function addresses.
+        """
+        return {addr for addr, count in self._func_block_counts.items() if count == block_count}
+
     #
     # Key functions
     #
 
     def get_key_func_addrs(self, func_type: str) -> set[K]:
         return self._key_func_addrs.get(func_type, set())
+
+    def get_key_func_type_and_addrs(self) -> dict[str, set[K]]:
+        """
+        Get all cached key functions grouped by key-function type (e.g. ``"alloca_probe"``, ``"jmp_rax"``).
+
+        :return:    A mapping from key-function type to the set of function addresses of that type.
+        """
+        return {func_type: set(addrs) for func_type, addrs in self._key_func_addrs.items()}
 
     def add_key_func_addr(self, func_type: str, addr: K) -> None:
         self._key_func_addrs[func_type].add(addr)
