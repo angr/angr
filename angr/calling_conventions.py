@@ -1745,7 +1745,9 @@ class SimCCSystemVAMD64(SimCC):
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
         if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
-            raise TypeError("Cannot lay out an opaque class")
+            # this is an opaque C++ class (likely unresolved); we cannot lay it out. so we must treat it as a native
+            # integer.
+            return ["INTEGER"]
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
             assert ty.size is not None
