@@ -22,10 +22,8 @@ from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
-BIN_PATH = (
-    os.path.join(
-        test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
-    )
+BIN_PATH = os.path.join(
+    test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
 )
 
 GUARD_DISPATCH_THUNK = 0x180124010
