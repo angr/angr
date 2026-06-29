@@ -77,7 +77,7 @@ class TestTypehoon(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "->field_0 = 10;" in dec.codegen.text
         assert "->field_4 = 20;" in dec.codegen.text
-        assert "->field_8 = 808464432;" in dec.codegen.text
+        assert "->field_8 = 0x30303030;" in dec.codegen.text
         assert "->field_c = 0;" in dec.codegen.text
 
     def test_function_call_argument_type_propagation(self):
