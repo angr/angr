@@ -8,7 +8,7 @@ requires-python = ">=3.12"
 dynamic = ["version"]
 
 [tool.maturin]
-manifest-path = "crates/clarirs_py/Cargo.toml"
+manifest-path = "Cargo.toml"
 
 [dependency-groups]
 dev = [

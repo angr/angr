@@ -116,7 +116,7 @@ cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
 # claripy is provided by the vendored clarirs sources (built with maturin);
 # the clarirs_py crate builds an extension module named "claripy".
-clarirs = { path = "native/clarirs" }
+clarirs = { path = "native/clarirs_py" }
 
 [tool.ruff]
 line-length = 120
