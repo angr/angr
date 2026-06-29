@@ -260,6 +260,10 @@ impl SimplificationAvoidanceAnnotation {
         false
     }
 
+    fn __reduce__<'py>(slf: PyRef<'py, Self>) -> (Bound<'py, PyType>, ()) {
+        (slf.py().get_type::<Self>(), ())
+    }
+
     fn __repr__(&self) -> &'static str {
         "SimplificationAvoidanceAnnotation()"
     }
@@ -345,6 +349,10 @@ impl EmptyStridedIntervalAnnotation {
         false
     }
 
+    fn __reduce__<'py>(slf: PyRef<'py, Self>) -> (Bound<'py, PyType>, ()) {
+        (slf.py().get_type::<Self>(), ())
+    }
+
     fn __repr__(&self) -> &'static str {
         "EmptyStridedIntervalAnnotation()"
     }
@@ -417,6 +425,10 @@ impl UninitializedAnnotation {
     #[classattr]
     fn eliminatable() -> bool {
         false
+    }
+
+    fn __reduce__<'py>(slf: PyRef<'py, Self>) -> (Bound<'py, PyType>, ()) {
+        (slf.py().get_type::<Self>(), ())
     }
 
     fn __repr__(&self) -> &'static str {
