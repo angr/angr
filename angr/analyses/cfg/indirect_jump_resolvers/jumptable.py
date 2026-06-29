@@ -1782,7 +1782,7 @@ class JumpTableResolver(IndirectJumpResolver):
             stride = 0
         else:
             try:
-                jumptable_si = claripy.backends.vsa.simplify(jumptable_addr)
+                jumptable_si = claripy.vsa.simplify(jumptable_addr)
                 si_annotation = jumptable_si.get_annotation(claripy.annotation.StridedIntervalAnnotation)
                 stride = si_annotation.stride if si_annotation is not None else 0
             except claripy.ClaripyError:
