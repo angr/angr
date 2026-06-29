@@ -3648,6 +3648,28 @@ class TestDecompiler(unittest.TestCase):
 
         assert 'DbgPrint("SIOCTL.SYS: ");' in d.codegen.text
 
+    @structuring_algo("sailr")
+    def test_decompiling_devinv_18001722c_ccall_dce(self, decompiler_options=None):
+        # Regression test for VEX condition-code (_ccall / cc_op / cc_dep1 / cc_dep2 / cc_ndep) leakage.
+        # sub_18001722C is a wide-char string assignment whose strlen loop uses an INC/DEC instruction. VEX
+        # regenerates the carry flag on every iteration via amd64g_calculate_rflags_c, producing a self-referential
+        # cc_ndep -> tmp -> cc_ndep cycle. Before the fix, the helper result was stored in a tmp vvar (not a register
+        # vvar), so the cyclic-dirty-vvar dead-code elimination never recognized the cycle and the cc_* feeder defs
+        # leaked into the output as named dead locals.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False, main_opts={"base_addr": 0x180000000})
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        f = proj.kb.functions[0x18001722C]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+
+        text = d.codegen.text
+        for token in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep", "_ccall"):
+            assert token not in text, f"leaked condition-code token {token!r} in decompilation output"
+
     def test_test_binop_ret_dup(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
