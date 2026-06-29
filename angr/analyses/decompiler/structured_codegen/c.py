@@ -65,7 +65,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils.bits import u2s
-from angr.utils.constants import is_alignment_mask
+from angr.utils.constants import should_use_hex
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from angr.utils.strings import decode_utf16_string
@@ -2264,7 +2264,8 @@ class CConstant(CExpression):
         if result is None:
             result = False
             if isinstance(self.value, int):
-                result = hex(self.value).endswith("00") or is_alignment_mask(self.value)
+                bits = self._type.size if self._type is not None else None
+                result = should_use_hex(self.value, bits)
         return result
 
     @fmt_hex.setter
