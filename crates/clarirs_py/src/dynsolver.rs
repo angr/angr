@@ -107,6 +107,15 @@ impl DynSolver {
         }
     }
 
+    /// Whether automatic replacement extraction is enabled. Only meaningful for
+    /// the Replacement solver; other solvers report `false`.
+    pub(crate) fn auto_replace(&self) -> bool {
+        match self {
+            DynSolver::Replacement(solver) => solver.auto_replace(),
+            _ => false,
+        }
+    }
+
     /// Clear all replacements (only supported for Replacement solver)
     pub(crate) fn clear_replacements(&mut self) -> Result<(), ClarirsError> {
         match self {

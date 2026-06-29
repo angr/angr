@@ -126,9 +126,14 @@ impl PySolver {
                     )),
                 ))),
                 DynSolver::Replacement(..) => {
-                    DynSolver::Replacement(ReplacementSolver::new(wrap_z3_cached(
-                        Z3Solver::new_with_options(&GLOBAL_CONTEXT, self.timeout, self.unsat_core),
-                    )))
+                    DynSolver::Replacement(ReplacementSolver::new_with_options(
+                        wrap_z3_cached(Z3Solver::new_with_options(
+                            &GLOBAL_CONTEXT,
+                            self.timeout,
+                            self.unsat_core,
+                        )),
+                        self.inner.auto_replace(),
+                    ))
                 }
                 DynSolver::Composite(..) => DynSolver::Composite(CompositeSolver::new(
                     &GLOBAL_CONTEXT,
@@ -884,12 +889,14 @@ impl PySolver {
         // Get the constraints
         let constraints = self.constraints(py)?;
 
-        // Return a tuple of (solver_type, constraints)
+        // Return a tuple of (solver_type, constraints, auto_replace). The last
+        // element is only meaningful for the Replacement solver.
         Ok(PyTuple::new(
             py,
             vec![
                 solver_type.into_bound_py_any(py)?,
                 constraints.into_bound_py_any(py)?,
+                self.inner.auto_replace().into_bound_py_any(py)?,
             ],
         )?)
     }
@@ -902,6 +909,12 @@ impl PySolver {
         // Extract solver type and constraints from the state tuple
         let solver_type: String = state.get_item(0)?.extract()?;
         let constraints: Vec<Bound<'py, Bool>> = state.get_item(1)?.extract()?;
+        // auto_replace was added later; default to claripy's `True` for older state.
+        let auto_replace: bool = state
+            .get_item(2)
+            .ok()
+            .and_then(|v| v.extract().ok())
+            .unwrap_or(true);
 
         // Create a new solver based on the type
         self.inner = match solver_type.as_str() {
@@ -920,9 +933,10 @@ impl PySolver {
                 wrap_solver(VSASolver::new(&GLOBAL_CONTEXT)),
                 wrap_z3_cached(Z3Solver::new_with_timeout(&GLOBAL_CONTEXT, self.timeout)),
             ))),
-            "Replacement" => DynSolver::Replacement(ReplacementSolver::new(wrap_z3_cached(
-                Z3Solver::new_with_timeout(&GLOBAL_CONTEXT, self.timeout),
-            ))),
+            "Replacement" => DynSolver::Replacement(ReplacementSolver::new_with_options(
+                wrap_z3_cached(Z3Solver::new_with_timeout(&GLOBAL_CONTEXT, self.timeout)),
+                auto_replace,
+            )),
             "Composite" => DynSolver::Composite(CompositeSolver::new(
                 &GLOBAL_CONTEXT,
                 wrap_z3_cached(Z3Solver::new_with_timeout(&GLOBAL_CONTEXT, self.timeout)),
@@ -1043,11 +1057,13 @@ pub struct PyReplacementSolver;
 #[pymethods]
 impl PyReplacementSolver {
     #[new]
-    fn new() -> Result<PyClassInitializer<Self>, ClaripyError> {
+    #[pyo3(signature = (auto_replace = true))]
+    fn new(auto_replace: bool) -> Result<PyClassInitializer<Self>, ClaripyError> {
         Ok(PyClassInitializer::from(PySolver {
-            inner: DynSolver::Replacement(ReplacementSolver::new(wrap_z3_cached(
-                Z3Solver::new_with_options(&GLOBAL_CONTEXT, None, false),
-            ))),
+            inner: DynSolver::Replacement(ReplacementSolver::new_with_options(
+                wrap_z3_cached(Z3Solver::new_with_options(&GLOBAL_CONTEXT, None, false)),
+                auto_replace,
+            )),
             timeout: None,
             unsat_core: false,
         })

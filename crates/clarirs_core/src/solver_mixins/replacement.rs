@@ -50,6 +50,12 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
         &self.inner
     }
 
+    /// Whether replacements are automatically extracted from `x == <concrete>`
+    /// style constraints as they are added.
+    pub fn auto_replace(&self) -> bool {
+        self.auto_replace
+    }
+
     pub fn inner_mut(&mut self) -> &mut S {
         &mut self.inner
     }
@@ -295,6 +301,30 @@ mod tests {
 
         assert!(solver.is_true(&x)?);
         assert!(!solver.is_false(&x)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_replacement_solver_auto_replace_disabled() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let inner = ConcreteSolver::new(&ctx);
+        // auto_replace = false: `x == 5` should NOT register a replacement.
+        let mut solver = ReplacementSolver::new_with_options(inner, false);
+        assert!(!solver.auto_replace());
+
+        let x = ctx.bvs("x", 8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+
+        let eq_constraint = ctx.eq_(&x, &five)?;
+        solver.add(&eq_constraint)?;
+
+        // No replacement was extracted, so the map stays empty.
+        assert!(solver.replacements().is_empty());
+
+        // Explicit replacements still work regardless of auto_replace.
+        solver.add_replacement(x.clone(), five.clone());
+        assert_eq!(solver.eval(&x)?, five);
 
         Ok(())
     }
