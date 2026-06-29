@@ -188,10 +188,16 @@ class WinStackCanarySimplifier(OptimizationPass):
         load_reg: int | None = None
         xor_stmt_idx: int | None = None
         xored_reg: int | None = None
+        xor_pos: int | None = None
 
         assert self._security_cookie_addr is not None
 
-        for idx, stmt in enumerate(block.statements):
+        # The cookie load / xor / store sequence may be interleaved with program-counter (e.g. rip)
+        # register writes such as `rip = <ins_addr>`. Skip those so that the idiom is matched against
+        # consecutive *relevant* statements instead of physically-adjacent ones.
+        relevant = [(idx, stmt) for idx, stmt in enumerate(block.statements) if not self._is_ip_write(stmt)]
+
+        for pos, (idx, stmt) in enumerate(relevant):
             # if we are lucky and things get folded into one statement:
             if (
                 isinstance(stmt, ailment.Stmt.Store)
@@ -211,7 +217,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 if load_addr == self._security_cookie_addr:
                     load_stmt_idx = idx
                     load_reg = stmt.dst.reg_offset
-            if load_stmt_idx is not None and load_reg is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1:
+            if load_stmt_idx is not None and load_reg is not None and xor_stmt_idx is None and idx > load_stmt_idx:
                 assert self.project.arch.bp_offset is not None
                 if (
                     isinstance(stmt, ailment.Stmt.Assignment)
@@ -222,7 +228,9 @@ class WinStackCanarySimplifier(OptimizationPass):
                 ):
                     xor_stmt_idx = idx
                     xored_reg = stmt.dst.reg_offset
-            if load_stmt_idx is not None and xor_stmt_idx is not None and idx == xor_stmt_idx + 1:
+                    xor_pos = pos
+                    continue
+            if load_stmt_idx is not None and xor_stmt_idx is not None and pos == xor_pos + 1:
                 if (
                     isinstance(stmt, ailment.Stmt.Store)
                     and (
@@ -242,7 +250,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 ):
                     return [load_stmt_idx, xor_stmt_idx, idx]
                 break
-            if load_stmt_idx is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1:  # noqa:SIM102
+            if load_stmt_idx is not None and xor_stmt_idx is None and idx > load_stmt_idx:  # noqa:SIM102
                 if isinstance(stmt, ailment.Stmt.Store) and (
                     isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
                     or (
@@ -262,6 +270,20 @@ class WinStackCanarySimplifier(OptimizationPass):
                         return [load_stmt_idx, idx]
                     break
         return None
+
+    def _is_ip_write(self, stmt) -> bool:
+        """
+        Return True if ``stmt`` is a write of a constant to the instruction-pointer (program-counter)
+        register, e.g. ``rip = <ins_addr>``. These statements are inserted between real instructions and
+        must be ignored when matching the security-cookie idiom.
+        """
+        return (
+            isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+            and stmt.dst.was_reg
+            and self.project.arch.ip_offset is not None
+            and stmt.dst.reg_offset == self.project.arch.ip_offset
+        )
 
     def _find_amd64_canary_storing_stmt(self, block, canary_value_stack_offset):
         load_stmt_idx = None
