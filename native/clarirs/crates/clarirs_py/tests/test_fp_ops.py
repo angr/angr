@@ -4,7 +4,6 @@ import unittest
 
 import claripy as claripy
 from claripy.fp import FSORT_FLOAT, RM
-import math
 
 
 class TestFPOperations(unittest.TestCase):
@@ -670,9 +669,7 @@ class TestFPOperations(unittest.TestCase):
         self.assertTrue(claripy.fpIsInf(result).is_true())
         self.assertTrue(claripy.fpLT(result, self.fp_zero).is_true())
 
-    @unittest.skip(
-        "claripy does not properly implement roundng modes for concrete values"
-    )
+    @unittest.skip("claripy does not properly implement roundng modes for concrete values")
     def test_rounding_modes(self):
         """Test operations with different rounding modes"""
         # Test addition with different rounding modes

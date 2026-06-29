@@ -40,8 +40,10 @@ def make_asts() -> list[Base]:
 
     return results
 
+
 def test_perf_ast():
     for i in range(1000):
         make_asts()
+
 
 test_perf_ast()

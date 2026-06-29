@@ -2,6 +2,7 @@
 Tests for simplification and solving using the VSA backend.
 This file tests the simplification and solving capabilities of the VSA backend.
 """
+
 from __future__ import annotations
 
 import unittest

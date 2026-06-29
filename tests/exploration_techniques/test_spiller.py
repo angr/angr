@@ -7,7 +7,6 @@ import gc
 import os
 import unittest
 
-
 import angr
 from angr.exploration_techniques.spiller import Spiller
 from tests.common import bin_location

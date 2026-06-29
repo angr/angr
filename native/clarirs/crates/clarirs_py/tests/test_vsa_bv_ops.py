@@ -2,6 +2,7 @@
 Tests for bit vector operations with the VSA backend.
 This file tests all BV operations supported by the VSA backend.
 """
+
 from __future__ import annotations
 
 import unittest

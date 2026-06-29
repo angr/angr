@@ -38,21 +38,21 @@ class TestBoolOperations(unittest.TestCase):
     def test_true(self):
         """Test creation of true Bool value"""
         self.assertTrue(self.true.symbolic is False)
-        self.assertTrue(self.true.op == 'BoolV')
+        self.assertTrue(self.true.op == "BoolV")
         self.assertTrue(self.true.is_true())
         self.assertFalse(self.true.is_false())
 
     def test_false(self):
         """Test creation of false Bool value"""
         self.assertTrue(self.false.symbolic is False)
-        self.assertTrue(self.false.op == 'BoolV')
+        self.assertTrue(self.false.op == "BoolV")
         self.assertTrue(self.false.is_false())
         self.assertFalse(self.false.is_true())
 
     def test_symbolic(self):
         """Test creation of symbolic Bool value"""
         self.assertTrue(self.bool_sym.symbolic is True)
-        self.assertTrue(self.bool_sym.op == 'BoolS')
+        self.assertTrue(self.bool_sym.op == "BoolS")
         self.assertFalse(self.bool_sym.is_true())
         self.assertFalse(self.bool_sym.is_false())
 
@@ -81,11 +81,11 @@ class TestBoolOperations(unittest.TestCase):
 
         # Test with symbolic values
         sym_and = claripy.And(self.bool_sym, self.true)
-        self.assertTrue(sym_and.op != 'BoolV')
+        self.assertTrue(sym_and.op != "BoolV")
 
         # Test multiple symbolic values
         sym_and2 = claripy.And(self.bool_sym, self.bool_sym2)
-        self.assertTrue(sym_and2.op != 'BoolV')
+        self.assertTrue(sym_and2.op != "BoolV")
 
     def test_or(self):
         """Test logical OR"""
@@ -98,11 +98,11 @@ class TestBoolOperations(unittest.TestCase):
 
         # Test with symbolic values
         sym_or = claripy.Or(self.bool_sym, self.false)
-        self.assertTrue(sym_or.op != 'BoolV')
+        self.assertTrue(sym_or.op != "BoolV")
 
         # Test multiple symbolic values
         sym_or2 = claripy.Or(self.bool_sym, self.bool_sym2)
-        self.assertTrue(sym_or2.op != 'BoolV')
+        self.assertTrue(sym_or2.op != "BoolV")
 
     def test_not(self):
         """Test logical NOT"""
@@ -115,7 +115,7 @@ class TestBoolOperations(unittest.TestCase):
 
         # Test symbolic values
         sym_not = claripy.Not(self.bool_sym)
-        self.assertTrue(sym_not.op != 'BoolV')
+        self.assertTrue(sym_not.op != "BoolV")
 
     def test_eq(self):
         """Test equality"""
@@ -165,7 +165,7 @@ class TestBoolOperations(unittest.TestCase):
 
         # Test with symbolic values
         sym_intersect = claripy.And(self.bool_sym, self.true)
-        self.assertTrue(sym_intersect.op != 'BoolV')
+        self.assertTrue(sym_intersect.op != "BoolV")
 
     def test_if(self):
         """Test if-then-else operation"""
@@ -179,7 +179,7 @@ class TestBoolOperations(unittest.TestCase):
         # Test symbolic condition
         sym_if = claripy.If(self.bool_sym, self.bv1, self.bv2)
         # For symbolic If, just check it's not a concrete BoolV
-        self.assertTrue(sym_if.op != 'BoolV')
+        self.assertTrue(sym_if.op != "BoolV")
 
         # Test optimization cases
         # Same true/false values
@@ -194,10 +194,10 @@ class TestBoolOperations(unittest.TestCase):
 
         # Symbolic boolean conditions
         result = claripy.If(self.bool_sym, self.true, self.false)
-        self.assertTrue(result.op != 'BoolV')
+        self.assertTrue(result.op != "BoolV")
 
         result = claripy.If(self.bool_sym, self.false, self.true)
-        self.assertTrue(result.op != 'BoolV')
+        self.assertTrue(result.op != "BoolV")
 
     def test_if_errors(self):
         """Test if-then-else error conditions"""
@@ -212,18 +212,12 @@ class TestBoolOperations(unittest.TestCase):
 
     def test_ite_cases(self):
         """Test ite_cases utility function"""
-        cases = [
-            (self.bool_sym == True, self.bv1),
-            (self.bool_sym2 == True, self.bv2)
-        ]
+        cases = [(self.bool_sym == True, self.bv1), (self.bool_sym2 == True, self.bv2)]
         result = claripy.ast.bool.ite_cases(cases, self.bv_sym)
-        self.assertTrue(result.op != 'BoolV')
+        self.assertTrue(result.op != "BoolV")
 
     def test_ite_dict(self):
         """Test ite_dict utility function"""
-        d = {
-            self.bv1: self.true,
-            self.bv2: self.false
-        }
+        d = {self.bv1: self.true, self.bv2: self.false}
         result = claripy.ast.bool.ite_dict(self.bv_sym, d, self.bool_sym)
-        self.assertTrue(result.op != 'BoolV')
+        self.assertTrue(result.op != "BoolV")
