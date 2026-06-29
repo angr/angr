@@ -64,12 +64,13 @@ impl<'c> HasContext<'c> for AstNode<'c> {
 
 impl<'c> AstNode<'c> {
     /// Build a node, deriving its cached metadata including the structural hash.
+    /// The node's [`AstType`] is inferred from the operation.
     pub(crate) fn new(
         ctx: &'c Context<'c>,
         op: AstOp<'c>,
         annotations: BTreeSet<Annotation>,
-        ast_type: AstType,
     ) -> Self {
+        let ast_type = op.infer_type();
         let variables = op.variables();
         let depth = 1 + op.child_iter().map(|c| c.depth()).max().unwrap_or(0);
         // Symbolic propagates from: having variables, the op itself being inherently

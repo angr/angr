@@ -27,8 +27,7 @@ pub trait AstFactory<'c>: Sized {
         annotations: BTreeSet<Annotation>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         op.validate()?;
-        let ast_type = op.infer_type();
-        self.intern_ast(AstNode::new(self.context(), op, annotations, ast_type))
+        self.intern_ast(AstNode::new(self.context(), op, annotations))
     }
 
     /// Construct a node with `annotations` plus the relocatable annotations of
