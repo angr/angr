@@ -135,7 +135,7 @@ class TestState(unittest.TestCase):
         merged, _, _ = a.merge(b, c)
         actual = merged.memory.load(addr, 4, endness="Iend_LE")
         expected = claripy.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)
-        assert actual.identical(expected)
+        assert claripy.vsa.identical(actual, expected)
 
     def test_state_merge_3way(self):
         a = SimState(arch="AMD64", mode="symbolic")
