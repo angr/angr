@@ -832,6 +832,49 @@ class VEXIRSBConverter(Converter):
                 )
             )
         else:
-            raise NotImplementedError("Unsupported jumpkind")
+            # We do not model this terminator (e.g. the block ends in a trap such as int3/ud2, or in some other
+            # jumpkind we do not lift). Emit a recognized intrinsic for known traps and a clean placeholder
+            # otherwise. We must NEVER leak the internal diagnostic string (e.g. "Unsupported jumpkind ...") into the
+            # AIL/C output: a raw diagnostic in emitted C is both non-compilable and a codegen-hygiene bug.
+            if irsb.jumpkind == "Ijk_SigTRAP":
+                # int3 -> MSVC __debugbreak() intrinsic. Model it as a side-effecting call to an opaque (dirty)
+                # intrinsic, mirroring the syscall path above.
+                target = DirtyExpression(manager.next_atom(), "__debugbreak", [], bits=manager.arch.bits)
+                call_expr = Call(
+                    manager.next_atom(),
+                    target,
+                    args=[],
+                    bits=None,
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=DEFAULT_STATEMENT,
+                )
+                statements.append(
+                    SideEffectStatement(
+                        manager.next_atom(),
+                        call_expr,
+                        ins_addr=manager.ins_addr,
+                        vex_block_addr=manager.block_addr,
+                        vex_stmt_idx=DEFAULT_STATEMENT,
+                    )
+                )
+            else:
+                # Unknown/unsupported jumpkind: an opaque dirty placeholder whose callee is a clean C identifier
+                # (never the internal diagnostic phrasing). The C backend renders this as a pseudo-intrinsic call.
+                dirty_expr = DirtyExpression(
+                    manager.next_atom(),
+                    f"__unsupported_jumpkind_{irsb.jumpkind}",
+                    [],
+                    bits=0,
+                )
+                statements.append(
+                    DirtyStatement(
+                        manager.next_atom(),
+                        dirty_expr,
+                        ins_addr=manager.ins_addr,
+                        vex_block_addr=manager.block_addr,
+                        vex_stmt_idx=DEFAULT_STATEMENT,
+                    )
+                )
 
         return Block(addr, irsb.size, statements=statements)

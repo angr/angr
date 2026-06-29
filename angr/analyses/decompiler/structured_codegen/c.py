@@ -1476,6 +1476,12 @@ class CFunctionCall(CExpression):
             yield func_name, self
         elif isinstance(self.callee_target, str):
             yield self.callee_target, self
+        elif isinstance(self.callee_target, CDirtyExpression):
+            # The call target is an opaque intrinsic/syscall placeholder (e.g. __debugbreak,
+            # syscall). Render just its name; the parentheses + args are emitted below. This
+            # also guarantees the internal "[D] ..." marker never reaches the output.
+            name = self.callee_target.intrinsic_name()
+            yield (name if name is not None else "/* unsupported call */"), self
         else:
             chunks = list(CExpression._try_c_repr_chunks(self.callee_target))
             if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
@@ -2555,6 +2561,8 @@ class CDirtyExpression(CExpression):
 
     __slots__ = ("dirty",)
 
+    _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
     def __init__(self, dirty, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
@@ -2563,11 +2571,27 @@ class CDirtyExpression(CExpression):
     def type(self):
         return SimTypeInt().with_arch(self.codegen.project.arch)
 
+    def intrinsic_name(self) -> str | None:
+        """Return the dirty callee if it is a clean C identifier, else None."""
+        callee = getattr(self.dirty, "callee", None)
+        if isinstance(callee, str) and self._IDENT_RE.fullmatch(callee):
+            return callee
+        return None
+
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
             return
-        yield str(self.dirty), None
+        # Never leak the internal "[D] ..." diagnostic repr into emitted C. Render a clean
+        # pseudo-intrinsic call when the callee is a valid C identifier, otherwise a safe
+        # placeholder comment.
+        name = self.intrinsic_name()
+        if name is not None:
+            operands = getattr(self.dirty, "operands", None) or []
+            args = ", ".join(repr(op).replace("[D] ", "") for op in operands)
+            yield f"{name}({args})", None
+        else:
+            yield "/* unsupported instruction */", None
 
 
 class CClosingObject:
