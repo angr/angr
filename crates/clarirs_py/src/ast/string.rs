@@ -44,7 +44,7 @@ impl PyAstString {
         } else {
             let this = Py::new(
                 py,
-                PyClassInitializer::from(Base::new_with_name(py, inner, name)).add_subclass(
+                PyClassInitializer::from(Base::new_with_name(py, inner, name)?).add_subclass(
                     PyAstString {
                         inner: inner.clone(),
                     },

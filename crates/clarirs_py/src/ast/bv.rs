@@ -48,7 +48,7 @@ impl BV {
         } else {
             let this = Bound::new(
                 py,
-                PyClassInitializer::from(Base::new_with_name(py, inner, name))
+                PyClassInitializer::from(Base::new_with_name(py, inner, name)?)
                     .add_subclass(Bits::new())
                     .add_subclass(BV {
                         inner: inner.clone(),

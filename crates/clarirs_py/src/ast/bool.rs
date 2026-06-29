@@ -50,9 +50,11 @@ impl Bool {
         } else {
             let this = Bound::new(
                 py,
-                PyClassInitializer::from(Base::new_with_name(py, inner, name)).add_subclass(Bool {
-                    inner: inner.clone(),
-                }),
+                PyClassInitializer::from(Base::new_with_name(py, inner, name)?).add_subclass(
+                    Bool {
+                        inner: inner.clone(),
+                    },
+                ),
             )?;
             let weakref = PyWeakrefReference::new(&this)?;
             PY_BOOL_CACHE.insert(inner.hash(), weakref.unbind());

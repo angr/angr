@@ -183,7 +183,7 @@ impl FP {
         } else {
             let this = Py::new(
                 py,
-                PyClassInitializer::from(Base::new_with_name(py, inner, name))
+                PyClassInitializer::from(Base::new_with_name(py, inner, name)?)
                     .add_subclass(Bits::new())
                     .add_subclass(FP {
                         inner: inner.clone(),
