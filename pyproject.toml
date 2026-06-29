@@ -23,7 +23,7 @@ dependencies = [
     "cachetools",
     "capstone==5.0.6",
     "cffi>=1.14.0",
-    "claripy==9.2.223.dev0",
+    "clarirs",
     "cle==9.2.223.dev0",
     "lmdb==2.1.1",
     "msgspec; implementation_name == 'cpython'",
@@ -113,8 +113,10 @@ angr-data = { git = "https://github.com/angr/angr-data.git", branch = "master" }
 archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
-claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
+# claripy is provided by the vendored clarirs sources (built with maturin);
+# the clarirs_py crate builds an extension module named "claripy".
+clarirs = { path = "native/clarirs" }
 
 [tool.ruff]
 line-length = 120

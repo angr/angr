@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["native/angr"]
+members = ["native/angr", "native/clarirs/crates/*"]
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
 
 [workspace.package]
 license = "BSD-2-Clause"
