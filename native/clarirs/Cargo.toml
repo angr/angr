@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "crates/clarirs_num",
+    "crates/clarirs_core",
+    "crates/clarirs_py",
+    "crates/clarirs_z3",
+    "crates/clarirs-vsa",
+]
+resolver = "2"
+
+[workspace.package]
+license = "BSD-2-Clause"
+readme = "README.md"
+keywords = ["clarirs", "smt", "z3", "solver"]
+categories = ["science", "math", "security"]
+repository = "https://github.com/twizmwazin/clarirs.git"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+
+[workspace.lints.clippy]
+all = "warn"
+cargo = "warn"
