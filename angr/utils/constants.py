@@ -47,8 +47,7 @@ def _max_consecutive_run(s: str, ch: str) -> int:
     for c in s:
         if c == ch:
             cur += 1
-            if cur > best:
-                best = cur
+            best = max(best, cur)
         else:
             cur = 0
     return best
