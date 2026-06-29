@@ -34,7 +34,3 @@ class TestCompositeUnsat(unittest.TestCase):
         self.assertTrue(solver.satisfiable())
         solver.add(claripy.BoolV(False))
         self.assertFalse(solver.satisfiable())
-
-
-if __name__ == "__main__":
-    unittest.main()

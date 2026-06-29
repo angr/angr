@@ -97,7 +97,3 @@ class TestVerbatimConstruction(unittest.TestCase):
         x = claripy.BVS("x", 64, explicit_name=True)
         expr = x + claripy.BVV(5, 64)
         self.assertEqual(pickle.loads(pickle.dumps(expr)).op, expr.op)
-
-
-if __name__ == "__main__":
-    unittest.main()

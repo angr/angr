@@ -208,7 +208,3 @@ class TestVSABoolOperations(unittest.TestCase):
         # like no solutions can be evaluated from it
         solutions = self.solver.eval(self.si_bottom, 100)
         self.assertEqual(len(solutions), 0)
-
-
-if __name__ == "__main__":
-    unittest.main()

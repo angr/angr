@@ -334,7 +334,3 @@ class TestStringOperations(unittest.TestCase):
         # Non-ASCII digits (like Arabic numerals) are considered valid digits by Z3
         result = StrIsDigit(claripy.StringV("١٢٣"))  # Arabic numerals
         self._check_equal(result, True)
-
-
-if __name__ == "__main__":
-    unittest.main()

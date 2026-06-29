@@ -62,7 +62,3 @@ class TestCanonicalize(unittest.TestCase):
         self.assertIs(returned, counter)
         # Two distinct variables consumed v0 and v1; next value is 2.
         self.assertEqual(next(counter), 2)
-
-
-if __name__ == "__main__":
-    unittest.main()

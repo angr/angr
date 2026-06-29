@@ -781,7 +781,3 @@ class TestFPOperations(unittest.TestCase):
         inf_bv = self.fp_inf.to_bv()
         neg_inf_bv = self.fp_neg_inf.to_bv()
         self.assertNotEqual(self.z3.eval(inf_bv, 1)[0], self.z3.eval(neg_inf_bv, 1)[0])
-
-
-if __name__ == "__main__":
-    unittest.main()

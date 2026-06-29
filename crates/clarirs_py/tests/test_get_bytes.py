@@ -266,7 +266,3 @@ class TestGetBytes(unittest.TestCase):
         self.assertEqual(sequential.get_bytes(1, 2).args[0], 0x0203)
         self.assertEqual(sequential.get_bytes(0, 3).args[0], 0x010203)
         self.assertEqual(sequential.get_bytes(1, 3).args[0], 0x020304)
-
-
-if __name__ == "__main__":
-    unittest.main()

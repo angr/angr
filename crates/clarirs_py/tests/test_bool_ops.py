@@ -227,7 +227,3 @@ class TestBoolOperations(unittest.TestCase):
         }
         result = claripy.ast.bool.ite_dict(self.bv_sym, d, self.bool_sym)
         self.assertTrue(result.op != 'BoolV')
-
-
-if __name__ == "__main__":
-    unittest.main()

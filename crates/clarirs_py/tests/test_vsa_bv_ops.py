@@ -965,7 +965,3 @@ class TestVSAPrecisionLoss(unittest.TestCase):
                 break
 
         self.assertTrue(found, "Result should contain some expected values after operations")
-
-
-if __name__ == "__main__":
-    unittest.main()

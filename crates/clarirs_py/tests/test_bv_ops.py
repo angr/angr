@@ -447,7 +447,3 @@ class TestBVOperations(unittest.TestCase):
         # Test with symbolic values
         sym_pos = +self.sym_x
         self._check_symbolic_evaluation(sym_pos, lambda solver: solver.satisfiable())
-
-
-if __name__ == "__main__":
-    unittest.main()

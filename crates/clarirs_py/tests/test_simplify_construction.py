@@ -29,7 +29,3 @@ class TestSimplifyConstruction(unittest.TestCase):
         hi = v.chop(8)[0]
         self.assertFalse(hi.symbolic)
         self.assertEqual(hi.concrete_value, 0xAA)
-
-
-if __name__ == "__main__":
-    unittest.main()

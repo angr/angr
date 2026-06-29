@@ -50,7 +50,3 @@ class TestUnknownAnnotationIdentity(unittest.TestCase):
     def test_same_object_is_stable(self):
         anno = KeyedAnnotation("a")
         self.assertEqual(self.base.annotate(anno).hash(), self.base.annotate(anno).hash())
-
-
-if __name__ == "__main__":
-    unittest.main()

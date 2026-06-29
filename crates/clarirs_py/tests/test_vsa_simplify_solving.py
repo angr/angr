@@ -310,7 +310,3 @@ class TestVSASimplificationAndSolving(unittest.TestCase):
             self.assertFalse(self.solver.solution(self.si_bottom, 0))  # Nothing is a solution
         except AssertionError:
             pass  # Skip if the assertion fails
-
-
-if __name__ == "__main__":
-    unittest.main()

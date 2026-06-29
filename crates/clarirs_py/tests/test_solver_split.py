@@ -51,7 +51,3 @@ class TestSolverSplit(unittest.TestCase):
         s.add(x > 0)
         s.add(x < 5)
         self.assertEqual(len(s.split()), 1)
-
-
-if __name__ == "__main__":
-    unittest.main()

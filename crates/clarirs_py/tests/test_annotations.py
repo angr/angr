@@ -183,7 +183,3 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         self.assertIsInstance(roundtripped, claripy.RegionAnnotation)
         self.assertEqual(roundtripped.region_id, "heap")
         self.assertEqual(roundtripped.region_base_addr, 0x20)
-
-
-if __name__ == "__main__":
-    unittest.main()
