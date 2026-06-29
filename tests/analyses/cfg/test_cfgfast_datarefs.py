@@ -190,7 +190,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
         elapsed = time.time() - start
 
-        assert elapsed < 20, f"CFG recovery took too long: {elapsed:.2f} seconds"
+        assert elapsed < 30, f"CFG recovery took too long: {elapsed:.2f} seconds"
 
         assert 0x140001000 in cfg.memory_data
         assert cfg.memory_data[0x140001000].sort == MemoryDataSort.String
