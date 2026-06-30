@@ -435,10 +435,7 @@ impl Tags {
     }
 
     fn set_str(&mut self, key: &str, v: String) {
-        match key {
-            "reg_name" => self.reg_name = Some(v),
-            _ => {}
-        }
+        if key == "reg_name" { self.reg_name = Some(v) }
     }
 
     fn set_int_list(&mut self, key: &str, v: Vec<i64>) {

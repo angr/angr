@@ -509,7 +509,7 @@ impl OIdent {
                 let t = obj.cast::<PyTuple>().map_err(|_| {
                     PyTypeError::new_err("COMBO_REGISTER oident must be a tuple of int")
                 })?;
-                Ok(Self::RegList(extract_reg_list(&t)?))
+                Ok(Self::RegList(extract_reg_list(t)?))
             }
             VirtualVariableCategory::PARAMETER => {
                 let t = obj.cast::<PyTuple>().map_err(|_| {
@@ -553,7 +553,7 @@ impl OIdent {
                                 "PARAMETER+COMBO_REGISTER inner payload must be a tuple of int",
                             )
                         })?;
-                        ParameterOIdent::ComboRegister(extract_reg_list(&tt)?)
+                        ParameterOIdent::ComboRegister(extract_reg_list(tt)?)
                     }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
@@ -1014,7 +1014,7 @@ impl AilExpression {
             return (true, new.clone());
         }
         let walk =
-            |child: &Box<AilExpression>| -> (bool, Box<AilExpression>) {
+            |child: &AilExpression| -> (bool, Box<AilExpression>) {
                 let (c, r) = child.replace_ail(old, new);
                 (c, Box::new(r))
             };
@@ -1509,7 +1509,7 @@ impl AilExpression {
             return true;
         }
         let any =
-            |children: &[&Box<AilExpression>]| children.iter().any(|c| c.has_atom_ail(atom, identity));
+            |children: &[&AilExpression]| children.iter().any(|c| c.has_atom_ail(atom, identity));
         let any_vec =
             |v: &[AilExpression]| v.iter().any(|c| c.has_atom_ail(atom, identity));
         match &self.inner {
@@ -1524,15 +1524,11 @@ impl AilExpression {
                 if addr.has_atom_ail(atom, identity) {
                     return true;
                 }
-                if let Some(g) = guard {
-                    if g.has_atom_ail(atom, identity) {
-                        return true;
-                    }
+                if let Some(g) = guard && g.has_atom_ail(atom, identity) {
+                    return true;
                 }
-                if let Some(a) = alt {
-                    if a.has_atom_ail(atom, identity) {
-                        return true;
-                    }
+                if let Some(a) = alt && a.has_atom_ail(atom, identity) {
+                    return true;
                 }
                 false
             }
@@ -1544,15 +1540,11 @@ impl AilExpression {
                 base, offset, value, ..
             } => any(&[base, offset, value]),
             ExprInner::Call { args, arg_vvars, .. } => {
-                if let Some(v) = args {
-                    if any_vec(v) {
-                        return true;
-                    }
+                if let Some(v) = args && any_vec(v) {
+                    return true;
                 }
-                if let Some(v) = arg_vvars {
-                    if any_vec(v) {
-                        return true;
-                    }
+                if let Some(v) = arg_vvars && any_vec(v) {
+                    return true;
                 }
                 false
             }
@@ -1562,15 +1554,11 @@ impl AilExpression {
                 if any_vec(operands) {
                     return true;
                 }
-                if let Some(g) = guard {
-                    if g.has_atom_ail(atom, identity) {
-                        return true;
-                    }
+                if let Some(g) = guard && g.has_atom_ail(atom, identity) {
+                    return true;
                 }
-                if let Some(m) = maddr {
-                    if m.has_atom_ail(atom, identity) {
-                        return true;
-                    }
+                if let Some(m) = maddr && m.has_atom_ail(atom, identity) {
+                    return true;
                 }
                 false
             }
@@ -1608,7 +1596,7 @@ impl AilExpression {
             self.header.bits,
             self.header.tags.clone(),
         );
-        let recurse = |child: &Box<AilExpression>| -> PyResult<Box<AilExpression>> {
+        let recurse = |child: &AilExpression| -> PyResult<Box<AilExpression>> {
             Ok(Box::new(child.deep_copy_ail(py, manager)?))
         };
         let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
@@ -1619,10 +1607,6 @@ impl AilExpression {
                 None => Ok(None),
                 Some(c) => Ok(Some(Box::new(c.deep_copy_ail(py, manager)?))),
             }
-        };
-        let dc_pyany = |obj: &Py<PyAny>| -> PyResult<Py<PyAny>> {
-            let copy_mod = py.import("copy")?;
-            Ok(copy_mod.call_method1("deepcopy", (obj,))?.unbind())
         };
         // Deep copy a CFGTarget: recursively deep-copy the inner expr.
         let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
@@ -2654,8 +2638,8 @@ impl Clone for Expression {
 /// Interned ``Py<int>`` objects for every ``ExpressionKind`` value.
 /// Built lazily on first ``Expression::wrap`` (which is always called
 /// under the GIL via PyO3); per-instance construction is then a
-/// single array index + ``clone_ref`` instead of an ``into_pyobject``
-/// + boundary trip. CPython interns small ints anyway, but PyO3
+/// single array index + ``clone_ref`` instead of an ``into_pyobject`` +
+/// boundary trip. CPython interns small ints anyway, but PyO3
 /// still pays the boundary on every call -- skipping that recovers
 /// the ~50-75 ms construction tax seen in the per-instance
 /// ``Py<int>`` cache.
@@ -3607,7 +3591,7 @@ impl Expression {
             ExprInner::Insert { value, .. } => {
                 let new = extract_ail(&new_value)?;
                 self.expr.header.cached_hash.clear();
-                *value = Box::new(new);
+                **value = new;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'value' on this Expression")),
@@ -3917,10 +3901,7 @@ impl Expression {
     ) -> PyResult<Option<crate::ailment::enums::VirtualVariableCategory>> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } => match oident {
-                OIdent::Parameter(p) => Ok(Some(p.inner_category())),
-                _ => Ok(None),
-            },
+            ExprInner::VirtualVariable { oident: OIdent::Parameter(p), .. } => Ok(Some(p.inner_category())),
             _ => Ok(None),
         }
     }
@@ -3930,10 +3911,7 @@ impl Expression {
     fn parameter_reg_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } => match oident {
-                OIdent::Parameter(ParameterOIdent::Register(v)) => Ok(Some(*v)),
-                _ => Ok(None),
-            },
+            ExprInner::VirtualVariable { oident: OIdent::Parameter(ParameterOIdent::Register(v)), .. } => Ok(Some(*v)),
             _ => Ok(None),
         }
     }
@@ -3943,10 +3921,7 @@ impl Expression {
     fn parameter_stack_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } => match oident {
-                OIdent::Parameter(ParameterOIdent::Stack(v)) => Ok(Some(*v)),
-                _ => Ok(None),
-            },
+            ExprInner::VirtualVariable { oident: OIdent::Parameter(ParameterOIdent::Stack(v)), .. } => Ok(Some(*v)),
             _ => Ok(None),
         }
     }
@@ -3956,16 +3931,8 @@ impl Expression {
     fn stack_offset(&self, py: Python<'_>) -> PyResult<i64> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident, .. } if self.was_stack() => match oident {
-                OIdent::Int(v) => Ok(*v),
-                _ => Err(PyTypeError::new_err("Is not a stack variable")),
-            },
-            ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => {
-                match oident {
-                    OIdent::Parameter(ParameterOIdent::Stack(v)) => Ok(*v),
-                    _ => Err(PyTypeError::new_err("Is not a stack variable")),
-                }
-            }
+            ExprInner::VirtualVariable { oident: OIdent::Int(v), .. } if self.was_stack() => Ok(*v),
+            ExprInner::VirtualVariable { oident: OIdent::Parameter(ParameterOIdent::Stack(v)), .. } if self.was_parameter() => Ok(*v),
             _ => Err(PyTypeError::new_err("Is not a stack variable")),
         }
     }
@@ -3978,21 +3945,14 @@ impl Expression {
                 offs.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
             PyTuple::new(py, items)
         };
-        if self.was_combo_reg() {
-            if let ExprInner::VirtualVariable { oident: OIdent::RegList(offs), .. } =
-                &self.expr.inner
-            {
-                return make_tuple(offs);
-            }
+        if self.was_combo_reg() && let ExprInner::VirtualVariable { oident: OIdent::RegList(offs), .. } = &self.expr.inner {
+            return make_tuple(offs);
         }
-        if self.was_parameter() {
-            if let ExprInner::VirtualVariable {
+        if self.was_parameter() && let ExprInner::VirtualVariable {
                 oident: OIdent::Parameter(ParameterOIdent::ComboRegister(offs)),
                 ..
-            } = &self.expr.inner
-            {
-                return make_tuple(offs);
-            }
+            } = &self.expr.inner {
+            return make_tuple(offs);
         }
         Err(PyTypeError::new_err("Is not a combo register"))
     }
@@ -4518,7 +4478,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::MultiStatementExpression { expr, .. } => {
                 self.expr.header.cached_hash.clear();
-                *expr = Box::new(ail);
+                **expr = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'expr' on this Expression")),
@@ -4615,7 +4575,7 @@ impl Expression {
             | ExprInner::Convert { operand, .. }
             | ExprInner::Reinterpret { operand, .. } => {
                 self.expr.header.cached_hash.clear();
-                *operand = Box::new(ail);
+                **operand = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'operand' on this Expression")),
@@ -4623,6 +4583,7 @@ impl Expression {
     }
 
     /// Convert.from_bits / Reinterpret.from_bits
+    #[allow(clippy::wrong_self_convention)]
     #[getter]
     fn from_bits(&self) -> PyResult<u32> {
         match &self.expr.inner {
@@ -4652,6 +4613,7 @@ impl Expression {
     }
 
     /// Convert.from_type / Reinterpret.from_type (different types -- Reinterpret is a String)
+    #[allow(clippy::wrong_self_convention)]
     #[getter]
     fn from_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
@@ -4742,7 +4704,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::Load { addr, .. } => {
                 self.expr.header.cached_hash.clear();
-                *addr = Box::new(ail);
+                **addr = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'addr' on this Expression")),
@@ -4808,7 +4770,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::ITE { cond, .. } => {
                 self.expr.header.cached_hash.clear();
-                *cond = Box::new(ail);
+                **cond = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'cond' on this Expression")),
@@ -4831,7 +4793,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::ITE { iftrue, .. } => {
                 self.expr.header.cached_hash.clear();
-                *iftrue = Box::new(ail);
+                **iftrue = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'iftrue' on this Expression")),
@@ -4854,7 +4816,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::ITE { iffalse, .. } => {
                 self.expr.header.cached_hash.clear();
-                *iffalse = Box::new(ail);
+                **iffalse = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'iffalse' on this Expression")),
@@ -4885,7 +4847,7 @@ impl Expression {
             ExprInner::Extract { base, .. } | ExprInner::Insert { base, .. } => {
                 let ail = extract_ail(&value)?;
                 self.expr.header.cached_hash.clear();
-                *base = Box::new(ail);
+                **base = ail;
                 Ok(())
             }
             ExprInner::BasePointerOffset { base, .. } => {
@@ -4926,7 +4888,7 @@ impl Expression {
             ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
                 let ail = extract_ail(&value)?;
                 self.expr.header.cached_hash.clear();
-                *offset = Box::new(ail);
+                **offset = ail;
                 Ok(())
             }
             ExprInner::BasePointerOffset { offset, .. } => {
