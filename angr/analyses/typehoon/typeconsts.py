@@ -525,8 +525,9 @@ class Function(TypeConstant):
             return 0
         visited.add(id(self))
 
-        params_hash = tuple(param._hash(visited) for param in self.params)
-        outputs_hash = tuple(out._hash(visited) for out in self.outputs)
+        # params/outputs may contain None for missing argument/return slots
+        params_hash = tuple(None if param is None else param._hash(visited) for param in self.params)
+        outputs_hash = tuple(None if out is None else out._hash(visited) for out in self.outputs)
         return hash((Function, params_hash, outputs_hash))
 
     def __hash__(self):
@@ -545,12 +546,12 @@ class Function(TypeConstant):
         new_outputs = []
         changed = False
         for param in self.params:
-            new_param = param.replace(mapping, memo=memo)
+            new_param = param if param is None else param.replace(mapping, memo=memo)
             new_params.append(new_param)
             if new_param is not param:
                 changed = True
         for output in self.outputs:
-            new_output = output.replace(mapping, memo=memo)
+            new_output = output if output is None else output.replace(mapping, memo=memo)
             new_outputs.append(new_output)
             if new_output is not output:
                 changed = True
