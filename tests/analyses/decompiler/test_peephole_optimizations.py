@@ -118,7 +118,6 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(None, "CmpEQ", [conv, Const(None, 1 << 28, 32)], False, bits=1)
         assert opt.optimize(expr) is None
 
-
     def test_cmp_sub_const(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
         manager = Manager()
@@ -190,9 +189,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         out = peephole_optimize_expr(expr, opts)
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
         assert out.operands[0] is x, f"expected bare register on lhs, got {out.operands[0]}"
-        assert isinstance(out.operands[1], Const) and out.operands[1].value == 52, (
-            f"expected x == 52, got {out}"
-        )
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 52, f"expected x == 52, got {out}"
 
 
 if __name__ == "__main__":
