@@ -146,6 +146,9 @@ class SRDAView:
             return
 
         traversed = set()
+        if stmt_idx == -1:
+            # start from the end of the block
+            stmt_idx = len(the_block.statements) - 1
         queue: list[tuple[Block, int | None]] = [
             (the_block, stmt_idx if op_type == ObservationPointType.OP_BEFORE else stmt_idx + 1)
         ]

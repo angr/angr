@@ -31,9 +31,11 @@ from angr.sim_type import (
 )
 from angr.utils.types import dereference_simtype_by_lib
 
+from .stackarg_offset_manager import StackArgOffsetManager
 from .variable_map import variable_map_of
 
 if TYPE_CHECKING:
+    from angr.analyses.s_reaching_definitions import SRDAModel
     from angr.knowledge_plugins.functions import Function
     from angr.knowledge_plugins.key_definitions.definition import Definition
 
@@ -46,7 +48,9 @@ class CallSiteMaker(Analysis):
     Add calling convention, declaration, and args to a call site.
     """
 
-    def __init__(self, block, *, ail_manager: Manager, reaching_definitions=None, stack_pointer_tracker=None):
+    def __init__(
+        self, block, *, ail_manager: Manager, reaching_definitions: SRDAModel | None = None, stack_pointer_tracker=None
+    ):
         self.block = block
 
         self._reaching_definitions = reaching_definitions
@@ -54,7 +58,8 @@ class CallSiteMaker(Analysis):
         self._ail_manager: Manager = ail_manager
 
         self.result_block = None
-        self.stack_arg_offsets: set[tuple[int, int]] | None = None  # call ins addr, stack_offset
+        # block addr, call ins addr, stack offset, arg size (in bytes)
+        self.stackarg_offset_manager: StackArgOffsetManager = StackArgOffsetManager(self.project.arch.bits)
         self.removed_vvar_ids: set[int] = set()
 
         self._analyze()
@@ -322,15 +327,18 @@ class CallSiteMaker(Analysis):
                     "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store statements.",
                     call_expr.tags["ins_addr"],
                 )
-                self.stack_arg_offsets = None
             else:
                 if sp_offset >= (1 << (self.project.arch.bits - 1)):
                     # make it a signed integer
                     sp_offset -= 1 << self.project.arch.bits
-                self.stack_arg_offsets = {
-                    (call_expr.tags["ins_addr"], sp_offset + arg.stack_offset - stackarg_sp_diff)
-                    for arg in stack_arg_locs
-                }
+                for arg in stack_arg_locs:
+                    self.stackarg_offset_manager.add_call_stack_arg_offset(
+                        self.block.addr,
+                        self.block.idx,
+                        call_expr.tags["ins_addr"],
+                        sp_offset + arg.stack_offset - stackarg_sp_diff,
+                        arg.size,
+                    )
 
         if isinstance(last_stmt, Stmt.SideEffectStatement):
             ret_expr = last_stmt.ret_expr
@@ -430,7 +438,7 @@ class CallSiteMaker(Analysis):
 
         if self._reaching_definitions is not None:
             # Find its definition
-            view = SRDAView(self._reaching_definitions.model)
+            view = SRDAView(self._reaching_definitions)
             vvar = view.get_reg_vvar_by_stmt(
                 offset,
                 arg_loc.size,
@@ -468,7 +476,7 @@ class CallSiteMaker(Analysis):
 
             if self._reaching_definitions is not None:
                 # find its definition
-                view = SRDAView(self._reaching_definitions.model)
+                view = SRDAView(self._reaching_definitions)
                 vvar = view.get_stack_vvar_by_stmt(
                     sp_offset, size, self.block.addr, self.block.idx, len(self.block.statements) - 1, OP_BEFORE
                 )
