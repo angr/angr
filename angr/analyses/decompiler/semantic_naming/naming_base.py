@@ -50,6 +50,9 @@ class SemanticNamingBase(ABC):
         self._functions = functions
         self._variable_map = variable_map
         self._var_to_new_name: dict[SimVariable, str] = {}
+        # Original (pre-rename) name of every variable this pattern renames, so the
+        # orchestrator can restore it when reverting an over-shared name.
+        self.original_names: dict[SimVariable, str | None] = {}
 
     @abstractmethod
     def analyze(self) -> dict[SimVariable, str]:
@@ -94,6 +97,7 @@ class SemanticNamingBase(ABC):
                 continue
 
             l.debug("Renaming %s -> %s (pattern: %s)", target_var.name, new_name, self.__class__.__name__)
+            self.original_names.setdefault(target_var, target_var.name)
             target_var.name = new_name
             target_var.renamed = True
             target_var.clear_hash()
