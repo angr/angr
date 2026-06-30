@@ -287,7 +287,7 @@ impl AilStatement {
             vmap.call_method1("transfer", (self.header.idx, new_idx))?;
         }
         let new_header = StmtHeader::new(new_idx, self.header.tags.clone());
-        let recurse = |child: &Box<AilExpression>| -> PyResult<Box<AilExpression>> {
+        let recurse = |child: &AilExpression| -> PyResult<Box<AilExpression>> {
             Ok(Box::new(child.deep_copy_ail(py, manager)?))
         };
         let recurse_opt = |o: &Option<Box<AilExpression>>| -> PyResult<Option<Box<AilExpression>>> {
@@ -406,7 +406,7 @@ impl AilStatement {
         new_expr: &AilExpression,
     ) -> (bool, AilStatement) {
         let walk =
-            |child: &Box<AilExpression>| -> (bool, Box<AilExpression>) {
+            |child: &AilExpression| -> (bool, Box<AilExpression>) {
                 let (c, r) = child.replace_ail(old_expr, new_expr);
                 (c, Box::new(r))
             };
@@ -643,7 +643,7 @@ impl AilStatement {
     /// Recursive ``has_atom`` -- check whether any expression subtree
     /// contains an expression node matching ``atom``.
     pub fn has_atom_ail_stmt(&self, atom: &AilExpression, identity: bool) -> bool {
-        let check = |c: &Box<AilExpression>| c.has_atom_ail(atom, identity);
+        let check = |c: &AilExpression| c.has_atom_ail(atom, identity);
         let check_opt = |o: &Option<Box<AilExpression>>| -> bool {
             o.as_ref().is_some_and(|c| c.has_atom_ail(atom, identity))
         };
@@ -1526,7 +1526,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { condition, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *condition = Box::new(ail);
+                **condition = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1638,7 +1638,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::SideEffectStatement { expr, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *expr = Box::new(ail);
+                **expr = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
@@ -1792,7 +1792,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::Assignment { dst, .. } | StmtInner::WeakAssignment { dst, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *dst = Box::new(ail);
+                **dst = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'dst' on this Statement")),
@@ -1815,7 +1815,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::Assignment { src, .. } | StmtInner::WeakAssignment { src, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *src = Box::new(ail);
+                **src = ail;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'src' on this Statement")),
