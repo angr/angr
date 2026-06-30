@@ -5579,6 +5579,37 @@ class TestDecompiler(unittest.TestCase):
         # Check that extern variables with proper size hints are resolved
         assert "g_5000e0" in dec.codegen.text, "Extern variable g_5000e0 should be present"
 
+    @structuring_algo("sailr")
+    def test_call_retval_not_dropped_when_stored_in_reused_stackarg_slot(self, decompiler_options=None):
+        # Regression test for a dead-code-elimination bug: in devinv.dll:sub_18000CFD4 the return value of
+        # GetCurrentThreadId() is stored to a stack slot that is later passed as a variadic argument. We should not
+        # remove this stack variable assignment, even if it appears to be unused because we fail to recover that
+        # sub_18000DDB0 is variadic.
+        # That stack slot happens to share its offset with a stack argument of an unrelated FormatMessageW call located
+        # elsewhere. The simplifier conflated the two and wrongly removed the live store, producing a bare
+        # `GetCurrentThreadId();`. The return value of GetCurrentThreadId() must be preserved as an assignment.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
+        )
+        proj = angr.Project(bin_path)
+        proj.analyses.CFGFast(normalize=True, force_smart_scan=False, show_progressbar=not WORKER)
+        proj.analyses.CompleteCallingConventions(show_progressbar=not WORKER)
+
+        f = proj.kb.functions[0x18000CFD4]
+        d = proj.analyses[Decompiler](f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert "GetCurrentThreadId" in text
+        # the return value must be preserved as an assignment, not discarded as a bare statement
+        assert re.search(r"\b\w+\s*=\s*GetCurrentThreadId\(\)\s*;", text), (
+            "GetCurrentThreadId() return value was dropped (emitted as a bare discarded call)"
+        )
+        for line in text.splitlines():
+            stripped = line.strip()
+            assert stripped != "GetCurrentThreadId();", "GetCurrentThreadId() result was wrongly eliminated"
+
 
 if __name__ == "__main__":
     unittest.main()

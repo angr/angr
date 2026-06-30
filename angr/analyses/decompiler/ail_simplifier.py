@@ -67,6 +67,7 @@ from .ccall_rewriters import CCALL_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
+from .stackarg_offset_manager import StackArgOffsetManager
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -170,7 +171,7 @@ class AILSimplifier(Analysis):
         func_graph: networkx.DiGraph[Block],
         ail_manager: Manager,
         remove_dead_memdefs=False,
-        stack_arg_offsets: set[tuple[int, int]] | None = None,
+        stackarg_offset_manager: StackArgOffsetManager | None = None,
         unify_variables=False,
         gp: int | None = None,
         narrow_expressions=False,
@@ -191,7 +192,7 @@ class AILSimplifier(Analysis):
         self._propagator: SPropagatorAnalysis | None = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
-        self._stack_arg_offsets = stack_arg_offsets
+        self._stackarg_offset_manager = stackarg_offset_manager
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
@@ -366,7 +367,9 @@ class AILSimplifier(Analysis):
             func_args=func_args,
             # gp=self._gp,
             only_consts=self._only_consts,
-            stack_arg_offsets={x for _, x in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None,
+            stack_arg_offsets=self._stackarg_offset_manager.get_stackarg_offsets()
+            if self._stackarg_offset_manager is not None
+            else None,
             ail_manager=self._ail_manager,
         )
         self._propagator = prop
@@ -889,11 +892,9 @@ class AILSimplifier(Analysis):
         self, replacements: dict[tuple[int, int | None], dict[AILCodeLocation, dict[Expression, Expression]]]
     ) -> bool:
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
-
-        if self._stack_arg_offsets:
-            insn_addrs_using_stack_args = {ins_addr for ins_addr, _ in self._stack_arg_offsets}
-        else:
-            insn_addrs_using_stack_args = None
+        insn_addrs_using_stack_args = (
+            self._stackarg_offset_manager.get_stackarg_insaddrs() if self._stackarg_offset_manager is not None else None
+        )
 
         replaced = False
         for (block_addr, block_idx), reps in replacements.items():
@@ -1886,7 +1887,6 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions.canonical_form() != reference.canonical_form():
             raise AssertionError("Incremental SRDA update diverged from a full rebuild")
 
-    @timethis
     def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int | None]]]:
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
         # cases where a statement defines more than one atom, e.g., a call statement that defines both the return
@@ -1900,12 +1900,7 @@ class AILSimplifier(Analysis):
         }
 
         # Find all statements that should be removed
-        mask = (1 << self.project.arch.bits) - 1
-
         rd = self._compute_reaching_definitions()
-        stackarg_offsets = (
-            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
-        )
         retpoints: set[Address] = {
             (node.addr, node.idx)
             for node in self.func_graph
@@ -1946,10 +1941,10 @@ class AILSimplifier(Analysis):
                                 # note that this is a hack! we should rely on more reliable stack variable
                                 # eliminatability detection.
                                 pass
-                            elif stackarg_offsets is not None:
-                                # we always remove definitions for stack arguments
-                                assert vvar.stack_offset is not None
-                                if (vvar.stack_offset & mask) not in stackarg_offsets:
+                            elif self._stackarg_offset_manager is not None:
+                                if not self._stackarg_offset_manager.is_stackarg_vvar(vvar.varid):
+                                    # this stack variable is not a stack argument for any of the call sites that consume
+                                    # this offset. it is not eliminatable.
                                     continue
                             else:
                                 continue

@@ -20,6 +20,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.s_liveness import SLivenessAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
@@ -83,6 +84,7 @@ from .return_maker import ReturnMaker
 from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
+from .stackarg_offset_manager import StackArgOffsetManager
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -290,7 +292,7 @@ class Clinic(Analysis):
         self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
         self.vvar_to_vvar: dict[int, int] | None = None
-        self._stackarg_offsets: set[tuple[int, int]] | None = None
+        self._stackarg_offset_manager: StackArgOffsetManager = StackArgOffsetManager(self.project.arch.bits)
         self._removed_vvar_ids = None
         # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
@@ -801,13 +803,10 @@ class Clinic(Analysis):
 
         # Make call-sites again so we may identify variadic function arguments
         self._update_progress(50.0, text="Making callsites")
-        _, _stackarg_offsets, _removed_vvar_ids = self._make_callsites(
+        _, _stackarg_offset_manager, _removed_vvar_ids = self._make_callsites(
             self._ail_graph, self.func_args, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
         )
-        if self._stackarg_offsets is not None:
-            self._stackarg_offsets |= _stackarg_offsets
-        else:
-            self._stackarg_offsets = _stackarg_offsets
+        self._stackarg_offset_manager.merge(_stackarg_offset_manager)
         if self._removed_vvar_ids is not None:
             self._removed_vvar_ids |= _removed_vvar_ids
         else:
@@ -844,7 +843,7 @@ class Clinic(Analysis):
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
         # do not provide func_args here since we haven't done any ssa yet
-        _, self._stackarg_offsets, self._removed_vvar_ids = self._make_callsites(
+        _, self._stackarg_offset_manager, self._removed_vvar_ids = self._make_callsites(
             self._ail_graph, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
         )
 
@@ -853,6 +852,10 @@ class Clinic(Analysis):
         self._ail_graph = self._rewrite_rust_probestack_call(self._ail_graph)
         # Windows-specific
         self._ail_graph = self._rewrite_windows_chkstk_call(self._ail_graph)
+
+        self._update_progress(52.0, text="Updating function call stack argument vvars")
+        rd = self._compute_reaching_definitions(func_args=self.func_args)
+        self._stackarg_offset_manager.update_stackoff_vvars(rd)
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2.5")
@@ -865,7 +868,7 @@ class Clinic(Analysis):
         self._simplify_function(
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_arg_offsets=self._stackarg_offsets,
+            stackarg_offset_manager=self._stackarg_offset_manager,
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
@@ -888,7 +891,7 @@ class Clinic(Analysis):
         self._simplify_function(
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_arg_offsets=self._stackarg_offsets,
+            stackarg_offset_manager=self._stackarg_offset_manager,
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
@@ -901,7 +904,7 @@ class Clinic(Analysis):
         self._simplify_function(
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_arg_offsets=self._stackarg_offsets,
+            stackarg_offset_manager=self._stackarg_offset_manager,
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
@@ -1749,7 +1752,7 @@ class Clinic(Analysis):
         self,
         ail_graph,
         remove_dead_memdefs=False,
-        stack_arg_offsets=None,
+        stackarg_offset_manager: StackArgOffsetManager | None = None,
         unify_variables=False,
         max_iterations: int = 8,
         narrow_expressions=False,
@@ -1771,7 +1774,7 @@ class Clinic(Analysis):
                 ail_graph,
                 remove_dead_memdefs=remove_dead_memdefs,
                 unify_variables=unify_variables,
-                stack_arg_offsets=stack_arg_offsets,
+                stackarg_offset_manager=stackarg_offset_manager,
                 # only narrow once
                 narrow_expressions=narrow_expressions and idx == 0,
                 only_consts=only_consts,
@@ -1791,7 +1794,7 @@ class Clinic(Analysis):
         self,
         ail_graph,
         remove_dead_memdefs=False,
-        stack_arg_offsets=None,
+        stackarg_offset_manager: StackArgOffsetManager | None = None,
         unify_variables=False,
         narrow_expressions=False,
         only_consts=False,
@@ -1816,7 +1819,7 @@ class Clinic(Analysis):
             func_graph=ail_graph,
             remove_dead_memdefs=remove_dead_memdefs,
             unify_variables=unify_variables,
-            stack_arg_offsets=stack_arg_offsets,
+            stackarg_offset_manager=stackarg_offset_manager,
             ail_manager=self._ail_manager,
             gp=self.function.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
             narrow_expressions=narrow_expressions,
@@ -2145,22 +2148,13 @@ class Clinic(Analysis):
         """
 
         # Computing reaching definitions
-        if func_args is not None:
-            rd = self.project.analyses.SReachingDefinitions(
-                subject=self.function,
-                func_graph=ail_graph,
-                func_args=func_args,
-                fail_fast=self._fail_fast,
-                use_callee_saved_regs_at_return=not self._register_save_areas_removed,
-            )
-        else:
-            rd = None
+        rd = self._compute_reaching_definitions(func_args=func_args) if func_args is not None else None
 
-        stack_arg_offsets = set()
+        stackarg_offset_manager = StackArgOffsetManager(self.project.arch.bits)
         removed_vvar_ids = set()
 
         def _handler(block):
-            nonlocal stack_arg_offsets, removed_vvar_ids
+            nonlocal stackarg_offset_manager, removed_vvar_ids
             csm = self.project.analyses[CallSiteMaker].prep(
                 fail_fast=self._fail_fast,
             )(
@@ -2169,8 +2163,7 @@ class Clinic(Analysis):
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
             )
-            if csm.stack_arg_offsets is not None:
-                stack_arg_offsets |= csm.stack_arg_offsets
+            stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
                 removed_vvar_ids |= csm.removed_vvar_ids
             if csm.result_block and csm.result_block != block:
@@ -2191,7 +2184,7 @@ class Clinic(Analysis):
         if not self._inlining_parents:
             AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
-        return ail_graph, stack_arg_offsets, removed_vvar_ids
+        return ail_graph, stackarg_offset_manager, removed_vvar_ids
 
     @timethis
     def _make_returns(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
@@ -4037,6 +4030,20 @@ class Clinic(Analysis):
                 ).with_arch(self.project.arch)
                 func.prototype = new_type
                 func.prototype_source = PrototypeSource.CALLSITE_DECOMPILER
+
+    def _compute_reaching_definitions(self, func_args=None) -> SRDAModel:
+        # Computing reaching definitions
+        # TODO: Refactor this into a method of the upcoming AILFunctionGraph class.
+        return (
+            self.project.analyses[SReachingDefinitionsAnalysis]
+            .prep(fail_fast=self._fail_fast)(
+                subject=self.function,
+                func_graph=self._ail_graph,
+                func_args=func_args if func_args is not None else self.func_args,
+                use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+            )
+            .model
+        )
 
 
 register_analysis(Clinic, "Clinic")
