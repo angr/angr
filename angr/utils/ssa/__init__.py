@@ -27,7 +27,7 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import Assignment, SideEffectStatement, Statement, Store
+from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.rustylib.ailment import ExpressionKind as _EK
