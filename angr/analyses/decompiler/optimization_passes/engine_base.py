@@ -240,7 +240,7 @@ class SimplifierAILEngine(
                 **expr.tags,
             )
         if (
-            type(operand_expr) is ailment.expression.Const
+            isinstance(operand_expr, ailment.expression.Const)
             and expr.from_type == ailment.expression.Convert.TYPE_INT
             and expr.to_type == ailment.expression.Convert.TYPE_INT
         ):
@@ -249,7 +249,7 @@ class SimplifierAILEngine(
             mask = (2**expr.to_bits) - 1
             value &= mask
             return ailment.expression.Const(expr.idx, value, expr.to_bits, **expr.tags)
-        if type(operand_expr) is ailment.expression.BinaryOp and operand_expr.op in {
+        if isinstance(operand_expr, ailment.expression.BinaryOp) and operand_expr.op in {
             "Mul",
             "Shl",
             "Div",

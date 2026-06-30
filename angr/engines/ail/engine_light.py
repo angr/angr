@@ -12,6 +12,7 @@ from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
 from angr.engines.successors import SimSuccessors
 from angr.engines.vex.claripy import ccall
+from angr.rustylib.ailment import RoundingMode
 from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -21,6 +22,27 @@ if TYPE_CHECKING:
     from angr.project import Project
 
 log = logging.getLogger(__name__)
+
+# Map the AIL ``RoundingMode`` enum to claripy's ``fp.RM`` enum. The
+# integer ordering already matches VEX (0=NearestTiesEven, ...) but
+# claripy doesn't accept the AIL pyclass directly, so we translate at
+# the engine boundary.
+_AIL_RM_TO_CLARIPY = {
+    RoundingMode.RM_NearestTiesEven: claripy.fp.RM.RM_NearestTiesEven,
+    RoundingMode.RM_TowardsNegativeInf: claripy.fp.RM.RM_TowardsNegativeInf,
+    RoundingMode.RM_TowardsPositiveInf: claripy.fp.RM.RM_TowardsPositiveInf,
+    RoundingMode.RM_TowardsZero: claripy.fp.RM.RM_TowardsZero,
+}
+
+
+def _claripy_rm(rm: RoundingMode | None) -> object:
+    """Resolve an AIL ``RoundingMode`` to a ``claripy.fp.RM`` value
+    (or claripy's default if ``rm`` is ``None``).
+    """
+    if rm is None:
+        return claripy.fp.RM.default()
+    return _AIL_RM_TO_CLARIPY[rm]
+
 
 type StateType = SimState[int, claripy.ast.BV]
 type DataType = claripy.ast.Bits | claripy.ast.Bool
@@ -512,7 +534,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 return child[expr.to_bits - 1 : 0]
             if expr.to_type == expr.TYPE_FP:
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
-                return child.val_to_fp(to_sort, expr.is_signed, expr.rounding_mode)
+                return child.val_to_fp(to_sort, expr.is_signed, _claripy_rm(expr.rounding_mode))
             assert False
         elif expr.from_type == expr.TYPE_FP:
             assert isinstance(child, claripy.ast.FP)
@@ -520,7 +542,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 return child.val_to_bv(expr.to_bits, expr.is_signed)
             if expr.to_type == expr.TYPE_FP:
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
-                return child.to_fp(to_sort, expr.rounding_mode)
+                return child.to_fp(to_sort, _claripy_rm(expr.rounding_mode))
             assert False
         else:
             assert False
@@ -695,22 +717,22 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpAdd(
-            expr.rounding_mode, self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
+            _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
     def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpSub(
-            expr.rounding_mode, self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
+            _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
     def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpMul(
-            expr.rounding_mode, self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
+            _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
     def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpDiv(
-            expr.rounding_mode, self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
+            _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
     def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert
+from angr.ailment.utils import is_lsb_extract
 
 from .base import PeepholeOptimizationExprBase
 
@@ -66,7 +67,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             and isinstance((mask := expr.base.operands[1]), Const)
             and isinstance(mask.value, int)
             and _MASKS.get(expr.bits) == mask.value
-            and expr.is_lsb_extract()
+            and is_lsb_extract(expr)
         ):
             return Convert(expr.idx, expr.base.bits, expr.bits, False, expr.base, **expr.tags)
         return None

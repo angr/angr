@@ -1,108 +1,12 @@
+"""Shim re-exporting the Rust Block implementation.
+
+The actual class lives in ``angr.rustylib.ailment`` (Rust + PyO3); this module
+exists so existing imports ``from angr.ailment.block import Block`` keep
+working.
+"""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from angr.rustylib.ailment import Block
 
-from angr.ailment.manager import Manager
-
-if TYPE_CHECKING:
-    from .statement import Statement
-
-
-class Block:
-    """
-    Describes an AIL block.
-
-    __str__ should be fast because Phoenix uses networkx graph filters, and graph filters may print str(block) in some
-    cases, e.g.,
-    https://github.com/networkx/networkx/blob/861718f8aadeed4f742a348f0c437396cacdf180/networkx/classes/coreviews.py#L305
-    """
-
-    __slots__ = (
-        "_hash",
-        "addr",
-        "idx",
-        "original_size",
-        "statements",
-    )
-
-    def __init__(self, addr: int, original_size, statements: list[Statement] | None = None, idx: int | None = None):
-        self.addr = addr
-        self.original_size = original_size
-        self.statements: list[Statement] = [] if statements is None else statements
-        self.idx = idx
-        self._hash = None  # cached hash value
-
-    def copy(self, statements=None):
-        return Block(
-            addr=self.addr,
-            original_size=self.original_size,
-            statements=self.statements[::] if statements is None else statements,
-            idx=self.idx,
-        )
-
-    def deep_copy(self, manager: Manager):
-        return Block(
-            addr=self.addr,
-            original_size=self.original_size,
-            statements=[stmt.deep_copy(manager=manager) for stmt in self.statements],
-            idx=self.idx,
-        )
-
-    @property
-    def sort_key(self) -> tuple[int, int, int]:
-        return (self.addr, 0 if self.idx is None else 1, 0 if self.idx is None else self.idx)
-
-    def __lt__(self, other):
-        return self.sort_key < other.sort_key
-
-    def __repr__(self):
-        if self.idx is None:
-            return f"<AILBlock {self.addr:#x} of {len(self.statements)} statements>"
-        return f"<AILBlock {self.addr:#x}.{self.idx} of {len(self.statements)} statements>"
-
-    def dbg_repr(self, indent=0):
-        indent_str = " " * indent
-        if self.idx is None:
-            block_str = f"{indent_str}## Block {self.addr:x}\n"
-        else:
-            block_str = f"{indent_str}## Block {self.addr:x}.{self.idx}\n"
-        stmts_str = "\n".join(
-            [
-                f"{indent_str}{i:02d} | {stmt.tags.get('ins_addr', 0):#x} | {stmt}"
-                for i, stmt in enumerate(self.statements)
-            ]
-        )
-        block_str += stmts_str + "\n"
-        return block_str
-
-    def pp(self) -> None:
-        print(self.dbg_repr())
-
-    def __str__(self):
-        if self.idx is None:
-            return f"<AILBlock {self.addr:#x}>"
-        return f"<AILBlock {self.addr:#x}.{self.idx}>"
-
-    def __eq__(self, other):
-        return (
-            type(other) is Block
-            and self.addr == other.addr
-            and self.statements == other.statements
-            and self.idx == other.idx
-        )
-
-    def likes(self, other):
-        return (
-            type(other) is Block
-            and len(self.statements) == len(other.statements)
-            and all(s1.likes(s2) for s1, s2 in zip(self.statements, other.statements))
-        )
-
-    def clear_hash(self):
-        self._hash = None
-
-    def __hash__(self):
-        # Changing statements does not change the hash of a block, which allows in-place statement editing
-        if self._hash is None:
-            self._hash = hash((Block, self.addr, self.idx))
-        return self._hash
+__all__ = ["Block"]
