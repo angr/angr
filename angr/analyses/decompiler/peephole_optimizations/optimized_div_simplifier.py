@@ -31,7 +31,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             r = self.optimize_binaryop(expr)
 
         # keep size
-        if r is not None and r.bits < expr.bits:
+        if r is not None and r.bits != expr.bits:
             r = Convert(expr.idx, r.bits, expr.bits, False, r, **expr.tags)
 
         return r
