@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
+from angr.sim_type import SimStruct, SimTypeArray, SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
 
 from .simple_solver import SimpleSolver
@@ -106,10 +106,13 @@ class Typehoon(Analysis):
                 type_ = self.simtypes_solution.get(typevar, None)
                 # print("{} -> {}: {}".format(var, typevar, type_))
                 # Hack: if a global address is of a pointer type and it is not an array, we unpack the type
+                # (the global variable IS the pointed-to memory). Exception: a global holding a function
+                # pointer stores the pointer value itself, so keep Pointer(Function) intact -- otherwise it
+                # would render as a bare function declaration instead of a function pointer.
                 if (
                     func_addr == "global"
                     and isinstance(type_, SimTypePointer)
-                    and not isinstance(type_.pts_to, SimTypeArray)
+                    and not isinstance(type_.pts_to, (SimTypeArray, SimTypeFunction))
                 ):
                     type_ = type_.pts_to
                 if type_ is not None:
