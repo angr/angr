@@ -328,10 +328,7 @@ class Struct(TypeConstant):
         self.idx = idx if idx != -1 else next(_STRUCT_ID)
 
     def _hash(self, visited: set[int]):
-        if id(self) in visited:
-            return 0
-        visited.add(id(self))
-        return hash((type(self), self.idx, self._hash_fields(visited)))
+        return hash((type(self), self.idx))
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
