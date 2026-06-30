@@ -33,11 +33,13 @@ class TypeTranslator:
     """
 
     __slots__ = (
+        "_fn_inprogress",
         "_has_nonexistent_ref",
         "_struct_ctr",
         "_struct_def_ctr",
         "_struct_sig_cache",
         "arch",
+        "functions",
         "memo",
         "named_struct_id_counter",
         "struct_name_to_idx",
@@ -55,6 +57,8 @@ class TypeTranslator:
         # _struct_sig_cache maps structural signatures to canonical SimStructs. Used to deduplicate auto-named,
         # angr-generated structs that share an identical layout. See _translate_Struct for the rationale.
         self._struct_sig_cache: dict[tuple, sim_type.SimStruct] = {}
+        self.functions = {}
+        self._fn_inprogress = set()
         self._struct_ctr = count()
         # a name-independent, deterministic per-function ordering id stamped onto each translated struct
         self._struct_def_ctr = count()
@@ -208,7 +212,18 @@ class TypeTranslator:
     def _translate_Int512(self, tc):
         return sim_type.SimTypeInt512(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Function(self, tc: typeconsts.Function) -> sim_type.SimTypeFunction:
+    def _translate_Function(self, tc: typeconsts.Function) -> sim_type.SimType:
+        # Function-pointer types recovered from indirect calls can be self-referential
+        # (a function whose parameter is a pointer back to the same function). Such a type
+        # cannot be built as an acyclic SimType, and an anonymous self-referential function
+        # pointer is not expressible in C anyway. So break the cycle: if we re-enter while
+        # already translating this tc, return `void` (the enclosing pointer becomes `void *`).
+        if tc in self.functions:
+            return self.functions[tc]
+        if tc in self._fn_inprogress:
+            return sim_type.SimTypeBottom(label="void").with_arch(self.arch)
+        self._fn_inprogress.add(tc)
+
         arg_types = []
         for param in tc.params:
             if param is None:
@@ -219,7 +234,11 @@ class TypeTranslator:
             returnty = self._tc2simtype(tc.outputs[0])
         else:
             returnty = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
-        return sim_type.SimTypeFunction(arg_types, returnty, label=tc.name).with_arch(self.arch)
+
+        self._fn_inprogress.discard(tc)
+        func_type = sim_type.SimTypeFunction(arg_types, returnty, label=tc.name).with_arch(self.arch)
+        self.functions[tc] = func_type
+        return func_type
 
     def _translate_TypeVariableReference(self, tc):
         if tc.typevar in self.translated:
