@@ -16,7 +16,7 @@ class StackArgOffsetManager:
     also keeps track of the stack virtual variables that can be eliminated for each call site because they are stack
     arguments.
 
-    `all_stackarg_vvars` and `stack_arg_to_vvars` map stack arguments to virtual variable IDs. You must call
+    `all_stackarg_vvars` and `stackoff_to_vvars` map stack arguments to virtual variable IDs. You must call
     `update_stackoff_vvars()` to populate these two attributes after Stage 1 SSA rewriting. `is_stackarg_vvar()` is
     only valid after `update_stackoff_vvars()` is called.
     """
@@ -24,7 +24,7 @@ class StackArgOffsetManager:
     def __init__(self, bits: int):
         self.bits = bits
         self.stack_arg_offsets: dict[int, set[tuple[tuple[int, int | None], int, int, int]]] = {}
-        self.stack_arg_to_vvars: dict[int, set[int]] | None = None
+        self.stackoff_to_vvars: dict[int, set[int]] | None = None
         self.all_stackarg_vvars: set[int] | None = None
 
     def add_call_stack_arg_offset(
