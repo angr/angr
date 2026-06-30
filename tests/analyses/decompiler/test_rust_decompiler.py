@@ -134,7 +134,7 @@ class _FmtTests(RustDecompilationTarget):
                         f"Expected to see an if let Ok(...) pattern [{config}]",
                     )
 
-        self._check_codegen_recovers_struct_literals(uumain)
+        self._check_codegen_recovers_struct_literals("fmt:uumain", uumain)
 
     def _check_parse_arguments(self):
         parse_arguments = self.decompile_functions().get("parse_arguments")
@@ -156,14 +156,13 @@ class _FmtTests(RustDecompilationTarget):
                 )
                 self.assertIn("return Ok(struct112 {", text, f"Expected Ok(struct112 {{ ... }}) return [{config}]")
 
-        self._check_codegen_recovers_struct_literals(parse_arguments)
+        self._check_codegen_recovers_struct_literals("fmt:parse_arguments", parse_arguments)
 
-    def _check_codegen_recovers_struct_literals(self, decompilations):
+    def _check_codegen_recovers_struct_literals(self, label, decompilations):
         struct_literal = re.compile(r"=\s*struct\d+ \{\n\s+field_")
-        for label, per_config_decompilations in decompilations.items():
-            for config, text in per_config_decompilations.items():
-                with self.subTest(function=label, configuration=config):
-                    self.assertRegex(text, struct_literal, f"Expected a recovered struct literal [{label} {config}]")
+        for config, text in decompilations.items():
+            with self.subTest(function=label, configuration=config):
+                self.assertRegex(text, struct_literal, f"Expected a recovered struct literal [{label} {config}]")
 
 
 class TestFmtNightly20250522O3(_FmtTests):
