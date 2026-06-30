@@ -187,6 +187,19 @@ class TypeTranslator:
     def _translate_Int512(self, tc):
         return sim_type.SimTypeInt512(signed=False, label=tc.name).with_arch(self.arch)
 
+    def _translate_Function(self, tc: typeconsts.Function) -> sim_type.SimTypeFunction:
+        arg_types = []
+        for param in tc.params:
+            if param is None:
+                arg_types.append(sim_type.SimTypeBottom().with_arch(self.arch))
+            else:
+                arg_types.append(self._tc2simtype(param))
+        if tc.outputs and tc.outputs[0] is not None:
+            returnty = self._tc2simtype(tc.outputs[0])
+        else:
+            returnty = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
+        return sim_type.SimTypeFunction(arg_types, returnty, label=tc.name).with_arch(self.arch)
+
     def _translate_TypeVariableReference(self, tc):
         if tc.typevar in self.translated:
             return self.translated[tc.typevar]
@@ -411,6 +424,7 @@ TypeConstHandlers = {
     typeconsts.UInt32: TypeTranslator._translate_UInt32,
     typeconsts.SInt64: TypeTranslator._translate_SInt64,
     typeconsts.UInt64: TypeTranslator._translate_UInt64,
+    typeconsts.Function: TypeTranslator._translate_Function,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
     typeconsts.Float32: TypeTranslator._translate_Float32,
     typeconsts.Float64: TypeTranslator._translate_Float64,
