@@ -53,7 +53,14 @@ class SReachingDefinitionsAnalysis(Analysis):
         if self.func is not None:
             self._bp_as_gpr = self.func.info.get("bp_as_gpr", False)
 
-        self.model = SRDAModel(func_graph, func_args, self.project.arch, variable_map=variable_map)
+        self.model = SRDAModel(
+            func_graph,
+            func_args,
+            self.project.arch,
+            platform=self.project.simos.name if self.project.simos is not None else None,
+            language=self.project._languages[0] if self.project._languages else None,
+            variable_map=variable_map,
+        )
 
         self._analyze()
 
@@ -162,7 +169,10 @@ class SReachingDefinitionsAnalysis(Analysis):
                 else:
                     # just use all registers in the default calling convention because we don't know anything about
                     # the calling convention yet
-                    cc_cls = default_cc(self.project.arch.name)
+                    cc_cls = default_cc(
+                        self.project.arch.name,
+                        platform=self.project.simos.name if self.project.simos is not None else None,
+                    )
                     assert cc_cls is not None
                     cc = cc_cls(self.project.arch)
 
