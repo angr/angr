@@ -300,16 +300,12 @@ class WinStackCanarySimplifier(OptimizationPass):
                     op0, op1 = stmt.src.operands
                     if (
                         isinstance(op0, ailment.Expr.Load)
-                        and isinstance(op0.addr, ailment.Expr.StackBaseOffset)
-                        and op0.addr.offset == canary_value_stack_offset
+                        and self._load_addr_is_canary_slot(op0.addr, canary_value_stack_offset, stmt.tags["ins_addr"])
                     ) and isinstance(op1, ailment.Expr.StackBaseOffset):
                         # found it
                         return idx
                 elif isinstance(stmt.src, ailment.Expr.Load):
-                    if (
-                        isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
-                        and stmt.src.addr.offset == canary_value_stack_offset
-                    ):
+                    if self._load_addr_is_canary_slot(stmt.src.addr, canary_value_stack_offset, stmt.tags["ins_addr"]):
                         # found it
                         return idx
             # or when we are unlucky, we have two instructions...
@@ -319,8 +315,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 and stmt.dst.was_reg
                 and stmt.dst.reg_offset == self.project.arch.registers["rcx"][0]
                 and isinstance(stmt.src, ailment.Expr.Load)
-                and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
-                and stmt.src.addr.offset == canary_value_stack_offset
+                and self._load_addr_is_canary_slot(stmt.src.addr, canary_value_stack_offset, stmt.tags["ins_addr"])
             ):
                 load_stmt_idx = idx
             if (
@@ -342,6 +337,34 @@ class WinStackCanarySimplifier(OptimizationPass):
             ):
                 return idx
         return None
+
+    def _load_addr_is_canary_slot(
+        self, addr: ailment.Expr.Expression, canary_value_stack_offset: int, ins_addr: int
+    ) -> bool:
+        """
+        Return True if ``addr`` addresses the stack slot that holds the security cookie.
+
+        The MSVC epilogue reloads the cookie either through a literal ``StackBaseOffset`` or, more
+        commonly, through the frame pointer, e.g. ``Load([rbp + disp])``. When the stack-pointer
+        tracker can resolve the frame-pointer offset we compare it against ``canary_value_stack_offset``.
+        When it cannot, we still accept a bp-relative load.
+        """
+        if isinstance(addr, ailment.Expr.StackBaseOffset):
+            return addr.offset == canary_value_stack_offset
+
+        resolved = self._get_bp_offset(addr, ins_addr)
+        if resolved is not None:
+            return resolved == canary_value_stack_offset
+
+        # frame-pointer-relative load with an unresolvable (inconsistent) rbp
+        return (
+            isinstance(addr, ailment.Expr.BinaryOp)
+            and addr.op in {"Add", "Sub"}
+            and isinstance(addr.operands[0], ailment.Expr.VirtualVariable)
+            and addr.operands[0].was_reg
+            and addr.operands[0].reg_offset == self.project.arch.bp_offset
+            and isinstance(addr.operands[1], ailment.Expr.Const)
+        )
 
     def _find_x86_canary_storing_stmt(self, block, canary_value_stack_offset):
         load_stmt_idx = None

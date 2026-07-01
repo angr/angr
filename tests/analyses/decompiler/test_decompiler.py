@@ -3993,6 +3993,36 @@ class TestDecompiler(unittest.TestCase):
         assert "security_cookie" not in d.codegen.text
 
     @structuring_algo("sailr")
+    def test_win_security_cookie_removal_with_fp_relative_reload(self, decompiler_options=None):
+        # Regression test for frame-pointer-relative __security_check_cookie removal.
+        # The stack-pointer tracker cannot resolve rbp. As such, the epilogue reloads the cookie
+        # through a bp-relative load (Load([rbp + disp])).
+        # Before the fix, _find_amd64_canary_storing_stmt failed to match the fp-relative reload,
+        # leaving two leftover _security_check_cookie(...) calls and the canary XOR setup in the output.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
+        )
+        proj = angr.Project(bin_path)
+        proj.analyses.CFGFast(normalize=True, force_smart_scan=False, show_progressbar=not WORKER)
+        proj.analyses.CompleteCallingConventions(show_progressbar=not WORKER)
+
+        f = proj.kb.functions[0x18003786C]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        text = d.codegen.text
+        # the /GS cookie check call and the cookie-init xor idiom must be fully stripped
+        assert "_security_check_cookie" not in text
+        assert "__security_check_cookie" not in text
+        assert "security_check_cookie" not in text
+        # no reference to the __security_cookie global must remain
+        assert "g_180163b80" not in text
+        assert "0x180163b80" not in text
+        # no leftover canary XOR artifact
+        assert "^" not in text
+
+    @structuring_algo("sailr")
     def test_ite_region_converter_missing_break_statement(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/4574
         bin_path = os.path.join(test_location, "x86_64", "ite_region_converter_missing_breaks")
