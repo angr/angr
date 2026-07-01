@@ -98,6 +98,14 @@ impl<'c, S: Solver<'c>> Solver<'c> for SimplificationMixin<'c, S> {
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         self.inner.eval_n(&expr.simplify()?, n)
     }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let simplified = exprs
+            .iter()
+            .map(|expr| expr.simplify())
+            .collect::<Result<Vec<_>, _>>()?;
+        self.inner.batch_eval(&simplified)
+    }
 }
 
 #[cfg(test)]

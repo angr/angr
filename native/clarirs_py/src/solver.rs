@@ -554,34 +554,30 @@ impl PySolver {
 
         let rows: Vec<Vec<AstRef<'static>>> = self
             .with_extra_constraints(extra_constraints, exact, |solver| {
+                // Work on a clone so the blocking clauses that force distinct
+                // rows do not leak into the caller's solver.
+                let mut work = solver.clone();
                 let mut rows = Vec::new();
                 for _ in 0..n {
-                    if !solver.satisfiable().map_err(ClaripyError::from)? {
-                        break;
-                    }
-                    let mut model = solver.clone();
-                    let mut row = Vec::with_capacity(asts.len());
-                    let mut disequalities = Vec::with_capacity(asts.len());
-                    for ast in &asts {
-                        // Evaluate against the current model, pinning the value
-                        // so the remaining expressions stay consistent with it.
-                        let value = model.eval(ast).map_err(ClaripyError::from)?;
-                        let eq = GLOBAL_CONTEXT
-                            .eq_(ast, &value)
-                            .map_err(ClaripyError::from)?;
-                        model.add(&eq).map_err(ClaripyError::from)?;
-                        disequalities.push(
-                            GLOBAL_CONTEXT
-                                .neq(ast, &value)
-                                .map_err(ClaripyError::from)?,
-                        );
-                        row.push(value);
-                    }
+                    // Draw the whole assignment from a single model: one solve
+                    // for all expressions, rather than pinning each expression
+                    // and re-solving (which cost one solve per expression).
+                    let row = match work.batch_eval(&asts) {
+                        Ok(row) => row,
+                        Err(ClarirsError::Unsat) => break,
+                        Err(e) => return Err(ClaripyError::from(e)),
+                    };
                     // Exclude this whole assignment from subsequent models.
+                    let disequalities = asts
+                        .iter()
+                        .zip(&row)
+                        .map(|(ast, value)| GLOBAL_CONTEXT.neq(ast, value))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(ClaripyError::from)?;
                     let blocker = GLOBAL_CONTEXT
                         .or(disequalities)
                         .map_err(ClaripyError::from)?;
-                    solver.add(&blocker).map_err(ClaripyError::from)?;
+                    work.add(&blocker).map_err(ClaripyError::from)?;
                     rows.push(row);
                 }
                 Ok(rows)

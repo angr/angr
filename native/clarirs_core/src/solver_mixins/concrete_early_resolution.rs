@@ -161,6 +161,13 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         }
         self.inner.eval_n(expr, n)
     }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        // Forward as a batch so the backend can draw every value from a single
+        // model (concrete expressions are handled cheaply there too), rather
+        // than falling back to the per-expression default.
+        self.inner.batch_eval(exprs)
+    }
 }
 
 #[cfg(test)]

@@ -356,6 +356,26 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         }
         Ok(results)
     }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if self.sat == Some(false) {
+            return Err(ClarirsError::Unsat);
+        }
+        // Forward as a batch so the backend draws every value from one model in
+        // a single solve, rather than the per-expression default (one solve per
+        // expression). Only the satisfiability flag is updated here.
+        match self.inner.batch_eval(exprs) {
+            Ok(results) => {
+                self.sat = Some(true);
+                Ok(results)
+            }
+            Err(ClarirsError::Unsat) => {
+                self.sat = Some(false);
+                Err(ClarirsError::Unsat)
+            }
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[cfg(test)]
