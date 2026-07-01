@@ -5,11 +5,13 @@ Test cases for semantic variable naming patterns.
 
 This module tests all semantic variable naming patterns including:
 - Loop counter naming (i, j, k for nested loops)
-- Pointer naming (ptr, cur for pointer variables)
+- Pointer naming (ptr, iter for pointer variables)
 - Array index naming (idx, index for array indices)
 - Call result naming (ptr for malloc, len for strlen)
 - Size parameter naming (size, count for size parameters)
-- Boolean flag naming (flag, found for boolean variables)
+
+Boolean-flag naming is intentionally disabled (see orchestrator.NAMING_PATTERNS);
+``test_boolean_flag_naming`` asserts it does not run.
 """
 
 from __future__ import annotations
@@ -169,15 +171,13 @@ class TestSemvarNaming(unittest.TestCase):
         assert "memcpy" in text, "Expected memcpy call not found"
 
     def test_boolean_flag_naming(self):
-        """Test that boolean flag variables get appropriate naming."""
+        """Boolean-flag naming is disabled: no variable should be named 'flag'."""
         _, text = self._decompile_function("find_value")
 
-        # Should have boolean-like variable patterns
-        # Also check for 0/1 assignments typical of boolean flags
-        has_boolean_pattern = "flag" in text
-        has_zero_one = "= 0" in text and "= 1" in text
-
-        assert has_boolean_pattern or has_zero_one, "Expected boolean flag pattern not found"
+        # The function should still decompile with its 0/1 flag logic intact ...
+        assert "= 0" in text and "= 1" in text, "Expected boolean flag logic not found"
+        # ... but the boolean naming pattern must not run, so no 'flag' variable.
+        assert re.search(r"\bflag\b", text) is None, "Boolean-flag naming should be disabled"
 
     def test_multiple_boolean_flags(self):
         """Test function with multiple boolean flags."""
@@ -265,6 +265,26 @@ class TestResolveNameCollisions(unittest.TestCase):
             "v_3": "ptr",
             "v_4": "ptr1",
             "v_5": "n",
+        }, result
+
+    def test_excess_duplicates_reverted(self):
+        """Test that sharing a base name beyond MAX_SHARED_NAME reverts to default."""
+        result = self._resolve(
+            [
+                ("v_0", "ptr", True),
+                ("v_1", "ptr", True),
+                ("v_2", "ptr", True),
+                ("v_3", "ptr", True),
+                ("v_4", "ptr", True),
+            ]
+        )
+        # First MAX_SHARED_NAME (3) are kept/suffixed; the rest revert to None.
+        assert result == {
+            "v_0": "ptr",
+            "v_1": "ptr1",
+            "v_2": "ptr2",
+            "v_3": None,
+            "v_4": None,
         }, result
 
     def test_no_collisions_is_noop(self):

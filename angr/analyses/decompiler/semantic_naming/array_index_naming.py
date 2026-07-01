@@ -23,8 +23,15 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-# Names for array indices (used when not already named as loop counter)
-ARRAY_INDEX_NAMES = ["idx", "index", "pos", "off"]
+# Names for array indices (used when not already named as loop counter).
+# Limited to "idx"/"index": "pos" and "off" were applied to incidental offset
+# arithmetic and were rarely accurate.
+ARRAY_INDEX_NAMES = ["idx", "index"]
+
+# A simple "base + idx" pattern (no scale factor) is weak evidence on its own - it
+# matches plenty of non-array offset math. Require it to recur this many times
+# before naming. Scaled "idx * scale" accesses are strong and named on first sight.
+MIN_WEAK_INDEX_USES = 2
 
 
 class ArrayIndexNaming(ClinicNamingBase):
@@ -42,6 +49,7 @@ class ArrayIndexNaming(ClinicNamingBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._index_vars: dict[SimVariable, int] = {}  # var -> usage count
+        self._strong_index_vars: set[SimVariable] = set()  # seen in a scaled (idx * scale) access
         self._name_counter = 0
 
     def analyze(self) -> dict[SimVariable, str]:
@@ -147,12 +155,12 @@ class ArrayIndexNaming(ClinicNamingBase):
             # op0 is potentially the index
             var = self._get_linked_variable(op0)
             if var is not None:
-                self._record_index_var(var)
+                self._record_index_var(var, strong=True)
         elif isinstance(op0, Const):
             # op1 is potentially the index
             var = self._get_linked_variable(op1)
             if var is not None:
-                self._record_index_var(var)
+                self._record_index_var(var, strong=True)
 
     def _check_add_for_index(self, op0, op1) -> None:
         """
@@ -171,13 +179,18 @@ class ArrayIndexNaming(ClinicNamingBase):
             # op0 is the potential index
             self._record_index_var(var0)
 
-    def _record_index_var(self, var: SimVariable) -> None:
+    def _record_index_var(self, var: SimVariable, strong: bool = False) -> None:
         """
         Record a variable as being used as an array index.
+
+        :param strong: True if seen in a scaled ``idx * scale`` access (strong
+                       evidence); False for a bare ``base + idx`` access (weak).
         """
         if var not in self._index_vars:
             self._index_vars[var] = 0
         self._index_vars[var] += 1
+        if strong:
+            self._strong_index_vars.add(var)
 
     def _assign_index_names(self) -> None:
         """
@@ -188,11 +201,15 @@ class ArrayIndexNaming(ClinicNamingBase):
         sorted_vars = sorted(self._index_vars.items(), key=lambda x: -x[1])
 
         for var, _count in sorted_vars:
-            # Assign a name
+            # Require strong (scaled) evidence, or repeated weak uses, before naming.
+            if var not in self._strong_index_vars and _count < MIN_WEAK_INDEX_USES:
+                continue
+            # Assign a name. Once the pool is exhausted, fall back to the primary
+            # name and let the orchestrator's collision resolver number and cap them.
             if self._name_counter < len(ARRAY_INDEX_NAMES):
                 new_name = ARRAY_INDEX_NAMES[self._name_counter]
             else:
-                new_name = f"idx{self._name_counter}"
+                new_name = ARRAY_INDEX_NAMES[0]
 
             self._var_to_new_name[var] = new_name
             self._name_counter += 1

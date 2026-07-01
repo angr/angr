@@ -26,8 +26,13 @@ l = logging.getLogger(name=__name__)
 
 # Names for pointer variables based on usage pattern
 POINTER_NAMES = {
-    "generic": ["ptr", "p", "addr"],
-    "iterator": ["cur", "iter", "node"],
+    # "generic" is intentionally limited to "ptr" only: the low-value names "p"
+    # and "addr" added noise without disambiguating. Generic pointers are also
+    # only named when they carry a specific signal (see _assign_pointer_names).
+    "generic": ["ptr"],
+    # "cur" was removed: it read as a misleading "current element" even for
+    # non-iterating pointers.
+    "iterator": ["iter", "node"],
     "linked_list": ["next", "prev", "head", "tail"],
     "string": ["str", "s", "buf"],
     "array": ["arr", "data", "base"],
@@ -319,8 +324,23 @@ class PointerNaming(ClinicNamingBase):
         # Threshold for considering a variable as a pointer
         SCORE_THRESHOLD = 20
 
+        # Patterns that constitute a "specific" pointer signal worth naming. A bare
+        # dereference / pointer-arithmetic / copy is too generic on its own: naming
+        # every dereferenced variable "ptr" (ptr1, ptr2, ...) is the main source of
+        # indistinct pointer names. We only name a pointer when it is an iterator /
+        # linked-list node, or it is tied to a known pointer-handling function.
+        specific_patterns = {"return_value", "func_param", "linked_list"}
+
         for var, info in sorted_candidates:
             if info["score"] < SCORE_THRESHOLD:
+                continue
+
+            has_specific_signal = (
+                info["is_linked_list"] or info["is_iterator"] or bool(info["patterns"] & specific_patterns)
+            )
+            if not has_specific_signal:
+                # Purely generic pointer (dereference/arithmetic/copy only) - leave it
+                # to default naming rather than adding another "ptr".
                 continue
 
             # Choose name based on usage pattern
@@ -329,7 +349,9 @@ class PointerNaming(ClinicNamingBase):
             names = POINTER_NAMES[category]
             idx = self._name_counter[category]
 
-            new_name = names[idx] if idx < len(names) else f"ptr{sum(self._name_counter.values())}"
+            # Once the pool is exhausted, fall back to the primary name and let the
+            # orchestrator's collision resolver number and cap the duplicates.
+            new_name = names[idx] if idx < len(names) else names[0]
             self._var_to_new_name[var] = new_name
             self._name_counter[category] += 1
 
