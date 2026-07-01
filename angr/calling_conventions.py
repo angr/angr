@@ -1449,6 +1449,7 @@ class MicrosoftAMD64ArgSession(ArgSession):
 class SimCCMicrosoftAMD64(SimCC):
     ARG_REGS = ["rcx", "rdx", "r8", "r9"]
     FP_ARG_REGS = ["xmm0", "xmm1", "xmm2", "xmm3"]
+    CALLER_SAVED_REGS = ["rax", "rcx", "rdx", "r8", "r9", "r10", "r11"]
     STACKARG_SP_DIFF = 8  # Return address is pushed on to stack by call
     STACKARG_SP_BUFF = 32  # 32 bytes of shadow stack space
     RETURN_VAL = SimRegArg("rax", 8)

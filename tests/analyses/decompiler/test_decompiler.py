@@ -5610,6 +5610,25 @@ class TestDecompiler(unittest.TestCase):
             stripped = line.strip()
             assert stripped != "GetCurrentThreadId();", "GetCurrentThreadId() result was wrongly eliminated"
 
+    @structuring_algo("sailr")
+    def test_winx64_eliminating_call_reg_args(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
+        )
+        proj = angr.Project(bin_path)
+        proj.analyses.CFGFast(normalize=True, force_smart_scan=False, show_progressbar=not WORKER)
+
+        f = proj.kb.functions[0x18000A7F8]
+        d = proj.analyses[Decompiler](f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        # make sure the first line of code is memset(&buf, 0, 152);
+        text = d.codegen.text
+        assert re.search(r"\n\s+memset\(&?[0-9a-z]+, 0, 152\);", text) is not None, (
+            "First line of code is not memset(&buf, 0, 152);"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
