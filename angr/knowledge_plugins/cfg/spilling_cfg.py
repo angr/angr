@@ -70,7 +70,7 @@ class SpillingCFGNodeDict:
 
         self._lru_order: OrderedDict[K, None] = OrderedDict()
 
-        self._nodesdb = None
+        self._nodesdb: str | None = None
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
         self._db_load_lock = threading.Lock()
