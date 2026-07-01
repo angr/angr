@@ -227,9 +227,10 @@ class TestPeepholeOptimizations(unittest.TestCase):
                 shr = BinaryOp(mgr.next_atom(), "Shr", [mul, Const(mgr.next_atom(), shift, 8)], False)
                 expr = Convert(mgr.next_atom(), 64, 32, False, shr)
                 r = OptimizedDivisionSimplifier(None, None, mgr).optimize(expr)
-                assert r is not None and r.bits == expr.bits == 32
+                assert isinstance(r, Convert) and r.bits == expr.bits == 32
                 assert isinstance(r.operand, BinaryOp) and r.operand.op == "Div"
-                assert r.operand.operands[1].value == divisor
+                divisor_operand = r.operand.operands[1]
+                assert isinstance(divisor_operand, Const) and divisor_operand.value == divisor
 
 
 if __name__ == "__main__":
