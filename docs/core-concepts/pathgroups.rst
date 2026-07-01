@@ -106,7 +106,7 @@ on.
 
 There are lots of fun tools that the simulation manager provides you for
 managing your stashes. We won't go into the rest of them for now, but you should
-check out the API documentation. TODO: link
+check out the `API documentation <../api/angr.sim_manager.html>`_.
 
 Stash types
 -----------
@@ -177,7 +177,7 @@ in the active stash before finding this many solutions, execution will stop
 anyway.
 
 Let's look at a simple crackme `example
-<./examples.md#reverseme-modern-binary-exploitation---csci-4968>`:
+<https://github.com/angr/angr-examples/tree/master/examples/CSCI-4968-MBE/challenges/crackme0x00a>`_:
 
 First, we load the binary.
 
