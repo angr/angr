@@ -1,0 +1,28 @@
+[package]
+name = "clarirs_core"
+version = "0.1.0"
+edition = "2024"
+description = "The core of clarirs"
+license = { workspace = true }
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+repository = { workspace = true }
+
+[dependencies]
+ahash = "0.8.12"
+anyhow = { workspace = true }
+clarirs_num = { path = "../clarirs_num" }
+num-bigint = { version = "0.4.6", features = ["serde"] }
+num-traits = "0.2"
+serde = { version = "1.0.228", features = ["derive", "rc"] }
+smallvec = { version = "1.15.1", features = ["serde"] }
+thiserror = { workspace = true }
+
+[features]
+default = ["runtime-checks"]
+runtime-checks = []
+panic-on-hash-collision = []
+
+[lints]
+workspace = true

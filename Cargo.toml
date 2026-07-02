@@ -1,6 +1,17 @@
 [workspace]
 resolver = "3"
-members = ["native/angr"]
+members = [
+    "native/angr",
+    "native/clarirs_core",
+    "native/clarirs_num",
+    "native/clarirs_py",
+    "native/clarirs_z3",
+    "native/clarirs-vsa",
+]
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
 
 [workspace.package]
 license = "BSD-2-Clause"
