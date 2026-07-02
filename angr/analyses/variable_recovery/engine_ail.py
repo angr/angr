@@ -312,8 +312,22 @@ class SimEngineVRAIL(
         for i, arg in enumerate(args):
             if arg is None or arg.typevar is None:
                 continue
+            # Strip trailing ConvertTo labels: _filter_constraints discards ConvertTo-headed subtype
+            # constraints, which would otherwise drop this FuncIn edge and shrink the prototype.
+            arg_tv = arg.typevar
+            while (
+                isinstance(arg_tv, typevars.DerivedTypeVariable)
+                and arg_tv.labels
+                and isinstance(arg_tv.labels[-1], typevars.ConvertTo)
+            ):
+                remaining = arg_tv.labels[:-1]
+                arg_tv = (
+                    typevars.DerivedTypeVariable(arg_tv.type_var, None, labels=remaining)
+                    if remaining
+                    else arg_tv.type_var
+                )
             funcin_tv = self.tv_manager.new_dtv(base_tv, labels=(typevars.FuncIn(i),))
-            self.state.add_type_constraint(typevars.Subtype(arg.typevar, funcin_tv))
+            self.state.add_type_constraint(typevars.Subtype(arg_tv, funcin_tv))
 
     def _handle_stmt_SideEffectStatement(self, stmt):
         if not isinstance(stmt.expr, ailment.Expr.Call):
