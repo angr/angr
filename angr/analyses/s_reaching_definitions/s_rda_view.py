@@ -44,7 +44,9 @@ def get_call_clobbered_regs(
     cc = variable_map.calling_convention(call) if variable_map is not None else None
     if cc is None:
         # get the default calling convention
-        cc = default_cc(arch.name, platform=platform, language=language)  # TODO: platform and language
+        cc_cls = default_cc(arch.name, platform=platform, language=language)
+        if cc_cls is not None:
+            cc = cc_cls(arch)
     if cc is not None:
         # try to get the function
         func = None
