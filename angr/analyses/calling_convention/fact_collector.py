@@ -846,7 +846,7 @@ class FactCollector(Analysis):
         stackarg_sp_buff = cc_cls.STACKARG_SP_BUFF if cc_cls is not None else 0
         for state in end_states:
             for offset, size in state.stack_reads.items():
-                offset = u2s(offset, self.project.arch.bits)
+                offset = u2s(offset & ((1 << self.project.arch.bits) - 1), self.project.arch.bits)
                 if offset - ret_addr_offset > stackarg_sp_buff:
                     if offset in stack_offset_created or offset in callee_saved_reg_stack_offsets:
                         continue

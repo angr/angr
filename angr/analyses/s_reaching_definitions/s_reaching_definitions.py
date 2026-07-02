@@ -60,6 +60,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             platform=self.project.simos.name if self.project.simos is not None else None,
             language=self.project._languages[0] if self.project._languages else None,
             variable_map=variable_map,
+            functions=self.project.kb.functions if self.project.kb is not None else None,
         )
 
         self._analyze()

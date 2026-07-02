@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Iterator
-from typing import Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from angr.ailment import Address
 from angr.ailment.expression import Tmp, VirtualVariable
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import Definition, atoms
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 
 class SRDAModel:
@@ -16,7 +19,14 @@ class SRDAModel:
     """
 
     def __init__(
-        self, func_graph, func_args, arch, platform: str | None = None, language: str | None = None, variable_map=None
+        self,
+        func_graph,
+        func_args,
+        arch,
+        platform: str | None = None,
+        language: str | None = None,
+        variable_map=None,
+        functions: FunctionManager | None = None,
     ):
         self.func_graph = func_graph
         self.func_args = func_args
@@ -24,6 +34,7 @@ class SRDAModel:
         self.platform = platform
         self.language = language
         self.variable_map = variable_map
+        self.functions = functions
         self.varid_to_vvar: dict[int, VirtualVariable] = {}
         self.all_vvar_definitions: dict[int, AILCodeLocation] = {}
         self.all_vvar_uses: dict[int, list[tuple[VirtualVariable | None, AILCodeLocation]]] = defaultdict(list)

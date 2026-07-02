@@ -3,19 +3,23 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import networkx
 
 from angr.ailment import Block
-from angr.ailment.expression import Call, Expression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Call, Const, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, SideEffectStatement, Statement
-from angr.calling_conventions import SimRegArg, default_cc
+from angr.calling_conventions import SimRegArg, call_clobbered_regs, default_cc
 from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import get_reg_offset_base
 
 from .s_rda_model import SRDAModel
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +35,9 @@ def _copy_reg2vvarid(reg2vvarid: dict[int, dict[int, int]]) -> dict[int, dict[in
     return {offset: sizes.copy() for offset, sizes in reg2vvarid.items()}
 
 
-def get_call_clobbered_regs(call: Call, variable_map, arch, platform: str | None, language: str | None) -> set[int]:
+def get_call_clobbered_regs(
+    call: Call, variable_map, functions: FunctionManager | None, arch, platform: str | None, language: str | None
+) -> set[int]:
     if isinstance(call.target, str):
         # pseudo calls do not clobber any registers
         return set()
@@ -40,7 +46,13 @@ def get_call_clobbered_regs(call: Call, variable_map, arch, platform: str | None
         # get the default calling convention
         cc = default_cc(arch.name, platform=platform, language=language)  # TODO: platform and language
     if cc is not None:
-        reg_list = cc.CALLER_SAVED_REGS
+        # try to get the function
+        func = (
+            functions.get_by_addr(call.target.value_int, meta_only=True)
+            if functions is not None and isinstance(call.target, Const)
+            else None
+        )
+        reg_list = call_clobbered_regs(cc, func, arch)
         if isinstance(cc.RETURN_VAL, SimRegArg):
             # do not update reg_list directly, otherwise you may update cc.CALLER_SAVED_REGS!
             reg_list = [*reg_list, cc.RETURN_VAL.reg_name]
@@ -63,6 +75,7 @@ class RegVVarPredicate:
         platform: str | None = None,
         language: str | None = None,
         variable_map=None,
+        functions: FunctionManager | None = None,
     ):
         self.reg_offset = reg_offset
         self.min_size = min_size
@@ -71,6 +84,7 @@ class RegVVarPredicate:
         self.platform = platform
         self.language = language
         self.variable_map = variable_map
+        self.functions = functions
 
     def predicate(self, stmt: Statement) -> bool:
         if (
@@ -96,7 +110,7 @@ class RegVVarPredicate:
             if isinstance(stmt.expr, Call):
                 # is it clobbered maybe?
                 clobbered_regs = get_call_clobbered_regs(
-                    stmt.expr, self.variable_map, self.arch, self.platform, self.language
+                    stmt.expr, self.variable_map, self.functions, self.arch, self.platform, self.language
                 )
                 if self.reg_offset in clobbered_regs:
                     return True
@@ -203,6 +217,7 @@ class SRDAView:
             platform=self.model.platform,
             language=self.model.language,
             variable_map=self.model.variable_map,
+            functions=self.model.functions,
         )
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
@@ -290,6 +305,7 @@ class SRDAView:
             platform=self.model.platform,
             language=self.model.language,
             variable_map=self.model.variable_map,
+            functions=self.model.functions,
         )
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
@@ -456,7 +472,12 @@ class SRDAView:
                     call_expr = first_stmt.src
                 if call_expr is not None:
                     clobbered_regs = get_call_clobbered_regs(
-                        call_expr, self.model.variable_map, self.model.arch, self.model.platform, self.model.language
+                        call_expr,
+                        self.model.variable_map,
+                        self.model.functions,
+                        self.model.arch,
+                        self.model.platform,
+                        self.model.language,
                     )
                     for reg_offset in clobbered_regs:
                         if reg_offset in reg2vvarid:
@@ -482,7 +503,12 @@ class SRDAView:
                     call_expr = last_stmt.src
                 if call_expr is not None:
                     clobbered_regs = get_call_clobbered_regs(
-                        call_expr, self.model.variable_map, self.model.arch, self.model.platform, self.model.language
+                        call_expr,
+                        self.model.variable_map,
+                        self.model.functions,
+                        self.model.arch,
+                        self.model.platform,
+                        self.model.language,
                     )
                     for reg_offset in clobbered_regs:
                         if reg_offset in reg2vvarid:
