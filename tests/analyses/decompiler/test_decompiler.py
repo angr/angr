@@ -5678,6 +5678,35 @@ class TestDecompiler(unittest.TestCase):
             f"got: {assign_line.strip()!r}"
         )
 
+        # ensure structs are deduplicated
+        #
+        # Collect every emitted `typedef struct struct_N { ... } struct_N;` definition and its (normalized) body.
+        struct_defs = re.findall(r"typedef struct (struct_\w+) \{(.*?)\}\s*\1;", text, re.DOTALL)
+        struct_names = [name for name, _ in struct_defs]
+
+        # Exactly 3 struct typedefs survive: the two genuine, distinct, dereferenced structs plus one shared
+        # anonymous struct for all 8 extern function-pointer globals.
+        assert len(struct_names) == 3, f"expected 3 struct typedefs, got {len(struct_names)}: {struct_names}"
+
+        # No two structurally-identical struct definitions may be emitted (robust to struct renumbering).
+        normalized_bodies = [re.sub(r"\s+", " ", body).strip() for _, body in struct_defs]
+        assert len(set(normalized_bodies)) == len(normalized_bodies), (
+            f"found structurally-identical struct definitions: {normalized_bodies}"
+        )
+
+        # The specific single-u64-field layout must be emitted exactly once (the 8 duplicates collapse to 1).
+        u64_layout_count = sum(1 for body in normalized_bodies if body == "unsigned long long field_0;")
+        assert u64_layout_count == 1, (
+            f"the `{{ unsigned long long field_0; }}` layout must appear exactly once, got {u64_layout_count}"
+        )
+
+        # All 8 extern function-pointer globals must share the one canonical struct type.
+        u64_struct_name = next(
+            name for name, body in zip(struct_names, normalized_bodies) if body == "unsigned long long field_0;"
+        )
+        extern_ptr_count = len(re.findall(rf"extern {u64_struct_name} \*g_", text))
+        assert extern_ptr_count == 8, f"expected 8 extern globals typed as {u64_struct_name} *, got {extern_ptr_count}"
+
 
 if __name__ == "__main__":
     unittest.main()
