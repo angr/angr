@@ -157,14 +157,14 @@ class RuntimeDb(KnowledgeBasePlugin):
             # may fail and raise exceptions
             self._lmdb_env = self._attempt_creating_lmdb(self._lmdb_path)
         else:
-            r = self._init_lmdb_attempt_multipele_locations()
+            r = self._init_lmdb_attempt_multiple_locations()
             if r is None:
                 raise AngrRuntimeDbError("Failed to initialize the LMDB environment.")
             self._lmdb_path, self._lmdb_env = r
 
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
 
-    def _init_lmdb_attempt_multipele_locations(self) -> tuple[str, lmdb.Environment] | None:
+    def _init_lmdb_attempt_multiple_locations(self) -> tuple[str, lmdb.Environment] | None:
         if self._lmdb_env is not None:
             return None
 
@@ -266,6 +266,10 @@ class RuntimeDb(KnowledgeBasePlugin):
     def increase_lmdb_map_size(self) -> None:
         """
         Increase the LMDB map size.
+
+        Note that the old database handle *may* no longer be valid after a map size increase. rhelmot could reproduce
+        the error "Database handle belongs to another environment." in nix + CPython 3.13.13. Reopening all databases
+        after increasing LMDB map size solves this issue.
         """
         if self._lmdb_env is None:
             return
@@ -274,6 +278,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         l.debug("Increasing LMDB map size by %d bytes", delta)
         self._lmdb_mapsize += delta
         self._lmdb_env.set_mapsize(self._lmdb_mapsize)
+        self.reopen_lmdb_databases()
 
     def reopen_lmdb(self):
         """
@@ -289,8 +294,10 @@ class RuntimeDb(KnowledgeBasePlugin):
             self._lmdb_env = None
 
         self._init_lmdb()
-        assert self._lmdb_env is not None
+        self.reopen_lmdb_databases()
 
+    def reopen_lmdb_databases(self):
+        assert self._lmdb_env is not None
         for db_name in list(self._dbs):
             self._dbs[db_name] = self._lmdb_env.open_db(db_name.encode())
 
