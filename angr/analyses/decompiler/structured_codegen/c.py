@@ -191,9 +191,13 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
     return t0 == t1
 
 
-def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
+def type_to_c_repr_chunks(
+    ty: SimType, name=None, name_type=None, full=False, indent_str="", indent_delta: int = INDENT_DELTA
+):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
+
+    :param indent_delta:    Number of space characters used to indent each struct field one level deeper.
     """
     if isinstance(ty, SimStruct):
         if full:
@@ -208,9 +212,7 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
 
             # each of the fields
             # fields should be indented
-            new_indent_str = (
-                " " * 4
-            ) + indent_str  # TODO: hardcoded as 4 character space indents, which is same as SimStruct.c_repr
+            new_indent_str = (" " * indent_delta) + indent_str
             for k, v in ty.fields.items():
                 yield new_indent_str, None
                 yield from type_to_c_repr_chunks(v, name=k, name_type=CStructFieldNameDef(k), full=False, indent_str="")
@@ -635,7 +637,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
                     # drop unreferenced structs
                     if ty.name in referenced_struct_names:
-                        yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+                        yield from type_to_c_repr_chunks(
+                            ty, full=True, indent_str=indent_str, indent_delta=self.codegen.indent_delta
+                        )
 
         if self.codegen.show_externs and self.codegen.cexterns:
             # Emit struct definitions for types used by externs
@@ -675,7 +679,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 if ty.name in defined_struct_names:
                     continue
                 defined_struct_names.add(ty.name)
-                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+                yield from type_to_c_repr_chunks(
+                    ty, full=True, indent_str=indent_str, indent_delta=self.codegen.indent_delta
+                )
 
             # Emit extern declarations
             for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
@@ -734,8 +740,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield " ", None
         yield "{", brace
         yield "\n", None
-        yield from self.variable_list_repr_chunks(indent=indent + INDENT_DELTA)
-        yield from self.statements.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield from self.variable_list_repr_chunks(indent=indent + self.codegen.indent_delta)
+        yield from self.statements.c_repr_chunks(indent=indent + self.codegen.indent_delta)
         yield indent_str, None
         yield "}", brace
         yield "\n", None
@@ -916,7 +922,7 @@ class CWhileLoop(CLoop):
         else:
             yield "{", brace
             yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from self.body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
             yield indent_str, None
             yield "}", brace
             yield "\n", None
@@ -953,7 +959,7 @@ class CDoWhileLoop(CLoop):
         if self.body is not None:
             yield "{", brace
             yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from self.body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
             yield indent_str, None
             yield "}", brace
         else:
@@ -1018,7 +1024,7 @@ class CForLoop(CStatement):
 
             yield "{", brace
             yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from self.body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
             yield indent_str, None
             yield "}", brace
         else:
@@ -1111,7 +1117,7 @@ class CIfElse(CStatement):
                 yield "\n", None
 
             if node is not None:
-                yield from node.c_repr_chunks(indent=INDENT_DELTA + indent)
+                yield from node.c_repr_chunks(indent=self.codegen.indent_delta + indent)
 
             if not omit_braces:
                 yield indent_str, None
@@ -1141,11 +1147,11 @@ class CIfElse(CStatement):
                     yield " ", None
 
                 if single_stmt_else:
-                    yield from self.else_node.c_repr_chunks(indent=INDENT_DELTA)
+                    yield from self.else_node.c_repr_chunks(indent=self.codegen.indent_delta)
                 else:
                     yield "{", brace
                     yield "\n", None
-                    yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+                    yield from self.else_node.c_repr_chunks(indent=indent + self.codegen.indent_delta)
                     yield indent_str, None
                     yield "}", brace
 
@@ -1185,12 +1191,12 @@ class CIfBreak(CStatement):
         else:
             yield " ", None
         if self.cstyle_ifs:
-            yield self.indent_str(indent=INDENT_DELTA), self
+            yield self.indent_str(indent=self.codegen.indent_delta), self
             yield "break;\n", self
         else:
             yield "{", brace
             yield "\n", None
-            yield self.indent_str(indent=indent + INDENT_DELTA), self
+            yield self.indent_str(indent=indent + self.codegen.indent_delta), self
             yield "break;\n", self
             yield indent_str, None
             yield "}", brace
@@ -1277,12 +1283,12 @@ class CSwitchCase(CStatement):
                     if i != len(id_or_ids) - 1:
                         yield " ", None
                 yield "\n", None
-            yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from case.c_repr_chunks(indent=indent + self.codegen.indent_delta)
 
         if self.default is not None:
             yield indent_str, None
             yield "default:\n", self
-            yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from self.default.c_repr_chunks(indent=indent + self.codegen.indent_delta)
 
         yield indent_str, None
         yield "}", brace
@@ -1328,7 +1334,7 @@ class CIncompleteSwitchCase(CStatement):
             yield indent_str, None
             yield f"case {case_addr:#x}", self
             yield ":\n", None
-            yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from case.c_repr_chunks(indent=indent + self.codegen.indent_delta)
 
         yield indent_str, None
         yield "}", brace
@@ -2739,6 +2745,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         max_str_len: int | None = None,
         prettify_thiscall: bool = False,
         cstyle_void_param: bool = True,
+        indent_size: int = 4,
         variable_map: VariableMap | None = None,
     ):
         super().__init__(
@@ -2835,6 +2842,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
         self.cstyle_void_param = cstyle_void_param
+        # Number of space characters per indentation level in the emitted pseudocode.
+        self.indent_delta = indent_size
 
         self._analyze()
 
@@ -2862,6 +2871,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.cstyle_ifs = value
             elif option.param == "cstyle_void_param":
                 self.cstyle_void_param = value
+            elif option.param == "indent_size":
+                self.indent_delta = value
 
     def _analyze(self):
         self._variables_in_use = {}

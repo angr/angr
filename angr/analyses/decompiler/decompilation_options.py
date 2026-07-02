@@ -301,6 +301,17 @@ options = [
         clears_cache=False,
     ),
     O(
+        "Indentation width",
+        "Number of space characters per indentation level in the pseudocode.",
+        int,
+        "codegen",
+        "indent_size",
+        category="Display",
+        default_value=4,
+        value_range=(1, 8),
+        clears_cache=False,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,
