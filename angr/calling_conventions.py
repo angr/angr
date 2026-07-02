@@ -5,7 +5,7 @@ import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import archinfo
 import claripy
@@ -42,6 +42,10 @@ from .sim_type import (
     parse_signature,
 )
 from .state_plugins.sim_action_object import SimActionObject
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions import Function
+
 
 l = logging.getLogger(name=__name__)
 
@@ -2858,3 +2862,28 @@ while cls_queue:
 
 SyscallCC = SYSCALL_CC
 DefaultCC = DEFAULT_CC
+
+
+# Names used for the statically-linked MSVC stack-probe helper across toolchains.
+_STACK_PROBE_NAMES = frozenset({"__chkstk", "_chkstk", "__alloca_probe", "___chkstk_ms", "__chkstk_ms"})
+
+
+def is_stack_probe(func: Function) -> bool:
+    """
+    Return True if ``func`` is a Windows stack-probe / alloca-probe helper (``__chkstk`` / ``__alloca_probe``).
+    """
+    if func.info.get("is_alloca_probe", False) is True:
+        return True
+    return func.name in _STACK_PROBE_NAMES  # fallback
+
+
+def call_clobbered_regs(cc: SimCC, target: Function | None, arch: archinfo.Arch) -> list[str]:
+    """
+    Return the caller-saved (clobbered) register names for a call to ``target`` under calling convention ``cc``.
+
+    This function is aware of special behaviors of functions, such as stack-probe callees (``__chkstk`` /
+    ``__alloca_probe``). Future logic for other special functions may be added to this function as needed.
+    """
+    if target is not None and is_stack_probe(target):
+        return ["rax"] if arch.name == "AMD64" else ["eax"] if arch.name == "X86" else []
+    return list(cc.CALLER_SAVED_REGS)

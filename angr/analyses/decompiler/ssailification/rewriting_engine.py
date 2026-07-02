@@ -45,6 +45,7 @@ from angr.ailment.statement import (
 )
 from angr.ailment.tagged_object import TaggedObject
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.calling_conventions import call_clobbered_regs
 from angr.engines.light.engine import SimEngineNostmtAIL
 
 from .consts import MAX_STACK_VAR_SIZE
@@ -272,16 +273,43 @@ class SimEngineSSARewriting(
             )
         return None
 
+    def _resolve_call_target(self, expr):
+        """
+        Resolve the callee :class:`Function` of a call expression, or None if it cannot be determined.
+        """
+        if not isinstance(expr, Call):
+            return None
+        target = expr.target
+        if isinstance(target, Const) and isinstance(target.value, int):
+            addr = target.value
+            if self.project.kb.functions.contains_addr(addr):
+                return self.project.kb.functions.get_by_addr(addr, meta_only=True)
+            return None
+        if isinstance(target, str):
+            try:
+                return self.project.kb.functions[target]
+            except KeyError:
+                return None
+        return None
+
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
         new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
 
+        # resolve the callee so that we honor its own calling convention (matching the traversal engine)
+        target = self._resolve_call_target(stmt.expr)
+
+        if cc is None and target is not None and target.calling_convention is not None:
+            # honor the callee's own calling convention before falling back to the platform default
+            cc = target.calling_convention
         if cc is None:
             cc = self.project.factory.cc()
         if cc is not None:
-            # clean up all caller-saved registers (and their subregisters)
-            for reg_name in cc.CALLER_SAVED_REGS:
+            # clean up all caller-saved registers (and their subregisters). Stack-probe callees
+            # (__chkstk / __alloca_probe) preserve argument registers, so call_clobbered_regs narrows the
+            # clobber set for them.
+            for reg_name in call_clobbered_regs(cc, target, self.arch):
                 base_off, base_size = self.arch.registers[reg_name]
                 for suboff in range(base_off, base_off + base_size):
                     self.state.registers.pop(suboff, None)

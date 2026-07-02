@@ -5647,8 +5647,16 @@ class TestDecompiler(unittest.TestCase):
         )
         proj = angr.Project(bin_path)
         proj.analyses.CFGFast(normalize=True, force_smart_scan=False, show_progressbar=not WORKER)
+        proj.analyses.CompleteCallingConventions(show_progressbar=not WORKER)
 
         f = proj.kb.functions[0x18000A7F8]
+        # ensure we got the right number of arguments recovered
+        assert f.prototype is not None
+        assert len(f.prototype.args) == 7, (
+            f"expected 7 recovered parameters (with three Win64 stack args), got {len(f.prototype.args)} instead"
+        )
+
+        # decompile
         d = proj.analyses[Decompiler](f, options=decompiler_options)
         assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
@@ -5657,6 +5665,17 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         assert re.search(r"\n\s+memset\(&?[0-9a-z]+, 0, 152\);", text) is not None, (
             "First line of code is not memset(&buf, 0, 152);"
+        )
+
+        # The third argument of this function (r8 -> a2) must survive __chkstk and flow into the store below
+        # GetCurrentThreadId().
+        lines = text.splitlines()
+        gct_idx = next((i for i, line in enumerate(lines) if "GetCurrentThreadId" in line), None)
+        assert gct_idx is not None, "GetCurrentThreadId() call not found in decompilation"
+        assign_line = lines[gct_idx + 1]
+        assert re.search(r"=\s*a2\b", assign_line), (
+            "The third function argument (a2) is not used in the assignment below GetCurrentThreadId(); "
+            f"got: {assign_line.strip()!r}"
         )
 
 
