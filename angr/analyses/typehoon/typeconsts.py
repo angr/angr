@@ -7,6 +7,10 @@ from __future__ import annotations
 
 import functools
 import itertools
+import threading
+
+# per-thread guard against infinite recursion in Function.__eq__ on self-referential types
+_function_eq_inprogress = threading.local()
 
 from ._typehash import type_tag
 
@@ -511,14 +515,31 @@ class Function(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
-        param_str = ", ".join(repr(param) for param in self.params)
-        outputs_str = ", ".join(repr(output) for output in self.outputs)
+        # thread memo through params/outputs so self-referential function types don't recurse
+        # forever (params/outputs may contain None for missing slots)
+        param_str = ", ".join(p.__repr__(memo=memo) if p is not None else "None" for p in self.params)
+        outputs_str = ", ".join(o.__repr__(memo=memo) if o is not None else "None" for o in self.outputs)
         return f"func({param_str}) -> {outputs_str}"
 
     def __eq__(self, other):
+        if self is other:
+            return True
         if not isinstance(other, Function):
             return False
-        return self.params == other.params and self.outputs == other.outputs
+        # self-referential function types (a param/output pointing back at the function) would
+        # recurse forever; guard on the (self, other) pair being compared and assume equal on
+        # re-entry (coinductive equality, matching the cycle handling in _hash).
+        inprogress = getattr(_function_eq_inprogress, "pairs", None)
+        if inprogress is None:
+            inprogress = _function_eq_inprogress.pairs = set()
+        key = (id(self), id(other))
+        if key in inprogress:
+            return True
+        inprogress.add(key)
+        try:
+            return self.params == other.params and self.outputs == other.outputs
+        finally:
+            inprogress.discard(key)
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:

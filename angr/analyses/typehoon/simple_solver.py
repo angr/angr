@@ -2029,7 +2029,9 @@ class SimpleSolver:
             input_args = []
             output_values = []
             for vals, out in [(func_inputs, input_args), (func_outputs, output_values)]:
-                for idx in range(max(vals) + 1):
+                # a function-typed cell may have only FuncIn labels (no FuncOut) or vice versa;
+                # max() on the empty slot dict would raise, so treat it as zero params/outputs.
+                for idx in range(max(vals) + 1 if vals else 0):
                     if idx in vals:
                         sol = self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=vals[idx])
                         out.append(sol)
