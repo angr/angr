@@ -11,7 +11,7 @@ import archinfo
 
 import angr
 from angr import ailment
-from angr.ailment.expression import BinaryOp, Const
+from angr.ailment.expression import BinaryOp, Const, Convert, Register
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
@@ -19,6 +19,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     CmpSubConst,
     ConstantDereferences,
     EagerEvaluation,
+    OptimizedDivisionSimplifier,
 )
 from angr.analyses.decompiler.utils import peephole_optimize_expr
 from tests.common import bin_location
@@ -215,6 +216,21 @@ class TestPeepholeOptimizations(unittest.TestCase):
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
         assert out.operands[0] is x, f"expected bare register on lhs, got {out.operands[0]}"
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 52, f"expected x == 52, got {out}"
+
+    def test_optimized_division_simplifier_keeps_width(self):
+        # gcc's `x / k` / `x % k` magic-multiply quotients; the rewritten 64-bit Div must keep the 32-bit width
+        for magic, shift, divisor in [(0xCCCCCCCD, 34, 5), (0xAAAAAAAB, 33, 3), (0xD1B71759, 45, 10000)]:
+            with self.subTest(divisor=divisor):
+                mgr = Manager(arch=archinfo.arch_from_id("AMD64"))
+                x = Register(mgr.next_atom(), 16, 64)
+                mul = BinaryOp(mgr.next_atom(), "Mul", [Const(mgr.next_atom(), magic, 64), x], False)
+                shr = BinaryOp(mgr.next_atom(), "Shr", [mul, Const(mgr.next_atom(), shift, 8)], False)
+                expr = Convert(mgr.next_atom(), 64, 32, False, shr)
+                r = OptimizedDivisionSimplifier(None, None, mgr).optimize(expr)
+                assert isinstance(r, Convert) and r.bits == expr.bits == 32
+                assert isinstance(r.operand, BinaryOp) and r.operand.op == "Div"
+                divisor_operand = r.operand.operands[1]
+                assert isinstance(divisor_operand, Const) and divisor_operand.value == divisor
 
 
 if __name__ == "__main__":
