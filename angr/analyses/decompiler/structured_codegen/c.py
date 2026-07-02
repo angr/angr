@@ -259,6 +259,32 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
         assert False
 
 
+def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen: set[int] | None = None) -> None:
+    """
+    Walk ``ty`` transitively and record every ``SimStruct`` reachable from it into ``out`` (keyed
+    by object id). Used by the C backend to determine which structs are actually referenced by
+    rendered declarations/expressions, so that unreferenced typedefs can be dropped.
+    """
+    if _seen is None:
+        _seen = set()
+    ty = unpack_typeref(ty)
+    if ty is None or id(ty) in _seen:
+        return
+    _seen.add(id(ty))
+    if isinstance(ty, SimStruct):
+        out[id(ty)] = ty
+        for ftype in ty.fields.values():
+            _recursively_collect_referenced_structs(ftype, out, _seen=_seen)
+    elif isinstance(ty, SimTypePointer):
+        _recursively_collect_referenced_structs(ty.pts_to, out, _seen=_seen)
+    elif isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+        _recursively_collect_referenced_structs(ty.elem_type, out, _seen=_seen)
+    elif isinstance(ty, SimTypeFunction):
+        for arg in ty.args or ():
+            _recursively_collect_referenced_structs(arg, out, _seen=_seen)
+        _recursively_collect_referenced_structs(ty.returnty, out, _seen=_seen)
+
+
 #
 #   C Representation Classes
 #
@@ -547,10 +573,47 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield from self.statements.c_repr_chunks(indent=indent)
         yield "\n", None
 
+    def _collect_referenced_struct_types(self) -> dict[int, SimStruct]:
+        """
+        Collect every ``SimStruct`` that is referenced by the rendered output of this function. This inclues:
+        - the function prototype (argument/return types)
+        - the types of all in-use variables
+        - extern declarations
+        We use the result to filter out struct typedefs that is not referenced.
+        """
+        referenced: dict[int, SimStruct] = {}
+
+        # Function signature
+        if self.functy is not None:
+            for arg_type in self.functy.args or ():
+                _recursively_collect_referenced_structs(arg_type, referenced)
+            _recursively_collect_referenced_structs(self.functy.returnty, referenced)
+
+        # Declared variables (locals, args, globals) that are actually used in the body. This
+        # covers variable declarations and, transitively, the struct types dereferenced by field
+        # accesses on those variables.
+        for var in self.variables_in_use:
+            _recursively_collect_referenced_structs(self.variable_manager.get_variable_type(var), referenced)
+        for cvar_and_types in self.unified_local_vars.values():
+            for _cvar, vartype in cvar_and_types:
+                _recursively_collect_referenced_structs(vartype, referenced)
+
+        # Extern declarations
+        if self.codegen.show_externs and self.codegen.cexterns:
+            for v in self.codegen.cexterns:
+                if v.variable in self.variables_in_use and v.type is not None:
+                    _recursively_collect_referenced_structs(v.type, referenced)
+
+        return referenced
+
     def full_c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent)
+
+        referenced_structs = self._collect_referenced_struct_types()
+        referenced_struct_names = {s.name for s in referenced_structs.values() if s.name}
+
+        name_to_structtypes = {}
         if self.codegen.show_local_types:
-            name_to_structtypes = {}
             local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             for ty in local_types:
                 if isinstance(ty, SimStruct):
@@ -570,7 +633,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                                 name_to_structtypes[field.name] = field
                             local_types.append(field)
 
-                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+                    # drop unreferenced structs
+                    if ty.name in referenced_struct_names:
+                        yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
             # Emit struct definitions for types used by externs
