@@ -790,7 +790,7 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         code = dec.codegen.text
-        m = re.search(r"v(\d+) = (\(.*\))?strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
+        m = re.search(r"v(\d+) = (\(.*\))?strlen\(v(\d+)\);", code)  # e.g., s_428 = (int)strlen(s_418);
         assert m is not None, (
             "The result of strlen() should be directly assigned to a stack variable because of call-expression folding."
         )
@@ -5234,7 +5234,7 @@ class TestDecompiler(unittest.TestCase):
         m = re.search(r"char (\w+)\[16];", dec.codegen.text)
         assert m is not None
         bufvar = m.group(1)
-        assert f'strncpy(&{bufvar}, "FWe#JID%WkOCZy7", 15);' in dec.codegen.text
+        assert f'strncpy({bufvar}, "FWe#JID%WkOCZy7", 15);' in dec.codegen.text
         # ensure the stack argument for sub_401a90 is correct
         assert "sub_401a90(-1888440072);" in dec.codegen.text
         # ensure the stack argument for the first indirect call is incorrect

@@ -1881,6 +1881,12 @@ class CUnaryOp(CExpression):
         yield ")", paren
 
     def _c_repr_chunks_reference(self):
+        # C array-to-pointer decay: an array-typed lvalue already decays to a pointer to its first
+        # element, so "&array" is redundant.
+        operand_type = self.operand.type if self.operand is not None else None
+        if operand_type is not None and isinstance(unpack_typeref(operand_type), SimTypeArray):
+            yield from CExpression._try_c_repr_chunks(self.operand)
+            return
         yield "&", self
         yield from CExpression._try_c_repr_chunks(self.operand)
 
