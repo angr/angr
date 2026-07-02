@@ -35,6 +35,7 @@ class TypeTranslator:
     __slots__ = (
         "_has_nonexistent_ref",
         "_struct_ctr",
+        "_struct_sig_cache",
         "arch",
         "memo",
         "named_struct_id_counter",
@@ -50,6 +51,9 @@ class TypeTranslator:
         self.translated: dict[TypeConstant, SimType] = {}
         self.translated_simtypes: dict[SimType, TypeConstant] = {}
         self.structs = {}
+        # _struct_sig_cache maps structural signatures to canonical SimStructs. Used to deduplicate auto-named,
+        # angr-generated structs that share an identical layout. See _translate_Struct for the rationale.
+        self._struct_sig_cache: dict[tuple, sim_type.SimStruct] = {}
         self._struct_ctr = count()
         self.memo = {}
         self.named_struct_id_counter = count(133337)
@@ -161,6 +165,18 @@ class TypeTranslator:
                 next_offset = self.arch.bytes + offset
             else:
                 next_offset = translated_type.size // self.arch.byte_width + offset
+
+        # Structurally deduplicate structuring-generated (unnamed) structs.
+        if tc.name is None:
+            sig = tuple(
+                (field_name, type(field_type).__name__, getattr(field_type, "size", None))
+                for field_name, field_type in s.fields.items()
+            )
+            canon = self._struct_sig_cache.get(sig)
+            if canon is not None:
+                self.structs[tc] = canon
+                return canon
+            self._struct_sig_cache[sig] = s
 
         return s
 
