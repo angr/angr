@@ -47,11 +47,9 @@ def get_call_clobbered_regs(
         cc = default_cc(arch.name, platform=platform, language=language)  # TODO: platform and language
     if cc is not None:
         # try to get the function
-        func = (
-            functions.get_by_addr(call.target.value_int, meta_only=True)
-            if functions is not None and isinstance(call.target, Const)
-            else None
-        )
+        func = None
+        if functions is not None and isinstance(call.target, Const) and functions.contains_addr(call.target.value_int):
+            func = functions.get_by_addr(call.target.value_int, meta_only=True)
         reg_list = call_clobbered_regs(cc, func, arch)
         if isinstance(cc.RETURN_VAL, SimRegArg):
             # do not update reg_list directly, otherwise you may update cc.CALLER_SAVED_REGS!
