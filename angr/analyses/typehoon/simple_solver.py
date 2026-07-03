@@ -1364,8 +1364,8 @@ class SimpleSolver:
         tc: TypeConstant, replacements: dict[int, TypeConstant]
     ) -> TypeConstant:
         if isinstance(tc, (Pointer, Struct)):
-            if tc.id in replacements:
-                return replacements[tc.id]
+            if id(tc) in replacements:
+                return replacements[id(tc)]
             return tc.replace(replacements)
         return tc
 
@@ -2170,7 +2170,7 @@ class SimpleSolver:
                     solution[node.typevar] = result
 
                 for tv in list(solution):
-                    solution[tv] = self._rewrite_typeconstant_with_replacements(solution[tv], {ori_result.id: result})
+                    solution[tv] = self._rewrite_typeconstant_with_replacements(solution[tv], {id(ori_result): result})
             else:
                 # back-patch
                 struct_type.fields = fields
