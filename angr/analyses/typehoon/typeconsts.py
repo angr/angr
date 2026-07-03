@@ -52,10 +52,10 @@ class TypeConstant:
 
     def replace(
         self,
-        mapping: dict[TypeConstant, TypeConstant],
+        mapping: dict[int, TypeConstant],
         memo: set[TypeConstant] | None = None,  # pylint:disable=unused-argument
     ) -> TypeConstant:
-        return mapping.get(self, self)
+        return mapping.get(id(self), self)
 
 
 class TopType(TypeConstant):
@@ -228,15 +228,15 @@ class Pointer(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+    def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
+        if id(self) in mapping:
+            return mapping[id(self)]
         if memo is None:
             memo = set()
         else:
-            if self in memo:
+            if id(self) in memo:
                 return self
-        memo.add(self)
+        memo.add(id(self))
         new_basetype = self.basetype.replace(mapping, memo=memo) if self.basetype else None
         if new_basetype is self.basetype:
             return self
@@ -305,11 +305,11 @@ class Array(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+    def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
+        if id(self) in mapping:
+            return mapping[id(self)]
         if memo is None:
-            memo = {self}
+            memo = {id(self)}
         new_element = self.element.replace(mapping, memo=memo) if self.element else None
         if new_element is self.element:
             return self
@@ -427,15 +427,15 @@ class RustEnum(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+    def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
+        if id(self) in mapping:
+            return mapping[id(self)]
         if memo is None:
             memo = set()
         else:
-            if self in memo:
+            if id(self) in memo:
                 return self
-        memo.add(self)
+        memo.add(id(self))
         return self
 
 
@@ -490,11 +490,11 @@ class Enum(TypeConstant):
 
     def replace(
         self,
-        mapping: dict[TypeConstant, TypeConstant],
+        mapping: dict[int, TypeConstant],
         memo: set | None = None,
     ) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+        if id(self) in mapping:
+            return mapping[id(self)]
         # Enums don't contain nested types that need recursive replacement
         return self
 
@@ -528,15 +528,15 @@ class Function(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+    def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
+        if id(self) in mapping:
+            return mapping[id(self)]
         if memo is None:
             memo = set()
         else:
-            if self in memo:
+            if id(self) in memo:
                 return self
-        memo.add(self)
+        memo.add(id(self))
         new_params = []
         new_outputs = []
         changed = False
