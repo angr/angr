@@ -2168,10 +2168,9 @@ class SimpleSolver:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
                     solution[node.typevar] = result
-                    for tv in list(solution):
-                        solution[tv] = self._rewrite_typeconstant_with_replacements(
-                            solution[tv], {ori_result.id: result}
-                        )
+
+                for tv in list(solution):
+                    solution[tv] = self._rewrite_typeconstant_with_replacements(solution[tv], {ori_result.id: result})
             else:
                 # back-patch
                 struct_type.fields = fields
