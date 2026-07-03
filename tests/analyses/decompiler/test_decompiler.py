@@ -3321,6 +3321,40 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         assert cproto in d.codegen.text
 
+    @for_all_structuring_algos
+    def test_adjustable_indent_width(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+        f = cfg.functions["authenticate"]
+
+        def indent_levels(text: str) -> set[int]:
+            return {len(line) - len(line.lstrip(" ")) for line in text.splitlines() if line.startswith(" ")}
+
+        # default (no indent_size option) uses a 4-space indentation
+        d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        levels = indent_levels(d.codegen.text)
+        assert min(levels) == 4
+        assert 8 in levels  # a nested (2x) statement exists at the default width
+
+        for width in (2, 8):
+            options = set_decompiler_option(list(decompiler_options or []), [("indent_size", width)])
+            d = p.analyses[Decompiler].prep(fail_fast=True)(f, options=options)
+            assert d.codegen is not None and d.codegen.text is not None
+            levels = indent_levels(d.codegen.text)
+            # every indentation level is a whole multiple of the configured width
+            assert all(level % width == 0 for level in levels), (
+                f"indent_size={width}: got non-multiple indentation levels {sorted(levels)}"
+            )
+            # the shallowest nesting is exactly one level (width spaces) and a 2x nested line exists
+            assert min(levels) == width, f"indent_size={width}: shallowest indent is {min(levels)}, expected {width}"
+            assert 2 * width in levels, (
+                f"indent_size={width}: no 2x-nested statement (expected {2 * width}-space indent)"
+            )
+
     @structuring_algo("sailr")
     def test_multistatementexpression_od_read_char(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od.o")
