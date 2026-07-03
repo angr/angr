@@ -1361,7 +1361,7 @@ class SimpleSolver:
 
     @staticmethod
     def _rewrite_typeconstant_with_replacements(
-        tc: TypeConstant, replacements: dict[TypeConstant, TypeConstant]
+        tc: TypeConstant, replacements: dict[int, TypeConstant]
     ) -> TypeConstant:
         if isinstance(tc, (Pointer, Struct)):
             if tc.id in replacements:
