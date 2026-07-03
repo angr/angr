@@ -235,9 +235,9 @@ class Pointer(TypeConstant):
         if memo is None:
             memo = set()
         else:
-            if self in memo:
+            if self.id in memo:
                 return self
-        memo.add(self)
+        memo.add(self.id)
         new_basetype = self.basetype.replace(mapping, memo=memo) if self.basetype else None
         if new_basetype is self.basetype:
             return self
@@ -310,7 +310,7 @@ class Array(TypeConstant):
         if self.id in mapping:
             return mapping[self.id]
         if memo is None:
-            memo = {self}
+            memo = {self.id}
         new_element = self.element.replace(mapping, memo=memo) if self.element else None
         if new_element is self.element:
             return self
@@ -434,9 +434,9 @@ class RustEnum(TypeConstant):
         if memo is None:
             memo = set()
         else:
-            if self in memo:
+            if self.id in memo:
                 return self
-        memo.add(self)
+        memo.add(self.id)
         return self
 
 
@@ -535,9 +535,9 @@ class Function(TypeConstant):
         if memo is None:
             memo = set()
         else:
-            if self in memo:
+            if self.id in memo:
                 return self
-        memo.add(self)
+        memo.add(self.id)
         new_params = []
         new_outputs = []
         changed = False
