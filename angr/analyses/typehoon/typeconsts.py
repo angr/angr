@@ -28,6 +28,7 @@ class TypeConstant:
 
     def __init__(self, name: str | None = None):
         self.name = name
+        self.id = id(self)
 
     def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument
         return repr(self)
@@ -55,7 +56,7 @@ class TypeConstant:
         mapping: dict[TypeConstant, TypeConstant],
         memo: set[TypeConstant] | None = None,  # pylint:disable=unused-argument
     ) -> TypeConstant:
-        return mapping.get(self, self)
+        return mapping.get(self.id, self)
 
 
 class TopType(TypeConstant):
@@ -229,8 +230,8 @@ class Pointer(TypeConstant):
         return self._hash(set())
 
     def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+        if self.id in mapping:
+            return mapping[self.id]
         if memo is None:
             memo = set()
         else:
@@ -306,8 +307,8 @@ class Array(TypeConstant):
         return self._hash(set())
 
     def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+        if self.id in mapping:
+            return mapping[self.id]
         if memo is None:
             memo = {self}
         new_element = self.element.replace(mapping, memo=memo) if self.element else None
@@ -428,8 +429,8 @@ class RustEnum(TypeConstant):
         return self._hash(set())
 
     def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+        if self.id in mapping:
+            return mapping[self.id]
         if memo is None:
             memo = set()
         else:
@@ -493,8 +494,8 @@ class Enum(TypeConstant):
         mapping: dict[TypeConstant, TypeConstant],
         memo: set | None = None,
     ) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+        if self.id in mapping:
+            return mapping[self.id]
         # Enums don't contain nested types that need recursive replacement
         return self
 
@@ -529,8 +530,8 @@ class Function(TypeConstant):
         return self._hash(set())
 
     def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
-        if self in mapping:
-            return mapping[self]
+        if self.id in mapping:
+            return mapping[self.id]
         if memo is None:
             memo = set()
         else:
