@@ -3670,6 +3670,47 @@ class TestDecompiler(unittest.TestCase):
         for token in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep", "_ccall"):
             assert token not in text, f"leaked condition-code token {token!r} in decompilation output"
 
+    @structuring_algo("sailr")
+    def test_decompiling_devinv_18002b1b8_no_unreferenced_struct_typedefs(self, decompiler_options=None):
+        # Regression test for the C backend emitting struct typedefs that nothing references.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False, main_opts={"base_addr": 0x180000000})
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        f = proj.kb.functions[0x18002B1B8]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        text = d.codegen.text
+
+        # Locate every emitted `typedef struct NAME { ... } NAME;` block.
+        typedef_blocks = {}
+        for m in re.finditer(r"typedef struct (struct_\w+) \{", text):
+            name = m.group(1)
+            end_marker = "} " + name + ";"
+            end = text.index(end_marker, m.start()) + len(end_marker)
+            typedef_blocks[name] = (m.start(), end)
+
+        # This function is expected to emit some (referenced) struct typedefs; if it stops doing so
+        # the test target is no longer meaningful.
+        assert typedef_blocks, "expected sub_18002B1B8 to emit struct typedefs"
+
+        # A struct typedef is "referenced" iff its name appears somewhere outside of its own typedef
+        # block (a self-reference inside its own body does not count as being used). Any struct whose
+        # name only occurs inside its own definition is a dead typedef and must not be emitted.
+        unreferenced = []
+        for name, (start, end) in typedef_blocks.items():
+            outside = text[:start] + text[end:]
+            if re.search(r"\b" + re.escape(name) + r"\b", outside) is None:
+                unreferenced.append(name)
+
+        assert not unreferenced, (
+            f"the decompilation output contains struct typedef(s) that nothing references: {unreferenced}"
+        )
+
     def test_test_binop_ret_dup(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
