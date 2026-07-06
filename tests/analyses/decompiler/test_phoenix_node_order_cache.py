@@ -30,7 +30,7 @@ class _Node:
         return f"N({self.addr:#x})"
 
 
-def _make_helper(edges, head, cyclic=False):
+def _make_helper(edges, head, cyclic=False) -> tuple[networkx.DiGraph, DirectedGraphHelper[int]]:
     g = networkx.DiGraph(edges)
     return g, DirectedGraphHelper(g, cyclic, head)
 
@@ -56,6 +56,7 @@ class TestPostorderCacheGeneration(unittest.TestCase):
         # iteration-until-head semantics are unchanged: unreachable nodes are appended after the head and thus
         # never yielded when iterating up to the head
         assert order == [3, 2, 1]
+        assert helper._postorder_node_to_llnode is not None
         assert set(helper._postorder_node_to_llnode) == {1, 2, 3, 4, 5}
 
         helper.replace_nodes(4, 5, 45)  # must not raise
@@ -81,6 +82,7 @@ class TestPostorderCacheGeneration(unittest.TestCase):
         # the head is a sink in the filtered view: iterating up to the head yields the head only
         assert list(helper.dfs_postorder_nodes_deterministic(h)) == [h]
         # but the cache must still cover the whole graph
+        assert helper._postorder_node_to_llnode is not None
         assert set(helper._postorder_node_to_llnode) == {h, a, b, c, d}
 
         # what _match_cyclic_while does when merging the loop body: this used to raise KeyError
@@ -103,6 +105,7 @@ class TestReplaceNodesAliasing(unittest.TestCase):
         helper.replace_nodes(2, 3, 3)
         # node 3 used to be evicted from the cache here (popped after insertion), making the very next
         # replace involving it crash
+        assert helper._postorder_node_to_llnode is not None
         assert 3 in helper._postorder_node_to_llnode
         assert 2 not in helper._postorder_node_to_llnode
         assert list(helper.dfs_postorder_nodes_deterministic(1)) == [4, 3, 1]
@@ -112,6 +115,7 @@ class TestReplaceNodesAliasing(unittest.TestCase):
         list(helper.dfs_postorder_nodes_deterministic(1))
 
         helper.replace_nodes(2, 3, 2)
+        assert helper._postorder_node_to_llnode is not None
         assert 2 in helper._postorder_node_to_llnode
         assert 3 not in helper._postorder_node_to_llnode
         assert list(helper.dfs_postorder_nodes_deterministic(1)) == [4, 2, 1]
@@ -166,7 +170,7 @@ class TestStaleCacheLastResort(unittest.TestCase):
         # the node order cache used to silently assign order 0 to the new node when the old node was unknown
         # (dict.pop(old, 0)), breaking sort_nodes_by_order for every later query
         g = networkx.DiGraph([(1, 2), (2, 3), (3, 1)])
-        helper = DirectedGraphHelper(g, True, 1)
+        helper: DirectedGraphHelper[int] = DirectedGraphHelper(g, True, 1)  # type:ignore[reportAssignmentType]
         assert helper.loop_heads() == {1}  # generates the node order
 
         helper.replace_node(99, 100)
@@ -175,7 +179,7 @@ class TestStaleCacheLastResort(unittest.TestCase):
 
     def test_add_node_successor_with_stale_node_invalidates_node_order(self):
         g = networkx.DiGraph([(1, 2), (2, 3), (3, 1)])
-        helper = DirectedGraphHelper(g, True, 1)
+        helper: DirectedGraphHelper[int] = DirectedGraphHelper(g, True, 1)  # type:ignore[reportAssignmentType]
         helper.loop_heads()
 
         helper.add_node_successor(99, 100)  # used to fail an assertion
@@ -184,19 +188,19 @@ class TestStaleCacheLastResort(unittest.TestCase):
 
     def test_sort_nodes_by_order_regenerates_for_unknown_nodes(self):
         g = networkx.DiGraph([(1, 2), (2, 3), (3, 1)])
-        helper = DirectedGraphHelper(g, True, 1)
+        helper: DirectedGraphHelper[int] = DirectedGraphHelper(g, True, 1)  # type:ignore[reportAssignmentType]
         helper.loop_heads()
 
         # a node added to the graph behind the helper's back used to raise KeyError when sorted
-        g.add_edge(3, 4)
+        g.add_edge(3, 4)  # type: ignore
         assert helper.sort_nodes_by_order([4, 2, 1]) == [1, 2, 4]
 
     def test_loop_heads_regenerates_for_unknown_nodes(self):
         g = networkx.DiGraph([(1, 2), (2, 3), (3, 1)])
-        helper = DirectedGraphHelper(g, True, 1)
+        helper: DirectedGraphHelper[int] = DirectedGraphHelper(g, True, 1)  # type:ignore[reportAssignmentType]
         assert helper.loop_heads() == {1}
 
-        g.add_edge(3, 4)
+        g.add_edge(3, 4)  # type: ignore
         assert helper.loop_heads() == {1}  # used to raise KeyError on the (3, 4) edge
 
 
