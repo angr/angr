@@ -12,7 +12,7 @@ except ImportError:
     from typing import Never as Bits
 
 try:
-    import _md5 as md5lib
+    import _md5 as md5lib  # type: ignore # stdlib C module without stubs
 except ImportError:
     import hashlib as md5lib
 

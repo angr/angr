@@ -30,8 +30,8 @@ from angr.ailment.expression import (
 from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.rustylib.ailment import ExpressionKind as _EK
-from angr.rustylib.ailment import StatementKind as _SK
+from angr.rustylib.ailment import ExpressionKind as _EK  # pylint:disable=import-error
+from angr.rustylib.ailment import StatementKind as _SK  # pylint:disable=import-error
 
 from .combined_uses_collector import VVarAndTmpUsesCollector
 from .tmp_uses_collector import TmpUsesCollector

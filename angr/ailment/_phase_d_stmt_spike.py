@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from angr.rustylib.ailment import Statement as _Statement
-from angr.rustylib.ailment import StatementKind as SK
+from angr.rustylib.ailment import Statement as _Statement  # pylint:disable=import-error
+from angr.rustylib.ailment import StatementKind as SK  # pylint:disable=import-error
 
 
 class _AilStmtMarkerMeta(type):

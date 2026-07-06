@@ -54,14 +54,14 @@ def reconstruct_phase_d_expression(data: bytes):
     -- pickled trees that exercise those fields will round-trip as
     strings until the bulk serialization upgrade.
     """
-    from angr.rustylib.ailment import Expression
+    from angr.rustylib.ailment import Expression  # pylint:disable=import-error,import-outside-toplevel
 
     return Expression.from_bytes(data)
 
 
 def reconstruct_phase_d_statement(data: bytes):
     """Reconstruct a Phase D ``Statement`` from its ``to_bytes`` output."""
-    from angr.rustylib.ailment import Statement
+    from angr.rustylib.ailment import Statement  # pylint:disable=import-error,import-outside-toplevel
 
     return Statement.from_bytes(data)
 

@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import claripy
 
 import angr
 import angr.ailment as ailment
+import angr.ailment.utils
 from angr.ailment.block import Block
 
 INDENT_DELTA = 2
@@ -421,8 +422,18 @@ class IncompleteSwitchCaseNode(BaseNode):
 # The following classes are custom AIL statements (not nodes, unfortunately)
 #
 
+if TYPE_CHECKING:
+    # Statically the ``Statement`` marker aliases the rustlib pyclass, whose
+    # variant accessors / ``kind`` property clash with this pure-Python
+    # subclass. Type against ``TaggedObject`` (idx + cached-hash machinery)
+    # instead; at runtime the base stays the marker ``Statement`` so
+    # ``isinstance(x, Statement)`` keeps matching.
+    from angr.ailment.tagged_object import TaggedObject as _IncompleteSwitchCaseHeadStatementBase
+else:
+    _IncompleteSwitchCaseHeadStatementBase = ailment.statement.Statement
 
-class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
+
+class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     """
     Describes a switch-case head. This is only created by LoweredSwitchSimplifier.
     """
@@ -454,11 +465,11 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     __hash__ = ailment.statement.TaggedObject.__hash__
 
     def _hash_core(self):
-        return ailment.utils.stable_hash(
+        return angr.ailment.utils.stable_hash(
             (IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str)
         )
 
-    def replace(self, old_expr, new_expr):
+    def replace(self, old_expr, new_expr):  # pylint:disable=unused-argument
         return self
 
     @property

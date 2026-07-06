@@ -10,9 +10,9 @@ TaggedObject)`` is equivalent to "``x`` is one of the Phase D pyclasses".
 from __future__ import annotations
 
 import contextlib
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
-from angr.rustylib.ailment import Expression, Statement
+from angr.rustylib.ailment import Expression, Statement  # pylint:disable=import-error
 
 
 class TagDict(TypedDict, total=False):
@@ -65,6 +65,19 @@ class TaggedObject(metaclass=_TaggedObjectMeta):
     here so that idiom keeps working.
     """
 
+    if TYPE_CHECKING:
+        # Provided by the matching instances at runtime: the rustlib
+        # Expression / Statement pyclasses and the pure-Python marker
+        # subclasses all carry ``idx`` / ``tags``; subclasses that opt
+        # into the cached-hash machinery define ``_hash_core``. The
+        # ``__init__`` mirrors the compat markers' ``(idx, **tags)``
+        # constructor for pure-Python subclasses typed against this base.
+        idx: int
+        tags: Any
+
+        def __init__(self, idx: int | None = None, *args: Any, **tags: Any) -> None: ...
+        def _hash_core(self) -> int: ...
+
     def __hash__(self) -> int:
         """Pure-Python cached-hash dispatcher used by Python-side classes
         that subclass the Statement / Expression markers (e.g.
@@ -74,11 +87,11 @@ class TaggedObject(metaclass=_TaggedObjectMeta):
         cached = getattr(self, "_cached_hash", None)
         if cached is not None:
             return cached
-        h = self._hash_core()
+        h = self._hash_core()  # pylint:disable=no-member
         # Classes with ``__slots__`` that don't reserve ``_cached_hash``
         # fall through without caching.
         with contextlib.suppress(AttributeError):
-            self._cached_hash = h
+            self._cached_hash = h  # pylint:disable=attribute-defined-outside-init
         return h
 
 

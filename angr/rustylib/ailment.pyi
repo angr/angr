@@ -74,6 +74,82 @@ class ConvertType:
     TYPE_FP: ClassVar[ConvertType]
     @property
     def value(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    @staticmethod
+    def _from_int_py(v: int) -> ConvertType: ...
+
+class ExpressionKind:
+    Const: ClassVar[ExpressionKind]
+    Tmp: ClassVar[ExpressionKind]
+    Register: ClassVar[ExpressionKind]
+    ComboRegister: ClassVar[ExpressionKind]
+    VirtualVariable: ClassVar[ExpressionKind]
+    Phi: ClassVar[ExpressionKind]
+    UnaryOp: ClassVar[ExpressionKind]
+    BinaryOp: ClassVar[ExpressionKind]
+    Convert: ClassVar[ExpressionKind]
+    Reinterpret: ClassVar[ExpressionKind]
+    Load: ClassVar[ExpressionKind]
+    ITE: ClassVar[ExpressionKind]
+    Extract: ClassVar[ExpressionKind]
+    Insert: ClassVar[ExpressionKind]
+    Call: ClassVar[ExpressionKind]
+    DirtyExpression: ClassVar[ExpressionKind]
+    VEXCCallExpression: ClassVar[ExpressionKind]
+    MultiStatementExpression: ClassVar[ExpressionKind]
+    StringLiteral: ClassVar[ExpressionKind]
+    Struct: ClassVar[ExpressionKind]
+    RustEnum: ClassVar[ExpressionKind]
+    Array: ClassVar[ExpressionKind]
+    Let: ClassVar[ExpressionKind]
+    Macro: ClassVar[ExpressionKind]
+    FunctionLikeMacro: ClassVar[ExpressionKind]
+    BasePointerOffset: ClassVar[ExpressionKind]
+    StackBaseOffset: ClassVar[ExpressionKind]
+    @property
+    def value(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    def __int__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    @staticmethod
+    def _from_int_py(v: int) -> ExpressionKind: ...
+
+class StatementKind:
+    Assignment: ClassVar[StatementKind]
+    WeakAssignment: ClassVar[StatementKind]
+    Label: ClassVar[StatementKind]
+    Store: ClassVar[StatementKind]
+    Jump: ClassVar[StatementKind]
+    ConditionalJump: ClassVar[StatementKind]
+    SideEffectStatement: ClassVar[StatementKind]
+    Return: ClassVar[StatementKind]
+    CAS: ClassVar[StatementKind]
+    DirtyStatement: ClassVar[StatementKind]
+    NoOp: ClassVar[StatementKind]
+    @property
+    def value(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    def __int__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    @staticmethod
+    def _from_int_py(v: int) -> StatementKind: ...
+
+class RoundingMode:
+    RM_NearestTiesEven: ClassVar[RoundingMode]
+    RM_TowardsNegativeInf: ClassVar[RoundingMode]
+    RM_TowardsPositiveInf: ClassVar[RoundingMode]
+    RM_TowardsZero: ClassVar[RoundingMode]
+    @property
+    def value(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    def __int__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    @staticmethod
+    def _from_int_py(v: int) -> RoundingMode: ...
 
 # ---------------------------------------------------------------------------
 # Expression -- single fat-enum pyclass
@@ -88,25 +164,42 @@ class Expression:
     ``AttributeError`` when called on the wrong variant.
     """
 
+    # Constructors are the per-variant ``_new_*`` staticmethods below; the
+    # Python marker classes (``angr.ailment.expression.Const`` etc.)
+    # forward their constructor arguments to them. Statically the marker
+    # names alias this class, so accept anything here.
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+    # Class attributes that live on the Python marker classes at runtime
+    # (``Convert.TYPE_INT``, ``BinaryOp.COMPARISON_NEGATION``). The markers
+    # statically alias ``Expression``, so declare them here.
+    TYPE_INT: ClassVar[ConvertType]
+    TYPE_FP: ClassVar[ConvertType]
+    COMPARISON_NEGATION: ClassVar[dict[str, str]]
+
     # --- Header accessors (every variant) ------------------------------
     idx: int
     bits: int
-    @property
-    def depth(self) -> int: ...
+    depth: int
     @property
     def size(self) -> int: ...
     @property
     def tags(self) -> TagsView: ...
+    @tags.setter
+    def tags(self, value: Any) -> None: ...
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> ExpressionKind: ...
+    @property
+    def kind_name(self) -> str: ...
+    @property
+    def pykind(self) -> int: ...
     def clear_hash(self) -> None: ...
     variable_offset: int
 
     # --- Common variant-specific accessors -----------------------------
     # Each raises ``AttributeError`` on a variant that doesn't carry
     # the slot.
-    @property
-    def value(self) -> Any: ...
+    value: Any
     @property
     def value_int(self) -> int: ...
     @property
@@ -117,14 +210,14 @@ class Expression:
     def sign_bit(self) -> int: ...
     @property
     def variable(self) -> Any | None: ...
+    # ``int`` on Tmp / TMP-category VirtualVariables -- the only variants
+    # consumers read it from. (Returns None on non-TMP vvars at runtime.)
     @property
-    def tmp_idx(self) -> int | None: ...
+    def tmp_idx(self) -> int: ...
     @property
     def reg_offset(self) -> int: ...
-    @property
-    def registers(self) -> list[Expression]: ...
-    @property
-    def src_and_vvars(self) -> list[Any]: ...
+    registers: list[Expression]
+    src_and_vvars: Any
     @property
     def varid(self) -> int: ...
     @property
@@ -157,10 +250,8 @@ class Expression:
     def op(self) -> str: ...
     @property
     def verbose_op(self) -> str: ...
-    @property
-    def operand(self) -> Expression: ...
-    @property
-    def operands(self) -> tuple[Expression, ...] | list[Expression]: ...
+    operand: Expression
+    operands: Any
     @property
     def from_bits(self) -> int: ...
     @property
@@ -178,70 +269,178 @@ class Expression:
     @property
     def floating_point(self) -> bool: ...
     @property
-    def addr(self) -> Expression: ...
+    def vector_count(self) -> int | None: ...
+    @property
+    def vector_size(self) -> int | None: ...
+    addr: Expression
     @property
     def endness(self) -> str: ...
-    @property
-    def guard(self) -> Expression | None: ...
+    guard: Expression | None
     @property
     def alt(self) -> Expression | None: ...
-    @property
-    def cond(self) -> Expression: ...
-    @property
-    def iftrue(self) -> Expression: ...
-    @property
-    def iffalse(self) -> Expression: ...
-    @property
-    def base(self) -> Any: ...
-    @property
-    def offset(self) -> Any: ...
+    cond: Expression
+    iftrue: Expression
+    iffalse: Expression
+    base: Any
+    offset: Any
     @property
     def data(self) -> Any: ...
-    @property
-    def target(self) -> Any: ...
-    @property
-    def calling_convention(self) -> Any | None: ...
-    @property
-    def prototype(self) -> Any | None: ...
-    @property
-    def args(self) -> Any: ...
-    @property
-    def arg_vvars(self) -> tuple[Expression, ...] | None: ...
-    @property
-    def callee(self) -> str: ...
+    target: Any
+    args: Any
+    arg_vvars: Any
+    callee: str
     @property
     def mfx(self) -> str | None: ...
     @property
     def maddr(self) -> Expression | None: ...
     @property
     def msize(self) -> int | None: ...
-    @property
-    def stmts(self) -> list[Any]: ...
-    @property
-    def expr(self) -> Expression: ...
+    stmts: Any
+    expr: Expression
     @property
     def name(self) -> str: ...
-    @property
-    def fields(self) -> Any: ...
+    fields: Any
     @property
     def field_offsets(self) -> dict[str, int]: ...
     @property
     def field_names(self) -> dict[int, str]: ...
-    @property
-    def elements(self) -> Any: ...
+    elements: Any
     @property
     def length(self) -> int: ...
-    @property
-    def variant(self) -> Any: ...
     @property
     def defs(self) -> list[Any]: ...
     @property
     def src(self) -> Expression: ...
     @property
     def delimiter(self) -> str: ...
-    @property
-    def returnty(self) -> Any | None: ...
     def get_field(self, name: str) -> Any | None: ...
+
+    # --- Variant factories ---------------------------------------------
+    # One per ``ExprInner`` variant; the Python marker classes
+    # (``angr.ailment.expression.Const`` etc.) forward to these.
+    @staticmethod
+    def _new_const(idx: int, value: Any, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_tmp(idx: int, tmp_idx: int, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_register(idx: int, reg_offset: int, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_combo_register(idx: int, registers: Any, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_phi(idx: int, bits: int, src_and_vvars: Any, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_virtual_variable(
+        idx: int,
+        varid: int,
+        bits: int,
+        category: VirtualVariableCategory,
+        oident: Any | None = ...,
+        reg_vvars: Any | None = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_unary_op(idx: int, op: str, operand: Expression, bits: int | None = ..., **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_convert(
+        idx: int,
+        from_bits: int,
+        to_bits: int,
+        is_signed: bool,
+        operand: Expression,
+        from_type: ConvertType | None = ...,
+        to_type: ConvertType | None = ...,
+        rounding_mode: RoundingMode | None = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_reinterpret(
+        idx: int,
+        from_bits: int,
+        from_type: str,
+        to_bits: int,
+        to_type: str,
+        operand: Expression,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_binary_op(
+        idx: int,
+        op: str,
+        operands: Any,
+        signed: bool = ...,
+        *,
+        bits: int | None = ...,
+        floating_point: bool = ...,
+        rounding_mode: RoundingMode | None = ...,
+        vector_count: int | None = ...,
+        vector_size: int | None = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_ite(idx: int, cond: Expression, iffalse: Expression, iftrue: Expression, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_extract(
+        idx: int, bits: int, base: Expression, offset: Expression, endness: str, **tags: Any
+    ) -> Expression: ...
+    @staticmethod
+    def _new_insert(
+        idx: int, base: Expression, offset: Expression, value: Expression, endness: str, **tags: Any
+    ) -> Expression: ...
+    @staticmethod
+    def _new_string_literal(idx: int, data: str, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_base_pointer_offset(idx: int, bits: int, base: str, offset: Any, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_stack_base_offset(idx: int, bits: int, offset: Any, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_load(
+        idx: int,
+        addr: Expression,
+        size: int,
+        endness: str,
+        guard: Expression | None = ...,
+        alt: Expression | None = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_call(
+        idx: int,
+        target: Any,
+        args: Any | None = ...,
+        bits: int | None = ...,
+        arg_vvars: Any | None = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_dirty_expression(
+        idx: int,
+        callee: str,
+        operands: Any,
+        guard: Expression | None = ...,
+        mfx: str | None = ...,
+        maddr: Expression | None = ...,
+        msize: int | None = ...,
+        bits: int = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
+    def _new_vex_ccall_expression(idx: int, callee: str, operands: Any, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_multi_statement_expression(idx: int, stmts: Any, expr: Expression, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_struct(idx: int, name: str, fields: Any, field_offsets: Any, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_rust_enum(idx: int, name: str, fields: Any, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_array(idx: int, elements: Any, bits: int, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_let(idx: int, defs: Any, src: Expression, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_macro(idx: int, name: str, delimiter: str = ..., **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_function_like_macro(
+        idx: int, name: str, args: Any, bits: int | None = ..., delimiter: str = ..., **tags: Any
+    ) -> Expression: ...
 
     # --- Equality / hash / methods -------------------------------------
     def __hash__(self) -> int: ...
@@ -276,21 +475,31 @@ class Statement:
     accessors raise ``AttributeError`` on the wrong variant.
     """
 
+    # Constructors are the per-variant ``_new_*`` staticmethods below; the
+    # Python marker classes (``angr.ailment.statement.Assignment`` etc.)
+    # forward their constructor arguments to them. Statically the marker
+    # names alias this class, so accept anything here.
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
     # --- Header accessors ---------------------------------------------
     idx: int
     @property
     def tags(self) -> TagsView: ...
+    @tags.setter
+    def tags(self, value: Any) -> None: ...
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> StatementKind: ...
+    @property
+    def kind_name(self) -> str: ...
+    @property
+    def pykind(self) -> int: ...
     @property
     def depth(self) -> int: ...
     def clear_hash(self) -> None: ...
 
     # --- Variant-specific accessors -----------------------------------
-    @property
-    def dst(self) -> Expression: ...
-    @property
-    def src(self) -> Expression: ...
+    dst: Expression
+    src: Expression
     @property
     def name(self) -> str: ...
     @property
@@ -303,32 +512,19 @@ class Statement:
     def endness(self) -> str: ...
     @property
     def guard(self) -> Expression | None: ...
-    @property
-    def variable(self) -> Any | None: ...
-    @property
-    def offset(self) -> int | None: ...
-    @property
-    def target(self) -> Any: ...
-    @property
-    def target_idx(self) -> int | None: ...
-    @property
-    def condition(self) -> Expression: ...
-    @property
-    def true_target(self) -> Any | None: ...
-    @property
-    def false_target(self) -> Any | None: ...
-    @property
-    def true_target_idx(self) -> int | None: ...
-    @property
-    def false_target_idx(self) -> int | None: ...
-    @property
-    def expr(self) -> Expression: ...
+    target: Any
+    target_idx: int | None
+    condition: Expression
+    true_target: Any
+    false_target: Any
+    true_target_idx: int | None
+    false_target_idx: int | None
+    expr: Expression
     @property
     def ret_expr(self) -> Expression | None: ...
     @property
     def fp_ret_expr(self) -> Expression | None: ...
-    @property
-    def ret_exprs(self) -> list[Expression]: ...
+    ret_exprs: Any
     @property
     def data_lo(self) -> Expression: ...
     @property
@@ -343,6 +539,66 @@ class Statement:
     def old_hi(self) -> Expression | None: ...
     @property
     def dirty(self) -> Expression: ...
+
+    # --- Variant factories ---------------------------------------------
+    # One per ``StmtInner`` variant; the Python marker classes
+    # (``angr.ailment.statement.Assignment`` etc.) forward to these.
+    @staticmethod
+    def _new_assignment(idx: int, dst: Expression, src: Expression, **tags: Any) -> Statement: ...
+    @staticmethod
+    def _new_weak_assignment(idx: int, dst: Expression, src: Expression, **tags: Any) -> Statement: ...
+    @staticmethod
+    def _new_label(idx: int, name: str, **tags: Any) -> Statement: ...
+    @staticmethod
+    def _new_store(
+        idx: int,
+        addr: Expression,
+        data: Expression,
+        size: int,
+        endness: str,
+        guard: Expression | None = ...,
+        **tags: Any,
+    ) -> Statement: ...
+    @staticmethod
+    def _new_jump(idx: int, target: Any, target_idx: int | None = ..., **tags: Any) -> Statement: ...
+    @staticmethod
+    def _new_conditional_jump(
+        idx: int,
+        condition: Expression,
+        true_target: Any | None,
+        false_target: Any | None,
+        *,
+        true_target_idx: int | None = ...,
+        false_target_idx: int | None = ...,
+        **tags: Any,
+    ) -> Statement: ...
+    @staticmethod
+    def _new_side_effect_statement(
+        idx: int,
+        expr: Expression,
+        ret_expr: Expression | None = ...,
+        fp_ret_expr: Expression | None = ...,
+        **tags: Any,
+    ) -> Statement: ...
+    @staticmethod
+    def _new_return(idx: int, ret_exprs: Any, **tags: Any) -> Statement: ...
+    @staticmethod
+    def _new_cas(
+        idx: int,
+        addr: Expression,
+        data_lo: Expression,
+        data_hi: Expression | None,
+        expd_lo: Expression,
+        expd_hi: Expression | None,
+        old_lo: Expression,
+        old_hi: Expression | None,
+        endness: str,
+        **tags: Any,
+    ) -> Statement: ...
+    @staticmethod
+    def _new_dirty_statement(idx: int, dirty: Expression, **tags: Any) -> Statement: ...
+    @staticmethod
+    def _new_no_op(idx: int, **tags: Any) -> Statement: ...
 
     # --- Equality / hash / methods -------------------------------------
     def __hash__(self) -> int: ...
@@ -388,7 +644,8 @@ class Block:
     def __deepcopy__(self, memo: Any) -> Self: ...
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
-    def copy(self) -> Self: ...
+    def copy(self, statements: list[Statement] | None = ...) -> Self: ...
+    def dbg_repr(self, indent: int = ...) -> str: ...
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_bytes(cls, data: bytes) -> Block: ...

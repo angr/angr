@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring
+# pylint:disable=missing-class-docstring,protected-access
 from __future__ import annotations
 
 import logging
@@ -7,7 +7,7 @@ import pyvex
 
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import UnsupportedIROpError
-from angr.rustylib.ailment import RoundingMode
+from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error
 from angr.utils.constants import DEFAULT_STATEMENT
 
 from .block import Block
@@ -42,8 +42,7 @@ def _vex_rm_to_enum(rm: object) -> RoundingMode | None:
     ``None`` (with a one-shot log) on anything we can't decode.
     """
     if isinstance(rm, Const) and isinstance(rm.value, int):
-        decoded = RoundingMode._from_int_py(rm.value & 0b11)
-        return decoded
+        return RoundingMode._from_int_py(rm.value & 0b11)
     log.warning("Non-Const VEX rounding-mode operand (%r); dropping to None", rm)
     return None
 

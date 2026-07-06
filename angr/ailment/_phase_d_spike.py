@@ -28,9 +28,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from angr.rustylib.ailment import ConvertType as _ConvertType
-from angr.rustylib.ailment import Expression as _Expression
-from angr.rustylib.ailment import ExpressionKind as EK
+from angr.rustylib.ailment import ConvertType as _ConvertType  # pylint:disable=import-error
+from angr.rustylib.ailment import Expression as _Expression  # pylint:disable=import-error
+from angr.rustylib.ailment import ExpressionKind as EK  # pylint:disable=import-error
 
 
 class _AilMarkerMeta(type):

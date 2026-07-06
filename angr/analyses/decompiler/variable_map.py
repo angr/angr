@@ -13,6 +13,12 @@ from angr.sim_type import SimType
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
     from angr.ailment.tagged_object import TaggedObject
+    from angr.rustylib.ailment import Expression, Statement
+
+    # Anything carrying an ``.idx`` that the map can key on: the rustlib
+    # Expression / Statement pyclasses plus pure-Python TaggedObject
+    # subclasses (structurer helper nodes).
+    AILObject = TaggedObject | Expression | Statement
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
     from angr.sim_variable import SimVariable
@@ -103,14 +109,14 @@ class VariableMap:
     #
 
     @staticmethod
-    def _key(obj: TaggedObject | int) -> int:
+    def _key(obj: AILObject | int) -> int:
         return obj if isinstance(obj, int) else obj.idx
 
     #
     # Accessors
     #
 
-    def variable(self, obj: TaggedObject | int) -> SimVariable | None:
+    def variable(self, obj: AILObject | int) -> SimVariable | None:
         v = self._variables.get(self._key(obj))
         if v is not None:
             return v
@@ -123,7 +129,7 @@ class VariableMap:
             return self._vvar_id_to_variable.get(varid)
         return None
 
-    def variable_offset(self, obj: TaggedObject | int) -> int:
+    def variable_offset(self, obj: AILObject | int) -> int:
         key = self._key(obj)
         if key in self._variable_offsets:
             return self._variable_offsets[key]
@@ -132,41 +138,41 @@ class VariableMap:
             return self._vvar_id_to_variable_offset[varid]
         return 0
 
-    def custom_string(self, obj: TaggedObject | int) -> bool:
+    def custom_string(self, obj: AILObject | int) -> bool:
         return self._custom_strings.get(self._key(obj), False)
 
-    def reference_values(self, obj: TaggedObject | int) -> dict[SimType, Any] | None:
+    def reference_values(self, obj: AILObject | int) -> dict[SimType, Any] | None:
         return self._reference_values.get(self._key(obj))
 
-    def reference_variable(self, obj: TaggedObject | int) -> SimVariable | None:
+    def reference_variable(self, obj: AILObject | int) -> SimVariable | None:
         return self._reference_variables.get(self._key(obj))
 
-    def reference_variable_offset(self, obj: TaggedObject | int) -> int:
+    def reference_variable_offset(self, obj: AILObject | int) -> int:
         return self._reference_variable_offsets.get(self._key(obj), 0)
 
-    def has_variable(self, obj: TaggedObject | int) -> bool:
+    def has_variable(self, obj: AILObject | int) -> bool:
         if self._key(obj) in self._variables:
             return True
         varid = getattr(obj, "varid", None)
         return varid is not None and varid in self._vvar_id_to_variable
 
-    def prototype(self, obj: TaggedObject | int) -> SimTypeFunction | None:
+    def prototype(self, obj: AILObject | int) -> SimTypeFunction | None:
         return self._prototypes.get(self._key(obj))
 
-    def calling_convention(self, obj: TaggedObject | int) -> SimCC | None:
+    def calling_convention(self, obj: AILObject | int) -> SimCC | None:
         return self._calling_conventions.get(self._key(obj))
 
-    def variant(self, obj: TaggedObject | int) -> Any:
+    def variant(self, obj: AILObject | int) -> Any:
         return self._variants.get(self._key(obj))
 
-    def returnty(self, obj: TaggedObject | int) -> SimType | None:
+    def returnty(self, obj: AILObject | int) -> SimType | None:
         return self._returntys.get(self._key(obj))
 
     #
     # Setters
     #
 
-    def set_variable(self, obj: TaggedObject | int, variable: SimVariable | None, offset: int = 0) -> None:
+    def set_variable(self, obj: AILObject | int, variable: SimVariable | None, offset: int = 0) -> None:
         """Set the variable information for an AIL atom. If ``variable`` is ``None``, the variable information for
         this atom is cleared."""
 
@@ -190,16 +196,16 @@ class VariableMap:
                 self._vvar_id_to_variable[varid] = variable
                 self._vvar_id_to_variable_offset[varid] = offset
 
-    def set_variable_offset(self, obj: TaggedObject | int, offset: int) -> None:
+    def set_variable_offset(self, obj: AILObject | int, offset: int) -> None:
         self._variable_offsets[self._key(obj)] = offset
 
-    def set_custom_string(self, obj: TaggedObject | int, value: bool = True) -> None:
+    def set_custom_string(self, obj: AILObject | int, value: bool = True) -> None:
         self._custom_strings[self._key(obj)] = value
 
-    def set_reference_values(self, obj: TaggedObject | int, reference_values: dict[SimType, Any]) -> None:
+    def set_reference_values(self, obj: AILObject | int, reference_values: dict[SimType, Any]) -> None:
         self._reference_values[self._key(obj)] = reference_values
 
-    def set_reference_variable(self, obj: TaggedObject | int, variable: SimVariable | None, offset: int = 0) -> None:
+    def set_reference_variable(self, obj: AILObject | int, variable: SimVariable | None, offset: int = 0) -> None:
         """Set the reference variable information for an AIL atom. If ``variable`` is ``None``, the reference variable information for
         this atom is cleared."""
         key = self._key(obj)
@@ -210,7 +216,7 @@ class VariableMap:
             self._reference_variables[key] = variable
             self._reference_variable_offsets[key] = offset
 
-    def set_prototype(self, obj: TaggedObject | int, prototype: SimTypeFunction | None) -> None:
+    def set_prototype(self, obj: AILObject | int, prototype: SimTypeFunction | None) -> None:
         """Set the call-site prototype for an AIL Call. If ``prototype`` is ``None``, the prototype information for
         this atom is cleared."""
 
@@ -220,7 +226,7 @@ class VariableMap:
         else:
             self._prototypes[key] = prototype
 
-    def set_calling_convention(self, obj: TaggedObject | int, cc: SimCC | None) -> None:
+    def set_calling_convention(self, obj: AILObject | int, cc: SimCC | None) -> None:
         """Set the calling convention for an AIL Call. If ``cc`` is ``None``, the calling-convention information for
         this atom is cleared."""
 
@@ -230,7 +236,7 @@ class VariableMap:
         else:
             self._calling_conventions[key] = cc
 
-    def set_variant(self, obj: TaggedObject | int, variant: Any) -> None:
+    def set_variant(self, obj: AILObject | int, variant: Any) -> None:
         """Set the enum variant for a Rust ``Let`` expression. If ``variant`` is ``None``, the variant information for
         this atom is cleared."""
 
@@ -240,7 +246,7 @@ class VariableMap:
         else:
             self._variants[key] = variant
 
-    def set_returnty(self, obj: TaggedObject | int, returnty: SimType | None) -> None:
+    def set_returnty(self, obj: AILObject | int, returnty: SimType | None) -> None:
         """Set the return type for a Rust ``FunctionLikeMacro`` call. If ``returnty`` is ``None``, the return-type
         information for this atom is cleared."""
 

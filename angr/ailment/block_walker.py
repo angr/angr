@@ -6,8 +6,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any, cast
 
-from angr.rustylib.ailment import Expression as _PhaseDExpression
-from angr.rustylib.ailment import Statement as _PhaseDStatement
+from angr.rustylib.ailment import Expression as _PhaseDExpression  # pylint:disable=import-error
+from angr.rustylib.ailment import Statement as _PhaseDStatement  # pylint:disable=import-error
 
 from . import Block
 from .expression import (
@@ -177,6 +177,8 @@ _STMT_MARKERS = (
 _EXPR_KIND_TO_MARKER: dict = {}
 _STMT_KIND_TO_MARKER: dict = {}
 _KIND_TO_MARKER: dict = {}
+_marker = None
+_kind_attr = None
 for _marker in _EXPR_MARKERS:
     _kind_attr = _marker.__dict__.get("_kind")
     if _kind_attr is not None:
