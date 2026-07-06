@@ -41,7 +41,7 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
 
         # this decompilation must terminate (it used to take exponential time and memory)
         dec = proj.analyses.Decompiler(func, cfg=cfg.model, optimization_passes=all_optimization_passes)
-        assert dec.codegen is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "while" in dec.codegen.text
 
 
