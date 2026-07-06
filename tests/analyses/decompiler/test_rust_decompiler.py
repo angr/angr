@@ -33,13 +33,7 @@ class TestRustcVersionIdentification(unittest.TestCase):
         sig_dir = get_default_sig_dir()
         self.assertTrue(sig_dir is not None, "get_default_sig_dir() returned None")
 
-<<<<<<< HEAD
     def _check_fmt_version(self, configuration):
-=======
-    @pytest.mark.timeout(600)
-    @for_all_rust_configs
-    def test_fmt_version(self, configuration):
->>>>>>> tests: Bump timeouts for slow rust_decompiler tests
         path = rust_binary_path(configuration, "fmt")
         assert os.path.isfile(path)
         expected = self.EXPECTED_VERSIONS[configuration]
@@ -48,12 +42,15 @@ class TestRustcVersionIdentification(unittest.TestCase):
         version = p.rustc_version
         self.assertEqual(version, expected, f"fmt [{configuration}]: expected {expected}, got {version}")
 
+    @pytest.mark.timeout(600)
     def test_fmt_version_nightly_2023_05_22_O3(self):
         self._check_fmt_version("nightly-2023-05-22-O3")
 
+    @pytest.mark.timeout(600)
     def test_fmt_version_nightly_2025_05_22_O3(self):
         self._check_fmt_version("nightly-2025-05-22-O3")
 
+    @pytest.mark.timeout(600)
     def test_fmt_version_nightly_2025_05_22_O0(self):
         self._check_fmt_version("nightly-2025-05-22-O0")
 
