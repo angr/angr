@@ -48,7 +48,9 @@ class _TaggedObjectMeta(type):
     _MEMBERS = (Expression, Statement)
 
     def __instancecheck__(cls, instance: Any) -> bool:
-        return isinstance(instance, cls._MEMBERS)
+        # Union of the Phase D pyclasses, plus normal MRO dispatch so
+        # pure-Python subclasses of the compat markers still match.
+        return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
 
     def __subclasscheck__(cls, subclass: type) -> bool:
         return issubclass(subclass, cls._MEMBERS) or subclass is cls

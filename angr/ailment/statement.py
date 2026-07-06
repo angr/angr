@@ -90,7 +90,10 @@ else:
 
         def __instancecheck__(cls, instance):
             if cls.__dict__.get("_is_statement_marker"):
-                return isinstance(instance, cls._MEMBERS)
+                # Union of the variant markers, plus normal MRO dispatch so
+                # pure-Python subclasses of the marker (e.g. the structurer's
+                # IncompleteSwitchCaseHeadStatement) still match.
+                return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
             return type.__instancecheck__(cls, instance)
 
         def __subclasscheck__(cls, subclass):
