@@ -45,22 +45,18 @@ def deepcopy_via_deep_copy(self, memo):
     return self.deep_copy(manager)
 
 
-def reconstruct_phase_d_expression(data: bytes):
-    """Reconstruct a Phase D ``Expression`` from its ``to_bytes`` output.
+def reconstruct_expression(data: bytes):
+    """Reconstruct an ``Expression`` from its ``to_bytes`` output.
 
-    Used by the Phase D ``Expression.__reduce__`` to satisfy pickle.
-    The spike's ``Wire`` format is lossy for polymorphic Python-typed
-    fields (Phi.src_and_vvars, VirtualVariable.oident, Call.target, ...)
-    -- pickled trees that exercise those fields will round-trip as
-    strings until the bulk serialization upgrade.
+    Used by ``Expression.__reduce__`` to satisfy pickle.
     """
     from angr.rustylib.ailment import Expression  # pylint:disable=import-error,import-outside-toplevel
 
     return Expression.from_bytes(data)
 
 
-def reconstruct_phase_d_statement(data: bytes):
-    """Reconstruct a Phase D ``Statement`` from its ``to_bytes`` output."""
+def reconstruct_statement(data: bytes):
+    """Reconstruct a ``Statement`` from its ``to_bytes`` output."""
     from angr.rustylib.ailment import Statement  # pylint:disable=import-error,import-outside-toplevel
 
     return Statement.from_bytes(data)
@@ -68,7 +64,7 @@ def reconstruct_phase_d_statement(data: bytes):
 
 __all__ = [
     "deepcopy_via_deep_copy",
-    "reconstruct_phase_d_expression",
-    "reconstruct_phase_d_statement",
+    "reconstruct_expression",
+    "reconstruct_statement",
     "reconstruct_with_kwargs",
 ]

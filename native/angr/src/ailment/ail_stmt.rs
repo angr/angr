@@ -1,4 +1,4 @@
-//! Phase D fat-enum design for AIL Statements (spike).
+//! Fat-enum design for AIL Statements.
 //!
 //! Mirror of [`super::ail_expr`] for the Statement side of AIL. A single
 //! [`Statement`] pyclass wraps an [`AilStatement`] which embeds an
@@ -10,11 +10,11 @@
 //! The Python-side marker classes (``Assignment``, ``Store``, ...)
 //! override ``__new__`` to construct [`Statement`] instances and use a
 //! metaclass ``__instancecheck__`` that dispatches on the variant kind.
-//! See ``angr/ailment/_phase_d_spike.py`` for the marker module.
+//! See ``angr/ailment/statement.py`` for the marker classes.
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList};
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
 use crate::ailment::base::CachedHash;
@@ -1967,7 +1967,7 @@ impl Statement {
         let bytes = slf.borrow().to_bytes(py)?;
         let helper = py
             .import("angr.ailment._reconstruct")?
-            .getattr("reconstruct_phase_d_statement")?;
+            .getattr("reconstruct_statement")?;
         let args = pyo3::types::PyTuple::new(py, [bytes.into_any()])?;
         let tup =
             pyo3::types::PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
@@ -2106,7 +2106,7 @@ impl Statement {
         }
     }
 
-    // --- Byte serialization (spike-level) -----------------------------
+    // --- Byte serialization --------------------------------------------
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = postcard::to_stdvec(&serialize::StmtWire::from(&self.stmt))
@@ -2130,37 +2130,29 @@ impl Statement {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Extract an [`AilExpression`] from a Python object that must be a
-/// Phase-D ``Expression`` instance.
+/// Extract an [`AilExpression`] from a Python object that must be an
+/// ``Expression`` instance.
 fn extract_ail_expr(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
     let e: PyRef<'_, Expression> = obj
         .cast::<Expression>()
-        .map_err(|_| PyTypeError::new_err("expected a Phase-D Expression"))?
+        .map_err(|_| PyTypeError::new_err("expected an Expression"))?
         .borrow();
     Ok(e.expr.clone())
 }
 
 /// Extract an [`AilStatement`] from a Python object that must be a
-/// Phase-D ``Statement`` instance. Used by stmt-bearing expressions
-/// (MultiStatementExpression) once they migrate.
-#[allow(dead_code)]
+/// ``Statement`` instance. Used by stmt-bearing expressions
+/// (e.g. MultiStatementExpression).
 pub fn extract_ail_stmt(obj: &Bound<'_, PyAny>) -> PyResult<AilStatement> {
     let s: PyRef<'_, Statement> = obj
         .cast::<Statement>()
-        .map_err(|_| PyTypeError::new_err("expected a Phase-D Statement"))?
+        .map_err(|_| PyTypeError::new_err("expected a Statement"))?
         .borrow();
     Ok(s.stmt.clone())
 }
 
-// Silence the unused-imports warning for collection helpers reserved for
-// the bulk migration's collection-bearing variants (Return, etc.).
-#[allow(dead_code)]
-fn _placeholder(l: &Bound<'_, PyList>, t: &Bound<'_, PyTuple>) {
-    let _ = (l, t);
-}
-
 // ---------------------------------------------------------------------------
-// Minimal serialization (spike-only)
+// Serialization
 // ---------------------------------------------------------------------------
 
 mod serialize {

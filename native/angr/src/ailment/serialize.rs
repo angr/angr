@@ -1,7 +1,7 @@
 //! Module-level ``ailment.dumps`` / ``ailment.loads`` entry points.
 //!
-//! After the Phase D migration there's a single ``Expression`` and a
-//! single ``Statement`` pyclass, both with their own
+//! There's a single ``Expression`` and a single ``Statement`` pyclass,
+//! both with their own
 //! ``to_bytes`` / ``from_bytes`` methods that postcard-encode the
 //! inline ``AilExpression`` / ``AilStatement`` fat enums. The
 //! module-level ``dumps`` / ``loads`` just wrap that payload with a
@@ -26,11 +26,11 @@ pub const FORMAT_VERSION: u8 = 0x02;
 /// ``Expression::to_bytes`` / ``Statement::to_bytes``.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AilNode {
-    /// Phase D ``Expression`` -- bytes of the postcard ``Wire``.
+    /// AIL ``Expression`` -- bytes of the postcard ``Wire``.
     Expr(Vec<u8>),
-    /// Phase D ``Statement`` -- bytes of the postcard ``StmtWire``.
+    /// AIL ``Statement`` -- bytes of the postcard ``StmtWire``.
     Stmt(Vec<u8>),
-    /// Phase D ``Block`` -- the block header + per-statement
+    /// AIL ``Block`` -- the block header + per-statement
     /// ``to_bytes`` payloads.
     Block(BlockPayload),
 }
@@ -82,7 +82,7 @@ fn pyobj_to_node(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<AilNode> {
         for s in stmts_list.iter() {
             if s.cast::<Statement>().is_err() {
                 return Err(PyNotImplementedError::new_err(format!(
-                    "ailment.dumps: Block statement {} is not a Phase D Statement",
+                    "ailment.dumps: Block statement {} is not a Statement",
                     type_qualname(&s)
                 )));
             }
@@ -127,19 +127,19 @@ fn node_to_pyobj(py: Python<'_>, node: AilNode) -> PyResult<Py<PyAny>> {
         AilNode::Expr(bytes) => {
             let helper = py
                 .import("angr.ailment._reconstruct")?
-                .getattr("reconstruct_phase_d_expression")?;
+                .getattr("reconstruct_expression")?;
             Ok(helper.call1((PyBytes::new(py, &bytes),))?.unbind())
         }
         AilNode::Stmt(bytes) => {
             let helper = py
                 .import("angr.ailment._reconstruct")?
-                .getattr("reconstruct_phase_d_statement")?;
+                .getattr("reconstruct_statement")?;
             Ok(helper.call1((PyBytes::new(py, &bytes),))?.unbind())
         }
         AilNode::Block(b) => {
             let helper = py
                 .import("angr.ailment._reconstruct")?
-                .getattr("reconstruct_phase_d_statement")?;
+                .getattr("reconstruct_statement")?;
             let stmts = PyList::empty(py);
             for sb in b.statements {
                 let s = helper.call1((PyBytes::new(py, &sb),))?;

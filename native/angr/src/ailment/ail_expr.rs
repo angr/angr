@@ -1,4 +1,4 @@
-//! Phase D spike: ``AilExpression`` fat-enum + single ``Expression`` pyclass.
+//! ``AilExpression`` fat-enum + single ``Expression`` pyclass.
 //!
 //! Design:
 //!
@@ -13,10 +13,8 @@
 //!   that dispatch on the variant. Python-side marker classes
 //!   (``Const``, ``BinaryOp``, ``Load``, ...) override ``__new__`` to
 //!   call one of the per-variant ``_new_*`` factories below, and use a
-//!   metaclass to make ``isinstance(load, Load)`` work.
-//!
-//! Spike scope: ``Const``, ``BinaryOp``, ``Load`` only. The remaining
-//! ~24 Expression subclasses are added in a follow-up bulk commit.
+//!   metaclass to make ``isinstance(load, Load)`` work. The markers
+//!   live in ``angr/ailment/expression.py``.
 
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
@@ -61,8 +59,7 @@ impl ExprHeader {
 // Variant payload
 // ---------------------------------------------------------------------------
 
-/// Concrete Expression variants. New variants are added here in the
-/// bulk Phase D migration commit.
+/// Concrete Expression variants.
 ///
 /// Layout note: operand subtrees are owned via ``Box<AilExpression>``
 /// (one heap allocation per subtree). Variable information used to live
@@ -2682,7 +2679,7 @@ impl Expression {
         Self { expr, pykind }
     }
 
-    /// Public stringifier used by the Statement-side spike's ``__str__``
+    /// Public stringifier used by ``Statement``'s ``__str__``
     /// dispatch. Same logic as the ``#[getter]``-exposed ``__str__``.
     pub fn render(&self, py: Python<'_>) -> PyResult<String> {
         self.__str__(py)
@@ -5110,16 +5107,12 @@ impl Expression {
 
     /// Python ``pickle`` protocol. Routes through ``to_bytes`` /
     /// ``from_bytes`` to preserve the full ``AilExpression`` shape.
-    /// NB: the spike's ``Wire`` format is lossy for polymorphic
-    /// Python-typed fields (Phi.src_and_vvars, VirtualVariable.oident,
-    /// Call.target, ...) -- pickled trees that exercise those fields
-    /// will round-trip as strings until the bulk serialization upgrade.
     fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let bytes = slf.borrow().to_bytes(py)?;
         let helper = py
             .import("angr.ailment._reconstruct")?
-            .getattr("reconstruct_phase_d_expression")?;
+            .getattr("reconstruct_expression")?;
         let args = PyTuple::new(py, [bytes.into_any()])?;
         let tup = PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
         Ok(tup.into_any().unbind())
@@ -5437,10 +5430,8 @@ impl Expression {
 
     // --- Byte serialization ------------------------------------------
     //
-    // Stub for the spike: round-trips Const only (the simplest variant)
-    // via a minimal hand-coded format. The full serialization story is
-    // a follow-up commit -- the bulk migration will switch to postcard
-    // deriving on AilExpression directly.
+    // Round-trips every variant via the postcard-encoded ``Wire``
+    // mirror (see the ``serialize`` module below).
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = postcard::to_stdvec(&serialize::Wire::from(&self.expr))
@@ -5624,7 +5615,7 @@ pub fn extract_ail(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
 }
 
 // ---------------------------------------------------------------------------
-// Minimal serialization (spike-only)
+// Serialization
 // ---------------------------------------------------------------------------
 
 pub mod serialize {
@@ -5655,16 +5646,12 @@ pub mod serialize {
     /// variant; primitive Python types (int/float/str/bytes/bool) map
     /// to their direct counterparts; lists/tuples/dicts recurse;
     /// anything else falls back to ``pickle.dumps`` -- which covers
-    /// SimVariables, calling conventions, prototypes, etc.
-    ///
-    /// Replaces the spike-local ``*_repr: String`` stringification on
-    /// the lossy Wire fields and the ``variable_repr: Option<String>``
-    /// fallbacks. With ``PolyValue`` every polymorphic slot round-trips
-    /// with full fidelity.
+    /// SimVariables, calling conventions, prototypes, etc. Every
+    /// polymorphic slot round-trips with full fidelity.
     #[derive(Serialize, Deserialize)]
     pub enum PolyValue {
         None,
-        /// Recursive Phase D Expression embedding.
+        /// Recursive AIL Expression embedding.
         Expr(Box<Wire>),
         /// Pickle bytes for arbitrary Python objects.
         Pickle(Vec<u8>),
@@ -5686,7 +5673,7 @@ pub mod serialize {
             if obj.is_none() {
                 return Ok(Self::None);
             }
-            // Phase D Expression -- recursive Wire embedding.
+            // AIL Expression -- recursive Wire embedding.
             if let Ok(e) = obj.cast::<Expression>() {
                 return Ok(Self::Expr(Box::new(Wire::from(&e.borrow().expr))));
             }
@@ -6692,11 +6679,4 @@ pub mod serialize {
             }
         }
     }
-}
-
-// Silence the unused-imports warning for PyList; will be used in the
-// bulk migration's Vec<AilExpression>-shaped variants.
-#[allow(dead_code)]
-fn _list_placeholder(l: &Bound<'_, PyList>) {
-    let _ = l;
 }

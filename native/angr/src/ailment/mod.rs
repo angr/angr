@@ -2,7 +2,7 @@
 //!
 //! Exposed Python-side as `angr.rustylib.ailment`.
 //!
-//! Phase D landed: there are now two Python-facing pyclasses,
+//! There are two Python-facing pyclasses,
 //! ``Expression`` and ``Statement``, each wrapping an inline fat-enum
 //! (``ExprInner`` / ``StmtInner``) carrying per-variant data. Per-class
 //! marker types (``Const``, ``BinaryOp``, ``Assignment``, ...) live on
@@ -36,7 +36,7 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<enums::ExpressionKind>()?;
     m.add_class::<enums::StatementKind>()?;
 
-    // Phase D fat-enum pyclasses. ``Expression`` wraps the ``AilExpression``
+    // Fat-enum pyclasses. ``Expression`` wraps the ``AilExpression``
     // sum, ``Statement`` wraps the ``AilStatement`` sum. Per-variant
     // marker classes live on the Python side; see
     // ``angr/ailment/expression.py`` and ``angr/ailment/statement.py``.

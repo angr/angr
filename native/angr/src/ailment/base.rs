@@ -1,8 +1,8 @@
 //! Cross-module utilities for the AIL data classes.
 //!
-//! After Phase D collapsed the per-class pyclasses into a single
+//! With the per-class pyclasses collapsed into a single
 //! ``Expression`` / ``Statement`` pair, the only piece of shared state
-//! left in this module is the ``CachedHash`` slot used by the
+//! in this module is the ``CachedHash`` slot used by the
 //! ``ExprHeader`` / ``StmtHeader`` structs in ``ail_expr`` / ``ail_stmt``.
 
 use std::sync::atomic::{AtomicI64, Ordering};

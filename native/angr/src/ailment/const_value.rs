@@ -1,11 +1,10 @@
 //! ``ConstValue`` -- the Python-bridged value of a Const expression.
 //!
-//! Phase D moved every concrete Expression subclass behind a single
-//! ``Expression`` pyclass with an inline ``ExprInner`` enum, so the
-//! per-class atoms.rs file went away. The ``ConstValue`` data type
-//! survives because it captures the int/float/big-int distinction in
-//! a serde-friendly shape that both the Phase D Wire and the in-memory
-//! ``ExprInner::Const`` arm reuse.
+//! Every concrete Expression variant lives behind a single
+//! ``Expression`` pyclass with an inline ``ExprInner`` enum. The
+//! ``ConstValue`` data type captures the int/float/big-int
+//! distinction in a serde-friendly shape that both the serialization
+//! ``Wire`` and the in-memory ``ExprInner::Const`` arm reuse.
 
 use pyo3::Borrowed;
 use pyo3::IntoPyObjectExt;

@@ -13,8 +13,8 @@
 //! The previous implementation mirrored Python's
 //! ``angr.ailment.utils.stable_hash`` byte format and ran the result
 //! through MD5 -- holding both an exact-format requirement and a
-//! cryptographic-strength hash. The format match was no longer needed
-//! (Phase D collapsed the per-class Python AIL pyclasses into a single
+//! cryptographic-strength hash. The format match is no longer needed
+//! (the per-class Python AIL pyclasses are collapsed into a single
 //! Rust pyclass, so there is no parallel Python value whose hash needs
 //! to match) and the MD5 strength was overkill.
 //!
