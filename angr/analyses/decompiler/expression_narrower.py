@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
-from angr.ailment.utils import is_none_or_likeable
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 
@@ -55,29 +54,55 @@ class ExprNarrowingInfo:
 
 class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     """
-    Walks a statement or an expression and extracts the effective size (in bits).
+    Walks a statement once and extracts the effective size (in bits) of every virtual variable that appears in it.
 
-    For example, for target expression rax, `(rax & 0xff) + 0x1` means the effective size of rax is 8 bits, from bit
-    0 to bit 7. We record this information in expr_to_effective_bits as {rax: (0, 8)}.
+    For example, for virtual variable rax, `(rax & 0xff) + 0x1` means the effective size of rax is 8 bits, from bit
+    0 to bit 7. We record this information in vvar_effective_bits as {rax.varid: {rax.idx: (0, 8)}}.
 
     We pay special consideration to expressions that are used as Call arguments, as they may have been converted to a
     smaller size because the Call argument needs that size, but the Call prototype may have been incorrectly inferred.
+
+    A single walk records information for all virtual variables in the statement, so one walker instance can be
+    queried for many different variables without re-walking the statement. Constraints that parent expressions impose
+    on their children are tracked per expression node (keyed by object identity) during the walk; results are
+    aggregated per (varid, expression idx) so that repeated occurrences of the same variable are kept separate.
     """
 
-    def __init__(self, target_expr: Expression, ignore_call_args: bool = True):
+    def __init__(self, ignore_call_args: bool = True):
         super().__init__()
-        self._target_expr = target_expr
         self._ignore_call_args = ignore_call_args
-        self.expr_to_effective_bits: dict[Expression, tuple[int, int]] = {}
-        self.expr_used_as_call_arg_effective_bits: tuple[int, int] | None = None
-        self.expr_used_as_insert_base: bool = False
+        # transient per-node constraints established during the walk, keyed by id() of the expression node. all nodes
+        # are kept alive by the statement being walked, so ids are stable for the duration of the walk.
+        self._node_effective_bits: dict[int, tuple[int, int]] = {}
+        # varid -> {occurrence idx -> (lo_bits, hi_bits)}
+        self.vvar_effective_bits: dict[int, dict[int, tuple[int, int]]] = {}
+        # varid -> (lo_bits, hi_bits) for vvars that are (possibly narrowed) call arguments
+        self.vvar_call_arg_effective_bits: dict[int, tuple[int, int]] = {}
+        # varids of vvars that are used as the base expression of an Insert
+        self.vvars_used_as_insert_base: set[int] = set()
 
     def _update_effective_bits(self, expr, lo_bits: int, hi_bits: int):
-        existing = self.expr_to_effective_bits.get(expr)
+        key = id(expr)
+        existing = self._node_effective_bits.get(key)
         if existing is None:
-            self.expr_to_effective_bits[expr] = lo_bits, hi_bits
+            self._node_effective_bits[key] = lo_bits, hi_bits
         else:
-            self.expr_to_effective_bits[expr] = max(existing[0], lo_bits), min(existing[1], hi_bits)
+            self._node_effective_bits[key] = max(existing[0], lo_bits), min(existing[1], hi_bits)
+
+    def _record_vvar_occurrence(self, expr: VirtualVariable) -> None:
+        constraint = self._node_effective_bits.get(id(expr))
+        per_idx = self.vvar_effective_bits.get(expr.varid)
+        if per_idx is None:
+            per_idx = {}
+            self.vvar_effective_bits[expr.varid] = per_idx
+        existing = per_idx.get(expr.idx)
+        if constraint is None:
+            if existing is None:
+                per_idx[expr.idx] = 0, expr.bits
+        elif existing is None:
+            per_idx[expr.idx] = constraint
+        else:
+            per_idx[expr.idx] = max(existing[0], constraint[0]), min(existing[1], constraint[1])
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         pass
@@ -91,17 +116,16 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if is_none_or_likeable(expr, self._target_expr):
+        if isinstance(expr, VirtualVariable):
             # we are done!
-            if expr not in self.expr_to_effective_bits:
-                self._update_effective_bits(expr, 0, expr.bits)
+            self._record_vvar_occurrence(expr)
             return
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
         # self._handle_expr(0, expr.base, stmt_idx, stmt, block)
-        if self._target_expr.likes(expr.base):
-            self.expr_used_as_insert_base = True
+        if isinstance(expr.base, VirtualVariable):
+            self.vvars_used_as_insert_base.add(expr.base.varid)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
@@ -114,51 +138,34 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
+    def _handle_call_args(self, args, stmt_idx: int, stmt: Statement | None, block: Block | None) -> None:
+        for i, arg in enumerate(args):
+            handled = False
+            if self._ignore_call_args:
+                if (
+                    isinstance(arg, Convert)
+                    and arg.to_bits < arg.from_bits
+                    and isinstance(arg.operand, VirtualVariable)
+                ):
+                    handled = True
+                    self.vvar_call_arg_effective_bits[arg.operand.varid] = 0, arg.to_bits
+                if isinstance(arg, Extract) and isinstance(arg.offset, Const) and isinstance(arg.base, VirtualVariable):
+                    handled = True
+                    self.vvar_call_arg_effective_bits[arg.base.varid] = (
+                        arg.offset.value,
+                        arg.offset.value + arg.bits,
+                    )
+
+            if not handled:
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.args is not None:
-            for i, arg in enumerate(expr.args):
-                handled = False
-                if self._ignore_call_args:
-                    if (
-                        isinstance(arg, Convert)
-                        and arg.to_bits < arg.from_bits
-                        and is_none_or_likeable(arg.operand, self._target_expr)
-                    ):
-                        handled = True
-                        self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
-                    if (
-                        isinstance(arg, Extract)
-                        and isinstance(arg.offset, Const)
-                        and is_none_or_likeable(arg.base, self._target_expr)
-                    ):
-                        handled = True
-                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
-
-                if not handled:
-                    self._handle_expr(i, arg, stmt_idx, stmt, block)
+            self._handle_call_args(expr.args, stmt_idx, stmt, block)
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
         if stmt.expr.args is not None:
-            for i, arg in enumerate(stmt.expr.args):
-                handled = False
-                if self._ignore_call_args:
-                    if (
-                        isinstance(arg, Convert)
-                        and arg.to_bits < arg.from_bits
-                        and is_none_or_likeable(arg.operand, self._target_expr)
-                    ):
-                        handled = True
-                        self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
-                    if (
-                        isinstance(arg, Extract)
-                        and isinstance(arg.offset, Const)
-                        and is_none_or_likeable(arg.base, self._target_expr)
-                    ):
-                        handled = True
-                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
-
-                if not handled:
-                    self._handle_expr(i, arg, stmt_idx, stmt, block)
+            self._handle_call_args(stmt.expr.args, stmt_idx, stmt, block)
 
         if stmt.ret_expr is not None:
             self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)
@@ -166,7 +173,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        effective_bits = self.expr_to_effective_bits.get(expr)
+        effective_bits = self._node_effective_bits.get(id(expr))
         if effective_bits is None:
             effective_bits = 0, expr.bits
         if expr.op == "And" and isinstance(expr.operands[1], Const):
@@ -202,7 +209,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        effective_bits = self.expr_to_effective_bits.get(expr)
+        effective_bits = self._node_effective_bits.get(id(expr))
         if effective_bits is None or effective_bits[1] > expr.to_bits:
             effective_bits = 0, expr.to_bits
         self._update_effective_bits(expr.operand, effective_bits[0], effective_bits[1])

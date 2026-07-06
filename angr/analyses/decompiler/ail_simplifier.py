@@ -455,6 +455,10 @@ class AILSimplifier(Analysis):
         # compute effective sizes for each vvar
         effective_sizes = self._compute_effective_sizes(rd, sorted_defs, addr_and_idx_to_block)
 
+        # per-statement EffectiveSizeExtractor cache; the blocks do not change while we collect narrowing candidates,
+        # so one walk per statement serves the queries of all definitions
+        extractor_cache: dict[AILCodeLocation, EffectiveSizeExtractor] = {}
+
         narrowing_candidates: dict[int, tuple[Definition, ExprNarrowingInfo]] = {}
         for def_ in sorted_defs:
             if isinstance(def_.atom, atoms.VirtualVariable) and (def_.atom.was_reg or def_.atom.was_parameter):
@@ -470,7 +474,7 @@ class AILSimplifier(Analysis):
                 if skip_def:
                     continue
 
-                narrow = self._narrowing_needed(def_, rd, addr_and_idx_to_block, effective_sizes)
+                narrow = self._narrowing_needed(def_, rd, addr_and_idx_to_block, effective_sizes, extractor_cache)
                 if narrow.narrowable:
                     # we cannot narrow it immediately because any definition that is used by phi variables must be
                     # narrowed together with all other definitions that can reach the phi variables.
@@ -690,6 +694,7 @@ class AILSimplifier(Analysis):
         rd: SRDAModel,
         addr_and_idx_to_block: dict[Address, Block],
         effective_sizes: dict[int, int],
+        extractor_cache: dict[AILCodeLocation, EffectiveSizeExtractor] | None = None,
     ) -> ExprNarrowingInfo:
         def_size = def_.size
         # find its uses
@@ -735,7 +740,7 @@ class AILSimplifier(Analysis):
             if is_expr_used_as_reg_base_value(stmt, expr, rd):
                 continue
 
-            expr_size, use_type = self._extract_expression_effective_size(stmt, expr)
+            expr_size, use_type = self._extract_expression_effective_size(stmt, expr, loc, extractor_cache)
             if expr_size is None:
                 if use_type == "insert-base":
                     # don't care
@@ -841,25 +846,37 @@ class AILSimplifier(Analysis):
                     result.append((atom, loc, expr))
         return result, phi_vars
 
-    def _extract_expression_effective_size(self, statement, expr) -> tuple[int | None, str | None]:
+    def _extract_expression_effective_size(
+        self,
+        statement,
+        expr,
+        loc: AILCodeLocation | None = None,
+        extractor_cache: dict[AILCodeLocation, EffectiveSizeExtractor] | None = None,
+    ) -> tuple[int | None, str | None]:
         """
         Determine the effective size of an expression when it's used.
         """
 
-        walker = EffectiveSizeExtractor(expr)
-        walker.walk_statement(statement)
+        if not isinstance(expr, VirtualVariable):
+            return None, None
 
-        effective_bit_ranges = set()
-        for expr_, (lo_bits, hi_bits) in walker.expr_to_effective_bits.items():
-            if expr.likes(expr_):
-                effective_bit_ranges.add((lo_bits, hi_bits))
+        walker = None
+        if extractor_cache is not None and loc is not None:
+            walker = extractor_cache.get(loc)
+        if walker is None:
+            walker = EffectiveSizeExtractor()
+            walker.walk_statement(statement)
+            if extractor_cache is not None and loc is not None:
+                extractor_cache[loc] = walker
 
-        if effective_bit_ranges:
-            highest_bit = max(hi_bits for _, hi_bits in effective_bit_ranges)
+        effective_bits_by_occurrence = walker.vvar_effective_bits.get(expr.varid)
+        if effective_bits_by_occurrence:
+            highest_bit = max(hi_bits for _, hi_bits in effective_bits_by_occurrence.values())
             return highest_bit // self.project.arch.byte_width, "expr"
-        if walker.expr_used_as_call_arg_effective_bits is not None:
-            return walker.expr_used_as_call_arg_effective_bits[1] // self.project.arch.byte_width, "call-arg"
-        if walker.expr_used_as_insert_base:
+        call_arg_bits = walker.vvar_call_arg_effective_bits.get(expr.varid)
+        if call_arg_bits is not None:
+            return call_arg_bits[1] // self.project.arch.byte_width, "call-arg"
+        if expr.varid in walker.vvars_used_as_insert_base:
             return None, "insert-base"
 
         return None, None
