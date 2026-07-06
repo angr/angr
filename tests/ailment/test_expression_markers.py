@@ -1,19 +1,16 @@
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
-"""Smoke tests for the Phase D spike marker module.
+"""Smoke tests for the Expression marker classes.
 
 Locks in the variant coverage and the metaclass dispatch contract for
-all 27 Expression variants. The spike module
-``angr.ailment._phase_d_spike`` is staged for migration into the
-canonical ``angr.ailment.expression`` module; until then, these tests
-guard the spike from regressions.
+all 27 Expression variants in ``angr.ailment.expression``.
 """
 
 from __future__ import annotations
 
 import unittest
 
-import angr.ailment._phase_d_spike as spike
-from angr.ailment._phase_d_stmt_spike import Assignment, Label
+import angr.ailment.expression as spike
+from angr.ailment.statement import Assignment, Label
 from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
     Expression,
     ExpressionKind,
@@ -22,7 +19,7 @@ from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-mo
 )
 
 
-class TestPhaseDSpike(unittest.TestCase):
+class TestExpressionMarkers(unittest.TestCase):
     """Per-variant construction + ``isinstance`` dispatch + roundtrip."""
 
     def _roundtrip(self, expr) -> Expression:
@@ -145,8 +142,7 @@ class TestPhaseDSpike(unittest.TestCase):
 
     def test_multi_statement_expression_with_real_statements(self):
         """MSE.stmts holds real Statement instances and round-trips with
-        full fidelity (the spike-local stringification fallback was
-        removed when Statements joined the Phase D fat enum)."""
+        full fidelity."""
         dst = spike.Register(0, 16, 64)
         src = spike.Const(1, 42, 64)
         final = spike.Const(2, 7, 32)

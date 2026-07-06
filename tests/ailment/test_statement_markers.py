@@ -1,23 +1,20 @@
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
-"""Smoke tests for the Phase D Statement spike marker module.
+"""Smoke tests for the Statement marker classes.
 
 Locks in the variant coverage and the metaclass dispatch contract for
-all 10 Statement variants. The spike module
-``angr.ailment._phase_d_stmt_spike`` is staged for migration into the
-canonical ``angr.ailment.statement`` module; until then, these tests
-guard the spike from regressions.
+all 10 Statement variants in ``angr.ailment.statement``.
 """
 
 from __future__ import annotations
 
 import unittest
 
-import angr.ailment._phase_d_spike as eu  # expression markers
-import angr.ailment._phase_d_stmt_spike as su  # statement markers
+import angr.ailment.expression as eu  # expression markers
+import angr.ailment.statement as su  # statement markers
 from angr.rustylib.ailment import Statement, StatementKind  # pylint:disable=import-error,no-name-in-module
 
 
-class TestPhaseDStmtSpike(unittest.TestCase):
+class TestStatementMarkers(unittest.TestCase):
     """Per-variant construction + ``isinstance`` dispatch + roundtrip."""
 
     def _roundtrip(self, stmt) -> Statement:
