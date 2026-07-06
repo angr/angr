@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 """
 Regression tests for DirectedGraphHelper, the node-order / postorder cache that PhoenixStructurer keeps in sync
 with the region graph. Each test corresponds to a bug that made the cache go stale and crashed the decompiler

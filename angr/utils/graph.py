@@ -110,7 +110,7 @@ def dfs_back_edges[T](
 
     visited = set() if visited is None else visited  # Tracks visited nodes
     finished = set()  # Tracks nodes whose descendants are fully explored
-    stack = [(start_node, iter(sorted(graph[start_node], key=GraphUtils._sort_node)))]
+    stack = [(start_node, iter(sorted(graph[start_node], key=GraphUtils.sort_node)))]
 
     while stack:
         node, children = stack[-1]
@@ -122,7 +122,7 @@ def dfs_back_edges[T](
                 if child not in finished:
                     yield node, child  # Found a back edge
             elif child not in finished:  # Check if the child has not been finished
-                stack.append((child, iter(sorted(graph[child], key=GraphUtils._sort_node))))
+                stack.append((child, iter(sorted(graph[child], key=GraphUtils.sort_node))))
         except StopIteration:
             stack.pop()  # Done with this node's children
             finished.add(node)  # Mark this node as finished
@@ -130,7 +130,7 @@ def dfs_back_edges[T](
     if visit_all_nodes:
         while len(visited) < len(graph):
             # If we need to visit all nodes, we can start from unvisited nodes
-            node = sorted(set(graph) - visited, key=GraphUtils._sort_node)[0]
+            node = sorted(set(graph) - visited, key=GraphUtils.sort_node)[0]
             yield from dfs_back_edges(graph, node, visited=visited)
 
 
@@ -709,7 +709,7 @@ class GraphUtils:
             if pre_visit and node not in visited:
                 visited.add(node)
                 stack.append((node, False))
-                for succ in sorted(graph.successors(node), key=GraphUtils._sort_node):
+                for succ in sorted(graph.successors(node), key=GraphUtils.sort_node):
                     if succ not in visited:
                         stack.append((succ, True))
             elif not pre_visit:
@@ -726,13 +726,13 @@ class GraphUtils:
         visited: set = set()
         # seeding the stack with the sources in ascending _sort_node order makes the LIFO stack pop them largest-first,
         # exactly as a synthetic super-source's sorted successors would have been expanded.
-        stack: list[tuple[Any, bool]] = [(s, True) for s in sorted(sources, key=GraphUtils._sort_node)]
+        stack: list[tuple[Any, bool]] = [(s, True) for s in sorted(sources, key=GraphUtils.sort_node)]
         while stack:
             node, pre_visit = stack.pop()
             if pre_visit and node not in visited:
                 visited.add(node)
                 stack.append((node, False))
-                for succ in sorted(graph.successors(node), key=GraphUtils._sort_node):
+                for succ in sorted(graph.successors(node), key=GraphUtils.sort_node):
                     if succ not in visited:
                         stack.append((succ, True))
             elif not pre_visit:
@@ -758,7 +758,7 @@ class GraphUtils:
         return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
-    def _sort_node(node):
+    def sort_node(node):
         """
         A sorter to make a deterministic order of nodes.
         """
@@ -767,7 +767,7 @@ class GraphUtils:
         return node
 
     @staticmethod
-    def _sort_edge(edge):
+    def sort_edge(edge):
         """
         A sorter to make a deterministic order of edges.
         """
@@ -833,7 +833,7 @@ class GraphUtils:
                     comp_indices[node] = (i, scc_addr)
 
         # collapse all strongly connected components
-        for src, dst in sorted(graph.edges(), key=GraphUtils._sort_edge):
+        for src, dst in sorted(graph.edges(), key=GraphUtils.sort_edge):
             scc_index, scc_addr = comp_indices.get(src, (None, None))
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index, scc_addr)
@@ -934,7 +934,7 @@ class GraphUtils:
                 if len(scc_succs) > 1:
                     # calculate the distance between each pair of nodes within scc_succs, pick the one with the
                     # shortest total distance
-                    sorted_scc_succs = sorted(scc_succs, key=GraphUtils._sort_node)
+                    sorted_scc_succs = sorted(scc_succs, key=GraphUtils.sort_node)
                     scc_node_distance = defaultdict(int)
                     for scc_succ in sorted_scc_succs:
                         for other_node in sorted_scc_succs:
@@ -950,7 +950,7 @@ class GraphUtils:
 
         if loop_head is None:
             # pick the first one
-            loop_head = sorted(scc, key=GraphUtils._sort_node)[0]
+            loop_head = sorted(scc, key=GraphUtils.sort_node)[0]
 
         subgraph: networkx.DiGraph = graph.subgraph(scc).copy()  # type: ignore
         for src, _ in list(subgraph.in_edges(loop_head)):
@@ -961,7 +961,7 @@ class GraphUtils:
         # panic mode that will aggressively remove edges
 
         if len(subgraph) > panic_mode_threshold and len(subgraph.edges) > len(subgraph) * 1.4:
-            for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=GraphUtils._sort_edge):
+            for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=GraphUtils.sort_edge):
                 subgraph.remove_edge(n0, n1)
                 if len(subgraph.edges) <= len(subgraph) * 1.4:
                     break
@@ -1065,7 +1065,7 @@ class DirectedGraphHelper[T]:
             # view). they must still be present in the cache because node-replacement updates may reference them;
             # append them after the head so iteration from the head is unaffected.
             seen = set(sorted_nodes)
-            rest = sorted((n for n in acyclic_graph if n not in seen), key=GraphUtils._sort_node)
+            rest = sorted((n for n in acyclic_graph if n not in seen), key=GraphUtils.sort_node)
             for node in GraphUtils.dfs_postorder_nodes_deterministic_multi(acyclic_graph, rest):
                 if node not in seen:
                     seen.add(node)
