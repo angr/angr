@@ -2972,7 +2972,8 @@ class PhoenixStructurer(StructurerBase):
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
                 if graph_raw.filtered().has_edge(src, dst):
-                    self._virtualize_edge(src, dst)
+                    if not self._virtualize_edge(src, dst):
+                        return self._on_virtualize_edge_failure(src, dst)
                     l.debug("last_resort: Removed edge %r -> %r (type 3)", src, dst)
                     return True
 
@@ -3042,7 +3043,8 @@ class PhoenixStructurer(StructurerBase):
             all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
-            self._virtualize_edge(src, dst)
+            if not self._virtualize_edge(src, dst):
+                return self._on_virtualize_edge_failure(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 1)", src, dst)
             return True
 
@@ -3050,7 +3052,8 @@ class PhoenixStructurer(StructurerBase):
             secondary_edges = self._order_virtualizable_edges(full_graph, secondary_edges, node_seq)
             # virtualize the first edge
             src, dst = secondary_edges[0]
-            self._virtualize_edge(src, dst)
+            if not self._virtualize_edge(src, dst):
+                return self._on_virtualize_edge_failure(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
 
@@ -3080,14 +3083,36 @@ class PhoenixStructurer(StructurerBase):
             if cycle_edges:
                 cycle_edges = sorted(cycle_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
                 src, dst = cycle_edges[0]
-                self._virtualize_edge(src, dst)
+                if not self._virtualize_edge(src, dst):
+                    return self._on_virtualize_edge_failure(src, dst)
                 l.debug("last_resort: Removed cycle edge %r -> %r in an acyclic region (type 4)", src, dst)
                 return True
 
         l.debug("last_resort: No edge to remove")
         return False
 
-    def _virtualize_edge(self, src, dst):
+    @staticmethod
+    def _on_virtualize_edge_failure(src, dst) -> bool:
+        """
+        Terminate last-resort refinement when virtualizing an edge failed to remove it from the graph. Reporting
+        no progress dissolves the region into its parent (extra gotos in the output) instead of picking the same
+        edge again on every future round, which would loop until the analysis is killed.
+        """
+        l.error(
+            "last_resort: Virtualizing edge %r -> %r did not remove it from the graph (a graph bookkeeping bug); "
+            "giving up on this region to avoid an infinite refinement loop.",
+            src,
+            dst,
+        )
+        return False
+
+    def _virtualize_edge(self, src, dst) -> bool:
+        """
+        Virtualize the edge src -> dst: rewrite the jump into a goto and remove the edge from the region.
+        Returns True when the edge is actually gone from the with-successors view afterwards; a False return
+        means removal failed (a bug in graph bookkeeping) and the caller must not treat it as progress, or
+        refinement would pick the same edge again forever.
+        """
         # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
         try:
             last_stmt = self.cond_proc.get_last_statement(src)
@@ -3159,6 +3184,8 @@ class PhoenixStructurer(StructurerBase):
             self.replace_nodes_both(src, new_src)
         if remove_src_last_stmt:
             remove_last_statements(src)
+        final_src = new_src if new_src is not None else src
+        return not self._region.view_with_successors().has_edge(final_src, dst)
 
     def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
         """
