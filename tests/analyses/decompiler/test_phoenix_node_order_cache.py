@@ -5,6 +5,7 @@ Regression tests for DirectedGraphHelper, the node-order / postorder cache that 
 with the region graph. Each test corresponds to a bug that made the cache go stale and crashed the decompiler
 with a KeyError in `replace_nodes`.
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
