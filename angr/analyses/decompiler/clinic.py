@@ -1944,27 +1944,11 @@ class Clinic(Analysis):
                 self.vvar_id_start += 1
                 arg_vvars[arg_vvar.varid] = arg_vvar, arg
             elif isinstance(arg, SimComboRegisterVariable):
-                arg_vvar = ailment.Expr.VirtualVariable(
-                    self._ail_manager.next_atom(),
-                    self.vvar_id_start,
-                    arg.bits,
-                    ailment.Expr.VirtualVariableCategory.PARAMETER,
-                    oident=(ailment.Expr.VirtualVariableCategory.COMBO_REGISTER, arg.reg_offsets),
-                    ins_addr=self.function.addr,
-                    vex_block_addr=self.function.addr,
-                    reg_vvars=[],
-                )
-                self.vvar_id_start += 1
-                arg_vvars[arg_vvar.varid] = arg_vvar, arg
-
-        for arg_vvar in arg_vvars:
-            if (
-                isinstance(arg_vvar, VirtualVariable)
-                and arg_vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER
-            ):
+                # create one full-width register vvar for each constituent register; the function body reads the
+                # constituent registers, and these vvars are what those reads resolve to during ssailification
                 reg_vvars = []
-                for reg_offset in arg_vvar.reg_offsets:
-                    arg_vvar = ailment.Expr.VirtualVariable(
+                for reg_offset in arg.reg_offsets:
+                    reg_vvar = ailment.Expr.VirtualVariable(
                         self._ail_manager.next_atom(),
                         self.vvar_id_start,
                         self.project.arch.bits,
@@ -1973,9 +1957,21 @@ class Clinic(Analysis):
                         ins_addr=self.function.addr,
                         vex_block_addr=self.function.addr,
                     )
-                    reg_vvars.append(arg_vvar)
+                    reg_vvars.append(reg_vvar)
                     self.vvar_id_start += 1
-                arg_vvar.tags["reg_vvars"] = reg_vvars  # pyright: ignore[reportGeneralTypeIssues]
+                arg_vvar = ailment.Expr.VirtualVariable(
+                    self._ail_manager.next_atom(),
+                    self.vvar_id_start,
+                    arg.bits,
+                    ailment.Expr.VirtualVariableCategory.PARAMETER,
+                    oident=(ailment.Expr.VirtualVariableCategory.COMBO_REGISTER, arg.reg_offsets),
+                    ins_addr=self.function.addr,
+                    vex_block_addr=self.function.addr,
+                    reg_vvars=reg_vvars,
+                )
+                self.vvar_id_start += 1
+                arg_vvars[arg_vvar.varid] = arg_vvar, arg
+
         return arg_vvars
 
     @timethis
