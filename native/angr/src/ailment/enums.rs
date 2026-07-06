@@ -76,7 +76,10 @@ impl VirtualVariableCategory {
         let from_int = cls.getattr("_from_int_py")?;
         let v = *slf.borrow() as u8;
         let args = pyo3::types::PyTuple::new(py, [v.into_pyobject(py)?.into_any().unbind()])?;
-        let tup = pyo3::types::PyTuple::new(py, [from_int.unbind().into_any(), args.into_any().unbind()])?;
+        let tup = pyo3::types::PyTuple::new(
+            py,
+            [from_int.unbind().into_any(), args.into_any().unbind()],
+        )?;
         Ok(tup.into_any().unbind())
     }
 }
@@ -147,7 +150,10 @@ impl ConvertType {
         let from_int = cls.getattr("_from_int_py")?;
         let v = *slf.borrow() as u8;
         let args = pyo3::types::PyTuple::new(py, [v.into_pyobject(py)?.into_any().unbind()])?;
-        let tup = pyo3::types::PyTuple::new(py, [from_int.unbind().into_any(), args.into_any().unbind()])?;
+        let tup = pyo3::types::PyTuple::new(
+            py,
+            [from_int.unbind().into_any(), args.into_any().unbind()],
+        )?;
         Ok(tup.into_any().unbind())
     }
 }
@@ -236,10 +242,7 @@ impl ExpressionKind {
     #[staticmethod]
     fn _from_int_py(v: i64) -> PyResult<ExpressionKind> {
         ExpressionKind::from_int(v).ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!(
-                "Unknown ExpressionKind value: {}",
-                v
-            ))
+            pyo3::exceptions::PyValueError::new_err(format!("Unknown ExpressionKind value: {}", v))
         })
     }
 
@@ -378,10 +381,7 @@ impl StatementKind {
     #[staticmethod]
     fn _from_int_py(v: i64) -> PyResult<StatementKind> {
         StatementKind::from_int(v).ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!(
-                "Unknown StatementKind value: {}",
-                v
-            ))
+            pyo3::exceptions::PyValueError::new_err(format!("Unknown StatementKind value: {}", v))
         })
     }
 
@@ -501,11 +501,16 @@ impl RoundingMode {
 
     fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
-        let cls = py.import("angr.rustylib.ailment")?.getattr("RoundingMode")?;
+        let cls = py
+            .import("angr.rustylib.ailment")?
+            .getattr("RoundingMode")?;
         let from_int = cls.getattr("_from_int_py")?;
         let v = *slf.borrow() as u8;
         let args = pyo3::types::PyTuple::new(py, [v.into_pyobject(py)?.into_any().unbind()])?;
-        let tup = pyo3::types::PyTuple::new(py, [from_int.unbind().into_any(), args.into_any().unbind()])?;
+        let tup = pyo3::types::PyTuple::new(
+            py,
+            [from_int.unbind().into_any(), args.into_any().unbind()],
+        )?;
         Ok(tup.into_any().unbind())
     }
 }

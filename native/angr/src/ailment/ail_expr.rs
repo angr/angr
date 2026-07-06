@@ -23,12 +23,12 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
-use crate::ailment::const_value::ConstValue;
 use crate::ailment::base::CachedHash;
+use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode};
 use crate::ailment::hash::{HashItem, stable_hash};
-use indexmap::IndexMap;
 use crate::ailment::tags::{Tags, TagsView};
+use indexmap::IndexMap;
 
 // ---------------------------------------------------------------------------
 // Header
@@ -340,9 +340,7 @@ impl CFGTarget {
                 let wrapper = Py::new(py, Expression::wrap((**e).clone()))?;
                 Ok(wrapper.into_any())
             }
-            CFGTarget::Symbol(s) => {
-                Ok(PyString::new(py, s).into_any().unbind())
-            }
+            CFGTarget::Symbol(s) => Ok(PyString::new(py, s).into_any().unbind()),
         }
     }
 
@@ -372,11 +370,7 @@ impl CFGTarget {
     /// ConditionalJump / Call target handling where the slot itself
     /// isn't a substitution candidate; only nodes underneath it are.
     /// Symbol targets are leaves.
-    pub fn replace_ail(
-        &self,
-        old: &AilExpression,
-        new: &AilExpression,
-    ) -> (bool, CFGTarget) {
+    pub fn replace_ail(&self, old: &AilExpression, new: &AilExpression) -> (bool, CFGTarget) {
         match self {
             CFGTarget::Expr(e) => {
                 let (c, r) = e.replace_ail(old, new);
@@ -523,9 +517,7 @@ impl OIdent {
                     ));
                 }
                 let inner_cat_obj = t.get_item(0)?;
-                let inner_cat = if let Ok(c) =
-                    inner_cat_obj.extract::<VirtualVariableCategory>()
-                {
+                let inner_cat = if let Ok(c) = inner_cat_obj.extract::<VirtualVariableCategory>() {
                     c
                 } else if let Ok(v) = inner_cat_obj.extract::<i64>() {
                     VirtualVariableCategory::from_int(v).ok_or_else(|| {
@@ -575,8 +567,10 @@ impl OIdent {
             Self::None => Ok(py.None()),
             Self::Int(v) => Ok(v.into_py_any(py)?),
             Self::RegList(v) => {
-                let items: Vec<Py<PyAny>> =
-                    v.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
+                let items: Vec<Py<PyAny>> = v
+                    .iter()
+                    .map(|x| x.into_py_any(py))
+                    .collect::<PyResult<_>>()?;
                 Ok(PyTuple::new(py, items)?.into_any().unbind())
             }
             Self::Parameter(p) => {
@@ -586,8 +580,10 @@ impl OIdent {
                     ParameterOIdent::Register(off) => off.into_py_any(py)?,
                     ParameterOIdent::Stack(off) => off.into_py_any(py)?,
                     ParameterOIdent::ComboRegister(offs) => {
-                        let items: Vec<Py<PyAny>> =
-                            offs.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
+                        let items: Vec<Py<PyAny>> = offs
+                            .iter()
+                            .map(|x| x.into_py_any(py))
+                            .collect::<PyResult<_>>()?;
                         PyTuple::new(py, items)?.into_any().unbind()
                     }
                 };
@@ -602,18 +598,18 @@ impl OIdent {
         match self {
             Self::None => HashItem::None,
             Self::Int(v) => HashItem::Int(*v as i128),
-            Self::RegList(v) => HashItem::Tuple(
-                v.iter().map(|x| HashItem::Int(*x as i128)).collect(),
-            ),
+            Self::RegList(v) => {
+                HashItem::Tuple(v.iter().map(|x| HashItem::Int(*x as i128)).collect())
+            }
             Self::Parameter(p) => {
                 let inner_cat = p.inner_category() as i64;
                 let inner_item = match p {
                     ParameterOIdent::Register(off) | ParameterOIdent::Stack(off) => {
                         HashItem::Int(*off as i128)
                     }
-                    ParameterOIdent::ComboRegister(offs) => HashItem::Tuple(
-                        offs.iter().map(|x| HashItem::Int(*x as i128)).collect(),
-                    ),
+                    ParameterOIdent::ComboRegister(offs) => {
+                        HashItem::Tuple(offs.iter().map(|x| HashItem::Int(*x as i128)).collect())
+                    }
                 };
                 HashItem::Tuple(vec![HashItem::Int(inner_cat as i128), inner_item])
             }
@@ -784,7 +780,10 @@ impl AilExpression {
                 let rhs_h = operands[1].cached_hash_or_compute();
                 stable_hash(&[
                     HashItem::Str(op.as_str()),
-                    HashItem::Tuple(vec![HashItem::U64Hash(lhs_h as u64), HashItem::U64Hash(rhs_h as u64)]),
+                    HashItem::Tuple(vec![
+                        HashItem::U64Hash(lhs_h as u64),
+                        HashItem::U64Hash(rhs_h as u64),
+                    ]),
                     HashItem::Int(self.header.bits as i128),
                     HashItem::Bool(*signed),
                     HashItem::Bool(*floating_point),
@@ -1013,11 +1012,10 @@ impl AilExpression {
         if self.likes(old) {
             return (true, new.clone());
         }
-        let walk =
-            |child: &AilExpression| -> (bool, Box<AilExpression>) {
-                let (c, r) = child.replace_ail(old, new);
-                (c, Box::new(r))
-            };
+        let walk = |child: &AilExpression| -> (bool, Box<AilExpression>) {
+            let (c, r) = child.replace_ail(old, new);
+            (c, Box::new(r))
+        };
         let walk_vec = |v: &Vec<AilExpression>| -> (bool, Vec<AilExpression>) {
             let mut changed = false;
             let mut out = Vec::with_capacity(v.len());
@@ -1498,9 +1496,7 @@ impl AilExpression {
     pub fn has_atom_ail(&self, atom: &AilExpression, identity: bool) -> bool {
         let matches_atom = |x: &AilExpression| -> bool {
             if identity {
-                x.kind() == atom.kind()
-                    && x.header.idx == atom.header.idx
-                    && x.likes(atom)
+                x.kind() == atom.kind() && x.header.idx == atom.header.idx && x.likes(atom)
             } else {
                 x.likes(atom)
             }
@@ -1510,62 +1506,89 @@ impl AilExpression {
         }
         let any =
             |children: &[&AilExpression]| children.iter().any(|c| c.has_atom_ail(atom, identity));
-        let any_vec =
-            |v: &[AilExpression]| v.iter().any(|c| c.has_atom_ail(atom, identity));
+        let any_vec = |v: &[AilExpression]| v.iter().any(|c| c.has_atom_ail(atom, identity));
         match &self.inner {
             ExprInner::UnaryOp { operand, .. }
             | ExprInner::Convert { operand, .. }
             | ExprInner::Reinterpret { operand, .. } => any(&[operand]),
             ExprInner::BinaryOp { operands, .. } => {
-                operands[0].has_atom_ail(atom, identity)
-                    || operands[1].has_atom_ail(atom, identity)
+                operands[0].has_atom_ail(atom, identity) || operands[1].has_atom_ail(atom, identity)
             }
-            ExprInner::Load { addr, guard, alt, .. } => {
+            ExprInner::Load {
+                addr, guard, alt, ..
+            } => {
                 if addr.has_atom_ail(atom, identity) {
                     return true;
                 }
-                if let Some(g) = guard && g.has_atom_ail(atom, identity) {
+                if let Some(g) = guard
+                    && g.has_atom_ail(atom, identity)
+                {
                     return true;
                 }
-                if let Some(a) = alt && a.has_atom_ail(atom, identity) {
+                if let Some(a) = alt
+                    && a.has_atom_ail(atom, identity)
+                {
                     return true;
                 }
                 false
             }
             ExprInner::ITE {
-                cond, iffalse, iftrue, ..
+                cond,
+                iffalse,
+                iftrue,
+                ..
             } => any(&[cond, iffalse, iftrue]),
             ExprInner::Extract { base, offset, .. } => any(&[base, offset]),
             ExprInner::Insert {
-                base, offset, value, ..
+                base,
+                offset,
+                value,
+                ..
             } => any(&[base, offset, value]),
-            ExprInner::Call { args, arg_vvars, .. } => {
-                if let Some(v) = args && any_vec(v) {
+            ExprInner::Call {
+                args, arg_vvars, ..
+            } => {
+                if let Some(v) = args
+                    && any_vec(v)
+                {
                     return true;
                 }
-                if let Some(v) = arg_vvars && any_vec(v) {
+                if let Some(v) = arg_vvars
+                    && any_vec(v)
+                {
                     return true;
                 }
                 false
             }
             ExprInner::DirtyExpression {
-                operands, guard, maddr, ..
+                operands,
+                guard,
+                maddr,
+                ..
             } => {
                 if any_vec(operands) {
                     return true;
                 }
-                if let Some(g) = guard && g.has_atom_ail(atom, identity) {
+                if let Some(g) = guard
+                    && g.has_atom_ail(atom, identity)
+                {
                     return true;
                 }
-                if let Some(m) = maddr && m.has_atom_ail(atom, identity) {
+                if let Some(m) = maddr
+                    && m.has_atom_ail(atom, identity)
+                {
                     return true;
                 }
                 false
             }
             ExprInner::VEXCCallExpression { operands, .. } => any_vec(operands),
             ExprInner::ComboRegister { registers, .. } => any_vec(registers),
-            ExprInner::Array { elements, .. } => elements.iter().any(|e| e.has_atom_ail(atom, identity)),
-            ExprInner::RustEnum { fields, .. } => fields.iter().any(|f| f.has_atom_ail(atom, identity)),
+            ExprInner::Array { elements, .. } => {
+                elements.iter().any(|e| e.has_atom_ail(atom, identity))
+            }
+            ExprInner::RustEnum { fields, .. } => {
+                fields.iter().any(|f| f.has_atom_ail(atom, identity))
+            }
             ExprInner::BasePointerOffset { .. } | ExprInner::StackBaseOffset { .. } => false,
             _ => false,
         }
@@ -1731,7 +1754,11 @@ impl AilExpression {
                 iffalse: recurse(iffalse)?,
                 iftrue: recurse(iftrue)?,
             },
-            ExprInner::Extract { base, offset, endness } => ExprInner::Extract {
+            ExprInner::Extract {
+                base,
+                offset,
+                endness,
+            } => ExprInner::Extract {
                 base: recurse(base)?,
                 offset: recurse(offset)?,
                 endness: endness.clone(),
@@ -1747,9 +1774,7 @@ impl AilExpression {
                 value: recurse(value)?,
                 endness: endness.clone(),
             },
-            ExprInner::StringLiteral { data } => ExprInner::StringLiteral {
-                data: data.clone(),
-            },
+            ExprInner::StringLiteral { data } => ExprInner::StringLiteral { data: data.clone() },
             ExprInner::BasePointerOffset { base, offset } => ExprInner::BasePointerOffset {
                 base: base.clone(),
                 offset: *offset,
@@ -1799,10 +1824,16 @@ impl AilExpression {
             },
             ExprInner::RustEnum { name, fields } => ExprInner::RustEnum {
                 name: name.clone(),
-                fields: fields.iter().map(|f| recurse(f)).collect::<PyResult<Vec<_>>>()?,
+                fields: fields
+                    .iter()
+                    .map(|f| recurse(f))
+                    .collect::<PyResult<Vec<_>>>()?,
             },
             ExprInner::Array { elements } => ExprInner::Array {
-                elements: elements.iter().map(|e| recurse(e)).collect::<PyResult<Vec<_>>>()?,
+                elements: elements
+                    .iter()
+                    .map(|e| recurse(e))
+                    .collect::<PyResult<Vec<_>>>()?,
             },
             ExprInner::Let { defs, src } => ExprInner::Let {
                 defs: defs
@@ -1811,10 +1842,7 @@ impl AilExpression {
                     .collect::<PyResult<Vec<_>>>()?,
                 src: recurse(src)?,
             },
-            ExprInner::Macro {
-                name,
-                delimiter,
-            } => ExprInner::Macro {
+            ExprInner::Macro { name, delimiter } => ExprInner::Macro {
                 name: name.clone(),
                 delimiter: delimiter.clone(),
             },
@@ -1886,14 +1914,12 @@ impl AilExpression {
             }
         }
         match (&self.inner, &other.inner) {
-            (
-                ExprInner::Const { value: a, .. },
-                ExprInner::Const { value: b, .. },
-            ) => const_values_eq(a, b) && self.header.bits == other.header.bits,
-            (
-                ExprInner::Tmp { tmp_idx: a, .. },
-                ExprInner::Tmp { tmp_idx: b, .. },
-            ) => a == b && self.header.bits == other.header.bits,
+            (ExprInner::Const { value: a, .. }, ExprInner::Const { value: b, .. }) => {
+                const_values_eq(a, b) && self.header.bits == other.header.bits
+            }
+            (ExprInner::Tmp { tmp_idx: a, .. }, ExprInner::Tmp { tmp_idx: b, .. }) => {
+                a == b && self.header.bits == other.header.bits
+            }
             (
                 ExprInner::Register { reg_offset: a, .. },
                 ExprInner::Register { reg_offset: b, .. },
@@ -1903,8 +1929,12 @@ impl AilExpression {
                 ExprInner::ComboRegister { registers: b, .. },
             ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y)),
             (
-                ExprInner::Phi { src_and_vvars: a, .. },
-                ExprInner::Phi { src_and_vvars: b, .. },
+                ExprInner::Phi {
+                    src_and_vvars: a, ..
+                },
+                ExprInner::Phi {
+                    src_and_vvars: b, ..
+                },
             ) => {
                 if self.header.bits != other.header.bits || a.len() != b.len() {
                     return false;
@@ -1933,20 +1963,19 @@ impl AilExpression {
                     oident: b_o,
                     ..
                 },
-            ) => {
-                a_id == b_id
-                    && self.header.bits == other.header.bits
-                    && a_c == b_c
-                    && a_o == b_o
-            }
+            ) => a_id == b_id && self.header.bits == other.header.bits && a_c == b_c && a_o == b_o,
             (
-                ExprInner::UnaryOp { op: a_op, operand: a_op_, .. },
-                ExprInner::UnaryOp { op: b_op, operand: b_op_, .. },
-            ) => {
-                a_op == b_op
-                    && self.header.bits == other.header.bits
-                    && a_op_.likes(b_op_)
-            }
+                ExprInner::UnaryOp {
+                    op: a_op,
+                    operand: a_op_,
+                    ..
+                },
+                ExprInner::UnaryOp {
+                    op: b_op,
+                    operand: b_op_,
+                    ..
+                },
+            ) => a_op == b_op && self.header.bits == other.header.bits && a_op_.likes(b_op_),
             (
                 ExprInner::Convert {
                     operand: a_o,
@@ -1992,13 +2021,7 @@ impl AilExpression {
                     to_type: b_tt,
                     ..
                 },
-            ) => {
-                a_fb == b_fb
-                    && a_tb == b_tb
-                    && a_ft == b_ft
-                    && a_tt == b_tt
-                    && a_o.likes(b_o)
-            }
+            ) => a_fb == b_fb && a_tb == b_tb && a_ft == b_ft && a_tt == b_tt && a_o.likes(b_o),
             (
                 ExprInner::BinaryOp {
                     op: op_a,
@@ -2078,18 +2101,12 @@ impl AilExpression {
                     && a_f.len() == b_f.len()
                     && a_f.iter().zip(b_f.iter()).all(|(a, b)| a.likes(b))
             }
-            (
-                ExprInner::Array { elements: a_e },
-                ExprInner::Array { elements: b_e },
-            ) => {
+            (ExprInner::Array { elements: a_e }, ExprInner::Array { elements: b_e }) => {
                 self.header.bits == other.header.bits
                     && a_e.len() == b_e.len()
                     && a_e.iter().zip(b_e.iter()).all(|(a, b)| a.likes(b))
             }
-            (
-                ExprInner::Let { src: a_s, .. },
-                ExprInner::Let { src: b_s, .. },
-            ) => a_s.likes(b_s),
+            (ExprInner::Let { src: a_s, .. }, ExprInner::Let { src: b_s, .. }) => a_s.likes(b_s),
             (
                 ExprInner::Macro {
                     name: a_n,
@@ -2116,17 +2133,13 @@ impl AilExpression {
                     ..
                 },
             ) => {
-                if a_n != b_n
-                    || a_d != b_d
-                    || self.header.bits != other.header.bits
-                {
+                if a_n != b_n || a_d != b_d || self.header.bits != other.header.bits {
                     return false;
                 }
                 match (a_a, b_a) {
                     (None, None) => true,
                     (Some(x), Some(y)) => {
-                        x.len() == y.len()
-                            && x.iter().zip(y.iter()).all(|(a, b)| a.likes(b))
+                        x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| a.likes(b))
                     }
                     _ => false,
                 }
@@ -2156,12 +2169,12 @@ impl AilExpression {
                 {
                     return false;
                 }
-                let opt_likes = |a: &Option<Box<AilExpression>>,
-                                 b: &Option<Box<AilExpression>>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.likes(y),
-                    _ => false,
-                };
+                let opt_likes =
+                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.likes(y),
+                        _ => false,
+                    };
                 opt_likes(a_g, b_g)
                     && opt_likes(a_ma, b_ma)
                     && a_ops.len() == b_ops.len()
@@ -2251,12 +2264,7 @@ impl AilExpression {
                     offset: bo,
                     endness: be,
                 },
-            ) => {
-                self.header.bits == other.header.bits
-                    && ae == be
-                    && ab.likes(bb)
-                    && ao.likes(bo)
-            }
+            ) => self.header.bits == other.header.bits && ae == be && ab.likes(bb) && ao.likes(bo),
             (
                 ExprInner::Insert {
                     base: ab,
@@ -2271,13 +2279,18 @@ impl AilExpression {
                     endness: be,
                 },
             ) => ae == be && ab.likes(bb) && ao.likes(bo) && av.likes(bv),
+            (ExprInner::StringLiteral { data: a }, ExprInner::StringLiteral { data: b }) => a == b,
             (
-                ExprInner::StringLiteral { data: a },
-                ExprInner::StringLiteral { data: b },
-            ) => a == b,
-            (
-                ExprInner::BasePointerOffset { base: a_b, offset: a_o, .. },
-                ExprInner::BasePointerOffset { base: b_b, offset: b_o, .. },
+                ExprInner::BasePointerOffset {
+                    base: a_b,
+                    offset: a_o,
+                    ..
+                },
+                ExprInner::BasePointerOffset {
+                    base: b_b,
+                    offset: b_o,
+                    ..
+                },
             ) => self.header.bits == other.header.bits && a_b == b_b && a_o == b_o,
             (
                 ExprInner::StackBaseOffset { offset: a },
@@ -2337,8 +2350,12 @@ impl AilExpression {
             // -- ``Phi.matches``). The legacy contract walks the dicts
             // -- and only verifies the keys (sources) line up.
             (
-                ExprInner::Phi { src_and_vvars: a, .. },
-                ExprInner::Phi { src_and_vvars: b, .. },
+                ExprInner::Phi {
+                    src_and_vvars: a, ..
+                },
+                ExprInner::Phi {
+                    src_and_vvars: b, ..
+                },
             ) => {
                 if self.header.bits != other.header.bits || a.len() != b.len() {
                     return false;
@@ -2360,13 +2377,17 @@ impl AilExpression {
             // -- Recursive variants: descend via ``matches`` so the
             // -- relaxation propagates.
             (
-                ExprInner::UnaryOp { op: a_op, operand: a_o, .. },
-                ExprInner::UnaryOp { op: b_op, operand: b_o, .. },
-            ) => {
-                a_op == b_op
-                    && self.header.bits == other.header.bits
-                    && a_o.matches(b_o)
-            }
+                ExprInner::UnaryOp {
+                    op: a_op,
+                    operand: a_o,
+                    ..
+                },
+                ExprInner::UnaryOp {
+                    op: b_op,
+                    operand: b_o,
+                    ..
+                },
+            ) => a_op == b_op && self.header.bits == other.header.bits && a_o.matches(b_o),
             (
                 ExprInner::Convert {
                     operand: a_o,
@@ -2412,13 +2433,7 @@ impl AilExpression {
                     to_type: b_tt,
                     ..
                 },
-            ) => {
-                a_fb == b_fb
-                    && a_tb == b_tb
-                    && a_ft == b_ft
-                    && a_tt == b_tt
-                    && a_o.matches(b_o)
-            }
+            ) => a_fb == b_fb && a_tb == b_tb && a_ft == b_ft && a_tt == b_tt && a_o.matches(b_o),
             (
                 ExprInner::BinaryOp {
                     op: op_a,
@@ -2524,8 +2539,7 @@ impl AilExpression {
                 match (a_args, b_args) {
                     (None, None) => true,
                     (Some(a), Some(b)) => {
-                        a.len() == b.len()
-                            && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y))
+                        a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y))
                     }
                     _ => false,
                 }
@@ -2555,12 +2569,12 @@ impl AilExpression {
                 {
                     return false;
                 }
-                let opt_matches = |a: &Option<Box<AilExpression>>,
-                                   b: &Option<Box<AilExpression>>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.matches(y),
-                    _ => false,
-                };
+                let opt_matches =
+                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.matches(y),
+                        _ => false,
+                    };
                 opt_matches(a_g, b_g)
                     && opt_matches(a_ma, b_ma)
                     && a_ops.len() == b_ops.len()
@@ -2615,7 +2629,11 @@ impl AilExpression {
 // Expression pyclass -- the only Python-facing class
 // ---------------------------------------------------------------------------
 
-#[pyclass(name = "Expression", module = "angr.rustylib.ailment", skip_from_py_object)]
+#[pyclass(
+    name = "Expression",
+    module = "angr.rustylib.ailment",
+    skip_from_py_object
+)]
 #[derive(Debug)]
 pub struct Expression {
     pub expr: AilExpression,
@@ -2749,9 +2767,11 @@ impl Expression {
             Some(o) if !o.is_none() => {
                 let items: Vec<Bound<'_, PyAny>> = o
                     .try_iter()
-                    .map_err(|_| PyTypeError::new_err(
-                        "reg_vvars must be a list of VirtualVariable Expressions or None",
-                    ))?
+                    .map_err(|_| {
+                        PyTypeError::new_err(
+                            "reg_vvars must be a list of VirtualVariable Expressions or None",
+                        )
+                    })?
                     .collect::<PyResult<Vec<_>>>()?;
                 let mut decoded: Vec<Box<AilExpression>> = Vec::with_capacity(items.len());
                 for (i, item) in items.into_iter().enumerate() {
@@ -3062,9 +3082,9 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let data_str: String = data.extract().map_err(|_| {
-            PyTypeError::new_err("StringLiteral data must be a str")
-        })?;
+        let data_str: String = data
+            .extract()
+            .map_err(|_| PyTypeError::new_err("StringLiteral data must be a str"))?;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::StringLiteral { data: data_str },
@@ -3319,9 +3339,9 @@ impl Expression {
             IndexMap::with_capacity(fields.len());
         let mut depth: u32 = 0;
         for (k, v) in fields.iter() {
-            let off: i64 = k.extract().map_err(|_| {
-                PyTypeError::new_err("Struct fields keys must be int offsets")
-            })?;
+            let off: i64 = k
+                .extract()
+                .map_err(|_| PyTypeError::new_err("Struct fields keys must be int offsets"))?;
             let ail = extract_ail(&v)?;
             depth = depth.max(ail.header.depth);
             decoded_fields.insert(off, Box::new(ail));
@@ -3329,12 +3349,11 @@ impl Expression {
         depth += 1;
         let mut decoded_offsets: IndexMap<String, i64> =
             IndexMap::with_capacity(field_offsets.len());
-        let mut decoded_names: IndexMap<i64, String> =
-            IndexMap::with_capacity(field_offsets.len());
+        let mut decoded_names: IndexMap<i64, String> = IndexMap::with_capacity(field_offsets.len());
         for (k, v) in field_offsets.iter() {
-            let name: String = k.extract().map_err(|_| {
-                PyTypeError::new_err("Struct field_offsets keys must be str names")
-            })?;
+            let name: String = k
+                .extract()
+                .map_err(|_| PyTypeError::new_err("Struct field_offsets keys must be str names"))?;
             let off: i64 = v.extract().map_err(|_| {
                 PyTypeError::new_err("Struct field_offsets values must be int offsets")
             })?;
@@ -3401,9 +3420,7 @@ impl Expression {
         depth += 1;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
-            inner: ExprInner::Array {
-                elements: decoded,
-            },
+            inner: ExprInner::Array { elements: decoded },
         }))
     }
 
@@ -3570,12 +3587,11 @@ impl Expression {
     fn value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
             ExprInner::Const { value, .. } => Ok(value.clone().into_pyobject(py)?),
-            ExprInner::Insert { value, .. } => Ok(Py::new(
-                py,
-                Expression::wrap((**value).clone()),
-            )?
-            .into_bound(py)
-            .into_any()),
+            ExprInner::Insert { value, .. } => {
+                Ok(Py::new(py, Expression::wrap((**value).clone()))?
+                    .into_bound(py)
+                    .into_any())
+            }
             _ => Err(PyAttributeError::new_err("no 'value' on this Expression")),
         }
     }
@@ -3670,7 +3686,9 @@ impl Expression {
                 let mask = 1i128 << (bits - 1);
                 Ok(if (v & mask) != 0 { 1 } else { 0 })
             }
-            _ => Err(PyAttributeError::new_err("no 'sign_bit' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'sign_bit' on this Expression",
+            )),
         }
     }
 
@@ -3723,7 +3741,9 @@ impl Expression {
                 }
                 Ok(l.unbind())
             }
-            _ => Err(PyAttributeError::new_err("no 'registers' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'registers' on this Expression",
+            )),
         }
     }
     #[setter]
@@ -3745,7 +3765,9 @@ impl Expression {
                 *registers = regs;
                 Ok(())
             }
-            _ => Err(PyAttributeError::new_err("no 'registers' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'registers' on this Expression",
+            )),
         }
     }
 
@@ -3814,7 +3836,9 @@ impl Expression {
     fn category(&self) -> PyResult<crate::ailment::enums::VirtualVariableCategory> {
         match &self.expr.inner {
             ExprInner::VirtualVariable { category, .. } => Ok(*category),
-            _ => Err(PyAttributeError::new_err("no 'category' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'category' on this Expression",
+            )),
         }
     }
 
@@ -3842,7 +3866,13 @@ impl Expression {
                 Some(vec) => {
                     let items: Vec<Bound<'py, PyAny>> = vec
                         .iter()
-                        .map(|b| Ok::<_, PyErr>(Py::new(py, Self::wrap((**b).clone()))?.into_bound(py).into_any()))
+                        .map(|b| {
+                            Ok::<_, PyErr>(
+                                Py::new(py, Self::wrap((**b).clone()))?
+                                    .into_bound(py)
+                                    .into_any(),
+                            )
+                        })
                         .collect::<PyResult<_>>()?;
                     Ok(Some(PyList::new(py, items)?))
                 }
@@ -3901,7 +3931,10 @@ impl Expression {
     ) -> PyResult<Option<crate::ailment::enums::VirtualVariableCategory>> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident: OIdent::Parameter(p), .. } => Ok(Some(p.inner_category())),
+            ExprInner::VirtualVariable {
+                oident: OIdent::Parameter(p),
+                ..
+            } => Ok(Some(p.inner_category())),
             _ => Ok(None),
         }
     }
@@ -3911,7 +3944,10 @@ impl Expression {
     fn parameter_reg_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident: OIdent::Parameter(ParameterOIdent::Register(v)), .. } => Ok(Some(*v)),
+            ExprInner::VirtualVariable {
+                oident: OIdent::Parameter(ParameterOIdent::Register(v)),
+                ..
+            } => Ok(Some(*v)),
             _ => Ok(None),
         }
     }
@@ -3921,7 +3957,10 @@ impl Expression {
     fn parameter_stack_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident: OIdent::Parameter(ParameterOIdent::Stack(v)), .. } => Ok(Some(*v)),
+            ExprInner::VirtualVariable {
+                oident: OIdent::Parameter(ParameterOIdent::Stack(v)),
+                ..
+            } => Ok(Some(*v)),
             _ => Ok(None),
         }
     }
@@ -3931,8 +3970,14 @@ impl Expression {
     fn stack_offset(&self, py: Python<'_>) -> PyResult<i64> {
         let _ = py;
         match &self.expr.inner {
-            ExprInner::VirtualVariable { oident: OIdent::Int(v), .. } if self.was_stack() => Ok(*v),
-            ExprInner::VirtualVariable { oident: OIdent::Parameter(ParameterOIdent::Stack(v)), .. } if self.was_parameter() => Ok(*v),
+            ExprInner::VirtualVariable {
+                oident: OIdent::Int(v),
+                ..
+            } if self.was_stack() => Ok(*v),
+            ExprInner::VirtualVariable {
+                oident: OIdent::Parameter(ParameterOIdent::Stack(v)),
+                ..
+            } if self.was_parameter() => Ok(*v),
             _ => Err(PyTypeError::new_err("Is not a stack variable")),
         }
     }
@@ -3941,17 +3986,26 @@ impl Expression {
     #[getter]
     fn reg_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
         let make_tuple = |offs: &[i64]| -> PyResult<Bound<'py, PyTuple>> {
-            let items: Vec<Py<PyAny>> =
-                offs.iter().map(|x| x.into_py_any(py)).collect::<PyResult<_>>()?;
+            let items: Vec<Py<PyAny>> = offs
+                .iter()
+                .map(|x| x.into_py_any(py))
+                .collect::<PyResult<_>>()?;
             PyTuple::new(py, items)
         };
-        if self.was_combo_reg() && let ExprInner::VirtualVariable { oident: OIdent::RegList(offs), .. } = &self.expr.inner {
+        if self.was_combo_reg()
+            && let ExprInner::VirtualVariable {
+                oident: OIdent::RegList(offs),
+                ..
+            } = &self.expr.inner
+        {
             return make_tuple(offs);
         }
-        if self.was_parameter() && let ExprInner::VirtualVariable {
+        if self.was_parameter()
+            && let ExprInner::VirtualVariable {
                 oident: OIdent::Parameter(ParameterOIdent::ComboRegister(offs)),
                 ..
-            } = &self.expr.inner {
+            } = &self.expr.inner
+        {
             return make_tuple(offs);
         }
         Err(PyTypeError::new_err("Is not a combo register"))
@@ -4065,7 +4119,9 @@ impl Expression {
                 l.append(py_o)?;
                 Ok(l.into_any())
             }
-            _ => Err(PyAttributeError::new_err("no 'operands' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'operands' on this Expression",
+            )),
         }
     }
     #[setter]
@@ -4094,7 +4150,9 @@ impl Expression {
                 *operands = [lhs, rhs];
                 Ok(())
             }
-            _ => Err(PyAttributeError::new_err("no 'operands' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'operands' on this Expression",
+            )),
         }
     }
 
@@ -4139,10 +4197,7 @@ impl Expression {
             ExprInner::MultiStatementExpression { stmts, .. } => {
                 let l = PyList::empty(py);
                 for s in stmts {
-                    let py_s = Py::new(
-                        py,
-                        crate::ailment::ail_stmt::Statement::wrap(s.clone()),
-                    )?;
+                    let py_s = Py::new(py, crate::ailment::ail_stmt::Statement::wrap(s.clone()))?;
                     l.append(py_s)?;
                 }
                 Ok(l)
@@ -4193,7 +4248,13 @@ impl Expression {
             ExprInner::RustEnum { fields, .. } => {
                 let items: Vec<Bound<'py, PyAny>> = fields
                     .iter()
-                    .map(|b| Ok::<_, PyErr>(Py::new(py, Self::wrap((**b).clone()))?.into_bound(py).into_any()))
+                    .map(|b| {
+                        Ok::<_, PyErr>(
+                            Py::new(py, Self::wrap((**b).clone()))?
+                                .into_bound(py)
+                                .into_any(),
+                        )
+                    })
                     .collect::<PyResult<_>>()?;
                 Ok(PyList::new(py, items)?.into_any())
             }
@@ -4306,7 +4367,13 @@ impl Expression {
             ExprInner::Array { elements } => {
                 let items: Vec<Bound<'py, PyAny>> = elements
                     .iter()
-                    .map(|b| Ok::<_, PyErr>(Py::new(py, Self::wrap((**b).clone()))?.into_bound(py).into_any()))
+                    .map(|b| {
+                        Ok::<_, PyErr>(
+                            Py::new(py, Self::wrap((**b).clone()))?
+                                .into_bound(py)
+                                .into_any(),
+                        )
+                    })
                     .collect::<PyResult<_>>()?;
                 PyList::new(py, items)
             }
@@ -4339,9 +4406,7 @@ impl Expression {
     fn length(&self) -> PyResult<usize> {
         match &self.expr.inner {
             ExprInner::Array { elements } => Ok(elements.len()),
-            _ => Err(PyAttributeError::new_err(
-                "no 'length' on this Expression",
-            )),
+            _ => Err(PyAttributeError::new_err("no 'length' on this Expression")),
         }
     }
 
@@ -4360,12 +4425,9 @@ impl Expression {
                     .iter()
                     .map(|b| {
                         Ok::<_, PyErr>(
-                            Py::new(
-                                py,
-                                crate::ailment::ail_stmt::Statement::wrap((**b).clone()),
-                            )?
-                            .into_bound(py)
-                            .into_any(),
+                            Py::new(py, crate::ailment::ail_stmt::Statement::wrap((**b).clone()))?
+                                .into_bound(py)
+                                .into_any(),
                         )
                     })
                     .collect::<PyResult<_>>()?;
@@ -4390,8 +4452,9 @@ impl Expression {
     #[getter]
     fn delimiter(&self) -> PyResult<String> {
         match &self.expr.inner {
-            ExprInner::Macro { delimiter, .. }
-            | ExprInner::FunctionLikeMacro { delimiter, .. } => Ok(delimiter.clone()),
+            ExprInner::Macro { delimiter, .. } | ExprInner::FunctionLikeMacro { delimiter, .. } => {
+                Ok(delimiter.clone())
+            }
             _ => Err(PyAttributeError::new_err(
                 "no 'delimiter' on this Expression",
             )),
@@ -4417,7 +4480,13 @@ impl Expression {
                 Some(v) => {
                     let items: Vec<Bound<'py, PyAny>> = v
                         .iter()
-                        .map(|b| Ok::<_, PyErr>(Py::new(py, Expression::wrap((**b).clone()))?.into_bound(py).into_any()))
+                        .map(|b| {
+                            Ok::<_, PyErr>(
+                                Py::new(py, Expression::wrap((**b).clone()))?
+                                    .into_bound(py)
+                                    .into_any(),
+                            )
+                        })
                         .collect::<PyResult<_>>()?;
                     Ok(Some(PyList::new(py, items)?.into_any()))
                 }
@@ -4590,7 +4659,9 @@ impl Expression {
             ExprInner::Convert { from_bits, .. } | ExprInner::Reinterpret { from_bits, .. } => {
                 Ok(*from_bits)
             }
-            _ => Err(PyAttributeError::new_err("no 'from_bits' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'from_bits' on this Expression",
+            )),
         }
     }
 
@@ -4598,7 +4669,9 @@ impl Expression {
     #[getter]
     fn to_bits(&self) -> PyResult<u32> {
         match &self.expr.inner {
-            ExprInner::Convert { to_bits, .. } | ExprInner::Reinterpret { to_bits, .. } => Ok(*to_bits),
+            ExprInner::Convert { to_bits, .. } | ExprInner::Reinterpret { to_bits, .. } => {
+                Ok(*to_bits)
+            }
             _ => Err(PyAttributeError::new_err("no 'to_bits' on this Expression")),
         }
     }
@@ -4608,7 +4681,9 @@ impl Expression {
     fn is_signed(&self) -> PyResult<bool> {
         match &self.expr.inner {
             ExprInner::Convert { is_signed, .. } => Ok(*is_signed),
-            _ => Err(PyAttributeError::new_err("no 'is_signed' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'is_signed' on this Expression",
+            )),
         }
     }
 
@@ -4621,7 +4696,9 @@ impl Expression {
             ExprInner::Reinterpret { from_type, .. } => {
                 Ok(from_type.clone().into_bound_py_any(py)?)
             }
-            _ => Err(PyAttributeError::new_err("no 'from_type' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'from_type' on this Expression",
+            )),
         }
     }
 
@@ -4726,15 +4803,14 @@ impl Expression {
     #[getter]
     fn guard(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         match &self.expr.inner {
-            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
-                match guard {
-                    Some(g) => {
-                        let inner = Expression::wrap((**g).clone());
-                        Ok(Some(Py::new(py, inner)?.into_any()))
-                    }
-                    None => Ok(None),
+            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => match guard
+            {
+                Some(g) => {
+                    let inner = Expression::wrap((**g).clone());
+                    Ok(Some(Py::new(py, inner)?.into_any()))
                 }
-            }
+                None => Ok(None),
+            },
             _ => Err(PyAttributeError::new_err("no 'guard' on this Expression")),
         }
     }
@@ -4832,9 +4908,9 @@ impl Expression {
             ExprInner::Extract { base, .. } | ExprInner::Insert { base, .. } => {
                 Ok(Py::new(py, Expression::wrap((**base).clone()))?.into_any())
             }
-            ExprInner::BasePointerOffset { base, .. } => Ok(pyo3::types::PyString::new(py, base)
-                .into_any()
-                .unbind()),
+            ExprInner::BasePointerOffset { base, .. } => {
+                Ok(pyo3::types::PyString::new(py, base).into_any().unbind())
+            }
             ExprInner::StackBaseOffset { .. } => Ok(pyo3::types::PyString::new(py, "stack_base")
                 .into_any()
                 .unbind()),
@@ -4892,9 +4968,9 @@ impl Expression {
                 Ok(())
             }
             ExprInner::BasePointerOffset { offset, .. } => {
-                let i: i64 = value.extract().map_err(|_| {
-                    PyTypeError::new_err("BasePointerOffset offset must be an int")
-                })?;
+                let i: i64 = value
+                    .extract()
+                    .map_err(|_| PyTypeError::new_err("BasePointerOffset offset must be an int"))?;
                 self.expr.header.cached_hash.clear();
                 *offset = i;
                 Ok(())
@@ -5024,10 +5100,7 @@ impl Expression {
 
     /// Python ``copy.deepcopy`` protocol -- routes through ``deep_copy``
     /// with a stand-in ``Manager`` from ``angr.ailment._reconstruct``.
-    fn __deepcopy__<'py>(
-        slf: Bound<'py, Self>,
-        memo: Bound<'py, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    fn __deepcopy__<'py>(slf: Bound<'py, Self>, memo: Bound<'py, PyAny>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let helper = py
             .import("angr.ailment._reconstruct")?
@@ -5134,7 +5207,12 @@ impl Expression {
                     .collect();
                 Ok(format!("Phi([{}])", parts.join(", ")))
             }
-            ExprInner::VirtualVariable { varid, category, oident, .. } => {
+            ExprInner::VirtualVariable {
+                varid,
+                category,
+                oident,
+                ..
+            } => {
                 use crate::ailment::enums::VirtualVariableCategory;
                 let _ = py;
                 let size = self.expr.header.bits / 8;
@@ -5167,8 +5245,16 @@ impl Expression {
                 ..
             } => {
                 let o = Expression::wrap((**operand).clone()).__str__(py)?;
-                let ft = if *from_type == ConvertType::TYPE_FP { "F" } else { "" };
-                let tt = if *to_type == ConvertType::TYPE_FP { "F" } else { "" };
+                let ft = if *from_type == ConvertType::TYPE_FP {
+                    "F"
+                } else {
+                    ""
+                };
+                let tt = if *to_type == ConvertType::TYPE_FP {
+                    "F"
+                } else {
+                    ""
+                };
                 let s = if *is_signed { "s" } else { "" };
                 Ok(format!(
                     "Conv({}{}->{}{}{}, {})",
@@ -5194,25 +5280,25 @@ impl Expression {
                 let rhs = Expression::wrap((*operands[1]).clone()).__str__(py)?;
                 Ok(format!("({} {} {})", lhs, op, rhs))
             }
-            ExprInner::Load { addr, size, endness, .. } => {
-                let a = Expression::wrap((**addr).clone()).__str__(py)?;
-                Ok(format!("Load(addr={}, size={}, endness={})", a, size, endness))
-            }
-            ExprInner::Call {
-                target,
-                args,
+            ExprInner::Load {
+                addr,
+                size,
+                endness,
                 ..
             } => {
+                let a = Expression::wrap((**addr).clone()).__str__(py)?;
+                Ok(format!(
+                    "Load(addr={}, size={}, endness={})",
+                    a, size, endness
+                ))
+            }
+            ExprInner::Call { target, args, .. } => {
                 let args_str = match args {
                     None => String::new(),
                     Some(v) => {
                         let parts: Vec<String> = v
                             .iter()
-                            .map(|x| {
-                                Expression::wrap(x.clone())
-                                    .__str__(py)
-                                    .unwrap_or_default()
-                            })
+                            .map(|x| Expression::wrap(x.clone()).__str__(py).unwrap_or_default())
                             .collect();
                         format!("({})", parts.join(", "))
                     }
@@ -5223,7 +5309,12 @@ impl Expression {
                 };
                 Ok(format!("Call({}, {})", target_str, args_str))
             }
-            ExprInner::ITE { cond, iffalse, iftrue, .. } => {
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+                ..
+            } => {
                 let c = Expression::wrap((**cond).clone()).__str__(py)?;
                 let t = Expression::wrap((**iftrue).clone()).__str__(py)?;
                 let f = Expression::wrap((**iffalse).clone()).__str__(py)?;
@@ -5232,9 +5323,17 @@ impl Expression {
             ExprInner::Extract { base, offset, .. } => {
                 let b = Expression::wrap((**base).clone()).__str__(py)?;
                 let o = Expression::wrap((**offset).clone()).__str__(py)?;
-                Ok(format!("Extract({}, {}bits@{})", b, self.expr.header.bits, o))
+                Ok(format!(
+                    "Extract({}, {}bits@{})",
+                    b, self.expr.header.bits, o
+                ))
             }
-            ExprInner::Insert { base, offset, value, .. } => {
+            ExprInner::Insert {
+                base,
+                offset,
+                value,
+                ..
+            } => {
                 let b = Expression::wrap((**base).clone()).__str__(py)?;
                 let o = Expression::wrap((**offset).clone()).__str__(py)?;
                 let v = Expression::wrap((**value).clone()).__str__(py)?;
@@ -5249,34 +5348,26 @@ impl Expression {
                 Ok(format!("{}{:+}", base, offset))
             }
             ExprInner::StackBaseOffset { offset } => Ok(format!("sp{:+}", offset)),
-            ExprInner::DirtyExpression { callee, operands, .. } => {
+            ExprInner::DirtyExpression {
+                callee, operands, ..
+            } => {
                 let parts: Vec<String> = operands
                     .iter()
-                    .map(|o| {
-                        Expression::wrap(o.clone())
-                            .__str__(py)
-                            .unwrap_or_default()
-                    })
+                    .map(|o| Expression::wrap(o.clone()).__str__(py).unwrap_or_default())
                     .collect();
                 Ok(format!("[D] {}({})", callee, parts.join(", ")))
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
                 let parts: Vec<String> = operands
                     .iter()
-                    .map(|o| {
-                        Expression::wrap(o.clone())
-                            .__str__(py)
-                            .unwrap_or_default()
-                    })
+                    .map(|o| Expression::wrap(o.clone()).__str__(py).unwrap_or_default())
                     .collect();
                 Ok(format!("{}({})", callee, parts.join(", ")))
             }
             ExprInner::MultiStatementExpression { stmts, expr } => {
                 let mut parts: Vec<String> = Vec::new();
                 for s in stmts {
-                    parts.push(
-                        crate::ailment::ail_stmt::Statement::wrap(s.clone()).render(py)?,
-                    );
+                    parts.push(crate::ailment::ail_stmt::Statement::wrap(s.clone()).render(py)?);
                 }
                 parts.push(Expression::wrap((**expr).clone()).__str__(py)?);
                 Ok(format!("({})", parts.join(", ")))
@@ -5312,14 +5403,19 @@ impl Expression {
                 "let (_) = {}",
                 Expression::wrap((**src).clone()).__str__(py)?
             )),
-            ExprInner::Macro { name, delimiter, .. } => {
+            ExprInner::Macro {
+                name, delimiter, ..
+            } => {
                 let mut chars = delimiter.chars();
                 let open = chars.next().unwrap_or('(');
                 let close = chars.next().unwrap_or(')');
                 Ok(format!("{}!{}{}", name, open, close))
             }
             ExprInner::FunctionLikeMacro {
-                name, delimiter, args, ..
+                name,
+                delimiter,
+                args,
+                ..
             } => {
                 let mut chars = delimiter.chars();
                 let open = chars.next().unwrap_or('(');
@@ -5533,15 +5629,15 @@ pub fn extract_ail(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
 
 pub mod serialize {
     use super::{
-        AilExpression, CFGTarget, ConstValue, Expression, ExprHeader, ExprInner, OIdent,
+        AilExpression, CFGTarget, ConstValue, ExprHeader, ExprInner, Expression, OIdent,
         ParameterOIdent,
     };
     use crate::ailment::enums::{ConvertType, RoundingMode};
     use crate::ailment::tags::Tags;
     use indexmap::IndexMap;
+    use pyo3::IntoPyObjectExt;
     use pyo3::prelude::*;
     use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-    use pyo3::IntoPyObjectExt;
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize)]
@@ -5665,10 +5761,7 @@ pub mod serialize {
                 Self::Int(i) => Ok(i.into_bound_py_any(py)?.unbind()),
                 Self::BigInt(s) => {
                     let builtins = py.import("builtins")?;
-                    Ok(builtins
-                        .getattr("int")?
-                        .call1((s.as_str(), 16))?
-                        .unbind())
+                    Ok(builtins.getattr("int")?.call1((s.as_str(), 16))?.unbind())
                 }
                 Self::Float(f) => Ok(f.into_bound_py_any(py)?.unbind()),
                 Self::Str(s) => Ok(PyString::new(py, &s).into_any().unbind()),
@@ -5946,14 +6039,15 @@ pub mod serialize {
                         match o {
                             OIdent::None => PolyValue::None,
                             OIdent::Int(v) => PolyValue::Int(*v),
-                            OIdent::RegList(offs) => PolyValue::Tuple(
-                                offs.iter().map(|x| PolyValue::Int(*x)).collect(),
-                            ),
+                            OIdent::RegList(offs) => {
+                                PolyValue::Tuple(offs.iter().map(|x| PolyValue::Int(*x)).collect())
+                            }
                             OIdent::Parameter(p) => {
                                 let inner_cat = p.inner_category() as i64;
                                 let inner = match p {
-                                    ParameterOIdent::Register(v)
-                                    | ParameterOIdent::Stack(v) => PolyValue::Int(*v),
+                                    ParameterOIdent::Register(v) | ParameterOIdent::Stack(v) => {
+                                        PolyValue::Int(*v)
+                                    }
                                     ParameterOIdent::ComboRegister(offs) => PolyValue::Tuple(
                                         offs.iter().map(|x| PolyValue::Int(*x)).collect(),
                                     ),
@@ -6049,9 +6143,7 @@ pub mod serialize {
                 } => Wire::Call {
                     h: hdr,
                     target: match target {
-                        CFGTarget::Expr(e) => {
-                            PolyValue::Expr(Box::new(Wire::from(e.as_ref())))
-                        }
+                        CFGTarget::Expr(e) => PolyValue::Expr(Box::new(Wire::from(e.as_ref()))),
                         CFGTarget::Symbol(s) => PolyValue::Str(s.clone()),
                     },
                     args: args.as_ref().map(|v| v.iter().map(Wire::from).collect()),
@@ -6276,16 +6368,11 @@ pub mod serialize {
                     let cat = VirtualVariableCategory::from_int(category as i64)
                         .unwrap_or(VirtualVariableCategory::UNKNOWN);
                     // Inverse of ``ident_to_poly`` in ``Wire::from``.
-                    fn poly_to_ident(
-                        pv: PolyValue,
-                        cat: VirtualVariableCategory,
-                    ) -> OIdent {
+                    fn poly_to_ident(pv: PolyValue, cat: VirtualVariableCategory) -> OIdent {
                         use VirtualVariableCategory::*;
                         match (cat, pv) {
                             (UNKNOWN, _) | (_, PolyValue::None) => OIdent::None,
-                            (REGISTER | STACK | MEMORY | TMP, PolyValue::Int(v)) => {
-                                OIdent::Int(v)
-                            }
+                            (REGISTER | STACK | MEMORY | TMP, PolyValue::Int(v)) => OIdent::Int(v),
                             (COMBO_REGISTER, PolyValue::Tuple(items)) => {
                                 let offs = items
                                     .into_iter()
@@ -6301,14 +6388,13 @@ pub mod serialize {
                                 let inner_cat_pv = it.next().unwrap_or(PolyValue::None);
                                 let inner_payload = it.next().unwrap_or(PolyValue::None);
                                 let inner_cat = match inner_cat_pv {
-                                    PolyValue::Int(v) => VirtualVariableCategory::from_int(v)
-                                        .unwrap_or(UNKNOWN),
+                                    PolyValue::Int(v) => {
+                                        VirtualVariableCategory::from_int(v).unwrap_or(UNKNOWN)
+                                    }
                                     _ => UNKNOWN,
                                 };
                                 let p = match (inner_cat, inner_payload) {
-                                    (REGISTER, PolyValue::Int(v)) => {
-                                        ParameterOIdent::Register(v)
-                                    }
+                                    (REGISTER, PolyValue::Int(v)) => ParameterOIdent::Register(v),
                                     (STACK, PolyValue::Int(v)) => ParameterOIdent::Stack(v),
                                     (COMBO_REGISTER, PolyValue::Tuple(items)) => {
                                         let offs = items
@@ -6335,8 +6421,9 @@ pub mod serialize {
                             varid,
                             category: cat,
                             oident: oident_typed,
-                            reg_vvars: reg_vvars
-                                .map(|vec| vec.into_iter().map(|w| Box::new(w.into_ail())).collect()),
+                            reg_vvars: reg_vvars.map(|vec| {
+                                vec.into_iter().map(|w| Box::new(w.into_ail())).collect()
+                            }),
                         },
                     }
                 }),
@@ -6572,24 +6659,20 @@ pub mod serialize {
                 Wire::Array { h, elements } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Array {
-                        elements: elements.into_iter().map(|w| Box::new(w.into_ail())).collect(),
+                        elements: elements
+                            .into_iter()
+                            .map(|w| Box::new(w.into_ail()))
+                            .collect(),
                     },
                 },
                 Wire::Let { h, defs, src } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Let {
-                        defs: defs
-                            .into_iter()
-                            .map(|w| Box::new(w.into_ail()))
-                            .collect(),
+                        defs: defs.into_iter().map(|w| Box::new(w.into_ail())).collect(),
                         src: Box::new(src.into_ail()),
                     },
                 },
-                Wire::Macro {
-                    h,
-                    name,
-                    delimiter,
-                } => AilExpression {
+                Wire::Macro { h, name, delimiter } => AilExpression {
                     header: rebuild_header(h),
                     inner: ExprInner::Macro { name, delimiter },
                 },
@@ -6603,8 +6686,7 @@ pub mod serialize {
                     inner: ExprInner::FunctionLikeMacro {
                         name,
                         delimiter,
-                        args: args
-                            .map(|v| v.into_iter().map(|w| Box::new(w.into_ail())).collect()),
+                        args: args.map(|v| v.into_iter().map(|w| Box::new(w.into_ail())).collect()),
                     },
                 },
             }

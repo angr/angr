@@ -167,10 +167,7 @@ mod tests {
     #[test]
     fn nested_tuple_does_not_alias_with_flat() {
         let flat = stable_hash(&[HashItem::Int(1), HashItem::Int(2)]);
-        let nested = stable_hash(&[HashItem::Tuple(vec![
-            HashItem::Int(1),
-            HashItem::Int(2),
-        ])]);
+        let nested = stable_hash(&[HashItem::Tuple(vec![HashItem::Int(1), HashItem::Int(2)])]);
         assert_ne!(flat, nested);
     }
 

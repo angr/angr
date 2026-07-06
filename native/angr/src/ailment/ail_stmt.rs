@@ -179,7 +179,11 @@ impl AilStatement {
                 HashItem::Str(name.as_str()),
             ]),
             StmtInner::Store {
-                addr, data, size, endness, ..
+                addr,
+                data,
+                size,
+                endness,
+                ..
             } => stable_hash(&[
                 HashItem::TypeName("Store"),
                 HashItem::Int(self.header.idx as i128),
@@ -405,11 +409,10 @@ impl AilStatement {
         old_expr: &AilExpression,
         new_expr: &AilExpression,
     ) -> (bool, AilStatement) {
-        let walk =
-            |child: &AilExpression| -> (bool, Box<AilExpression>) {
-                let (c, r) = child.replace_ail(old_expr, new_expr);
-                (c, Box::new(r))
-            };
+        let walk = |child: &AilExpression| -> (bool, Box<AilExpression>) {
+            let (c, r) = child.replace_ail(old_expr, new_expr);
+            (c, Box::new(r))
+        };
         let walk_opt = |o: &Option<Box<AilExpression>>| -> (bool, Option<Box<AilExpression>>) {
             match o {
                 None => (false, None),
@@ -616,10 +619,7 @@ impl AilStatement {
             // ``Goto(Conv(Load(...)))`` so the structurer can recognize
             // a jumptable -- has to be able to walk into it. Recurse if
             // the slot wraps an ``Expression``.
-            StmtInner::Jump {
-                target,
-                target_idx,
-            } => {
+            StmtInner::Jump { target, target_idx } => {
                 let (changed, new_target) = target.replace_ail(old_expr, new_expr);
                 if !changed {
                     return (false, self.clone());
@@ -647,9 +647,8 @@ impl AilStatement {
         let check_opt = |o: &Option<Box<AilExpression>>| -> bool {
             o.as_ref().is_some_and(|c| c.has_atom_ail(atom, identity))
         };
-        let check_vec = |v: &Vec<AilExpression>| -> bool {
-            v.iter().any(|x| x.has_atom_ail(atom, identity))
-        };
+        let check_vec =
+            |v: &Vec<AilExpression>| -> bool { v.iter().any(|x| x.has_atom_ail(atom, identity)) };
         match &self.inner {
             StmtInner::Assignment { dst, src } | StmtInner::WeakAssignment { dst, src } => {
                 check(dst) || check(src)
@@ -720,10 +719,7 @@ impl AilStatement {
                 StmtInner::WeakAssignment { dst: a_d, src: a_s },
                 StmtInner::WeakAssignment { dst: b_d, src: b_s },
             ) => a_d.likes(b_d) && a_s.likes(b_s),
-            (
-                StmtInner::Label { name: a },
-                StmtInner::Label { name: b },
-            ) => a == b,
+            (StmtInner::Label { name: a }, StmtInner::Label { name: b }) => a == b,
             (
                 StmtInner::Store {
                     addr: a_a,
@@ -786,18 +782,17 @@ impl AilStatement {
                     fp_ret_expr: b_f,
                 },
             ) => {
-                let opt_likes = |a: &Option<Box<AilExpression>>,
-                                 b: &Option<Box<AilExpression>>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.likes(y),
-                    _ => false,
-                };
+                let opt_likes =
+                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.likes(y),
+                        _ => false,
+                    };
                 a_e.likes(b_e) && opt_likes(a_r, b_r) && opt_likes(a_f, b_f)
             }
-            (
-                StmtInner::Return { ret_exprs: a },
-                StmtInner::Return { ret_exprs: b },
-            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y)),
+            (StmtInner::Return { ret_exprs: a }, StmtInner::Return { ret_exprs: b }) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y))
+            }
             (
                 StmtInner::CAS {
                     addr: a_a,
@@ -820,12 +815,12 @@ impl AilStatement {
                     endness: b_e,
                 },
             ) => {
-                let opt_likes = |a: &Option<Box<AilExpression>>,
-                                 b: &Option<Box<AilExpression>>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.likes(y),
-                    _ => false,
-                };
+                let opt_likes =
+                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.likes(y),
+                        _ => false,
+                    };
                 a_e == b_e
                     && a_a.likes(b_a)
                     && a_dl.likes(b_dl)
@@ -835,10 +830,9 @@ impl AilStatement {
                     && a_ol.likes(b_ol)
                     && opt_likes(a_oh, b_oh)
             }
-            (
-                StmtInner::DirtyStatement { dirty: a },
-                StmtInner::DirtyStatement { dirty: b },
-            ) => a.likes(b),
+            (StmtInner::DirtyStatement { dirty: a }, StmtInner::DirtyStatement { dirty: b }) => {
+                a.likes(b)
+            }
             _ => false,
         }
     }
@@ -875,10 +869,7 @@ impl AilStatement {
                 StmtInner::WeakAssignment { dst: a_d, src: a_s },
                 StmtInner::WeakAssignment { dst: b_d, src: b_s },
             ) => a_d.matches(b_d) && a_s.matches(b_s),
-            (
-                StmtInner::Label { name: a },
-                StmtInner::Label { name: b },
-            ) => a == b,
+            (StmtInner::Label { name: a }, StmtInner::Label { name: b }) => a == b,
             (
                 StmtInner::Store {
                     addr: a_a,
@@ -941,18 +932,17 @@ impl AilStatement {
                     fp_ret_expr: b_f,
                 },
             ) => {
-                let opt_matches = |a: &Option<Box<AilExpression>>,
-                                   b: &Option<Box<AilExpression>>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.matches(y),
-                    _ => false,
-                };
+                let opt_matches =
+                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.matches(y),
+                        _ => false,
+                    };
                 a_e.matches(b_e) && opt_matches(a_r, b_r) && opt_matches(a_f, b_f)
             }
-            (
-                StmtInner::Return { ret_exprs: a },
-                StmtInner::Return { ret_exprs: b },
-            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y)),
+            (StmtInner::Return { ret_exprs: a }, StmtInner::Return { ret_exprs: b }) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y))
+            }
             (
                 StmtInner::CAS {
                     addr: a_a,
@@ -975,12 +965,12 @@ impl AilStatement {
                     endness: b_e,
                 },
             ) => {
-                let opt_matches = |a: &Option<Box<AilExpression>>,
-                                   b: &Option<Box<AilExpression>>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.matches(y),
-                    _ => false,
-                };
+                let opt_matches =
+                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.matches(y),
+                        _ => false,
+                    };
                 a_e == b_e
                     && a_a.matches(b_a)
                     && a_dl.matches(b_dl)
@@ -990,10 +980,9 @@ impl AilStatement {
                     && a_ol.matches(b_ol)
                     && opt_matches(a_oh, b_oh)
             }
-            (
-                StmtInner::DirtyStatement { dirty: a },
-                StmtInner::DirtyStatement { dirty: b },
-            ) => a.matches(b),
+            (StmtInner::DirtyStatement { dirty: a }, StmtInner::DirtyStatement { dirty: b }) => {
+                a.matches(b)
+            }
             _ => false,
         }
     }
@@ -1003,7 +992,11 @@ impl AilStatement {
 // Statement pyclass -- the only Python-facing class
 // ---------------------------------------------------------------------------
 
-#[pyclass(name = "Statement", module = "angr.rustylib.ailment", skip_from_py_object)]
+#[pyclass(
+    name = "Statement",
+    module = "angr.rustylib.ailment",
+    skip_from_py_object
+)]
 #[derive(Debug)]
 pub struct Statement {
     pub stmt: AilStatement,
@@ -1096,11 +1089,7 @@ impl Statement {
 
     #[staticmethod]
     #[pyo3(signature = (idx, name, **kwargs))]
-    fn _new_label(
-        idx: i64,
-        name: String,
-        kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
+    fn _new_label(idx: i64, name: String, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
@@ -1301,10 +1290,7 @@ impl Statement {
 
     #[staticmethod]
     #[pyo3(signature = (idx, **kwargs))]
-    fn _new_no_op(
-        idx: i64,
-        kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
+    fn _new_no_op(idx: i64, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
@@ -1575,7 +1561,9 @@ impl Statement {
     #[getter]
     fn true_target_idx(&self) -> PyResult<Option<i64>> {
         match &self.stmt.inner {
-            StmtInner::ConditionalJump { true_target_idx, .. } => Ok(*true_target_idx),
+            StmtInner::ConditionalJump {
+                true_target_idx, ..
+            } => Ok(*true_target_idx),
             _ => Err(PyAttributeError::new_err(
                 "no 'true_target_idx' on this Statement",
             )),
@@ -1586,7 +1574,9 @@ impl Statement {
     #[getter]
     fn false_target_idx(&self) -> PyResult<Option<i64>> {
         match &self.stmt.inner {
-            StmtInner::ConditionalJump { false_target_idx, .. } => Ok(*false_target_idx),
+            StmtInner::ConditionalJump {
+                false_target_idx, ..
+            } => Ok(*false_target_idx),
             _ => Err(PyAttributeError::new_err(
                 "no 'false_target_idx' on this Statement",
             )),
@@ -1596,7 +1586,9 @@ impl Statement {
     #[setter]
     fn set_true_target_idx(&mut self, value: Option<i64>) -> PyResult<()> {
         match &mut self.stmt.inner {
-            StmtInner::ConditionalJump { true_target_idx, .. } => {
+            StmtInner::ConditionalJump {
+                true_target_idx, ..
+            } => {
                 self.stmt.header.cached_hash.clear();
                 *true_target_idx = value;
                 Ok(())
@@ -1610,7 +1602,9 @@ impl Statement {
     #[setter]
     fn set_false_target_idx(&mut self, value: Option<i64>) -> PyResult<()> {
         match &mut self.stmt.inner {
-            StmtInner::ConditionalJump { false_target_idx, .. } => {
+            StmtInner::ConditionalJump {
+                false_target_idx, ..
+            } => {
                 self.stmt.header.cached_hash.clear();
                 *false_target_idx = value;
                 Ok(())
@@ -1849,22 +1843,14 @@ impl Statement {
     #[getter]
     fn depth(&self, py: Python<'_>) -> PyResult<u32> {
         match &self.stmt.inner {
-            StmtInner::Assignment { dst, src }
-            | StmtInner::WeakAssignment { dst, src } => {
+            StmtInner::Assignment { dst, src } | StmtInner::WeakAssignment { dst, src } => {
                 Ok(dst.header.depth.max(src.header.depth) + 1)
             }
-            StmtInner::Store { addr, data, .. } => {
-                Ok(addr.header.depth.max(data.header.depth) + 1)
-            }
+            StmtInner::Store { addr, data, .. } => Ok(addr.header.depth.max(data.header.depth) + 1),
             StmtInner::ConditionalJump { condition, .. } => Ok(condition.header.depth + 1),
             StmtInner::SideEffectStatement { expr, .. } => Ok(expr.header.depth + 1),
             StmtInner::Return { ret_exprs } => {
-                Ok(ret_exprs
-                    .iter()
-                    .map(|e| e.header.depth)
-                    .max()
-                    .unwrap_or(0)
-                    + 1)
+                Ok(ret_exprs.iter().map(|e| e.header.depth).max().unwrap_or(0) + 1)
             }
             StmtInner::CAS {
                 addr,
@@ -1966,10 +1952,7 @@ impl Statement {
         self.copy(py)
     }
 
-    fn __deepcopy__<'py>(
-        slf: Bound<'py, Self>,
-        memo: Bound<'py, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    fn __deepcopy__<'py>(slf: Bound<'py, Self>, memo: Bound<'py, PyAny>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let helper = py
             .import("angr.ailment._reconstruct")?
@@ -1986,7 +1969,8 @@ impl Statement {
             .import("angr.ailment._reconstruct")?
             .getattr("reconstruct_phase_d_statement")?;
         let args = pyo3::types::PyTuple::new(py, [bytes.into_any()])?;
-        let tup = pyo3::types::PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
+        let tup =
+            pyo3::types::PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
         Ok(tup.into_any().unbind())
     }
 
@@ -2028,7 +2012,12 @@ impl Statement {
             }
             StmtInner::Label { name } => Ok(format!("Label {}:", name)),
             StmtInner::Store {
-                addr, data, size, endness, guard, ..
+                addr,
+                data,
+                size,
+                endness,
+                guard,
+                ..
             } => {
                 let a = Expression::wrap((**addr).clone()).render(py)?;
                 let d = Expression::wrap((**data).clone()).render(py)?;
@@ -2187,9 +2176,7 @@ mod serialize {
     fn cfgtarget_to_poly(t: &CFGTarget) -> expr_serialize::PolyValue {
         match t {
             CFGTarget::Expr(e) => {
-                expr_serialize::PolyValue::Expr(Box::new(expr_serialize::Wire::from(
-                    e.as_ref(),
-                )))
+                expr_serialize::PolyValue::Expr(Box::new(expr_serialize::Wire::from(e.as_ref())))
             }
             CFGTarget::Symbol(s) => expr_serialize::PolyValue::Str(s.clone()),
         }
@@ -2204,9 +2191,7 @@ mod serialize {
     /// acceptable for the legacy unresolved-target case.
     fn poly_to_cfgtarget(pv: expr_serialize::PolyValue) -> CFGTarget {
         match pv {
-            expr_serialize::PolyValue::Expr(wire) => {
-                CFGTarget::Expr(Box::new(wire.into_ail()))
-            }
+            expr_serialize::PolyValue::Expr(wire) => CFGTarget::Expr(Box::new(wire.into_ail())),
             expr_serialize::PolyValue::Str(s) => CFGTarget::Symbol(s),
             expr_serialize::PolyValue::Int(i) => CFGTarget::Symbol(format!("{}", i)),
             expr_serialize::PolyValue::BigInt(s) => CFGTarget::Symbol(format!("0x{}", s)),
@@ -2267,15 +2252,19 @@ mod serialize {
             h: Hdr,
             ret_exprs: Vec<expr_serialize::Wire>,
         },
+        // The ``Wire`` payloads are boxed to keep this variant's inline size
+        // close to the other variants' (clippy::large_enum_variant); postcard
+        // encodes ``Box<T>`` / ``Option<Box<T>>`` identically to ``T`` /
+        // ``Option<T>``, so the wire format is unaffected.
         CAS {
             h: Hdr,
-            addr: expr_serialize::Wire,
-            data_lo: expr_serialize::Wire,
-            data_hi: Option<expr_serialize::Wire>,
-            expd_lo: expr_serialize::Wire,
-            expd_hi: Option<expr_serialize::Wire>,
-            old_lo: expr_serialize::Wire,
-            old_hi: Option<expr_serialize::Wire>,
+            addr: Box<expr_serialize::Wire>,
+            data_lo: Box<expr_serialize::Wire>,
+            data_hi: Option<Box<expr_serialize::Wire>>,
+            expd_lo: Box<expr_serialize::Wire>,
+            expd_hi: Option<Box<expr_serialize::Wire>>,
+            old_lo: Box<expr_serialize::Wire>,
+            old_hi: Option<Box<expr_serialize::Wire>>,
             endness: String,
         },
         DirtyStatement {
@@ -2366,13 +2355,19 @@ mod serialize {
                     endness,
                 } => StmtWire::CAS {
                     h,
-                    addr: expr_serialize::Wire::from(addr),
-                    data_lo: expr_serialize::Wire::from(data_lo),
-                    data_hi: data_hi.as_ref().map(|e| expr_serialize::Wire::from(e)),
-                    expd_lo: expr_serialize::Wire::from(expd_lo),
-                    expd_hi: expd_hi.as_ref().map(|e| expr_serialize::Wire::from(e)),
-                    old_lo: expr_serialize::Wire::from(old_lo),
-                    old_hi: old_hi.as_ref().map(|e| expr_serialize::Wire::from(e)),
+                    addr: Box::new(expr_serialize::Wire::from(addr)),
+                    data_lo: Box::new(expr_serialize::Wire::from(data_lo)),
+                    data_hi: data_hi
+                        .as_ref()
+                        .map(|e| Box::new(expr_serialize::Wire::from(e))),
+                    expd_lo: Box::new(expr_serialize::Wire::from(expd_lo)),
+                    expd_hi: expd_hi
+                        .as_ref()
+                        .map(|e| Box::new(expr_serialize::Wire::from(e))),
+                    old_lo: Box::new(expr_serialize::Wire::from(old_lo)),
+                    old_hi: old_hi
+                        .as_ref()
+                        .map(|e| Box::new(expr_serialize::Wire::from(e))),
                     endness: endness.clone(),
                 },
                 StmtInner::DirtyStatement { dirty } => StmtWire::DirtyStatement {
