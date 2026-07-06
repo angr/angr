@@ -441,15 +441,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             stack = [(head, 0, 0xFFFF_FFFF_FFFF_FFFF)]
             head_varhash = variable_comparisons[head][1]
 
-            # cursed: there is an infinite loop in the following loop that
-            # occurs rarely. we need to keep track of the nodes we've seen
-            # to break out of the loop.
-            # See https://github.com/angr/angr/pull/4953
-            #
-            # FIXME: the root cause should be fixed and this workaround removed
-            seen = set()
-            while stack and tuple(stack) not in seen:
-                seen.add(tuple(stack))
+            # visit each comparison node at most once for each head. Otherwise, back edges to earlier comparison nodes
+            # (e.g., in character-scanning loops) would cause unbounded re-traversal (see PR #4953)
+            visited = {head}
+            while stack:
                 comp, min_, max_ = stack.pop(0)
                 (
                     comp_type,
@@ -491,7 +486,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             break
                         continue
 
-                    successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
+                    successors = [
+                        succ for succ in self._graph.successors(comp) if succ is not comp and succ not in used_nodes
+                    ]
                     succ_addrs = {(succ.addr, succ.idx) for succ in successors}
                     if (target, target_idx) in succ_addrs:
                         next_comp_addr, next_comp_idx = next(
@@ -534,7 +531,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                                 # otherwise we don't support it
                                 break
                         assert next_comp is not None
-                        if next_comp in variable_comparisons:
+                        if next_comp in variable_comparisons and next_comp not in visited:
+                            visited.add(next_comp)
                             last_comp = comp
                             stack.append((next_comp, min_, max_))
                             used_nodes.add(comp)
@@ -562,10 +560,12 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # - the default case node of the switch-case
 
                         gt_added, le_added = False, False
-                        if gt_comp in variable_comparisons:
+                        if gt_comp in variable_comparisons and gt_comp not in visited:
+                            visited.add(gt_comp)
                             stack.append((gt_comp, value, max_))
                             gt_added = True
-                        if le_comp in variable_comparisons:
+                        if le_comp in variable_comparisons and le_comp not in visited:
+                            visited.add(le_comp)
                             stack.append((le_comp, min_, value - 1))
                             le_added = True
                         if gt_added or le_added:
