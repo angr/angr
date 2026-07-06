@@ -698,7 +698,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
                 continue
 
             self.stmt_idx = stmt_idx
-            self.ins_addr = stmt.tags["ins_addr"]
+            self.ins_addr = stmt.tags.get("ins_addr")
             stmt_result = self._stmt(stmt)
             result.append(stmt_result)
             if self._stmt_diverges(stmt_result):

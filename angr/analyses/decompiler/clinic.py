@@ -2829,9 +2829,8 @@ class Clinic(Analysis):
         """
 
         for block in list(ail_graph):
-            if (
-                len(block.statements) > 1
-                and block.statements[0].tags["ins_addr"] == block.statements[-1].tags["ins_addr"]
+            if len(block.statements) > 1 and block.statements[0].tags.get("ins_addr") == block.statements[-1].tags.get(
+                "ins_addr"
             ):
                 preds = list(ail_graph.predecessors(block))
                 if len(preds) > 1 and block not in preds:

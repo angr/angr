@@ -12,7 +12,7 @@ from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
 from angr.engines.successors import SimSuccessors
 from angr.engines.vex.claripy import ccall
-from angr.rustylib.ailment import RoundingMode
+from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error
 from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -520,27 +520,27 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType:
         child = self._expr(expr.operand)
         assert len(child) == expr.from_bits
-        if expr.from_type == expr.TYPE_INT:
+        if expr.from_type == ailment.expression.Convert.TYPE_INT:
             if isinstance(child, claripy.ast.Bool):
                 assert expr.from_bits == 1
-                assert expr.to_type == expr.TYPE_INT
+                assert expr.to_type == ailment.expression.Convert.TYPE_INT
                 return claripy.If(child, claripy.BVV(1, expr.to_bits), claripy.BVV(0, expr.to_bits))
             assert isinstance(child, claripy.ast.BV)
-            if expr.to_type == expr.TYPE_INT:
+            if expr.to_type == ailment.expression.Convert.TYPE_INT:
                 if expr.to_bits > expr.from_bits:
                     if expr.is_signed:
                         return child.sign_extend(expr.to_bits - expr.from_bits)
                     return child.zero_extend(expr.to_bits - expr.from_bits)
                 return child[expr.to_bits - 1 : 0]
-            if expr.to_type == expr.TYPE_FP:
+            if expr.to_type == ailment.expression.Convert.TYPE_FP:
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
                 return child.val_to_fp(to_sort, expr.is_signed, _claripy_rm(expr.rounding_mode))
             assert False
-        elif expr.from_type == expr.TYPE_FP:
+        elif expr.from_type == ailment.expression.Convert.TYPE_FP:
             assert isinstance(child, claripy.ast.FP)
-            if expr.to_type == expr.TYPE_INT:
+            if expr.to_type == ailment.expression.Convert.TYPE_INT:
                 return child.val_to_bv(expr.to_bits, expr.is_signed)
-            if expr.to_type == expr.TYPE_FP:
+            if expr.to_type == ailment.expression.Convert.TYPE_FP:
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
                 return child.to_fp(to_sort, _claripy_rm(expr.rounding_mode))
             assert False
@@ -550,21 +550,21 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType:
         child = self._expr_bits(expr.operand)
         assert len(child) == expr.from_bits
-        if expr.from_type == expr.TYPE_INT:
+        if expr.from_type == ailment.expression.Convert.TYPE_INT:
             assert isinstance(child, claripy.ast.BV)
-            if expr.to_type == expr.TYPE_INT:
+            if expr.to_type == ailment.expression.Convert.TYPE_INT:
                 assert False, "I think this is unreachable"
-            elif expr.to_type == expr.TYPE_FP:
+            elif expr.to_type == ailment.expression.Convert.TYPE_FP:
                 assert expr.from_size == expr.to_size
                 return child.raw_to_fp()
             else:
                 assert False
-        elif expr.from_type == expr.TYPE_FP:
+        elif expr.from_type == ailment.expression.Convert.TYPE_FP:
             assert isinstance(child, claripy.ast.FP)
-            if expr.to_type == expr.TYPE_INT:
+            if expr.to_type == ailment.expression.Convert.TYPE_INT:
                 assert expr.from_size == expr.to_size
                 return child.raw_to_bv()
-            if expr.to_type == expr.TYPE_FP:
+            if expr.to_type == ailment.expression.Convert.TYPE_FP:
                 assert False, "I think this is unreachable"
             else:
                 assert False
