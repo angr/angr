@@ -13,7 +13,7 @@ import capstone
 import networkx
 
 from angr import ailment
-from angr.ailment import AILBlockRewriter, Block, Statement
+from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
@@ -155,6 +155,12 @@ class ComboRegReferenceWalker(AILBlockRewriter):
         self.project = project
         self._ail_manager = ail_manager
         self.varid_to_combo_reg = {}
+
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
+        if is_phi_assignment(stmt):
+            # phi operands must stay virtual variables
+            return stmt
+        return super()._handle_Assignment(stmt_idx, stmt, block)
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -686,6 +692,32 @@ class Clinic(Analysis):
             walker.walk(block)
         return ail_graph
 
+    def _rewrite_combo_reg_param_references(self, ail_graph):
+        """
+        Rewrite reads of the constituent registers of combo-register arguments into loads from the arguments.
+
+        Combo-register arguments have no defining statement in the graph, so unlike combo registers defined inside
+        the graph (handled by _fix_combo_reg_references after variable recovery), the walker must be seeded with
+        their constituent register vvars. This runs before variable recovery so that the rewritten references get
+        linked to the recovered argument variables.
+        """
+
+        combo_arg_vvars = [
+            arg_vvar
+            for arg_vvar, _ in self.arg_vvars.values()
+            if arg_vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER
+        ]
+        if not combo_arg_vvars:
+            return ail_graph
+
+        walker = ComboRegReferenceWalker(self.project, self._ail_manager)
+        for arg_vvar in combo_arg_vvars:
+            for reg_vvar in arg_vvar.reg_vvars:
+                walker.varid_to_combo_reg[reg_vvar.varid] = arg_vvar
+        for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
+            walker.walk(block)
+        return ail_graph
+
     def _decompilation_simplifications(self, ail_graph):
         self.arg_vvars = self._init_arg_vvars if self._init_arg_vvars is not None else {}
         self.func_args = {arg_vvar for arg_vvar, _ in self.arg_vvars.values()}
@@ -940,6 +972,8 @@ class Clinic(Analysis):
 
     def _stage_recover_variables(self) -> None:
         assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
+
+        self._ail_graph = self._rewrite_combo_reg_param_references(self._ail_graph)
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
@@ -2392,6 +2426,15 @@ class Clinic(Analysis):
         # Link variables and struct member information to every statement and expression
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
+
+        # combo-register argument vvars only appear inside Reference expressions (created by
+        # _rewrite_combo_reg_param_references), which variable recovery does not track, so no accesses were recorded
+        # for them; link them to their argument variables directly. the variable map is keyed by expression idx and
+        # every occurrence in the graph is the same expression object, so one call covers all of them.
+        if arg_vvars is not None:
+            for vvar, var in arg_vvars.values():
+                if vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
+                    self._set_expr_variable(vvar, var, 0)
 
         if self._cache is not None:
             self._cache.variable_map = self.variable_map
