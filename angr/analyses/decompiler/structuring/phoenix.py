@@ -510,11 +510,12 @@ class PhoenixStructurer(StructurerBase):
         for node_ in seq_node.nodes:
             if node_ is not node_copy and node_ is not node:
                 self._region.remove_node(node_, absorbed_into=node, absorb_out_edges=True)
+                self._graph_helper.remove_node(node_)
+        # replace_nodes_both() updates the graph helper cache for node -> loop_node
         self.replace_nodes_both(node, loop_node, self_loop=False, drop_refinement_marks=True)
         self._region.add_edge(loop_node, successor_node)
-
-        self._graph_helper.replace_node(node, loop_node)
-        self._graph_helper.replace_node(loop_node, successor_node)
+        # successor_node was not a graph node before; it is now the successor of loop_node
+        self._graph_helper.add_node_successor(loop_node, successor_node)
 
         return True, loop_node, successor_node
 
@@ -1483,9 +1484,13 @@ class PhoenixStructurer(StructurerBase):
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
+            unpacked_head = node_a.nodes[0]
             _, new_seq_node = self._unpack_sequencenode_head_overlay(node_a)
             if new_seq_node is not None:
-                self._graph_helper.replace_node(node_a, new_seq_node)
+                # node_a was split into two graph nodes: its head (which takes node_a's place) followed by the
+                # new sequence node that holds the remaining nodes
+                self._graph_helper.replace_node(node_a, unpacked_head)
+                self._graph_helper.add_node_successor(unpacked_head, new_seq_node)
 
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
@@ -1540,6 +1545,7 @@ class PhoenixStructurer(StructurerBase):
             region.add_node(newsc)
             if node_default is not None:
                 region.remove_node(node_default, absorbed_into=newsc)
+                self._graph_helper.remove_node(node_default)
             region.remove_node(node, absorbed_into=newsc)
             region.remove_node(node_a, absorbed_into=newsc)
             for pred in all_preds:
@@ -1547,9 +1553,21 @@ class PhoenixStructurer(StructurerBase):
             for succ in all_succs:
                 region.add_edge(newsc, succ)
 
-            self._graph_helper.replace_node(better_node_a, newsc)
+            # newsc takes the place of node (the switch head) in the graph; node_a and node_default are absorbed
+            # into newsc and no longer exist. note that better_node_a may not be a graph node at all (it may be a
+            # node inside the node_a sequence node), so it must not be used to update the graph helper cache.
+            self._graph_helper.replace_node(node, newsc)
+            self._graph_helper.remove_node(node_a)
 
             return True
+
+        if isinstance(better_node_a, SwitchCaseNode) or (
+            isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[-1], SwitchCaseNode)
+        ):
+            # the jump table dispatch in node_a has already been structured into a switch-case node that we cannot
+            # recreate here. rebuilding the switch from the current graph would discard the existing switch-case
+            # node together with all of its case nodes. bail.
+            return False
 
         if node_default is None:
             switch_end_addr = node_b_addr
@@ -1885,12 +1903,13 @@ class PhoenixStructurer(StructurerBase):
                 ) and node.addr not in self._matched_incomplete_switch_case_addrs:
                     self._matched_incomplete_switch_case_addrs.add(node.addr)
                     new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
+                    # replace_nodes_both() updates the graph helper cache for node -> new_node
                     self.replace_nodes_both(node, new_node)
                     for succ_node in successors:
                         self._region.remove_node(succ_node, absorbed_into=new_node)
+                        self._graph_helper.remove_node(succ_node)
                     if out_nodes:
                         self._region.add_edge(new_node, out_nodes[0])
-                    self._graph_helper.replace_node(node, new_node)
                     return True
         return False
 
