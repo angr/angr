@@ -37,7 +37,7 @@ class ReturnMaker(AILGraphWalker):
             and type(self.function.prototype.returnty) is not SimTypeBottom
         ):
             new_stmt = stmt.copy()
-            # Phase D: ``new_stmt.ret_exprs`` materializes a fresh list each
+            # ``new_stmt.ret_exprs`` materializes a fresh list each
             # access, so mutating via ``.append`` is silently dropped. Build
             # the new list locally and assign via the setter.
             new_ret_exprs = list(new_stmt.ret_exprs)

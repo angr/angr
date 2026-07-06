@@ -549,9 +549,8 @@ def test_statement_to_from_bytes():
 def test_version_byte_prefix():
     c = Const(1, 42, 32)
     data = a.dumps(c)
-    # FORMAT_VERSION bumped to 0x02 after Phase D collapsed every concrete
-    # subclass into the universal ``Expression`` / ``Statement`` pyclasses;
-    # the legacy AilNode shape went away with the per-class pyclasses.
+    # FORMAT_VERSION 0x02: the universal ``Expression`` / ``Statement``
+    # pyclasses replaced the per-class AilNode payloads of format 0x01.
     assert data[0] == 0x02  # FORMAT_VERSION
 
 

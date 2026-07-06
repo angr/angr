@@ -229,8 +229,8 @@ class ExpressionUseFinder(AILBlockRewriter):
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg:
-            # Phase D: ``stmt.dst`` materializes a fresh wrapper, so ``is``
-            # no longer catches the def-side atom. Identity is recovered via
+            # ``stmt.dst`` materializes a fresh wrapper, so ``is``
+            # cannot catch the def-side atom. Identity is recovered via
             # ``.idx``, which is unique per AIL expression and survives the
             # wrapper clone. Otherwise the def is silently counted as a use,
             # making the one-use expression folder skip otherwise foldable

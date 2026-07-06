@@ -6,8 +6,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any, cast
 
-from angr.rustylib.ailment import Expression as _PhaseDExpression  # pylint:disable=import-error
-from angr.rustylib.ailment import Statement as _PhaseDStatement  # pylint:disable=import-error
+from angr.rustylib.ailment import Expression as _RustExpression  # pylint:disable=import-error
+from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error
 
 from . import Block
 from .expression import (
@@ -94,33 +94,31 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
     StringLiteral,
 }
 
-_PHASE_D_FAT_ENUMS = (_PhaseDExpression, _PhaseDStatement)
-
 
 def _dispatch_key(obj):
     """Resolve a handler-dict key for ``obj``.
 
-    Phase D: every AIL Expression/Statement is the universal ``Expression``
+    Every AIL Expression/Statement is the universal ``Expression``
     or ``Statement`` pyclass; ``type(obj)`` returns the same class for all
     variants and dispatch keyed on per-class types breaks. The fat-enum
     surfaces the variant tag as ``obj.kind`` (a string), and this module's
     marker classes are stored in the handler dict keyed by class; we map
     ``kind`` -> marker class via the per-class ``_kinds``/``_kind`` attrs.
 
-    For legacy (pre-Phase-D) instances that don't expose ``kind``, fall
-    back to ``type(obj)`` for backward compatibility.
+    Pure-Python instances (e.g. structurer helper statements) that
+    don't expose a known ``kind`` fall back to ``type(obj)``.
     """
-    # Fast path: Phase-D fat-enum instances are the overwhelming majority
+    # Fast path: fat-enum instances are the overwhelming majority
     # of dispatches (~4M / decompile on ``doit``). Dispatch on the
     # cached ``pykind`` (a ``Py<int>``) instead of ``kind`` (a fresh
     # ``ExpressionKind`` / ``StatementKind`` pyclass per access).
     # Expression / Statement integer tag spaces overlap (both start at
     # 0), so route through per-side tables.
-    if isinstance(obj, _PhaseDExpression):
+    if isinstance(obj, _RustExpression):
         return _EXPR_KIND_TO_MARKER.get(obj.pykind, type(obj))
-    if isinstance(obj, _PhaseDStatement):
+    if isinstance(obj, _RustStatement):
         return _STMT_KIND_TO_MARKER.get(obj.pykind, type(obj))
-    # Slow path: legacy (non-Phase-D) instances may not expose ``kind``.
+    # Slow path: pure-Python instances may not expose ``kind``.
     kind = getattr(obj, "kind", None)
     if kind is None:
         return type(obj)
@@ -131,7 +129,7 @@ def _dispatch_key(obj):
 # Statement integer tag spaces overlap (both start at 0) so the dicts
 # can't be merged when keyed on ``ExpressionKind`` / ``StatementKind``
 # values (or their integer aliases via ``pykind``). The combined
-# ``_KIND_TO_MARKER`` is preserved for the legacy non-Phase-D slow path.
+# ``_KIND_TO_MARKER`` is preserved for the pure-Python slow path.
 _EXPR_MARKERS = (
     Const,
     Tmp,
@@ -387,7 +385,7 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        # Phase D: ``expr.operands`` mints fresh wrappers per access; cache.
+        # ``expr.operands`` mints fresh wrappers per access; cache.
         ops = expr.operands
         self._handle_expr(0, ops[0], stmt_idx, stmt, block)
         self._handle_expr(1, ops[1], stmt_idx, stmt, block)
@@ -604,7 +602,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        # Phase D: ``expr.operands`` mints fresh wrappers per access; cache.
+        # ``expr.operands`` mints fresh wrappers per access; cache.
         ops = expr.operands
         self._handle_expr(0, ops[0], stmt_idx, stmt, block)
         self._handle_expr(1, ops[1], stmt_idx, stmt, block)
@@ -934,7 +932,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         # Reach a fixed point. Handlers return the input ``expr`` Python
         # object when nothing changed (legacy convention), so ``is`` is
-        # the right termination check. Phase D adds the wrinkle that
+        # the right termination check. One wrinkle:
         # ``expr.X`` accessors mint fresh wrappers each time, so handlers
         # that compare ``new_X != expr.X`` for ``changed`` may produce
         # a structurally-equal-but-different-identity replacement even
@@ -988,7 +986,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     ) -> Expression:
         changed = False
 
-        # Phase D: cache slot accessors -- ``expr.target`` and ``expr.args``
+        # Cache slot accessors -- ``expr.target`` and ``expr.args``
         # each mint fresh wrapper objects per call.
         target_in = expr.target
         if isinstance(target_in, str):
@@ -1013,7 +1011,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        # Phase D: ``expr.operands`` mints a fresh 2-tuple of fresh wrappers
+        # ``expr.operands`` mints a fresh 2-tuple of fresh wrappers
         # per access; cache once so the recurse + compare pair costs one
         # allocation instead of four.
         ops = expr.operands

@@ -77,7 +77,7 @@ class _StackVVarRewriter(AILBlockRewriter):
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        # Phase D: ``stmt.dst is expr`` no longer works because Statement
+        # ``stmt.dst is expr`` does not work because Statement
         # accessors materialize fresh wrappers. Match on ``.idx`` instead --
         # AIL idx is unique per expression and survives the wrapper clone.
         if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst.idx == expr.idx):

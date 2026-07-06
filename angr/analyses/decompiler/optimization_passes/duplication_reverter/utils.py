@@ -147,9 +147,9 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
         cond_stmt = deepcopy_ail_condjump(stmt) if new_stmt else stmt
         true_target, false_target = cond_stmt.true_target, cond_stmt.false_target
 
-        # Phase D: ``cond_stmt.true_target`` mints a fresh ``Expression``
-        # wrapper around a clone of the stored target. Legacy
-        # ``true_target.value = X`` mutated the throwaway clone; route
+        # ``cond_stmt.true_target`` mints a fresh ``Expression``
+        # wrapper around a clone of the stored target, so
+        # ``true_target.value = X`` would mutate the throwaway clone; route
         # the new Const through the ``true_target =`` setter so the
         # rewrite actually persists.
         if isinstance(true_target, Const) and true_target.value in replacement_map:

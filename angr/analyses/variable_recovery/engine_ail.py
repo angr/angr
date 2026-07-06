@@ -68,8 +68,8 @@ class SimEngineVRAIL(
     # Statement handlers
 
     def _handle_stmt_Assignment(self, stmt):
-        # Phase D: ``type(stmt.dst) is …`` identity checks no longer
-        # discriminate (every variant shares one pyclass). ``isinstance``
+        # ``type(stmt.dst) is …`` identity checks cannot discriminate AIL
+        # variants (every variant shares one pyclass). ``isinstance``
         # dispatches through the marker metaclass on ``stmt.dst.kind``.
         if isinstance(stmt.dst, ailment.Expr.Register):
             offset = stmt.dst.reg_offset

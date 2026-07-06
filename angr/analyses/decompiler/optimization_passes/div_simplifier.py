@@ -418,7 +418,7 @@ class DivSimplifier(OptimizationPass):
             new_block = block
             old_block = None
 
-            # Phase D: ``Block.__eq__`` requires statement idx to line up,
+            # ``Block.__eq__`` requires statement idx to line up,
             # but each engine iteration mints fresh statements via
             # ``manager.next_atom()``, so ``new_block != old_block`` is
             # always True even when nothing changed structurally. Use

@@ -70,8 +70,8 @@ class CallSiteMaker(Analysis):
 
         last_stmt = self.block.statements[-1]
 
-        # Phase D: ``type(x) is Cls`` identity checks no longer
-        # discriminate (every variant shares one pyclass). ``isinstance``
+        # ``type(x) is Cls`` identity checks cannot discriminate AIL
+        # variants (every variant shares one pyclass). ``isinstance``
         # dispatches through the marker metaclass.
         if isinstance(last_stmt, Stmt.SideEffectStatement):
             call_expr = last_stmt.expr

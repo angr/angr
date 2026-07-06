@@ -225,7 +225,7 @@ class ConstPropOptReverter(OptimizationPass):
                 const_call_blk = blks[const_call]
                 const_arg_i = const_call.args.index(const_arg)
                 const_call.args = (*const_call.args[:const_arg_i], sym_arg, *const_call.args[const_arg_i + 1 :])
-                # Phase D: mutating ``const_call.args`` writes to the fresh
+                # Mutating ``const_call.args`` writes to the fresh
                 # wrapper materialized by ``stmt.expr`` -- the actual stored
                 # ``Call`` keeps its original args and the reverter no-ops.
                 # Rebuild the containing statement's call expression
@@ -389,7 +389,7 @@ class ConstPropOptReverter(OptimizationPass):
         return {i: args for i, args in enumerate(zip(call0.args, call1.args)) if not args[0].likes(args[1])}
 
     def _rewrite_call_in_block(self, blk: Block, updated_call: Call) -> None:
-        """Phase D: find the statement in ``blk`` whose call expression has
+        """Find the statement in ``blk`` whose call expression has
         the same ``idx`` as ``updated_call`` and rebuild it with the
         mutated call. Identity through ``.idx`` is necessary because
         ``stmt.expr`` materializes a fresh ``Expression`` wrapper each

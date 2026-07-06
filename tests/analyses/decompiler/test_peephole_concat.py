@@ -33,8 +33,8 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         assert result.from_bits == 32
         assert result.to_bits == 64
         assert result.is_signed is False
-        # Phase D: operand access mints a fresh wrapper around the stored
-        # AilExpression, so legacy ``is`` no longer discriminates "returned
+        # Operand access mints a fresh wrapper around the stored
+        # AilExpression, so ``is`` cannot discriminate "returned
         # the operand verbatim". Use structural ``likes`` -- it ignores
         # ``.idx`` mismatches between equivalent wrappers.
         assert result.operand.likes(low)
@@ -71,7 +71,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
 
         result = self.opt.optimize(and_expr)
         # Result should be low, possibly with zero-extension. See
-        # ``test_zero_extend_concat`` above for why Phase D requires
+        # ``test_zero_extend_concat`` above for why this requires
         # structural ``.likes()`` rather than ``is``.
         if isinstance(result, Convert):
             assert result.operand.likes(low)

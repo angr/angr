@@ -22,8 +22,8 @@ class TmpUsesCollector(AILBlockViewer):
         self.tmp_and_uselocs = defaultdict(set)
 
     def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Block | None):
-        # Phase D: ``stmt.dst`` materializes a fresh wrapper, so the legacy
-        # ``expr is stmt.dst`` no longer matches. Match through ``idx``, which
+        # ``stmt.dst`` materializes a fresh wrapper, so an
+        # ``expr is stmt.dst`` identity check never matches. Match through ``idx``, which
         # is unique per AIL expression and survives the wrapper clone.
         if isinstance(stmt, Assignment) and expr.idx == stmt.dst.idx:
             return

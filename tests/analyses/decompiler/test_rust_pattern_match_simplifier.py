@@ -43,8 +43,8 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             condition
         )
 
-        # Phase D: operand access mints a fresh Expression wrapper, so
-        # ``assertIs`` no longer discriminates "returned the operand
+        # Operand access mints a fresh Expression wrapper, so
+        # ``assertIs`` cannot discriminate "returned the operand
         # verbatim". Use structural ``.likes()`` -- it ignores ``.idx``
         # mismatches.
         self.assertTrue(scrutinee is not None and scrutinee.likes(vvar))

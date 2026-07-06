@@ -1,10 +1,10 @@
 """``TaggedObject`` -- Python-side marker for the legacy
 ``isinstance(x, TaggedObject)`` checks.
 
-Phase D collapsed every concrete Expression / Statement subclass into a
-single ``Expression`` / ``Statement`` pyclass on the Rust side. There's
-no longer a per-class hierarchy to union over -- ``isinstance(x,
-TaggedObject)`` is equivalent to "``x`` is one of the Phase D pyclasses".
+Every concrete Expression / Statement subclass is collapsed into a
+single ``Expression`` / ``Statement`` pyclass on the Rust side. There is
+no per-class hierarchy to union over -- ``isinstance(x,
+TaggedObject)`` is equivalent to "``x`` is one of the Rust pyclasses".
 """
 
 from __future__ import annotations
@@ -42,13 +42,13 @@ class TagDict(TypedDict, total=False):
 
 
 class _TaggedObjectMeta(type):
-    """``isinstance(x, TaggedObject)`` matches any Phase D Expression /
-    Statement instance."""
+    """``isinstance(x, TaggedObject)`` matches any Rust ``Expression`` /
+    ``Statement`` instance."""
 
     _MEMBERS = (Expression, Statement)
 
     def __instancecheck__(cls, instance: Any) -> bool:
-        # Union of the Phase D pyclasses, plus normal MRO dispatch so
+        # Union of the Rust pyclasses, plus normal MRO dispatch so
         # pure-Python subclasses of the compat markers still match.
         return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
 
@@ -83,7 +83,7 @@ class TaggedObject(metaclass=_TaggedObjectMeta):
     def __hash__(self) -> int:
         """Pure-Python cached-hash dispatcher used by Python-side classes
         that subclass the Statement / Expression markers (e.g.
-        ``IncompleteSwitchCaseHeadStatement``). Concrete Phase D pyclasses
+        ``IncompleteSwitchCaseHeadStatement``). The Rust pyclasses
         provide their own ``__hash__`` -- this one is the fallback for
         pure-Python subclasses that define ``_hash_core``."""
         cached = getattr(self, "_cached_hash", None)

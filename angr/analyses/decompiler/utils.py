@@ -883,12 +883,12 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
-        # Phase D: every AIL Expression is the universal ``Expression`` pyclass
-        # so ``type(expr)`` no longer discriminates -- the variant tag lives on
+        # Every AIL Expression is the universal ``Expression`` pyclass
+        # so ``type(expr)`` does not discriminate -- the variant tag lives on
         # ``expr.kind``. Index optimizers by kind string instead, expanding
         # each marker class's ``_kind`` / ``_kinds`` so unions (e.g. ``Call``
         # covering ``"Call" | "Macro" | "FunctionLikeMacro"``) register under
-        # every kind they match. Legacy non-marker class entries fall back to
+        # every kind they match. Non-marker class entries fall back to
         # ``cls.__name__``.
         self.expr_opts_by_kind: dict[str, list[PeepholeOptimizationExprBase]] = {}
 
@@ -931,11 +931,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
                 r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                 if r is not None and r is not expr:
                     if expr.bits != r.bits:
-                        # The bits invariant held when type-keyed dispatch
-                        # silently missed every optimizer (Phase D collapsed
-                        # all variants into one pyclass). Switching to
-                        # ``kind``-keyed dispatch revives the optimizers
-                        # and surfaces a few that don't preserve bits;
+                        # A few optimizers don't preserve bits;
                         # log + skip until the optimizers are audited.
                         _l.warning(
                             "Peephole %s changed bits %s -> %s on %s; skipping",
@@ -1024,16 +1020,15 @@ def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
 
 
 def build_stmt_opts_by_kind(stmt_opts):
-    """Index statement-peephole optimizers by Phase-D ``kind`` string.
+    """Index statement-peephole optimizers by ``kind`` string.
 
     Each optimizer declares ``stmt_classes`` -- a class or tuple of
-    marker classes -- and the inner loop in ``peephole_optimize_stmts``
-    used to do ``isinstance(stmt, opt.stmt_classes)`` per opt per stmt.
-    Through the Phase-D marker metaclass that costs ~150 ns each, which
-    on the ``doit`` benchmark adds up to ~107 k calls / ~16 ms. Flipping
-    to a kind-keyed dict turns the inner loop into a single dict.get on
-    ``stmt.kind`` followed by an iteration over only the opts that
-    actually match.
+    marker classes. A per-opt-per-stmt ``isinstance(stmt,
+    opt.stmt_classes)`` inner loop in ``peephole_optimize_stmts`` would
+    cost ~150 ns per check through the marker metaclass (~107 k calls /
+    ~16 ms on the ``doit`` benchmark). The kind-keyed dict turns the
+    inner loop into a single dict.get on ``stmt.kind`` followed by an
+    iteration over only the opts that actually match.
     """
     by_kind: dict[str, list] = {}
     for opt in stmt_opts:

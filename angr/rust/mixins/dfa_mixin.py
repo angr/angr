@@ -206,10 +206,10 @@ class DFAMixin:
 
     def get_def_block_and_stmt(self, data):
         assert self.graph is not None
-        # Phase D: ``stmt.src`` accessor mints a fresh ``Expression``
+        # The ``stmt.src`` accessor mints a fresh ``Expression``
         # wrapper around the stored ``AilExpression`` on every call, so
-        # legacy ``is`` no longer discriminates "this Assignment's source
-        # is the same AIL expression". ``likes`` is the Phase-D-meaningful
+        # ``is`` cannot discriminate "this Assignment's source
+        # is the same AIL expression". ``likes`` is the meaningful
         # equality check (idx-agnostic structural equivalence).
         for block in self.graph.nodes:
             for _, stmt in enumerate(block.statements):

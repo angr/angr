@@ -92,8 +92,8 @@ def test_string_cmp_extract_cmp_recognizes_load_eq_const_pattern():
     result = outliner._extract_cmp(cmp_expr)
     assert result is not None
     extracted_var, offset, decoded = result
-    # Phase D: operand access mints a fresh Expression wrapper, so legacy
-    # ``is`` no longer discriminates "returned the operand verbatim". Use
+    # Operand access mints a fresh Expression wrapper, so
+    # ``is`` cannot discriminate "returned the operand verbatim". Use
     # structural ``.likes()`` -- it ignores ``.idx`` mismatches.
     assert extracted_var.likes(str_var)
     assert offset == 0
@@ -180,7 +180,7 @@ def test_unwrap_outliner_constants_are_distinct_and_paired():
 def test_unwrap_extract_vvar_from_cond_returns_vvar_for_direct_operand():
     vvar = _stack_vvar()
     cond = BinaryOp(0, "CmpEQ", [vvar, _const(0)])
-    # Phase D ``is``→``.likes()`` -- see notes in
+    # ``is``→``.likes()`` -- see notes in
     # ``test_string_cmp_extract_cmp_recognizes_load_eq_const_pattern``.
     extracted = UnwrapOutliner._extract_vvar_from_cond(cond)
     assert extracted is not None and extracted.likes(vvar)

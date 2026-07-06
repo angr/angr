@@ -440,7 +440,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
 
     __slots__ = ("_case_addrs_str", "addr", "case_addrs", "switch_variable")
 
-    # Mirror the Phase-D ``Statement.kind`` slot so downstream code that
+    # Mirror the rustlib ``Statement.kind`` slot so downstream code that
     # dispatches on ``stmt.kind`` doesn't have to fall back to
     # ``getattr(stmt, "kind", None)``. The chosen tag is distinct from
     # every rustlib variant so the kind-keyed dispatch sites land in

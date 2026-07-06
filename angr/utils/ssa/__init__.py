@@ -120,9 +120,9 @@ def get_vvar_deflocs(
     walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
-            # Phase D: dispatch on ``stmt.kind`` directly (~20 ns) instead
+            # Dispatch on ``stmt.kind`` directly (~20 ns) instead
             # of ``isinstance(stmt, MarkerCls)`` (~150 ns via the marker
-            # metaclass). The legacy ``IncompleteSwitchCaseHeadStatement``
+            # metaclass). The pure-Python ``IncompleteSwitchCaseHeadStatement``
             # subclass declares its own class-level ``kind`` attribute
             # (``"IncompleteSwitchCaseHead"``) so this read always works.
             kind = stmt.kind

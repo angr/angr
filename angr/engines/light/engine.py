@@ -707,9 +707,9 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
         return result
 
     def _stmt(self, stmt: ailment.statement.Statement) -> StmtDataType:
-        # Phase D: every concrete Statement is the universal pyclass; the
-        # variant tag is exposed as ``stmt.kind``. Legacy non-Phase-D
-        # statements fall back to ``type(stmt).__name__``.
+        # Every AIL Statement is the universal pyclass; the variant tag
+        # is exposed as ``stmt.kind_name``. Pure-Python statement
+        # subclasses don't have it and fall back to ``type(stmt).__name__``.
         stmt_type_name = getattr(stmt, "kind_name", None) or type(stmt).__name__
         return self._stmt_handlers[stmt_type_name](stmt)
 

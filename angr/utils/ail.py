@@ -149,7 +149,7 @@ def is_expr_used_as_reg_base_value(stmt: Statement, expr: Expression, srda: SRDA
     if not (isinstance(stmt.src, BinaryOp) and stmt.src.op == "Or"):
         return False
 
-    # Phase D: ``stmt.src.operands`` materializes fresh wrappers every read,
+    # ``stmt.src.operands`` materializes fresh wrappers every read,
     # so ``op0 is stmt.src.operands[1]`` never matches. Compare ``.idx`` --
     # AIL idx is unique per expression and survives the wrapper clone.
     operands = stmt.src.operands

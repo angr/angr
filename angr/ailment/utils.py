@@ -118,10 +118,9 @@ def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
     Return ``True`` if ``expr`` is an ``Extract`` that takes the
     least-significant ``expr.bits`` bits of its base, considering endianness.
 
-    On master this lived as ``Extract.is_lsb_extract``; Phase D collapsed
-    the per-variant pyclasses into a single ``Expression`` fat enum, so
-    variant-specific methods now live here as plain functions taking an
-    ``Expression`` argument.
+    Because the per-variant pyclasses are collapsed into a single
+    ``Expression`` fat enum, variant-specific helpers like this live
+    here as plain functions taking an ``Expression`` argument.
     """
     if not isinstance(expr, ailment.expression.Extract):
         return False
@@ -138,7 +137,7 @@ def is_lsb_overwrite(expr: ailment.expression.Expression) -> bool:
     least-significant ``expr.value.bits`` bits of its base, considering
     endianness.
 
-    Phase D counterpart of master's ``Insert.is_lsb_overwrite``.
+    ``Insert`` counterpart of ``is_lsb_extract``.
     """
     if not isinstance(expr, ailment.expression.Insert):
         return False

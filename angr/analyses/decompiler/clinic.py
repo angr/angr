@@ -1472,11 +1472,11 @@ class Clinic(Analysis):
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
                         # found a single successor - replace the last statement.
-                        # Phase D: ``new_last_stmt.expr`` materializes a fresh
-                        # wrapper around a clone of the stored Call, so the
-                        # legacy ``new_last_stmt.expr.target = const`` chain
-                        # mutated the throwaway clone and the actual stored
-                        # Call kept its original (indirect) target. Rebuild
+                        # ``new_last_stmt.expr`` materializes a fresh
+                        # wrapper around a clone of the stored Call, so a
+                        # ``new_last_stmt.expr.target = const`` chain
+                        # would mutate the throwaway clone and the actual stored
+                        # Call would keep its original (indirect) target. Rebuild
                         # the Call with the resolved target and write it back
                         # through the ``expr`` setter.
                         assert isinstance(last_stmt.expr.target, ailment.Expr.Expression)  # not a string
@@ -1532,9 +1532,9 @@ class Clinic(Analysis):
                 continue
 
             last_stmt = block.statements[-1]
-            # Phase D: enumerate (slot_name, target) pairs so we can route
+            # Enumerate (slot_name, target) pairs so we can route
             # the call_block.addr rewrite through the statement's setter
-            # (legacy ``target.value = X`` mutated a fresh-wrapper clone).
+            # (``target.value = X`` would mutate a fresh-wrapper clone).
             if isinstance(last_stmt, ailment.Stmt.Jump):
                 slots = [("target", last_stmt.target)]
                 replace_last_stmt = True
@@ -2503,8 +2503,8 @@ class Clinic(Analysis):
         variable_manager = kb.variables[self.function.addr]
         global_variables = kb.variables["global"]
 
-        # Phase D: ``type(stmt) is …`` identity checks no longer
-        # discriminate (every variant shares one pyclass). ``isinstance``
+        # ``type(stmt) is …`` identity checks cannot discriminate AIL
+        # variants (every variant shares one pyclass). ``isinstance``
         # dispatches through the marker metaclass on ``stmt.kind``.
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.Store):
@@ -2884,12 +2884,12 @@ class Clinic(Analysis):
                 if self.kb.functions.contains_addr(callee):
                     callee_func = self.kb.functions.get_by_addr(callee)
                     if callee_func.info.get("jmp_rax", False) is True:
-                        # rewrite this statement into Call(rax). Phase D's Statement
+                        # rewrite this statement into Call(rax). Statement
                         # accessors mint fresh wrappers around clones, so
                         # ``call_stmt.expr.target = ...`` would write into a throwaway.
                         # Rebuild the Call and route the new expression through the
-                        # ``Statement.expr =`` setter. Preserve ``arg_vvars`` -- in
-                        # Phase D it is a structural field on Call, not a tag, so
+                        # ``Statement.expr =`` setter. Preserve ``arg_vvars`` -- it
+                        # is a structural field on Call, not a tag, so
                         # ``**old_call.tags`` does not carry it.
                         call_stmt = last_stmt.copy()
                         old_call = call_stmt.expr
@@ -3458,9 +3458,9 @@ class Clinic(Analysis):
             return None
 
         def patch_conditional_jump_target(cond_jump_stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int):
-            # Phase D: ``cond_jump_stmt.true_target`` mints a fresh
+            # ``cond_jump_stmt.true_target`` mints a fresh
             # ``Expression`` wrapper around a clone of the stored target.
-            # Legacy ``cond_jump_stmt.true_target.value = X`` mutated the
+            # ``cond_jump_stmt.true_target.value = X`` would mutate the
             # throwaway clone; route the new Const through the
             # ``true_target =`` setter so the rewrite persists.
             tt = cond_jump_stmt.true_target

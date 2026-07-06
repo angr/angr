@@ -1,7 +1,7 @@
 """Type stubs for ``angr.rustylib.ailment`` -- the Rust port of the AIL
 data classes.
 
-Phase D collapsed the per-class hierarchy into a single ``Expression``
+The per-class hierarchy is collapsed into a single ``Expression``
 pyclass (wrapping the inline ``AilExpression`` / ``ExprInner`` fat
 enum) and a single ``Statement`` pyclass (wrapping ``AilStatement`` /
 ``StmtInner``). Per-variant marker classes (``Const``, ``BinaryOp``,
@@ -156,9 +156,9 @@ class RoundingMode:
 # ---------------------------------------------------------------------------
 
 class Expression:
-    """Universal Phase D AIL Expression pyclass.
+    """Universal AIL Expression pyclass.
 
-    Backs every legacy per-class Expression subtype (Const, BinaryOp,
+    Backs every per-variant Expression marker (Const, BinaryOp,
     Load, ...) via the inline ``ExprInner`` fat enum. The variant tag is
     exposed as the ``kind`` property; per-variant accessors below raise
     ``AttributeError`` when called on the wrong variant.
@@ -468,9 +468,9 @@ class Expression:
 # ---------------------------------------------------------------------------
 
 class Statement:
-    """Universal Phase D AIL Statement pyclass.
+    """Universal AIL Statement pyclass.
 
-    Backs every legacy per-class Statement subtype (Assignment, Store,
+    Backs every per-variant Statement marker (Assignment, Store,
     Jump, ...) via the inline ``StmtInner`` fat enum. Per-variant
     accessors raise ``AttributeError`` on the wrong variant.
     """
