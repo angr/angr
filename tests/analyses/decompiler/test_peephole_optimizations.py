@@ -151,7 +151,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(manager.next_atom(), "CmpEQ", [sub, Const(manager.next_atom(), 0, 32)], False, bits=1)
         out = opt.optimize(expr)
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
-        assert out.operands[0] is x
+        assert out.operands[0] == x
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 50
 
         # (x - 1) != 1  ==>  x != 2
@@ -159,7 +159,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(manager.next_atom(), "CmpNE", [sub, Const(manager.next_atom(), 1, 32)], False, bits=1)
         out = opt.optimize(expr)
         assert isinstance(out, BinaryOp) and out.op == "CmpNE"
-        assert out.operands[0] is x
+        assert out.operands[0] == x
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 2
 
         # (x + 5) == 12  ==>  x == 7
@@ -167,7 +167,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(manager.next_atom(), "CmpEQ", [add, Const(manager.next_atom(), 12, 32)], False, bits=1)
         out = opt.optimize(expr)
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
-        assert out.operands[0] is x
+        assert out.operands[0] == x
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 7
 
         # (50 - x) == 0  ==>  x == 50  (constant minus variable)
@@ -175,7 +175,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(manager.next_atom(), "CmpEQ", [sub, Const(manager.next_atom(), 0, 32)], False, bits=1)
         out = opt.optimize(expr)
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
-        assert out.operands[0] is x
+        assert out.operands[0] == x
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 50
 
         # the compared constant on the left is also handled: 0 == (x - 7) => x == 7
@@ -183,7 +183,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr = BinaryOp(manager.next_atom(), "CmpEQ", [Const(manager.next_atom(), 0, 32), sub], False, bits=1)
         out = opt.optimize(expr)
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
-        assert out.operands[0] is x
+        assert out.operands[0] == x
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 7
 
         # ordered comparisons must NOT be folded (unsound under wraparound)
@@ -214,7 +214,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
 
         out = peephole_optimize_expr(expr, opts)
         assert isinstance(out, BinaryOp) and out.op == "CmpEQ"
-        assert out.operands[0] is x, f"expected bare register on lhs, got {out.operands[0]}"
+        assert out.operands[0] == x, f"expected bare register on lhs, got {out.operands[0]}"
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 52, f"expected x == 52, got {out}"
 
     def test_optimized_division_simplifier_keeps_width(self):

@@ -238,7 +238,7 @@ class TestAILExec(unittest.TestCase):
             varid=217,
             bits=8,
             category=ailment.expression.VirtualVariableCategory.STACK,
-            oident="s-212",
+            oident=-212,
         )
         ref = ailment.expression.UnaryOp(idx=0, op="Reference", operand=vvar, bits=p.arch.bits)
 

@@ -144,7 +144,8 @@ class TestExpression(unittest.TestCase):
         # and ``get_field`` mints a fresh ``Expression`` wrapper per call --
         # identity no longer survives the round-trip. Use ``likes`` for the
         # structural compare instead.
-        assert outer.get_field("inner.value").likes(old)
+        inner_value = outer.get_field("inner.value")
+        assert inner_value is not None and inner_value.likes(old)
         assert outer.get_field("missing") is None
         assert outer.size == 4
         assert "outer" in str(outer)
@@ -154,7 +155,8 @@ class TestExpression(unittest.TestCase):
         # Phase D: getters materialize a fresh ``Expression`` wrapper, so
         # ``is new`` identity through replace doesn't survive into nested
         # containers. Use structural equality (``likes``) instead.
-        assert new_outer.get_field("inner.value").likes(new)
+        new_inner_value = new_outer.get_field("inner.value")
+        assert new_inner_value is not None and new_inner_value.likes(new)
         assert not outer.replace(Const(8, 99, 32), new)[0]
 
         enum_expr = RustEnum(9, "Ok", [old], 32)

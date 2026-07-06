@@ -48,7 +48,8 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
-from angr.rustylib import ailment as a
+from angr.rustylib import ailment as a  # pylint:disable=no-name-in-module
+from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error,no-name-in-module
 
 
 def roundtrip(obj):
@@ -59,7 +60,7 @@ def roundtrip(obj):
 
 
 def test_const_int():
-    c = Const(1, None, 42, 32)
+    c = Const(1, 42, 32)
     c2 = roundtrip(c)
     assert isinstance(c2, Const)
     assert c2.idx == c.idx and c2.value == c.value and c2.bits == c.bits
@@ -67,25 +68,25 @@ def test_const_int():
 
 
 def test_const_float():
-    cf = Const(12, None, 3.14, 64)
+    cf = Const(12, 3.14, 64)
     cf2 = roundtrip(cf)
     assert cf2.value == 3.14
 
 
 def test_const_bigint_outside_i128():
-    huge = Const(13, None, 2**200 + 1, 256)
+    huge = Const(13, 2**200 + 1, 256)
     huge2 = roundtrip(huge)
     assert huge2.value == 2**200 + 1
 
 
 def test_const_negative_int():
-    neg = Const(14, None, -42, 32)
+    neg = Const(14, -42, 32)
     neg2 = roundtrip(neg)
     assert neg2.value == -42
 
 
 def test_tmp():
-    t = Tmp(2, None, 5, 64)
+    t = Tmp(2, 5, 64)
     t2 = roundtrip(t)
     assert isinstance(t2, Tmp)
     assert t2.tmp_idx == 5 and t2.bits == 64
@@ -93,7 +94,7 @@ def test_tmp():
 
 
 def test_register():
-    r = Register(3, None, 16, 32)
+    r = Register(3, 16, 32)
     r2 = roundtrip(r)
     assert isinstance(r2, Register)
     assert r2.reg_offset == 16
@@ -101,7 +102,7 @@ def test_register():
 
 
 def test_combo_register_recurses():
-    cr = ComboRegister(4, None, [Register(0, None, 0, 32), Register(0, None, 4, 32)])
+    cr = ComboRegister(4, [Register(0, 0, 32), Register(0, 4, 32)])
     cr2 = roundtrip(cr)
     assert isinstance(cr2, ComboRegister)
     assert len(cr2.registers) == 2
@@ -120,9 +121,10 @@ def test_virtual_variable_int_oident():
 
 
 def test_virtual_variable_tuple_oident():
-    vv = VirtualVariable(6, 200, 64, VirtualVariableCategory.STACK, oident=(1, -32))
+    # PARAMETER vvars carry a nested (inner_category, inner_payload) oident.
+    vv = VirtualVariable(6, 200, 64, VirtualVariableCategory.PARAMETER, oident=(VirtualVariableCategory.STACK, -32))
     vv2 = roundtrip(vv)
-    assert vv2.oident == (1, -32)
+    assert vv2.oident == (VirtualVariableCategory.STACK, -32)
 
 
 def test_phi():
@@ -143,7 +145,7 @@ def test_phi():
 
 
 def test_unary_op():
-    u = UnaryOp(1, "Not", Const(0, None, 5, 32))
+    u = UnaryOp(1, "Not", Const(0, 5, 32))
     u2 = roundtrip(u)
     assert isinstance(u2, UnaryOp)
     assert u2.op == "Not"
@@ -152,7 +154,7 @@ def test_unary_op():
 
 
 def test_binary_op():
-    b = BinaryOp(2, "Add", [Const(0, None, 5, 32), Const(0, None, 3, 32)], False)
+    b = BinaryOp(2, "Add", [Const(0, 5, 32), Const(0, 3, 32)], False)
     b2 = roundtrip(b)
     assert isinstance(b2, BinaryOp)
     assert b2.op == "Add"
@@ -160,37 +162,35 @@ def test_binary_op():
     assert b.likes(b2)
 
 
-def test_binary_op_floating_point_string_rounding_mode():
+def test_binary_op_floating_point_rounding_mode():
     b = BinaryOp(
         3,
         "FAdd",
-        [Const(0, None, 1.0, 64), Const(0, None, 2.0, 64)],
+        [Const(0, 1.0, 64), Const(0, 2.0, 64)],
         False,
         floating_point=True,
-        rounding_mode="ROUND_NEAREST",
+        rounding_mode=RoundingMode.RM_NearestTiesEven,
     )
     b2 = roundtrip(b)
     assert b2.floating_point
-    assert b2.rounding_mode == "ROUND_NEAREST"
+    assert b2.rounding_mode == RoundingMode.RM_NearestTiesEven
 
 
-def test_binary_op_expression_rounding_mode():
-    rm = Const(0, None, 0, 32)
+def test_binary_op_non_default_rounding_mode():
     b = BinaryOp(
         4,
         "FAdd",
-        [Const(0, None, 1.0, 64), Const(0, None, 2.0, 64)],
+        [Const(0, 1.0, 64), Const(0, 2.0, 64)],
         False,
         floating_point=True,
-        rounding_mode=rm,
+        rounding_mode=RoundingMode.RM_TowardsZero,
     )
     b2 = roundtrip(b)
-    assert isinstance(b2.rounding_mode, Const)
-    assert b2.rounding_mode.value == 0
+    assert b2.rounding_mode == RoundingMode.RM_TowardsZero
 
 
 def test_convert():
-    c = Convert(5, 32, 64, True, Const(0, None, 0xFF, 32))
+    c = Convert(5, 32, 64, True, Const(0, 0xFF, 32))
     c2 = roundtrip(c)
     assert isinstance(c2, Convert)
     assert c2.from_bits == 32 and c2.to_bits == 64 and c2.is_signed
@@ -198,7 +198,7 @@ def test_convert():
 
 
 def test_reinterpret():
-    ri = Reinterpret(6, 32, "I", 32, "F", Const(0, None, 0x40490FDB, 32))
+    ri = Reinterpret(6, 32, "I", 32, "F", Const(0, 0x40490FDB, 32))
     ri2 = roundtrip(ri)
     assert isinstance(ri2, Reinterpret)
     assert ri2.from_type == "I" and ri2.to_type == "F"
@@ -208,7 +208,7 @@ def test_nested_binary_unary():
     nested = BinaryOp(
         10,
         "Add",
-        [UnaryOp(0, "Not", Const(0, None, 5, 32)), Const(0, None, 1, 32)],
+        [UnaryOp(0, "Not", Const(0, 5, 32)), Const(0, 1, 32)],
         False,
     )
     nested2 = roundtrip(nested)
@@ -221,7 +221,7 @@ def test_nested_binary_unary():
 
 
 def test_load():
-    ld = Load(1, Register(0, None, 16, 64), 4, "Iend_LE")
+    ld = Load(1, Register(0, 16, 64), 4, "Iend_LE")
     ld2 = roundtrip(ld)
     assert isinstance(ld2, Load)
     assert ld2.size == 4 and ld2.endness == "Iend_LE"
@@ -231,11 +231,11 @@ def test_load():
 def test_load_with_guard_and_alt():
     ld = Load(
         2,
-        Register(0, None, 16, 64),
+        Register(0, 16, 64),
         4,
         "Iend_LE",
-        guard=Const(0, None, 1, 1),
-        alt=Const(0, None, 0, 32),
+        guard=Const(0, 1, 1),
+        alt=Const(0, 0, 32),
     )
     ld2 = roundtrip(ld)
     assert isinstance(ld2.guard, Const) and ld2.guard.value == 1
@@ -243,14 +243,14 @@ def test_load_with_guard_and_alt():
 
 
 def test_ite():
-    ite = ITE(3, Const(0, None, 1, 1), Const(0, None, 5, 32), Const(0, None, 7, 32))
+    ite = ITE(3, Const(0, 1, 1), Const(0, 5, 32), Const(0, 7, 32))
     ite2 = roundtrip(ite)
     assert isinstance(ite2, ITE)
     assert ite2.iftrue.value == 7 and ite2.iffalse.value == 5
 
 
 def test_dirty_expression():
-    de = DirtyExpression(4, "rdtsc", [Const(0, None, 0, 32)], bits=64, mfx="read")
+    de = DirtyExpression(4, "rdtsc", [Const(0, 0, 32)], bits=64, mfx="read")
     de2 = roundtrip(de)
     assert isinstance(de2, DirtyExpression)
     assert de2.callee == "rdtsc" and de2.mfx == "read"
@@ -260,7 +260,7 @@ def test_vex_ccall():
     vc = VEXCCallExpression(
         5,
         "amd64g_calculate_condition",
-        (Const(0, None, 0, 32), Const(0, None, 1, 32)),
+        (Const(0, 0, 32), Const(0, 1, 32)),
         1,
     )
     vc2 = roundtrip(vc)
@@ -270,7 +270,7 @@ def test_vex_ccall():
 
 
 def test_extract():
-    ex = Extract(6, 8, Register(0, None, 0, 32), Const(0, None, 0, 32), "Iend_LE")
+    ex = Extract(6, 8, Register(0, 0, 32), Const(0, 0, 32), "Iend_LE")
     ex2 = roundtrip(ex)
     assert isinstance(ex2, Extract)
     assert ex2.endness == "Iend_LE" and ex2.bits == 8
@@ -279,9 +279,9 @@ def test_extract():
 def test_insert():
     ins = Insert(
         7,
-        Register(0, None, 0, 32),
-        Const(0, None, 0, 32),
-        Const(0, None, 0xFF, 8),
+        Register(0, 0, 32),
+        Const(0, 0, 32),
+        Const(0, 0xFF, 8),
         "Iend_LE",
     )
     ins2 = roundtrip(ins)
@@ -290,7 +290,7 @@ def test_insert():
 
 
 def test_call_with_const_target():
-    call = Call(8, Const(0, None, 0x400, 64), args=[Const(0, None, 1, 32)], bits=32)
+    call = Call(8, Const(0, 0x400, 64), args=[Const(0, 1, 32)], bits=32)
     call2 = roundtrip(call)
     assert isinstance(call2, Call)
     assert isinstance(call2.target, Const) and call2.target.value == 0x400
@@ -307,7 +307,7 @@ def test_struct():
     st = Struct(
         10,
         "mystruct",
-        {0: Const(0, None, 1, 32), 4: Const(0, None, 2, 32)},
+        {0: Const(0, 1, 32), 4: Const(0, 2, 32)},
         {"a": 0, "b": 4},
         64,
     )
@@ -318,19 +318,22 @@ def test_struct():
 
 
 def test_rust_enum_list():
-    re_ = RustEnum(11, "Option", [Const(0, None, 1, 32)], 32)
+    re_ = RustEnum(11, "Option", [Const(0, 1, 32)], 32)
     re2 = roundtrip(re_)
     assert isinstance(re2.fields, list)
 
 
 def test_rust_enum_tuple():
-    re_ = RustEnum(12, "Result", (Const(0, None, 1, 32), Const(0, None, 0, 32)), 32)
+    # Tuple inputs are accepted but normalized to a list (the Rust enum
+    # stores fields as a typed Vec).
+    re_ = RustEnum(12, "Result", (Const(0, 1, 32), Const(0, 0, 32)), 32)
     re2 = roundtrip(re_)
-    assert isinstance(re2.fields, tuple)
+    assert isinstance(re2.fields, list)
+    assert len(re2.fields) == 2
 
 
 def test_array():
-    arr = Array(13, [Const(0, None, 1, 32), Const(0, None, 2, 32)], 64)
+    arr = Array(13, [Const(0, 1, 32), Const(0, 2, 32)], 64)
     arr2 = roundtrip(arr)
     assert isinstance(arr2.elements, list)
     assert len(arr2.elements) == 2
@@ -358,7 +361,7 @@ def test_macro():
 
 
 def test_function_like_macro():
-    flm = FunctionLikeMacro(17, "format!", args=[Const(0, None, 1, 32)], bits=32)
+    flm = FunctionLikeMacro(17, "format!", args=[Const(0, 1, 32)], bits=32)
     flm2 = roundtrip(flm)
     assert isinstance(flm2, FunctionLikeMacro)
     assert flm2.name == "format!"
@@ -369,7 +372,7 @@ def test_function_like_macro():
 
 
 def test_assignment():
-    a_ = Assignment(1, Tmp(0, None, 0, 32), Const(0, None, 42, 32))
+    a_ = Assignment(1, Tmp(0, 0, 32), Const(0, 42, 32))
     a2 = roundtrip(a_)
     assert isinstance(a2, Assignment)
     assert isinstance(a2.dst, Tmp) and isinstance(a2.src, Const)
@@ -377,7 +380,7 @@ def test_assignment():
 
 
 def test_weak_assignment():
-    wa = WeakAssignment(2, Tmp(0, None, 1, 32), Const(0, None, 7, 32))
+    wa = WeakAssignment(2, Tmp(0, 1, 32), Const(0, 7, 32))
     wa2 = roundtrip(wa)
     assert isinstance(wa2, WeakAssignment)
 
@@ -385,22 +388,22 @@ def test_weak_assignment():
 def test_store():
     st = Store(
         3,
-        Register(0, None, 16, 64),
-        Const(0, None, 0xFF, 32),
+        Register(0, 16, 64),
+        Const(0, 0xFF, 32),
         4,
         "Iend_LE",
-        guard=Const(0, None, 1, 1),
+        guard=Const(0, 1, 1),
         offset=0x20,
     )
     st2 = roundtrip(st)
     assert isinstance(st2, Store)
     assert st2.size == 4 and st2.endness == "Iend_LE"
     assert isinstance(st2.guard, Const) and st2.guard.value == 1
-    assert st2.offset == 0x20
+    assert st2.tags["offset"] == 0x20
 
 
 def test_jump():
-    j = Jump(4, Const(0, None, 0x500, 64), target_idx=2)
+    j = Jump(4, Const(0, 0x500, 64), target_idx=2)
     j2 = roundtrip(j)
     assert isinstance(j2, Jump)
     assert j2.target_idx == 2 and j2.target.value == 0x500
@@ -409,9 +412,9 @@ def test_jump():
 def test_conditional_jump():
     cj = ConditionalJump(
         5,
-        Const(0, None, 1, 1),
-        true_target=Const(0, None, 0x400, 64),
-        false_target=Const(0, None, 0x500, 64),
+        Const(0, 1, 1),
+        true_target=Const(0, 0x400, 64),
+        false_target=Const(0, 0x500, 64),
         true_target_idx=1,
         false_target_idx=None,
     )
@@ -426,7 +429,7 @@ def test_side_effect_statement():
     ses = SideEffectStatement(
         6,
         DirtyExpression(0, "rdtsc", [], bits=64),
-        ret_expr=Tmp(0, None, 3, 64),
+        ret_expr=Tmp(0, 3, 64),
     )
     ses2 = roundtrip(ses)
     assert isinstance(ses2, SideEffectStatement)
@@ -435,7 +438,7 @@ def test_side_effect_statement():
 
 
 def test_return():
-    r = Return(7, [Const(0, None, 0, 32), Tmp(0, None, 4, 32)])
+    r = Return(7, [Const(0, 0, 32), Tmp(0, 4, 32)])
     r2 = roundtrip(r)
     assert isinstance(r2, Return)
     assert len(r2.ret_exprs) == 2
@@ -444,12 +447,12 @@ def test_return():
 def test_cas():
     cas = CAS(
         8,
-        Register(0, None, 16, 64),
-        Tmp(0, None, 1, 32),
+        Register(0, 16, 64),
+        Tmp(0, 1, 32),
         None,
-        Tmp(0, None, 2, 32),
+        Tmp(0, 2, 32),
         None,
-        Tmp(0, None, 3, 32),
+        Tmp(0, 3, 32),
         None,
         "Iend_LE",
     )
@@ -476,8 +479,8 @@ def test_label():
 def test_multi_statement_expression():
     mse = MultiStatementExpression(
         0,
-        [Assignment(0, Tmp(0, None, 1, 32), Const(0, None, 5, 32))],
-        Tmp(0, None, 1, 32),
+        [Assignment(0, Tmp(0, 1, 32), Const(0, 5, 32))],
+        Tmp(0, 1, 32),
     )
     mse2 = roundtrip(mse)
     assert isinstance(mse2, MultiStatementExpression)
@@ -493,8 +496,8 @@ def test_block_with_mixed_statements():
         0x400,
         statements=[
             Label(0, "L1"),
-            Assignment(1, Tmp(0, None, 1, 32), Const(0, None, 42, 32)),
-            Jump(2, Const(0, None, 0x410, 64)),
+            Assignment(1, Tmp(0, 1, 32), Const(0, 42, 32)),
+            Jump(2, Const(0, 0x410, 64)),
         ],
         original_size=12,
     )
@@ -529,13 +532,13 @@ def test_block_to_from_bytes():
 
 
 def test_expression_to_from_bytes():
-    data = Tmp(1, None, 5, 64).to_bytes()
+    data = Tmp(1, 5, 64).to_bytes()
     t = Expression.from_bytes(data)
     assert isinstance(t, Tmp) and t.tmp_idx == 5
 
 
 def test_statement_to_from_bytes():
-    s = Assignment(1, Tmp(0, None, 1, 32), Const(0, None, 42, 32)).to_bytes()
+    s = Assignment(1, Tmp(0, 1, 32), Const(0, 42, 32)).to_bytes()
     a2 = Statement.from_bytes(s)
     assert isinstance(a2, Assignment)
 
@@ -544,7 +547,7 @@ def test_statement_to_from_bytes():
 
 
 def test_version_byte_prefix():
-    c = Const(1, None, 42, 32)
+    c = Const(1, 42, 32)
     data = a.dumps(c)
     # FORMAT_VERSION bumped to 0x02 after Phase D collapsed every concrete
     # subclass into the universal ``Expression`` / ``Statement`` pyclasses;
@@ -560,22 +563,3 @@ def test_loads_empty_input_raises():
 def test_loads_unsupported_version_raises():
     with pytest.raises(ValueError):
         a.loads(b"\xff\x00")
-
-
-# --- variable round-trip policy ----------------------------------------
-
-
-def test_variable_field_drops_to_none():
-    """Opaque ``variable`` fields are intentionally dropped on round-trip.
-
-    See the module-level note in ``serialize.rs``: SimVariable objects don't
-    survive a round-trip; they're reattached by downstream code from project
-    state after load.
-    """
-
-    class FakeVar:
-        pass
-
-    c = Const(1, FakeVar(), 42, 32)
-    c2 = roundtrip(c)
-    assert c2.variable is None

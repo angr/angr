@@ -14,7 +14,7 @@ import unittest
 
 import angr.ailment._phase_d_spike as eu  # expression markers
 import angr.ailment._phase_d_stmt_spike as su  # statement markers
-from angr.rustylib.ailment import Statement
+from angr.rustylib.ailment import Statement, StatementKind  # pylint:disable=import-error,no-name-in-module
 
 
 class TestPhaseDStmtSpike(unittest.TestCase):
@@ -25,15 +25,15 @@ class TestPhaseDStmtSpike(unittest.TestCase):
 
     def _atoms(self):
         return (
-            eu.Register(0, None, 16, 64),
-            eu.Const(1, None, 42, 64),
-            eu.Const(2, None, 0x1000, 64),
+            eu.Register(0, 16, 64),
+            eu.Const(1, 42, 64),
+            eu.Const(2, 0x1000, 64),
         )
 
     def test_assignment(self):
         dst, src, _ = self._atoms()
         a = su.Assignment(0, dst, src, ins_addr=0x100)
-        assert a.kind == "Assignment"
+        assert a.kind == StatementKind.Assignment
         assert isinstance(a, su.Assignment)
         assert not isinstance(a, su.WeakAssignment)
         assert dict(a.tags)["ins_addr"] == 0x100
@@ -50,11 +50,11 @@ class TestPhaseDStmtSpike(unittest.TestCase):
 
     def test_store(self):
         _, _, addr = self._atoms()
-        data = eu.Const(1, None, 7, 32)
+        data = eu.Const(1, 7, 32)
         st = su.Store(2, addr, data, 4, "Iend_LE")
         assert isinstance(st, su.Store)
         assert st.size == 4 and st.endness == "Iend_LE"
-        assert st.guard is None and st.variable is None and st.offset is None
+        assert st.guard is None and "offset" not in dict(st.tags)
 
     def test_jump(self):
         _, _, addr = self._atoms()
@@ -82,8 +82,8 @@ class TestPhaseDStmtSpike(unittest.TestCase):
 
     def test_cas(self):
         _, _, addr = self._atoms()
-        c1 = eu.Const(1, None, 1, 32)
-        c2 = eu.Const(2, None, 0, 32)
+        c1 = eu.Const(1, 1, 32)
+        c2 = eu.Const(2, 0, 32)
         cas = su.CAS(0, addr, c1, None, c1, None, c2, None, "Iend_LE")
         assert isinstance(cas, su.CAS) and cas.endness == "Iend_LE"
 
@@ -119,7 +119,7 @@ class TestPhaseDStmtSpike(unittest.TestCase):
     def test_roundtrip_all_variants(self):
         """Every Statement variant must round-trip through to_bytes/from_bytes."""
         dst, src, addr = self._atoms()
-        data = eu.Const(1, None, 7, 32)
+        data = eu.Const(1, 7, 32)
         cond = eu.BinaryOp(0, "CmpEQ", (dst, src))
         dirty_e = eu.DirtyExpression(0, "h", [dst], bits=32)
 
