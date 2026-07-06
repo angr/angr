@@ -1060,6 +1060,16 @@ class DirectedGraphHelper[T]:
 
         assert self._head is not None
         sorted_nodes = list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, self._head))
+        if len(sorted_nodes) < len(acyclic_graph):
+            # some nodes are unreachable from the head (e.g., when edge marks hide the head's out-edges from this
+            # view). they must still be present in the cache because node-replacement updates may reference them;
+            # append them after the head so iteration from the head is unaffected.
+            seen = set(sorted_nodes)
+            rest = sorted((n for n in acyclic_graph if n not in seen), key=GraphUtils._sort_node)
+            for node in GraphUtils.dfs_postorder_nodes_deterministic_multi(acyclic_graph, rest):
+                if node not in seen:
+                    seen.add(node)
+                    sorted_nodes.append(node)
         for i, node in enumerate(sorted_nodes):
             llnode = LinkedListNode(node)
             self._postorder_node_to_llnode[node] = llnode
@@ -1081,6 +1091,11 @@ class DirectedGraphHelper[T]:
 
     def reset(self):
         self._node_order = None
+        self._postorder_node_to_llnode = None
+        self._postorder_node_ll = None
+        self._postorder_node_head = None
+
+    def _invalidate_postorder_cache(self) -> None:
         self._postorder_node_to_llnode = None
         self._postorder_node_ll = None
         self._postorder_node_head = None
@@ -1107,16 +1122,25 @@ class DirectedGraphHelper[T]:
         Update cache when a node is replaced in the graph.
         """
 
-        if self._postorder_node_to_llnode is not None and old_node in self._postorder_node_to_llnode:
-            llnode = self._postorder_node_to_llnode.pop(old_node)
-            self._postorder_node_to_llnode[new_node] = llnode
-            llnode.v = new_node
+        if self._postorder_node_to_llnode is not None:
+            if old_node not in self._postorder_node_to_llnode:
+                # last resort: the cache is stale; invalidate it so that it gets regenerated on demand. this should
+                # not happen - fix the offending graph updater if it does.
+                l.warning("replace_node: Node %r is not in the postorder cache.", old_node)
+                self._invalidate_postorder_cache()
+            else:
+                llnode = self._postorder_node_to_llnode.pop(old_node)
+                self._postorder_node_to_llnode[new_node] = llnode
+                llnode.v = new_node
 
         if self._node_order is not None:
             if old_node not in self._node_order:
-                l.debug("Old node %r is not in node order cache. This should not happen.", old_node)
-            order = self._node_order.pop(old_node, 0)
-            self._node_order[new_node] = order
+                # last resort: the cache is stale; invalidate it so that it gets regenerated on demand. this should
+                # not happen - fix the offending graph updater if it does.
+                l.warning("replace_node: Node %r is not in the node order cache.", old_node)
+                self._node_order = None
+            else:
+                self._node_order[new_node] = self._node_order.pop(old_node)
 
         if old_node == self._head:
             self._head = new_node
@@ -1125,6 +1149,14 @@ class DirectedGraphHelper[T]:
         """
         Update cache when multiple nodes are replaced by a single node in the graph.
         """
+
+        if self._postorder_node_to_llnode is not None and (
+            old_node_0 not in self._postorder_node_to_llnode or old_node_1 not in self._postorder_node_to_llnode
+        ):
+            # last resort: a node was added to the graph without updating the cache; invalidate the cache so that
+            # it gets regenerated on demand. this should not happen - fix the offending graph updater if it does.
+            l.warning("replace_nodes: Node %r or %r is not in the postorder cache.", old_node_0, old_node_1)
+            self._invalidate_postorder_cache()
 
         if self._postorder_node_to_llnode is not None:
             old_nodes_succs: set[T | None] = set()
@@ -1138,29 +1170,39 @@ class DirectedGraphHelper[T]:
             if len(old_nodes_succs) == 1:
                 # old nodes have the same parent or they are consecutive
                 succ = old_nodes_succs.pop()
-                llnode_0 = self._postorder_node_to_llnode[old_node_0]
+                # pop the old nodes before inserting the new node: new_node may be the same object as old_node_0 or
+                # old_node_1 (e.g., when a node is absorbed into its successor in place), in which case popping the
+                # old nodes last would remove the newly inserted entry.
+                llnode_0 = self._postorder_node_to_llnode.pop(old_node_0)
+                llnode_1 = self._postorder_node_to_llnode.pop(old_node_1)
                 llnode_0.v = new_node
                 llnode_0.next = self._postorder_node_to_llnode[succ] if succ is not None else None
                 if llnode_0.next is not None:
                     llnode_0.next.prev = llnode_0
                 self._postorder_node_to_llnode[new_node] = llnode_0
-                # clean up the old nodes
-                self._postorder_node_to_llnode.pop(old_node_0)
-                llnode_1 = self._postorder_node_to_llnode.pop(old_node_1)
+                # unlink llnode_1
                 if llnode_0.prev == llnode_1:
                     llnode_0.prev = llnode_1.prev
                     if llnode_1.prev is not None:
                         llnode_1.prev.next = llnode_0
+                if self._postorder_node_head is llnode_1:
+                    self._postorder_node_head = llnode_0
             elif not old_nodes_succs:
                 raise ValueError("Cannot replace nodes with no parent in postorder cache")
             else:
                 # two parents; nothing we can do here, we have to invalidate the postorder cache
-                self._postorder_node_to_llnode = None
+                self._invalidate_postorder_cache()
 
         if self._node_order is not None:
-            order_0 = self._node_order.pop(old_node_0)
-            order_1 = self._node_order.pop(old_node_1)
-            self._node_order[new_node] = min(order_0, order_1)
+            if old_node_0 not in self._node_order or old_node_1 not in self._node_order:
+                # last resort: the cache is stale; invalidate it so that it gets regenerated on demand. this should
+                # not happen - fix the offending graph updater if it does.
+                l.warning("replace_nodes: Node %r or %r is not in the node order cache.", old_node_0, old_node_1)
+                self._node_order = None
+            else:
+                order_0 = self._node_order.pop(old_node_0)
+                order_1 = self._node_order.pop(old_node_1)
+                self._node_order[new_node] = min(order_0, order_1)
 
         if self._head in [old_node_0, old_node_1]:
             self._head = new_node
@@ -1176,6 +1218,8 @@ class DirectedGraphHelper[T]:
                 llnode.prev.next = llnode.next
             if llnode.next is not None:
                 llnode.next.prev = llnode.prev
+            if self._postorder_node_head is llnode:
+                self._postorder_node_head = llnode.next
 
         if self._node_order is not None:
             self._node_order.pop(node, None)
@@ -1185,23 +1229,33 @@ class DirectedGraphHelper[T]:
 
     def add_node_successor(self, node: T, successor: T) -> None:
         if self._postorder_node_to_llnode is not None and successor not in self._postorder_node_to_llnode:
-            assert node in self._postorder_node_to_llnode
-            llnode = self._postorder_node_to_llnode[node]
-            succ_node = LinkedListNode(successor)
-            succ_node.next = llnode.next
-            succ_node.prev = llnode
-            if llnode.next is not None:
-                llnode.next.prev = succ_node
-            llnode.next = succ_node
-            self._postorder_node_to_llnode[successor] = succ_node
+            if node not in self._postorder_node_to_llnode:
+                # last resort: the cache is stale; invalidate it so that it gets regenerated on demand. this should
+                # not happen - fix the offending graph updater if it does.
+                l.warning("add_node_successor: Node %r is not in the postorder cache.", node)
+                self._invalidate_postorder_cache()
+            else:
+                llnode = self._postorder_node_to_llnode[node]
+                succ_node = LinkedListNode(successor)
+                succ_node.next = llnode.next
+                succ_node.prev = llnode
+                if llnode.next is not None:
+                    llnode.next.prev = succ_node
+                llnode.next = succ_node
+                self._postorder_node_to_llnode[successor] = succ_node
 
         if self._node_order is not None and successor not in self._node_order:
-            assert node in self._node_order
-            for nn, o in list(self._node_order.items()):
-                if o > self._node_order[node]:
-                    self._node_order[nn] = o + 1
-            order = self._node_order[node]
-            self._node_order[successor] = order + 1
+            if node not in self._node_order:
+                # last resort: the cache is stale; invalidate it so that it gets regenerated on demand. this should
+                # not happen - fix the offending graph updater if it does.
+                l.warning("add_node_successor: Node %r is not in the node order cache.", node)
+                self._node_order = None
+            else:
+                for nn, o in list(self._node_order.items()):
+                    if o > self._node_order[node]:
+                        self._node_order[nn] = o + 1
+                order = self._node_order[node]
+                self._node_order[successor] = order + 1
 
     def to_acyclic_by_order(self, graph: RegionOverlayGraph[T]) -> networkx.DiGraph[T]:
         if self._node_order is None:
@@ -1212,6 +1266,11 @@ class DirectedGraphHelper[T]:
 
     def sort_nodes_by_order(self, nodes: list[T]) -> list[T]:
         if self._node_order is None:
+            self._generate_node_order()
+        elif any(n not in self._node_order for n in nodes):
+            # last resort: the cache is stale; regenerate it. this should not happen - fix the offending graph
+            # updater if it does.
+            l.warning("sort_nodes_by_order: Some nodes are not in the node order cache.")
             self._generate_node_order()
 
         assert self._node_order is not None
@@ -1224,6 +1283,11 @@ class DirectedGraphHelper[T]:
             return loop_heads
 
         if self._node_order is None:
+            self._generate_node_order()
+        elif any(src not in self._node_order or dst not in self._node_order for src, dst in self._graph.edges()):
+            # last resort: the cache is stale; regenerate it. this should not happen - fix the offending graph
+            # updater if it does.
+            l.warning("loop_heads: Some nodes are not in the node order cache.")
             self._generate_node_order()
         assert self._node_order is not None
 
