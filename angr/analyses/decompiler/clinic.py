@@ -2103,7 +2103,7 @@ class Clinic(Analysis):
                         )
                     elif isinstance(arg, SimStructArg):
                         locs = self._expand_argloc(arg)
-                        if all(isinstance(loc, SimRegArg) for loc in locs):
+                        if locs and all(isinstance(loc, SimRegArg) for loc in locs):
                             reg_offsets = []
                             reg_names = []
                             for loc in locs:
@@ -2114,15 +2114,23 @@ class Clinic(Analysis):
                                 tuple(reg_offsets),
                                 arg.size,
                                 ident=f"arg_{idx}",
-                                name=arg_names[idx],
+                                name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                                 region=self.function.addr,
                             )
                         else:
+                            if not locs:
+                                l.warning(
+                                    "Argument %d of function %r is a struct argument without any known "
+                                    "location; the struct is likely empty or unknown during decompilation. "
+                                    "Treating it as an opaque variable.",
+                                    idx,
+                                    self.function,
+                                )
                             argvar = SimVariable(
                                 ident=f"arg_{idx}",
-                                name=arg_names[idx],
+                                name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                                 region=self.function.addr,
-                                size=arg.size,
+                                size=arg.size if arg.size else self.project.arch.bytes,
                             )
                     else:
                         argvar = SimVariable(
