@@ -84,8 +84,11 @@ impl Serialize for TagExtra {
 
 impl<'de> Deserialize<'de> for TagExtra {
     fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        // Externally tagged (the serde default) to mirror the hand-written
+        // ``Serialize`` impl above, which emits plain variant indices.
+        // Internally/adjacently tagged enums require a self-describing
+        // format and are rejected by postcard at deserialization time.
         #[derive(Deserialize)]
-        #[serde(tag = "kind", content = "value")]
         enum Helper {
             Bool(bool),
             Int(i64),
@@ -93,7 +96,7 @@ impl<'de> Deserialize<'de> for TagExtra {
             Str(String),
             IntList(Vec<i64>),
             StrList(Vec<String>),
-            Opaque,
+            Opaque {},
         }
         let h: Helper = Deserialize::deserialize(de)?;
         Ok(match h {
@@ -103,7 +106,7 @@ impl<'de> Deserialize<'de> for TagExtra {
             Helper::Str(v) => TagExtra::Str(v),
             Helper::IntList(v) => TagExtra::IntList(v),
             Helper::StrList(v) => TagExtra::StrList(v),
-            Helper::Opaque => TagExtra::Opaque(Python::attach(|py| py.None())),
+            Helper::Opaque {} => TagExtra::Opaque(Python::attach(|py| py.None())),
         })
     }
 }
@@ -169,13 +172,8 @@ fn kind_of(key: &str) -> Option<TagValueKind> {
         | "is_prototype_guessed"
         | "keep_in_slice"
         | "uninitialized" => Some(TagValueKind::Bool),
-        "block_idx"
-        | "deref_src_addr"
-        | "ins_addr"
-        | "orig_ins_addr"
-        | "vex_block_addr"
-        | "vex_stmt_idx"
-        | "write_size" => Some(TagValueKind::Int),
+        "block_idx" | "deref_src_addr" | "ins_addr" | "orig_ins_addr" | "vex_block_addr"
+        | "vex_stmt_idx" | "write_size" => Some(TagValueKind::Int),
         "reg_name" => Some(TagValueKind::Str),
         "extra_defs" => Some(TagValueKind::IntList),
         _ => None,
@@ -435,7 +433,9 @@ impl Tags {
     }
 
     fn set_str(&mut self, key: &str, v: String) {
-        if key == "reg_name" { self.reg_name = Some(v) }
+        if key == "reg_name" {
+            self.reg_name = Some(v)
+        }
     }
 
     fn set_int_list(&mut self, key: &str, v: Vec<i64>) {
