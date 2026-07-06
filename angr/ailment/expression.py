@@ -205,7 +205,7 @@ if not TYPE_CHECKING:
                 return subclass is cls or issubclass(subclass, cls._MEMBERS)
             return type.__subclasscheck__(cls, subclass)
 
-    class Expression(metaclass=_ExpressionMeta):
+    class Expression(metaclass=_ExpressionMeta):  # pylint:disable=function-redefined
         """Backward-compatibility marker for ``isinstance(x, Expression)``.
 
         Real AIL expression instances are ``angr.rustylib.ailment.Expression``
@@ -226,8 +226,8 @@ if not TYPE_CHECKING:
         @staticmethod
         def from_bytes(data: bytes):
             """Deserialize an Expression from bytes."""
-            from angr.rustylib.ailment import (
-                Expression as _PhaseD,  # pylint:disable=import-error,import-outside-toplevel
+            from angr.rustylib.ailment import (  # pylint:disable=import-error,import-outside-toplevel
+                Expression as _PhaseD,
             )
 
             return _PhaseD.from_bytes(data)
@@ -243,7 +243,7 @@ if not TYPE_CHECKING:
         def __subclasscheck__(cls, subclass):
             return issubclass(subclass, cls._MEMBERS) or subclass is cls
 
-    class Atom(metaclass=_AtomMeta):
+    class Atom(metaclass=_AtomMeta):  # pylint:disable=function-redefined
         """Marker class for backward-compatible ``isinstance(x, Atom)`` checks."""
 
     class _OpMeta(type):
@@ -258,7 +258,7 @@ if not TYPE_CHECKING:
         def __subclasscheck__(cls, subclass):
             return issubclass(subclass, cls._MEMBERS) or subclass is cls
 
-    class Op(metaclass=_OpMeta):
+    class Op(metaclass=_OpMeta):  # pylint:disable=function-redefined
         """Marker for backward-compatible ``isinstance(x, Op)`` checks."""
 
 

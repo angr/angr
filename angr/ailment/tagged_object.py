@@ -77,8 +77,8 @@ class TaggedObject(metaclass=_TaggedObjectMeta):
         idx: int
         tags: Any
 
-        def __init__(self, idx: int | None = None, *args: Any, **tags: Any) -> None: ...
-        def _hash_core(self) -> int: ...
+        def __init__(self, idx: int | None = None, *args: Any, **tags: Any) -> None: ...  # pylint:disable=keyword-arg-before-vararg,unused-argument
+        def _hash_core(self) -> int: ...  # pylint:disable=no-self-use
 
     def __hash__(self) -> int:
         """Pure-Python cached-hash dispatcher used by Python-side classes
@@ -89,7 +89,7 @@ class TaggedObject(metaclass=_TaggedObjectMeta):
         cached = getattr(self, "_cached_hash", None)
         if cached is not None:
             return cached
-        h = self._hash_core()  # pylint:disable=no-member
+        h = self._hash_core()  # pylint:disable=no-member,assignment-from-no-return
         # Classes with ``__slots__`` that don't reserve ``_cached_hash``
         # fall through without caching.
         with contextlib.suppress(AttributeError):
