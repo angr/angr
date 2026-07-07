@@ -2,9 +2,16 @@
 //!
 //! In the Python implementation `TaggedObject.tags` is an open dict containing
 //! a handful of well-known keys (see `TagDict` in
-//! `angr/ailment/tagged_object.py`). The new Rust implementation pins that
-//! schema to a fixed struct of primitives so the whole AIL tree can be
-//! serialized with Serde.
+//! `angr/ailment/tagged_object.py`). The Rust implementation keeps only the
+//! four *hot* keys -- `ins_addr`, `vex_block_addr`, `vex_stmt_idx`,
+//! `block_idx` -- as dedicated struct fields (they are set on almost every
+//! node) and delegates every other key to an `extras` map keyed by
+//! [`TagKey`]. Sparse tags therefore cost four small `Option`s plus an empty
+//! `HashMap` instead of a field per known key.
+//!
+//! Tag keys are represented as the [`TagKey`] enum. Python code addresses tags
+//! by string; [`TagKey::from_key`] / [`TagKey::as_str`] form the string <->
+//! enum compatibility layer, so `expr.tags["ins_addr"]` keeps working.
 //!
 //! The keys `reference_variable` and `reg_vvars`, which used to point to
 //! Python objects, have been refactored:
@@ -14,7 +21,7 @@
 //!
 //! For backward compatibility, `Expression.tags` and `Statement.tags` are
 //! still exposed to Python as a dict-like object. Reads and writes go through
-//! `TagsView`, which translates names <-> struct fields.
+//! `TagsView`, which translates names <-> struct fields / `extras` entries.
 
 use std::collections::HashMap;
 
@@ -25,7 +32,7 @@ use pyo3::types::{PyDict, PyList, PyMapping, PyTuple};
 use pyo3::{Borrowed, Py, PyAny};
 use serde::{Deserialize, Serialize};
 
-/// Value stored in the `extras` bucket for unknown tag keys.
+/// Value stored in the `extras` bucket for cold / unknown tag keys.
 ///
 /// The primitive variants serde-round-trip cleanly; the `Opaque` variant
 /// holds a Python object (e.g. a SimVariable that hasn't been refactored to
@@ -111,53 +118,34 @@ impl<'de> Deserialize<'de> for TagExtra {
     }
 }
 
-/// All known tag fields. Keep this list and the macro implementations below
-/// in sync.
-///
-/// Unknown keys end up in `extras` (also primitive-only). The full set is
-/// exposed Python-side as a dict-like view via `TagsView`.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Tags {
-    pub always_propagate: Option<bool>,
-    pub block_idx: Option<i64>,
-    pub deref_src_addr: Option<i64>,
-    pub extra_def: Option<bool>,
-    pub extra_defs: Option<Vec<i64>>,
-    pub ins_addr: Option<i64>,
-    pub is_prototype_guessed: Option<bool>,
-    pub keep_in_slice: Option<bool>,
-    pub orig_ins_addr: Option<i64>,
-    pub reg_name: Option<String>,
-    pub uninitialized: Option<bool>,
-    pub vex_block_addr: Option<i64>,
-    pub vex_stmt_idx: Option<i64>,
-    pub write_size: Option<i64>,
-    /// Anything that isn't a recognized tag goes here, as long as the value
-    /// is still a primitive. Keeps Tags fully serializable while remaining
-    /// compatible with code/tests that attach ad-hoc tags.
-    pub extras: HashMap<String, TagExtra>,
+/// A tag key. Known keys are enum variants; arbitrary Python string keys
+/// become [`TagKey::Custom`]. The four *hot* variants are backed by dedicated
+/// [`Tags`] struct fields and never appear in `extras`; the rest live in the
+/// `extras` map.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TagKey {
+    // Hot -- struct-backed.
+    InsAddr,
+    VexBlockAddr,
+    VexStmtIdx,
+    BlockIdx,
+    // Cold -- stored in `extras`.
+    AlwaysPropagate,
+    DerefSrcAddr,
+    ExtraDef,
+    ExtraDefs,
+    IsPrototypeGuessed,
+    KeepInSlice,
+    OrigInsAddr,
+    RegName,
+    Uninitialized,
+    WriteSize,
+    // Arbitrary Python string key.
+    Custom(String),
 }
 
-/// The list of all known tag keys. Used to enumerate set keys for
-/// `keys()` / `items()` / `__iter__`.
-pub const TAG_KEYS: &[&str] = &[
-    "always_propagate",
-    "block_idx",
-    "deref_src_addr",
-    "extra_def",
-    "extra_defs",
-    "ins_addr",
-    "is_prototype_guessed",
-    "keep_in_slice",
-    "orig_ins_addr",
-    "reg_name",
-    "uninitialized",
-    "vex_block_addr",
-    "vex_stmt_idx",
-    "write_size",
-];
-
-#[derive(Debug)]
+/// Declared value type for a known key, used to enforce tag types on write.
+#[derive(Debug, Clone, Copy)]
 enum TagValueKind {
     Bool,
     Int,
@@ -165,25 +153,103 @@ enum TagValueKind {
     IntList,
 }
 
-fn kind_of(key: &str) -> Option<TagValueKind> {
-    match key {
-        "always_propagate"
-        | "extra_def"
-        | "is_prototype_guessed"
-        | "keep_in_slice"
-        | "uninitialized" => Some(TagValueKind::Bool),
-        "block_idx" | "deref_src_addr" | "ins_addr" | "orig_ins_addr" | "vex_block_addr"
-        | "vex_stmt_idx" | "write_size" => Some(TagValueKind::Int),
-        "reg_name" => Some(TagValueKind::Str),
-        "extra_defs" => Some(TagValueKind::IntList),
-        _ => None,
+impl TagKey {
+    /// String -> key (the Python-compatibility direction). Unknown names
+    /// become [`TagKey::Custom`].
+    pub fn from_key(key: &str) -> TagKey {
+        match key {
+            "ins_addr" => TagKey::InsAddr,
+            "vex_block_addr" => TagKey::VexBlockAddr,
+            "vex_stmt_idx" => TagKey::VexStmtIdx,
+            "block_idx" => TagKey::BlockIdx,
+            "always_propagate" => TagKey::AlwaysPropagate,
+            "deref_src_addr" => TagKey::DerefSrcAddr,
+            "extra_def" => TagKey::ExtraDef,
+            "extra_defs" => TagKey::ExtraDefs,
+            "is_prototype_guessed" => TagKey::IsPrototypeGuessed,
+            "keep_in_slice" => TagKey::KeepInSlice,
+            "orig_ins_addr" => TagKey::OrigInsAddr,
+            "reg_name" => TagKey::RegName,
+            "uninitialized" => TagKey::Uninitialized,
+            "write_size" => TagKey::WriteSize,
+            other => TagKey::Custom(other.to_string()),
+        }
     }
+
+    /// Key -> string (the reverse compatibility direction).
+    pub fn as_str(&self) -> &str {
+        match self {
+            TagKey::InsAddr => "ins_addr",
+            TagKey::VexBlockAddr => "vex_block_addr",
+            TagKey::VexStmtIdx => "vex_stmt_idx",
+            TagKey::BlockIdx => "block_idx",
+            TagKey::AlwaysPropagate => "always_propagate",
+            TagKey::DerefSrcAddr => "deref_src_addr",
+            TagKey::ExtraDef => "extra_def",
+            TagKey::ExtraDefs => "extra_defs",
+            TagKey::IsPrototypeGuessed => "is_prototype_guessed",
+            TagKey::KeepInSlice => "keep_in_slice",
+            TagKey::OrigInsAddr => "orig_ins_addr",
+            TagKey::RegName => "reg_name",
+            TagKey::Uninitialized => "uninitialized",
+            TagKey::WriteSize => "write_size",
+            TagKey::Custom(s) => s.as_str(),
+        }
+    }
+
+    /// Declared value type for a known cold key. Hot keys and `Custom` keys
+    /// return `None` (hot keys are handled by their struct fields; custom keys
+    /// accept any primitive).
+    fn value_kind(&self) -> Option<TagValueKind> {
+        Some(match self {
+            TagKey::DerefSrcAddr | TagKey::OrigInsAddr | TagKey::WriteSize => TagValueKind::Int,
+            TagKey::AlwaysPropagate
+            | TagKey::ExtraDef
+            | TagKey::IsPrototypeGuessed
+            | TagKey::KeepInSlice
+            | TagKey::Uninitialized => TagValueKind::Bool,
+            TagKey::RegName => TagValueKind::Str,
+            TagKey::ExtraDefs => TagValueKind::IntList,
+            _ => return None,
+        })
+    }
+}
+
+/// Convert an arbitrary Python primitive into a [`TagExtra`]. Non-primitive
+/// values fall back to `Opaque` (held but not serialized).
+fn extra_from_py(value: &Bound<'_, PyAny>) -> TagExtra {
+    if let Ok(b) = value.extract::<bool>() {
+        TagExtra::Bool(b)
+    } else if let Ok(i) = value.extract::<i64>() {
+        TagExtra::Int(i)
+    } else if let Ok(f) = value.extract::<f64>() {
+        TagExtra::Float(f)
+    } else if let Ok(s) = value.extract::<String>() {
+        TagExtra::Str(s)
+    } else if let Ok(v) = value.extract::<Vec<i64>>() {
+        TagExtra::IntList(v)
+    } else if let Ok(v) = value.extract::<Vec<String>>() {
+        TagExtra::StrList(v)
+    } else {
+        TagExtra::Opaque(value.clone().unbind())
+    }
+}
+
+/// Tags storage: the four hot keys as struct fields, everything else in
+/// `extras`. See the module docs.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Tags {
+    pub ins_addr: Option<i64>,
+    pub vex_block_addr: Option<i64>,
+    pub vex_stmt_idx: Option<i32>,
+    pub block_idx: Option<i32>,
+    /// Cold known keys and arbitrary custom keys, keyed by [`TagKey`]. Hot
+    /// keys never appear here.
+    pub extras: HashMap<TagKey, TagExtra>,
 }
 
 impl Tags {
     /// Build a Tags struct from a Python `**kwargs` dict.
-    /// Unknown keys are rejected so we catch typos early (and so the
-    /// non-primitive keys that were dropped are detected loudly).
     pub fn from_kwargs(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         let mut tags = Self::default();
         let Some(d) = kwargs else { return Ok(tags) };
@@ -237,106 +303,60 @@ impl Tags {
     }
 
     pub fn len(&self) -> usize {
-        let mut n = self.extras.len();
-        for k in TAG_KEYS {
-            if self.has(k) {
-                n += 1;
-            }
-        }
-        n
+        let hot = self.ins_addr.is_some() as usize
+            + self.vex_block_addr.is_some() as usize
+            + self.vex_stmt_idx.is_some() as usize
+            + self.block_idx.is_some() as usize;
+        hot + self.extras.len()
     }
 
     pub fn keys(&self) -> Vec<String> {
-        let mut out: Vec<String> = TAG_KEYS
-            .iter()
-            .copied()
-            .filter(|k| self.has(k))
-            .map(String::from)
-            .collect();
+        // Hot keys first (fixed order), then the extras map.
+        let mut out: Vec<String> = Vec::with_capacity(self.len());
+        if self.ins_addr.is_some() {
+            out.push("ins_addr".to_string());
+        }
+        if self.vex_block_addr.is_some() {
+            out.push("vex_block_addr".to_string());
+        }
+        if self.vex_stmt_idx.is_some() {
+            out.push("vex_stmt_idx".to_string());
+        }
+        if self.block_idx.is_some() {
+            out.push("block_idx".to_string());
+        }
         for k in self.extras.keys() {
-            out.push(k.clone());
+            out.push(k.as_str().to_string());
         }
         out
     }
 
     pub fn has(&self, key: &str) -> bool {
-        match key {
-            "always_propagate" => self.always_propagate.is_some(),
-            "block_idx" => self.block_idx.is_some(),
-            "deref_src_addr" => self.deref_src_addr.is_some(),
-            "extra_def" => self.extra_def.is_some(),
-            "extra_defs" => self.extra_defs.is_some(),
-            "ins_addr" => self.ins_addr.is_some(),
-            "is_prototype_guessed" => self.is_prototype_guessed.is_some(),
-            "keep_in_slice" => self.keep_in_slice.is_some(),
-            "orig_ins_addr" => self.orig_ins_addr.is_some(),
-            "reg_name" => self.reg_name.is_some(),
-            "uninitialized" => self.uninitialized.is_some(),
-            "vex_block_addr" => self.vex_block_addr.is_some(),
-            "vex_stmt_idx" => self.vex_stmt_idx.is_some(),
-            "write_size" => self.write_size.is_some(),
-            other => self.extras.contains_key(other),
+        match TagKey::from_key(key) {
+            TagKey::InsAddr => self.ins_addr.is_some(),
+            TagKey::VexBlockAddr => self.vex_block_addr.is_some(),
+            TagKey::VexStmtIdx => self.vex_stmt_idx.is_some(),
+            TagKey::BlockIdx => self.block_idx.is_some(),
+            other => self.extras.contains_key(&other),
         }
     }
 
     pub fn get_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Ok(match key {
-            "always_propagate" => self
-                .always_propagate
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "block_idx" => self
-                .block_idx
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "deref_src_addr" => self
-                .deref_src_addr
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "extra_def" => self
-                .extra_def
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "extra_defs" => self
-                .extra_defs
-                .as_ref()
-                .map(|v| v.clone().into_bound_py_any(py))
-                .transpose()?,
-            "ins_addr" => self.ins_addr.map(|v| v.into_bound_py_any(py)).transpose()?,
-            "is_prototype_guessed" => self
-                .is_prototype_guessed
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "keep_in_slice" => self
-                .keep_in_slice
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "orig_ins_addr" => self
-                .orig_ins_addr
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "reg_name" => self
-                .reg_name
-                .as_ref()
-                .map(|v| v.clone().into_bound_py_any(py))
-                .transpose()?,
-            "uninitialized" => self
-                .uninitialized
-                .map(|v| v.into_bound_py_any(py))
-                .transpose()?,
-            "vex_block_addr" => self
+        Ok(match TagKey::from_key(key) {
+            TagKey::InsAddr => self.ins_addr.map(|v| v.into_bound_py_any(py)).transpose()?,
+            TagKey::VexBlockAddr => self
                 .vex_block_addr
                 .map(|v| v.into_bound_py_any(py))
                 .transpose()?,
-            "vex_stmt_idx" => self
+            TagKey::VexStmtIdx => self
                 .vex_stmt_idx
                 .map(|v| v.into_bound_py_any(py))
                 .transpose()?,
-            "write_size" => self
-                .write_size
+            TagKey::BlockIdx => self
+                .block_idx
                 .map(|v| v.into_bound_py_any(py))
                 .transpose()?,
-            other => match self.extras.get(other) {
+            other => match self.extras.get(&other) {
                 None => None,
                 Some(v) => Some(match v {
                     TagExtra::Bool(b) => b.into_bound_py_any(py)?,
@@ -356,104 +376,45 @@ impl Tags {
             self.clear(key);
             return Ok(());
         }
-        if let Some(kind) = kind_of(key) {
-            match kind {
-                TagValueKind::Bool => self.set_bool(key, value.extract()?),
-                TagValueKind::Int => self.set_int(key, value.extract()?),
-                TagValueKind::Str => self.set_str(key, value.extract()?),
-                TagValueKind::IntList => self.set_int_list(key, value.extract()?),
+        let tk = TagKey::from_key(key);
+        match tk {
+            TagKey::InsAddr => self.ins_addr = Some(value.extract()?),
+            TagKey::VexBlockAddr => self.vex_block_addr = Some(value.extract()?),
+            TagKey::VexStmtIdx => self.vex_stmt_idx = Some(value.extract()?),
+            TagKey::BlockIdx => self.block_idx = Some(value.extract()?),
+            other => {
+                // Known cold keys enforce their declared type; custom keys
+                // accept any primitive (falling back to `Opaque`).
+                let extra = match other.value_kind() {
+                    Some(TagValueKind::Bool) => TagExtra::Bool(value.extract()?),
+                    Some(TagValueKind::Int) => TagExtra::Int(value.extract()?),
+                    Some(TagValueKind::Str) => TagExtra::Str(value.extract()?),
+                    Some(TagValueKind::IntList) => TagExtra::IntList(value.extract()?),
+                    None => extra_from_py(value),
+                };
+                self.extras.insert(other, extra);
             }
-            return Ok(());
         }
-        // Unknown key -- accept any primitive value into `extras`. Non-primitive
-        // values fall back to `Opaque` (held but not serialized).
-        let extra = if let Ok(b) = value.extract::<bool>() {
-            TagExtra::Bool(b)
-        } else if let Ok(i) = value.extract::<i64>() {
-            TagExtra::Int(i)
-        } else if let Ok(f) = value.extract::<f64>() {
-            TagExtra::Float(f)
-        } else if let Ok(s) = value.extract::<String>() {
-            TagExtra::Str(s)
-        } else if let Ok(v) = value.extract::<Vec<i64>>() {
-            TagExtra::IntList(v)
-        } else if let Ok(v) = value.extract::<Vec<String>>() {
-            TagExtra::StrList(v)
-        } else {
-            TagExtra::Opaque(value.clone().unbind())
-        };
-        self.extras.insert(key.to_string(), extra);
         Ok(())
     }
 
     pub fn clear(&mut self, key: &str) {
-        match key {
-            "always_propagate" => self.always_propagate = None,
-            "block_idx" => self.block_idx = None,
-            "deref_src_addr" => self.deref_src_addr = None,
-            "extra_def" => self.extra_def = None,
-            "extra_defs" => self.extra_defs = None,
-            "ins_addr" => self.ins_addr = None,
-            "is_prototype_guessed" => self.is_prototype_guessed = None,
-            "keep_in_slice" => self.keep_in_slice = None,
-            "orig_ins_addr" => self.orig_ins_addr = None,
-            "reg_name" => self.reg_name = None,
-            "uninitialized" => self.uninitialized = None,
-            "vex_block_addr" => self.vex_block_addr = None,
-            "vex_stmt_idx" => self.vex_stmt_idx = None,
-            "write_size" => self.write_size = None,
+        match TagKey::from_key(key) {
+            TagKey::InsAddr => self.ins_addr = None,
+            TagKey::VexBlockAddr => self.vex_block_addr = None,
+            TagKey::VexStmtIdx => self.vex_stmt_idx = None,
+            TagKey::BlockIdx => self.block_idx = None,
             other => {
-                self.extras.remove(other);
+                self.extras.remove(&other);
             }
-        }
-    }
-
-    fn set_bool(&mut self, key: &str, v: bool) {
-        match key {
-            "always_propagate" => self.always_propagate = Some(v),
-            "extra_def" => self.extra_def = Some(v),
-            "is_prototype_guessed" => self.is_prototype_guessed = Some(v),
-            "keep_in_slice" => self.keep_in_slice = Some(v),
-            "uninitialized" => self.uninitialized = Some(v),
-            _ => {}
-        }
-    }
-
-    fn set_int(&mut self, key: &str, v: i64) {
-        match key {
-            "block_idx" => self.block_idx = Some(v),
-            "deref_src_addr" => self.deref_src_addr = Some(v),
-            "ins_addr" => self.ins_addr = Some(v),
-            "orig_ins_addr" => self.orig_ins_addr = Some(v),
-            "vex_block_addr" => self.vex_block_addr = Some(v),
-            "vex_stmt_idx" => self.vex_stmt_idx = Some(v),
-            "write_size" => self.write_size = Some(v),
-            _ => {}
-        }
-    }
-
-    fn set_str(&mut self, key: &str, v: String) {
-        if key == "reg_name" {
-            self.reg_name = Some(v)
-        }
-    }
-
-    fn set_int_list(&mut self, key: &str, v: Vec<i64>) {
-        if key == "extra_defs" {
-            self.extra_defs = Some(v)
         }
     }
 
     pub fn to_py_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for k in TAG_KEYS {
-            if let Some(v) = self.get_py(py, k)? {
+        for k in self.keys() {
+            if let Some(v) = self.get_py(py, &k)? {
                 d.set_item(k, v)?;
-            }
-        }
-        for k in self.extras.keys() {
-            if let Some(v) = self.get_py(py, k)? {
-                d.set_item(k.as_str(), v)?;
             }
         }
         Ok(d)
@@ -794,5 +755,59 @@ impl TagsKeyIter {
         let i = slf.index;
         slf.index += 1;
         Ok(slf.keys[i].clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tagkey_string_round_trip() {
+        for name in [
+            "ins_addr",
+            "vex_block_addr",
+            "vex_stmt_idx",
+            "block_idx",
+            "always_propagate",
+            "deref_src_addr",
+            "extra_def",
+            "extra_defs",
+            "is_prototype_guessed",
+            "keep_in_slice",
+            "orig_ins_addr",
+            "reg_name",
+            "uninitialized",
+            "write_size",
+            "some_custom_key",
+        ] {
+            assert_eq!(TagKey::from_key(name).as_str(), name);
+        }
+    }
+
+    #[test]
+    fn custom_key_is_custom() {
+        assert!(matches!(TagKey::from_key("nope"), TagKey::Custom(s) if s == "nope"));
+        assert!(TagKey::from_key("nope").value_kind().is_none());
+    }
+
+    #[test]
+    fn serde_round_trip_hot_cold_custom() {
+        let mut t = Tags {
+            ins_addr: Some(0x4000),
+            vex_block_addr: Some(0x4008),
+            vex_stmt_idx: Some(7),
+            block_idx: Some(2),
+            ..Default::default()
+        };
+        t.extras
+            .insert(TagKey::RegName, TagExtra::Str("rax".into()));
+        t.extras.insert(TagKey::Uninitialized, TagExtra::Bool(true));
+        t.extras
+            .insert(TagKey::Custom("mine".into()), TagExtra::Int(99));
+
+        let bytes = postcard::to_allocvec(&t).unwrap();
+        let back: Tags = postcard::from_bytes(&bytes).unwrap();
+        assert_eq!(t, back);
     }
 }
