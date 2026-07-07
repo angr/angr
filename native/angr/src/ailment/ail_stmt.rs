@@ -19,9 +19,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
-use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
+use crate::ailment::{CachedHash, hash_of};
 
 // ---------------------------------------------------------------------------
 // StmtHeader -- shared header carried by every variant

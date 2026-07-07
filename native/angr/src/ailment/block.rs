@@ -8,8 +8,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
 use crate::ailment::ail_stmt::Statement;
-use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::utils::deep_copy_obj;
+use crate::ailment::{CachedHash, hash_of};
 
 #[pyclass(
     name = "Block",

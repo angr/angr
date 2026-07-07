@@ -385,7 +385,6 @@ impl Tags {
         }
         Ok(d)
     }
-
 }
 
 impl<'py> FromPyObject<'_, 'py> for Tags {

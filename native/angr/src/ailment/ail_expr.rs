@@ -23,10 +23,10 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
-use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
+use crate::ailment::{CachedHash, hash_of};
 use indexmap::IndexMap;
 
 // ---------------------------------------------------------------------------
