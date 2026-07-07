@@ -655,7 +655,24 @@ impl AilExpression {
     }
 
     /// Compute the structural hash. Cached on [`ExprHeader::cached_hash`].
+    ///
+    /// ``header.idx`` is folded in for **every** variant so that
+    /// ``__hash__`` stays consistent with the idx-aware ``__eq__``: two
+    /// structurally identical expressions with distinct SSA ``idx`` are
+    /// unequal, so they must not share a hash bucket (otherwise idx-keyed
+    /// dicts/sets degrade to O(n^2) -- see the Register regression). It is
+    /// mixed in here, once, rather than per-arm so a new variant cannot
+    /// forget it.
     pub fn _hash_core(&self) -> i64 {
+        stable_hash(&[
+            HashItem::Int(self.header.idx as i128),
+            HashItem::U64Hash(self.variant_hash_core() as u64),
+        ])
+    }
+
+    /// Per-variant structural hash, excluding ``header.idx`` (folded in by
+    /// [`Self::_hash_core`]).
+    fn variant_hash_core(&self) -> i64 {
         match &self.inner {
             ExprInner::Const { value, .. } => stable_hash(&[
                 HashItem::TypeName("Const"),
@@ -671,7 +688,6 @@ impl AilExpression {
                 HashItem::Str("reg"),
                 HashItem::Int(*reg_offset as i128),
                 HashItem::Int(self.header.bits as i128),
-                HashItem::Int(self.header.idx as i128),
             ]),
             ExprInner::ComboRegister { registers, .. } => {
                 let mut inner = Vec::with_capacity(registers.len());
@@ -682,7 +698,6 @@ impl AilExpression {
                     HashItem::Str("combo_reg"),
                     HashItem::Tuple(inner),
                     HashItem::Int(self.header.bits as i128),
-                    HashItem::Int(self.header.idx as i128),
                 ])
             }
             ExprInner::Phi { src_and_vvars, .. } => {
@@ -906,17 +921,13 @@ impl AilExpression {
             }
             ExprInner::Let { src, .. } => stable_hash(&[
                 HashItem::TypeName("Let"),
-                HashItem::Int(self.header.idx as i128),
                 HashItem::U64Hash(src.cached_hash_or_compute() as u64),
             ]),
-            ExprInner::Macro { name, .. } => stable_hash(&[
-                HashItem::TypeName("Macro"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::Str(name.as_str()),
-            ]),
+            ExprInner::Macro { name, .. } => {
+                stable_hash(&[HashItem::TypeName("Macro"), HashItem::Str(name.as_str())])
+            }
             ExprInner::FunctionLikeMacro { name, .. } => stable_hash(&[
                 HashItem::TypeName("FunctionLikeMacro"),
-                HashItem::Int(self.header.idx as i128),
                 HashItem::Str(name.as_str()),
             ]),
             ExprInner::MultiStatementExpression { stmts, expr } => {
@@ -938,12 +949,7 @@ impl AilExpression {
                     }
                     None => HashItem::None,
                 };
-                stable_hash(&[
-                    HashItem::TypeName("Call"),
-                    HashItem::Int(self.header.idx as i128),
-                    target.hash_item(),
-                    args_h,
-                ])
+                stable_hash(&[HashItem::TypeName("Call"), target.hash_item(), args_h])
             }
             ExprInner::ITE {
                 cond,
