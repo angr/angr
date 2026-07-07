@@ -1350,6 +1350,26 @@ impl Statement {
 
     // --- Per-variant accessors ----------------------------------------
 
+    /// True iff this is an SSA phi assignment: an ``Assignment`` whose
+    /// ``dst`` is a ``VirtualVariable`` and whose ``src`` is a ``Phi``.
+    ///
+    /// Cheap projection for the hot ``is_phi_assignment`` helpers in
+    /// ``angr.utils.ail`` / ``angr.utils.ssa``: answers the question in
+    /// one FFI call without materializing ``dst`` / ``src`` wrappers
+    /// (each of which deep-clones its whole subtree).
+    #[getter]
+    fn is_phi_assignment(&self) -> bool {
+        match &self.stmt.inner {
+            StmtInner::Assignment { dst, src } => {
+                matches!(
+                    dst.inner,
+                    crate::ailment::ail_expr::ExprInner::VirtualVariable { .. }
+                ) && matches!(src.inner, crate::ailment::ail_expr::ExprInner::Phi { .. })
+            }
+            _ => false,
+        }
+    }
+
     /// Assignment.dst / WeakAssignment.dst (operand subtree)
     #[getter]
     fn dst(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {

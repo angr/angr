@@ -31,6 +31,7 @@ from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Stateme
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.rustylib.ailment import ExpressionKind as _EK  # pylint:disable=import-error
+from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
 from angr.rustylib.ailment import StatementKind as _SK  # pylint:disable=import-error
 
 from .combined_uses_collector import VVarAndTmpUsesCollector
@@ -419,7 +420,10 @@ def is_const_vvar_load_dirty_assignment(
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
-    return isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
+    # Native projection -- one FFI call, no dst/src wrapper cloning. The
+    # native getter additionally requires ``dst`` to be a VirtualVariable,
+    # which every phi assignment in SSA form satisfies.
+    return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 
 def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
