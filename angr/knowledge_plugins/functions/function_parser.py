@@ -216,7 +216,7 @@ class FunctionParser:
         obj.info = json.loads(cmsg.info.decode("utf-8")) if cmsg.info else {}
         obj.is_default_name = cmsg.is_default_name
         obj.ran_cca = cmsg.ran_cca
-        obj.previous_names = cmsg.previous_names
+        obj.previous_names = list(cmsg.previous_names)
 
         # signature matched?
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:
