@@ -8,6 +8,7 @@ layout, e.g. std::forward_iterator_tag parsed from an Itanium-mangled name) must
 opaque variable instead. Both used to crash ssailification with `assert offset is not None` in
 RewritingAnalysis._initial_abstract_state.
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -20,7 +21,6 @@ import angr
 from angr.calling_conventions import SimCCSystemVAMD64
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypePointer
-
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")

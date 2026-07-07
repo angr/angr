@@ -2160,7 +2160,7 @@ class Clinic(Analysis):
                                 ident=f"arg_{idx}",
                                 name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                                 region=self.function.addr,
-                                size=arg.size if arg.size else self.project.arch.bytes,
+                                size=arg.size or self.project.arch.bytes,
                             )
                     else:
                         argvar = SimVariable(
