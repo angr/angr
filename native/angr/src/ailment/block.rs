@@ -1,5 +1,6 @@
 //! Block class.
 
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::Ordering;
 
 use pyo3::IntoPyObjectExt;
@@ -7,8 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
 use crate::ailment::ail_stmt::Statement;
-use crate::ailment::base::CachedHash;
-use crate::ailment::hash::{AilHash, finish, hasher};
+use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::utils::deep_copy_obj;
 
 #[pyclass(
@@ -24,6 +24,18 @@ pub struct Block {
     pub statements: Py<PyList>,
     pub idx: Option<i64>,
     pub cached_hash: CachedHash,
+}
+
+/// ``hash((Block, self.addr, self.idx))`` -- the "Block" marker keeps
+/// block hashes from clustering with expression / statement hashes in
+/// mixed-key dicts. Statements are deliberately excluded, matching the
+/// legacy Python ``Block.__hash__``.
+impl Hash for Block {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        "Block".hash(h);
+        self.addr.hash(h);
+        self.idx.hash(h);
+    }
 }
 
 impl Clone for Block {
@@ -281,12 +293,7 @@ impl Block {
         if let Some(h) = self.cached_hash.get() {
             return h;
         }
-        // hash((Block, self.addr, self.idx))
-        let mut hh = hasher();
-        hh.typename("Block");
-        hh.int(self.addr as i128);
-        hh.opt_int(self.idx.map(|i| i as i128));
-        let h = finish(hh);
+        let h = hash_of(self);
         self.cached_hash.set(h);
         // suppress the unused-import lint for Ordering when atomic isn't used directly
         let _ = Ordering::Relaxed;

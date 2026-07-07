@@ -6,6 +6,8 @@
 //! distinction in a serde-friendly shape that both the serialization
 //! ``Wire`` and the in-memory ``ExprInner::Const`` arm reuse.
 
+use std::hash::{Hash, Hasher};
+
 use num_bigint::BigInt;
 use pyo3::Borrowed;
 use pyo3::IntoPyObjectExt;
@@ -13,8 +15,6 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyInt};
 use serde::{Deserialize, Serialize};
-
-use crate::ailment::hash::AilHash;
 
 /// Serde adapter that round-trips an `i128` as two halves. ``postcard``
 /// (and several other no-std serializers) deliberately do not support
@@ -105,16 +105,6 @@ impl ConstValue {
         !matches!(self, Self::Float(_))
     }
 
-    pub fn hash_into<H: AilHash>(&self, h: &mut H) {
-        match self {
-            Self::Int(v) => h.int(*v),
-            // Canonical minimal two's-complement bytes: equal integers
-            // hash equally; the ``raw`` tag keeps it distinct from ``int``.
-            Self::BigInt(b) => h.raw(&b.to_signed_bytes_le()),
-            Self::Float(v) => h.child(v.to_bits() as i64),
-        }
-    }
-
     pub fn fmt_value(&self) -> String {
         match self {
             Self::Int(v) => format!("{v:#x}"),
@@ -122,6 +112,29 @@ impl ConstValue {
             // matching the legacy hex-string rendering.
             Self::BigInt(b) => format!("{b:#x}"),
             Self::Float(v) => format!("{}", v),
+        }
+    }
+}
+
+/// Not derived only because of the ``f64`` payload, which is hashed by
+/// bit pattern (consistent with the derived ``PartialEq``: values that
+/// compare equal have equal bits, and ``NaN`` never compares equal so
+/// its hash is irrelevant).
+impl Hash for ConstValue {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        match self {
+            Self::Int(v) => {
+                0u8.hash(h);
+                v.hash(h);
+            }
+            Self::Float(v) => {
+                1u8.hash(h);
+                v.to_bits().hash(h);
+            }
+            Self::BigInt(b) => {
+                2u8.hash(h);
+                b.hash(h);
+            }
         }
     }
 }

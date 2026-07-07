@@ -12,14 +12,15 @@
 //! metaclass ``__instancecheck__`` that dispatches on the variant kind.
 //! See ``angr/ailment/statement.py`` for the marker classes.
 
+use std::hash::{Hash, Hasher};
+
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
-use crate::ailment::base::CachedHash;
+use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::enums::StatementKind;
-use crate::ailment::hash::{AilHash, finish, hasher};
 use crate::ailment::tags::{Tags, TagsView};
 
 // ---------------------------------------------------------------------------
@@ -150,34 +151,25 @@ pub struct AilStatement {
     pub inner: StmtInner,
 }
 
-impl AilStatement {
-    pub fn kind(&self) -> StatementKind {
-        self.inner.kind()
-    }
-
-    pub fn kind_str(&self) -> &'static str {
-        self.inner.kind().as_str()
-    }
-
-    pub fn _hash_core(&self) -> i64 {
-        let mut h = hasher();
+/// Structural hash. Cached on [`StmtHeader::cached_hash`] via
+/// [`AilStatement::cached_hash_or_compute`], which is what callers
+/// should normally use.
+impl Hash for AilStatement {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        // Kind first so no two variants can alias, then idx -- folded in
+        // uniformly here, once, to stay consistent with the idx-aware
+        // ``__eq__`` (a new variant cannot forget it). Operand
+        // expressions contribute their memoized hash via
+        // ``cached_hash_or_compute``; they are never re-walked.
+        self.kind().hash(h);
+        self.header.idx.hash(h);
         match &self.inner {
-            StmtInner::Assignment { dst, src } => {
-                h.typename("Assignment");
-                h.int(self.header.idx as i128);
-                h.child(dst.cached_hash_or_compute());
-                h.child(src.cached_hash_or_compute());
-            }
-            StmtInner::WeakAssignment { dst, src } => {
-                h.typename("WeakAssignment");
-                h.int(self.header.idx as i128);
-                h.child(dst.cached_hash_or_compute());
-                h.child(src.cached_hash_or_compute());
+            StmtInner::Assignment { dst, src } | StmtInner::WeakAssignment { dst, src } => {
+                dst.cached_hash_or_compute().hash(h);
+                src.cached_hash_or_compute().hash(h);
             }
             StmtInner::Label { name } => {
-                h.typename("Label");
-                h.int(self.header.idx as i128);
-                h.string(name.as_str());
+                name.hash(h);
             }
             StmtInner::Store {
                 addr,
@@ -186,18 +178,14 @@ impl AilStatement {
                 endness,
                 ..
             } => {
-                h.typename("Store");
-                h.int(self.header.idx as i128);
-                h.child(addr.cached_hash_or_compute());
-                h.child(data.cached_hash_or_compute());
-                h.int(*size as i128);
-                h.string(endness.as_str());
+                addr.cached_hash_or_compute().hash(h);
+                data.cached_hash_or_compute().hash(h);
+                size.hash(h);
+                endness.hash(h);
             }
             StmtInner::Jump { target, target_idx } => {
-                h.typename("Jump");
-                h.int(self.header.idx as i128);
-                target.hash_into(&mut h);
-                h.opt_int(target_idx.map(|v| v as i128));
+                target.hash(h);
+                target_idx.hash(h);
             }
             StmtInner::ConditionalJump {
                 condition,
@@ -205,29 +193,17 @@ impl AilStatement {
                 false_target,
                 ..
             } => {
-                h.typename("ConditionalJump");
-                h.int(self.header.idx as i128);
-                h.child(condition.cached_hash_or_compute());
-                match true_target {
-                    Some(t) => t.hash_into(&mut h),
-                    None => h.none(),
-                }
-                match false_target {
-                    Some(t) => t.hash_into(&mut h),
-                    None => h.none(),
-                }
+                condition.cached_hash_or_compute().hash(h);
+                true_target.hash(h);
+                false_target.hash(h);
             }
             StmtInner::SideEffectStatement { expr, .. } => {
-                h.typename("SideEffectStatement");
-                h.int(self.header.idx as i128);
-                h.child(expr.cached_hash_or_compute());
+                expr.cached_hash_or_compute().hash(h);
             }
             StmtInner::Return { ret_exprs } => {
-                h.typename("Return");
-                h.int(self.header.idx as i128);
-                h.seq(ret_exprs.len());
+                ret_exprs.len().hash(h);
                 for e in ret_exprs {
-                    h.child(e.cached_hash_or_compute());
+                    e.cached_hash_or_compute().hash(h);
                 }
             }
             StmtInner::CAS {
@@ -238,31 +214,34 @@ impl AilStatement {
                 endness,
                 ..
             } => {
-                h.typename("CAS");
-                h.int(self.header.idx as i128);
-                h.child(addr.cached_hash_or_compute());
-                h.child(data_lo.cached_hash_or_compute());
-                h.child(expd_lo.cached_hash_or_compute());
-                h.child(old_lo.cached_hash_or_compute());
-                h.string(endness.as_str());
+                addr.cached_hash_or_compute().hash(h);
+                data_lo.cached_hash_or_compute().hash(h);
+                expd_lo.cached_hash_or_compute().hash(h);
+                old_lo.cached_hash_or_compute().hash(h);
+                endness.hash(h);
             }
             StmtInner::DirtyStatement { dirty } => {
-                h.typename("DirtyStatement");
-                h.int(self.header.idx as i128);
-                h.child(dirty.cached_hash_or_compute());
+                dirty.cached_hash_or_compute().hash(h);
             }
-            StmtInner::NoOp => {
-                h.typename("NoOp");
-            }
+            StmtInner::NoOp => {}
         }
-        finish(h)
+    }
+}
+
+impl AilStatement {
+    pub fn kind(&self) -> StatementKind {
+        self.inner.kind()
+    }
+
+    pub fn kind_str(&self) -> &'static str {
+        self.inner.kind().as_str()
     }
 
     pub fn cached_hash_or_compute(&self) -> i64 {
         if let Some(h) = self.header.cached_hash.get() {
             return h;
         }
-        let h = self._hash_core();
+        let h = hash_of(self);
         self.header.cached_hash.set(h);
         h
     }
@@ -1787,10 +1766,6 @@ impl Statement {
 
     fn __hash__(&self) -> i64 {
         self.stmt.cached_hash_or_compute()
-    }
-
-    fn _hash_core(&self) -> i64 {
-        self.stmt._hash_core()
     }
 
     /// Structural-with-identity equality. See ``AilStatement::likes``

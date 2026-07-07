@@ -1,11 +1,42 @@
-//! Cross-module utilities for the AIL data classes.
-//!
-//! With the per-class pyclasses collapsed into a single
-//! ``Expression`` / ``Statement`` pair, the only piece of shared state
-//! in this module is the ``CachedHash`` slot used by the
-//! ``ExprHeader`` / ``StmtHeader`` structs in ``ail_expr`` / ``ail_stmt``.
+//! Cross-module utilities for the AIL data classes: the ``CachedHash``
+//! slot used by the ``ExprHeader`` / ``StmtHeader`` structs in
+//! ``ail_expr`` / ``ail_stmt``, and the [`hash_of`] entry point that
+//! turns a [`Hash`] impl into the ``i64`` Python's hash slot expects.
 
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+
+use rustc_hash::FxHasher;
+
+/// Hash a value through its [`Hash`] impl and return the ``i64`` Python
+/// expects in its signed-int hash slot. One-shot entry point for the
+/// ``cached_hash_or_compute`` memoizers and ``__hash__`` methods.
+///
+/// The value must be:
+///
+/// - **Process-independent** -- for a given build, the same AIL node
+///   hashes to the same value in every process, so hashes can be
+///   compared across e.g. multiprocessing workers. (Cached hashes --
+///   see [`CachedHash`] -- must in particular stay valid until the
+///   instance is mutated.) It is **not** required to be stable across
+///   builds: the value is never serialized, so a rebuild is free to
+///   change it.
+/// - **Well-distributed** -- Python uses the result as a dict / set
+///   key on every visit.
+/// - **Cheap to compute** -- decompiles hash millions of AIL nodes.
+///
+/// ``FxHasher`` (the hash rustc uses for its own symbol tables) is the
+/// backing [`Hasher`]: it has no per-process random state (unlike
+/// ``RandomState``, which would break cross-process comparison), and it
+/// is the cheapest option for the small-integer / short-string inputs
+/// that dominate AIL hashing (each write is one mul + rotate + xor, no
+/// streaming-state setup).
+#[inline]
+pub fn hash_of<T: Hash + ?Sized>(v: &T) -> i64 {
+    let mut h = FxHasher::default();
+    v.hash(&mut h);
+    h.finish() as i64
+}
 
 /// Cached hash slot: an `i64` payload plus a separate presence flag.
 ///

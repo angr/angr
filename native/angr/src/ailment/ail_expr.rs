@@ -16,15 +16,16 @@
 //!   metaclass to make ``isinstance(load, Load)`` work. The markers
 //!   live in ``angr/ailment/expression.py``.
 
+use std::hash::{Hash, Hasher};
+
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
-use crate::ailment::base::CachedHash;
+use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode};
-use crate::ailment::hash::{AilHash, finish, hasher};
 use crate::ailment::tags::{Tags, TagsView};
 use indexmap::IndexMap;
 
@@ -144,7 +145,7 @@ pub enum ExprInner {
         /// Expression (typically Const for direct calls) or str (for
         /// symbolic SimProcedure targets). Promoted from ``Py<PyAny>`` to
         /// a typed sum so ``likes`` / ``matches`` / ``replace_ail`` /
-        /// ``_hash_core`` can dispatch without re-extracting from
+        /// ``Hash`` can dispatch without re-extracting from
         /// Python on every call.
         target: CFGTarget,
         args: Option<Vec<AilExpression>>,
@@ -304,7 +305,7 @@ impl ExprInner {
 ///
 /// Legacy AIL stored these as untyped ``Py<PyAny>``; promoting them to a
 /// typed enum encodes the polymorphism Rust-side so ``likes`` /
-/// ``matches`` / ``replace_ail`` / ``_hash_core`` dispatch without
+/// ``matches`` / ``replace_ail`` / ``Hash`` dispatch without
 /// re-extracting from Python on every call, and removes the
 /// ``py_target_likes`` / ``py_slot_likes`` helper chains that previously
 /// sat in each comparison method.
@@ -410,11 +411,21 @@ impl CFGTarget {
         }
     }
 
-    /// Mix this target into the parent statement's hash.
-    pub fn hash_into<H: AilHash>(&self, h: &mut H) {
+}
+
+/// Mixes into the parent node's hash. An expression target contributes
+/// its memoized structural hash rather than being re-walked.
+impl Hash for CFGTarget {
+    fn hash<H: Hasher>(&self, h: &mut H) {
         match self {
-            CFGTarget::Expr(e) => h.child(e.cached_hash_or_compute()),
-            CFGTarget::Symbol(s) => h.string(s.as_str()),
+            CFGTarget::Expr(e) => {
+                0u8.hash(h);
+                e.cached_hash_or_compute().hash(h);
+            }
+            CFGTarget::Symbol(s) => {
+                1u8.hash(h);
+                s.hash(h);
+            }
         }
     }
 }
@@ -438,13 +449,13 @@ impl CFGTarget {
 ///
 /// The legacy AIL stored ``oident`` as an untyped Python object;
 /// promoting to a typed sum lets ``likes`` / ``matches`` /
-/// ``_hash_core`` / the accessor getters (``reg_offset``,
+/// ``Hash`` / the accessor getters (``reg_offset``,
 /// ``stack_offset``, ``tmp_idx``, ``reg_offsets``, ``parameter_category``,
 /// etc.) dispatch on the variant without re-extracting from Python on
 /// every call. The constructor parses based on the surrounding
 /// ``category`` so callers keep passing the same shape they always did
 /// (``int``, ``tuple``, or ``None``).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OIdent {
     /// UNKNOWN / explicit ``None``.
     None,
@@ -459,7 +470,7 @@ pub enum OIdent {
     Parameter(ParameterOIdent),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ParameterOIdent {
     Register(i64),
     Stack(i64),
@@ -621,36 +632,6 @@ impl OIdent {
             VirtualVariableCategory::Unknown => Ok(Self::None),
         }
     }
-
-    /// Mix this oident into the parent VirtualVariable's hash.
-    pub fn hash_into<H: AilHash>(&self, h: &mut H) {
-        match self {
-            Self::None => h.none(),
-            Self::Int(v) => h.int(*v as i128),
-            Self::RegList(v) => {
-                h.seq(v.len());
-                for x in v {
-                    h.int(*x as i128);
-                }
-            }
-            Self::Parameter(p) => {
-                let inner_cat = p.inner_category() as i64;
-                h.seq(2);
-                h.int(inner_cat as i128);
-                match p {
-                    ParameterOIdent::Register(off) | ParameterOIdent::Stack(off) => {
-                        h.int(*off as i128)
-                    }
-                    ParameterOIdent::ComboRegister(offs) => {
-                        h.seq(offs.len());
-                        for x in offs {
-                            h.int(*x as i128);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -684,68 +665,60 @@ pub struct AilExpression {
     pub inner: ExprInner,
 }
 
-impl AilExpression {
-    pub fn kind(&self) -> ExpressionKind {
-        self.inner.kind()
-    }
-
-    pub fn kind_str(&self) -> &'static str {
-        self.inner.kind().as_str()
-    }
-
-    /// Compute the structural hash. Cached on [`ExprHeader::cached_hash`].
-    ///
-    /// ``header.idx`` is folded in for **every** variant so that
-    /// ``__hash__`` stays consistent with the idx-aware ``__eq__``: two
-    /// structurally identical expressions with distinct SSA ``idx`` are
-    /// unequal, so they must not share a hash bucket (otherwise idx-keyed
-    /// dicts/sets degrade to O(n^2) -- see the Register regression). It is
-    /// mixed in here, once, rather than per-arm so a new variant cannot
-    /// forget it.
-    pub fn _hash_core(&self) -> i64 {
-        let mut h = hasher();
-        // idx folded uniformly for every variant (see eq_ail idx-awareness)
-        h.int(self.header.idx as i128);
-        self.hash_variant(&mut h);
-        finish(h)
-    }
-
-    /// Write this node's per-variant structure into ``h`` (excluding
-    /// ``header.idx``, mixed in by [`Self::_hash_core`]).
-    fn hash_variant<H: AilHash>(&self, h: &mut H) {
+/// Structural hash. Cached on [`ExprHeader::cached_hash`] via
+/// [`AilExpression::cached_hash_or_compute`], which is what callers
+/// should normally use.
+///
+/// ``header.idx`` is folded in for **every** variant so that
+/// ``__hash__`` stays consistent with the idx-aware ``__eq__``: two
+/// structurally identical expressions with distinct SSA ``idx`` are
+/// unequal, so they must not share a hash bucket (otherwise idx-keyed
+/// dicts/sets degrade to O(n^2) -- see the Register regression). It is
+/// mixed in here, once, rather than per-arm so a new variant cannot
+/// forget it.
+impl Hash for AilExpression {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        // Kind first so no two variants can alias, then idx -- folded in
+        // uniformly here, once, rather than per-arm so a new variant
+        // cannot forget it (see eq_ail idx-awareness). Operand subtrees
+        // contribute their memoized hash via ``cached_hash_or_compute``
+        // (the memoization that keeps hashing amortized O(1) per node);
+        // children are never re-walked.
+        self.kind().hash(h);
+        self.header.idx.hash(h);
+        let bits = self.header.bits;
         match &self.inner {
             ExprInner::Const { value, .. } => {
-                h.typename("Const");
-                value.hash_into(h);
-                h.int(self.header.bits as i128);
+                value.hash(h);
+                bits.hash(h);
             }
             ExprInner::Tmp { tmp_idx, .. } => {
-                h.string("tmp");
-                h.int(*tmp_idx as i128);
-                h.int(self.header.bits as i128);
+                tmp_idx.hash(h);
+                bits.hash(h);
             }
             ExprInner::Register { reg_offset, .. } => {
-                h.string("reg");
-                h.int(*reg_offset as i128);
-                h.int(self.header.bits as i128);
+                reg_offset.hash(h);
+                bits.hash(h);
             }
             ExprInner::ComboRegister { registers, .. } => {
-                h.string("combo_reg");
-                h.seq(registers.len());
+                registers.len().hash(h);
                 for r in registers {
-                    h.child(r.cached_hash_or_compute());
+                    r.cached_hash_or_compute().hash(h);
                 }
-                h.int(self.header.bits as i128);
+                bits.hash(h);
             }
             ExprInner::Phi { src_and_vvars, .. } => {
-                h.typename("Phi");
-                h.seq(src_and_vvars.len());
+                src_and_vvars.len().hash(h);
                 for entry in src_and_vvars {
-                    h.int(entry.src_addr as i128);
-                    h.opt_int(entry.src_idx.map(|v| v as i128));
-                    h.opt_child(entry.vvar.as_ref().map(|v| v.cached_hash_or_compute()));
+                    entry.src_addr.hash(h);
+                    entry.src_idx.hash(h);
+                    entry
+                        .vvar
+                        .as_ref()
+                        .map(|v| v.cached_hash_or_compute())
+                        .hash(h);
                 }
-                h.int(self.header.bits as i128);
+                bits.hash(h);
             }
             ExprInner::VirtualVariable {
                 varid,
@@ -753,16 +726,15 @@ impl AilExpression {
                 oident,
                 ..
             } => {
-                h.string("var");
-                h.int(*varid as i128);
-                h.int(self.header.bits as i128);
-                h.int(*category as u8 as i128);
-                oident.hash_into(h);
+                varid.hash(h);
+                bits.hash(h);
+                category.hash(h);
+                oident.hash(h);
             }
             ExprInner::UnaryOp { op, operand, .. } => {
-                h.string(op.as_str());
-                h.child(operand.cached_hash_or_compute());
-                h.int(self.header.bits as i128);
+                op.hash(h);
+                operand.cached_hash_or_compute().hash(h);
+                bits.hash(h);
             }
             ExprInner::Convert {
                 operand,
@@ -774,14 +746,14 @@ impl AilExpression {
                 rounding_mode,
                 ..
             } => {
-                h.child(operand.cached_hash_or_compute());
-                h.int(*from_bits as i128);
-                h.int(*to_bits as i128);
-                h.int(self.header.bits as i128);
-                h.boolean(*is_signed);
-                h.int(*from_type as u8 as i128);
-                h.int(*to_type as u8 as i128);
-                h.opt_int(rounding_mode.map(|r| r as u8 as i128));
+                operand.cached_hash_or_compute().hash(h);
+                from_bits.hash(h);
+                to_bits.hash(h);
+                bits.hash(h);
+                is_signed.hash(h);
+                from_type.hash(h);
+                to_type.hash(h);
+                rounding_mode.hash(h);
             }
             ExprInner::Reinterpret {
                 operand,
@@ -791,11 +763,11 @@ impl AilExpression {
                 to_type,
                 ..
             } => {
-                h.child(operand.cached_hash_or_compute());
-                h.int(*from_bits as i128);
-                h.string(from_type.as_str());
-                h.int(*to_bits as i128);
-                h.string(to_type.as_str());
+                operand.cached_hash_or_compute().hash(h);
+                from_bits.hash(h);
+                from_type.hash(h);
+                to_bits.hash(h);
+                to_type.hash(h);
             }
             ExprInner::BinaryOp {
                 op,
@@ -804,13 +776,12 @@ impl AilExpression {
                 floating_point,
                 ..
             } => {
-                h.string(op.as_str());
-                h.seq(2);
-                h.child(operands[0].cached_hash_or_compute());
-                h.child(operands[1].cached_hash_or_compute());
-                h.int(self.header.bits as i128);
-                h.boolean(*signed);
-                h.boolean(*floating_point);
+                op.hash(h);
+                operands[0].cached_hash_or_compute().hash(h);
+                operands[1].cached_hash_or_compute().hash(h);
+                bits.hash(h);
+                signed.hash(h);
+                floating_point.hash(h);
             }
             ExprInner::Load {
                 addr,
@@ -818,10 +789,9 @@ impl AilExpression {
                 endness,
                 ..
             } => {
-                h.string("Load");
-                h.child(addr.cached_hash_or_compute());
-                h.int(*size as i128);
-                h.string(endness.as_str());
+                addr.cached_hash_or_compute().hash(h);
+                size.hash(h);
+                endness.hash(h);
             }
             ExprInner::DirtyExpression {
                 callee,
@@ -831,28 +801,23 @@ impl AilExpression {
                 maddr,
                 msize,
             } => {
-                h.typename("DirtyExpression");
-                h.string(callee.as_str());
-                h.opt_child(guard.as_ref().map(|g| g.cached_hash_or_compute()));
-                h.seq(operands.len());
+                callee.hash(h);
+                guard.as_ref().map(|g| g.cached_hash_or_compute()).hash(h);
+                operands.len().hash(h);
                 for o in operands {
-                    h.child(o.cached_hash_or_compute());
+                    o.cached_hash_or_compute().hash(h);
                 }
-                match mfx {
-                    Some(s) => h.string(s.as_str()),
-                    None => h.none(),
-                }
-                h.opt_child(maddr.as_ref().map(|m| m.cached_hash_or_compute()));
-                h.opt_int(msize.map(|v| v as i128));
-                h.int(self.header.bits as i128);
+                mfx.hash(h);
+                maddr.as_ref().map(|m| m.cached_hash_or_compute()).hash(h);
+                msize.hash(h);
+                bits.hash(h);
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
-                h.typename("VEXCCallExpression");
-                h.string(callee.as_str());
-                h.int(self.header.bits as i128);
-                h.seq(operands.len());
+                callee.hash(h);
+                bits.hash(h);
+                operands.len().hash(h);
                 for o in operands {
-                    h.child(o.cached_hash_or_compute());
+                    o.cached_hash_or_compute().hash(h);
                 }
             }
             ExprInner::Struct {
@@ -861,67 +826,61 @@ impl AilExpression {
                 field_offsets,
                 ..
             } => {
-                h.string(name.as_str());
-                h.seq(fields.len());
+                name.hash(h);
+                fields.len().hash(h);
                 for (off, e) in fields {
-                    h.seq(2);
-                    h.int(*off as i128);
-                    h.child(e.cached_hash_or_compute());
+                    off.hash(h);
+                    e.cached_hash_or_compute().hash(h);
                 }
-                h.seq(field_offsets.len());
+                field_offsets.len().hash(h);
                 for (name, off) in field_offsets {
-                    h.seq(2);
-                    h.string(name.as_str());
-                    h.int(*off as i128);
+                    name.hash(h);
+                    off.hash(h);
                 }
-                h.int(self.header.bits as i128);
+                bits.hash(h);
             }
             ExprInner::RustEnum { name, fields } => {
-                h.string(name.as_str());
-                h.seq(fields.len());
+                name.hash(h);
+                fields.len().hash(h);
                 for f in fields {
-                    h.child(f.cached_hash_or_compute());
+                    f.cached_hash_or_compute().hash(h);
                 }
-                h.int(self.header.bits as i128);
+                bits.hash(h);
             }
             ExprInner::Array { elements } => {
-                h.seq(elements.len());
+                elements.len().hash(h);
                 for e in elements {
-                    h.child(e.cached_hash_or_compute());
+                    e.cached_hash_or_compute().hash(h);
                 }
-                h.int(self.header.bits as i128);
+                bits.hash(h);
             }
             ExprInner::Let { src, .. } => {
-                h.typename("Let");
-                h.child(src.cached_hash_or_compute());
+                src.cached_hash_or_compute().hash(h);
             }
             ExprInner::Macro { name, .. } => {
-                h.typename("Macro");
-                h.string(name.as_str());
+                name.hash(h);
             }
             ExprInner::FunctionLikeMacro { name, .. } => {
-                h.typename("FunctionLikeMacro");
-                h.string(name.as_str());
+                name.hash(h);
             }
             ExprInner::MultiStatementExpression { stmts, expr } => {
-                h.typename("MultiStatementExpression");
-                h.seq(stmts.len());
+                stmts.len().hash(h);
                 for s in stmts {
-                    h.child(s.cached_hash_or_compute());
+                    s.cached_hash_or_compute().hash(h);
                 }
-                h.child(expr.cached_hash_or_compute());
+                expr.cached_hash_or_compute().hash(h);
             }
             ExprInner::Call { target, args, .. } => {
-                h.typename("Call");
-                target.hash_into(h);
+                target.hash(h);
                 match args {
                     Some(a) => {
-                        h.seq(a.len());
+                        true.hash(h);
+                        a.len().hash(h);
                         for x in a {
-                            h.child(x.cached_hash_or_compute());
+                            x.cached_hash_or_compute().hash(h);
                         }
                     }
-                    None => h.none(),
+                    None => false.hash(h),
                 }
             }
             ExprInner::ITE {
@@ -930,21 +889,20 @@ impl AilExpression {
                 iftrue,
                 ..
             } => {
-                h.typename("ITE");
-                h.child(cond.cached_hash_or_compute());
-                h.child(iffalse.cached_hash_or_compute());
-                h.child(iftrue.cached_hash_or_compute());
-                h.int(self.header.bits as i128);
+                cond.cached_hash_or_compute().hash(h);
+                iffalse.cached_hash_or_compute().hash(h);
+                iftrue.cached_hash_or_compute().hash(h);
+                bits.hash(h);
             }
             ExprInner::Extract {
                 base,
                 offset,
                 endness,
             } => {
-                h.int(self.header.bits as i128);
-                h.child(base.cached_hash_or_compute());
-                h.child(offset.cached_hash_or_compute());
-                h.string(endness.as_str());
+                bits.hash(h);
+                base.cached_hash_or_compute().hash(h);
+                offset.cached_hash_or_compute().hash(h);
+                endness.hash(h);
             }
             ExprInner::Insert {
                 base,
@@ -952,29 +910,36 @@ impl AilExpression {
                 value,
                 endness,
             } => {
-                h.int(self.header.bits as i128);
-                h.child(base.cached_hash_or_compute());
-                h.child(offset.cached_hash_or_compute());
-                h.child(value.cached_hash_or_compute());
-                h.string(endness.as_str());
+                bits.hash(h);
+                base.cached_hash_or_compute().hash(h);
+                offset.cached_hash_or_compute().hash(h);
+                value.cached_hash_or_compute().hash(h);
+                endness.hash(h);
             }
             ExprInner::StringLiteral { data } => {
-                h.typename("StringLiteral");
-                h.string(data.as_str());
-                h.int(self.header.bits as i128);
+                data.hash(h);
+                bits.hash(h);
             }
             ExprInner::BasePointerOffset { base, offset, .. } => {
-                h.typename("BasePointerOffset");
-                h.int(self.header.bits as i128);
-                h.string(base.as_str());
-                h.int(*offset as i128);
+                bits.hash(h);
+                base.hash(h);
+                offset.hash(h);
             }
             ExprInner::StackBaseOffset { offset } => {
-                h.typename("StackBaseOffset");
-                h.int(*offset);
-                h.int(self.header.bits as i128);
+                offset.hash(h);
+                bits.hash(h);
             }
         }
+    }
+}
+
+impl AilExpression {
+    pub fn kind(&self) -> ExpressionKind {
+        self.inner.kind()
+    }
+
+    pub fn kind_str(&self) -> &'static str {
+        self.inner.kind().as_str()
     }
 
     /// Depth of this node recomputed from its *current* children, using
@@ -1898,7 +1863,7 @@ impl AilExpression {
         if let Some(h) = self.header.cached_hash.get() {
             return h;
         }
-        let h = self._hash_core();
+        let h = hash_of(self);
         self.header.cached_hash.set(h);
         h
     }
@@ -5002,14 +4967,6 @@ impl Expression {
 
     fn __hash__(&self) -> i64 {
         self.expr.cached_hash_or_compute()
-    }
-
-    /// Internal hash hook -- callers go through ``__hash__``, but
-    /// ``angr.ailment.tagged_object`` and a handful of analyses reach
-    /// for ``_hash_core`` directly. Recomputes from scratch each call
-    /// (does not consult the cache) to match the legacy contract.
-    fn _hash_core(&self) -> i64 {
-        self.expr._hash_core()
     }
 
     /// Structural equality (ignores ``idx``). Same logic as ``__eq__``

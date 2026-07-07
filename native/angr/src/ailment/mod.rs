@@ -15,7 +15,6 @@ pub mod base;
 pub mod block;
 pub mod const_value;
 pub mod enums;
-pub mod hash;
 pub mod serialize;
 pub mod tags;
 pub mod utils;
