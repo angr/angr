@@ -12,15 +12,21 @@ use serde::{Deserialize, Serialize};
     from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
 pub enum VirtualVariableCategory {
-    REGISTER = 0,
-    STACK = 1,
-    MEMORY = 2,
-    PARAMETER = 3,
-    TMP = 4,
-    COMBO_REGISTER = 5,
-    UNKNOWN = 6,
+    #[pyo3(name = "REGISTER")]
+    Register = 0,
+    #[pyo3(name = "STACK")]
+    Stack = 1,
+    #[pyo3(name = "MEMORY")]
+    Memory = 2,
+    #[pyo3(name = "PARAMETER")]
+    Parameter = 3,
+    #[pyo3(name = "TMP")]
+    Tmp = 4,
+    #[pyo3(name = "COMBO_REGISTER")]
+    ComboRegister = 5,
+    #[pyo3(name = "UNKNOWN")]
+    Unknown = 6,
 }
 
 #[pymethods]
@@ -33,13 +39,13 @@ impl VirtualVariableCategory {
     #[getter]
     fn name(&self) -> &'static str {
         match self {
-            Self::REGISTER => "REGISTER",
-            Self::STACK => "STACK",
-            Self::MEMORY => "MEMORY",
-            Self::PARAMETER => "PARAMETER",
-            Self::TMP => "TMP",
-            Self::COMBO_REGISTER => "COMBO_REGISTER",
-            Self::UNKNOWN => "UNKNOWN",
+            Self::Register => "REGISTER",
+            Self::Stack => "STACK",
+            Self::Memory => "MEMORY",
+            Self::Parameter => "PARAMETER",
+            Self::Tmp => "TMP",
+            Self::ComboRegister => "COMBO_REGISTER",
+            Self::Unknown => "UNKNOWN",
         }
     }
 
@@ -87,13 +93,13 @@ impl VirtualVariableCategory {
 impl VirtualVariableCategory {
     pub fn from_int(v: i64) -> Option<Self> {
         Some(match v {
-            0 => Self::REGISTER,
-            1 => Self::STACK,
-            2 => Self::MEMORY,
-            3 => Self::PARAMETER,
-            4 => Self::TMP,
-            5 => Self::COMBO_REGISTER,
-            6 => Self::UNKNOWN,
+            0 => Self::Register,
+            1 => Self::Stack,
+            2 => Self::Memory,
+            3 => Self::Parameter,
+            4 => Self::Tmp,
+            5 => Self::ComboRegister,
+            6 => Self::Unknown,
             _ => return None,
         })
     }
@@ -108,10 +114,11 @@ impl VirtualVariableCategory {
     from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
 pub enum ConvertType {
-    TYPE_INT = 0,
-    TYPE_FP = 1,
+    #[pyo3(name = "TYPE_INT")]
+    TypeInt = 0,
+    #[pyo3(name = "TYPE_FP")]
+    TypeFp = 1,
 }
 
 #[pymethods]
@@ -124,8 +131,8 @@ impl ConvertType {
     #[getter]
     fn name(&self) -> &'static str {
         match self {
-            Self::TYPE_INT => "TYPE_INT",
-            Self::TYPE_FP => "TYPE_FP",
+            Self::TypeInt => "TYPE_INT",
+            Self::TypeFp => "TYPE_FP",
         }
     }
 
@@ -161,8 +168,8 @@ impl ConvertType {
 impl ConvertType {
     pub fn from_int(v: i64) -> Option<Self> {
         Some(match v {
-            0 => Self::TYPE_INT,
-            1 => Self::TYPE_FP,
+            0 => Self::TypeInt,
+            1 => Self::TypeFp,
             _ => return None,
         })
     }
@@ -184,7 +191,6 @@ impl ConvertType {
     from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
 pub enum ExpressionKind {
     Const = 0,
     Tmp = 1,
@@ -339,7 +345,6 @@ impl ExpressionKind {
     from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
 pub enum StatementKind {
     Assignment = 0,
     WeakAssignment = 1,
@@ -455,12 +460,15 @@ impl StatementKind {
     from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
 pub enum RoundingMode {
-    RM_NearestTiesEven = 0,
-    RM_TowardsNegativeInf = 1,
-    RM_TowardsPositiveInf = 2,
-    RM_TowardsZero = 3,
+    #[pyo3(name = "RM_NearestTiesEven")]
+    RmNearestTiesEven = 0,
+    #[pyo3(name = "RM_TowardsNegativeInf")]
+    RmTowardsNegativeInf = 1,
+    #[pyo3(name = "RM_TowardsPositiveInf")]
+    RmTowardsPositiveInf = 2,
+    #[pyo3(name = "RM_TowardsZero")]
+    RmTowardsZero = 3,
 }
 
 #[pymethods]
@@ -473,10 +481,10 @@ impl RoundingMode {
     #[getter]
     fn name(&self) -> &'static str {
         match self {
-            Self::RM_NearestTiesEven => "RM_NearestTiesEven",
-            Self::RM_TowardsNegativeInf => "RM_TowardsNegativeInf",
-            Self::RM_TowardsPositiveInf => "RM_TowardsPositiveInf",
-            Self::RM_TowardsZero => "RM_TowardsZero",
+            Self::RmNearestTiesEven => "RM_NearestTiesEven",
+            Self::RmTowardsNegativeInf => "RM_TowardsNegativeInf",
+            Self::RmTowardsPositiveInf => "RM_TowardsPositiveInf",
+            Self::RmTowardsZero => "RM_TowardsZero",
         }
     }
 
@@ -518,10 +526,10 @@ impl RoundingMode {
 impl RoundingMode {
     pub fn from_int(v: i64) -> Option<Self> {
         Some(match v {
-            0 => Self::RM_NearestTiesEven,
-            1 => Self::RM_TowardsNegativeInf,
-            2 => Self::RM_TowardsPositiveInf,
-            3 => Self::RM_TowardsZero,
+            0 => Self::RmNearestTiesEven,
+            1 => Self::RmTowardsNegativeInf,
+            2 => Self::RmTowardsPositiveInf,
+            3 => Self::RmTowardsZero,
             _ => return None,
         })
     }

@@ -450,9 +450,9 @@ impl ParameterOIdent {
     pub fn inner_category(&self) -> crate::ailment::enums::VirtualVariableCategory {
         use crate::ailment::enums::VirtualVariableCategory;
         match self {
-            Self::Register(_) => VirtualVariableCategory::REGISTER,
-            Self::Stack(_) => VirtualVariableCategory::STACK,
-            Self::ComboRegister(_) => VirtualVariableCategory::COMBO_REGISTER,
+            Self::Register(_) => VirtualVariableCategory::Register,
+            Self::Stack(_) => VirtualVariableCategory::Stack,
+            Self::ComboRegister(_) => VirtualVariableCategory::ComboRegister,
         }
     }
 }
@@ -492,17 +492,17 @@ impl OIdent {
         }
         let _ = py;
         match category {
-            VirtualVariableCategory::REGISTER
-            | VirtualVariableCategory::MEMORY
-            | VirtualVariableCategory::TMP => Ok(Self::Int(obj.extract::<i64>()?)),
-            VirtualVariableCategory::STACK => Ok(Self::Int(signed(obj)?)),
-            VirtualVariableCategory::COMBO_REGISTER => {
+            VirtualVariableCategory::Register
+            | VirtualVariableCategory::Memory
+            | VirtualVariableCategory::Tmp => Ok(Self::Int(obj.extract::<i64>()?)),
+            VirtualVariableCategory::Stack => Ok(Self::Int(signed(obj)?)),
+            VirtualVariableCategory::ComboRegister => {
                 let t = obj.cast::<PyTuple>().map_err(|_| {
                     PyTypeError::new_err("COMBO_REGISTER oident must be a tuple of int")
                 })?;
                 Ok(Self::RegList(extract_reg_list(t)?))
             }
-            VirtualVariableCategory::PARAMETER => {
+            VirtualVariableCategory::Parameter => {
                 let t = obj.cast::<PyTuple>().map_err(|_| {
                     PyTypeError::new_err(
                         "PARAMETER oident must be a 2-tuple (inner_category, inner_payload)",
@@ -530,13 +530,13 @@ impl OIdent {
                 };
                 let inner_payload = t.get_item(1)?;
                 let inner = match inner_cat {
-                    VirtualVariableCategory::REGISTER => {
+                    VirtualVariableCategory::Register => {
                         ParameterOIdent::Register(inner_payload.extract::<i64>()?)
                     }
-                    VirtualVariableCategory::STACK => {
+                    VirtualVariableCategory::Stack => {
                         ParameterOIdent::Stack(signed(&inner_payload)?)
                     }
-                    VirtualVariableCategory::COMBO_REGISTER => {
+                    VirtualVariableCategory::ComboRegister => {
                         let tt = inner_payload.cast::<PyTuple>().map_err(|_| {
                             PyTypeError::new_err(
                                 "PARAMETER+COMBO_REGISTER inner payload must be a tuple of int",
@@ -553,7 +553,7 @@ impl OIdent {
                 };
                 Ok(Self::Parameter(inner))
             }
-            VirtualVariableCategory::UNKNOWN => Ok(Self::None),
+            VirtualVariableCategory::Unknown => Ok(Self::None),
         }
     }
 
@@ -2906,8 +2906,8 @@ impl Expression {
                 from_bits,
                 to_bits,
                 is_signed,
-                from_type: from_type.unwrap_or(ConvertType::TYPE_INT),
-                to_type: to_type.unwrap_or(ConvertType::TYPE_INT),
+                from_type: from_type.unwrap_or(ConvertType::TypeInt),
+                to_type: to_type.unwrap_or(ConvertType::TypeInt),
                 rounding_mode,
             },
         }))
@@ -3893,31 +3893,31 @@ impl Expression {
     #[getter]
     fn was_reg(&self) -> bool {
         use crate::ailment::enums::VirtualVariableCategory::*;
-        matches!(self._vv_category(), Some(REGISTER))
+        matches!(self._vv_category(), Some(Register))
     }
     /// VirtualVariable.was_stack
     #[getter]
     fn was_stack(&self) -> bool {
         use crate::ailment::enums::VirtualVariableCategory::*;
-        matches!(self._vv_category(), Some(STACK))
+        matches!(self._vv_category(), Some(Stack))
     }
     /// VirtualVariable.was_parameter
     #[getter]
     fn was_parameter(&self) -> bool {
         use crate::ailment::enums::VirtualVariableCategory::*;
-        matches!(self._vv_category(), Some(PARAMETER))
+        matches!(self._vv_category(), Some(Parameter))
     }
     /// VirtualVariable.was_tmp
     #[getter]
     fn was_tmp(&self) -> bool {
         use crate::ailment::enums::VirtualVariableCategory::*;
-        matches!(self._vv_category(), Some(TMP))
+        matches!(self._vv_category(), Some(Tmp))
     }
     /// VirtualVariable.was_combo_reg
     #[getter]
     fn was_combo_reg(&self) -> bool {
         use crate::ailment::enums::VirtualVariableCategory::*;
-        matches!(self._vv_category(), Some(COMBO_REGISTER))
+        matches!(self._vv_category(), Some(ComboRegister))
     }
 
     /// VirtualVariable.parameter_category
@@ -5233,13 +5233,13 @@ impl Expression {
                 let _ = py;
                 let size = self.expr.header.bits / 8;
                 let ori_str = match (category, oident) {
-                    (VirtualVariableCategory::REGISTER, OIdent::Int(v)) => {
+                    (VirtualVariableCategory::Register, OIdent::Int(v)) => {
                         format!("{{r{}|{}b}}", v, size)
                     }
-                    (VirtualVariableCategory::STACK, OIdent::Int(v)) => {
+                    (VirtualVariableCategory::Stack, OIdent::Int(v)) => {
                         format!("{{s{}|{}b}}", v, size)
                     }
-                    (VirtualVariableCategory::COMBO_REGISTER, OIdent::RegList(offs)) => {
+                    (VirtualVariableCategory::ComboRegister, OIdent::RegList(offs)) => {
                         let parts: Vec<String> = offs.iter().map(|x| x.to_string()).collect();
                         format!("{{combo_reg ({})}}", parts.join(", "))
                     }
@@ -5261,12 +5261,12 @@ impl Expression {
                 ..
             } => {
                 let o = Expression::wrap((**operand).clone()).__str__(py)?;
-                let ft = if *from_type == ConvertType::TYPE_FP {
+                let ft = if *from_type == ConvertType::TypeFp {
                     "F"
                 } else {
                     ""
                 };
-                let tt = if *to_type == ConvertType::TYPE_FP {
+                let tt = if *to_type == ConvertType::TypeFp {
                     "F"
                 } else {
                     ""
@@ -6376,14 +6376,14 @@ pub mod serialize {
                 } => Python::attach(|py| {
                     use crate::ailment::enums::VirtualVariableCategory;
                     let cat = VirtualVariableCategory::from_int(category as i64)
-                        .unwrap_or(VirtualVariableCategory::UNKNOWN);
+                        .unwrap_or(VirtualVariableCategory::Unknown);
                     // Inverse of ``ident_to_poly`` in ``Wire::from``.
                     fn poly_to_ident(pv: PolyValue, cat: VirtualVariableCategory) -> OIdent {
                         use VirtualVariableCategory::*;
                         match (cat, pv) {
-                            (UNKNOWN, _) | (_, PolyValue::None) => OIdent::None,
-                            (REGISTER | STACK | MEMORY | TMP, PolyValue::Int(v)) => OIdent::Int(v),
-                            (COMBO_REGISTER, PolyValue::Tuple(items)) => {
+                            (Unknown, _) | (_, PolyValue::None) => OIdent::None,
+                            (Register | Stack | Memory | Tmp, PolyValue::Int(v)) => OIdent::Int(v),
+                            (ComboRegister, PolyValue::Tuple(items)) => {
                                 let offs = items
                                     .into_iter()
                                     .filter_map(|x| match x {
@@ -6393,20 +6393,20 @@ pub mod serialize {
                                     .collect();
                                 OIdent::RegList(offs)
                             }
-                            (PARAMETER, PolyValue::Tuple(items)) => {
+                            (Parameter, PolyValue::Tuple(items)) => {
                                 let mut it = items.into_iter();
                                 let inner_cat_pv = it.next().unwrap_or(PolyValue::None);
                                 let inner_payload = it.next().unwrap_or(PolyValue::None);
                                 let inner_cat = match inner_cat_pv {
                                     PolyValue::Int(v) => {
-                                        VirtualVariableCategory::from_int(v).unwrap_or(UNKNOWN)
+                                        VirtualVariableCategory::from_int(v).unwrap_or(Unknown)
                                     }
-                                    _ => UNKNOWN,
+                                    _ => Unknown,
                                 };
                                 let p = match (inner_cat, inner_payload) {
-                                    (REGISTER, PolyValue::Int(v)) => ParameterOIdent::Register(v),
-                                    (STACK, PolyValue::Int(v)) => ParameterOIdent::Stack(v),
-                                    (COMBO_REGISTER, PolyValue::Tuple(items)) => {
+                                    (Register, PolyValue::Int(v)) => ParameterOIdent::Register(v),
+                                    (Stack, PolyValue::Int(v)) => ParameterOIdent::Stack(v),
+                                    (ComboRegister, PolyValue::Tuple(items)) => {
                                         let offs = items
                                             .into_iter()
                                             .filter_map(|x| match x {
