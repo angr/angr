@@ -671,6 +671,7 @@ impl AilExpression {
                 HashItem::Str("reg"),
                 HashItem::Int(*reg_offset as i128),
                 HashItem::Int(self.header.bits as i128),
+                HashItem::Int(self.header.idx as i128),
             ]),
             ExprInner::ComboRegister { registers, .. } => {
                 let mut inner = Vec::with_capacity(registers.len());
