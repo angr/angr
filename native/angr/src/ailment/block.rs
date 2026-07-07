@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::ailment::base::CachedHash;
-use crate::ailment::hash::{HashItem, stable_hash};
+use crate::ailment::hash::{AilHash, finish, hasher};
 use crate::ailment::utils::deep_copy_obj;
 
 #[pyclass(
@@ -258,15 +258,11 @@ impl Block {
             return h;
         }
         // hash((Block, self.addr, self.idx))
-        let idx_item = self
-            .idx
-            .map(|i| HashItem::Int(i as i128))
-            .unwrap_or(HashItem::None);
-        let h = stable_hash(&[
-            HashItem::TypeName("Block"),
-            HashItem::Int(self.addr as i128),
-            idx_item,
-        ]);
+        let mut hh = hasher();
+        hh.typename("Block");
+        hh.int(self.addr as i128);
+        hh.opt_int(self.idx.map(|i| i as i128));
+        let h = finish(hh);
         self.cached_hash.set(h);
         // suppress the unused-import lint for Ordering when atomic isn't used directly
         let _ = Ordering::Relaxed;

@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyInt};
 use serde::{Deserialize, Serialize};
 
-use crate::ailment::hash::HashItem;
+use crate::ailment::hash::AilHash;
 
 /// Serde adapter that round-trips an `i128` as two halves. ``postcard``
 /// (and several other no-std serializers) deliberately do not support
@@ -108,11 +108,11 @@ impl ConstValue {
         !matches!(self, Self::Float(_))
     }
 
-    pub fn hash_item(&self) -> HashItem<'_> {
+    pub fn hash_into<H: AilHash>(&self, h: &mut H) {
         match self {
-            Self::Int(v) => HashItem::Int(*v),
-            Self::BigInt(s) => HashItem::Str(s.as_str()),
-            Self::Float(v) => HashItem::U64Hash(v.to_bits()),
+            Self::Int(v) => h.int(*v),
+            Self::BigInt(s) => h.string(s.as_str()),
+            Self::Float(v) => h.child(v.to_bits() as i64),
         }
     }
 

@@ -19,7 +19,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
 use crate::ailment::base::CachedHash;
 use crate::ailment::enums::StatementKind;
-use crate::ailment::hash::{HashItem, stable_hash};
+use crate::ailment::hash::{AilHash, finish, hasher};
 use crate::ailment::tags::{Tags, TagsView};
 
 // ---------------------------------------------------------------------------
@@ -160,49 +160,44 @@ impl AilStatement {
     }
 
     pub fn _hash_core(&self) -> i64 {
+        let mut h = hasher();
         match &self.inner {
-            StmtInner::Assignment { dst, src } => stable_hash(&[
-                HashItem::TypeName("Assignment"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::U64Hash(dst.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-            ]),
-            StmtInner::WeakAssignment { dst, src } => stable_hash(&[
-                HashItem::TypeName("WeakAssignment"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::U64Hash(dst.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-            ]),
-            StmtInner::Label { name } => stable_hash(&[
-                HashItem::TypeName("Label"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::Str(name.as_str()),
-            ]),
+            StmtInner::Assignment { dst, src } => {
+                h.typename("Assignment");
+                h.int(self.header.idx as i128);
+                h.child(dst.cached_hash_or_compute());
+                h.child(src.cached_hash_or_compute());
+            }
+            StmtInner::WeakAssignment { dst, src } => {
+                h.typename("WeakAssignment");
+                h.int(self.header.idx as i128);
+                h.child(dst.cached_hash_or_compute());
+                h.child(src.cached_hash_or_compute());
+            }
+            StmtInner::Label { name } => {
+                h.typename("Label");
+                h.int(self.header.idx as i128);
+                h.string(name.as_str());
+            }
             StmtInner::Store {
                 addr,
                 data,
                 size,
                 endness,
                 ..
-            } => stable_hash(&[
-                HashItem::TypeName("Store"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::U64Hash(addr.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(data.cached_hash_or_compute() as u64),
-                HashItem::Int(*size as i128),
-                HashItem::Str(endness.as_str()),
-            ]),
+            } => {
+                h.typename("Store");
+                h.int(self.header.idx as i128);
+                h.child(addr.cached_hash_or_compute());
+                h.child(data.cached_hash_or_compute());
+                h.int(*size as i128);
+                h.string(endness.as_str());
+            }
             StmtInner::Jump { target, target_idx } => {
-                let ti = match target_idx {
-                    Some(v) => HashItem::Int(*v as i128),
-                    None => HashItem::None,
-                };
-                stable_hash(&[
-                    HashItem::TypeName("Jump"),
-                    HashItem::Int(self.header.idx as i128),
-                    target.hash_item(),
-                    ti,
-                ])
+                h.typename("Jump");
+                h.int(self.header.idx as i128);
+                target.hash_into(&mut h);
+                h.opt_int(target_idx.map(|v| v as i128));
             }
             StmtInner::ConditionalJump {
                 condition,
@@ -210,37 +205,30 @@ impl AilStatement {
                 false_target,
                 ..
             } => {
-                let tt = match true_target {
-                    Some(t) => t.hash_item(),
-                    None => HashItem::None,
-                };
-                let ft = match false_target {
-                    Some(t) => t.hash_item(),
-                    None => HashItem::None,
-                };
-                stable_hash(&[
-                    HashItem::TypeName("ConditionalJump"),
-                    HashItem::Int(self.header.idx as i128),
-                    HashItem::U64Hash(condition.cached_hash_or_compute() as u64),
-                    tt,
-                    ft,
-                ])
+                h.typename("ConditionalJump");
+                h.int(self.header.idx as i128);
+                h.child(condition.cached_hash_or_compute());
+                match true_target {
+                    Some(t) => t.hash_into(&mut h),
+                    None => h.none(),
+                }
+                match false_target {
+                    Some(t) => t.hash_into(&mut h),
+                    None => h.none(),
+                }
             }
-            StmtInner::SideEffectStatement { expr, .. } => stable_hash(&[
-                HashItem::TypeName("SideEffectStatement"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::U64Hash(expr.cached_hash_or_compute() as u64),
-            ]),
+            StmtInner::SideEffectStatement { expr, .. } => {
+                h.typename("SideEffectStatement");
+                h.int(self.header.idx as i128);
+                h.child(expr.cached_hash_or_compute());
+            }
             StmtInner::Return { ret_exprs } => {
-                let items: Vec<HashItem> = ret_exprs
-                    .iter()
-                    .map(|e| HashItem::U64Hash(e.cached_hash_or_compute() as u64))
-                    .collect();
-                stable_hash(&[
-                    HashItem::TypeName("Return"),
-                    HashItem::Int(self.header.idx as i128),
-                    HashItem::Tuple(items),
-                ])
+                h.typename("Return");
+                h.int(self.header.idx as i128);
+                h.seq(ret_exprs.len());
+                for e in ret_exprs {
+                    h.child(e.cached_hash_or_compute());
+                }
             }
             StmtInner::CAS {
                 addr,
@@ -249,22 +237,25 @@ impl AilStatement {
                 old_lo,
                 endness,
                 ..
-            } => stable_hash(&[
-                HashItem::TypeName("CAS"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::U64Hash(addr.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(data_lo.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(expd_lo.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(old_lo.cached_hash_or_compute() as u64),
-                HashItem::Str(endness.as_str()),
-            ]),
-            StmtInner::DirtyStatement { dirty } => stable_hash(&[
-                HashItem::TypeName("DirtyStatement"),
-                HashItem::Int(self.header.idx as i128),
-                HashItem::U64Hash(dirty.cached_hash_or_compute() as u64),
-            ]),
-            StmtInner::NoOp => stable_hash(&[HashItem::TypeName("NoOp")]),
+            } => {
+                h.typename("CAS");
+                h.int(self.header.idx as i128);
+                h.child(addr.cached_hash_or_compute());
+                h.child(data_lo.cached_hash_or_compute());
+                h.child(expd_lo.cached_hash_or_compute());
+                h.child(old_lo.cached_hash_or_compute());
+                h.string(endness.as_str());
+            }
+            StmtInner::DirtyStatement { dirty } => {
+                h.typename("DirtyStatement");
+                h.int(self.header.idx as i128);
+                h.child(dirty.cached_hash_or_compute());
+            }
+            StmtInner::NoOp => {
+                h.typename("NoOp");
+            }
         }
+        finish(h)
     }
 
     pub fn cached_hash_or_compute(&self) -> i64 {

@@ -24,7 +24,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use crate::ailment::base::CachedHash;
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode};
-use crate::ailment::hash::{HashItem, stable_hash};
+use crate::ailment::hash::{AilHash, finish, hasher};
 use crate::ailment::tags::{Tags, TagsView};
 use indexmap::IndexMap;
 
@@ -390,11 +390,11 @@ impl CFGTarget {
         }
     }
 
-    /// Stable hash item for inclusion in the parent statement's hash.
-    pub fn hash_item(&self) -> HashItem<'_> {
+    /// Mix this target into the parent statement's hash.
+    pub fn hash_into<H: AilHash>(&self, h: &mut H) {
         match self {
-            CFGTarget::Expr(e) => HashItem::U64Hash(e.cached_hash_or_compute() as u64),
-            CFGTarget::Symbol(s) => HashItem::Str(s.as_str()),
+            CFGTarget::Expr(e) => h.child(e.cached_hash_or_compute()),
+            CFGTarget::Symbol(s) => h.string(s.as_str()),
         }
     }
 }
@@ -589,26 +589,32 @@ impl OIdent {
         }
     }
 
-    /// Stable hash item for inclusion in the parent VirtualVariable's
-    /// hash.
-    pub fn hash_item<'a>(&'a self) -> HashItem<'a> {
+    /// Mix this oident into the parent VirtualVariable's hash.
+    pub fn hash_into<H: AilHash>(&self, h: &mut H) {
         match self {
-            Self::None => HashItem::None,
-            Self::Int(v) => HashItem::Int(*v as i128),
+            Self::None => h.none(),
+            Self::Int(v) => h.int(*v as i128),
             Self::RegList(v) => {
-                HashItem::Tuple(v.iter().map(|x| HashItem::Int(*x as i128)).collect())
+                h.seq(v.len());
+                for x in v {
+                    h.int(*x as i128);
+                }
             }
             Self::Parameter(p) => {
                 let inner_cat = p.inner_category() as i64;
-                let inner_item = match p {
+                h.seq(2);
+                h.int(inner_cat as i128);
+                match p {
                     ParameterOIdent::Register(off) | ParameterOIdent::Stack(off) => {
-                        HashItem::Int(*off as i128)
+                        h.int(*off as i128)
                     }
                     ParameterOIdent::ComboRegister(offs) => {
-                        HashItem::Tuple(offs.iter().map(|x| HashItem::Int(*x as i128)).collect())
+                        h.seq(offs.len());
+                        for x in offs {
+                            h.int(*x as i128);
+                        }
                     }
-                };
-                HashItem::Tuple(vec![HashItem::Int(inner_cat as i128), inner_item])
+                }
             }
         }
     }
@@ -664,80 +670,66 @@ impl AilExpression {
     /// mixed in here, once, rather than per-arm so a new variant cannot
     /// forget it.
     pub fn _hash_core(&self) -> i64 {
-        stable_hash(&[
-            HashItem::Int(self.header.idx as i128),
-            HashItem::U64Hash(self.variant_hash_core() as u64),
-        ])
+        let mut h = hasher();
+        // idx folded uniformly for every variant (see eq_ail idx-awareness)
+        h.int(self.header.idx as i128);
+        self.hash_variant(&mut h);
+        finish(h)
     }
 
-    /// Per-variant structural hash, excluding ``header.idx`` (folded in by
-    /// [`Self::_hash_core`]).
-    fn variant_hash_core(&self) -> i64 {
+    /// Write this node's per-variant structure into ``h`` (excluding
+    /// ``header.idx``, mixed in by [`Self::_hash_core`]).
+    fn hash_variant<H: AilHash>(&self, h: &mut H) {
         match &self.inner {
-            ExprInner::Const { value, .. } => stable_hash(&[
-                HashItem::TypeName("Const"),
-                value.hash_item(),
-                HashItem::Int(self.header.bits as i128),
-            ]),
-            ExprInner::Tmp { tmp_idx, .. } => stable_hash(&[
-                HashItem::Str("tmp"),
-                HashItem::Int(*tmp_idx as i128),
-                HashItem::Int(self.header.bits as i128),
-            ]),
-            ExprInner::Register { reg_offset, .. } => stable_hash(&[
-                HashItem::Str("reg"),
-                HashItem::Int(*reg_offset as i128),
-                HashItem::Int(self.header.bits as i128),
-            ]),
+            ExprInner::Const { value, .. } => {
+                h.typename("Const");
+                value.hash_into(h);
+                h.int(self.header.bits as i128);
+            }
+            ExprInner::Tmp { tmp_idx, .. } => {
+                h.string("tmp");
+                h.int(*tmp_idx as i128);
+                h.int(self.header.bits as i128);
+            }
+            ExprInner::Register { reg_offset, .. } => {
+                h.string("reg");
+                h.int(*reg_offset as i128);
+                h.int(self.header.bits as i128);
+            }
             ExprInner::ComboRegister { registers, .. } => {
-                let mut inner = Vec::with_capacity(registers.len());
+                h.string("combo_reg");
+                h.seq(registers.len());
                 for r in registers {
-                    inner.push(HashItem::U64Hash(r.cached_hash_or_compute() as u64));
+                    h.child(r.cached_hash_or_compute());
                 }
-                stable_hash(&[
-                    HashItem::Str("combo_reg"),
-                    HashItem::Tuple(inner),
-                    HashItem::Int(self.header.bits as i128),
-                ])
+                h.int(self.header.bits as i128);
             }
             ExprInner::Phi { src_and_vvars, .. } => {
-                let mut items: Vec<HashItem> = Vec::with_capacity(src_and_vvars.len() * 3);
+                h.typename("Phi");
+                h.seq(src_and_vvars.len());
                 for entry in src_and_vvars {
-                    items.push(HashItem::Int(entry.src_addr as i128));
-                    items.push(match entry.src_idx {
-                        Some(v) => HashItem::Int(v as i128),
-                        None => HashItem::None,
-                    });
-                    items.push(match &entry.vvar {
-                        Some(v) => HashItem::U64Hash(v.cached_hash_or_compute() as u64),
-                        None => HashItem::None,
-                    });
+                    h.int(entry.src_addr as i128);
+                    h.opt_int(entry.src_idx.map(|v| v as i128));
+                    h.opt_child(entry.vvar.as_ref().map(|v| v.cached_hash_or_compute()));
                 }
-                stable_hash(&[
-                    HashItem::TypeName("Phi"),
-                    HashItem::Tuple(items),
-                    HashItem::Int(self.header.bits as i128),
-                ])
+                h.int(self.header.bits as i128);
             }
             ExprInner::VirtualVariable {
                 varid,
                 category,
                 oident,
                 ..
-            } => stable_hash(&[
-                HashItem::Str("var"),
-                HashItem::Int(*varid as i128),
-                HashItem::Int(self.header.bits as i128),
-                HashItem::Int(*category as u8 as i128),
-                oident.hash_item(),
-            ]),
+            } => {
+                h.string("var");
+                h.int(*varid as i128);
+                h.int(self.header.bits as i128);
+                h.int(*category as u8 as i128);
+                oident.hash_into(h);
+            }
             ExprInner::UnaryOp { op, operand, .. } => {
-                let oh = operand.cached_hash_or_compute();
-                stable_hash(&[
-                    HashItem::Str(op.as_str()),
-                    HashItem::U64Hash(oh as u64),
-                    HashItem::Int(self.header.bits as i128),
-                ])
+                h.string(op.as_str());
+                h.child(operand.cached_hash_or_compute());
+                h.int(self.header.bits as i128);
             }
             ExprInner::Convert {
                 operand,
@@ -749,21 +741,14 @@ impl AilExpression {
                 rounding_mode,
                 ..
             } => {
-                let oh = operand.cached_hash_or_compute();
-                let rm = match rounding_mode {
-                    Some(r) => HashItem::Int(*r as u8 as i128),
-                    None => HashItem::None,
-                };
-                stable_hash(&[
-                    HashItem::U64Hash(oh as u64),
-                    HashItem::Int(*from_bits as i128),
-                    HashItem::Int(*to_bits as i128),
-                    HashItem::Int(self.header.bits as i128),
-                    HashItem::Bool(*is_signed),
-                    HashItem::Int(*from_type as u8 as i128),
-                    HashItem::Int(*to_type as u8 as i128),
-                    rm,
-                ])
+                h.child(operand.cached_hash_or_compute());
+                h.int(*from_bits as i128);
+                h.int(*to_bits as i128);
+                h.int(self.header.bits as i128);
+                h.boolean(*is_signed);
+                h.int(*from_type as u8 as i128);
+                h.int(*to_type as u8 as i128);
+                h.opt_int(rounding_mode.map(|r| r as u8 as i128));
             }
             ExprInner::Reinterpret {
                 operand,
@@ -773,14 +758,11 @@ impl AilExpression {
                 to_type,
                 ..
             } => {
-                let oh = operand.cached_hash_or_compute();
-                stable_hash(&[
-                    HashItem::U64Hash(oh as u64),
-                    HashItem::Int(*from_bits as i128),
-                    HashItem::Str(from_type.as_str()),
-                    HashItem::Int(*to_bits as i128),
-                    HashItem::Str(to_type.as_str()),
-                ])
+                h.child(operand.cached_hash_or_compute());
+                h.int(*from_bits as i128);
+                h.string(from_type.as_str());
+                h.int(*to_bits as i128);
+                h.string(to_type.as_str());
             }
             ExprInner::BinaryOp {
                 op,
@@ -789,18 +771,13 @@ impl AilExpression {
                 floating_point,
                 ..
             } => {
-                let lhs_h = operands[0].cached_hash_or_compute();
-                let rhs_h = operands[1].cached_hash_or_compute();
-                stable_hash(&[
-                    HashItem::Str(op.as_str()),
-                    HashItem::Tuple(vec![
-                        HashItem::U64Hash(lhs_h as u64),
-                        HashItem::U64Hash(rhs_h as u64),
-                    ]),
-                    HashItem::Int(self.header.bits as i128),
-                    HashItem::Bool(*signed),
-                    HashItem::Bool(*floating_point),
-                ])
+                h.string(op.as_str());
+                h.seq(2);
+                h.child(operands[0].cached_hash_or_compute());
+                h.child(operands[1].cached_hash_or_compute());
+                h.int(self.header.bits as i128);
+                h.boolean(*signed);
+                h.boolean(*floating_point);
             }
             ExprInner::Load {
                 addr,
@@ -808,13 +785,10 @@ impl AilExpression {
                 endness,
                 ..
             } => {
-                let addr_h = addr.cached_hash_or_compute();
-                stable_hash(&[
-                    HashItem::Str("Load"),
-                    HashItem::U64Hash(addr_h as u64),
-                    HashItem::Int(*size as i128),
-                    HashItem::Str(endness.as_str()),
-                ])
+                h.string("Load");
+                h.child(addr.cached_hash_or_compute());
+                h.int(*size as i128);
+                h.string(endness.as_str());
             }
             ExprInner::DirtyExpression {
                 callee,
@@ -824,48 +798,29 @@ impl AilExpression {
                 maddr,
                 msize,
             } => {
-                let op_items: Vec<HashItem> = operands
-                    .iter()
-                    .map(|o| HashItem::U64Hash(o.cached_hash_or_compute() as u64))
-                    .collect();
-                let guard_item = match guard {
-                    Some(g) => HashItem::U64Hash(g.cached_hash_or_compute() as u64),
-                    None => HashItem::None,
-                };
-                let maddr_item = match maddr {
-                    Some(m) => HashItem::U64Hash(m.cached_hash_or_compute() as u64),
-                    None => HashItem::None,
-                };
-                let mfx_item = match mfx {
-                    Some(s) => HashItem::Str(s.as_str()),
-                    None => HashItem::None,
-                };
-                let msize_item = match msize {
-                    Some(v) => HashItem::Int(*v as i128),
-                    None => HashItem::None,
-                };
-                stable_hash(&[
-                    HashItem::TypeName("DirtyExpression"),
-                    HashItem::Str(callee.as_str()),
-                    guard_item,
-                    HashItem::Tuple(op_items),
-                    mfx_item,
-                    maddr_item,
-                    msize_item,
-                    HashItem::Int(self.header.bits as i128),
-                ])
+                h.typename("DirtyExpression");
+                h.string(callee.as_str());
+                h.opt_child(guard.as_ref().map(|g| g.cached_hash_or_compute()));
+                h.seq(operands.len());
+                for o in operands {
+                    h.child(o.cached_hash_or_compute());
+                }
+                match mfx {
+                    Some(s) => h.string(s.as_str()),
+                    None => h.none(),
+                }
+                h.opt_child(maddr.as_ref().map(|m| m.cached_hash_or_compute()));
+                h.opt_int(msize.map(|v| v as i128));
+                h.int(self.header.bits as i128);
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
-                let op_items: Vec<HashItem> = operands
-                    .iter()
-                    .map(|o| HashItem::U64Hash(o.cached_hash_or_compute() as u64))
-                    .collect();
-                stable_hash(&[
-                    HashItem::TypeName("VEXCCallExpression"),
-                    HashItem::Str(callee.as_str()),
-                    HashItem::Int(self.header.bits as i128),
-                    HashItem::Tuple(op_items),
-                ])
+                h.typename("VEXCCallExpression");
+                h.string(callee.as_str());
+                h.int(self.header.bits as i128);
+                h.seq(operands.len());
+                for o in operands {
+                    h.child(o.cached_hash_or_compute());
+                }
             }
             ExprInner::Struct {
                 name,
@@ -873,134 +828,119 @@ impl AilExpression {
                 field_offsets,
                 ..
             } => {
-                let fi: Vec<HashItem> = fields
-                    .iter()
-                    .map(|(off, e)| {
-                        HashItem::Tuple(vec![
-                            HashItem::Int(*off as i128),
-                            HashItem::U64Hash(e.cached_hash_or_compute() as u64),
-                        ])
-                    })
-                    .collect();
-                let oi: Vec<HashItem> = field_offsets
-                    .iter()
-                    .map(|(name, off)| {
-                        HashItem::Tuple(vec![
-                            HashItem::Str(name.as_str()),
-                            HashItem::Int(*off as i128),
-                        ])
-                    })
-                    .collect();
-                stable_hash(&[
-                    HashItem::Str(name.as_str()),
-                    HashItem::Tuple(fi),
-                    HashItem::Tuple(oi),
-                    HashItem::Int(self.header.bits as i128),
-                ])
+                h.string(name.as_str());
+                h.seq(fields.len());
+                for (off, e) in fields {
+                    h.seq(2);
+                    h.int(*off as i128);
+                    h.child(e.cached_hash_or_compute());
+                }
+                h.seq(field_offsets.len());
+                for (name, off) in field_offsets {
+                    h.seq(2);
+                    h.string(name.as_str());
+                    h.int(*off as i128);
+                }
+                h.int(self.header.bits as i128);
             }
             ExprInner::RustEnum { name, fields } => {
-                let inner: Vec<HashItem> = fields
-                    .iter()
-                    .map(|f| HashItem::U64Hash(f.cached_hash_or_compute() as u64))
-                    .collect();
-                stable_hash(&[
-                    HashItem::Str(name.as_str()),
-                    HashItem::Tuple(inner),
-                    HashItem::Int(self.header.bits as i128),
-                ])
+                h.string(name.as_str());
+                h.seq(fields.len());
+                for f in fields {
+                    h.child(f.cached_hash_or_compute());
+                }
+                h.int(self.header.bits as i128);
             }
             ExprInner::Array { elements } => {
-                let inner: Vec<HashItem> = elements
-                    .iter()
-                    .map(|e| HashItem::U64Hash(e.cached_hash_or_compute() as u64))
-                    .collect();
-                stable_hash(&[
-                    HashItem::Tuple(inner),
-                    HashItem::Int(self.header.bits as i128),
-                ])
-            }
-            ExprInner::Let { src, .. } => stable_hash(&[
-                HashItem::TypeName("Let"),
-                HashItem::U64Hash(src.cached_hash_or_compute() as u64),
-            ]),
-            ExprInner::Macro { name, .. } => {
-                stable_hash(&[HashItem::TypeName("Macro"), HashItem::Str(name.as_str())])
-            }
-            ExprInner::FunctionLikeMacro { name, .. } => stable_hash(&[
-                HashItem::TypeName("FunctionLikeMacro"),
-                HashItem::Str(name.as_str()),
-            ]),
-            ExprInner::MultiStatementExpression { stmts, expr } => {
-                let mut items = vec![HashItem::TypeName("MultiStatementExpression")];
-                for s in stmts {
-                    items.push(HashItem::U64Hash(s.cached_hash_or_compute() as u64));
+                h.seq(elements.len());
+                for e in elements {
+                    h.child(e.cached_hash_or_compute());
                 }
-                items.push(HashItem::U64Hash(expr.cached_hash_or_compute() as u64));
-                stable_hash(&items)
+                h.int(self.header.bits as i128);
+            }
+            ExprInner::Let { src, .. } => {
+                h.typename("Let");
+                h.child(src.cached_hash_or_compute());
+            }
+            ExprInner::Macro { name, .. } => {
+                h.typename("Macro");
+                h.string(name.as_str());
+            }
+            ExprInner::FunctionLikeMacro { name, .. } => {
+                h.typename("FunctionLikeMacro");
+                h.string(name.as_str());
+            }
+            ExprInner::MultiStatementExpression { stmts, expr } => {
+                h.typename("MultiStatementExpression");
+                h.seq(stmts.len());
+                for s in stmts {
+                    h.child(s.cached_hash_or_compute());
+                }
+                h.child(expr.cached_hash_or_compute());
             }
             ExprInner::Call { target, args, .. } => {
-                let args_h = match args {
+                h.typename("Call");
+                target.hash_into(h);
+                match args {
                     Some(a) => {
-                        let parts: Vec<HashItem> = a
-                            .iter()
-                            .map(|x| HashItem::U64Hash(x.cached_hash_or_compute() as u64))
-                            .collect();
-                        HashItem::Tuple(parts)
+                        h.seq(a.len());
+                        for x in a {
+                            h.child(x.cached_hash_or_compute());
+                        }
                     }
-                    None => HashItem::None,
-                };
-                stable_hash(&[HashItem::TypeName("Call"), target.hash_item(), args_h])
+                    None => h.none(),
+                }
             }
             ExprInner::ITE {
                 cond,
                 iffalse,
                 iftrue,
                 ..
-            } => stable_hash(&[
-                HashItem::TypeName("ITE"),
-                HashItem::U64Hash(cond.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(iffalse.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(iftrue.cached_hash_or_compute() as u64),
-                HashItem::Int(self.header.bits as i128),
-            ]),
+            } => {
+                h.typename("ITE");
+                h.child(cond.cached_hash_or_compute());
+                h.child(iffalse.cached_hash_or_compute());
+                h.child(iftrue.cached_hash_or_compute());
+                h.int(self.header.bits as i128);
+            }
             ExprInner::Extract {
                 base,
                 offset,
                 endness,
-            } => stable_hash(&[
-                HashItem::Int(self.header.bits as i128),
-                HashItem::U64Hash(base.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(offset.cached_hash_or_compute() as u64),
-                HashItem::Str(endness.as_str()),
-            ]),
+            } => {
+                h.int(self.header.bits as i128);
+                h.child(base.cached_hash_or_compute());
+                h.child(offset.cached_hash_or_compute());
+                h.string(endness.as_str());
+            }
             ExprInner::Insert {
                 base,
                 offset,
                 value,
                 endness,
-            } => stable_hash(&[
-                HashItem::Int(self.header.bits as i128),
-                HashItem::U64Hash(base.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(offset.cached_hash_or_compute() as u64),
-                HashItem::U64Hash(value.cached_hash_or_compute() as u64),
-                HashItem::Str(endness.as_str()),
-            ]),
-            ExprInner::StringLiteral { data } => stable_hash(&[
-                HashItem::TypeName("StringLiteral"),
-                HashItem::Str(data.as_str()),
-                HashItem::Int(self.header.bits as i128),
-            ]),
-            ExprInner::BasePointerOffset { base, offset, .. } => stable_hash(&[
-                HashItem::TypeName("BasePointerOffset"),
-                HashItem::Int(self.header.bits as i128),
-                HashItem::Str(base.as_str()),
-                HashItem::Int(*offset as i128),
-            ]),
-            ExprInner::StackBaseOffset { offset } => stable_hash(&[
-                HashItem::TypeName("StackBaseOffset"),
-                HashItem::Int(*offset),
-                HashItem::Int(self.header.bits as i128),
-            ]),
+            } => {
+                h.int(self.header.bits as i128);
+                h.child(base.cached_hash_or_compute());
+                h.child(offset.cached_hash_or_compute());
+                h.child(value.cached_hash_or_compute());
+                h.string(endness.as_str());
+            }
+            ExprInner::StringLiteral { data } => {
+                h.typename("StringLiteral");
+                h.string(data.as_str());
+                h.int(self.header.bits as i128);
+            }
+            ExprInner::BasePointerOffset { base, offset, .. } => {
+                h.typename("BasePointerOffset");
+                h.int(self.header.bits as i128);
+                h.string(base.as_str());
+                h.int(*offset as i128);
+            }
+            ExprInner::StackBaseOffset { offset } => {
+                h.typename("StackBaseOffset");
+                h.int(*offset);
+                h.int(self.header.bits as i128);
+            }
         }
     }
 

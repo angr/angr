@@ -10,173 +10,204 @@
 //!   key on every visit.
 //! - **Cheap to compute** -- decompiles hash millions of AIL nodes.
 //!
-//! The previous implementation mirrored Python's
-//! ``angr.ailment.utils.stable_hash`` byte format and ran the result
-//! through MD5 -- holding both an exact-format requirement and a
-//! cryptographic-strength hash. The format match is no longer needed
-//! (the per-class Python AIL pyclasses are collapsed into a single
-//! Rust pyclass, so there is no parallel Python value whose hash needs
-//! to match) and the MD5 strength was overkill.
+//! It does **not** need to match any external byte format (the per-class
+//! Python AIL pyclasses are collapsed into a single Rust pyclass, so
+//! there is no parallel Python value whose hash must match), and it is
+//! never serialized -- so the exact byte stream is free to change.
 //!
 //! ## Implementation
 //!
-//! We use [`rustc_hash::FxHasher`] -- the same hash rustc uses for its
-//! internal symbol tables. It is:
+//! Each ``_hash_core`` writes its fields straight into an
+//! [`rustc_hash::FxHasher`] through the [`AilHash`] extension methods.
+//! There is no intermediate representation: the old design boxed every
+//! field into a ``HashItem`` enum and collected a ``Vec<HashItem>`` per
+//! hash before streaming it, which allocated on a path that runs on
+//! millions of nodes. Writing directly removes that allocation and the
+//! per-item enum dispatch.
 //!
-//! - Compiler-strength quality (well-distributed for the small-integer
-//!   / short-string inputs that dominate AIL hashing).
-//! - Deterministic (no random seed).
-//! - Trivially fast for short inputs -- each ``write_u8`` is one mul +
-//!   one rotate + one xor, with no streaming-state setup overhead. An
-//!   intermediate ``xxh3`` attempt over a tagged + length-prefixed
-//!   byte stream was ~2.4x *slower* than the original MD5 path for
-//!   typical AIL inputs because of streaming-state overhead and the
-//!   length-prefix padding on tiny payloads. FxHasher sidesteps both.
+//! ``FxHasher`` (the hash rustc uses for its own symbol tables) is kept
+//! as the backing [`Hasher`]: compiler-strength distribution for the
+//! small-integer / short-string inputs that dominate AIL hashing,
+//! deterministic (no random seed -- unlike ``RandomState``), and cheap
+//! for tiny inputs (each write is one mul + rotate + xor, no
+//! streaming-state setup).
 //!
-//! The std [`Hash`] trait handles disambiguation: ``str::hash`` writes
-//! a length prefix, slices include their length, and our per-variant
-//! discriminant byte separates payloads. ``Str`` vs ``TypeName`` get
-//! distinct discriminants so the same text under each variant hashes
-//! differently.
+//! ## Collision discipline
+//!
+//! Every [`AilHash`] method writes a one-byte discriminant tag before
+//! its payload, so two items carrying the same bit pattern under
+//! different kinds (e.g. an [`AilHash::int`] and a mixed-in child hash
+//! via [`AilHash::child`]) cannot alias. Sequences are length-prefixed
+//! ([`AilHash::seq`]) so a nested group cannot alias with a flattened
+//! one, and [`AilHash::string`] vs [`AilHash::typename`] use distinct
+//! tags so the same text hashes differently as a value vs a class name.
+//! (``str``/slice hashing already length-prefixes on its own.)
 
 use std::hash::{Hash, Hasher};
 
 use rustc_hash::FxHasher;
 
-/// One item in a [`stable_hash`] input stream.
-#[derive(Debug, Clone)]
-pub enum HashItem<'a> {
-    None,
-    Bool(bool),
-    Int(i128),
-    /// A precomputed unsigned 64-bit hash (typically another AIL node's
-    /// already-cached structural hash, mixed in by reference).
-    U64Hash(u64),
-    Str(&'a str),
-    /// A Python class name; same payload as ``Str`` but a distinct
-    /// discriminant so ``Str("Foo")`` and ``TypeName("Foo")`` hash
-    /// differently.
-    TypeName(&'a str),
-    /// Nested tuple. Bracketed in the stream so a flat sequence cannot
-    /// alias with a nested one of the same items.
-    Tuple(Vec<HashItem<'a>>),
-    /// Pre-rendered bytes (escape hatch for callers that already know
-    /// how to project themselves into the hash stream).
-    Raw(Vec<u8>),
-}
-
-// One byte per variant -- the values themselves do not matter, only
-// that each variant has a distinct discriminant.
+// One byte per item kind. The values themselves do not matter, only that
+// each kind has a distinct discriminant.
 const TAG_NONE: u8 = 1;
 const TAG_BOOL: u8 = 2;
 const TAG_INT: u8 = 3;
-const TAG_U64HASH: u8 = 4;
+const TAG_CHILD: u8 = 4;
 const TAG_STR: u8 = 5;
 const TAG_TYPENAME: u8 = 6;
-const TAG_TUPLE_OPEN: u8 = 7;
-const TAG_TUPLE_CLOSE: u8 = 8;
+const TAG_SEQ: u8 = 7;
 const TAG_RAW: u8 = 9;
 
-fn write_item(h: &mut FxHasher, item: &HashItem<'_>) {
-    match item {
-        HashItem::None => h.write_u8(TAG_NONE),
-        HashItem::Bool(b) => {
-            h.write_u8(TAG_BOOL);
-            h.write_u8(*b as u8);
+/// A fresh, deterministic AIL hasher.
+#[inline]
+pub fn hasher() -> FxHasher {
+    FxHasher::default()
+}
+
+/// Finish a hash, returning ``i64`` so callers can drop the result
+/// directly into Python's signed-int hash slot.
+#[inline]
+pub fn finish(h: FxHasher) -> i64 {
+    h.finish() as i64
+}
+
+/// Direct-write helpers over a [`Hasher`] -- the streaming replacement
+/// for the old ``HashItem`` enum + ``stable_hash``. Each method writes a
+/// discriminant tag then the payload straight into the hasher; see the
+/// module docs for the collision discipline.
+pub trait AilHash: Hasher + Sized {
+    #[inline]
+    fn none(&mut self) {
+        self.write_u8(TAG_NONE);
+    }
+    #[inline]
+    fn boolean(&mut self, b: bool) {
+        self.write_u8(TAG_BOOL);
+        self.write_u8(b as u8);
+    }
+    #[inline]
+    fn int(&mut self, v: i128) {
+        self.write_u8(TAG_INT);
+        self.write_i128(v);
+    }
+    /// Mix in another node's already-computed structural hash (this is
+    /// the memoization that keeps hashing amortized O(1) per node -- the
+    /// child is not re-walked).
+    #[inline]
+    fn child(&mut self, h: i64) {
+        self.write_u8(TAG_CHILD);
+        self.write_i64(h);
+    }
+    #[inline]
+    fn string(&mut self, s: &str) {
+        self.write_u8(TAG_STR);
+        s.hash(self);
+    }
+    /// A type / class name. Distinct tag from [`Self::string`] so
+    /// ``string("Foo")`` and ``typename("Foo")`` hash differently.
+    #[inline]
+    fn typename(&mut self, s: &str) {
+        self.write_u8(TAG_TYPENAME);
+        s.hash(self);
+    }
+    /// Open a length-prefixed sequence of ``len`` items. The caller
+    /// writes exactly ``len`` items after this; the length prevents a
+    /// nested group from aliasing with a flattened one.
+    #[inline]
+    fn seq(&mut self, len: usize) {
+        self.write_u8(TAG_SEQ);
+        self.write_u64(len as u64);
+    }
+    #[inline]
+    fn raw(&mut self, bytes: &[u8]) {
+        self.write_u8(TAG_RAW);
+        bytes.hash(self);
+    }
+    #[inline]
+    fn opt_int(&mut self, v: Option<i128>) {
+        match v {
+            Some(x) => self.int(x),
+            None => self.none(),
         }
-        HashItem::Int(v) => {
-            h.write_u8(TAG_INT);
-            h.write_i128(*v);
-        }
-        HashItem::U64Hash(v) => {
-            h.write_u8(TAG_U64HASH);
-            h.write_u64(*v);
-        }
-        HashItem::Str(s) => {
-            h.write_u8(TAG_STR);
-            s.hash(h);
-        }
-        HashItem::TypeName(s) => {
-            h.write_u8(TAG_TYPENAME);
-            s.hash(h);
-        }
-        HashItem::Tuple(items) => {
-            h.write_u8(TAG_TUPLE_OPEN);
-            for inner in items {
-                write_item(h, inner);
-            }
-            h.write_u8(TAG_TUPLE_CLOSE);
-        }
-        HashItem::Raw(bytes) => {
-            h.write_u8(TAG_RAW);
-            bytes.as_slice().hash(h);
+    }
+    #[inline]
+    fn opt_child(&mut self, h: Option<i64>) {
+        match h {
+            Some(x) => self.child(x),
+            None => self.none(),
         }
     }
 }
 
-/// Compute the stable hash of a sequence of items.
-///
-/// Returns ``i64`` (not ``u64``) so callers can drop the result
-/// directly into Python's signed-int hash slot.
-pub fn stable_hash(items: &[HashItem<'_>]) -> i64 {
-    let mut h = FxHasher::default();
-    for item in items {
-        write_item(&mut h, item);
-    }
-    h.finish() as i64
-}
+impl<H: Hasher> AilHash for H {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn empty_input_is_deterministic() {
-        assert_eq!(stable_hash(&[]), stable_hash(&[]));
+    fn h1(f: impl FnOnce(&mut FxHasher)) -> i64 {
+        let mut h = hasher();
+        f(&mut h);
+        finish(h)
     }
 
     #[test]
-    fn distinct_variants_with_same_value_differ() {
-        // ``Int(5)``, ``U64Hash(5)``, ``Bool(true)`` all share the bit
-        // pattern of ``5`` but should not collide because of the tag byte.
-        let a = stable_hash(&[HashItem::Int(5)]);
-        let b = stable_hash(&[HashItem::U64Hash(5)]);
-        let c = stable_hash(&[HashItem::Bool(true)]);
+    fn empty_input_is_deterministic() {
+        assert_eq!(h1(|_| {}), h1(|_| {}));
+    }
+
+    #[test]
+    fn distinct_kinds_with_same_value_differ() {
+        // int(5), child(5), boolean(true) share the bit pattern of 5 but
+        // must not collide because of the tag byte.
+        let a = h1(|h| h.int(5));
+        let b = h1(|h| h.child(5));
+        let c = h1(|h| h.boolean(true));
         assert_ne!(a, b);
         assert_ne!(a, c);
         assert_ne!(b, c);
     }
 
     #[test]
-    fn str_and_typename_with_same_text_differ() {
-        let a = stable_hash(&[HashItem::Str("Const")]);
-        let b = stable_hash(&[HashItem::TypeName("Const")]);
-        assert_ne!(a, b);
+    fn string_and_typename_with_same_text_differ() {
+        assert_ne!(h1(|h| h.string("Const")), h1(|h| h.typename("Const")));
     }
 
     #[test]
     fn concatenation_does_not_alias_with_split() {
-        // ``Str("ab") + Str("c")`` vs ``Str("a") + Str("bc")`` --
-        // std's ``str::hash`` writes a length prefix so these cannot
-        // collide.
-        let a = stable_hash(&[HashItem::Str("ab"), HashItem::Str("c")]);
-        let b = stable_hash(&[HashItem::Str("a"), HashItem::Str("bc")]);
+        // string("ab") + string("c") vs string("a") + string("bc") --
+        // str::hash length-prefixes, so these cannot collide.
+        let a = h1(|h| {
+            h.string("ab");
+            h.string("c");
+        });
+        let b = h1(|h| {
+            h.string("a");
+            h.string("bc");
+        });
         assert_ne!(a, b);
     }
 
     #[test]
-    fn nested_tuple_does_not_alias_with_flat() {
-        let flat = stable_hash(&[HashItem::Int(1), HashItem::Int(2)]);
-        let nested = stable_hash(&[HashItem::Tuple(vec![HashItem::Int(1), HashItem::Int(2)])]);
+    fn nested_sequence_does_not_alias_with_flat() {
+        let flat = h1(|h| {
+            h.int(1);
+            h.int(2);
+        });
+        let nested = h1(|h| {
+            h.seq(2);
+            h.int(1);
+            h.int(2);
+        });
         assert_ne!(flat, nested);
     }
 
     #[test]
     fn none_writes_just_a_tag() {
-        let n1 = stable_hash(&[HashItem::None]);
-        let n2 = stable_hash(&[HashItem::None]);
+        let n1 = h1(|h| h.none());
+        let n2 = h1(|h| h.none());
         assert_eq!(n1, n2);
-        assert_ne!(n1, stable_hash(&[HashItem::Int(0)]));
-        assert_ne!(n1, stable_hash(&[HashItem::Bool(false)]));
+        assert_ne!(n1, h1(|h| h.int(0)));
+        assert_ne!(n1, h1(|h| h.boolean(false)));
     }
 }
