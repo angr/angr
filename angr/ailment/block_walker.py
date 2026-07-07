@@ -113,11 +113,14 @@ def _dispatch_key(obj):
     # cached ``pykind`` (a ``Py<int>``) instead of ``kind`` (a fresh
     # ``ExpressionKind`` / ``StatementKind`` pyclass per access).
     # Expression / Statement integer tag spaces overlap (both start at
-    # 0), so route through per-side tables.
-    if isinstance(obj, _RustExpression):
-        return _EXPR_KIND_TO_MARKER.get(obj.pykind, type(obj))
-    if isinstance(obj, _RustStatement):
-        return _STMT_KIND_TO_MARKER.get(obj.pykind, type(obj))
+    # 0), so route through per-side tables. ``type(obj) is`` (the
+    # pyclasses are final) is a C-level identity check, cheaper than
+    # ``isinstance`` and its metaclass path.
+    t = type(obj)
+    if t is _RustExpression:
+        return _EXPR_KIND_TO_MARKER.get(obj.pykind, _RustExpression)
+    if t is _RustStatement:
+        return _STMT_KIND_TO_MARKER.get(obj.pykind, _RustStatement)
     # Slow path: pure-Python instances may not expose ``kind``.
     kind = getattr(obj, "kind", None)
     if kind is None:
@@ -203,6 +206,10 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
 
     _default_stmt_funcs: dict[type, Callable]
     _default_expr_funcs: dict[type, Callable]
+    # pykind (int) -> handler shadows of the default tables, for zero-frame
+    # single-lookup dispatch of Rust nodes that use the default handler set.
+    _default_stmt_funcs_by_pykind: dict
+    _default_expr_funcs_by_pykind: dict
 
     def __init__(self, stmt_handlers=None, expr_handlers=None):
         self._stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] | None = stmt_handlers or None
@@ -218,6 +225,14 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def rebuild_default_handler_funcs(cls) -> None:
         cls._default_stmt_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
         cls._default_expr_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
+        # pykind-keyed shadows: for Rust nodes on the default handler set,
+        # dispatch becomes one int-keyed lookup with no marker-class step.
+        cls._default_stmt_funcs_by_pykind = {
+            k: f for t, f in cls._default_stmt_funcs.items() if (k := t.__dict__.get("_kind")) is not None
+        }
+        cls._default_expr_funcs_by_pykind = {
+            k: f for t, f in cls._default_expr_funcs.items() if (k := t.__dict__.get("_kind")) is not None
+        }
 
     @property
     def stmt_handlers(self) -> dict[type, Callable[[int, Any, Block | None], StmtType]]:
@@ -271,13 +286,23 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         return self._handle_expr(0, expr, stmt_idx or 0, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> StmtType:
+        # Inline the stmt-side dispatch: a Rust statement (the common case,
+        # ~1M/decompile) skips the ``_dispatch_key`` frame and the redundant
+        # expr-side check, dispatching on the cached ``pykind`` int directly.
         handlers = self._stmt_handlers
         if handlers is None:
-            func = self._default_stmt_funcs.get(_dispatch_key(stmt))
+            if type(stmt) is _RustStatement:
+                func = self._default_stmt_funcs_by_pykind.get(stmt.pykind)
+            else:
+                func = self._default_stmt_funcs.get(_dispatch_key(stmt))
             if func is None:
                 return self._stmt_top(stmt_idx, stmt, block)
             return func(self, stmt_idx, stmt, block)
-        handler = handlers.get(_dispatch_key(stmt))
+        if type(stmt) is _RustStatement:
+            key = _STMT_KIND_TO_MARKER.get(stmt.pykind, _RustStatement)
+        else:
+            key = _dispatch_key(stmt)
+        handler = handlers.get(key)
         if handler is None:
             return self._stmt_top(stmt_idx, stmt, block)
         return handler(stmt_idx, stmt, block)
@@ -285,13 +310,23 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
+        # Inline the expr-side dispatch: a Rust expression (the common case)
+        # dispatches on the cached ``pykind`` int with no ``_dispatch_key``
+        # frame and no redundant stmt-side check.
         handlers = self._expr_handlers
         if handlers is None:
-            func = self._default_expr_funcs.get(_dispatch_key(expr))
+            if type(expr) is _RustExpression:
+                func = self._default_expr_funcs_by_pykind.get(expr.pykind)
+            else:
+                func = self._default_expr_funcs.get(_dispatch_key(expr))
             if func is None:
                 return self._top(expr_idx, expr, stmt_idx, stmt, block)
             return func(self, expr_idx, expr, stmt_idx, stmt, block)
-        handler = handlers.get(_dispatch_key(expr))
+        if type(expr) is _RustExpression:
+            key = _EXPR_KIND_TO_MARKER.get(expr.pykind, _RustExpression)
+        else:
+            key = _dispatch_key(expr)
+        handler = handlers.get(key)
         if handler is None:
             return self._top(expr_idx, expr, stmt_idx, stmt, block)
         return handler(expr_idx, expr, stmt_idx, stmt, block)
