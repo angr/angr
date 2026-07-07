@@ -46,7 +46,13 @@ from angr.analyses.decompiler.utils import (
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from angr.utils.graph import DirectedGraphHelper, GraphUtils, dfs_back_edges, dominates
+from angr.utils.graph import (
+    DirectedGraphHelper,
+    GraphUtils,
+    compute_dominance_intervals,
+    dfs_back_edges,
+    dominates_by_intervals,
+)
 
 from .structurer_base import StructurerBase
 
@@ -3032,12 +3038,13 @@ class PhoenixStructurer(StructurerBase):
         graph = graph_raw.filtered()
 
         idoms = networkx.immediate_dominators(full_graph, head)
+        # answering dominance queries through Euler-tour intervals avoids dominates()'s O(tree depth) chain walk
+        # for each of the 2*|E| queries below
+        dominance_intervals = compute_dominance_intervals(idoms, head)
+        graph_is_dag = networkx.is_directed_acyclic_graph(full_graph)
         # acyclic_graph is read-only here (edges, in_degree, has_edge, iteration), so use a zero-copy overlay view
         # instead of materializing the whole region graph on every last-resort attempt.
-        if networkx.is_directed_acyclic_graph(full_graph):
-            acyclic_graph = full_graph
-        else:
-            acyclic_graph = self._graph_helper.to_acyclic_by_order(full_graph)
+        acyclic_graph = full_graph if graph_is_dag else self._graph_helper.to_acyclic_by_order(full_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
@@ -3051,10 +3058,11 @@ class PhoenixStructurer(StructurerBase):
                 # this is a head of an incomplete switch-case construct (that we will definitely be structuring later),
                 # so we do not want to remove any edges going out of this block
                 continue
-            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
+            src_dominates_dst = dominates_by_intervals(dominance_intervals, src, dst)
+            if not src_dominates_dst and not dominates_by_intervals(dominance_intervals, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
-            elif not dominates(idoms, src, dst):
+            elif not src_dominates_dst:
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     secondary_edges.append((src, dst))
             else:
@@ -3062,8 +3070,8 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         # acyclic_graph may contain more than one entry node. Cover every entry in the post-order without mutating the
-        # graph (it is a zero-copy overlay view) via a deterministic multi-source DFS seeded with all entries -- this
-        # reproduces the old synthetic-head traversal (entries visited in _sort_node order) with no temporary node.
+        # graph via a deterministic multi-source DFS seeded with all entries -- this reproduces the old
+        # synthetic-head traversal (entries visited in _sort_node order) with no temporary node.
         graph_entries = [nn for nn in acyclic_graph if acyclic_graph.in_degree[nn] == 0]
         if len(graph_entries) > 1:
             ordered_nodes = list(
@@ -3102,14 +3110,10 @@ class PhoenixStructurer(StructurerBase):
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
 
-        if (
-            self._region.parent is None
-            and not self._region.cyclic
-            and not networkx.is_directed_acyclic_graph(full_graph)
-        ):
+        if self._region.parent is None and not self._region.cyclic and not graph_is_dag:
             # an acyclic region must not contain cycles; one can appear as debris when an inner cyclic region
             # fails to structure and dissolves its partially-refined body into this region. the cycle-closing
-            # edges are excluded from the candidate lists above (to_acyclic_by_order dropped them from
+            # edges are excluded from the candidate lists above (they are back edges, dropped from
             # acyclic_graph), so without this fallback the region can never become structurable. only the root
             # region recovers this way (a goto): anywhere else, failing and dissolving into an enclosing region
             # gives a cyclic ancestor the chance to structure the loop properly first.
