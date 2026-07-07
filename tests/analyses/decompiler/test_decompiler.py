@@ -372,6 +372,71 @@ class TestDecompiler(unittest.TestCase):
 
         assert code.count("break;") == 4
 
+    @structuring_algo("sailr")
+    def test_decompiling_switch_head_targeted_by_jumptable_entry(self, decompiler_options=None):
+        # sub_4c6f30 in binutils ld.bfd (-O2) is a recursive tree-walker whose switch dispatches on a node kind and
+        # whose case 2 jumps back to the switch head (a jump-table entry that targets the switch head itself). The
+        # buggy structurer absorbed the switch head into the switch-case node, removing it from the graph while it
+        # was still referenced, and crashed with "NetworkXError: The node ... is not in the digraph". The function
+        # must now decompile into a proper switch-case construct.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "binutils_ld_bfd_O2")
+        p = angr.Project(bin_path)
+
+        func_addr = 0x4C6F30
+        # scope the CFG to the function to keep the test fast; the switch and its jump table are self-contained
+        cfg = p.analyses[CFGFast].prep()(
+            normalize=True,
+            regions=[(func_addr, func_addr + 0x95)],
+            function_starts=[func_addr],
+        )
+
+        f = cfg.functions[func_addr]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        assert code is not None
+        # the switch head was recovered as a real switch-case construct rather than crashing structuring
+        assert "switch (" in code
+        assert "case 0:" in code
+        assert "case 1:" in code
+        assert "case 2:" in code
+        assert "default:" in code
+        # no unstructured switch head statement leaked into the output
+        assert "IncompleteSwitchCaseHeadStatement" not in code
+
+    @structuring_algo("sailr")
+    def test_decompiling_switch_case_with_continue_in_loop(self, decompiler_options=None):
+        # sub_4cf3d0 in redis-server (-O2) contains a jump-table switch nested inside a do-while loop where one case
+        # is a plain "continue" of the enclosing loop. The jump-table dispatch node was already structured into a
+        # sequence whose last node is that ContinueNode; the buggy structurer only checked for a trailing
+        # SwitchCaseNode and fell through to remove_last_statements(), which crashed with
+        # "NotImplementedError: ContinueNode". The function must now decompile into a switch-case inside a loop.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "redis_server_O2")
+        p = angr.Project(bin_path)
+
+        func_addr = 0x4CF3D0
+        # scope the CFG around the function; the do-while loop with the nested switch spans several kilobytes
+        cfg = p.analyses[CFGFast].prep()(
+            normalize=True,
+            regions=[(func_addr, func_addr + 0x1770)],
+            function_starts=[func_addr],
+        )
+        # the ContinueNode arises during loop refinement, which needs recovered calling conventions for the callees
+        p.analyses[CompleteCallingConventionsAnalysis].prep()(analyze_callsites=True)
+
+        f = cfg.functions[func_addr]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        assert code is not None
+        # the switch nested inside the loop was recovered rather than crashing structuring
+        assert "switch (" in code
+        assert "case 0:" in code
+        assert "continue;" in code
+        assert "IncompleteSwitchCaseHeadStatement" not in code
+
     @for_all_structuring_algos
     def test_decompiling_true_x86_64_0(self, decompiler_options=None):
         # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
