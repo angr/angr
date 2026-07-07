@@ -409,6 +409,18 @@ class FormatParser(SimProcedure):
         b"t": (sim_type.SimTypeLong(), sim_type.SimTypeLong()),  # ('ptrdiff_t', 'ptrdiff_t'),
     }
 
+    # All float conversion specifiers
+    float_spec = [b"e", b"E", b"f", b"F", b"g", b"G", b"a", b"A"]
+
+    # Length modifiers and how they apply to float conversions. For printf-style functions, the "l" modifier has no
+    # effect on float conversions (the argument is promoted to double either way); "L" means long double, which we
+    # approximate as double.
+    float_len_mod: dict[bytes, SimType] = {
+        b"l": sim_type.SimTypeDouble(),  # 'double',
+        b"ll": sim_type.SimTypeDouble(),  # 'long double',
+        b"L": sim_type.SimTypeDouble(),  # 'long double',
+    }
+
     # Types that are not known by sim_types
     # Maps to (size, signedness)
     other_types = {("string",): lambda _: (0, True)}  # special value for strings, we need to count
@@ -420,12 +432,16 @@ class FormatParser(SimProcedure):
     _ALL_SPEC = None
 
     @property
-    def _mod_spec(self):
+    def _mod_spec(self) -> dict[bytes, SimType]:
         """
         Modified length specifiers: mapping between length modifiers and conversion specifiers. This generates all the
-        possibilities, i.e. hhd, etc.
+        possibilities, i.e. hhd, lf, etc.
+
+        The result is cached per class: printf-style and scanf-style parsers use different specifier tables, so they
+        must not share a cache.
         """
-        if FormatParser._MOD_SPEC is None:
+        cls = type(self)
+        if cls.__dict__.get("_MOD_SPEC") is None:
             mod_spec = {}
 
             for mod, sizes in self.int_len_mod.items():
@@ -434,22 +450,26 @@ class FormatParser(SimProcedure):
                 for conv in self.int_sign["unsigned"]:
                     mod_spec[mod + conv] = sizes[1]
 
-            FormatParser._MOD_SPEC = mod_spec
+            for mod, ty in self.float_len_mod.items():
+                for conv in self.float_spec:
+                    mod_spec[mod + conv] = ty
 
-        return FormatParser._MOD_SPEC
+            cls._MOD_SPEC = mod_spec
+
+        return cls.__dict__["_MOD_SPEC"]
 
     @property
     def _all_spec(self) -> dict[bytes, SimType]:
         """
-        All specifiers and their lengths.
+        All specifiers and their lengths. Cached per class (see _mod_spec).
         """
-
-        if FormatParser._ALL_SPEC is None:
+        cls = type(self)
+        if cls.__dict__.get("_ALL_SPEC") is None:
             base = dict(self._mod_spec)
             base.update(self.basic_spec)
-            FormatParser._ALL_SPEC = base
+            cls._ALL_SPEC = base
 
-        return FormatParser._ALL_SPEC
+        return cls.__dict__["_ALL_SPEC"]
 
     # Tricky stuff
     # Note that $ is not C99 compliant (but posix specific).
@@ -647,27 +667,11 @@ class ScanfFormatParser(FormatParser):
         b"n": sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),
     }
 
-    # All float conversion specifiers
-    float_spec = [b"e", b"E", b"f", b"F", b"g", b"G", b"a", b"A"]
-
-    # Length modifiers and how they apply to float conversion.
-    float_len_mod = {
-        b"l": sim_type.SimTypeDouble,  # 'double',
-        b"ll": sim_type.SimTypeDouble,  # 'long double',
+    # Length modifiers and how they apply to float conversions. For scanf-style functions, "%f" reads a float while
+    # "%lf" reads a double; "%Lf" reads a long double, which we approximate as double.
+    # Note that these values are the value types; the corresponding argument is a pointer to the value type.
+    float_len_mod: dict[bytes, SimType] = {
+        b"l": sim_type.SimTypeDouble(),  # 'double',
+        b"ll": sim_type.SimTypeDouble(),  # 'long double',
+        b"L": sim_type.SimTypeDouble(),  # 'long double',
     }
-
-    @property
-    def _mod_spec(self):
-        """
-        Modified length specifiers: mapping between length modifiers and conversion specifiers. This generates all the
-        possibilities, i.e. lf, etc.
-        """
-        if FormatParser._MOD_SPEC is None:
-            mod_spec = dict(super()._mod_spec.items())
-            for mod, size in self.float_len_mod.items():
-                for conv in self.float_spec:
-                    mod_spec[mod + conv] = size
-
-            FormatParser._MOD_SPEC = mod_spec
-
-        return FormatParser._MOD_SPEC
