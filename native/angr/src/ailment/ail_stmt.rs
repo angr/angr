@@ -997,18 +997,16 @@ impl Statement {
     #[pyo3(signature = (idx, dst, src, **kwargs))]
     fn _new_assignment(
         idx: i64,
-        dst: Bound<'_, PyAny>,
-        src: Bound<'_, PyAny>,
+        dst: AilExpression,
+        src: AilExpression,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let dst_ail = extract_ail_expr(&dst)?;
-        let src_ail = extract_ail_expr(&src)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Assignment {
-                dst: Box::new(dst_ail),
-                src: Box::new(src_ail),
+                dst: Box::new(dst),
+                src: Box::new(src),
             },
         }))
     }
@@ -1017,18 +1015,16 @@ impl Statement {
     #[pyo3(signature = (idx, dst, src, **kwargs))]
     fn _new_weak_assignment(
         idx: i64,
-        dst: Bound<'_, PyAny>,
-        src: Bound<'_, PyAny>,
+        dst: AilExpression,
+        src: AilExpression,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let dst_ail = extract_ail_expr(&dst)?;
-        let src_ail = extract_ail_expr(&src)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::WeakAssignment {
-                dst: Box::new(dst_ail),
-                src: Box::new(src_ail),
+                dst: Box::new(dst),
+                src: Box::new(src),
             },
         }))
     }
@@ -1048,28 +1044,22 @@ impl Statement {
     #[allow(clippy::too_many_arguments)]
     fn _new_store(
         idx: i64,
-        addr: Bound<'_, PyAny>,
-        data: Bound<'_, PyAny>,
+        addr: AilExpression,
+        data: AilExpression,
         size: i32,
         endness: String,
-        guard: Option<Bound<'_, PyAny>>,
+        guard: Option<AilExpression>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let addr_ail = extract_ail_expr(&addr)?;
-        let data_ail = extract_ail_expr(&data)?;
-        let guard_box = match guard {
-            Some(g) if !g.is_none() => Some(Box::new(extract_ail_expr(&g)?)),
-            _ => None,
-        };
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Store {
-                addr: Box::new(addr_ail),
-                data: Box::new(data_ail),
+                addr: Box::new(addr),
+                data: Box::new(data),
                 size,
                 endness,
-                guard: guard_box,
+                guard: guard.map(Box::new),
             },
         }))
     }
@@ -1078,17 +1068,14 @@ impl Statement {
     #[pyo3(signature = (idx, target, target_idx=None, **kwargs))]
     fn _new_jump(
         idx: i64,
-        target: Bound<'_, PyAny>,
+        target: CFGTarget,
         target_idx: Option<i64>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
-            inner: StmtInner::Jump {
-                target: CFGTarget::from_py(&target)?,
-                target_idx,
-            },
+            inner: StmtInner::Jump { target, target_idx },
         }))
     }
 
@@ -1100,29 +1087,20 @@ impl Statement {
     #[allow(clippy::too_many_arguments)]
     fn _new_conditional_jump(
         idx: i64,
-        condition: Bound<'_, PyAny>,
-        true_target: Option<Bound<'_, PyAny>>,
-        false_target: Option<Bound<'_, PyAny>>,
+        condition: AilExpression,
+        true_target: Option<CFGTarget>,
+        false_target: Option<CFGTarget>,
         true_target_idx: Option<i64>,
         false_target_idx: Option<i64>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let cond_ail = extract_ail_expr(&condition)?;
-        let conv = |slot: Option<Bound<'_, PyAny>>| -> PyResult<Option<CFGTarget>> {
-            match slot {
-                Some(t) if !t.is_none() => Ok(Some(CFGTarget::from_py(&t)?)),
-                _ => Ok(None),
-            }
-        };
-        let tt = conv(true_target)?;
-        let ft = conv(false_target)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::ConditionalJump {
-                condition: Box::new(cond_ail),
-                true_target: tt,
-                false_target: ft,
+                condition: Box::new(condition),
+                true_target,
+                false_target,
                 true_target_idx,
                 false_target_idx,
             },
@@ -1133,27 +1111,18 @@ impl Statement {
     #[pyo3(signature = (idx, expr, ret_expr=None, fp_ret_expr=None, **kwargs))]
     fn _new_side_effect_statement(
         idx: i64,
-        expr: Bound<'_, PyAny>,
-        ret_expr: Option<Bound<'_, PyAny>>,
-        fp_ret_expr: Option<Bound<'_, PyAny>>,
+        expr: AilExpression,
+        ret_expr: Option<AilExpression>,
+        fp_ret_expr: Option<AilExpression>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let expr_ail = extract_ail_expr(&expr)?;
-        let ret_box = match ret_expr {
-            Some(r) if !r.is_none() => Some(Box::new(extract_ail_expr(&r)?)),
-            _ => None,
-        };
-        let fp_box = match fp_ret_expr {
-            Some(r) if !r.is_none() => Some(Box::new(extract_ail_expr(&r)?)),
-            _ => None,
-        };
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::SideEffectStatement {
-                expr: Box::new(expr_ail),
-                ret_expr: ret_box,
-                fp_ret_expr: fp_box,
+                expr: Box::new(expr),
+                ret_expr: ret_expr.map(Box::new),
+                fp_ret_expr: fp_ret_expr.map(Box::new),
             },
         }))
     }
@@ -1169,7 +1138,7 @@ impl Statement {
         let mut v = Vec::new();
         if !ret_exprs.is_none() {
             for item in ret_exprs.try_iter()? {
-                v.push(extract_ail_expr(&item?)?);
+                v.push(item?.extract::<AilExpression>()?);
             }
         }
         Ok(Self::wrap(AilStatement {
@@ -1185,33 +1154,27 @@ impl Statement {
     #[allow(clippy::too_many_arguments)]
     fn _new_cas(
         idx: i64,
-        addr: Bound<'_, PyAny>,
-        data_lo: Bound<'_, PyAny>,
-        data_hi: Option<Bound<'_, PyAny>>,
-        expd_lo: Bound<'_, PyAny>,
-        expd_hi: Option<Bound<'_, PyAny>>,
-        old_lo: Bound<'_, PyAny>,
-        old_hi: Option<Bound<'_, PyAny>>,
+        addr: AilExpression,
+        data_lo: AilExpression,
+        data_hi: Option<AilExpression>,
+        expd_lo: AilExpression,
+        expd_hi: Option<AilExpression>,
+        old_lo: AilExpression,
+        old_hi: Option<AilExpression>,
         endness: String,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let opt = |b: Option<Bound<'_, PyAny>>| -> PyResult<Option<Box<AilExpression>>> {
-            match b {
-                Some(x) if !x.is_none() => Ok(Some(Box::new(extract_ail_expr(&x)?))),
-                _ => Ok(None),
-            }
-        };
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::CAS {
-                addr: Box::new(extract_ail_expr(&addr)?),
-                data_lo: Box::new(extract_ail_expr(&data_lo)?),
-                data_hi: opt(data_hi)?,
-                expd_lo: Box::new(extract_ail_expr(&expd_lo)?),
-                expd_hi: opt(expd_hi)?,
-                old_lo: Box::new(extract_ail_expr(&old_lo)?),
-                old_hi: opt(old_hi)?,
+                addr: Box::new(addr),
+                data_lo: Box::new(data_lo),
+                data_hi: data_hi.map(Box::new),
+                expd_lo: Box::new(expd_lo),
+                expd_hi: expd_hi.map(Box::new),
+                old_lo: Box::new(old_lo),
+                old_hi: old_hi.map(Box::new),
                 endness,
             },
         }))
@@ -1221,15 +1184,14 @@ impl Statement {
     #[pyo3(signature = (idx, dirty, **kwargs))]
     fn _new_dirty_statement(
         idx: i64,
-        dirty: Bound<'_, PyAny>,
+        dirty: AilExpression,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let dirty_ail = extract_ail_expr(&dirty)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::DirtyStatement {
-                dirty: Box::new(dirty_ail),
+                dirty: Box::new(dirty),
             },
         }))
     }
@@ -1256,12 +1218,8 @@ impl Statement {
         TagsView::with_parent(inner, slf.into_any().unbind())
     }
     #[setter]
-    fn set_tags(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(tv) = value.cast::<TagsView>() {
-            self.stmt.header.tags = tv.borrow().inner().clone();
-        } else {
-            self.stmt.header.tags = Tags::from_mapping(Some(&value))?;
-        }
+    fn set_tags(&mut self, value: Tags) -> PyResult<()> {
+        self.stmt.header.tags = value;
         self.stmt.header.cached_hash.clear();
         Ok(())
     }
@@ -1381,9 +1339,9 @@ impl Statement {
     /// Jump.target / ConditionalJump callers reach for true_target/false_target
     /// (distinct getters below)
     #[getter]
-    fn target(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn target<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.stmt.inner {
-            StmtInner::Jump { target, .. } => target.to_py(py),
+            StmtInner::Jump { target, .. } => target.into_pyobject(py),
             _ => Err(PyAttributeError::new_err("no 'target' on this Statement")),
         }
     }
@@ -1414,10 +1372,10 @@ impl Statement {
 
     /// ConditionalJump.true_target
     #[getter]
-    fn true_target(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+    fn true_target<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         match &self.stmt.inner {
             StmtInner::ConditionalJump { true_target, .. } => match true_target {
-                Some(t) => Ok(Some(t.to_py(py)?)),
+                Some(t) => Ok(Some(t.into_pyobject(py)?)),
                 None => Ok(None),
             },
             _ => Err(PyAttributeError::new_err(
@@ -1428,10 +1386,10 @@ impl Statement {
 
     /// ConditionalJump.false_target
     #[getter]
-    fn false_target(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+    fn false_target<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         match &self.stmt.inner {
             StmtInner::ConditionalJump { false_target, .. } => match false_target {
-                Some(t) => Ok(Some(t.to_py(py)?)),
+                Some(t) => Ok(Some(t.into_pyobject(py)?)),
                 None => Ok(None),
             },
             _ => Err(PyAttributeError::new_err(
@@ -1441,12 +1399,11 @@ impl Statement {
     }
 
     #[setter]
-    fn set_target(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let new_target = CFGTarget::from_py(&value)?;
+    fn set_target(&mut self, value: CFGTarget) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::Jump { target, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *target = new_target;
+                *target = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'target' on this Statement")),
@@ -1468,12 +1425,11 @@ impl Statement {
     }
 
     #[setter]
-    fn set_condition(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let ail = extract_ail_expr(&value)?;
+    fn set_condition(&mut self, value: AilExpression) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { condition, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **condition = ail;
+                **condition = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1483,15 +1439,11 @@ impl Statement {
     }
 
     #[setter]
-    fn set_true_target(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
-        let new_target = match value {
-            Some(v) if !v.is_none() => Some(CFGTarget::from_py(&v)?),
-            _ => None,
-        };
+    fn set_true_target(&mut self, value: Option<CFGTarget>) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { true_target, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *true_target = new_target;
+                *true_target = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1501,15 +1453,11 @@ impl Statement {
     }
 
     #[setter]
-    fn set_false_target(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
-        let new_target = match value {
-            Some(v) if !v.is_none() => Some(CFGTarget::from_py(&v)?),
-            _ => None,
-        };
+    fn set_false_target(&mut self, value: Option<CFGTarget>) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { false_target, .. } => {
                 self.stmt.header.cached_hash.clear();
-                *false_target = new_target;
+                *false_target = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1588,12 +1536,11 @@ impl Statement {
     }
 
     #[setter]
-    fn set_expr(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let ail = extract_ail_expr(&value)?;
+    fn set_expr(&mut self, value: AilExpression) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::SideEffectStatement { expr, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **expr = ail;
+                **expr = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
@@ -1654,7 +1601,7 @@ impl Statement {
             StmtInner::Return { ret_exprs } => {
                 let mut new_vec: Vec<AilExpression> = Vec::new();
                 for item in value.try_iter()? {
-                    new_vec.push(extract_ail_expr(&item?)?);
+                    new_vec.push(item?.extract::<AilExpression>()?);
                 }
                 self.stmt.header.cached_hash.clear();
                 *ret_exprs = new_vec;
@@ -1742,12 +1689,11 @@ impl Statement {
         }
     }
     #[setter]
-    fn set_dst(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let ail = extract_ail_expr(&value)?;
+    fn set_dst(&mut self, value: AilExpression) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::Assignment { dst, .. } | StmtInner::WeakAssignment { dst, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **dst = ail;
+                **dst = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'dst' on this Statement")),
@@ -1765,12 +1711,11 @@ impl Statement {
         }
     }
     #[setter]
-    fn set_src(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let ail = extract_ail_expr(&value)?;
+    fn set_src(&mut self, value: AilExpression) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::Assignment { src, .. } | StmtInner::WeakAssignment { src, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **src = ail;
+                **src = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'src' on this Statement")),
@@ -1878,13 +1823,11 @@ impl Statement {
     /// operand subtrees that ``__eq__``-matches ``old``.
     fn replace<'py>(
         slf: PyRef<'py, Self>,
-        old_expr: &Bound<'py, PyAny>,
-        new_expr: &Bound<'py, PyAny>,
+        old_expr: PyRef<'py, Expression>,
+        new_expr: PyRef<'py, Expression>,
     ) -> PyResult<(bool, Py<PyAny>)> {
         let py = slf.py();
-        let old_ail = extract_ail_expr(old_expr)?;
-        let new_ail = extract_ail_expr(new_expr)?;
-        let (changed, rebuilt) = slf.stmt.replace_ail_stmt(&old_ail, &new_ail);
+        let (changed, rebuilt) = slf.stmt.replace_ail_stmt(&old_expr.expr, &new_expr.expr);
         if !changed {
             return Ok((false, slf.into_pyobject(py)?.into_any().unbind()));
         }
@@ -2081,28 +2024,33 @@ impl Statement {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Conversions
 // ---------------------------------------------------------------------------
-
-/// Extract an [`AilExpression`] from a Python object that must be an
-/// ``Expression`` instance.
-fn extract_ail_expr(obj: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
-    let e: PyRef<'_, Expression> = obj
-        .cast::<Expression>()
-        .map_err(|_| PyTypeError::new_err("expected an Expression"))?
-        .borrow();
-    Ok(e.expr.clone())
-}
 
 /// Extract an [`AilStatement`] from a Python object that must be a
 /// ``Statement`` instance. Used by stmt-bearing expressions
 /// (e.g. MultiStatementExpression).
-pub fn extract_ail_stmt(obj: &Bound<'_, PyAny>) -> PyResult<AilStatement> {
-    let s: PyRef<'_, Statement> = obj
-        .cast::<Statement>()
-        .map_err(|_| PyTypeError::new_err("expected a Statement"))?
-        .borrow();
-    Ok(s.stmt.clone())
+impl<'py> FromPyObject<'_, 'py> for AilStatement {
+    type Error = PyErr;
+
+    fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let s: PyRef<'_, Statement> = obj
+            .cast::<Statement>()
+            .map_err(|_| PyTypeError::new_err("expected a Statement"))?
+            .borrow();
+        Ok(s.stmt.clone())
+    }
+}
+
+/// Materialize as a fresh ``Statement`` wrapper.
+impl<'py> IntoPyObject<'py> for AilStatement {
+    type Target = Statement;
+    type Output = Bound<'py, Statement>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Bound::new(py, Statement::wrap(self))
+    }
 }
 
 // ---------------------------------------------------------------------------

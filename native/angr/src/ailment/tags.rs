@@ -264,40 +264,6 @@ impl Tags {
         Self::from_kwargs(d)
     }
 
-    /// Build a Tags struct from a Python mapping (used by __setstate__ and
-    /// callers that pass `tags=` explicitly).
-    pub fn from_mapping(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
-        let Some(o) = obj else {
-            return Ok(Self::default());
-        };
-        if o.is_none() {
-            return Ok(Self::default());
-        }
-        if let Ok(d) = o.cast::<PyDict>() {
-            return Self::from_dict(Some(d));
-        }
-        // Tags itself or a TagsView
-        if let Ok(tags) = o.extract::<Tags>() {
-            return Ok(tags);
-        }
-        // Generic mapping fallback
-        if let Ok(m) = o.cast::<PyMapping>() {
-            let mut tags = Self::default();
-            let keys = m.keys()?;
-            for k in keys.try_iter()? {
-                let k = k?;
-                let key: String = k.extract()?;
-                let v = m.get_item(&k)?;
-                tags.set_from_py(&key, &v)?;
-            }
-            return Ok(tags);
-        }
-        Err(PyTypeError::new_err(format!(
-            "tags must be a mapping or None, got {}",
-            o.get_type().name()?,
-        )))
-    }
-
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -420,15 +386,6 @@ impl Tags {
         Ok(d)
     }
 
-    /// Build a Tags from a HashMap<String, Py<PyAny>>. Used by serde paths
-    /// that round-trip through plain dicts.
-    pub fn from_pymap(py: Python<'_>, map: &HashMap<String, Py<PyAny>>) -> PyResult<Self> {
-        let mut tags = Self::default();
-        for (k, v) in map {
-            tags.set_from_py(k, v.bind(py))?;
-        }
-        Ok(tags)
-    }
 }
 
 impl<'py> FromPyObject<'_, 'py> for Tags {
@@ -530,9 +487,9 @@ impl TagsView {
 impl TagsView {
     #[new]
     #[pyo3(signature = (mapping=None))]
-    fn new_py(mapping: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
+    fn new_py(mapping: Option<Tags>) -> PyResult<Self> {
         Ok(Self {
-            inner: Tags::from_mapping(mapping.as_ref())?,
+            inner: mapping.unwrap_or_default(),
             parent: None,
         })
     }
@@ -617,13 +574,12 @@ impl TagsView {
         )
     }
 
-    fn update(&mut self, py: Python<'_>, other: Bound<'_, PyAny>) -> PyResult<()> {
-        let merged = Tags::from_mapping(Some(&other))?;
-        for k in merged.keys() {
+    fn update(&mut self, py: Python<'_>, other: Tags) -> PyResult<()> {
+        for k in other.keys() {
             // Re-extract through the dynamic Python path so we cleanly
             // overwrite the existing value (and so this works even when
             // 'other' is a dict whose values are typed differently).
-            let v = merged.get_py(py, &k)?;
+            let v = other.get_py(py, &k)?;
             if let Some(v) = v {
                 self.inner.set_from_py(&k, &v)?;
             }
@@ -691,11 +647,10 @@ impl TagsView {
 
     /// Implement ``tags | other`` -- returns a new ``TagsView`` whose state is
     /// the merge of ``self`` and ``other``, with ``other`` winning on conflicts.
-    fn __or__<'py>(&self, py: Python<'py>, other: Bound<'py, PyAny>) -> PyResult<Self> {
+    fn __or__(&self, py: Python<'_>, other: Tags) -> PyResult<Self> {
         let mut merged = self.inner.clone();
-        let extra = Tags::from_mapping(Some(&other))?;
-        for k in extra.keys() {
-            if let Some(v) = extra.get_py(py, &k)? {
+        for k in other.keys() {
+            if let Some(v) = other.get_py(py, &k)? {
                 merged.set_from_py(&k, &v)?;
             }
         }
@@ -705,15 +660,14 @@ impl TagsView {
         })
     }
 
-    fn __ror__<'py>(&self, py: Python<'py>, other: Bound<'py, PyAny>) -> PyResult<Self> {
-        let mut merged = Tags::from_mapping(Some(&other))?;
+    fn __ror__(&self, py: Python<'_>, mut other: Tags) -> PyResult<Self> {
         for k in self.inner.keys() {
             if let Some(v) = self.inner.get_py(py, &k)? {
-                merged.set_from_py(&k, &v)?;
+                other.set_from_py(&k, &v)?;
             }
         }
         Ok(Self {
-            inner: merged,
+            inner: other,
             parent: None,
         })
     }
