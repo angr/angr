@@ -536,11 +536,12 @@ class RegionOverlay:
 
         if not full:
             return
-        # n is a successor node
+        # n is a successor node, or a view-only node that only extra edges (absorb_successor_into) keep in the
+        # view: such a node may have lost all of its crossing edges to later structuring, dropping it from
+        # successor_nodes() while extra edges still reference it -- its extra-edge adjacency must survive, or the
+        # view's adjacency goes asymmetric (an edge visible from its source with no matching in-edge at its target)
         succs = self.successor_nodes()
-        if n not in succs:
-            return
-        if self._in_loop:
+        if n in succs and self._in_loop:
             under_n = self._underlying(n)
             for u in under_n:
                 if u not in graph:
@@ -589,31 +590,32 @@ class RegionOverlay:
 
         if not full:
             return
-        # n is a successor node
+        # n is a successor node, or a view-only node that only extra edges (absorb_successor_into) keep in the
+        # view; see _iter_view_out_edges -- the extra-edge scan below must run for both kinds, or an extra edge
+        # would be visible from its source but missing from its target's in-edges
         succs = self.successor_nodes()
-        if n not in succs:
-            return
-        hidden_head = self._hidden_context_head_under()
-        in_loop = self._in_loop
-        under_n = self._underlying(n)
-        for u in under_n:
-            if u not in graph:
-                continue
-            for p, data in graph.pred[u].items():
-                if p in under:
-                    # a member's crossing edge into this successor
-                    if (p, u) in self._hidden or u in hidden_head:
-                        continue
-                    rep_p = self._representative_in(p)
-                    if rep_p is not None and rep_p not in seen:
-                        seen.add(rep_p)
-                        yield rep_p, data
-                elif in_loop and p not in under_n:
-                    # a successor-to-successor edge
-                    rep_p = self._representative_outside(p)
-                    if rep_p is not None and rep_p is not n and rep_p in succs and rep_p not in seen:
-                        seen.add(rep_p)
-                        yield rep_p, data
+        if n in succs:
+            hidden_head = self._hidden_context_head_under()
+            in_loop = self._in_loop
+            under_n = self._underlying(n)
+            for u in under_n:
+                if u not in graph:
+                    continue
+                for p, data in graph.pred[u].items():
+                    if p in under:
+                        # a member's crossing edge into this successor
+                        if (p, u) in self._hidden or u in hidden_head:
+                            continue
+                        rep_p = self._representative_in(p)
+                        if rep_p is not None and rep_p not in seen:
+                            seen.add(rep_p)
+                            yield rep_p, data
+                    elif in_loop and p not in under_n:
+                        # a successor-to-successor edge
+                        rep_p = self._representative_outside(p)
+                        if rep_p is not None and rep_p is not n and rep_p in succs and rep_p not in seen:
+                            seen.add(rep_p)
+                            yield rep_p, data
         for u, v in self._extra_full_edges:
             if v is n and u not in seen:
                 seen.add(u)
