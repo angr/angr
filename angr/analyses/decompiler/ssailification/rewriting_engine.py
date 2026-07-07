@@ -878,6 +878,7 @@ class SimEngineSSARewriting(
     _handle_binop_MinV = _unreachable
     _handle_binop_MaxV = _unreachable
     _handle_binop_QAddV = _unreachable
+    _handle_binop_QSubV = _unreachable
     _handle_binop_QNarrowBinV = _unreachable
     _handle_binop_PermV = _unreachable
     _handle_binop_Set = _unreachable

@@ -1218,6 +1218,7 @@ class SimEngineVRAIL(
     _handle_binop_MaxV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
     _handle_binop_QAddV = _handle_binop_Default
+    _handle_binop_QSubV = _handle_binop_Default
     _handle_binop_QNarrowBinV = _handle_binop_Default
     _handle_binop_CmpORD = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
