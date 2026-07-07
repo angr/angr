@@ -241,9 +241,20 @@ class RewritingAnalysis:
 
     def _initial_abstract_state(self, node) -> RewritingState:
         func_args_map = {}
+        # maps the varid of each constituent register vvar of a combo-register argument to the argument vvar itself
+        combo_reg_vvar_to_arg = {}
         # we may identify args that are not identified by Traversal. make sure these still get used
         unused_func_args = set(self._func_args)
         for arg_vvar in self._func_args:
+            if arg_vvar.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
+                # a combo-register argument spans multiple (usually non-contiguous) registers; the function body
+                # reads the constituent registers individually, so we expose each constituent register vvar in the
+                # initial state and keep the link back to the combo argument
+                for reg_vvar in arg_vvar.reg_vvars:
+                    combo_reg_vvar_to_arg[reg_vvar.varid] = arg_vvar
+                    for suboffset in range(reg_vvar.reg_offset, reg_vvar.reg_offset + reg_vvar.size):
+                        func_args_map[(VirtualVariableCategory.REGISTER, suboffset)] = reg_vvar
+                continue
             offset = (
                 arg_vvar.parameter_reg_offset
                 if arg_vvar.parameter_category == VirtualVariableCategory.REGISTER
@@ -273,8 +284,10 @@ class RewritingAnalysis:
         for kind, offset, size in sorted(self._extern_defs):
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
             if (arg_vvar := func_args_map.get((category, offset))) is not None:
-                unused_func_args.discard(arg_vvar)
-                if arg_vvar.size == size:
+                unused_func_args.discard(combo_reg_vvar_to_arg.get(arg_vvar.varid, arg_vvar))
+                if arg_vvar.varid in combo_reg_vvar_to_arg or arg_vvar.size == size:
+                    # never resize constituent register vvars of combo-register arguments; they stay full-width, and
+                    # narrower uses are handled by extraction
                     vvar = arg_vvar
                 elif arg_vvar in self.resized_func_args:
                     vvar = self.resized_func_args[arg_vvar]
@@ -315,6 +328,10 @@ class RewritingAnalysis:
                 assert stack_offset is not None
                 for suboff in range(stack_offset, stack_offset + func_arg.size):
                     state.stackvars[suboff] = func_arg
+            elif func_arg.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
+                for reg_vvar in func_arg.reg_vvars:
+                    for suboff in range(reg_vvar.reg_offset, reg_vvar.reg_offset + reg_vvar.size):
+                        state.registers[suboff] = reg_vvar
 
         return state
 
