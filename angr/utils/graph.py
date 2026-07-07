@@ -210,6 +210,50 @@ def dominates[T](idom: dict[T, T], dominator_node: T, node: T) -> bool:
     return False
 
 
+def compute_dominance_intervals[T](idom: dict[T, T], head: T) -> dict[T, tuple[int, int]]:
+    """
+    Compute entry/exit (Euler tour) intervals over the dominator tree described by ``idom``, so that dominance
+    queries answer in O(1) via dominates_by_intervals() instead of dominates()'s O(tree depth) chain walk.
+    Only nodes present in ``idom`` (i.e., reachable from the head) get an interval.
+    """
+    children: dict[T, list[T]] = {}
+    for n, d in idom.items():
+        if n != d:
+            children.setdefault(d, []).append(n)
+    intervals: dict[T, tuple[int, int]] = {}
+    entry: dict[T, int] = {}
+    time = 0
+    stack: list[tuple[T, bool]] = [(head, False)]
+    while stack:
+        node, exiting = stack.pop()
+        if exiting:
+            intervals[node] = (entry[node], time)
+            time += 1
+            continue
+        if node in entry:
+            continue
+        entry[node] = time
+        time += 1
+        stack.append((node, True))
+        for child in children.get(node, ()):
+            stack.append((child, False))
+    return intervals
+
+
+def dominates_by_intervals[T](intervals: dict[T, tuple[int, int]], dominator_node: T, node: T) -> bool:
+    """
+    O(1) equivalent of dominates() over intervals from compute_dominance_intervals(). Node objects must be
+    truthy (all AIL and structurer nodes are), which is the only case where dominates() behaves differently.
+    """
+    if dominator_node == node:
+        return True
+    a = intervals.get(dominator_node)
+    b = intervals.get(node)
+    if a is None or b is None:
+        return False
+    return a[0] <= b[0] and b[1] <= a[1]
+
+
 #
 # Dominance frontier
 #
@@ -1257,12 +1301,15 @@ class DirectedGraphHelper[T]:
                 order = self._node_order[node]
                 self._node_order[successor] = order + 1
 
-    def to_acyclic_by_order(self, graph: RegionOverlayGraph[T]) -> networkx.DiGraph[T]:
+    def get_node_order(self) -> dict[T, int]:
         if self._node_order is None:
             self._generate_node_order()
 
         assert self._node_order is not None
-        return graph.to_acyclic_by_order(self._node_order)
+        return self._node_order
+
+    def to_acyclic_by_order(self, graph: RegionOverlayGraph[T]) -> networkx.DiGraph[T]:
+        return graph.to_acyclic_by_order(self.get_node_order())
 
     def sort_nodes_by_order(self, nodes: list[T]) -> list[T]:
         if self._node_order is None:
