@@ -997,6 +997,89 @@ impl AilExpression {
         }
     }
 
+    /// Depth of this node recomputed from its *current* children, using
+    /// the same per-variant formulas as the ``_new_*`` factories (which
+    /// in turn mirror the legacy Python constructors -- including their
+    /// quirks: ``Call`` counts only the target, ``Insert`` ignores
+    /// ``value``, ``VEXCCallExpression`` has no ``+1``). Every code path
+    /// that swaps children after construction must call this; a stale
+    /// ``depth`` breaks size-bounded decisions downstream (e.g.
+    /// SPropagator's ``stmt.src.depth <= 3`` duplication gate).
+    pub fn compute_depth(&self) -> u32 {
+        match &self.inner {
+            ExprInner::Const { .. }
+            | ExprInner::Tmp { .. }
+            | ExprInner::Register { .. }
+            | ExprInner::ComboRegister { .. }
+            | ExprInner::Phi { .. }
+            | ExprInner::VirtualVariable { .. }
+            | ExprInner::StringLiteral { .. } => 0,
+            ExprInner::BasePointerOffset { .. }
+            | ExprInner::StackBaseOffset { .. }
+            | ExprInner::DirtyExpression { .. }
+            | ExprInner::Macro { .. }
+            | ExprInner::FunctionLikeMacro { .. } => 1,
+            ExprInner::UnaryOp { operand, .. }
+            | ExprInner::Convert { operand, .. }
+            | ExprInner::Reinterpret { operand, .. } => operand.header.depth + 1,
+            ExprInner::BinaryOp { operands, .. } => {
+                operands[0].header.depth.max(operands[1].header.depth) + 1
+            }
+            ExprInner::Load { addr, .. } => addr.header.depth + 1,
+            ExprInner::Call { target, .. } => match target {
+                CFGTarget::Expr(e) => e.header.depth + 1,
+                CFGTarget::Symbol(_) => 1,
+            },
+            ExprInner::VEXCCallExpression { operands, .. } => {
+                operands.iter().map(|o| o.header.depth).max().unwrap_or(0)
+            }
+            ExprInner::MultiStatementExpression { expr, .. } => expr.header.depth + 1,
+            ExprInner::Struct { fields, .. } => {
+                fields.values().map(|f| f.header.depth).max().unwrap_or(0) + 1
+            }
+            ExprInner::RustEnum { fields, .. } => {
+                fields.iter().map(|f| f.header.depth).max().unwrap_or(0) + 1
+            }
+            ExprInner::Array { elements } => {
+                elements.iter().map(|e| e.header.depth).max().unwrap_or(0) + 1
+            }
+            ExprInner::Let { src, .. } => src.header.depth + 1,
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+            } => {
+                cond.header
+                    .depth
+                    .max(iffalse.header.depth)
+                    .max(iftrue.header.depth)
+                    + 1
+            }
+            ExprInner::Extract { base, offset, .. } | ExprInner::Insert { base, offset, .. } => {
+                base.header.depth.max(offset.header.depth) + 1
+            }
+        }
+    }
+
+    /// Build the replacement for this node after some of its children
+    /// changed: keep ``idx`` / ``bits`` / ``tags``, but recompute
+    /// ``depth`` from the new children and reset the cached hash --
+    /// cloning the old header would carry a depth and hash describing
+    /// the *pre-substitution* subtree.
+    fn rebuilt(&self, inner: ExprInner) -> AilExpression {
+        let mut e = AilExpression {
+            header: ExprHeader::new(
+                self.header.idx,
+                0,
+                self.header.bits,
+                self.header.tags.clone(),
+            ),
+            inner,
+        };
+        e.header.depth = e.compute_depth();
+        e
+    }
+
     /// Recursive ``replace`` -- walk the operand subtrees, substituting
     /// any node that ``__eq__``-matches ``old`` (same kind + same idx +
     /// structural ``likes``). Returns ``(changed, rebuilt)`` -- when
@@ -1040,13 +1123,10 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::UnaryOp {
-                            op: op.clone(),
-                            operand: r,
-                        },
-                    },
+                    self.rebuilt(ExprInner::UnaryOp {
+                        op: op.clone(),
+                        operand: r,
+                    }),
                 )
             }
             ExprInner::Convert {
@@ -1064,18 +1144,15 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Convert {
-                            operand: r,
-                            from_bits: *from_bits,
-                            to_bits: *to_bits,
-                            is_signed: *is_signed,
-                            from_type: *from_type,
-                            to_type: *to_type,
-                            rounding_mode: *rounding_mode,
-                        },
-                    },
+                    self.rebuilt(ExprInner::Convert {
+                        operand: r,
+                        from_bits: *from_bits,
+                        to_bits: *to_bits,
+                        is_signed: *is_signed,
+                        from_type: *from_type,
+                        to_type: *to_type,
+                        rounding_mode: *rounding_mode,
+                    }),
                 )
             }
             ExprInner::Reinterpret {
@@ -1091,16 +1168,13 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Reinterpret {
-                            operand: r,
-                            from_bits: *from_bits,
-                            from_type: from_type.clone(),
-                            to_bits: *to_bits,
-                            to_type: to_type.clone(),
-                        },
-                    },
+                    self.rebuilt(ExprInner::Reinterpret {
+                        operand: r,
+                        from_bits: *from_bits,
+                        from_type: from_type.clone(),
+                        to_bits: *to_bits,
+                        to_type: to_type.clone(),
+                    }),
                 )
             }
             ExprInner::BinaryOp {
@@ -1119,18 +1193,15 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::BinaryOp {
-                            op: op.clone(),
-                            operands: [rl, rr],
-                            signed: *signed,
-                            floating_point: *floating_point,
-                            rounding_mode: *rounding_mode,
-                            vector_count: *vector_count,
-                            vector_size: *vector_size,
-                        },
-                    },
+                    self.rebuilt(ExprInner::BinaryOp {
+                        op: op.clone(),
+                        operands: [rl, rr],
+                        signed: *signed,
+                        floating_point: *floating_point,
+                        rounding_mode: *rounding_mode,
+                        vector_count: *vector_count,
+                        vector_size: *vector_size,
+                    }),
                 )
             }
             ExprInner::Load {
@@ -1148,16 +1219,13 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Load {
-                            addr: ra,
-                            size: *size,
-                            endness: endness.clone(),
-                            guard: rg,
-                            alt: ral,
-                        },
-                    },
+                    self.rebuilt(ExprInner::Load {
+                        addr: ra,
+                        size: *size,
+                        endness: endness.clone(),
+                        guard: rg,
+                        alt: ral,
+                    }),
                 )
             }
             ExprInner::ITE {
@@ -1173,14 +1241,11 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::ITE {
-                            cond: rc,
-                            iffalse: rf,
-                            iftrue: rt,
-                        },
-                    },
+                    self.rebuilt(ExprInner::ITE {
+                        cond: rc,
+                        iffalse: rf,
+                        iftrue: rt,
+                    }),
                 )
             }
             ExprInner::Extract {
@@ -1195,14 +1260,11 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Extract {
-                            base: rb,
-                            offset: ro,
-                            endness: endness.clone(),
-                        },
-                    },
+                    self.rebuilt(ExprInner::Extract {
+                        base: rb,
+                        offset: ro,
+                        endness: endness.clone(),
+                    }),
                 )
             }
             ExprInner::Insert {
@@ -1219,15 +1281,12 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Insert {
-                            base: rb,
-                            offset: ro,
-                            value: rv,
-                            endness: endness.clone(),
-                        },
-                    },
+                    self.rebuilt(ExprInner::Insert {
+                        base: rb,
+                        offset: ro,
+                        value: rv,
+                        endness: endness.clone(),
+                    }),
                 )
             }
             ExprInner::Call {
@@ -1257,14 +1316,11 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Call {
-                            target: rt,
-                            args: ra,
-                            arg_vvars: rav,
-                        },
-                    },
+                    self.rebuilt(ExprInner::Call {
+                        target: rt,
+                        args: ra,
+                        arg_vvars: rav,
+                    }),
                 )
             }
             ExprInner::DirtyExpression {
@@ -1283,17 +1339,14 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::DirtyExpression {
-                            callee: callee.clone(),
-                            operands: ro,
-                            guard: rg,
-                            mfx: mfx.clone(),
-                            maddr: rm,
-                            msize: *msize,
-                        },
-                    },
+                    self.rebuilt(ExprInner::DirtyExpression {
+                        callee: callee.clone(),
+                        operands: ro,
+                        guard: rg,
+                        mfx: mfx.clone(),
+                        maddr: rm,
+                        msize: *msize,
+                    }),
                 )
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
@@ -1303,13 +1356,10 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::VEXCCallExpression {
-                            callee: callee.clone(),
-                            operands: ro,
-                        },
-                    },
+                    self.rebuilt(ExprInner::VEXCCallExpression {
+                        callee: callee.clone(),
+                        operands: ro,
+                    }),
                 )
             }
             ExprInner::ComboRegister { registers } => {
@@ -1319,10 +1369,7 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::ComboRegister { registers: rr },
-                    },
+                    self.rebuilt(ExprInner::ComboRegister { registers: rr }),
                 )
             }
             ExprInner::Struct {
@@ -1350,15 +1397,12 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Struct {
-                            name: name.clone(),
-                            fields: new_fields,
-                            field_offsets: field_offsets.clone(),
-                            field_names: field_names.clone(),
-                        },
-                    },
+                    self.rebuilt(ExprInner::Struct {
+                        name: name.clone(),
+                        fields: new_fields,
+                        field_offsets: field_offsets.clone(),
+                        field_names: field_names.clone(),
+                    }),
                 )
             }
             ExprInner::RustEnum { name, fields } => {
@@ -1378,13 +1422,10 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::RustEnum {
-                            name: name.clone(),
-                            fields: new_fields,
-                        },
-                    },
+                    self.rebuilt(ExprInner::RustEnum {
+                        name: name.clone(),
+                        fields: new_fields,
+                    }),
                 )
             }
             ExprInner::Array { elements } => {
@@ -1404,12 +1445,9 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Array {
-                            elements: new_elements,
-                        },
-                    },
+                    self.rebuilt(ExprInner::Array {
+                        elements: new_elements,
+                    }),
                 )
             }
             ExprInner::FunctionLikeMacro {
@@ -1436,14 +1474,11 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::FunctionLikeMacro {
-                            name: name.clone(),
-                            delimiter: delimiter.clone(),
-                            args: Some(new_args),
-                        },
-                    },
+                    self.rebuilt(ExprInner::FunctionLikeMacro {
+                        name: name.clone(),
+                        delimiter: delimiter.clone(),
+                        args: Some(new_args),
+                    }),
                 )
             }
             ExprInner::Phi { src_and_vvars } => {
@@ -1474,12 +1509,9 @@ impl AilExpression {
                 }
                 (
                     true,
-                    AilExpression {
-                        header: self.header.clone(),
-                        inner: ExprInner::Phi {
-                            src_and_vvars: new_entries,
-                        },
-                    },
+                    self.rebuilt(ExprInner::Phi {
+                        src_and_vvars: new_entries,
+                    }),
                 )
             }
             // Leaf-like variants (no operand subtrees to recurse into).
@@ -3760,6 +3792,7 @@ impl Expression {
             ExprInner::ComboRegister { registers, .. } => {
                 self.expr.header.cached_hash.clear();
                 *registers = regs;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -3811,6 +3844,7 @@ impl Expression {
             ExprInner::Phi { src_and_vvars, .. } => {
                 self.expr.header.cached_hash.clear();
                 *src_and_vvars = entries;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -4132,6 +4166,7 @@ impl Expression {
             | ExprInner::VEXCCallExpression { operands, .. } => {
                 self.expr.header.cached_hash.clear();
                 *operands = v;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::BinaryOp { operands, .. } => {
@@ -4145,6 +4180,7 @@ impl Expression {
                 let rhs = Box::new(v.pop().unwrap());
                 let lhs = Box::new(v.pop().unwrap());
                 *operands = [lhs, rhs];
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -4212,6 +4248,7 @@ impl Expression {
             ExprInner::MultiStatementExpression { stmts, .. } => {
                 self.expr.header.cached_hash.clear();
                 *stmts = v;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'stmts' on this Expression")),
@@ -4275,6 +4312,7 @@ impl Expression {
                 }
                 self.expr.header.cached_hash.clear();
                 *fields = decoded;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::RustEnum { fields, .. } => {
@@ -4285,6 +4323,7 @@ impl Expression {
                 }
                 self.expr.header.cached_hash.clear();
                 *fields = decoded;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'fields' on this Expression")),
@@ -4390,6 +4429,7 @@ impl Expression {
                 }
                 self.expr.header.cached_hash.clear();
                 *elements = decoded;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -4507,6 +4547,7 @@ impl Expression {
                 };
                 self.expr.header.cached_hash.clear();
                 *args = new_vec;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::FunctionLikeMacro { args, .. } => {
@@ -4522,6 +4563,7 @@ impl Expression {
                 };
                 self.expr.header.cached_hash.clear();
                 *args = new_vec;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'args' on this Expression")),
@@ -4545,6 +4587,7 @@ impl Expression {
             ExprInner::MultiStatementExpression { expr, .. } => {
                 self.expr.header.cached_hash.clear();
                 **expr = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'expr' on this Expression")),
@@ -4570,6 +4613,7 @@ impl Expression {
             ExprInner::Call { target, .. } => {
                 self.expr.header.cached_hash.clear();
                 *target = new_target;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'target' on this Expression")),
@@ -4612,6 +4656,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::Call { arg_vvars, .. } => {
                 *arg_vvars = new_vec;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -4642,6 +4687,7 @@ impl Expression {
             | ExprInner::Reinterpret { operand, .. } => {
                 self.expr.header.cached_hash.clear();
                 **operand = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'operand' on this Expression")),
@@ -4779,6 +4825,7 @@ impl Expression {
             ExprInner::Load { addr, .. } => {
                 self.expr.header.cached_hash.clear();
                 **addr = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'addr' on this Expression")),
@@ -4821,6 +4868,7 @@ impl Expression {
             ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
                 self.expr.header.cached_hash.clear();
                 *guard = new;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'guard' on this Expression")),
@@ -4844,6 +4892,7 @@ impl Expression {
             ExprInner::ITE { cond, .. } => {
                 self.expr.header.cached_hash.clear();
                 **cond = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'cond' on this Expression")),
@@ -4867,6 +4916,7 @@ impl Expression {
             ExprInner::ITE { iftrue, .. } => {
                 self.expr.header.cached_hash.clear();
                 **iftrue = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'iftrue' on this Expression")),
@@ -4890,6 +4940,7 @@ impl Expression {
             ExprInner::ITE { iffalse, .. } => {
                 self.expr.header.cached_hash.clear();
                 **iffalse = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'iffalse' on this Expression")),
@@ -4921,6 +4972,7 @@ impl Expression {
                 let ail = extract_ail(&value)?;
                 self.expr.header.cached_hash.clear();
                 **base = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::BasePointerOffset { base, .. } => {
@@ -4929,6 +4981,7 @@ impl Expression {
                     .map_err(|_| PyTypeError::new_err("BasePointerOffset base must be a str"))?;
                 self.expr.header.cached_hash.clear();
                 *base = s;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'base' on this Expression")),
@@ -4962,6 +5015,7 @@ impl Expression {
                 let ail = extract_ail(&value)?;
                 self.expr.header.cached_hash.clear();
                 **offset = ail;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::BasePointerOffset { offset, .. } => {
@@ -4970,11 +5024,13 @@ impl Expression {
                     .map_err(|_| PyTypeError::new_err("BasePointerOffset offset must be an int"))?;
                 self.expr.header.cached_hash.clear();
                 *offset = i;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::StackBaseOffset { offset } => {
                 self.expr.header.cached_hash.clear();
                 *offset = value.extract::<i128>()?;
+                self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'offset' on this Expression")),
