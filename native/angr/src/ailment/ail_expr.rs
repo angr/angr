@@ -25,7 +25,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
 use crate::ailment::base::{CachedHash, hash_of};
 use crate::ailment::const_value::ConstValue;
-use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode};
+use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
 use indexmap::IndexMap;
 
@@ -92,7 +92,7 @@ pub enum ExprInner {
     },
     VirtualVariable {
         varid: i64,
-        category: crate::ailment::enums::VirtualVariableCategory,
+        category: VirtualVariableCategory,
         /// Per-category payload; see ``OIdent``.
         oident: OIdent,
         /// Sub-register vvars for ``COMBO_REGISTER`` category. ``None``
@@ -410,7 +410,6 @@ impl CFGTarget {
             CFGTarget::Symbol(_) => false,
         }
     }
-
 }
 
 /// Mixes into the parent node's hash. An expression target contributes
@@ -478,8 +477,7 @@ pub enum ParameterOIdent {
 }
 
 impl ParameterOIdent {
-    pub fn inner_category(&self) -> crate::ailment::enums::VirtualVariableCategory {
-        use crate::ailment::enums::VirtualVariableCategory;
+    pub fn inner_category(&self) -> VirtualVariableCategory {
         match self {
             Self::Register(_) => VirtualVariableCategory::Register,
             Self::Stack(_) => VirtualVariableCategory::Stack,
@@ -540,11 +538,7 @@ impl OIdent {
     /// the dispatch key. Stack offsets are sign-normalized: large
     /// unsigned values (e.g. ``2^64 - 8``) are reinterpreted as the
     /// corresponding ``i64`` (``-8``).
-    pub fn from_py(
-        obj: &Bound<'_, PyAny>,
-        category: crate::ailment::enums::VirtualVariableCategory,
-    ) -> PyResult<Self> {
-        use crate::ailment::enums::VirtualVariableCategory;
+    pub fn from_py(obj: &Bound<'_, PyAny>, category: VirtualVariableCategory) -> PyResult<Self> {
         if obj.is_none() {
             return Ok(Self::None);
         }
@@ -589,21 +583,10 @@ impl OIdent {
                         "PARAMETER oident tuple must have exactly 2 elements",
                     ));
                 }
-                let inner_cat_obj = t.get_item(0)?;
-                let inner_cat = if let Ok(c) = inner_cat_obj.extract::<VirtualVariableCategory>() {
-                    c
-                } else if let Ok(v) = inner_cat_obj.extract::<i64>() {
-                    VirtualVariableCategory::from_int(v).ok_or_else(|| {
-                        PyTypeError::new_err(format!(
-                            "PARAMETER oident inner category int {} is not a valid VirtualVariableCategory",
-                            v
-                        ))
-                    })?
-                } else {
-                    return Err(PyTypeError::new_err(
-                        "PARAMETER oident inner category must be a VirtualVariableCategory",
-                    ));
-                };
+                let inner_cat: VirtualVariableCategory =
+                    t.get_item(0)?.extract().map_err(|e: PyErr| {
+                        PyTypeError::new_err(format!("PARAMETER oident inner category: {}", e))
+                    })?;
                 let inner_payload = t.get_item(1)?;
                 let inner = match inner_cat {
                     VirtualVariableCategory::Register => {
@@ -2735,29 +2718,14 @@ impl Expression {
         idx: i64,
         varid: i64,
         bits: u32,
-        category: Bound<'_, PyAny>,
+        category: VirtualVariableCategory,
         oident: Option<Bound<'_, PyAny>>,
         reg_vvars: Option<Bound<'_, PyAny>>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        use crate::ailment::enums::VirtualVariableCategory;
         let tags = Tags::from_kwargs(kwargs)?;
-        let cat = if let Ok(c) = category.extract::<VirtualVariableCategory>() {
-            c
-        } else if let Ok(v) = category.extract::<i64>() {
-            VirtualVariableCategory::from_int(v).ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err(format!(
-                    "Unknown VirtualVariableCategory value: {}",
-                    v
-                ))
-            })?
-        } else {
-            return Err(PyTypeError::new_err(
-                "category must be a VirtualVariableCategory or int",
-            ));
-        };
         let oident = match oident {
-            Some(o) if !o.is_none() => OIdent::from_py(&o, cat)?,
+            Some(o) if !o.is_none() => OIdent::from_py(&o, category)?,
             _ => OIdent::None,
         };
         let reg_vvars = match reg_vvars {
@@ -2789,7 +2757,7 @@ impl Expression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::VirtualVariable {
                 varid,
-                category: cat,
+                category,
                 oident,
                 reg_vvars,
             },
@@ -3389,7 +3357,9 @@ impl Expression {
         let mut decoded_defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>> = Vec::new();
         for x in defs.try_iter()? {
             let x = x?;
-            decoded_defs.push(Box::new(x.extract::<crate::ailment::ail_stmt::AilStatement>()?));
+            decoded_defs.push(Box::new(
+                x.extract::<crate::ailment::ail_stmt::AilStatement>()?,
+            ));
         }
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
@@ -3777,7 +3747,7 @@ impl Expression {
 
     /// VirtualVariable.category
     #[getter]
-    fn category(&self) -> PyResult<crate::ailment::enums::VirtualVariableCategory> {
+    fn category(&self) -> PyResult<VirtualVariableCategory> {
         match &self.expr.inner {
             ExprInner::VirtualVariable { category, .. } => Ok(*category),
             _ => Err(PyAttributeError::new_err(
@@ -3829,7 +3799,7 @@ impl Expression {
 
     // --- VirtualVariable derived getters ------------------------------
 
-    fn _vv_category(&self) -> Option<crate::ailment::enums::VirtualVariableCategory> {
+    fn _vv_category(&self) -> Option<VirtualVariableCategory> {
         match &self.expr.inner {
             ExprInner::VirtualVariable { category, .. } => Some(*category),
             _ => None,
@@ -3839,40 +3809,37 @@ impl Expression {
     /// VirtualVariable.was_reg
     #[getter]
     fn was_reg(&self) -> bool {
-        use crate::ailment::enums::VirtualVariableCategory::*;
+        use VirtualVariableCategory::*;
         matches!(self._vv_category(), Some(Register))
     }
     /// VirtualVariable.was_stack
     #[getter]
     fn was_stack(&self) -> bool {
-        use crate::ailment::enums::VirtualVariableCategory::*;
+        use VirtualVariableCategory::*;
         matches!(self._vv_category(), Some(Stack))
     }
     /// VirtualVariable.was_parameter
     #[getter]
     fn was_parameter(&self) -> bool {
-        use crate::ailment::enums::VirtualVariableCategory::*;
+        use VirtualVariableCategory::*;
         matches!(self._vv_category(), Some(Parameter))
     }
     /// VirtualVariable.was_tmp
     #[getter]
     fn was_tmp(&self) -> bool {
-        use crate::ailment::enums::VirtualVariableCategory::*;
+        use VirtualVariableCategory::*;
         matches!(self._vv_category(), Some(Tmp))
     }
     /// VirtualVariable.was_combo_reg
     #[getter]
     fn was_combo_reg(&self) -> bool {
-        use crate::ailment::enums::VirtualVariableCategory::*;
+        use VirtualVariableCategory::*;
         matches!(self._vv_category(), Some(ComboRegister))
     }
 
     /// VirtualVariable.parameter_category
     #[getter]
-    fn parameter_category(
-        &self,
-        py: Python<'_>,
-    ) -> PyResult<Option<crate::ailment::enums::VirtualVariableCategory>> {
+    fn parameter_category(&self, py: Python<'_>) -> PyResult<Option<VirtualVariableCategory>> {
         let _ = py;
         match &self.expr.inner {
             ExprInner::VirtualVariable {
@@ -5156,7 +5123,6 @@ impl Expression {
                 oident,
                 ..
             } => {
-                use crate::ailment::enums::VirtualVariableCategory;
                 let _ = py;
                 let size = self.expr.header.bits / 8;
                 let ori_str = match (category, oident) {
@@ -5707,9 +5673,7 @@ pub mod serialize {
         fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
             match self {
                 Self::None => Ok(py.None().into_bound(py)),
-                Self::Expr(w) => {
-                    Ok(Bound::new(py, Expression::wrap(w.into_ail()))?.into_any())
-                }
+                Self::Expr(w) => Ok(Bound::new(py, Expression::wrap(w.into_ail()))?.into_any()),
                 Self::Pickle(bytes) => {
                     let pickle = py.import("pickle")?;
                     pickle.call_method1("loads", (PyBytes::new(py, &bytes),))
@@ -6648,7 +6612,10 @@ mod bigint_hex_tests {
         for (expected, n) in cases {
             assert_eq!(&format!("{:x}", BigInt::from(*n)), expected);
         }
-        assert_eq!(format!("{:x}", BigInt::from(1u32) << 70u32), "400000000000000000");
+        assert_eq!(
+            format!("{:x}", BigInt::from(1u32) << 70u32),
+            "400000000000000000"
+        );
         assert_eq!(
             format!("{:x}", -(BigInt::from(1u32) << 70u32)),
             "-400000000000000000"

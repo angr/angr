@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
     eq_int,
     module = "angr.rustylib.ailment",
     name = "VirtualVariableCategory",
-    from_py_object
+    skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VirtualVariableCategory {
@@ -102,6 +102,27 @@ impl VirtualVariableCategory {
             6 => Self::Unknown,
             _ => return None,
         })
+    }
+}
+
+impl<'py> FromPyObject<'_, 'py> for VirtualVariableCategory {
+    type Error = PyErr;
+
+    fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
+        if let Ok(cell) = obj.cast::<VirtualVariableCategory>() {
+            return Ok(*cell.borrow());
+        }
+        if let Ok(v) = obj.extract::<i64>() {
+            return Self::from_int(v).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unknown VirtualVariableCategory value: {}",
+                    v
+                ))
+            });
+        }
+        Err(pyo3::exceptions::PyTypeError::new_err(
+            "category must be a VirtualVariableCategory or int",
+        ))
     }
 }
 
