@@ -29,6 +29,7 @@ from .structurer_nodes import (
     CascadingConditionNode,
     CodeNode,
     ConditionNode,
+    IncompleteSwitchCaseNode,
     LoopNode,
     MultiNode,
     SequenceNode,
@@ -503,6 +504,17 @@ def insert_node(parent, insert_location: str, node, node_idx: int, label=None):
             raise TypeError(
                 f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, default.'
             )
+    elif isinstance(parent, IncompleteSwitchCaseNode):
+        if label == "case":
+            new_nodes = [parent.cases[node_idx], node] if insert_location == "after" else [node, parent.cases[node_idx]]
+            seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
+            parent.cases[node_idx] = seq
+        elif label == "default":
+            new_nodes = [parent.head, node] if insert_location == "after" else [node, parent.head]
+            seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
+            parent.head = seq
+        else:
+            raise TypeError(f'Unsupported label value "{label}". Must be one of the following: case, default.')
     elif isinstance(parent, LoopNode):
         if label == "condition":
             raise ValueError("Cannot insert nodes into a condition expression.")
