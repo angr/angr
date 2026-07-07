@@ -334,6 +334,44 @@ class TestRegionOverlayViewEdgeCases(unittest.TestCase):
         assert sub2.successor_nodes() == {nodes[3], nodes[4]}
         assert (nodes[3], nodes[4]) not in edge_set(sub2.view_with_successors())
 
+    def test_detach_edge_removes_absorbed_successor_edge(self):
+        # loop {2, 3} with successors {4, 5} and a successor-successor edge 4 -> 5
+        nodes = {i: Node(i) for i in range(1, 6)}
+        g = networkx.DiGraph()
+        g.add_edges_from(
+            [
+                (nodes[1], nodes[2]),
+                (nodes[2], nodes[3]),
+                (nodes[3], nodes[2]),
+                (nodes[3], nodes[4]),
+                (nodes[3], nodes[5]),
+                (nodes[4], nodes[5]),
+            ]
+        )
+        mgr = OverlayManager(g)
+        mgr.root.head = nodes[1]
+        loop = mgr.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
+
+        # absorbing successor 4 into member 3 re-attaches the 4 -> 5 edge to node 3 as a view-only extra edge
+        loop.absorb_successor_into(nodes[4], nodes[3])
+        assert (nodes[3], nodes[5]) in loop._extra_full_edges
+        assert loop.view_with_successors().has_edge(nodes[3], nodes[5])
+
+        checkpoint = mgr.checkpoint()
+
+        # detaching the edge must remove both the shared-graph edge and the view-only extra edge; if the extra
+        # edge survived, virtualizing this edge would pick it again forever in last-resort refinement
+        loop.detach_edge(nodes[3], nodes[5])
+        assert not g.has_edge(nodes[3], nodes[5])
+        assert (nodes[3], nodes[5]) not in loop._extra_full_edges
+        assert not loop.view_with_successors().has_edge(nodes[3], nodes[5])
+
+        # the removal is undoable
+        mgr.rollback(checkpoint)
+        assert g.has_edge(nodes[3], nodes[5])
+        assert (nodes[3], nodes[5]) in loop._extra_full_edges
+        assert loop.view_with_successors().has_edge(nodes[3], nodes[5])
+
 
 if __name__ == "__main__":
     unittest.main()

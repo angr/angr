@@ -820,6 +820,15 @@ class RegionOverlay:
         """
         for u, v in self.underlying_edge_pairs(src, dst):
             self._mgr.graph_remove_edge(u, v)
+        # the edge may (also) exist as a view-only extra edge introduced by absorb_successor_into(); such edges
+        # have no shared-graph counterpart, so drop them here or the edge would survive its own virtualization
+        # (last-resort refinement would then pick it again forever)
+        extra = [(u, v) for u, v in self._extra_full_edges if u is src and v is dst]
+        if extra:
+            self._extra_full_edges.difference_update(extra)
+            self._mgr._record(lambda: self._extra_full_edges.update(extra))
+            self._mgr._touch(src)
+            self._mgr._touch(dst)
         self._invalidate()
 
     def mark_edge(self, src, dst, **attrs) -> None:
