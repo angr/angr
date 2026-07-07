@@ -935,6 +935,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    def _handle_binop_QSubV(self, expr: ailment.expression.BinaryOp) -> DataType:
+        raise NotImplementedError("Not sure of the semantics of this op")
+
     def _handle_binop_QNarrowBin(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
