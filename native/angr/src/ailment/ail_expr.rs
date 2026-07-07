@@ -1080,16 +1080,29 @@ impl AilExpression {
         e
     }
 
+    /// ``__eq__`` semantics: same kind, same ``idx``, and structurally
+    /// ``likes``. This is what the Python ``Expression.__eq__`` computes
+    /// (idx-first short-circuit, then ``likes``). ``replace`` matches on
+    /// this, NOT on bare ``likes``: two distinct SSA occurrences of the
+    /// same value share a shape (``likes``) but have different ``idx``,
+    /// and a replace targeting one must not rewrite the other.
+    pub fn eq_ail(&self, other: &AilExpression) -> bool {
+        self.header.idx == other.header.idx && self.likes(other)
+    }
+
     /// Recursive ``replace`` -- walk the operand subtrees, substituting
     /// any node that ``__eq__``-matches ``old`` (same kind + same idx +
     /// structural ``likes``). Returns ``(changed, rebuilt)`` -- when
     /// nothing changed, callers can short-circuit and reuse the original
     /// Python wrapper instead of allocating a new one.
     pub fn replace_ail(&self, old: &AilExpression, new: &AilExpression) -> (bool, AilExpression) {
-        // Use ``likes`` (structural equality, idx-agnostic) for the match
-        // check -- legacy ``replace`` semantics treat any node with the
-        // same shape as a hit, regardless of ``idx``.
-        if self.likes(old) {
+        // Match by ``__eq__`` (idx-aware), mirroring the legacy Python
+        // ``replace``: ``BinaryOp.replace`` etc. test ``operand == old``,
+        // and ``==`` requires a matching ``idx``. Using bare ``likes``
+        // here (idx-agnostic) over-matches -- it rewrites every same-shape
+        // sibling, e.g. collapsing two distinct phi source operands that
+        // read the same register on different incoming edges.
+        if self.eq_ail(old) {
             return (true, new.clone());
         }
         let walk = |child: &AilExpression| -> (bool, Box<AilExpression>) {
@@ -1493,7 +1506,13 @@ impl AilExpression {
                 let new_entries: Vec<PhiEntry> = src_and_vvars
                     .iter()
                     .map(|e| match &e.vvar {
-                        Some(v) if v.likes(old) => {
+                        // Match by ``__eq__`` (idx-aware), not ``likes``:
+                        // distinct incoming edges can read the same
+                        // register (same shape, different ``idx``), and a
+                        // replace targeting one edge's source must not
+                        // rewrite the others -- otherwise de-SSA copy
+                        // insertion collapses per-edge copies into one.
+                        Some(v) if v.eq_ail(old) => {
                             changed = true;
                             PhiEntry {
                                 src_addr: e.src_addr,
@@ -5099,10 +5118,10 @@ impl Expression {
         Ok(self.expr.matches(&o.borrow().expr))
     }
 
-    /// ``replace(old, new)`` -- substitute any ``likes``-matching node
-    /// in the operand subtrees. Returns ``(replaced, new_expr)`` to
-    /// match the legacy contract; analyses use ``replaced`` to gate
-    /// further work.
+    /// ``replace(old, new)`` -- substitute any ``__eq__``-matching node
+    /// (idx-aware; see ``eq_ail``) in the operand subtrees. Returns
+    /// ``(replaced, new_expr)`` to match the legacy contract; analyses
+    /// use ``replaced`` to gate further work.
     fn replace<'py>(
         slf: PyRef<'py, Self>,
         old_expr: &Bound<'py, PyAny>,
@@ -5112,8 +5131,9 @@ impl Expression {
         let old_ail = extract_ail(old_expr)?;
         // Top-level match: return the supplied ``new_expr`` Python
         // object verbatim so callers that check ``replacement is new``
-        // keep working.
-        if slf.expr.likes(&old_ail) {
+        // keep working. Match by ``__eq__`` (idx-aware), mirroring the
+        // legacy Python ``replace``.
+        if slf.expr.eq_ail(&old_ail) {
             return Ok((true, new_expr.clone().unbind()));
         }
         let new_ail = extract_ail(new_expr)?;
