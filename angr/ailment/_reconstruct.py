@@ -1,10 +1,11 @@
 """Helpers used by the Rust ailment classes' ``__reduce__`` /
 ``__deepcopy__`` implementations.
 
-PyO3 classes don't have a clean way to round-trip through ``pickle`` when
-their constructors take keyword-only ``**kwargs`` (used for tags). So the
-classes serialize themselves as ``(reconstruct_with_kwargs, (cls, args,
-kwargs_dict))`` and pickle restores them by calling the helper.
+``Expression`` / ``Statement`` round-trip through ``pickle`` by
+serializing to bytes (``to_bytes``) and reducing to
+``(reconstruct_expression | reconstruct_statement, (data,))``, which
+restores them via the matching ``from_bytes`` classmethod. ``Block``
+reduces to ``(cls, args)`` directly.
 
 ``copy.deepcopy`` on an AIL tree is satisfied by routing every class
 through its existing ``deep_copy(manager)`` method, with a private
@@ -14,12 +15,6 @@ through its existing ``deep_copy(manager)`` method, with a private
 from __future__ import annotations
 
 import itertools
-from typing import Any
-
-
-def reconstruct_with_kwargs(cls: type, args: tuple, kwargs: dict[str, Any]):
-    """Construct ``cls(*args, **kwargs)`` -- used by ailment ``__reduce__``."""
-    return cls(*args, **(kwargs or {}))
 
 
 class _DeepcopyManager:
@@ -66,5 +61,4 @@ __all__ = [
     "deepcopy_via_deep_copy",
     "reconstruct_expression",
     "reconstruct_statement",
-    "reconstruct_with_kwargs",
 ]
