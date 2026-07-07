@@ -2004,7 +2004,7 @@ class PhoenixStructurer(StructurerBase):
             if (entry_addr, entry_idx) in converted_nodes:
                 continue
 
-            if entry_addr == self._region.head.addr or entry_addr == head_node.addr:
+            if entry_addr in {self._region.head.addr, head_node.addr}:
                 # do not make the region head or the switch head part of the switch-case construct (because it will
                 # lead to the removal of the region head node or the switch head node). replace this entry with a
                 # goto statement later.
