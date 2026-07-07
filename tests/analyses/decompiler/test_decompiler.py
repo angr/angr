@@ -437,6 +437,37 @@ class TestDecompiler(unittest.TestCase):
         assert "continue;" in code
         assert "IncompleteSwitchCaseHeadStatement" not in code
 
+    @structuring_algo("sailr")
+    def test_decompiling_lowered_switch_with_copied_case_bodies(self, decompiler_options=None):
+        # process_file in coreutils du (-O2) contains a switch that GCC lowered into an if-else cascade. Several
+        # cascade case bodies carry assignments and are copied into dedicated case nodes by the simplifier. The
+        # buggy pass additionally re-pointed the original comparison node's successors onto the reconstructed
+        # switch head, creating spurious parallel head->target edges that bypass the copied assignments. Those
+        # edges kept Phoenix from ever matching the reconstructed switch head, so structuring gave up with missing
+        # code blocks.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "du.o")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=False, analyze_callsites=True)
+
+        f = cfg.functions["process_file"]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        assert code is not None
+        # the reconstructed switch and its case bodies survive: without the fix, structuring drops the outer switch
+        # entirely, leaving only a small fragment (~1.4k chars) that is missing these cases and their bodies.
+        assert "switch (" in code
+        assert "case 4:" in code
+        assert "case 6:" in code
+        # the copied case bodies (assignments) are preserved rather than bypassed by spurious direct head edges
+        assert "duinfo_set(" in code
+        assert "print_size(" in code
+        # no unstructured switch head statement leaked into the output
+        assert "IncompleteSwitchCaseHeadStatement" not in code
+
     @for_all_structuring_algos
     def test_decompiling_true_x86_64_0(self, decompiler_options=None):
         # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
