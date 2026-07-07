@@ -372,6 +372,52 @@ class TestRegionOverlayViewEdgeCases(unittest.TestCase):
         assert (nodes[3], nodes[5]) in loop._extra_full_edges
         assert loop.view_with_successors().has_edge(nodes[3], nodes[5])
 
+    def test_extra_edge_target_leaving_successor_set_keeps_adjacency_symmetric(self):
+        # regression test: the target of a view-only extra edge (absorb_successor_into) can lose its last
+        # crossing edge to later structuring and drop out of successor_nodes() while the extra edge still keeps
+        # it in the with-successors view. Its in-edge view must still expose the extra edge, or the view's
+        # adjacency goes asymmetric and networkx.immediate_dominators crashes on it with "reduce() of empty
+        # iterable with no initial value".
+
+        # loop {2, 3} with successors {4, 5} and a successor-successor edge 4 -> 5
+        nodes = {i: Node(i) for i in range(1, 6)}
+        g = networkx.DiGraph()
+        g.add_edges_from(
+            [
+                (nodes[1], nodes[2]),
+                (nodes[2], nodes[3]),
+                (nodes[3], nodes[2]),
+                (nodes[3], nodes[4]),
+                (nodes[3], nodes[5]),
+                (nodes[4], nodes[5]),
+            ]
+        )
+        mgr = OverlayManager(g)
+        mgr.root.head = nodes[1]
+        loop = mgr.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=True)
+
+        # absorbing successor 4 into member 3 re-attaches the 4 -> 5 edge as the view-only extra edge (3, 5)
+        loop.absorb_successor_into(nodes[4], nodes[3])
+        assert (nodes[3], nodes[5]) in loop._extra_full_edges
+
+        # node 5 loses its last crossing edge: it is no longer a successor, but the extra edge still keeps it
+        # in the with-successors view
+        loop.hide_edge(nodes[3], nodes[5])
+        assert loop.successor_nodes() == set()
+        full = loop.view_with_successors()
+        assert nodes[5] in full
+        assert full.has_edge(nodes[3], nodes[5])
+
+        # (a) the view adjacency must be symmetric: the extra edge is visible from both endpoints
+        assert set(full.predecessors(nodes[5])) == {nodes[3]}
+        assert full.in_degree[nodes[5]] == 1
+        for u, v in full.edges:
+            assert u in full.pred[v], f"edge {u!r} -> {v!r} is missing from the target's in-edges"
+
+        # (b) dominator computation over the with-successors view must not raise
+        idoms = networkx.immediate_dominators(full, loop.head)
+        assert idoms[nodes[5]] is nodes[3]
+
 
 if __name__ == "__main__":
     unittest.main()
