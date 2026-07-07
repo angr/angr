@@ -631,59 +631,6 @@ impl AilStatement {
         }
     }
 
-    /// Recursive ``has_atom`` -- check whether any expression subtree
-    /// contains an expression node matching ``atom``.
-    pub fn has_atom_ail_stmt(&self, atom: &AilExpression, identity: bool) -> bool {
-        let check = |c: &AilExpression| c.has_atom_ail(atom, identity);
-        let check_opt = |o: &Option<Box<AilExpression>>| -> bool {
-            o.as_ref().is_some_and(|c| c.has_atom_ail(atom, identity))
-        };
-        let check_vec =
-            |v: &Vec<AilExpression>| -> bool { v.iter().any(|x| x.has_atom_ail(atom, identity)) };
-        match &self.inner {
-            StmtInner::Assignment { dst, src } | StmtInner::WeakAssignment { dst, src } => {
-                check(dst) || check(src)
-            }
-            StmtInner::Store {
-                addr, data, guard, ..
-            } => check(addr) || check(data) || check_opt(guard),
-            // Same rationale as the Jump arm below -- the legacy ``has_atom``
-            // only walks the condition, not the target slots.
-            StmtInner::ConditionalJump { condition, .. } => check(condition),
-            StmtInner::SideEffectStatement {
-                expr,
-                ret_expr,
-                fp_ret_expr,
-            } => check(expr) || check_opt(ret_expr) || check_opt(fp_ret_expr),
-            StmtInner::Return { ret_exprs } => check_vec(ret_exprs),
-            StmtInner::CAS {
-                addr,
-                data_lo,
-                data_hi,
-                expd_lo,
-                expd_hi,
-                old_lo,
-                old_hi,
-                ..
-            } => {
-                check(addr)
-                    || check(data_lo)
-                    || check_opt(data_hi)
-                    || check(expd_lo)
-                    || check_opt(expd_hi)
-                    || check(old_lo)
-                    || check_opt(old_hi)
-            }
-            StmtInner::DirtyStatement { dirty } => check(dirty),
-            // Jump.target / Label have no expression subtrees relevant to
-            // analyses that ask "does this statement contain ``atom``" --
-            // the legacy contract returns False here, and several passes
-            // (e.g. propagation) depend on it not pulling Const-typed
-            // jump targets into the "uses ``atom``" set.
-            StmtInner::Label { .. } | StmtInner::Jump { .. } | StmtInner::NoOp => false,
-        }
-    }
-
     /// Structural-with-identity equality on statements. ``likes`` is the
     /// statement-level analogue of ``AilExpression::likes``: two statements
     /// like each other when they are the same variant, every sub-expression
@@ -1294,11 +1241,6 @@ impl Statement {
     #[getter]
     fn idx(&self) -> i64 {
         self.stmt.header.idx
-    }
-    #[setter]
-    fn set_idx(&mut self, v: i64) {
-        self.stmt.header.idx = v;
-        self.stmt.header.cached_hash.clear();
     }
     #[getter]
     fn tags(slf: Bound<'_, Self>) -> TagsView {
@@ -1939,13 +1881,6 @@ impl Statement {
             return Ok((false, slf.into_pyobject(py)?.into_any().unbind()));
         }
         Ok((true, Py::new(py, Statement::wrap(rebuilt))?.into_any()))
-    }
-
-    /// ``has_atom(atom, identity=True)`` -- recursive subtree search.
-    #[pyo3(signature = (atom, identity=true))]
-    fn has_atom(&self, atom: &Bound<'_, PyAny>, identity: bool) -> PyResult<bool> {
-        let atom_ail = extract_ail_expr(atom)?;
-        Ok(self.stmt.has_atom_ail_stmt(&atom_ail, identity))
     }
 
     /// ``copy()`` -- shallow clone (same idx).
