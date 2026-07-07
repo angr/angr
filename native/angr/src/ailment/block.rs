@@ -6,6 +6,7 @@ use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
+use crate::ailment::ail_stmt::Statement;
 use crate::ailment::base::CachedHash;
 use crate::ailment::hash::{AilHash, finish, hasher};
 use crate::ailment::utils::deep_copy_obj;
@@ -242,8 +243,21 @@ impl Block {
             return Ok(false);
         }
         for (xa, xb) in sa.iter().zip(ob.iter()) {
-            if !xa.call_method1("likes", (&xb,))?.is_truthy()? {
-                return Ok(false);
+            // Fast path: both elements are AIL Statements -- compare via the
+            // native `AilStatement::likes` instead of dispatching through the
+            // Python `likes` method. Falls back to Python dispatch for any
+            // non-Statement element so behavior stays identical.
+            match (xa.cast::<Statement>(), xb.cast::<Statement>()) {
+                (Ok(a), Ok(b)) => {
+                    if !a.borrow().stmt.likes(&b.borrow().stmt) {
+                        return Ok(false);
+                    }
+                }
+                _ => {
+                    if !xa.call_method1("likes", (&xb,))?.is_truthy()? {
+                        return Ok(false);
+                    }
+                }
             }
         }
         Ok(true)

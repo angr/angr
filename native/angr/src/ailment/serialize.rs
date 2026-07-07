@@ -80,18 +80,16 @@ fn pyobj_to_node(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<AilNode> {
         let stmts_list = b.statements.bind(py);
         let mut statements: Vec<Vec<u8>> = Vec::with_capacity(stmts_list.len());
         for s in stmts_list.iter() {
-            if s.cast::<Statement>().is_err() {
-                return Err(PyNotImplementedError::new_err(format!(
+            // Native fast path: downcast once and serialize directly, rather
+            // than a second downcast plus a Python `to_bytes` dispatch and a
+            // PyBytes round-trip.
+            let st = s.cast::<Statement>().map_err(|_| {
+                PyNotImplementedError::new_err(format!(
                     "ailment.dumps: Block statement {} is not a Statement",
                     type_qualname(&s)
-                )));
-            }
-            let bytes: Vec<u8> = s
-                .call_method0("to_bytes")?
-                .cast::<PyBytes>()?
-                .as_bytes()
-                .to_vec();
-            statements.push(bytes);
+                ))
+            })?;
+            statements.push(st.borrow().to_wire_bytes()?);
         }
         return Ok(AilNode::Block(BlockPayload {
             addr: b.addr,

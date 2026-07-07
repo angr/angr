@@ -979,6 +979,14 @@ impl Statement {
     pub fn render(&self, py: Python<'_>) -> PyResult<String> {
         self.__str__(py)
     }
+
+    /// Native postcard serialization to the `StmtWire` bytes. Same output as
+    /// the `to_bytes` pymethod but callable from Rust without a Python method
+    /// dispatch (used by the block/graph serializer).
+    pub fn to_wire_bytes(&self) -> PyResult<Vec<u8>> {
+        postcard::to_stdvec(&serialize::StmtWire::from(&self.stmt))
+            .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))
+    }
 }
 
 #[pymethods]
