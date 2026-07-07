@@ -3671,9 +3671,9 @@ impl Expression {
                 let bits = self.expr.header.bits;
                 let v = match value {
                     ConstValue::Int(v) => *v,
-                    ConstValue::BigInt(s) => {
+                    ConstValue::BigInt(b) => {
                         return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "sign_bit on Const with BigInt value (hex {s}) is not supported"
+                            "sign_bit on Const with BigInt value ({b:#x}) is not supported"
                         )));
                     }
                     ConstValue::Float(_) => unreachable!(),

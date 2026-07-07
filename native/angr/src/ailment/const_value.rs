@@ -6,6 +6,7 @@
 //! distinction in a serde-friendly shape that both the serialization
 //! ``Wire`` and the in-memory ``ExprInner::Const`` arm reuse.
 
+use num_bigint::BigInt;
 use pyo3::Borrowed;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyTypeError;
@@ -37,19 +38,21 @@ pub mod i128_as_halves {
     }
 }
 
-/// Value of a `Const`. Python's `int` is unbounded; values that don't fit in
-/// `i128` round-trip through a hex-string fallback so Serde stays happy.
+/// Value of a `Const`. Python's `int` is unbounded: values that fit in
+/// `i128` are stored inline; anything larger is kept as an arbitrary-
+/// precision [`num_bigint::BigInt`].
 ///
 /// Serde representation: default external tagging. ``postcard`` is not
 /// self-describing, so adjacently-tagged variants (``#[serde(tag, content)]``)
-/// can't round-trip through it.
+/// can't round-trip through it. ``num_bigint::BigInt`` serializes as a
+/// sign + ``u32`` digit sequence, which postcard handles (unlike raw
+/// ``i128``, hence the [`i128_as_halves`] adapter on ``Int``).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ConstValue {
     Int(#[serde(with = "i128_as_halves")] i128),
     Float(f64),
-    /// Hex (base-16, no `0x` prefix, optional leading `-`) for ints outside
-    /// the i128 range.
-    BigInt(String),
+    /// Arbitrary-precision integer for values outside the `i128` range.
+    BigInt(BigInt),
 }
 
 impl<'py> FromPyObject<'_, 'py> for ConstValue {
@@ -71,10 +74,10 @@ impl<'py> FromPyObject<'_, 'py> for ConstValue {
             if let Ok(v) = obj.extract::<i128>() {
                 return Ok(Self::Int(v));
             }
-            let s: String = obj
-                .call_method1("__format__", ("x",))
-                .and_then(|x| x.extract())?;
-            return Ok(Self::BigInt(s));
+            // Outside i128 range: pyo3's ``num-bigint`` feature converts
+            // the unbounded Python ``int`` directly, no hex-string dance.
+            let big: BigInt = obj.extract()?;
+            return Ok(Self::BigInt(big));
         }
         Err(PyTypeError::new_err(format!(
             "Const value must be int or float, got {}",
@@ -92,13 +95,7 @@ impl<'py> IntoPyObject<'py> for ConstValue {
         match self {
             Self::Int(v) => v.into_bound_py_any(py),
             Self::Float(f) => f.into_bound_py_any(py),
-            Self::BigInt(s) => {
-                let builtins = py.import("builtins")?;
-                builtins
-                    .getattr("int")?
-                    .call1((s.as_str(), 16))?
-                    .into_bound_py_any(py)
-            }
+            Self::BigInt(b) => b.into_bound_py_any(py),
         }
     }
 }
@@ -111,7 +108,9 @@ impl ConstValue {
     pub fn hash_into<H: AilHash>(&self, h: &mut H) {
         match self {
             Self::Int(v) => h.int(*v),
-            Self::BigInt(s) => h.string(s.as_str()),
+            // Canonical minimal two's-complement bytes: equal integers
+            // hash equally; the ``raw`` tag keeps it distinct from ``int``.
+            Self::BigInt(b) => h.raw(&b.to_signed_bytes_le()),
             Self::Float(v) => h.child(v.to_bits() as i64),
         }
     }
@@ -119,13 +118,9 @@ impl ConstValue {
     pub fn fmt_value(&self) -> String {
         match self {
             Self::Int(v) => format!("{v:#x}"),
-            Self::BigInt(s) => {
-                if let Some(rest) = s.strip_prefix('-') {
-                    format!("-0x{rest}")
-                } else {
-                    format!("0x{s}")
-                }
-            }
+            // ``{:#x}`` on a BigInt is sign-magnitude (``-0x..`` / ``0x..``),
+            // matching the legacy hex-string rendering.
+            Self::BigInt(b) => format!("{b:#x}"),
             Self::Float(v) => format!("{}", v),
         }
     }
