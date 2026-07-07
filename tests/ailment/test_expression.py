@@ -133,7 +133,13 @@ class TestExpression(unittest.TestCase):
         assert literal.likes(StringLiteral(3, "hello\n", 48))
         assert literal.copy().tags == literal.tags
         assert literal.deep_copy(manager).idx != literal.idx
+        # ``replace`` matches by idx-aware ``__eq__`` (same idx AND ``likes``),
+        # not by bare ``likes``: a same-shape probe with a DIFFERENT idx is a
+        # distinct SSA occurrence and must NOT be rewritten...
         replaced, replacement = literal.replace(StringLiteral(4, "hello\n", 48), new)
+        assert not replaced and replacement is literal
+        # ...while a probe with the SAME idx (and matching shape) does match.
+        replaced, replacement = literal.replace(StringLiteral(2, "hello\n", 48), new)
         assert replaced and replacement is new
         replaced, replacement = literal.replace(StringLiteral(5, "bye", 24), new)
         assert not replaced and replacement is literal
