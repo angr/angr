@@ -16,7 +16,6 @@ pub mod const_value;
 pub mod enums;
 pub mod serialize;
 pub mod tags;
-pub mod utils;
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};

@@ -8,7 +8,6 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
 use crate::ailment::ail_stmt::Statement;
-use crate::ailment::utils::deep_copy_obj;
 use crate::ailment::{CachedHash, hash_of};
 
 #[pyclass(
@@ -156,12 +155,15 @@ impl Block {
         for stmt in self.statements.bind(py).iter() {
             // Native fast path: AIL statements deep-copy through Rust directly,
             // skipping the Python `deep_copy` method dispatch. Non-Statement
-            // entries fall back to the generic helper.
+            // entries (e.g. IncompleteSwitchCaseHeadStatement) fall back to
+            // their Python ``deep_copy`` method.
             if let Ok(st) = stmt.cast::<Statement>() {
                 let copied = st.borrow().stmt.deep_copy_ail_stmt(py, manager)?;
                 new_list.append(Py::new(py, Statement::wrap(copied))?)?;
+            } else if stmt.is_none() {
+                new_list.append(&stmt)?;
             } else {
-                new_list.append(deep_copy_obj(&stmt, manager)?)?;
+                new_list.append(stmt.call_method1("deep_copy", (manager,))?)?;
             }
         }
         Ok(Self {
