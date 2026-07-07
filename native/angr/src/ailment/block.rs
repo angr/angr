@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::{PyList, PyTuple};
 
 use crate::ailment::base::CachedHash;
 use crate::ailment::hash::{AilHash, finish, hasher};
@@ -303,43 +303,6 @@ impl Block {
             py,
             [cls.into_bound_py_any(py)?, args.into_bound_py_any(py)?],
         )
-    }
-
-    fn __getstate__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let d = PyDict::new(py);
-        d.set_item("addr", slf.addr)?;
-        d.set_item("original_size", slf.original_size)?;
-        d.set_item("idx", slf.idx)?;
-        d.set_item("statements", slf.statements.bind(py))?;
-        Ok(d)
-    }
-
-    fn __setstate__(mut slf: PyRefMut<'_, Self>, state: Bound<'_, PyDict>) -> PyResult<()> {
-        let py = slf.py();
-        if let Some(v) = state.get_item("addr")? {
-            slf.addr = v.extract()?;
-        }
-        slf.original_size = state
-            .get_item("original_size")?
-            .and_then(|v| if v.is_none() { None } else { v.extract().ok() });
-        slf.idx = state
-            .get_item("idx")?
-            .and_then(|v| if v.is_none() { None } else { v.extract().ok() });
-        if let Some(v) = state.get_item("statements")? {
-            if v.is_none() {
-                slf.statements = PyList::empty(py).unbind();
-            } else if let Ok(l) = v.cast::<PyList>() {
-                slf.statements = l.to_owned().unbind();
-            } else {
-                let l = PyList::empty(py);
-                for x in v.try_iter()? {
-                    l.append(x?)?;
-                }
-                slf.statements = l.unbind();
-            }
-        }
-        slf.cached_hash.clear();
-        Ok(())
     }
 
     /// Serialize this Block to bytes via postcard. See
