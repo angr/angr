@@ -153,6 +153,7 @@ else:
         _kinds: frozenset[EK]
         _match_kinds: frozenset[EK]
         _match_kind_ints: frozenset[int]
+        _match_kind_int_single: int | None
 
         def __init__(cls, name, bases, namespace, **kwargs):
             super().__init__(name, bases, namespace, **kwargs)
@@ -174,12 +175,25 @@ else:
             # otherwise mints on every read.
             if hasattr(cls, "_match_kinds"):
                 cls._match_kind_ints = frozenset(int(k) for k in cls._match_kinds)
+                # Single-kind markers (the overwhelming majority) let
+                # ``__instancecheck__`` compare the cached ``pykind`` int
+                # directly instead of a frozenset membership test.
+                cls._match_kind_int_single = (
+                    next(iter(cls._match_kind_ints)) if len(cls._match_kind_ints) == 1 else None
+                )
 
         def __instancecheck__(cls, instance: Any) -> bool:
-            # ``isinstance(x, Expression)`` (the rustlib class) goes through
-            # the normal type machinery; only the marker classes use the
-            # variant-tag dispatch.
-            return isinstance(instance, _Expression) and instance.pykind in cls._match_kind_ints
+            # Only marker classes use variant-tag dispatch. ``type(x) is``
+            # (the rustlib ``Expression`` is a final pyclass) is a C-level
+            # identity check, cheaper than the inner ``isinstance`` frame;
+            # single-kind markers then compare the cached ``pykind`` int
+            # directly. Hot: ~1M+ marker ``isinstance()`` calls / decompile.
+            if type(instance) is not _Expression:
+                return False
+            k = cls._match_kind_int_single
+            if k is not None:
+                return instance.pykind == k
+            return instance.pykind in cls._match_kind_ints
 
         def __subclasscheck__(cls, subclass: type) -> bool:
             # Markers don't support being subclassed. Reflexive equality

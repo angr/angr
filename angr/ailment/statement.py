@@ -81,6 +81,7 @@ else:
         _kinds: frozenset[SK]
         _match_kinds: frozenset[SK]
         _match_kind_ints: frozenset[int]
+        _match_kind_int_single: int | None
 
         def __init__(cls, name, bases, namespace, **kwargs):
             super().__init__(name, bases, namespace, **kwargs)
@@ -96,9 +97,19 @@ else:
             # ``expression._AilMarkerMeta`` for rationale.
             if hasattr(cls, "_match_kinds"):
                 cls._match_kind_ints = frozenset(int(k) for k in cls._match_kinds)
+                cls._match_kind_int_single = (
+                    next(iter(cls._match_kind_ints)) if len(cls._match_kind_ints) == 1 else None
+                )
 
         def __instancecheck__(cls, instance: Any) -> bool:
-            return isinstance(instance, _Statement) and instance.pykind in cls._match_kind_ints
+            # ``type(x) is`` (final pyclass) + direct int compare for
+            # single-kind markers; see ``expression._AilMarkerMeta``.
+            if type(instance) is not _Statement:
+                return False
+            k = cls._match_kind_int_single
+            if k is not None:
+                return instance.pykind == k
+            return instance.pykind in cls._match_kind_ints
 
         def __subclasscheck__(cls, subclass: type) -> bool:
             return subclass is cls
