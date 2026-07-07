@@ -198,6 +198,31 @@ class SRDAView:
                         traversed.add(pred)
                         queue.append((pred, None))
 
+    @staticmethod
+    def _pick_unique_reg_vvar(vvars: list[VirtualVariable], reg_offset: int, addr: int) -> VirtualVariable | None:
+        """
+        Return the unique virtual variable holding a register's value at a program point, or None if there is none.
+
+        Multiple vvars mean multiple definitions of the register reach the program point without a phi node merging
+        them. This legitimately happens when Ssailification deliberately passes up phi creation at a merge point
+        (e.g., when the reaching definitions have inconsistent sizes, such as a def of sil vs. defs of rsi) on the
+        assumption that the register is dead there, but a use is discovered only later (e.g., a variadic call
+        argument identified by CallSiteMaker after SSA construction). In that case the register's value is
+        path-dependent and cannot be represented by any single vvar, so we return None and let callers fall back to
+        their register-expression path.
+        """
+        unique_varids = {vvar.varid for vvar in vvars}
+        if len(unique_varids) > 1:
+            log.debug(
+                "Multiple virtual variables (%s) for register offset %d reach %#x without a phi node; there is no "
+                "unique reaching definition.",
+                sorted(unique_varids),
+                reg_offset,
+                addr,
+            )
+            return None
+        return vvars[0] if vvars else None
+
     def get_reg_vvar_by_stmt(
         self,
         reg_offset: int,
@@ -231,8 +256,7 @@ class SRDAView:
                         if func_arg_regoff == reg_offset and func_arg.size >= min_size:
                             vvars.append(func_arg)
 
-        assert len(vvars) <= 1
-        return vvars[0] if vvars else None
+        return self._pick_unique_reg_vvar(vvars, reg_offset, block_addr)
 
     def get_stack_vvar_by_stmt(  # pylint: disable=too-many-positional-arguments
         self,
@@ -310,8 +334,7 @@ class SRDAView:
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
-        assert len(vvars) <= 1
-        return vvars[0] if vvars else None
+        return self._pick_unique_reg_vvar(vvars, reg_offset, addr)
 
     def get_stack_vvar_by_insn(  # pylint: disable=too-many-positional-arguments
         self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
