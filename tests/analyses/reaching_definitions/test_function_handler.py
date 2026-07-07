@@ -5,14 +5,19 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
 
 import os
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest import TestCase, main
 
+import archinfo
 import claripy
 
 import angr
 from angr.analyses.reaching_definitions import FunctionHandler
+from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSystemVAMD64
 from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.key_definitions.atoms import Register
+from angr.sim_type import SimStruct, SimTypeFunction, SimTypeLongLong
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
@@ -130,6 +135,29 @@ class TestFunctionHandler(TestCase):
         assert handler.sscanf_str == b"12345678\x00"
         assert handler.sscanf_out_value == 12345678
         assert handler.malloc_sizes == [20, 12345678]
+
+    def test_c_return_as_atoms_implicit_outparam(self):
+        # a prototype returning a large struct through an implicit out-parameter must not crash
+        # c_return_as_atoms; the return atom is the register holding the returned pointer (issue #6536)
+        arch = archinfo.ArchAMD64()
+        state = SimpleNamespace(arch=arch)
+        retty = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="big").with_arch(arch)
+        proto = SimTypeFunction([], retty).with_arch(arch)
+
+        atoms = FunctionHandler.c_return_as_atoms(state, SimCCMicrosoftAMD64(arch), proto)
+        assert atoms == {Register(*arch.registers["rax"], arch=arch)}
+
+        # 16-byte structs are returned in rax:rdx on SysV; this behavior must be unchanged
+        atoms = FunctionHandler.c_return_as_atoms(state, SimCCSystemVAMD64(arch), proto)
+        assert atoms == {Register(*arch.registers["rax"], arch=arch), Register(*arch.registers["rdx"], arch=arch)}
+
+        # on x86 cdecl, large structs are also returned through an implicit out-parameter
+        arch_x86 = archinfo.ArchX86()
+        state_x86 = SimpleNamespace(arch=arch_x86)
+        retty_x86 = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="big").with_arch(arch_x86)
+        proto_x86 = SimTypeFunction([], retty_x86).with_arch(arch_x86)
+        atoms = FunctionHandler.c_return_as_atoms(state_x86, SimCCCdecl(arch_x86), proto_x86)
+        assert atoms == {Register(*arch_x86.registers["eax"], arch=arch_x86)}
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ import claripy
 from cle import Symbol
 from cle.backends import ELF
 
-from angr.calling_conventions import SimCC
+from angr.calling_conventions import SimCC, SimReferenceArgument
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, SpOffset
@@ -618,12 +618,20 @@ class FunctionHandler:
     @staticmethod
     def c_return_as_atoms(state: ReachingDefinitionsState, cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
-            retval = cc.return_val(prototype.returnty)
+            retval = cc.return_val(prototype.returnty, perspective_returned=True)
             if retval is not None:
-                return {
-                    Atom.from_argument(footprint_arg, state.arch, full_reg=True)
-                    for footprint_arg in retval.get_footprint()
-                }
+                if isinstance(retval, SimReferenceArgument):
+                    # the value is returned through an implicit out-parameter; its footprint is relative to the
+                    # returned pointer, not the stack pointer, so it cannot be translated into atoms statically.
+                    # the caller instead receives the pointer in retval.ptr_loc (e.g., rax).
+                    retval = retval.ptr_loc
+                atoms = set()
+                for footprint_arg in retval.get_footprint():
+                    try:
+                        atoms.add(Atom.from_argument(footprint_arg, state.arch, full_reg=True))
+                    except ValueError:
+                        continue
+                return atoms
         return set()
 
     @staticmethod
