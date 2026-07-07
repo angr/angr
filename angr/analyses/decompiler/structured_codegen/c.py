@@ -21,6 +21,7 @@ from angr.analyses.decompiler.structurer_nodes import (
     ConditionalBreakNode,
     ConditionNode,
     ContinueNode,
+    IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     LoopNode,
     SequenceNode,
@@ -2776,6 +2777,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.SideEffectStatement: self._handle_Stmt_SideEffectStatement,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
+            IncompleteSwitchCaseHeadStatement: self._handle_Stmt_IncompleteSwitchCaseHead,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
             Stmt.DirtyStatement: self._handle_Stmt_Dirty,
@@ -3834,6 +3836,39 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CIfElse(
             [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
             else_node=else_node,
+            cstyle_ifs=self.cstyle_ifs,
+            tags=stmt.tags,
+            codegen=self,
+        )
+
+    def _handle_Stmt_IncompleteSwitchCaseHead(self, stmt: IncompleteSwitchCaseHeadStatement, **kwargs):
+        # an IncompleteSwitchCaseHeadStatement only reaches the code generator when structuring failed to turn it
+        # into a proper switch-case construct. degrade gracefully: render the dispatch semantics that the statement
+        # describes as a cascade of if-gotos instead of an unsupported-statement placeholder.
+        switch_var = self._handle(stmt.switch_variable)
+        bits = getattr(stmt.switch_variable, "bits", None) or self.project.arch.bits
+        const_type = self.default_simtype_from_bits(bits, signed=False)
+        condition_and_nodes = []
+        default_goto = None
+        for _, case_value, target_addr, target_idx, _ in stmt.case_addrs:
+            goto = CGoto(target_addr, target_idx, tags=stmt.tags, codegen=self)
+            if isinstance(case_value, str):
+                if case_value == "default":
+                    default_goto = goto
+                continue
+            cond = CBinaryOp(
+                "CmpEQ",
+                switch_var,
+                CConstant(case_value, const_type, codegen=self, tags=stmt.tags),
+                codegen=self,
+                tags=stmt.tags,
+            )
+            condition_and_nodes.append((cond, goto))
+        if not condition_and_nodes:
+            return default_goto if default_goto is not None else CUnsupportedStatement(stmt, codegen=self)
+        return CIfElse(
+            condition_and_nodes,
+            else_node=default_goto,
             cstyle_ifs=self.cstyle_ifs,
             tags=stmt.tags,
             codegen=self,
