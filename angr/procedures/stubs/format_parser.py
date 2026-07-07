@@ -50,7 +50,7 @@ class FormatString:
 
     def _get_str_at(self, str_addr, max_length=None):
         if max_length is None:
-            strlen = self.parser._sim_strlen(str_addr)
+            strlen = self.parser._sim_strlen(str_addr)  # pylint:disable=protected-access
 
             # TODO: we probably could do something more fine-grained here.
 
@@ -283,7 +283,7 @@ class FormatString:
                     # XXX: atoi only supports strings of one byte
                     if fmt_spec.spec_type in [b"d", b"i", b"u", b"x"]:
                         base = 16 if fmt_spec.spec_type == b"x" else 10
-                        status, i, num_bytes = self.parser._sim_atoi_inner(
+                        status, i, num_bytes = self.parser._sim_atoi_inner(  # pylint:disable=protected-access
                             position, region, base=base, read_length=fmt_spec.length_spec
                         )
                         # increase failed count if we were unable to parse it
@@ -442,7 +442,7 @@ class FormatParser(SimProcedure):
         """
         cls = type(self)
         if cls.__dict__.get("_MOD_SPEC") is None:
-            mod_spec = {}
+            mod_spec: dict[bytes, SimType] = {}
 
             for mod, sizes in self.int_len_mod.items():
                 for conv in self.int_sign["signed"]:
@@ -454,9 +454,10 @@ class FormatParser(SimProcedure):
                 for conv in self.float_spec:
                     mod_spec[mod + conv] = ty
 
-            cls._MOD_SPEC = mod_spec
+            cls._MOD_SPEC = mod_spec  # pylint:disable=protected-access
 
-        return cls.__dict__["_MOD_SPEC"]
+        assert cls._MOD_SPEC is not None  # pylint:disable=protected-access
+        return cls._MOD_SPEC  # pylint:disable=protected-access
 
     @property
     def _all_spec(self) -> dict[bytes, SimType]:
@@ -467,9 +468,10 @@ class FormatParser(SimProcedure):
         if cls.__dict__.get("_ALL_SPEC") is None:
             base = dict(self._mod_spec)
             base.update(self.basic_spec)
-            cls._ALL_SPEC = base
+            cls._ALL_SPEC = base  # pylint:disable=protected-access
 
-        return cls.__dict__["_ALL_SPEC"]
+        assert cls._ALL_SPEC is not None  # pylint:disable=protected-access
+        return cls._ALL_SPEC  # pylint:disable=protected-access
 
     # Tricky stuff
     # Note that $ is not C99 compliant (but posix specific).
