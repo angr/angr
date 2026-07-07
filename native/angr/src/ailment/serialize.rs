@@ -98,21 +98,11 @@ fn pyobj_to_node(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<AilNode> {
             statements,
         }));
     }
-    if obj.cast::<Expression>().is_ok() {
-        let bytes: Vec<u8> = obj
-            .call_method0("to_bytes")?
-            .cast::<PyBytes>()?
-            .as_bytes()
-            .to_vec();
-        return Ok(AilNode::Expr(bytes));
+    if let Ok(e) = obj.cast::<Expression>() {
+        return Ok(AilNode::Expr(e.borrow().to_wire_bytes()?));
     }
-    if obj.cast::<Statement>().is_ok() {
-        let bytes: Vec<u8> = obj
-            .call_method0("to_bytes")?
-            .cast::<PyBytes>()?
-            .as_bytes()
-            .to_vec();
-        return Ok(AilNode::Stmt(bytes));
+    if let Ok(s) = obj.cast::<Statement>() {
+        return Ok(AilNode::Stmt(s.borrow().to_wire_bytes()?));
     }
     Err(PyNotImplementedError::new_err(format!(
         "ailment.dumps: {} is not a Block / Expression / Statement",

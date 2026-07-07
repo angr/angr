@@ -2682,6 +2682,14 @@ impl Expression {
     pub fn render(&self, py: Python<'_>) -> PyResult<String> {
         self.__str__(py)
     }
+
+    /// Native postcard serialization to the `Wire` bytes. Same output as the
+    /// `to_bytes` pymethod but callable from Rust without a Python method
+    /// dispatch (used by the module serializer).
+    pub fn to_wire_bytes(&self) -> PyResult<Vec<u8>> {
+        postcard::to_stdvec(&serialize::Wire::from(&self.expr))
+            .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))
+    }
 }
 
 #[pymethods]
@@ -5708,11 +5716,11 @@ pub mod serialize {
                 if let Ok(v) = obj.extract::<i64>() {
                     return Ok(Self::Int(v));
                 }
-                // Outside i64 range -- preserve as hex.
-                let s: String = obj
-                    .call_method1("__format__", ("x",))
-                    .and_then(|x| x.extract())?;
-                return Ok(Self::BigInt(s));
+                // Outside i64 range -- preserve as hex. `format!("{:x}")` on a
+                // num-bigint value matches Python `format(n, "x")` (lowercase,
+                // no prefix, sign-magnitude for negatives).
+                let b: num_bigint::BigInt = obj.extract()?;
+                return Ok(Self::BigInt(format!("{b:x}")));
             }
             if let Ok(f) = obj.cast::<PyFloat>() {
                 return Ok(Self::Float(f.value()));
@@ -6701,5 +6709,34 @@ pub mod serialize {
                 },
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod bigint_hex_tests {
+    use num_bigint::BigInt;
+
+    /// `PolyValue::from_pyany` renders out-of-i64 ints via `format!("{:x}")`
+    /// instead of Python `format(n, "x")`. These reference strings are the
+    /// exact CPython outputs -- lowercase, no `0x`, sign-magnitude negatives.
+    #[test]
+    fn matches_python_format_x() {
+        let cases: &[(&str, i128)] = &[("ff", 255), ("-ff", -255)];
+        for (expected, n) in cases {
+            assert_eq!(&format!("{:x}", BigInt::from(*n)), expected);
+        }
+        assert_eq!(format!("{:x}", BigInt::from(1u32) << 70u32), "400000000000000000");
+        assert_eq!(
+            format!("{:x}", -(BigInt::from(1u32) << 70u32)),
+            "-400000000000000000"
+        );
+        assert_eq!(
+            format!("{:x}", (BigInt::from(1u32) << 64u32) + BigInt::from(5)),
+            "10000000000000005"
+        );
+        assert_eq!(
+            format!("{:x}", -(BigInt::from(1u32) << 63u32) - BigInt::from(1)),
+            "-8000000000000001"
+        );
     }
 }

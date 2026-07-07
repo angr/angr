@@ -142,7 +142,15 @@ impl Block {
     fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<Self> {
         let new_list = PyList::empty(py);
         for stmt in self.statements.bind(py).iter() {
-            new_list.append(deep_copy_obj(&stmt, manager)?)?;
+            // Native fast path: AIL statements deep-copy through Rust directly,
+            // skipping the Python `deep_copy` method dispatch. Non-Statement
+            // entries fall back to the generic helper.
+            if let Ok(st) = stmt.cast::<Statement>() {
+                let copied = st.borrow().stmt.deep_copy_ail_stmt(py, manager)?;
+                new_list.append(Py::new(py, Statement::wrap(copied))?)?;
+            } else {
+                new_list.append(deep_copy_obj(&stmt, manager)?)?;
+            }
         }
         Ok(Self {
             addr: self.addr,
@@ -186,10 +194,12 @@ impl Block {
         let stmts = self_.statements.bind(py);
         let mut parts = Vec::with_capacity(stmts.len());
         for (i, stmt) in stmts.iter().enumerate() {
-            let tags = stmt.getattr("tags")?;
-            let ins_addr = tags
-                .call_method1("get", ("ins_addr", 0))?
-                .extract::<i64>()
+            // Native `ins_addr` read off the statement's tags (now a plain
+            // field), avoiding a `getattr("tags")` + `tags.get(...)` round-trip.
+            let ins_addr = stmt
+                .cast::<Statement>()
+                .ok()
+                .and_then(|st| st.borrow().stmt.header.tags.ins_addr)
                 .unwrap_or(0);
             parts.push(format!(
                 "{indent_str}{i:02} | {ins_addr:#x} | {}",
