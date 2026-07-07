@@ -169,6 +169,10 @@ class SpillingAdjDict(MutableMapping):
             return evicted_any
 
     def _evict_n(self, n: int) -> int:
+        if self.rtdb is None:
+            # without a RuntimeDb we cannot persist evicted entries; evicting anyway would silently lose data
+            # (this happens e.g. while unpickling, before an rtdb is re-attached via CFGManager.set_kb()).
+            return 0
         if not self._lru_order:
             return 0
 
@@ -438,17 +442,25 @@ class SpillingAdjDict(MutableMapping):
     #
 
     def __getstate__(self) -> dict:
+        # Load all spilled entries before pickling.
+        # We must load the entire store into memory; otherwise pickling loses data!
         self.load_all_spilled()
         return {
+            "addr_type": self.addr_type,
             "cache_limit": self._cache_limit,
             "db_batch_size": self._db_batch_size,
             "data": dict(self._data),
         }
 
     def __setstate__(self, state: dict) -> None:
+        self.addr_type = state.get("addr_type", "int")
         self._cache_limit = state["cache_limit"]
         self._db_batch_size = state["db_batch_size"]
         self._data = state["data"]
+        for inner_dict in self._data.values():
+            # entries restored from a pickle have no LMDB backing store behind them; mark them dirty so that
+            # they will be written out if they are ever evicted again (after an rtdb is re-attached)
+            inner_dict.dirty = True
         self._spilled_keys = set()
         self.rtdb = None
         self._lru_order = OrderedDict()
@@ -555,6 +567,17 @@ class SpillingDiGraph(networkx.DiGraph):
         self._adj.load_all_spilled()
         self._pred.load_all_spilled()
 
+    def set_rtdb(self, rtdb: RuntimeDb | None) -> None:
+        """
+        (Re-)attach a RuntimeDb to this graph and its adjacency containers. This is used after unpickling
+        (rtdb references are not preserved across pickling) so that edge spilling works again.
+        """
+        self._rtdb = rtdb
+        if isinstance(self._adj, SpillingAdjDict):
+            self._adj.rtdb = rtdb
+        if isinstance(self._pred, SpillingAdjDict):
+            self._pred.rtdb = rtdb
+
     def evict_all_cached_edges(self) -> None:
         """Evict all cached adjacency entries to LMDB."""
         self._adj.evict_all_cached()
@@ -574,10 +597,20 @@ class SpillingDiGraph(networkx.DiGraph):
             addr_type=addr_type,
         )
         # Restore node and adjacency data
+        # Entries restored from a pickle have no LMDB backing store behind them. We mark them dirty so that they will
+        # be written out when evicted again.
         g._node.update(node_dict)
         for k, v in adj.items():
+            if isinstance(v, DirtyDict):
+                v.dirty = True
+            else:
+                v = DirtyDict(v, dirty=True)
             g._adj[k] = v
         for k, v in pred.items():
+            if isinstance(v, DirtyDict):
+                v.dirty = True
+            else:
+                v = DirtyDict(v, dirty=True)
             g._pred[k] = v
         return g
 

@@ -13,9 +13,9 @@ from contextlib import suppress
 from claripy import BVS
 
 import angr
-from angr.knowledge_plugins.cfg.spilling_cfg import USE_SPILLING_CFGNODE_DICT, SpillingCFG
+from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
 from angr.knowledge_plugins.cfg.spilling_digraph import SpillingDiGraph
-from angr.knowledge_plugins.functions.function_manager import USE_SPILLING_FUNCTION_DICT, SpillingFunctionDict
+from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict
 from angr.storage import SimFile
 from tests.common import bin_location
 
@@ -91,18 +91,13 @@ class TestPickle(unittest.TestCase):
         p1 = pickle.loads(s)
         assert len(p1.analyses._active_preset._default_plugins) > 0
 
-    @unittest.skipUnless(
-        USE_SPILLING_FUNCTION_DICT and USE_SPILLING_CFGNODE_DICT,
-        "Requires LMDB-backed spilling dicts to be enabled (USE_SPILLING_FUNCTION_DICT / USE_SPILLING_CFGNODE_DICT)",
-    )
     def test_cfg_pickling_with_rtdb(self):
         # Regression test for angr/angr#6408: pickling a Project after CFGFast must
         # succeed even when the RuntimeDb LMDB environment has been initialized by
-        # SpillingFunctionDict / SpillingCFGNodeDict. The fauxware binary is too small
-        # to trigger automatic spilling, so we force small cache limits.
+        # SpillingFunctionDict / SpillingCFGNodeDict.
         p = angr.Project(
             os.path.join(test_location, "x86_64", "fauxware"),
-            auto_load_libs=False,
+            # fauxware is too small to trigger automatic spilling, so we force small cache limits.
             cache_limits={"functions": 10, "cfg_nodes": 10, "cfg_edges": 10},
         )
         # Force the LMDB environment to actually be opened so the unpicklable handle
@@ -141,6 +136,95 @@ class TestPickle(unittest.TestCase):
         # Lazy re-initialization of LMDB on the unpickled side must work for future use.
         p2.kb.rtdb._init_lmdb()
         assert p2.kb.rtdb._lmdb_env is not None
+
+    def test_cfg_pickling_with_active_spill(self):
+        # Regression test: pickling a Project must round-trip losslessly while entries are actually spilled
+        # to the LMDB-backed stores (nodes, edges, and functions), and the stores must remain fully usable
+        # (reads, writes, and spilling) after unpickling.
+        #
+        # Before the fix this failed because:
+        # - pickle.loads() raised KeyError (or silently lost entries) because the spilling dicts evicted
+        #   entries during __setstate__ while no RuntimeDb was attached, discarding them.
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"),
+            cache_limits={"functions": 5, "cfg_nodes": 5, "cfg_edges": 5},
+        )
+        cfg = p.analyses.CFGFast(normalize=True)
+        model = cfg.model
+        graph = model.graph
+        assert isinstance(graph, SpillingCFG)
+        func_map = p.kb.functions._function_map
+        assert isinstance(func_map, SpillingFunctionDict)
+
+        # fauxware is too small for the default eviction batch sizes to ever trigger; shrink them so that the
+        # tiny cache limits actually cause spilling (this mimics the state of a large binary)
+        graph._nodes._db_batch_size = 10
+        graph._graph._adj._db_batch_size = 10
+        graph._graph._pred._db_batch_size = 10
+        graph._graph._edge_db_batch_size = 10
+        func_map._cache_limit = 5
+        func_map._db_batch_size = 5
+
+        node_addrs = sorted(n.addr for n in graph.nodes())
+        edges = {(u.addr, v.addr) for u, v in graph.edges()}
+        func_addrs = set(p.kb.functions)
+        main_block_count = len(list(p.kb.functions.function(name="main").blocks))
+
+        # force everything out to LMDB so the pickle round-trip happens with active spill
+        graph._nodes.evict_all_cached()
+        graph._graph.evict_all_cached_edges()
+        func_map.evict_all_cached()
+        assert graph._nodes.spilled_count > 0
+        assert len(graph._graph._adj._spilled_keys) > 0
+        assert func_map.spilled_count > 0
+
+        p2 = pickle.loads(pickle.dumps(p, -1))
+
+        cfg2_model = p2.kb.cfgs["CFGFast"]
+        graph2 = cfg2_model.graph
+        func_map2 = p2.kb.functions._function_map
+
+        # all entries survive the round-trip
+        assert sorted(n.addr for n in graph2.nodes()) == node_addrs
+        assert {(u.addr, v.addr) for u, v in graph2.edges()} == edges
+        assert set(p2.kb.functions) == func_addrs
+        assert len(list(p2.kb.functions.function(name="main").blocks)) == main_block_count
+
+        # the RuntimeDb is re-attached to every spilling container so spilling works again
+        rtdb2 = p2.kb.rtdb
+        assert graph2._rtdb is rtdb2
+        assert graph2._nodes.rtdb is rtdb2
+        assert graph2._graph._adj.rtdb is rtdb2
+        assert graph2._graph._pred.rtdb is rtdb2
+        assert func_map2.rtdb is rtdb2
+
+        # the stores must be spillable again after unpickling without losing anything
+        graph2._nodes.evict_all_cached()
+        graph2._graph.evict_all_cached_edges()
+        func_map2.evict_all_cached()
+        assert graph2._nodes.spilled_count > 0
+        assert len(graph2._graph._adj._spilled_keys) > 0
+        assert func_map2.spilled_count > 0
+        assert sorted(n.addr for n in graph2.nodes()) == node_addrs
+        assert {(u.addr, v.addr) for u, v in graph2.edges()} == edges
+        assert set(p2.kb.functions) == func_addrs
+        assert len(list(p2.kb.functions.function(name="main").blocks)) == main_block_count
+
+        # writes still work after unpickling
+        nodes_list = list(graph2.nodes())
+        graph2.add_edge(nodes_list[0], nodes_list[1], jumpkind="Ijk_Boring")
+        assert graph2.has_edge(nodes_list[0], nodes_list[1])
+        p2.kb.functions.function(addr=0xDEAD0000, create=True)
+        assert 0xDEAD0000 in p2.kb.functions
+
+        # a second round-trip while spilled must also work
+        graph2._nodes.evict_all_cached()
+        graph2._graph.evict_all_cached_edges()
+        func_map2.evict_all_cached()
+        p3 = pickle.loads(pickle.dumps(p2, -1))
+        graph3 = p3.kb.cfgs["CFGFast"].graph
+        assert sorted(n.addr for n in graph3.nodes()) == node_addrs
+        assert 0xDEAD0000 in p3.kb.functions
 
     def test_multi_kb_serialization(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)

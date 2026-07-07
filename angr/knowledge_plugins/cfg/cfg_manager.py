@@ -113,5 +113,14 @@ class CFGManager(KnowledgeBasePlugin):
         for cfg_model in self.cfgs.values():
             cfg_model._cfg_manager = self
 
+    def set_kb(self, kb):
+        super().set_kb(kb)
+        # re-attach the RuntimeDb to all CFG models so that node/edge spilling works again after unpickling
+        rtdb = kb.rtdb
+        for cfg_model in self.cfgs.values():
+            cfg_model._cfg_manager = self
+            if cfg_model.graph is not None:
+                cfg_model.graph.set_rtdb(rtdb)
+
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)
