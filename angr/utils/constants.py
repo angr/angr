@@ -68,6 +68,7 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
 
     Hexadecimal (returns ``True``):
 
+    0. Small negative values (``-255 <= value < 0``) are always shown in decimal.
     1. The value is a well-known "magic" constant (e.g. ``0xdeadbeef``); see :data:`MAGIC_CONSTANTS`.
     2. The value is a known alignment mask; see :func:`is_alignment_mask`.
     3. The binary representation contains a run of **>= 8** consecutive ``1`` bits -- typical of sub-word bitmasks
@@ -87,6 +88,8 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
 
     9. The low byte is zero and the value is ``> 0xff`` -- a "round" hex number (e.g. ``0x1200``).
 
+    10. The value is a common error code (e.g. ``0xc0000005``) in a 32- or 64-bit context.
+
     Otherwise the value is shown in decimal (returns ``False``).
 
     :param value:   The integer value to format.
@@ -97,6 +100,9 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
 
     # normalize to an unsigned representation for bit-level inspection
     if value < 0:
+        if value >= -255:
+            # 0. small negative values are always displayed as decimal
+            return False
         width = bits or max(8, (value.bit_length() + 8) // 8 * 8)
         u = value & ((1 << width) - 1)
     else:
@@ -140,4 +146,8 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
         return False
 
     # 9. round hex numbers (low byte zero)
-    return u > 0xFF and (u & 0xFF) == 0
+    if u > 0xFF and (u & 0xFF) == 0:
+        return True
+
+    # 10. common error codes
+    return bits in {32, 64} and (u & 0xFFFF0000) in {0xC0000000, 0x80000000}
