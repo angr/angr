@@ -962,14 +962,6 @@ impl Statement {
     pub fn render(&self, py: Python<'_>) -> PyResult<String> {
         self.__str__(py)
     }
-
-    /// Native postcard serialization of the inner [`AilStatement`]. Same
-    /// output as the `to_bytes` pymethod but callable from Rust without a
-    /// Python method dispatch (used by the block/graph serializer).
-    pub fn to_wire_bytes(&self) -> PyResult<Vec<u8>> {
-        postcard::to_stdvec(&self.stmt)
-            .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))
-    }
 }
 
 #[pymethods]
@@ -1990,11 +1982,10 @@ impl Statement {
         Ok(PyBytes::new(py, &bytes))
     }
 
-    /// Inverse of ``to_bytes`` / [`Self::to_wire_bytes`]. ``pub`` so the
-    /// module deserializer can call it natively (the ``cls`` argument is
-    /// unused; pass the ``Statement`` type object).
+    /// Inverse of ``to_bytes``; the pickle path (``__reduce__``) restores
+    /// through this classmethod.
     #[classmethod]
-    pub fn from_bytes<'py>(
+    fn from_bytes<'py>(
         _cls: &Bound<'_, pyo3::types::PyType>,
         py: Python<'py>,
         data: &[u8],
@@ -2047,8 +2038,7 @@ impl<'py> IntoPyObject<'py> for AilStatement {
 //
 // Keep the variant order and per-variant field lists in sync with
 // the [`StmtInner`] declaration; any change to either is a wire
-// format break and must bump ``FORMAT_VERSION`` in
-// ``ailment/serialize.rs``.
+// format break (pickled AIL nodes from older builds stop loading).
 
 // -- AilStatement: header fields + inner variant ---------------------
 

@@ -1,8 +1,10 @@
-"""Round-trip tests for the postcard-based AIL serialization."""
+"""Round-trip tests for the postcard-based AIL serialization, exercised
+through pickle -- the production path (``__reduce__`` -> ``to_bytes`` /
+``from_bytes``)."""
 
 from __future__ import annotations
 
-import pytest
+import pickle
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
@@ -48,12 +50,11 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
-from angr.rustylib import ailment as a  # pylint:disable=no-name-in-module
 from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error,no-name-in-module
 
 
 def roundtrip(obj):
-    return a.loads(a.dumps(obj))
+    return pickle.loads(pickle.dumps(obj))
 
 
 # --- atoms ---------------------------------------------------------------
@@ -525,12 +526,6 @@ def test_empty_block():
 # --- per-class to_bytes / from_bytes ------------------------------------
 
 
-def test_block_to_from_bytes():
-    block = Block(0x400, statements=[Label(0, "X")])
-    b2 = Block.from_bytes(block.to_bytes())
-    assert isinstance(b2, Block) and b2.addr == 0x400
-
-
 def test_expression_to_from_bytes():
     data = Tmp(1, 5, 64).to_bytes()
     t = Expression.from_bytes(data)
@@ -541,25 +536,3 @@ def test_statement_to_from_bytes():
     s = Assignment(1, Tmp(0, 1, 32), Const(0, 42, 32)).to_bytes()
     a2 = Statement.from_bytes(s)
     assert isinstance(a2, Assignment)
-
-
-# --- format-level checks ------------------------------------------------
-
-
-def test_version_byte_prefix():
-    c = Const(1, 42, 32)
-    data = a.dumps(c)
-    # FORMAT_VERSION 0x03: hand-written serde impls on ``AilExpression`` /
-    # ``AilStatement`` replaced the ``Wire`` / ``StmtWire`` mirror enums
-    # (and their ``PolyValue`` projections) of format 0x02.
-    assert data[0] == 0x03  # FORMAT_VERSION
-
-
-def test_loads_empty_input_raises():
-    with pytest.raises(ValueError):
-        a.loads(b"")
-
-
-def test_loads_unsupported_version_raises():
-    with pytest.raises(ValueError):
-        a.loads(b"\xff\x00")

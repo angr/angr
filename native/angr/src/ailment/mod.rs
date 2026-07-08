@@ -14,7 +14,6 @@ pub mod ail_stmt;
 pub mod block;
 pub mod const_value;
 pub mod enums;
-pub mod serialize;
 pub mod tags;
 
 use std::hash::{Hash, Hasher};
@@ -22,7 +21,6 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
-use pyo3::wrap_pyfunction;
 use rustc_hash::FxHasher;
 
 pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -46,10 +44,6 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Block.
     m.add_class::<block::Block>()?;
-
-    // Module-level byte serialization helpers.
-    m.add_function(wrap_pyfunction!(serialize::py_dumps, m)?)?;
-    m.add_function(wrap_pyfunction!(serialize::py_loads, m)?)?;
 
     Ok(())
 }

@@ -337,22 +337,4 @@ impl Block {
             [cls.into_bound_py_any(py)?, args.into_bound_py_any(py)?],
         )
     }
-
-    /// Serialize this Block to bytes via postcard. See
-    /// [`crate::ailment::serialize`] for the format.
-    fn to_bytes<'py>(slf: Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        let py = slf.py();
-        let bytes = crate::ailment::serialize::dumps_to_bytes(py, slf.as_any())?;
-        Ok(pyo3::types::PyBytes::new(py, &bytes))
-    }
-
-    /// Deserialize a Block from bytes.
-    #[classmethod]
-    fn from_bytes(
-        _cls: &Bound<'_, pyo3::types::PyType>,
-        py: Python<'_>,
-        data: &[u8],
-    ) -> PyResult<Py<PyAny>> {
-        crate::ailment::serialize::loads_from_bytes(py, data)
-    }
 }
