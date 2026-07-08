@@ -130,7 +130,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
     def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if isinstance(expr.offset, Const) and isinstance(expr.offset.value, int):
-            self._update_effective_bits(expr.base, expr.offset.value, expr.offset.value + expr.bits)
+            # Extract offsets are in bytes
+            offset_bits = expr.offset.value * 8
+            self._update_effective_bits(expr.base, offset_bits, offset_bits + expr.bits)
         self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
 
@@ -150,9 +152,10 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                     self.vvar_call_arg_effective_bits[arg.operand.varid] = 0, arg.to_bits
                 if isinstance(arg, Extract) and isinstance(arg.offset, Const) and isinstance(arg.base, VirtualVariable):
                     handled = True
+                    # Extract offsets are in bytes
                     self.vvar_call_arg_effective_bits[arg.base.varid] = (
-                        arg.offset.value,
-                        arg.offset.value + arg.bits,
+                        arg.offset.value * 8,
+                        arg.offset.value * 8 + arg.bits,
                     )
 
             if not handled:
