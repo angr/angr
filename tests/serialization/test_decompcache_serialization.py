@@ -268,6 +268,132 @@ class TestSRDAModelSerialization(unittest.TestCase):
         back.all_vvar_uses[99].append(("x",))
 
 
+class TestAilSerializationHelpers(unittest.TestCase):
+    """Unit round-trips for the typed pack/parse helpers in angr.utils.ail_serialization."""
+
+    def _blocks(self):
+        from angr.ailment import Block as AilBlock
+        from angr.ailment.expression import Const
+        from angr.ailment.expression import Tmp as AilTmp
+        from angr.ailment.statement import Assignment, Return
+
+        b0 = AilBlock(0x1000, 4, statements=[Assignment(0, AilTmp(1, 2, 64), Const(2, 1, 64), ins_addr=0x1000)])
+        b1 = AilBlock(0x1004, 4, statements=[Return(3, [], ins_addr=0x1004)])
+        b2 = AilBlock(0x1008, 4, statements=[], idx=1)
+        return b0, b1, b2
+
+    def test_graph_roundtrip_with_edge_data(self):
+        import networkx
+
+        from angr.utils.ail_serialization import pack_graph, parse_graph
+
+        b0, b1, b2 = self._blocks()
+        g = networkx.DiGraph()
+        g.add_edge(b0, b1, type="fake_return", outside=False, confirmed=True)
+        # ins_addr=None packs as unset and comes back as an absent key
+        g.add_edge(b0, b2, type="transition", ins_addr=None, stmt_idx=-2)
+        g.add_edge(b1, b2)  # no edge data at all
+
+        back = parse_graph(pack_graph(g))
+        assert set(back.nodes) == set(g.nodes)
+        assert back[b0][b1] == {"type": "fake_return", "outside": False, "confirmed": True}
+        assert back[b0][b2] == {"type": "transition", "stmt_idx": -2}
+        assert back[b1][b2] == {}
+
+    def test_graph_rejects_unknown_edge_attr(self):
+        import networkx
+
+        from angr.utils.ail_serialization import pack_graph
+
+        b0, b1, _ = self._blocks()
+        g = networkx.DiGraph()
+        g.add_edge(b0, b1, color="red")
+        with self.assertRaises(TypeError):
+            pack_graph(g)
+
+    def test_graph_rejects_unknown_edge_type_string(self):
+        import networkx
+
+        from angr.utils.ail_serialization import pack_graph
+
+        b0, b1, _ = self._blocks()
+        g = networkx.DiGraph()
+        g.add_edge(b0, b1, type="teleport")
+        with self.assertRaises(TypeError):
+            pack_graph(g)
+
+    def test_graph_rejects_non_block_node(self):
+        import networkx
+
+        from angr.utils.ail_serialization import pack_graph
+
+        g = networkx.DiGraph()
+        g.add_node("not a block")
+        with self.assertRaises(TypeError):
+            pack_graph(g)
+
+    def test_arg_vvars_roundtrip(self):
+        from angr.ailment.expression import VirtualVariable as AilVirtualVariable
+        from angr.sim_variable import SimRegisterVariable, SimStackVariable
+        from angr.utils.ail_serialization import pack_arg_vvars, parse_arg_vvars
+
+        vvc = ailment.Expr.VirtualVariableCategory
+        d = {
+            0: (AilVirtualVariable(0, 1, 64, vvc.REGISTER), SimRegisterVariable(16, 8, ident="arg_0")),
+            1: (AilVirtualVariable(1, 2, 64, vvc.STACK), SimStackVariable(-8, 8, ident="arg_1")),
+        }
+        back = parse_arg_vvars(pack_arg_vvars(d))
+        assert back == d
+
+    def test_vvar_set_roundtrip(self):
+        from angr.ailment.expression import VirtualVariable as AilVirtualVariable
+        from angr.utils.ail_serialization import pack_vvar_set, parse_vvar_set
+
+        vvc = ailment.Expr.VirtualVariableCategory
+        s = {AilVirtualVariable(0, 1, 64, vvc.REGISTER), AilVirtualVariable(1, 2, 32, vvc.PARAMETER)}
+        assert parse_vvar_set(pack_vvar_set(s)) == s
+
+    def test_type_hints_roundtrip(self):
+        from angr.engines.light import SpOffset
+        from angr.utils.ail_serialization import pack_type_hints, parse_type_hints
+
+        vvc = ailment.Expr.VirtualVariableCategory
+        hints = [
+            (VirtualVariable(42, 8, vvc.REGISTER, oident=16), "char*"),
+            (MemoryLocation(SpOffset(64, -0x20), 8), "struct sockaddr"),
+        ]
+        assert parse_type_hints(pack_type_hints(hints)) == hints
+
+    def test_ite_exprs_roundtrip(self):
+        from angr.ailment.expression import Const
+        from angr.utils.ail_serialization import pack_ite_exprs, parse_ite_exprs
+
+        s = {(0x400123, Const(0, 5, 64)), (0x400456, Const(1, 7, 32))}
+        assert parse_ite_exprs(pack_ite_exprs(s)) == s
+
+    def test_static_vvars_roundtrip_both_arms(self):
+        from angr.ailment.expression import Const
+        from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBufferPtr
+        from angr.utils.ail_serialization import pack_static_vvars, parse_static_vvars
+
+        d = {3: FixedBufferPtr("buf0", offset=8), 4: Const(0, 0xDEAD, 64)}
+        back = parse_static_vvars(pack_static_vvars(d))
+        assert set(back) == {3, 4}
+        assert isinstance(back[3], FixedBufferPtr)
+        assert back[3].buffer_ident == "buf0" and back[3].offset == 8
+        assert back[4] == d[4]
+
+    def test_static_buffers_roundtrip(self):
+        from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer
+        from angr.utils.ail_serialization import pack_static_buffers, parse_static_buffers
+
+        d = {"buf0": FixedBuffer("buf0", 16, b"\x00" * 16), "anon": FixedBuffer(None, 4, b"abcd")}
+        back = parse_static_buffers(pack_static_buffers(d))
+        assert set(back) == {"buf0", "anon"}
+        assert back["buf0"].ident == "buf0" and back["buf0"].size == 16 and back["buf0"].content == b"\x00" * 16
+        assert back["anon"].ident == "<unnamed>"  # FixedBuffer normalizes a None ident at construction time
+
+
 class TestDecompilationCacheEndToEnd(unittest.TestCase):
     """End-to-end tests using a real fauxware decompilation."""
 
@@ -325,6 +451,15 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.reaching_definitions.all_vvar_definitions == fresh.all_vvar_definitions
         assert dict(back.reaching_definitions.all_vvar_uses) == dict(fresh.all_vvar_uses)
         assert back.reaching_definitions.phi_vvar_ids == fresh.phi_vvar_ids
+        # func_args is recomputed from arg_vvars rather than serialized
+        assert back.func_args == clinic.func_args
+        # _blocks_by_addr_and_size is rebuilt from _init_ail_graph: every original entry whose block is part of the
+        # graph must be reconstructed (entries for unreachable, never-graphed blocks are dead weight and may differ)
+        if clinic._blocks_by_addr_and_size and clinic._init_ail_graph is not None:
+            graph_blocks = set(clinic._init_ail_graph)
+            for key, blk in clinic._blocks_by_addr_and_size.items():
+                if blk in graph_blocks:
+                    assert back._blocks_by_addr_and_size.get(key) == blk
 
     def test_decompilation_cache_roundtrip(self):
         from angr.analyses.decompiler.decompilation_cache import DecompilationCache
