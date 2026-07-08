@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import claripy
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.elf import ELF
 from cle.backends.elf.variable import Variable
+
+from angr import claripy
 
 from .plugin import KnowledgeBasePlugin
 

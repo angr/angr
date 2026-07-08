@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import claripy
-
 import angr
+from angr import claripy
 
 
 # these are NOT suitable for multibyte characters

@@ -5,10 +5,8 @@ import math
 import string
 from typing import TYPE_CHECKING
 
-import claripy
-
 import angr
-from angr import sim_type
+from angr import claripy, sim_type
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets

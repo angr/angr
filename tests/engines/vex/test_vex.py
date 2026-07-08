@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 import unittest
 
-import claripy
 import pyvex
 
 import angr.engines.vex.claripy.ccall as s_ccall
-from angr import SimState, load_shellcode
+from angr import SimState, claripy, load_shellcode
 from angr.engines import HeavyVEXMixin
 from tests.common import minimal_project
 

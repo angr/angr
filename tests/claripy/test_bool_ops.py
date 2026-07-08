@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy as claripy
+from angr import claripy
 
 
 class TestBoolOperations(unittest.TestCase):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 
-import claripy
 from archinfo import ArchAArch64, ArchAMD64, ArchARM, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64, ArchX86
 from cle import MetaELF
 from cle.address_translator import AT
@@ -11,6 +10,7 @@ from cle.backends.elf.elfcore import ELFCore
 from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC
 from cle.backends.elf.symbol import ELFSymbolType
 
+from angr import claripy
 from angr.errors import AngrSyscallError
 from angr.procedures import SIM_LIBRARIES as L
 from angr.procedures import SIM_PROCEDURES as P

@@ -10,9 +10,8 @@ import pickle
 import re
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from angr import options as so
 from tests.common import bin_location
 

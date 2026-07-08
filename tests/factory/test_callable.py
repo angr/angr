@@ -9,9 +9,9 @@ import os
 import unittest
 
 import archinfo
-import claripy
 
 import angr
+from angr import claripy
 from angr.errors import AngrCallableMultistateError
 from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer, parse_defns
 from tests.common import bin_location

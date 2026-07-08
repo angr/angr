@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrIncongruencyError
 
