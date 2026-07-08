@@ -491,10 +491,12 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        for idx, operand in enumerate(expr.operands):
+        ops = expr.operands
+        for idx, operand in enumerate(ops):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
-        if expr.guard is not None:
-            self._handle_expr(len(expr.operands) + 1, expr.guard, stmt_idx, stmt, block)
+        guard = expr.guard
+        if guard is not None:
+            self._handle_expr(len(ops) + 1, guard, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_VEXCCallExpression(
@@ -695,10 +697,12 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        for idx, operand in enumerate(expr.operands):
+        ops = expr.operands
+        for idx, operand in enumerate(ops):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
-        if expr.guard is not None:
-            self._handle_expr(len(expr.operands) + 1, expr.guard, stmt_idx, stmt, block)
+        guard = expr.guard
+        if guard is not None:
+            self._handle_expr(len(ops) + 1, guard, stmt_idx, stmt, block)
 
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -784,58 +788,72 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     #
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
-        dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
+        # Bind child accessors once -- ``stmt.dst``/``stmt.src`` each mint a
+        # fresh Py<Expression>; comparing against the bound value keeps the
+        # structural ``!=`` semantics while halving the wrapper allocations.
+        dst_in = stmt.dst
+        dst = self._handle_expr(0, dst_in, stmt_idx, stmt, block)
         assert isinstance(dst, Atom)
-        changed = dst != stmt.dst
+        changed = dst != dst_in
 
-        src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        changed |= src != stmt.src
+        src_in = stmt.src
+        src = self._handle_expr(1, src_in, stmt_idx, stmt, block)
+        changed |= src != src_in
 
         if changed:
             return Assignment(stmt.idx, dst, src, **stmt.tags)
         return stmt
 
     def _handle_WeakAssignment(self, stmt_idx: int, stmt: WeakAssignment, block: Block | None) -> Statement:
-        dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
+        dst_in = stmt.dst
+        dst = self._handle_expr(0, dst_in, stmt_idx, stmt, block)
         assert isinstance(dst, Atom)
-        changed = dst != stmt.dst
+        changed = dst != dst_in
 
-        src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        changed |= src != stmt.src
+        src_in = stmt.src
+        src = self._handle_expr(1, src_in, stmt_idx, stmt, block)
+        changed |= src != src_in
 
         if changed:
             return WeakAssignment(stmt.idx, dst, src, **stmt.tags)
         return stmt
 
     def _handle_CAS(self, stmt_idx: int, stmt: CAS, block: Block | None) -> Statement:
-        addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
-        changed = addr != stmt.addr
+        addr_in = stmt.addr
+        addr = self._handle_expr(0, addr_in, stmt_idx, stmt, block)
+        changed = addr != addr_in
 
-        data_lo = self._handle_expr(1, stmt.data_lo, stmt_idx, stmt, block)
-        changed |= data_lo != stmt.data_lo
+        data_lo_in = stmt.data_lo
+        data_lo = self._handle_expr(1, data_lo_in, stmt_idx, stmt, block)
+        changed |= data_lo != data_lo_in
 
         data_hi = None
-        if stmt.data_hi is not None:
-            data_hi = self._handle_expr(2, stmt.data_hi, stmt_idx, stmt, block)
-            changed |= data_hi != stmt.data_hi
+        data_hi_in = stmt.data_hi
+        if data_hi_in is not None:
+            data_hi = self._handle_expr(2, data_hi_in, stmt_idx, stmt, block)
+            changed |= data_hi != data_hi_in
 
-        expd_lo = self._handle_expr(3, stmt.expd_lo, stmt_idx, stmt, block)
-        changed |= expd_lo != stmt.expd_lo
+        expd_lo_in = stmt.expd_lo
+        expd_lo = self._handle_expr(3, expd_lo_in, stmt_idx, stmt, block)
+        changed |= expd_lo != expd_lo_in
 
         expd_hi = None
-        if stmt.expd_hi is not None:
-            expd_hi = self._handle_expr(4, stmt.expd_hi, stmt_idx, stmt, block)
-            changed |= expd_hi != stmt.expd_hi
+        expd_hi_in = stmt.expd_hi
+        if expd_hi_in is not None:
+            expd_hi = self._handle_expr(4, expd_hi_in, stmt_idx, stmt, block)
+            changed |= expd_hi != expd_hi_in
 
-        old_lo = self._handle_expr(5, stmt.old_lo, stmt_idx, stmt, block)
+        old_lo_in = stmt.old_lo
+        old_lo = self._handle_expr(5, old_lo_in, stmt_idx, stmt, block)
         assert isinstance(old_lo, Atom)
-        changed |= old_lo != stmt.old_lo
+        changed |= old_lo != old_lo_in
 
         old_hi = None
-        if stmt.old_hi is not None:
-            old_hi = self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
+        old_hi_in = stmt.old_hi
+        if old_hi_in is not None:
+            old_hi = self._handle_expr(6, old_hi_in, stmt_idx, stmt, block)
             assert isinstance(old_hi, Atom)
-            changed |= old_hi != stmt.old_hi
+            changed |= old_hi != old_hi_in
 
         if changed:
             return CAS(
@@ -853,13 +871,15 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> Statement:
-        new_expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
-        changed = new_expr != stmt.expr
+        expr_in = stmt.expr
+        new_expr = self._handle_expr(0, expr_in, stmt_idx, stmt, block)
+        changed = new_expr != expr_in
 
         new_ret_expr = None
-        if stmt.ret_expr is not None:
-            new_ret_expr = self._handle_expr(-1, stmt.ret_expr, stmt_idx, stmt, block)
-            if new_ret_expr is not None and new_ret_expr != stmt.ret_expr:
+        ret_expr_in = stmt.ret_expr
+        if ret_expr_in is not None:
+            new_ret_expr = self._handle_expr(-1, ret_expr_in, stmt_idx, stmt, block)
+            if new_ret_expr is not None and new_ret_expr != ret_expr_in:
                 changed = True
 
         if changed:
@@ -870,7 +890,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             # ailment Rust flatten, FunctionLikeMacro inherited from Call
             # via the pyclass hierarchy and matched ``isinstance(_, Call)``
             # automatically; after the flatten the union must be explicit.
-            side_effect_expr: Call = new_expr if isinstance(new_expr, (Call, FunctionLikeMacro)) else stmt.expr
+            side_effect_expr: Call = new_expr if isinstance(new_expr, (Call, FunctionLikeMacro)) else expr_in
             return SideEffectStatement(
                 stmt.idx,
                 side_effect_expr,
@@ -881,14 +901,17 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None) -> Statement:
-        addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
-        changed = addr != stmt.addr
+        addr_in = stmt.addr
+        addr = self._handle_expr(0, addr_in, stmt_idx, stmt, block)
+        changed = addr != addr_in
 
-        data = self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
-        changed |= data != stmt.data
+        data_in = stmt.data
+        data = self._handle_expr(1, data_in, stmt_idx, stmt, block)
+        changed |= data != data_in
 
-        guard = None if stmt.guard is None else self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
-        changed |= guard != stmt.guard
+        guard_in = stmt.guard
+        guard = None if guard_in is None else self._handle_expr(2, guard_in, stmt_idx, stmt, block)
+        changed |= guard != guard_in
 
         if changed:
             return Store(
@@ -903,8 +926,9 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_Jump(self, stmt_idx: int, stmt: Jump, block: Block | None) -> Statement:
-        target = self._handle_expr(0, stmt.target, stmt_idx, stmt, block)
-        changed = target != stmt.target
+        target_in = stmt.target
+        target = self._handle_expr(0, target_in, stmt_idx, stmt, block)
+        changed = target != target_in
 
         if changed:
             return Jump(
@@ -916,18 +940,21 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None) -> Statement:
-        condition = self._handle_expr(0, stmt.condition, stmt_idx, stmt, block)
-        changed = condition != stmt.condition
+        condition_in = stmt.condition
+        condition = self._handle_expr(0, condition_in, stmt_idx, stmt, block)
+        changed = condition != condition_in
 
         true_target = None
-        if stmt.true_target is not None:
-            true_target = self._handle_expr(1, stmt.true_target, stmt_idx, stmt, block)
-            changed |= true_target != stmt.true_target
+        true_target_in = stmt.true_target
+        if true_target_in is not None:
+            true_target = self._handle_expr(1, true_target_in, stmt_idx, stmt, block)
+            changed |= true_target != true_target_in
 
         false_target = None
-        if stmt.false_target is not None:
-            false_target = self._handle_expr(2, stmt.false_target, stmt_idx, stmt, block)
-            changed |= false_target != stmt.false_target
+        false_target_in = stmt.false_target
+        if false_target_in is not None:
+            false_target = self._handle_expr(2, false_target_in, stmt_idx, stmt, block)
+            changed |= false_target != false_target_in
 
         if changed:
             return ConditionalJump(
@@ -953,9 +980,10 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_DirtyStatement(self, stmt_idx: int, stmt: DirtyStatement, block: Block | None) -> Statement:
-        dirty = self._handle_expr(0, stmt.dirty, stmt_idx, stmt, block)
+        dirty_in = stmt.dirty
+        dirty = self._handle_expr(0, dirty_in, stmt_idx, stmt, block)
         assert isinstance(dirty, DirtyExpression)
-        changed = dirty != stmt.dirty
+        changed = dirty != dirty_in
 
         if changed:
             return DirtyStatement(stmt.idx, dirty, **stmt.tags)
@@ -986,8 +1014,9 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_Load(
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        addr = self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
-        changed = addr != expr.addr
+        addr_in = expr.addr
+        addr = self._handle_expr(0, addr_in, stmt_idx, stmt, block)
+        changed = addr != addr_in
 
         if changed:
             new_expr = expr.copy()
@@ -1068,8 +1097,9 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_UnaryOp(
         self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        new_operand = self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
-        changed = new_operand != expr.operand
+        operand_in = expr.operand
+        new_operand = self._handle_expr(0, operand_in, stmt_idx, stmt, block)
+        changed = new_operand != operand_in
 
         if changed:
             new_expr = expr.copy()
@@ -1080,8 +1110,9 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_Convert(
         self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
-        changed = new_operand != expr.operand
+        operand_in = expr.operand
+        new_operand = self._handle_expr(expr_idx, operand_in, stmt_idx, stmt, block)
+        changed = new_operand != operand_in
 
         if changed:
             return Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **expr.tags)
@@ -1090,8 +1121,9 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_Reinterpret(
         self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
-        changed = new_operand != expr.operand
+        operand_in = expr.operand
+        new_operand = self._handle_expr(expr_idx, operand_in, stmt_idx, stmt, block)
+        changed = new_operand != operand_in
 
         if changed:
             return Reinterpret(
@@ -1102,14 +1134,17 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_ITE(
         self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        cond = self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
-        changed = cond != expr.cond
+        cond_in = expr.cond
+        cond = self._handle_expr(0, cond_in, stmt_idx, stmt, block)
+        changed = cond != cond_in
 
-        iftrue = self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
-        changed |= iftrue != expr.iftrue
+        iftrue_in = expr.iftrue
+        iftrue = self._handle_expr(1, iftrue_in, stmt_idx, stmt, block)
+        changed |= iftrue != iftrue_in
 
-        iffalse = self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
-        changed |= iffalse != expr.iffalse
+        iffalse_in = expr.iffalse
+        iffalse = self._handle_expr(2, iffalse_in, stmt_idx, stmt, block)
+        changed |= iffalse != iffalse_in
 
         if changed:
             new_expr = expr.copy()
@@ -1148,14 +1183,15 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        changed = False
-        new_operands = [self._handle_expr(0, operand, stmt_idx, stmt, block) for operand in expr.operands]
-        changed = any(new is not old for new, old in zip(new_operands, expr.operands))
+        operands_in = expr.operands
+        new_operands = [self._handle_expr(0, operand, stmt_idx, stmt, block) for operand in operands_in]
+        changed = any(new is not old for new, old in zip(new_operands, operands_in))
 
         new_guard = None
-        if expr.guard is not None:
-            new_guard = self._handle_expr(2, expr.guard, stmt_idx, stmt, block)
-            changed |= new_guard != expr.guard
+        guard_in = expr.guard
+        if guard_in is not None:
+            new_guard = self._handle_expr(2, guard_in, stmt_idx, stmt, block)
+            changed |= new_guard != guard_in
 
         if changed:
             return DirtyExpression(
@@ -1174,10 +1210,11 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
+        operands_in = expr.operands
         new_operands = [
-            self._handle_expr(idx, operand, stmt_idx, stmt, block) for idx, operand in enumerate(expr.operands)
+            self._handle_expr(idx, operand, stmt_idx, stmt, block) for idx, operand in enumerate(operands_in)
         ]
-        changed = any(new is not old for new, old in zip(new_operands, expr.operands))
+        changed = any(new is not old for new, old in zip(new_operands, operands_in))
 
         if changed:
             new_expr = expr.copy()
@@ -1188,11 +1225,13 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_MultiStatementExpression(
         self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        new_statements = [self._handle_stmt(idx, stmt_, None) for idx, stmt_ in enumerate(expr.stmts)]
-        changed = any(new is not old for new, old in zip(new_statements, expr.stmts))
+        stmts_in = expr.stmts
+        new_statements = [self._handle_stmt(idx, stmt_, None) for idx, stmt_ in enumerate(stmts_in)]
+        changed = any(new is not old for new, old in zip(new_statements, stmts_in))
 
-        new_expr = self._handle_expr(0, expr.expr, stmt_idx, stmt, block)
-        changed |= new_expr != expr.expr
+        expr_in = expr.expr
+        new_expr = self._handle_expr(0, expr_in, stmt_idx, stmt, block)
+        changed |= new_expr != expr_in
 
         if changed:
             expr_ = expr.copy()
@@ -1204,10 +1243,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_Extract(
         self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
-        new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        base_in = expr.base
+        offset_in = expr.offset
+        new_base = self._handle_expr(0, base_in, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, offset_in, stmt_idx, stmt, block)
 
-        if new_base != expr.base or new_offset != expr.offset:
+        if new_base != base_in or new_offset != offset_in:
             result = expr.copy()
             result.base = new_base
             result.offset = new_offset
@@ -1217,11 +1258,14 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_Insert(
         self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
-        new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
-        new_value = self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+        base_in = expr.base
+        offset_in = expr.offset
+        value_in = expr.value
+        new_base = self._handle_expr(0, base_in, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, offset_in, stmt_idx, stmt, block)
+        new_value = self._handle_expr(2, value_in, stmt_idx, stmt, block)
 
-        if new_base != expr.base or new_offset != expr.offset or new_value != expr.value:
+        if new_base != base_in or new_offset != offset_in or new_value != value_in:
             result = expr.copy()
             result.base = new_base
             result.offset = new_offset
