@@ -5,12 +5,11 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 import pyvex
 
 import angr.errors
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import VirtualVariable
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors

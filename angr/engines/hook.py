@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 import cle
 from archinfo.arch_soot import SootAddressDescriptor
 
 import angr
+from angr import claripy
 
 from .procedure import ProcedureMixin
 from .successors import SuccessorsEngine

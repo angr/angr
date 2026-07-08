@@ -13,9 +13,9 @@ import operator
 import re
 from functools import partial
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr.errors import SimOperationError, SimValueError, SimZeroDivisionException, UnsupportedIROpError
 from angr.state_plugins.sim_action_object import SimActionObject
 

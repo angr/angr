@@ -8,10 +8,10 @@ import typing
 from collections.abc import Iterable
 from typing import cast, override
 
-import claripy
 import pypcode
 from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
 
+from angr import claripy
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.successors import SimSuccessors, SuccessorsEngine

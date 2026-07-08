@@ -7,9 +7,8 @@ __package__ = __package__ or "tests.sim"  # pylint:disable=redefined-builtin
 import os
 from unittest import TestCase, main
 
-import claripy
-
 import angr
+from angr import claripy
 from angr import options as o
 from tests.common import bin_location
 

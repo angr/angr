@@ -8,11 +8,10 @@ import os
 import pickle
 import unittest
 
-import claripy
 import cle
 
 import angr
-from angr import SimState
+from angr import SimState, claripy
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

@@ -4,10 +4,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-import claripy
 import networkx
 
-from angr import sim_options
+from angr import claripy, sim_options
 from angr.ail_callable import AILCallable
 from angr.ailment import Block
 from angr.ailment.expression import Call, Const, UnaryOp, VirtualVariable, VirtualVariableCategory

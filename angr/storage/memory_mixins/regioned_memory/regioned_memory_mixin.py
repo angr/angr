@@ -5,11 +5,10 @@ from collections.abc import Generator
 from itertools import count
 from typing import TYPE_CHECKING, Optional
 
-import claripy
-from claripy.annotation import RegionAnnotation
-from claripy.ast import BV, Bits, Bool
-
 import angr
+from angr import claripy
+from angr.claripy.annotation import RegionAnnotation
+from angr.claripy.ast import BV, Bits, Bool
 from angr.errors import SimAbstractMemoryError, SimMemoryError
 from angr.sim_options import AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY, CONSERVATIVE_WRITE_STRATEGY
 from angr.state_plugins.sim_action_object import _raw_ast

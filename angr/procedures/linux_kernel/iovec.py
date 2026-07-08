@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import claripy
-
 import angr
+from angr import claripy
 from angr.procedures.posix.read import read
 from angr.procedures.posix.write import write
 from angr.sim_type import parse_types, register_types

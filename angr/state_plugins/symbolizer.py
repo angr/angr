@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 import struct
 
-import claripy
-
+from angr import claripy
 from angr.sim_state import SimState
 from angr.storage.memory_mixins import PagedMemoryMixin
 

@@ -6,11 +6,11 @@ import itertools
 import logging
 from typing import TYPE_CHECKING, Any
 
-import claripy
 from archinfo.arch_soot import SootAddressDescriptor
 from cle import SymbolType
 
 import angr
+from angr import claripy
 from angr import sim_options as o
 from angr.calling_conventions import (
     DEFAULT_CC,

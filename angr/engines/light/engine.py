@@ -7,11 +7,10 @@ from abc import abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
 
-import claripy
 import pyvex
 from pyvex.expr import IRExpr
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.block import Block
 from angr.code_location import CodeLocation
 from angr.engines.engine import SimEngine

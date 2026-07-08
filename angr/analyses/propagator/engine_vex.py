@@ -4,9 +4,9 @@ from __future__ import annotations
 import logging
 from typing import cast
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr.analyses.propagator.propagator import PropagatorVEXState
 from angr.block import Block
 from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, SimRegArg, default_cc

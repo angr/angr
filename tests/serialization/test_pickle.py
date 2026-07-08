@@ -11,7 +11,7 @@ import shutil
 import unittest
 from contextlib import suppress
 
-from claripy import BVS
+from angr.claripy import BVS
 
 import angr
 from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG

@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 from unittest import TestCase, main
 
 import archinfo
-import claripy
 
 import angr
+from angr import claripy
 from angr.analyses.reaching_definitions import FunctionHandler
 from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSystemVAMD64
 from angr.errors import SimMemoryMissingError

@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import claripy
 from archinfo.arch_soot import SootAddressDescriptor
 
 import angr
+from angr import claripy
 from angr import sim_options as o
 from angr.calling_conventions import SYSCALL_CC
 from angr.engines.engine import SimEngine

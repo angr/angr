@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from unittest import TestCase, main
 
-import claripy
-
+from angr import claripy
 from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 

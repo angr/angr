@@ -9,10 +9,8 @@ import random
 import unittest
 from itertools import combinations
 
-import claripy
-
 import angr
-from angr import SIM_LIBRARIES, SimState
+from angr import SIM_LIBRARIES, SimState, claripy
 from tests.common import broken
 
 log = logging.getLogger("angr.tests.string")

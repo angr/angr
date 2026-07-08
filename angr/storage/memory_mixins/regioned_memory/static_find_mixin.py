@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import claripy
-
+from angr import claripy
 from angr.storage.memory_mixins.smart_find_mixin import SmartFindMixin
 
 

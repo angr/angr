@@ -10,9 +10,9 @@ from collections.abc import Callable, Iterable
 from enum import Enum
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 
+from angr import claripy
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.calling_convention import CallingConventionAnalysis
 from angr.analyses.cfg import CFGFast

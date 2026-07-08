@@ -6,9 +6,8 @@ __package__ = __package__ or "tests.factory"  # pylint:disable=redefined-builtin
 import os
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

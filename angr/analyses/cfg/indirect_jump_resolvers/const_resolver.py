@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr.analyses.propagator import vex_vars
 from angr.blade import Blade
 from angr.code_location import CodeLocation

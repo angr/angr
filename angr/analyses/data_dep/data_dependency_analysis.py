@@ -6,11 +6,11 @@ import logging
 import math
 from typing import TYPE_CHECKING
 
-import claripy
-from claripy.ast import BV
 from networkx import DiGraph
 
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.claripy.ast import BV
 from angr.errors import AngrAnalysisError, AngrDDGError, SimValueError
 from angr.state_plugins.sim_action import SimActionData
 from angr.storage import DefaultMemory

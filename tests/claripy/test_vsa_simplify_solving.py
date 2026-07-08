@@ -8,7 +8,7 @@ from __future__ import annotations
 import contextlib
 import unittest
 
-import claripy
+from angr import claripy
 
 
 class TestVSASimplificationAndSolving(unittest.TestCase):

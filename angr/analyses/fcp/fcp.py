@@ -4,10 +4,10 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
-import claripy
 import networkx
 import pyvex
 
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
 from angr.block import Block

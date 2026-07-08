@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
 
-import claripy
 from archinfo import Endness
 
+from angr import claripy
 from angr.ailment import UnaryOp
 from angr.ailment.expression import Array, BinaryOp, Call, Const, Load, Struct, VirtualVariable
 from angr.ailment.statement import Assignment

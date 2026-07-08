@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-import claripy as claripy
-from claripy.fp import FSORT_FLOAT, RM
+from angr.claripy.fp import FSORT_FLOAT, RM
+
+from angr import claripy
 
 
 class TestFPOperations(unittest.TestCase):

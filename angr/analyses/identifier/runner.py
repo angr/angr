@@ -4,8 +4,7 @@ import logging
 import os
 import random
 
-import claripy
-
+from angr import claripy
 from angr import sim_options as so
 from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrError, SimError
 from angr.procedures import SIM_LIBRARIES

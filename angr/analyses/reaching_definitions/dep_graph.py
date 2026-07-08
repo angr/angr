@@ -8,10 +8,10 @@ from typing import (
     overload,
 )
 
-import claripy
 import networkx
 from cle.loader import Loader
 
+from angr import claripy
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.cfg import CFGModel
 from angr.knowledge_plugins.key_definitions.atoms import (

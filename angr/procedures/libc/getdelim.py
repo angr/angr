@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 import angr
+from angr import claripy
 
 l = logging.getLogger(name=__name__)
 

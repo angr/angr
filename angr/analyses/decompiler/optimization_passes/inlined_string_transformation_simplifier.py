@@ -6,9 +6,9 @@ from collections.abc import Callable
 from typing import Any
 
 import archinfo
-import claripy
 from archinfo import Endness
 
+from angr import claripy
 from angr.ailment.expression import (
     BinaryOp,
     Const,

@@ -5,9 +5,9 @@ import functools
 import logging
 
 import archinfo
-import claripy
 
 import angr
+from angr import claripy
 from angr import sim_options as o
 from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from angr.misc.ux import once

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from claripy import Annotation
+from angr.claripy import Annotation
 
 
 class StackLocationAnnotation(Annotation):

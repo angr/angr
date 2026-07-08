@@ -4,9 +4,8 @@ from __future__ import annotations
 import os
 import time
 
-import claripy
-
 import angr
+from angr import claripy
 
 bvs = claripy.BVS("foo", 8)
 

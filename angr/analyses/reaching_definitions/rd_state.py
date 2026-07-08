@@ -5,8 +5,8 @@ from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, Self, overload
 
 import archinfo
-import claripy
 
+from angr import claripy
 from angr.code_location import CodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import Definition, DerefSize, LiveDefinitions

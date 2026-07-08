@@ -4,9 +4,8 @@ import contextlib
 import logging
 from typing import Any, cast
 
-import claripy
-
 import angr.ailment as ailment
+from angr import claripy
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.typevars import AddN, DerivedTypeVariable, Load, Store, SubN, TypeVariable
 from angr.analyses.variable_recovery.variable_recovery_base import VariableRecoveryStateBase

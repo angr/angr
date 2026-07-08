@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import archinfo
-import claripy
 
+from angr import claripy
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize, MultiValues

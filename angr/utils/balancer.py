@@ -4,11 +4,10 @@ import logging
 from collections.abc import Generator
 from typing import cast, overload
 
-import claripy
-from claripy.annotation import RegionAnnotation, StridedIntervalAnnotation
-from claripy.ast import BV, Base, Bool
-from claripy.errors import ClaripyError, ClaripyOperationError
-
+from angr import claripy
+from angr.claripy.annotation import RegionAnnotation, StridedIntervalAnnotation
+from angr.claripy.ast import BV, Base, Bool
+from angr.claripy.errors import ClaripyError, ClaripyOperationError
 from angr.errors import AngrError
 
 log = logging.getLogger(__name__)

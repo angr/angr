@@ -5,8 +5,7 @@ import logging
 import os
 import re
 
-import claripy
-
+from angr import claripy
 from angr.errors import SimStateError
 from angr.sim_state import SimState
 

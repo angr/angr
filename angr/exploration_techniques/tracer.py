@@ -3,12 +3,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import claripy
 import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 import angr
-from angr import sim_options
+from angr import claripy, sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 

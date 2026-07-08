@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import claripy
 from archinfo.arch_soot import SootClassDescriptor, SootNullConstant
-from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
+from angr import claripy
+from angr.claripy import FSORT_DOUBLE, FSORT_FLOAT
 from angr.engines.soot.values import SimSootValue_StringRef
 
 from .base import SimSootExpr

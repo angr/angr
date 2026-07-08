@@ -5,9 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest import TestCase
 
-import claripy
-
-from angr import SimState
+from angr import SimState, claripy
 from angr.storage.memory_mixins import (
     AddressConcretizationMixin,
     ConvenientMappingsMixin,

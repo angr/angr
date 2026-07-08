@@ -3,9 +3,7 @@ from __future__ import annotations
 import logging
 import time
 
-import claripy
-
-from angr import errors
+from angr import claripy, errors
 from angr import sim_options as o
 
 l = logging.getLogger(name=__name__)

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import claripy
-
 import angr
+from angr import claripy
 
 # these structs can be easily-ish pulled out of qemu/linux-user/syscall_defs.h
 # TODO FIXME XXX THESE ARE NOT CORRECT

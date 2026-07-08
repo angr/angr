@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-import claripy
 from archinfo.arch_arm import is_arm_arch
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
+from angr import claripy
 from angr.sim_state import SimState
 from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
 
