@@ -293,6 +293,16 @@ impl<'c> Z3Solver<'c> {
     }
 }
 
+/// Whether `expr` contains an `fp.to_ieee_bv` node anywhere in its tree.
+///
+/// Such expressions can evaluate to a non-constant term against a Z3 model
+/// (fp.to_ieee_bv stays uninterpreted), so eval binds them to an auxiliary
+/// variable instead of reading them from the model directly.
+fn contains_fp_to_ieeebv(expr: &AstRef<'_>) -> bool {
+    matches!(expr.op(), AstOp::FpToIEEEBV(_))
+        || expr.child_iter().any(|c| contains_fp_to_ieeebv(&c))
+}
+
 impl<'c> Solver<'c> for Z3Solver<'c> {
     fn add(&mut self, constraint: &AstRef<'c>) -> Result<(), ClarirsError> {
         let idx = self.assertions.len();
@@ -522,38 +532,52 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
 
         let ctx = self.context();
 
-        // Evaluate through a fresh variable asserted equal to the expression.
-        // Z3 keeps some operators (notably fp.to_ieee_bv) uninterpreted in
-        // models even with model completion, so evaluating the expression
-        // directly can return a non-constant term; an asserted equality forces
-        // the model to assign the variable a constant. Floats are bound via
-        // their IEEE bit pattern (fp equality would make the query unsat for
-        // NaN) and converted back after evaluation.
-        let aux_name = format!("__eval_{:x}", expr.hash());
-        let (aux, link, fp_sort) = match expr.ast_type() {
-            AstType::Float(fsort) => {
-                let aux = ctx.bvs(&aux_name, fsort.size())?;
-                let link = ctx.eq_(&aux, &ctx.fp_to_ieeebv(&expr)?)?;
-                (aux, link, Some(fsort))
-            }
-            AstType::Bool => {
-                let aux = ctx.bools(&aux_name)?;
-                let link = ctx.eq_(&aux, &expr)?;
-                (aux, link, None)
-            }
-            AstType::BitVec(width) => {
-                let aux = ctx.bvs(&aux_name, width)?;
-                let link = ctx.eq_(&aux, &expr)?;
-                (aux, link, None)
-            }
-            AstType::String => {
-                let aux = ctx.strings(&aux_name)?;
-                let link = ctx.eq_(&aux, &expr)?;
-                (aux, link, None)
-            }
+        // Most expressions are read straight out of the model. `Z3_model_eval`
+        // is called with model completion, so bits left unconstrained by the
+        // assertions default to zero -- matching claripy, which evaluates the
+        // expression the same way.
+        //
+        // fp.to_ieee_bv is the exception: Z3 keeps it uninterpreted in models
+        // even with completion, so an expression containing it can evaluate to
+        // a non-constant term. For those we bind the value to a fresh auxiliary
+        // bitvector via an asserted equality, which forces the model to assign
+        // it a constant. Floats go through the same path (bound by their IEEE
+        // bit pattern, since fp equality would be unsat for NaN) and are
+        // converted back afterwards. Binding to an auxiliary variable does pull
+        // otherwise-free bits into the model with arbitrary values, so it is
+        // used only when direct evaluation cannot produce a constant.
+        let fp_sort = match expr.ast_type() {
+            AstType::Float(fsort) => Some(fsort),
+            _ => None,
+        };
+        let needs_aux = fp_sort.is_some() || contains_fp_to_ieeebv(&expr);
+
+        let aux = if needs_aux {
+            let aux_name = format!("__eval_{:x}", expr.hash());
+            let (aux, link) = match &fp_sort {
+                Some(fsort) => {
+                    let aux = ctx.bvs(&aux_name, fsort.size())?;
+                    let link = ctx.eq_(&aux, &ctx.fp_to_ieeebv(&expr)?)?;
+                    (aux, link)
+                }
+                None => {
+                    let aux = ctx.bvs(&aux_name, expr.size())?;
+                    let link = ctx.eq_(&aux, &expr)?;
+                    (aux, link)
+                }
+            };
+            Some((aux, link))
+        } else {
+            None
         };
 
-        let z3_aux = aux.to_z3()?;
+        // The expression whose model value we read and exclude between
+        // iterations: the auxiliary variable when one is used, else `expr`.
+        let eval_target = match &aux {
+            Some((aux, _)) => aux.clone(),
+            None => expr.clone(),
+        };
+        let z3_eval_target = eval_target.to_z3()?;
 
         // Create and fill the Z3 solver once, applying this solver's params
         // (timeout in particular) so eval cannot run unbounded.
@@ -563,7 +587,9 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             let converted = assertion.to_z3()?;
             z3_solver.assert(&converted)?;
         }
-        z3_solver.assert(&link.to_z3()?)?;
+        if let Some((_, link)) = &aux {
+            z3_solver.assert(&link.to_z3()?)?;
+        }
 
         for _ in 0..n {
             match z3_solver.check()? {
@@ -573,12 +599,12 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             }
 
             let model = z3_solver.model()?;
-            let eval_result = model.eval(&z3_aux)?;
+            let eval_result = model.eval(&z3_eval_target)?;
 
             let solution = AstRef::from_z3(ctx, eval_result)?;
 
             // Add constraint to exclude this solution
-            let neq_constraint = ctx.neq(&aux, &solution)?;
+            let neq_constraint = ctx.neq(&eval_target, &solution)?;
             let z3_neq = neq_constraint.to_z3()?;
             z3_solver.assert(&z3_neq)?;
 
