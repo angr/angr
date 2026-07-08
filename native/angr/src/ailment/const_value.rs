@@ -16,40 +16,17 @@ use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyInt};
 use serde::{Deserialize, Serialize};
 
-/// Serde adapter that round-trips an `i128` as two halves. ``postcard``
-/// (and several other no-std serializers) deliberately do not support
-/// ``i128``/``u128``, so any payload that travels through them needs a
-/// pair representation. Split as little-endian halves: ``(low: u64, high:
-/// i64)``.
-pub mod i128_as_halves {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S: Serializer>(v: &i128, ser: S) -> Result<S::Ok, S::Error> {
-        let u = *v as u128;
-        let low = u as u64;
-        let high = (u >> 64) as i64;
-        (low, high).serialize(ser)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<i128, D::Error> {
-        let (low, high): (u64, i64) = Deserialize::deserialize(de)?;
-        let u = ((high as u64 as u128) << 64) | (low as u128);
-        Ok(u as i128)
-    }
-}
-
 /// Value of a `Const`. Python's `int` is unbounded: values that fit in
 /// `i128` are stored inline; anything larger is kept as an arbitrary-
 /// precision [`num_bigint::BigInt`].
 ///
 /// Serde representation: default external tagging. ``postcard`` is not
 /// self-describing, so adjacently-tagged variants (``#[serde(tag, content)]``)
-/// can't round-trip through it. ``num_bigint::BigInt`` serializes as a
-/// sign + ``u32`` digit sequence, which postcard handles (unlike raw
-/// ``i128``, hence the [`i128_as_halves`] adapter on ``Int``).
+/// can't round-trip through it. ``i128`` and ``num_bigint::BigInt``
+/// (sign + ``u32`` digit sequence) both serialize natively.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ConstValue {
-    Int(#[serde(with = "i128_as_halves")] i128),
+    Int(i128),
     Float(f64),
     /// Arbitrary-precision integer for values outside the `i128` range.
     BigInt(BigInt),
