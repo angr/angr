@@ -142,11 +142,17 @@ def serialize_clinic(clinic: Clinic) -> clinic_pb2.Clinic:
         for k, v in clinic.vvar_to_vvar.items():
             msg.vvar_to_vvar[k] = v
     msg.secondary_stackvars.extend(sorted(clinic.secondary_stackvars))
-    if clinic._stackarg_offsets is not None:
-        msg._stackarg_offsets_set = True
-        for a, b in sorted(clinic._stackarg_offsets):
-            msg.stackarg_offsets_a.append(a)
-            msg.stackarg_offsets_b.append(b)
+    for records in clinic._stackarg_offset_manager.stack_arg_offsets.values():
+        for (block_addr, block_idx), ins_addr, offset, size in sorted(
+            records, key=lambda r: (r[0][0], -1 if r[0][1] is None else r[0][1], r[1], r[2], r[3])
+        ):
+            rec = msg.stackarg_offset_records.add()
+            rec.block_addr = block_addr
+            if block_idx is not None:
+                rec.block_idx = block_idx
+            rec.ins_addr = ins_addr
+            rec.offset = offset
+            rec.size = size
     if clinic._removed_vvar_ids is not None:
         msg._removed_vvar_ids_set = True
         msg.removed_vvar_ids.extend(sorted(clinic._removed_vvar_ids))
@@ -199,8 +205,10 @@ def serialize_clinic(clinic: Clinic) -> clinic_pb2.Clinic:
     msg._semvar_naming = clinic._semvar_naming
     msg._force_loop_single_exit = clinic._force_loop_single_exit
     msg._refine_loops_with_single_successor = clinic._refine_loops_with_single_successor
-    msg._complete_successors = clinic._complete_successors
     msg._register_save_areas_removed = clinic._register_save_areas_removed
+    msg._rewrite_ites_to_diamond_max_cases = clinic._rewrite_ites_to_diamond_max_cases
+    msg._expose_loop_head_backedges = clinic._expose_loop_head_backedges
+    msg._constrain_callee_prototypes = clinic._constrain_callee_prototypes
 
     msg._mode = clinic._mode.value
     msg._start_stage = clinic._start_stage.value
@@ -246,10 +254,8 @@ def parse_clinic(msg: clinic_pb2.Clinic, *, project=None, kb=None, function=None
     clinic.function = function
     clinic._cache = None
     clinic._ail_manager = None
-    clinic._handlers = {}
     clinic._spt = None
     clinic.typehoon = None
-    clinic._variable_kb = variable_kb  # used by Analysis machinery
     clinic._optimization_passes = []
     clinic.optimization_scratch = {}
 
@@ -305,9 +311,17 @@ def parse_clinic(msg: clinic_pb2.Clinic, *, project=None, kb=None, function=None
     }
     clinic.vvar_to_vvar = dict(msg.vvar_to_vvar) if msg.vvar_to_vvar else None
     clinic.secondary_stackvars = set(msg.secondary_stackvars)
-    clinic._stackarg_offsets = (
-        set(zip(msg.stackarg_offsets_a, msg.stackarg_offsets_b)) if msg._stackarg_offsets_set else None
-    )
+    from .stackarg_offset_manager import StackArgOffsetManager
+
+    clinic._stackarg_offset_manager = StackArgOffsetManager(project.arch.bits if project is not None else 64)
+    for rec in msg.stackarg_offset_records:
+        block_idx = rec.block_idx if rec.HasField("block_idx") else None
+        clinic._stackarg_offset_manager.stack_arg_offsets.setdefault(rec.offset, set()).add(
+            ((rec.block_addr, block_idx), rec.ins_addr, rec.offset, rec.size)
+        )
+    # stackoff_to_vvars / all_stackarg_vvars are derived from the SRDA model; recompute rather than serialize.
+    if clinic.reaching_definitions is not None:
+        clinic._stackarg_offset_manager.update_stackoff_vvars(clinic.reaching_definitions)
     clinic._removed_vvar_ids = set(msg.removed_vvar_ids) if msg._removed_vvar_ids_set else None
     clinic._preserve_vvar_ids = set(msg._preserve_vvar_ids)
     clinic._inline_functions = (
@@ -356,8 +370,10 @@ def parse_clinic(msg: clinic_pb2.Clinic, *, project=None, kb=None, function=None
     clinic._semvar_naming = msg._semvar_naming
     clinic._force_loop_single_exit = msg._force_loop_single_exit
     clinic._refine_loops_with_single_successor = msg._refine_loops_with_single_successor
-    clinic._complete_successors = msg._complete_successors
     clinic._register_save_areas_removed = msg._register_save_areas_removed
+    clinic._rewrite_ites_to_diamond_max_cases = msg._rewrite_ites_to_diamond_max_cases
+    clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
+    clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
 
     clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE
     clinic._start_stage = ClinicStage(msg._start_stage)
@@ -383,8 +399,11 @@ def parse_clinic(msg: clinic_pb2.Clinic, *, project=None, kb=None, function=None
 
     # The remainder of the public Clinic surface that isn't part of the serialized state — set sensible defaults so
     # attribute access doesn't crash.
+    from .variable_map import VariableMap
+
     clinic.static_vvars = {}
     clinic.static_buffers = {}
     clinic._func_graph = None
+    clinic.variable_map = VariableMap()
 
     return clinic

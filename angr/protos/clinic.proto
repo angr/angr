@@ -60,6 +60,15 @@ message ExternBytes {
     bytes payload = 1;
 }
 
+message StackArgOffsetRecord {
+    // One element of StackArgOffsetManager.stack_arg_offsets: ((block_addr, block_idx), ins_addr, offset, size).
+    int64 block_addr = 1;
+    optional int32 block_idx = 2;
+    uint64 ins_addr = 3;
+    int64 offset = 4;  // signed (u2s-normalized); also the dict key
+    int64 size = 5;
+}
+
 // =====================================================================================================================
 // Clinic
 // =====================================================================================================================
@@ -95,9 +104,10 @@ message Clinic {
     map<uint64, DataRefList> data_refs = 30;          // dict[int, list[DataRefDesc]]
     map<int32, int32> vvar_to_vvar = 31;              // dict[int, int]
     repeated uint32 secondary_stackvars = 32;         // set[int]
-    repeated int32 stackarg_offsets_a = 33;           // first element of tuple
-    repeated int32 stackarg_offsets_b = 34;           // second element; paired by index
-    optional bool _stackarg_offsets_set = 35;         // distinguish [] from None
+    // StackArgOffsetManager.stack_arg_offsets records, flattened. The dict key equals each record's ``offset``;
+    // the derived stackoff_to_vvars / all_stackarg_vvars attributes are recomputed from the SRDA model at parse
+    // time via ``update_stackoff_vvars`` and are not serialized.
+    repeated StackArgOffsetRecord stackarg_offset_records = 33;
     repeated uint32 removed_vvar_ids = 36;            // set[int] | None
     optional bool _removed_vvar_ids_set = 37;
     repeated uint32 _preserve_vvar_ids = 38;
@@ -132,8 +142,10 @@ message Clinic {
     bool _semvar_naming = 74;
     bool _force_loop_single_exit = 75;
     bool _refine_loops_with_single_successor = 76;
-    bool _complete_successors = 77;
     bool _register_save_areas_removed = 78;
+    int32 _rewrite_ites_to_diamond_max_cases = 84;
+    bool _expose_loop_head_backedges = 85;
+    bool _constrain_callee_prototypes = 86;
 
     int32 _mode = 80;                                  // ClinicMode.value
     int32 _start_stage = 81;                           // ClinicStage.value

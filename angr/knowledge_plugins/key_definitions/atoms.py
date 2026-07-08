@@ -19,8 +19,9 @@ from .undefined import UNDEFINED, Undefined
 # The local protobuf enum VirtualVariableCategory mirrors ailment.Expr.VirtualVariableCategory. We rely on the
 # integer values agreeing so that round-tripping through protobuf cannot drift; verify this once at import time.
 assert all(
-    int(key_defs_pb2.VirtualVariableCategory.Value(f"VVC_{cat.name}")) == int(cat)
-    for cat in ailment.Expr.VirtualVariableCategory
+    int(key_defs_pb2.VirtualVariableCategory.Value(f"VVC_{name}"))
+    == int(getattr(ailment.Expr.VirtualVariableCategory, name))
+    for name in ("REGISTER", "STACK", "MEMORY", "PARAMETER", "TMP", "COMBO_REGISTER", "UNKNOWN")
 ), "VirtualVariableCategory mirror in key_defs.proto is out of sync with ailment.Expr.VirtualVariableCategory"
 
 
@@ -391,7 +392,7 @@ class VirtualVariable(Atom):
         return cls(
             inner_cmsg.varid,
             inner_cmsg.size,
-            ailment.Expr.VirtualVariableCategory(inner_cmsg.category),
+            ailment.Expr.VirtualVariableCategory._from_int_py(inner_cmsg.category),
             oident=oident,
         )
 

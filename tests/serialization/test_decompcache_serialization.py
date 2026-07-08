@@ -193,7 +193,7 @@ class TestSRDAModelSerialization(unittest.TestCase):
         from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 
         arch = archinfo.ArchAMD64()
-        ail_vvar = AilVirtualVariable(0, ailment.Expr.VirtualVariableCategory.REGISTER, 4, 16, ins_addr=0x400500)
+        ail_vvar = AilVirtualVariable(0, 4, 16, ailment.Expr.VirtualVariableCategory.REGISTER, ins_addr=0x400500)
         ail_tmp = AilTmp(idx=0, variable=None, tmp_idx=5, bits=32, ins_addr=0x400801)
 
         model = SRDAModel(func_graph=None, func_args={ail_vvar}, arch=arch)
