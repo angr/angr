@@ -24,18 +24,6 @@ MAGIC_CONSTANTS = frozenset(
     }
 )
 
-#: Values sitting on a standard integer-type boundary (``INT_MAX``/``UINT_MAX`` for 32- and 64-bit). These read
-#: better as signed decimal (e.g. ``-1``, ``2147483647``) than as a long run of set bits, regardless of the width
-#: inferred for the surrounding expression.
-NUMERIC_BOUNDARY_VALUES = frozenset(
-    {
-        0x7FFFFFFF,
-        0xFFFFFFFF,
-        0x7FFFFFFFFFFFFFFF,
-        0xFFFFFFFFFFFFFFFF,
-    }
-)
-
 
 def is_alignment_mask(n):
     return n in {0xFFFFFFFFFFFFFFE0, 0xFFFFFFFFFFFFFFF0, 0xFFFFFFC0, 0xFFFFFFE0, 0xFFFFFFF0, 0xFFFFFFFC, 0xFFFFFFF8}
@@ -83,8 +71,7 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     1. The value is a well-known "magic" constant (e.g. ``0xdeadbeef``); see :data:`MAGIC_CONSTANTS`.
     2. The value is a known alignment mask; see :func:`is_alignment_mask`.
     3. The binary representation contains a run of **>= 8** consecutive ``1`` bits -- typical of sub-word bitmasks
-       (e.g. ``0xff``, ``0xfff``). Type-saturating values (e.g. ``-1``/``0xffffffff``, ``INT_MAX``/``0x7fffffff``)
-       are intentionally excluded: those read better as signed decimal, which the codegen renders separately.
+       (e.g. ``0xff``, ``0xfff``).
     4. The binary representation is a short bit pattern (period 2, 3, 4, or 8) repeated to fill a byte-aligned width
        -- typical of mask/flag constants (e.g. ``0x55``/``0xaaaa`` for ``0101...``, ``0x1111``, ``0xabab``).
     5. The value is a single set bit (power of two) that is **>= 256** -- a bit flag (e.g. ``0x100``, ``0x4000``).
@@ -103,9 +90,8 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     Otherwise the value is shown in decimal (returns ``False``).
 
     :param value:   The integer value to format.
-    :param bits:    The bit-width of the value's type. Used to normalize negative values to their unsigned form and
-                    to detect type-saturating values (rule 3). If ``None``, the value's own bit length is used and
-                    only the absolute boundary values in :data:`NUMERIC_BOUNDARY_VALUES` are treated as saturating.
+    :param bits:    The bit-width of the value's type. Used to normalize negative values to their unsigned form. If
+                    ``None``, the value's own bit length is used.
     :return:        ``True`` if the value should be displayed in hexadecimal, ``False`` for decimal.
     """
 
@@ -128,11 +114,8 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     byte_width = max(8, (u.bit_length() + 7) // 8 * 8)
     bitstr = format(u, f"0{byte_width}b")
 
-    # 3. long run of consecutive 1 bits (sub-word bitmasks such as 0xff, 0xfff). Type-saturating values whose
-    #    significant width reaches the top of the declared type -- e.g. -1 (0xffffffff), -2 (0xfffffffe),
-    #    INT_MAX (0x7fffffff) -- are excluded so the codegen's signed/decimal rendering ("-1") wins.
-    is_type_saturating = u in NUMERIC_BOUNDARY_VALUES or (bits is not None and u.bit_length() >= bits - 1)
-    if not is_type_saturating and _max_consecutive_run(bitstr, "1") >= 8:
+    # 3. long run of consecutive 1 bits (sub-word bitmasks such as 0xff, 0xfff)
+    if _max_consecutive_run(bitstr, "1") >= 8:
         return True
 
     # 4. repeated bit-level pattern
