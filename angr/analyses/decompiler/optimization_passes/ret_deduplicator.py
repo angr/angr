@@ -189,7 +189,7 @@ class ReturnDeduplicator(OptimizationPass):
                     continue
 
                 last_stmt = block.statements[-1]
-                ids[(last_stmt.tags["ins_addr"], hash(last_stmt))] = block
+                ids[(last_stmt.tags.get("ins_addr"), hash(last_stmt))] = block
 
         super_block_map = {}
         for block in self._graph.nodes():
@@ -197,7 +197,7 @@ class ReturnDeduplicator(OptimizationPass):
                 continue
 
             last_stmt = block.statements[-1]
-            stmt_id = (last_stmt.tags["ins_addr"], hash(last_stmt))
+            stmt_id = (last_stmt.tags.get("ins_addr"), hash(last_stmt))
             if stmt_id in ids:
                 super_block = ids[stmt_id]
                 super_block_map[super_block] = block

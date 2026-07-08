@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring
+# pylint:disable=missing-class-docstring,protected-access
 from __future__ import annotations
 
 import logging
@@ -7,6 +7,7 @@ import pyvex
 
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import UnsupportedIROpError
+from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error
 from angr.utils.constants import DEFAULT_STATEMENT
 
 from .block import Block
@@ -28,6 +29,14 @@ from .expression import (
 from .statement import CAS, Assignment, ConditionalJump, DirtyStatement, Jump, Return, SideEffectStatement, Store
 
 log = logging.getLogger(name=__name__)
+
+
+def _vex_rm_to_enum(rm: object) -> RoundingMode | None:
+    """Translate a VEX rounding-mode operand to the typed ``RoundingMode`` enum."""
+    if isinstance(rm, Const) and isinstance(rm.value, int):
+        return RoundingMode._from_int_py(rm.value & 0b11)
+    log.warning("Non-Const VEX rounding-mode operand (%r); dropping to None", rm)
+    return None
 
 
 class VEXExprConverter:
@@ -218,7 +227,7 @@ class VEXExprConverter:
         op_name = op._generic_name
         operands = VEXExprConverter.convert_list(expr.args, manager)
 
-        if op_name == "Add" and type(operands[1]) is Const and operands[1].sign_bit == 1:
+        if op_name == "Add" and isinstance(operands[1], Const) and operands[1].sign_bit == 1:
             # convert it to a sub
             op_name = "Sub"
             op1_val, op1_bits = operands[1].value, operands[1].bits
@@ -245,7 +254,7 @@ class VEXExprConverter:
             # TODO: Finish this
             if op._from_type == "I" and op._to_type == "F":
                 # integer to floating point
-                rm = operands[0]
+                rm = _vex_rm_to_enum(operands[0])
                 operand = operands[1]
                 return Convert(
                     manager.next_atom(),
@@ -265,7 +274,7 @@ class VEXExprConverter:
                 op_name = "Concat"
             elif op._from_type == "F" and op._to_type == "F":
                 # floating point to floating point
-                rm = operands[0]
+                rm = _vex_rm_to_enum(operands[0])
                 operand = operands[1]
                 return Convert(
                     manager.next_atom(),
@@ -283,7 +292,7 @@ class VEXExprConverter:
             elif op._from_type == "F" and op._to_type == "I":
                 # floating point to integer
                 # floating point to floating point
-                rm = operands[0]
+                rm = _vex_rm_to_enum(operands[0])
                 operand = operands[1]
                 return Convert(
                     manager.next_atom(),
@@ -388,7 +397,7 @@ class VEXExprConverter:
         if op._float:
             # this is a floating-point operation where the first argument is the rounding mode. in fact, we have a
             # BinaryOp here.
-            rm = operands[0]
+            rm = _vex_rm_to_enum(operands[0])
             return BinaryOp(
                 manager.next_atom(),
                 op_name,
@@ -743,7 +752,7 @@ class VEXIRSBConverter(Converter):
                 else:
                     # got one statement
                     statements.append(converted)
-                    if type(converted) is ConditionalJump:
+                    if isinstance(converted, ConditionalJump):
                         conditional_jumps.append(converted)
             except SkipConversionNotice:
                 pass

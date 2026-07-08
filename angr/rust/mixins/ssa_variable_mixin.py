@@ -77,7 +77,7 @@ class _StackVVarRewriter(AILBlockRewriter):
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst is expr):
+        if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst.idx == expr.idx):
             return expr
         if stmt is not None and block is not None and expr.was_stack:
             ins_addr = stmt.tags.get("ins_addr")

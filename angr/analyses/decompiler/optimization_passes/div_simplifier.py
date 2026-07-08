@@ -418,7 +418,7 @@ class DivSimplifier(OptimizationPass):
             new_block = block
             old_block = None
 
-            while new_block != old_block:
+            while old_block is None or not new_block.likes(old_block):
                 old_block = new_block
                 new_block = self.engine.process(state=self.state.copy(), block=old_block.copy())
                 _l.debug("new block: %s", new_block.statements)

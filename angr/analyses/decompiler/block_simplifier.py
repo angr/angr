@@ -26,6 +26,7 @@ from .peephole_optimizations import (
 )
 from .utils import (
     _PeepholeExprsWalker,
+    build_stmt_opts_by_kind,
     peephole_optimize_exprs,
     peephole_optimize_multistmts,
     peephole_optimize_stmts,
@@ -91,6 +92,7 @@ class BlockSimplifier(Analysis):
                 cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in MULTI_STMT_OPTS
             ]
+            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
         else:
             self._expr_peephole_opts = [
                 cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
@@ -107,6 +109,7 @@ class BlockSimplifier(Analysis):
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
+            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
 
         self.result_block = None
 
@@ -128,17 +131,18 @@ class BlockSimplifier(Analysis):
         new_block = self._eliminate_self_assignments(block)
         if self._count_nonconstant_statements(new_block) >= 2 and self._has_propagatable_assignments(new_block):
             new_block = self._eliminate_dead_assignments(new_block)
-        if new_block != block:
+        # Structural ``likes`` (idx-agnostic) instead of ``!=`` which always trips on fresh ``manager.next_atom()``
+        # ids even when nothing changed structurally.
+        # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
+        if not new_block.likes(block):
             self._clear_cache()
             block = new_block
 
         while True:
             ctr += 1
-            # block.pp()
             new_block = self._simplify_block_once(block)
-            # print()
-            # new_block.pp()
-            if new_block == block:
+            # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
+            if new_block.likes(block):
                 break
             self._clear_cache()
             block = new_block
@@ -309,7 +313,7 @@ class BlockSimplifier(Analysis):
         new_statements = []
 
         for stmt in block.statements:
-            if type(stmt) is Assignment:
+            if isinstance(stmt, Assignment):
                 if stmt.dst.likes(stmt.src):
                     continue
                 if (
@@ -379,16 +383,16 @@ class BlockSimplifier(Analysis):
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
-            if type(stmt) is Assignment:
+            if isinstance(stmt, Assignment):
                 # tmps can't execute new code
-                if (type(stmt.dst) is Tmp and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
+                if (isinstance(stmt.dst, Tmp) and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
                     # is it assigning to an unused tmp or a dead virgin?
 
                     # does .src involve any Call expressions? if so, we cannot remove it
                     if not _expression_has_calls(stmt.src):
                         continue
 
-                    if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
+                    if isinstance(stmt.dst, Tmp) and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
                         stmt = SideEffectStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags)
 
@@ -408,7 +412,9 @@ class BlockSimplifier(Analysis):
         peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
         # run statement-level optimizations
-        statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
+        statements, stmts_updated = peephole_optimize_stmts(
+            block, self._stmt_peephole_opts, stmt_opts_by_kind=self._stmt_peephole_opts_by_kind
+        )
 
         new_block = block.copy(statements=statements) if stmts_updated else block
 

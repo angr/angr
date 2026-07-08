@@ -1,0 +1,117 @@
+//! ``ConstValue`` -- the Python-bridged value of a Const expression.
+//!
+//! Every concrete Expression variant lives behind a single
+//! ``Expression`` pyclass with an inline ``ExprInner`` enum. The
+//! ``ConstValue`` data type captures the int/float/big-int
+//! distinction in a serde-friendly shape that the in-memory
+//! ``ExprInner::Const`` arm stores and serializes directly.
+
+use std::hash::{Hash, Hasher};
+
+use num_bigint::BigInt;
+use pyo3::Borrowed;
+use pyo3::IntoPyObjectExt;
+use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
+use pyo3::types::{PyFloat, PyInt};
+use serde::{Deserialize, Serialize};
+
+/// Value of a `Const`. Python's `int` is unbounded: values that fit in
+/// `i128` are stored inline; anything larger is kept as an arbitrary-
+/// precision [`num_bigint::BigInt`].
+///
+/// Serde representation: default external tagging. ``postcard`` is not
+/// self-describing, so adjacently-tagged variants (``#[serde(tag, content)]``)
+/// can't round-trip through it. ``i128`` and ``num_bigint::BigInt``
+/// (sign + ``u32`` digit sequence) both serialize natively.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ConstValue {
+    Int(i128),
+    Float(f64),
+    /// Arbitrary-precision integer for values outside the `i128` range.
+    BigInt(BigInt),
+}
+
+impl<'py> FromPyObject<'_, 'py> for ConstValue {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
+        // Accept Python booleans as int 0/1 -- callers (e.g.
+        // ``condition_processor`` building ``Const(idx, True, 1)``) rely
+        // on the implicit ``bool -> int`` coercion that Python itself
+        // performs at the Python layer.
+        if obj.is_instance_of::<pyo3::types::PyBool>() {
+            let b: bool = obj.extract::<bool>()?;
+            return Ok(Self::Int(if b { 1 } else { 0 }));
+        }
+        if let Ok(f) = obj.cast::<PyFloat>() {
+            return Ok(Self::Float(f.value()));
+        }
+        if let Ok(_i) = obj.cast::<PyInt>() {
+            if let Ok(v) = obj.extract::<i128>() {
+                return Ok(Self::Int(v));
+            }
+            // Outside i128 range: pyo3's ``num-bigint`` feature converts
+            // the unbounded Python ``int`` directly, no hex-string dance.
+            let big: BigInt = obj.extract()?;
+            return Ok(Self::BigInt(big));
+        }
+        Err(PyTypeError::new_err(format!(
+            "Const value must be int or float, got {}",
+            obj.get_type().name()?
+        )))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for ConstValue {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        match self {
+            Self::Int(v) => v.into_bound_py_any(py),
+            Self::Float(f) => f.into_bound_py_any(py),
+            Self::BigInt(b) => b.into_bound_py_any(py),
+        }
+    }
+}
+
+impl ConstValue {
+    pub fn is_int(&self) -> bool {
+        !matches!(self, Self::Float(_))
+    }
+
+    pub fn fmt_value(&self) -> String {
+        match self {
+            Self::Int(v) => format!("{v:#x}"),
+            // ``{:#x}`` on a BigInt is sign-magnitude (``-0x..`` / ``0x..``),
+            // matching the legacy hex-string rendering.
+            Self::BigInt(b) => format!("{b:#x}"),
+            Self::Float(v) => format!("{}", v),
+        }
+    }
+}
+
+/// Not derived only because of the ``f64`` payload, which is hashed by
+/// bit pattern (consistent with the derived ``PartialEq``: values that
+/// compare equal have equal bits, and ``NaN`` never compares equal so
+/// its hash is irrelevant).
+impl Hash for ConstValue {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        match self {
+            Self::Int(v) => {
+                0u8.hash(h);
+                v.hash(h);
+            }
+            Self::Float(v) => {
+                1u8.hash(h);
+                v.to_bits().hash(h);
+            }
+            Self::BigInt(b) => {
+                2u8.hash(h);
+                b.hash(h);
+            }
+        }
+    }
+}

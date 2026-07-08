@@ -4,7 +4,7 @@ from __future__ import annotations
 from archinfo import Endness
 
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import BinaryOp, Const, Load, UnaryOp, VirtualVariable
+from angr.ailment.expression import BinaryOp, Call, Const, Load, UnaryOp, VirtualVariable
 from angr.ailment.statement import SideEffectStatement, WeakAssignment
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions import atoms
@@ -25,6 +25,9 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
 
     def optimize(self, stmt: SideEffectStatement, block=None, **kwargs):  # type: ignore
         assert self.project is not None
+
+        if not isinstance(stmt.expr, Call):
+            return None
 
         # are we calling a function that we deem as an overridden operator function?
         if isinstance(stmt.expr.target, Const):

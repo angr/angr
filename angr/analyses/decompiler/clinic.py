@@ -1471,13 +1471,25 @@ class Clinic(Analysis):
                     if not self.project.is_hooked(succ_addr) or not isinstance(
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
-                        # found a single successor - replace the last statement
+                        # found a single successor - replace the last statement.
                         assert isinstance(last_stmt.expr.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
-                        new_last_stmt.expr.target = ailment.Expr.Const(
-                            self._ail_manager.next_atom(), successors[0].addr, last_stmt.expr.target.bits
+                        old_call = new_last_stmt.expr
+                        old_cc = self.variable_map.calling_convention(old_call)
+                        old_proto = self.variable_map.prototype(old_call)
+                        new_call = ailment.Expr.Call(
+                            old_call.idx,
+                            ailment.Expr.Const(self._ail_manager.next_atom(), successors[0].addr, old_call.target.bits),
+                            args=old_call.args,
+                            bits=old_call.bits,
+                            **old_call.tags,
                         )
+                        if old_cc is not None:
+                            self.variable_map.set_calling_convention(new_call, old_cc)
+                        if old_proto is not None:
+                            self.variable_map.set_prototype(new_call, old_proto)
+                        new_last_stmt.expr = new_call
                         block.statements[-1] = new_last_stmt
 
             elif isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
@@ -1510,16 +1522,21 @@ class Clinic(Analysis):
                 continue
 
             last_stmt = block.statements[-1]
+            # Enumerate (slot_name, target) pairs so we can route the call_block.addr rewrite through the statement's
+            # setter (``target.value = X`` would mutate a fresh-wrapper clone in Python).
             if isinstance(last_stmt, ailment.Stmt.Jump):
-                targets = [last_stmt.target]
+                slots = [("target", last_stmt.target)]
                 replace_last_stmt = True
             elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                targets = [last_stmt.true_target, last_stmt.false_target]
+                slots = [
+                    ("true_target", last_stmt.true_target),
+                    ("false_target", last_stmt.false_target),
+                ]
                 replace_last_stmt = False
             else:
                 continue
 
-            for target in targets:
+            for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
                     continue
 
@@ -1556,7 +1573,11 @@ class Clinic(Analysis):
                 else:
                     call_block = ailment.Block(self.new_block_addr(), 1, statements=[call_stmt])
                     ail_graph.add_edge(block, call_block)
-                    target.value = call_block.addr
+                    setattr(
+                        last_stmt,
+                        slot_name,
+                        ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags),
+                    )
 
                 if target_func.returning:
                     ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **last_stmt.tags)
@@ -2472,8 +2493,7 @@ class Clinic(Analysis):
         global_variables = kb.variables["global"]
 
         for stmt_idx, stmt in enumerate(block.statements):
-            stmt_type = type(stmt)
-            if stmt_type is ailment.Stmt.Store:
+            if isinstance(stmt, ailment.Stmt.Store):
                 # find a memory variable
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
                 if len(mem_vars) == 1:
@@ -2495,11 +2515,11 @@ class Clinic(Analysis):
                         )
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.data)
 
-            elif stmt_type is ailment.Stmt.Assignment or stmt_type is ailment.Stmt.WeakAssignment:
+            elif isinstance(stmt, (ailment.Stmt.Assignment, ailment.Stmt.WeakAssignment)):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.src)
 
-            elif stmt_type is ailment.Stmt.CAS:
+            elif isinstance(stmt, ailment.Stmt.CAS):
                 for expr in [
                     stmt.addr,
                     stmt.data_lo,
@@ -2512,20 +2532,20 @@ class Clinic(Analysis):
                     if expr is not None:
                         self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr)
 
-            elif stmt_type is ailment.Stmt.ConditionalJump:
+            elif isinstance(stmt, ailment.Stmt.ConditionalJump):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.condition)
 
-            elif stmt_type is ailment.Stmt.Jump and not isinstance(stmt.target, ailment.Expr.Const):
+            elif isinstance(stmt, ailment.Stmt.Jump) and not isinstance(stmt.target, ailment.Expr.Const):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
 
-            elif stmt_type is ailment.Stmt.SideEffectStatement:
+            elif isinstance(stmt, ailment.Stmt.SideEffectStatement):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.expr)
                 if stmt.ret_expr:
                     self._link_variables_on_expr(
                         variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr
                     )
 
-            elif stmt_type is ailment.Stmt.Return:
+            elif isinstance(stmt, ailment.Stmt.Return):
                 assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
 
@@ -2565,7 +2585,7 @@ class Clinic(Analysis):
         :return:                    None
         """
 
-        if type(expr) is ailment.Expr.Register:
+        if isinstance(expr, ailment.Expr.Register):
             # find a register variable
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             final_reg_vars = set()
@@ -2580,7 +2600,7 @@ class Clinic(Analysis):
                 reg_var, offset = next(iter(final_reg_vars))
                 self._set_expr_variable(expr, reg_var, offset)
 
-        elif type(expr) is ailment.Expr.VirtualVariable:
+        elif isinstance(expr, ailment.Expr.VirtualVariable):
             vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(vars_) >= 1:
                 var, offset = next(iter(vars_))
@@ -2590,7 +2610,7 @@ class Clinic(Analysis):
                 for reg_vvar in expr.reg_vvars:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, reg_vvar)
 
-        elif type(expr) is ailment.Expr.Load:
+        elif isinstance(expr, ailment.Expr.Load):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
@@ -2629,7 +2649,7 @@ class Clinic(Analysis):
                 var, offset = next(iter(variables))
                 self._set_expr_variable(expr, var, offset)
 
-        elif type(expr) is ailment.Expr.BinaryOp:
+        elif isinstance(expr, ailment.Expr.BinaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
@@ -2642,7 +2662,7 @@ class Clinic(Analysis):
                     variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[1]
                 )
 
-        elif type(expr) is ailment.Expr.UnaryOp:
+        elif isinstance(expr, ailment.Expr.UnaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
@@ -2650,18 +2670,18 @@ class Clinic(Analysis):
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
-        elif type(expr) in {ailment.Expr.Convert, ailment.Expr.Reinterpret}:
+        elif isinstance(expr, (ailment.Expr.Convert, ailment.Expr.Reinterpret)):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
-        elif type(expr) is ailment.Expr.Extract:
+        elif isinstance(expr, ailment.Expr.Extract):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
-        elif type(expr) is ailment.Expr.Insert:
+        elif isinstance(expr, ailment.Expr.Insert):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.value)
 
-        elif type(expr) is ailment.Expr.ITE:
+        elif isinstance(expr, ailment.Expr.ITE):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
@@ -2795,9 +2815,8 @@ class Clinic(Analysis):
         """
 
         for block in list(ail_graph):
-            if (
-                len(block.statements) > 1
-                and block.statements[0].tags["ins_addr"] == block.statements[-1].tags["ins_addr"]
+            if len(block.statements) > 1 and block.statements[0].tags.get("ins_addr") == block.statements[-1].tags.get(
+                "ins_addr"
             ):
                 preds = list(ail_graph.predecessors(block))
                 if len(preds) > 1 and block not in preds:
@@ -2851,14 +2870,28 @@ class Clinic(Analysis):
                 if self.kb.functions.contains_addr(callee):
                     callee_func = self.kb.functions.get_by_addr(callee)
                     if callee_func.info.get("jmp_rax", False) is True:
-                        # rewrite this statement into Call(rax)
                         call_stmt = last_stmt.copy()
-                        call_stmt.expr.target = ailment.Expr.Register(
+                        old_call = call_stmt.expr
+                        new_target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
                             self.project.arch.registers["rax"][0],
                             64,
                             ins_addr=call_stmt.tags["ins_addr"],
                         )
+                        old_cc = self.variable_map.calling_convention(old_call)
+                        old_proto = self.variable_map.prototype(old_call)
+                        call_stmt.expr = ailment.Expr.Call(
+                            old_call.idx,
+                            new_target,
+                            args=old_call.args,
+                            arg_vvars=old_call.arg_vvars,
+                            bits=old_call.bits,
+                            **old_call.tags,
+                        )
+                        if old_cc is not None:
+                            self.variable_map.set_calling_convention(call_stmt.expr, old_cc)
+                        if old_proto is not None:
+                            self.variable_map.set_prototype(call_stmt.expr, old_proto)
                         block.statements[-1] = call_stmt
 
         return ail_graph
@@ -3403,16 +3436,12 @@ class Clinic(Analysis):
             return None
 
         def patch_conditional_jump_target(cond_jump_stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int):
-            if (
-                isinstance(cond_jump_stmt.true_target, ailment.Expr.Const)
-                and cond_jump_stmt.true_target.value == old_addr
-            ):
-                cond_jump_stmt.true_target.value = new_addr
-            if (
-                isinstance(cond_jump_stmt.false_target, ailment.Expr.Const)
-                and cond_jump_stmt.false_target.value == old_addr
-            ):
-                cond_jump_stmt.false_target.value = new_addr
+            tt = cond_jump_stmt.true_target
+            if isinstance(tt, ailment.Expr.Const) and tt.value == old_addr:
+                cond_jump_stmt.true_target = ailment.Expr.Const(tt.idx, new_addr, tt.bits, **tt.tags)
+            ft = cond_jump_stmt.false_target
+            if isinstance(ft, ailment.Expr.Const) and ft.value == old_addr:
+                cond_jump_stmt.false_target = ailment.Expr.Const(ft.idx, new_addr, ft.bits, **ft.tags)
 
         # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):

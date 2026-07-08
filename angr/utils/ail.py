@@ -4,15 +4,16 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Phi, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Convert, Expression, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
+from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
-    return isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
+    return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 
 class HasExprWalker(AILBlockViewer):
@@ -149,8 +150,9 @@ def is_expr_used_as_reg_base_value(stmt: Statement, expr: Expression, srda: SRDA
     if not (isinstance(stmt.src, BinaryOp) and stmt.src.op == "Or"):
         return False
 
-    for op0 in stmt.src.operands:
-        op1 = stmt.src.operands[0] if op0 is stmt.src.operands[1] else stmt.src.operands[1]
+    operands = stmt.src.operands
+    for op0 in operands:
+        op1 = operands[0] if op0.idx == operands[1].idx else operands[1]
         if (
             isinstance(op1, Convert)
             and op1.from_type == Convert.TYPE_INT

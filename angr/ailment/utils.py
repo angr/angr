@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import struct
 
+import archinfo
+
 from angr import ailment
 
 try:
@@ -10,7 +12,7 @@ except ImportError:
     from typing import Never as Bits
 
 try:
-    import _md5 as md5lib
+    import _md5 as md5lib  # type: ignore # stdlib C module without stubs
 except ImportError:
     import hashlib as md5lib
 
@@ -109,3 +111,33 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     if isinstance(arg1, ailment.expression.Expression):
         return arg1.matches(arg2)
     return arg1 == arg2
+
+
+def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
+    """
+    Return ``True`` if ``expr`` is an ``Extract`` that takes the least-significant ``expr.bits`` bits of its base,
+    considering endianness.
+    """
+    if not isinstance(expr, ailment.expression.Extract):
+        return False
+    if not isinstance(expr.offset, ailment.expression.Const):
+        return False
+    if expr.endness == archinfo.Endness.LE:
+        return expr.offset.value == 0
+    return expr.offset.value * 8 + expr.bits == expr.base.bits
+
+
+def is_lsb_overwrite(expr: ailment.expression.Expression) -> bool:
+    """
+    Return ``True`` if ``expr`` is an ``Insert`` that overwrites the least-significant ``expr.value.bits`` bits of its
+    base, considering endianness.
+
+    ``Insert`` counterpart of ``is_lsb_extract``.
+    """
+    if not isinstance(expr, ailment.expression.Insert):
+        return False
+    if not (isinstance(expr.offset, ailment.expression.Const) and isinstance(expr.offset.value, int)):
+        return False
+    if expr.endness == archinfo.Endness.LE:
+        return expr.offset.value == 0
+    return expr.offset.value * 8 + expr.value.bits == expr.bits

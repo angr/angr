@@ -698,7 +698,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
                 continue
 
             self.stmt_idx = stmt_idx
-            self.ins_addr = stmt.tags["ins_addr"]
+            self.ins_addr = stmt.tags.get("ins_addr")
             stmt_result = self._stmt(stmt)
             result.append(stmt_result)
             if self._stmt_diverges(stmt_result):
@@ -707,7 +707,10 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
         return result
 
     def _stmt(self, stmt: ailment.statement.Statement) -> StmtDataType:
-        stmt_type_name = type(stmt).__name__
+        # Every AIL Statement is the universal pyclass; the variant tag
+        # is exposed as ``stmt.kind_name``. Pure-Python statement
+        # subclasses don't have it and fall back to ``type(stmt).__name__``.
+        stmt_type_name = getattr(stmt, "kind_name", None) or type(stmt).__name__
         return self._stmt_handlers[stmt_type_name](stmt)
 
     @abstractmethod
@@ -745,7 +748,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     #
 
     def _expr(self, expr: ailment.Expression) -> DataType_co:
-        expr_type_name = type(expr).__name__
+        expr_type_name = getattr(expr, "kind_name", None) or type(expr).__name__
         return self._expr_handlers[expr_type_name](expr)
 
     def _handle_expr_Atom(self, expr: ailment.expression.Atom) -> DataType_co:

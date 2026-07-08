@@ -1,7 +1,7 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
-from angr.ailment.expression import Const
+from angr.ailment.expression import Call, Const
 from angr.ailment.statement import SideEffectStatement
 
 from .base import PeepholeOptimizationStmtBase
@@ -20,6 +20,9 @@ class RemoveCxxDestructorCalls(PeepholeOptimizationStmtBase):
     def optimize(self, stmt: SideEffectStatement, **kwargs) -> tuple | None:  # type: ignore
         # are we calling a function that we deem as a C++ destructor?
         assert self.project is not None
+
+        if not isinstance(stmt.expr, Call):
+            return None
 
         if isinstance(stmt.expr.target, Const):
             func_addr = stmt.expr.target.value

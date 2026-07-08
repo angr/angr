@@ -148,10 +148,20 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
         true_target, false_target = cond_stmt.true_target, cond_stmt.false_target
 
         if isinstance(true_target, Const) and true_target.value in replacement_map:
-            true_target.value = replacement_map[true_target.value]
+            cond_stmt.true_target = Const(
+                true_target.idx,
+                replacement_map[true_target.value],
+                true_target.bits,
+                **true_target.tags,
+            )
 
         if isinstance(false_target, Const) and false_target.value in replacement_map:
-            false_target.value = replacement_map[false_target.value]
+            cond_stmt.false_target = Const(
+                false_target.idx,
+                replacement_map[false_target.value],
+                false_target.bits,
+                **false_target.tags,
+            )
 
         return cond_stmt
     if isinstance(stmt, Jump) and isinstance(stmt.target, Const):
@@ -159,7 +169,12 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
         target = jump_stmt.target
 
         if isinstance(target, Const) and target.value in replacement_map:
-            target.value = replacement_map[target.value]
+            jump_stmt.target = Const(
+                target.idx,
+                replacement_map[target.value],
+                target.bits,
+                **target.tags,
+            )
 
         return jump_stmt
     return stmt

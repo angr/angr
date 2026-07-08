@@ -208,6 +208,8 @@ class DFAMixin:
         assert self.graph is not None
         for block in self.graph.nodes:
             for _, stmt in enumerate(block.statements):
-                if isinstance(stmt, Assignment) and stmt.src is data:
-                    return block, stmt
+                if isinstance(stmt, Assignment):
+                    src = stmt.src
+                    if src is data or (hasattr(src, "likes") and src.likes(data)):
+                        return block, stmt
         return None, None

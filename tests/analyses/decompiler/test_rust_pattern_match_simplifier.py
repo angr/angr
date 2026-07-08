@@ -43,7 +43,7 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             condition
         )
 
-        self.assertIs(scrutinee, vvar)
+        self.assertTrue(scrutinee is not None and scrutinee.likes(vvar))
         self.assertEqual(discriminant, -(1 << 63))
         self.assertEqual(cmp_op, "CmpEQ")
         self.assertIsNone(leftover)
@@ -57,7 +57,7 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             condition
         )
 
-        self.assertIs(scrutinee, vvar)
+        self.assertEqual(scrutinee, vvar)
         self.assertEqual(discriminant, 0)
         self.assertEqual(cmp_op, "CmpNE")
         self.assertIsNone(leftover)
@@ -71,7 +71,7 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             condition
         )
 
-        self.assertIs(scrutinee, vvar)
+        self.assertEqual(scrutinee, vvar)
         self.assertEqual(discriminant, 0)
         self.assertEqual(cmp_op, "CmpEQ")
         self.assertIsNone(leftover)
@@ -85,10 +85,10 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             condition
         )
 
-        self.assertIs(scrutinee, vvar)
+        self.assertEqual(scrutinee, vvar)
         self.assertEqual(discriminant, 0)
         self.assertEqual(cmp_op, "CmpNE")
-        self.assertIs(leftover, rest)
+        self.assertEqual(leftover, rest)
 
     def test_non_boolean_conversion_is_not_a_discriminant(self):
         # A wider truncation (`to_bits != 1`) is an ordinary cast, not a truthiness test.

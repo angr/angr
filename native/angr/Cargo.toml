@@ -14,13 +14,16 @@ icicle-vm = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c84
 libafl = { version = "=0.15.4" }
 libafl_bolts = { version = "=0.15.4" }
 pcode = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c845f91ba85fc072ad87bf7c3f4a28cc" }
+num-bigint = { version = "0.4", features = ["serde"] }
 postcard = { version = "1.1.3", default-features = false, features = ["use-std"] }
-pyo3 = { version = "0.29.0", features = ["abi3-py312", "py-clone"] }
+pyo3 = { version = "0.29.0", features = ["abi3-py312", "py-clone", "multiple-pymethods", "num-bigint"] }
 rangemap = "1.7.1"
 send_wrapper = "0.6.0"
-indexmap = "2.14"
+indexmap = { version = "2.14", features = ["serde"] }
 fixedbitset = "0.5"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
+serde_bytes = "0.11"
+rustc-hash = "2"
 target-lexicon = "0.13.5"
 
 [dev-dependencies]

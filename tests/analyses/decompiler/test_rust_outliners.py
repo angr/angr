@@ -92,7 +92,7 @@ def test_string_cmp_extract_cmp_recognizes_load_eq_const_pattern():
     result = outliner._extract_cmp(cmp_expr)
     assert result is not None
     extracted_var, offset, decoded = result
-    assert extracted_var is str_var
+    assert extracted_var.likes(str_var)
     assert offset == 0
     assert decoded == "abcd"
 
@@ -177,14 +177,16 @@ def test_unwrap_outliner_constants_are_distinct_and_paired():
 def test_unwrap_extract_vvar_from_cond_returns_vvar_for_direct_operand():
     vvar = _stack_vvar()
     cond = BinaryOp(0, "CmpEQ", [vvar, _const(0)])
-    assert UnwrapOutliner._extract_vvar_from_cond(cond) is vvar
+    extracted = UnwrapOutliner._extract_vvar_from_cond(cond)
+    assert extracted is not None and extracted.likes(vvar)
 
 
 def test_unwrap_extract_vvar_from_cond_unwraps_load_of_stack_reference():
     # Load(addr=&stack_vvar) ⇒ underlying stack vvar.
     vvar = _stack_vvar()
     cond = BinaryOp(0, "CmpEQ", [_load(UnaryOp(0, "Reference", vvar)), _const(0)])
-    assert UnwrapOutliner._extract_vvar_from_cond(cond) is vvar
+    extracted = UnwrapOutliner._extract_vvar_from_cond(cond)
+    assert extracted is not None and extracted.likes(vvar)
 
 
 def test_unwrap_extract_vvar_from_cond_returns_none_for_unrecognized_operand():

@@ -53,7 +53,7 @@ def _const(value: int, bits: int = 64) -> Const:
 def test_unwrap_stack_vvar_reference_returns_underlying_vvar():
     vvar = _stack_vvar(offset=8)
     expr = _ref(vvar)
-    assert unwrap_stack_vvar_reference(expr) is vvar
+    assert unwrap_stack_vvar_reference(expr) == vvar
 
 
 def test_unwrap_stack_vvar_reference_rejects_register_vvar():
@@ -68,7 +68,7 @@ def test_unwrap_stack_vvar_reference_rejects_non_reference_unary_op():
 
 def test_unwrap_combo_reg_vvar_reference_returns_underlying_vvar_only_for_combo():
     combo = _combo_vvar()
-    assert unwrap_combo_reg_vvar_reference(_ref(combo)) is combo
+    assert unwrap_combo_reg_vvar_reference(_ref(combo)) == combo
     assert unwrap_combo_reg_vvar_reference(_ref(_reg_vvar())) is None
 
 
@@ -117,7 +117,7 @@ def test_find_call_finds_call_inside_block_statement_assignment():
     )
 
     found = find_call(block)
-    assert found is target_call
+    assert found == target_call
     assert has_call(block) is True
 
 
@@ -141,7 +141,7 @@ def test_get_terminal_call_descends_into_assignment_with_call_rhs():
         0,
         statements=[Assignment(0, _stack_vvar(0), inner_call)],
     )
-    assert get_terminal_call(block) is inner_call
+    assert get_terminal_call(block) == inner_call
 
 
 def test_get_terminal_call_returns_none_for_empty_block():

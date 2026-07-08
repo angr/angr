@@ -40,6 +40,10 @@ def is_similar(
 
     if type(ail_obj1) is not type(ail_obj2):
         return False
+    k1 = getattr(ail_obj1, "kind", None)
+    k2 = getattr(ail_obj2, "kind", None)
+    if k1 is not None and k2 is not None and k1 != k2:
+        return False
 
     if ail_obj1 is ail_obj2:
         return True

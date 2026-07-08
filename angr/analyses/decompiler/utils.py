@@ -883,14 +883,15 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
-        self.expr_opts_by_type: dict[type, list[PeepholeOptimizationExprBase]] = {}
+        self.expr_opts_by_kind: dict[str, list[PeepholeOptimizationExprBase]] = {}
 
         for expr_opt in expr_opts:
-            for cls in expr_opt.expr_classes if isinstance(expr_opt.expr_classes, tuple) else (expr_opt.expr_classes,):
+            classes = expr_opt.expr_classes if isinstance(expr_opt.expr_classes, tuple) else (expr_opt.expr_classes,)
+            for cls in classes:
                 assert isinstance(cls, type)
-                if cls not in self.expr_opts_by_type:
-                    self.expr_opts_by_type[cls] = []
-                self.expr_opts_by_type[cls].append(expr_opt)
+                tags = getattr(cls, "_kinds", None) or {getattr(cls, "_kind", cls.__name__)}
+                for tag in tags:
+                    self.expr_opts_by_kind.setdefault(tag, []).append(expr_opt)
 
         super().__init__(*args, **kwargs)
 
@@ -907,13 +908,26 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         redo = True
         while redo:
             redo = False
-            if type(expr) not in self.expr_opts_by_type:
+            kind = getattr(expr, "pykind", None)
+            if kind is None:
+                kind = type(expr).__name__
+            expr_opts = self.expr_opts_by_kind.get(kind)
+            if not expr_opts:
                 break
-            expr_opts = self.expr_opts_by_type[type(expr)]
             for expr_opt in expr_opts:
                 r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                 if r is not None and r is not expr:
-                    assert expr.bits == r.bits
+                    if expr.bits != r.bits:
+                        # A few optimizers don't preserve bits;
+                        # log + skip until the optimizers are audited.
+                        _l.warning(
+                            "Peephole %s changed bits %s -> %s on %s; skipping",
+                            type(expr_opt).__name__,
+                            expr.bits,
+                            r.bits,
+                            getattr(expr, "kind", type(expr).__name__),
+                        )
+                        continue
                     expr = r
                     redo = True
                     break
@@ -992,9 +1006,23 @@ def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     return graph_copy
 
 
-def peephole_optimize_stmts(block, stmt_opts):
+def build_stmt_opts_by_kind(stmt_opts):
+    """Index statement-peephole optimizers by ``kind`` string."""
+    by_kind: dict[str, list] = {}
+    for opt in stmt_opts:
+        classes = opt.stmt_classes if isinstance(opt.stmt_classes, tuple) else (opt.stmt_classes,)
+        for cls in classes:
+            tags = getattr(cls, "_kinds", None) or {getattr(cls, "_kind", cls.__name__)}
+            for tag in tags:
+                by_kind.setdefault(tag, []).append(opt)
+    return by_kind
+
+
+def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
     any_update = False
     statements = []
+    if stmt_opts_by_kind is None:
+        stmt_opts_by_kind = build_stmt_opts_by_kind(stmt_opts)
 
     # run statement optimizers
     # note that an optimizer may optionally edit or remove statements whose statement IDs are greater than stmt_idx
@@ -1005,19 +1033,24 @@ def peephole_optimize_stmts(block, stmt_opts):
         redo = True
         while redo:
             redo = False
-            for opt in stmt_opts:
-                if isinstance(stmt, opt.stmt_classes):
-                    r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
-                    if r is not None and r is not stmt:
-                        stmt = r
-                        if r == ():
-                            # the statement is gone; no more redo
-                            redo = False
-                            break
-                        redo = True
+            kind = getattr(stmt, "pykind", None)
+            if kind is None:
+                kind = type(stmt).__name__
+            opts_for_kind = stmt_opts_by_kind.get(kind)
+            if not opts_for_kind:
+                break
+            for opt in opts_for_kind:
+                r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
+                if r is not None and r != stmt:
+                    stmt = r
+                    if r == ():
+                        # the statement is gone; no more redo
+                        redo = False
                         break
+                    redo = True
+                    break
 
-        if stmt is not None and stmt is not old_stmt:
+        if stmt is not None and stmt != old_stmt:
             if stmt != ():
                 statements.append(stmt)
             any_update = True

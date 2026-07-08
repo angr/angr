@@ -33,7 +33,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         assert result.from_bits == 32
         assert result.to_bits == 64
         assert result.is_signed is False
-        assert result.operand is low
+        assert result.operand.likes(low)
 
     def test_sign_extend_concat(self):
         # (a >> 31) CONCAT a  =>  Convert(a, signed, 64)
@@ -46,7 +46,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         assert result.from_bits == 32
         assert result.to_bits == 64
         assert result.is_signed is True
-        assert result.operand is low
+        assert result.operand.likes(low)
 
     def test_high_part_extraction(self):
         # (a CONCAT b) >> 32  =>  a
@@ -66,12 +66,12 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         and_expr = BinaryOp(None, "And", [concat, Const(None, 0xFFFFFFFF, 64)], False, bits=64)
 
         result = self.opt.optimize(and_expr)
-        # Result should be low, possibly with zero-extension
+        # Result should be low, possibly with zero-extension.
         if isinstance(result, Convert):
-            assert result.operand is low
+            assert result.operand.likes(low)
             assert result.is_signed is False
         else:
-            assert result is low
+            assert result.likes(low)
 
     def test_truncate_concat(self):
         # Convert(a CONCAT b, 64->32)  =>  b
@@ -81,7 +81,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         conv = Convert(None, 64, 32, False, concat)
 
         result = self.opt.optimize(conv)
-        assert result is low
+        assert result.likes(low)
 
     def test_no_optimization_non_matching_shift(self):
         # (a CONCAT b) >> 16  should NOT be optimized (not extracting high part exactly)

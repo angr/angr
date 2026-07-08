@@ -68,9 +68,7 @@ class SimEngineVRAIL(
     # Statement handlers
 
     def _handle_stmt_Assignment(self, stmt):
-        dst_type = type(stmt.dst)
-
-        if dst_type is ailment.Expr.Register:
+        if isinstance(stmt.dst, ailment.Expr.Register):
             offset = stmt.dst.reg_offset
             data = self._expr(stmt.src)
             size = stmt.src.bits // 8
@@ -86,7 +84,7 @@ class SimEngineVRAIL(
 
             self._assign_to_register(offset, data, size, src=stmt.src, dst=stmt.dst)
 
-        elif dst_type is ailment.Expr.Tmp:
+        elif isinstance(stmt.dst, ailment.Expr.Tmp):
             # simply write to self.tmps
             data = self._expr(stmt.src)
             if data is None:
@@ -94,7 +92,7 @@ class SimEngineVRAIL(
 
             self.tmps[stmt.dst.tmp_idx] = data
 
-        elif dst_type is ailment.Expr.VirtualVariable:
+        elif isinstance(stmt.dst, ailment.Expr.VirtualVariable):
             data = self._expr(stmt.src)
             variable = self._assign_to_vvar(
                 stmt.dst, data, src=stmt.src, dst=stmt.dst, vvar_id=self._mapped_vvarid(stmt.dst.varid)
@@ -121,7 +119,10 @@ class SimEngineVRAIL(
                 )
 
         else:
-            l.warning("Unsupported dst type %s.", dst_type)
+            l.warning(
+                "Unsupported dst type %s.",
+                getattr(stmt.dst, "kind", None) or type(stmt.dst).__name__,
+            )
 
     def _handle_stmt_WeakAssignment(self, stmt) -> None:
         src = self._expr(stmt.src)
@@ -267,6 +268,8 @@ class SimEngineVRAIL(
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
     def _handle_stmt_SideEffectStatement(self, stmt):
+        if not isinstance(stmt.expr, ailment.Expr.Call):
+            return
         target = stmt.expr.target
         args: list[RichR] = []
         if stmt.expr.args:

@@ -1,1714 +1,719 @@
-# pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring,too-many-boolean-expressions
+"""AIL Expression classes.
+
+AIL expression instances are ``angr.rustylib.ailment.Expression`` -- a single Rust pyclass wrapping the
+``AilExpression`` enum. The per-variant classes in this module (``Const``, ``BinaryOp``, ``Load``, ...) are Python-side
+*marker* classes:
+
+* Each marker's ``__new__`` calls one of the ``Expression._new_*`` factory static methods and returns the resulting
+  ``Expression`` instance.
+
+* A metaclass on each marker makes ``isinstance(x, Const)`` work by dispatching on the variant tag
+  (``Expression.kind``). The ``_AilMarkerMeta`` checks the tag.
+
+* For static type checkers each marker name is aliased to the ``Expression`` pyclass itself.
+
+* Python-side subclassing of these markers is not supported.
+"""
+
+# pylint:disable=import-error,no-name-in-module
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from collections import OrderedDict
-from collections.abc import Sequence
-from enum import Enum, IntEnum
-from typing import TYPE_CHECKING, Self, cast
+from typing import TYPE_CHECKING, Any
 
-import archinfo
-import claripy
-
-from .tagged_object import TaggedObject
-from .utils import get_bits, is_none_or_likeable, is_none_or_matchable, stable_hash
+from angr.rustylib.ailment import ConvertType, VirtualVariableCategory
 
 if TYPE_CHECKING:
-    from .manager import Manager
-    from .statement import Statement
-
-
-class Expression(TaggedObject, ABC):
-    """
-    The base class of all AIL expressions.
-    """
-
-    bits: int
-
-    __slots__ = (
-        "bits",
-        "depth",
+    # Static typing story: at runtime every marker below produces (and
+    # every ``isinstance`` matches) ``angr.rustylib.ailment.Expression``
+    # instances -- the marker classes never appear in an instance's MRO.
+    # For the type checker each marker name therefore *is* the Expression
+    # pyclass; annotations like ``-> Const`` mean "an Expression whose
+    # variant is Const" and all variant accessors come from the
+    # Expression stub.
+    from angr.rustylib.ailment import (
+        Expression,
     )
-
-    def __init__(self, idx: int, depth, **kwargs):
-        super().__init__(idx, **kwargs)
-        self.depth = depth
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    @abstractmethod
-    def __repr__(self):
-        raise NotImplementedError
-
-    def has_atom(self, atom, identity=True):
-        if identity:
-            return self is atom
-        return self.likes(atom)
-
-    def __eq__(self, other) -> bool:
-        if self is other:
-            return True
-        return type(self) is type(other) and self.likes(other) and self.idx == other.idx
-
-    __hash__ = TaggedObject.__hash__
-
-    @abstractmethod
-    def likes(self, other):  # pylint:disable=unused-argument,no-self-use
-        raise NotImplementedError
-
-    @abstractmethod
-    def matches(self, other):  # pylint:disable=unused-argument,no-self-use
-        raise NotImplementedError
-
-    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
-        if self is old_expr:
-            r = True
-            replaced = cast(Self, new_expr)
-        elif not isinstance(self, Atom):
-            r, replaced = self.replace(old_expr, new_expr)
-        else:
-            r, replaced = False, self
-
-        return r, replaced
-
-
-class Atom(Expression):
-    # NOTE: variable/variable_offset are no longer stored on AIL atoms; that information now lives in a side
-    # VariableMap (see angr.analyses.decompiler.variable_map).
-    __slots__ = ()
-
-    def __init__(self, idx: int, **kwargs):
-        super().__init__(idx, 0, **kwargs)
-
-    def __repr__(self) -> str:
-        return f"Atom ({self.idx})"
-
-
-class Const(Atom):
-    __slots__ = ("value",)
-
-    def __init__(self, idx: int, value: int | float, bits: int, **kwargs):
-        super().__init__(idx, **kwargs)
-
-        self.value = value
-        self.bits = bits
-
-    @property
-    def value_int(self) -> int:
-        if isinstance(self.value, int):
-            return self.value
-        raise TypeError(f"Incorrect value type; expect int, got {type(self.value)}")
-
-    @property
-    def value_float(self) -> float:
-        if isinstance(self.value, float):
-            return self.value
-        raise TypeError(f"Incorrect value type; expect float, got {type(self.value)}")
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        if isinstance(self.value, int):
-            return f"{self.value:#x}<{self.bits}>"
-        if isinstance(self.value, float):
-            return f"{self.value:f}<{self.bits}>"
-        return f"{self.value}<{self.bits}>"
-
-    def likes(self, other):
-        # nan is nan, but nan != nan
-        return (
-            type(self) is type(other)
-            and (self.value is other.value or self.value == other.value)
-            and self.bits == other.bits
-        )
-
-    matches = likes
-
-    def _hash_core(self):
-        return stable_hash((self.value, self.bits))
-
-    @property
-    def sign_bit(self):
-        if not self.is_int:
-            raise TypeError("Sign bit is only available for int constants.")
-        assert isinstance(self.value, int)
-        return self.value >> (self.bits - 1)
-
-    def copy(self) -> Const:
-        return Const(self.idx, self.value, self.bits, **self.tags)
-
-    def deep_copy(self, manager) -> Const:
-        return self._transfer_varmap(Const(manager.next_atom(), self.value, self.bits, **self.tags), manager)
-
-    @property
-    def is_int(self) -> bool:
-        return isinstance(self.value, int)
-
-
-class Tmp(Atom):
-    __slots__ = ("tmp_idx",)
-
-    def __init__(self, idx: int, tmp_idx: int, bits, **kwargs):
-        super().__init__(idx, **kwargs)
-
-        self.tmp_idx = tmp_idx
-        self.bits = bits
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return f"t{self.tmp_idx}"
-
-    def likes(self, other):
-        return type(self) is type(other) and self.tmp_idx == other.tmp_idx and self.bits == other.bits
-
-    matches = likes
-
-    def _hash_core(self):
-        return stable_hash(("tmp", self.tmp_idx, self.bits))
-
-    def copy(self) -> Tmp:
-        return Tmp(self.idx, self.tmp_idx, self.bits, **self.tags)
-
-    def deep_copy(self, manager) -> Tmp:
-        return self._transfer_varmap(Tmp(manager.next_atom(), self.tmp_idx, self.bits, **self.tags), manager)
-
-
-class Register(Atom):
-    __slots__ = ("reg_offset",)
-
-    def __init__(self, idx: int, reg_offset: int, bits: int, **kwargs):
-        super().__init__(idx, **kwargs)
-
-        self.reg_offset = reg_offset
-        self.bits = bits
-
-    def likes(self, other):
-        return type(self) is type(other) and self.reg_offset == other.reg_offset and self.bits == other.bits
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        reg_name = self.tags.get("reg_name", None)
-        if reg_name is not None:
-            return f"{reg_name}<{self.bits // 8}>"
-        return f"reg_{self.reg_offset}<{self.bits // 8}>"
-
-    matches = likes
-
-    def _hash_core(self):
-        return stable_hash(("reg", self.reg_offset, self.bits, self.idx))
-
-    def copy(self) -> Register:
-        return Register(self.idx, self.reg_offset, self.bits, **self.tags)
-
-    def deep_copy(self, manager) -> Register:
-        return self._transfer_varmap(Register(manager.next_atom(), self.reg_offset, self.bits, **self.tags), manager)
-
-
-class ComboRegister(Atom):
-    def __init__(self, idx, registers: list[Register | VirtualVariable], **kwargs):
-        super().__init__(idx, **kwargs)
-        self.registers = registers
-        self.bits = sum(reg.bits for reg in registers)
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    def likes(self, other):
-        return (
-            type(self) is type(other)
-            and len(self.registers) == len(other.registers)
-            and all(reg.likes(other_reg) for reg, other_reg in zip(self.registers, other.registers))
-        )
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return "ComboRegister(" + ", ".join(str(reg) for reg in self.registers) + ")"
-
-    matches = likes
-    __hash__ = TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash(("combo_reg", tuple(self.registers), self.bits, self.idx))
-
-    def copy(self) -> ComboRegister:
-        return ComboRegister(self.idx, self.registers, **self.tags)
-
-
-class VirtualVariableCategory(IntEnum):
-    REGISTER = 0
-    STACK = 1
-    MEMORY = 2
-    PARAMETER = 3
-    TMP = 4
-    COMBO_REGISTER = 5
-    UNKNOWN = 6
-
-
-class VirtualVariable(Atom):
-    __slots__ = (
-        "category",
-        "oident",
-        "reg_vvars",
-        "varid",
+    from angr.rustylib.ailment import (
+        Expression as Array,
     )
+    from angr.rustylib.ailment import (
+        Expression as Atom,
+    )
+    from angr.rustylib.ailment import (
+        Expression as BasePointerOffset,
+    )
+    from angr.rustylib.ailment import (
+        Expression as BinaryOp,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Call,
+    )
+    from angr.rustylib.ailment import (
+        Expression as ComboRegister,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Const,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Convert,
+    )
+    from angr.rustylib.ailment import (
+        Expression as DirtyExpression,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Extract,
+    )
+    from angr.rustylib.ailment import (
+        Expression as FunctionLikeMacro,
+    )
+    from angr.rustylib.ailment import (
+        Expression as ITE,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Insert,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Let,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Load,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Macro,
+    )
+    from angr.rustylib.ailment import (
+        Expression as MultiStatementExpression,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Op,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Phi,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Register,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Reinterpret,
+    )
+    from angr.rustylib.ailment import (
+        Expression as RustEnum,
+    )
+    from angr.rustylib.ailment import (
+        Expression as StackBaseOffset,
+    )
+    from angr.rustylib.ailment import (
+        Expression as StringLiteral,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Struct,
+    )
+    from angr.rustylib.ailment import (
+        Expression as Tmp,
+    )
+    from angr.rustylib.ailment import (
+        Expression as UnaryOp,
+    )
+    from angr.rustylib.ailment import (
+        Expression as VEXCCallExpression,
+    )
+    from angr.rustylib.ailment import (
+        Expression as VirtualVariable,
+    )
+else:
+    from angr.rustylib.ailment import Expression as _Expression  # pylint:disable=import-error
+    from angr.rustylib.ailment import ExpressionKind as EK  # pylint:disable=import-error
 
-    def __init__(
-        self,
-        idx,
-        varid: int,
-        bits,
-        category: VirtualVariableCategory,
-        oident: int | str | tuple | None = None,
-        **kwargs,
-    ):
-        super().__init__(idx, **kwargs)
+    class _AilMarkerMeta(type):
+        """Metaclass for the Expression marker classes.
 
-        self.varid = varid
-        self.category = category
-        self.oident = oident
-        self.bits = bits
+        ``_kind`` (class attr) is the variant tag this marker matches.
 
-        self.reg_vvars = kwargs.get("reg_vvars", {})
+        ``__instancecheck__`` returns True iff the instance is an ``Expression`` whose ``kind`` is in ``_kinds``.
+        """
 
-    @property
-    def was_reg(self) -> bool:
-        return self.category == VirtualVariableCategory.REGISTER
+        _kind: EK
+        _kinds: frozenset[EK]
+        _match_kinds: frozenset[EK]
+        _match_kind_ints: frozenset[int]
+        _match_kind_int_single: int | None
 
-    @property
-    def was_stack(self) -> bool:
-        return self.category == VirtualVariableCategory.STACK
+        def __init__(cls, name, bases, namespace, **kwargs):
+            super().__init__(name, bases, namespace, **kwargs)
+            # Precompute the kind-match set so ``__instancecheck__`` can do a
+            # single set-membership test instead of two ``getattr`` calls per
+            # check. Hot in the decompiler (~1.1M marker isinstance() calls
+            # per ``Decompiler(doit)``).
+            kinds = namespace.get("_kinds")
+            if kinds is None:
+                kind = namespace.get("_kind")
+                if kind is not None:
+                    cls._match_kinds = frozenset({kind})
+            else:
+                cls._match_kinds = kinds if isinstance(kinds, frozenset) else frozenset(kinds)
+            # Mirror the match set as a frozenset of plain ints so
+            # ``__instancecheck__`` can do the membership test against
+            # ``instance.pykind`` (a cached ``Py<int>``) -- this skips the
+            # ``ExpressionKind`` pyclass allocation that ``instance.kind``
+            # otherwise mints on every read.
+            if hasattr(cls, "_match_kinds"):
+                cls._match_kind_ints = frozenset(int(k) for k in cls._match_kinds)
+                # Single-kind markers (the overwhelming majority) let
+                # ``__instancecheck__`` compare the cached ``pykind`` int
+                # directly instead of a frozenset membership test.
+                cls._match_kind_int_single = (
+                    next(iter(cls._match_kind_ints)) if len(cls._match_kind_ints) == 1 else None
+                )
 
-    @property
-    def was_parameter(self) -> bool:
-        return self.category == VirtualVariableCategory.PARAMETER
-
-    @property
-    def was_tmp(self) -> bool:
-        return self.category == VirtualVariableCategory.TMP
-
-    @property
-    def was_combo_reg(self) -> bool:
-        return self.category == VirtualVariableCategory.COMBO_REGISTER
-
-    @property
-    def reg_offset(self) -> int:
-        if self.was_reg:
-            assert isinstance(self.oident, int)
-            return self.oident
-        if self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
-            return self.parameter_reg_offset  # type: ignore
-        raise TypeError("Is not a register")
-
-    @property
-    def reg_offsets(self) -> tuple:
-        if self.was_combo_reg:
-            assert isinstance(self.oident, tuple)
-            return self.oident
-        if self.was_parameter and self.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
-            assert isinstance(self.oident, tuple)
-            assert isinstance(self.oident[1], tuple)
-            return self.oident[1]
-        raise TypeError("Is not a combo register")
-
-    @property
-    def stack_offset(self) -> int:
-        if self.was_stack:
-            assert isinstance(self.oident, int)
-            return self.oident
-        if self.was_parameter and self.parameter_category == VirtualVariableCategory.STACK:
-            return self.parameter_stack_offset  # type: ignore
-        raise TypeError("Is not a stack variable")
-
-    @property
-    def tmp_idx(self) -> int | None:
-        if self.was_tmp:
-            assert isinstance(self.oident, int)
-            return self.oident
-        return None
-
-    @property
-    def parameter_category(self) -> VirtualVariableCategory | None:
-        if self.was_parameter:
-            assert isinstance(self.oident, tuple)
-            return self.oident[0]
-        return None
-
-    @property
-    def parameter_reg_offset(self) -> int | None:
-        if self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
-            assert isinstance(self.oident, tuple)
-            return self.oident[1]
-        return None
-
-    @property
-    def parameter_stack_offset(self) -> int | None:
-        if self.was_parameter and self.parameter_category == VirtualVariableCategory.STACK:
-            assert isinstance(self.oident, tuple)
-            return self.oident[1]
-        return None
-
-    def likes(self, other):
-        return (
-            isinstance(other, VirtualVariable)
-            and self.varid == other.varid
-            and self.bits == other.bits
-            and self.category == other.category
-            and self.oident == other.oident
-        )
-
-    def matches(self, other):
-        return (
-            isinstance(other, VirtualVariable)
-            and self.bits == other.bits
-            and self.category == other.category
-            and self.oident == other.oident
-        )
-
-    def __repr__(self):
-        ori_str = ""
-        match self.category:
-            case VirtualVariableCategory.REGISTER:
-                ori_str = f"{{r{self.reg_offset}|{self.size}b}}"
-            case VirtualVariableCategory.STACK:
-                ori_str = f"{{s{self.oident}|{self.size}b}}"
-            case VirtualVariableCategory.COMBO_REGISTER:
-                ori_str = f"{{combo_reg {self.oident}}}"
-        return f"vvar_{self.varid}{ori_str}"
-
-    def _hash_core(self):
-        return stable_hash(("var", self.varid, self.bits, self.category, self.oident))
-
-    def copy(self) -> VirtualVariable:
-        return VirtualVariable(
-            self.idx,
-            self.varid,
-            self.bits,
-            self.category,
-            oident=self.oident,
-            **self.tags,
-        )
-
-    def deep_copy(self, manager) -> VirtualVariable:
-        return self._transfer_varmap(
-            VirtualVariable(
-                manager.next_atom(),
-                self.varid,
-                self.bits,
-                self.category,
-                oident=self.oident,
-                **self.tags,
-            ),
-            manager,
-        )
-
-
-class Phi(Atom):
-    __slots__ = ("src_and_vvars",)
-
-    def __init__(
-        self,
-        idx,
-        bits,
-        src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]],
-        **kwargs,
-    ):
-        super().__init__(idx, **kwargs)
-        self.bits = bits
-        self.src_and_vvars = src_and_vvars
-
-    @property
-    def op(self) -> str:
-        return "Phi"
-
-    @property
-    def verbose_op(self) -> str:
-        return "Phi"
-
-    def likes(self, other) -> bool:
-        if isinstance(other, Phi) and self.bits == other.bits:
-            self_src_and_vvarids = {(src, vvar.varid if vvar is not None else None) for src, vvar in self.src_and_vvars}
-            other_src_and_vvarids = {
-                (src, vvar.varid if vvar is not None else None) for src, vvar in other.src_and_vvars
-            }
-            return self_src_and_vvarids == other_src_and_vvarids
-        return False
-
-    def matches(self, other) -> bool:
-        if isinstance(other, Phi) and self.bits == other.bits:
-            if len(self.src_and_vvars) != len(other.src_and_vvars):
+        def __instancecheck__(cls, instance: Any) -> bool:
+            # Only marker classes use variant-tag dispatch. ``type(x) is``
+            # (the rustlib ``Expression`` is a final pyclass) is a C-level
+            # identity check, cheaper than the inner ``isinstance`` frame;
+            # single-kind markers then compare the cached ``pykind`` int
+            # directly. Hot: ~1M+ marker ``isinstance()`` calls / decompile.
+            if type(instance) is not _Expression:
                 return False
-            self_src_and_vvars = dict(self.src_and_vvars)
-            other_src_and_vvars = dict(other.src_and_vvars)
-            for src, self_vvar in self_src_and_vvars.items():
-                if src not in other_src_and_vvars:
-                    return False
-                other_vvar = other_src_and_vvars[src]
-                if self_vvar is None and other_vvar is None:
-                    continue
-                if (
-                    (self_vvar is None and other_vvar is not None)
-                    or (self_vvar is not None and other_vvar is None)
-                    or (self_vvar is not None and other_vvar is not None and not self_vvar.matches(other_vvar))
-                ):
-                    return False
-            return True
-        return False
+            k = cls._match_kind_int_single
+            if k is not None:
+                return instance.pykind == k
+            return instance.pykind in cls._match_kind_ints
 
-    def __repr__(self):
-        return f"𝜙@{self.bits}b {self.src_and_vvars}"
+        def __subclasscheck__(cls, subclass: type) -> bool:
+            # Markers don't support being subclassed. Reflexive equality
+            # only -- ``issubclass(cls, cls)`` is True, anything else False.
+            return subclass is cls
 
-    def _hash_core(self):
-        return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars, key=self._src_and_vvar_filter))))
+        def __call__(cls, *args, **kwargs):
+            # Normalize ``idx=None`` to 0 -- the constructors accept
+            # ``Optional[int]`` for ``idx`` while the fat-enum factories use
+            # plain ``i64``; doing the coercion once in the metaclass keeps
+            # the per-marker ``__new__`` bodies clean.
+            if args and args[0] is None:
+                args = (0, *args[1:])
+            return type.__call__(cls, *args, **kwargs)
 
-    def copy(self) -> Phi:
-        return Phi(
-            self.idx,
-            self.bits,
-            self.src_and_vvars[::],
-            **self.tags,
-        )
+    class Const(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Const``.
 
-    def deep_copy(self, manager) -> Phi:
-        return self._transfer_varmap(
-            Phi(
-                manager.next_atom(),
-                self.bits,
-                [(s, vvar.deep_copy(manager) if vvar is not None else None) for s, vvar in self.src_and_vvars],
-                **self.tags,
-            ),
-            manager,
-        )
+        ``Const(idx, value, bits, **tags)`` returns an ``Expression`` --
+        the marker class is not in the instance's MRO.
+        """
 
-    def replace(self, old_expr, new_expr):
-        replaced = False
-        new_src_and_vvars = []
-        for src, vvar in self.src_and_vvars:
-            if vvar == old_expr and isinstance(new_expr, VirtualVariable):
-                replaced = True
-                new_src_and_vvars.append((src, new_expr))
-            else:
-                new_src_and_vvars.append((src, vvar))
+        _kind = EK.Const
 
-        if replaced:
-            return True, Phi(
-                self.idx,
-                self.bits,
-                new_src_and_vvars,
-                **self.tags,
+        def __new__(cls, idx, value, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_const(idx, value, bits, **tags)
+
+    class Tmp(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Tmp``."""
+
+        _kind = EK.Tmp
+
+        def __new__(cls, idx, tmp_idx, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_tmp(idx, tmp_idx, bits, **tags)
+
+    class Register(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Register``."""
+
+        _kind = EK.Register
+
+        def __new__(cls, idx, reg_offset, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_register(idx, reg_offset, bits, **tags)
+
+    class ComboRegister(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``ComboRegister``."""
+
+        _kind = EK.ComboRegister
+
+        def __new__(cls, idx, registers, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_combo_register(idx, registers, **tags)
+
+    class Phi(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Phi``."""
+
+        _kind = EK.Phi
+
+        def __new__(cls, idx, bits, src_and_vvars, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_phi(idx, bits, src_and_vvars, **tags)
+
+    class VirtualVariable(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``VirtualVariable``."""
+
+        _kind = EK.VirtualVariable
+
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            varid,
+            bits,
+            category,
+            oident=None,
+            reg_vvars=None,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_virtual_variable(
+                idx,
+                varid,
+                bits,
+                category,
+                oident=oident,
+                reg_vvars=reg_vvars,
+                **tags,
             )
-        return False, self
 
-    @staticmethod
-    def _src_and_vvar_filter(
-        src_and_vvar: tuple[tuple[int, int | None], VirtualVariable | None],
-    ) -> tuple[tuple[int, int], int]:
-        src, vvar = src_and_vvar
-        if src[1] is None:
-            src = src[0], -1
-        vvar_id = vvar.varid if vvar is not None else -1
-        return src, vvar_id  # type: ignore
+    class UnaryOp(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``UnaryOp``."""
 
+        _kind = EK.UnaryOp
 
-class Op(Expression):
-    __slots__ = ("op",)
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            op,
+            operand,
+            bits=None,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_unary_op(idx, op, operand, bits=bits, **tags)
 
-    def __init__(self, idx, depth, op: str, **kwargs):
-        super().__init__(idx, depth, **kwargs)
-        self.op = op
+    class Convert(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Convert``."""
 
-    @property
-    def verbose_op(self):
-        return self.op
+        _kind = EK.Convert
 
+        # Class-level sentinels. Analyses test
+        # ``expr.from_type == Convert.TYPE_INT`` so these need to live on
+        # the marker class.
+        TYPE_INT = ConvertType.TYPE_INT
+        TYPE_FP = ConvertType.TYPE_FP
 
-class UnaryOp(Op):
-    __slots__ = ("operand",)
-
-    def __init__(
-        self,
-        idx: int,
-        op: str,
-        operand: Expression,
-        bits=None,
-        **kwargs,
-    ):
-        super().__init__(idx, (operand.depth if isinstance(operand, Expression) else 0) + 1, op, **kwargs)
-
-        self.operand = operand
-        self.bits = operand.bits if bits is None else bits
-
-    def __str__(self):
-        return f"({self.op} {self.operand!s})"
-
-    def __repr__(self):
-        return str(self)
-
-    def likes(self, other):
-        return (
-            type(other) is UnaryOp
-            and self.op == other.op
-            and self.bits == other.bits
-            and self.operand.likes(other.operand)
-        )
-
-    def matches(self, other):
-        return (
-            type(other) is UnaryOp
-            and self.op == other.op
-            and self.bits == other.bits
-            and self.operand.matches(other.operand)
-        )
-
-    def _hash_core(self):
-        return stable_hash((self.op, self.operand, self.bits))
-
-    def replace(self, old_expr, new_expr):
-        if self.operand == old_expr:
-            r = True
-            replaced_operand = new_expr
-        else:
-            r, replaced_operand = self.operand.replace(old_expr, new_expr)
-
-        if r:
-            return True, UnaryOp(self.idx, self.op, replaced_operand, bits=self.bits, **self.tags)
-        return False, self
-
-    @property
-    def operands(self):
-        return [self.operand]
-
-    def copy(self) -> UnaryOp:
-        return UnaryOp(
-            self.idx,
-            self.op,
-            self.operand,
-            bits=self.bits,
-            **self.tags,
-        )
-
-    def deep_copy(self, manager) -> UnaryOp:
-        return self._transfer_varmap(
-            UnaryOp(
-                manager.next_atom(),
-                self.op,
-                self.operand.deep_copy(manager),
-                bits=self.bits,
-                **self.tags,
-            ),
-            manager,
-        )
-
-    def has_atom(self, atom, identity=True):
-        if super().has_atom(atom, identity=identity):
-            return True
-        return self.operand.has_atom(atom, identity=identity)
-
-
-class ConvertType(Enum):
-    TYPE_INT = 0
-    TYPE_FP = 1
-
-
-class Convert(UnaryOp):
-    TYPE_INT = ConvertType.TYPE_INT
-    TYPE_FP = ConvertType.TYPE_FP
-
-    __slots__ = (
-        "from_bits",
-        "from_type",
-        "is_signed",
-        "rounding_mode",
-        "to_bits",
-        "to_type",
-    )
-
-    def __init__(
-        self,
-        idx: int,
-        from_bits: int,
-        to_bits: int,
-        is_signed: bool,
-        operand: Expression,
-        from_type: ConvertType = TYPE_INT,
-        to_type: ConvertType = TYPE_INT,
-        rounding_mode=None,
-        **kwargs,
-    ):
-        super().__init__(idx, "Convert", operand, **kwargs)
-
-        self.from_bits = from_bits
-        self.to_bits = to_bits
-        # override the size
-        self.bits = to_bits
-        self.is_signed = is_signed
-        self.from_type = from_type
-        self.to_type = to_type
-        self.rounding_mode = rounding_mode
-
-    def __str__(self):
-        from_type = "I" if self.from_type == Convert.TYPE_INT else "F"
-        to_type = "I" if self.to_type == Convert.TYPE_INT else "F"
-        return (
-            f"Conv({self.from_bits}{from_type}->{'s' if self.is_signed else ''}{self.to_bits}{to_type}, {self.operand})"
-        )
-
-    def __repr__(self):
-        return str(self)
-
-    def likes(self, other):
-        return (
-            type(other) is Convert
-            and self.from_bits == other.from_bits
-            and self.to_bits == other.to_bits
-            and self.bits == other.bits
-            and self.is_signed == other.is_signed
-            and self.operand.likes(other.operand)
-            and self.from_type == other.from_type
-            and self.to_type == other.to_type
-            and self.rounding_mode == other.rounding_mode
-        )
-
-    def matches(self, other):
-        return (
-            type(other) is Convert
-            and self.from_bits == other.from_bits
-            and self.to_bits == other.to_bits
-            and self.bits == other.bits
-            and self.is_signed == other.is_signed
-            and self.operand.matches(other.operand)
-            and self.from_type == other.from_type
-            and self.to_type == other.to_type
-            and self.rounding_mode == other.rounding_mode
-        )
-
-    def _hash_core(self):
-        return stable_hash(
-            (
-                self.operand,
-                self.from_bits,
-                self.to_bits,
-                self.bits,
-                self.is_signed,
-                self.from_type,
-                self.to_type,
-                self.rounding_mode,
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            from_bits,
+            to_bits,
+            is_signed,
+            operand,
+            from_type=None,
+            to_type=None,
+            rounding_mode=None,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_convert(
+                idx,
+                from_bits,
+                to_bits,
+                is_signed,
+                operand,
+                from_type=from_type,
+                to_type=to_type,
+                rounding_mode=rounding_mode,
+                **tags,
             )
-        )
 
-    def replace(self, old_expr, new_expr):
-        if self.operand == old_expr:
-            r0 = True
-            replaced_operand = new_expr
-        else:
-            r0, replaced_operand = self.operand.replace(old_expr, new_expr)
+    class Reinterpret(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Reinterpret``."""
 
-        if self.rounding_mode is not None:
-            if self.rounding_mode.likes(old_expr):
-                r1 = True
-                replaced_rm = new_expr
-            else:
-                r1, replaced_rm = self.rounding_mode.replace(old_expr, new_expr)
-        else:
-            r1 = False
-            replaced_rm = None
+        _kind = EK.Reinterpret
 
-        if r0 or r1:
-            return True, Convert(
-                self.idx,
-                self.from_bits,
-                self.to_bits,
-                self.is_signed,
-                replaced_operand if replaced_operand is not None else self.operand,
-                from_type=self.from_type,
-                to_type=self.to_type,
-                rounding_mode=replaced_rm if replaced_rm is not None else self.rounding_mode,
-                **self.tags,
-            )
-        return False, self
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            from_bits,
+            from_type,
+            to_bits,
+            to_type,
+            operand,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_reinterpret(idx, from_bits, from_type, to_bits, to_type, operand, **tags)
 
-    def copy(self) -> Convert:
-        return Convert(
-            self.idx,
-            self.from_bits,
-            self.to_bits,
-            self.is_signed,
-            self.operand,
-            from_type=self.from_type,
-            to_type=self.to_type,
-            rounding_mode=self.rounding_mode,
-            **self.tags,
-        )
-
-    def deep_copy(self, manager) -> Convert:
-        return Convert(
-            manager.next_atom(),
-            self.from_bits,
-            self.to_bits,
-            self.is_signed,
-            self.operand.deep_copy(manager),
-            from_type=self.from_type,
-            to_type=self.to_type,
-            rounding_mode=self.rounding_mode,
-            **self.tags,
-        )
-
-
-class Reinterpret(UnaryOp):
-    __slots__ = (
-        "from_bits",
-        "from_type",
-        "to_bits",
-        "to_type",
-    )
-
-    def __init__(self, idx, from_bits: int, from_type: str, to_bits: int, to_type: str, operand, **kwargs):
-        super().__init__(idx, "Reinterpret", operand, **kwargs)
-
-        assert (from_type == "I" and to_type == "F") or (from_type == "F" and to_type == "I")
-
-        self.from_bits = from_bits
-        self.from_type = from_type
-        self.to_bits = to_bits
-        self.to_type = to_type
-
-        self.bits = self.to_bits
-
-    def __str__(self):
-        return f"Reinterpret({self.from_type}{self.from_bits}->{self.to_type}{self.to_bits}, {self.operand})"
-
-    def __repr__(self):
-        return str(self)
-
-    def likes(self, other):
-        return (
-            type(other) is Reinterpret
-            and self.from_bits == other.from_bits
-            and self.from_type == other.from_type
-            and self.to_bits == other.to_bits
-            and self.to_type == other.to_type
-            and self.operand.likes(other.operand)
-        )
-
-    def matches(self, other):
-        return (
-            type(other) is Reinterpret
-            and self.from_bits == other.from_bits
-            and self.from_type == other.from_type
-            and self.to_bits == other.to_bits
-            and self.to_type == other.to_type
-            and self.operand.matches(other.operand)
-        )
-
-    def _hash_core(self):
-        return stable_hash(
-            (
-                self.operand,
-                self.from_bits,
-                self.from_type,
-                self.to_bits,
-                self.to_type,
-            )
-        )
-
-    def replace(self, old_expr, new_expr):
-        if self.operand == old_expr:
-            r = True
-            replaced_operand = new_expr
-        else:
-            r, replaced_operand = self.operand.replace(old_expr, new_expr)
-
-        if r:
-            return True, Reinterpret(
-                self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, replaced_operand, **self.tags
-            )
-        return False, self
-
-    def copy(self) -> Reinterpret:
-        return Reinterpret(
-            self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, self.operand, **self.tags
-        )
-
-    def deep_copy(self, manager) -> Reinterpret:
-        return Reinterpret(
-            manager.next_atom(),
-            self.from_bits,
-            self.from_type,
-            self.to_bits,
-            self.to_type,
-            self.operand.deep_copy(manager),
-            **self.tags,
-        )
-
-
-class BinaryOp(Op):
-    __slots__ = (
-        "floating_point",
-        "operands",
-        "rounding_mode",
-        "signed",
-        "vector_count",
-        "vector_size",
-    )
-
-    OPSTR_MAP = {
-        "Add": "+",
-        "AddF": "+",
-        "AddV": "+",
-        "Sub": "-",
-        "SubF": "-",
-        "Mul": "*",
-        "MulF": "*",
-        "MulV": "*",
-        "Div": "/",
-        "DivF": "/",
-        "Mod": "%",
-        "Xor": "^",
-        "And": "&",
-        "LogicalAnd": "&&",
-        "Or": "|",
-        "LogicalOr": "||",
-        "Shl": "<<",
-        "Shr": ">>",
-        "Sar": ">>a",
-        "CmpF": "CmpF",
-        "CmpEQ": "==",
-        "CmpNE": "!=",
-        "CmpLT": "<",
-        "CmpLE": "<=",
-        "CmpGT": ">",
-        "CmpGE": ">=",
-        "CmpLT (signed)": "<s",
-        "CmpLE (signed)": "<=s",
-        "CmpGT (signed)": ">s",
-        "CmpGE (signed)": ">=s",
-        "Concat": "CONCAT",
-        "Ror": "ROR",
-        "Rol": "ROL",
-        "Carry": "CARRY",
-        "SCarry": "SCARRY",
-        "SBorrow": "SBORROW",
+    _BINOP_FIXED_BITS = {
+        "CmpF": 32,
+        "CmpEQ": 1,
+        "CmpNE": 1,
+        "CmpLT": 1,
+        "CmpGE": 1,
+        "CmpLE": 1,
+        "CmpGT": 1,
+        "ExpCmpNE": 1,
+        "Carry": 8,
+        "SCarry": 8,
+        "SBorrow": 8,
     }
 
-    COMPARISON_NEGATION = {
-        "CmpEQ": "CmpNE",
-        "CmpNE": "CmpEQ",
-        "CmpLT": "CmpGE",
-        "CmpGE": "CmpLT",
-        "CmpLE": "CmpGT",
-        "CmpGT": "CmpLE",
-    }
+    def _binop_bits_for(op, operands):
+        fixed = _BINOP_FIXED_BITS.get(op)
+        if fixed is not None:
+            return fixed
+        op0_bits = operands[0].bits if not isinstance(operands[0], int) else operands[1].bits
+        if op == "Concat":
+            return op0_bits + operands[1].bits
+        if op == "Mull":
+            return op0_bits * 2
+        return op0_bits
 
-    def __init__(
-        self,
-        idx: int,
-        op: str,
-        operands: Sequence[Expression],
-        signed: bool = False,
-        *,
-        bits=None,
-        floating_point=False,
-        rounding_mode=None,
-        vector_count: int | None = None,
-        vector_size: int | None = None,
-        **kwargs,
-    ):
-        depth = (
-            max(
-                operands[0].depth if isinstance(operands[0], Expression) else 0,
-                operands[1].depth if isinstance(operands[1], Expression) else 0,
+    class BinaryOp(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``BinaryOp``."""
+
+        _kind = EK.BinaryOp
+
+        # Analyses (notably ``negate``) consult this to flip comparison ops.
+        COMPARISON_NEGATION = {
+            "CmpEQ": "CmpNE",
+            "CmpNE": "CmpEQ",
+            "CmpLT": "CmpGE",
+            "CmpGE": "CmpLT",
+            "CmpLE": "CmpGT",
+            "CmpGT": "CmpLE",
+        }
+
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            op,
+            operands,
+            signed=False,
+            *,
+            bits=None,
+            floating_point=False,
+            rounding_mode=None,
+            vector_count=None,
+            vector_size=None,
+            **tags,
+        ) -> _Expression:
+            if bits is None:
+                bits = _binop_bits_for(op, operands)
+            return _Expression._new_binary_op(
+                idx,
+                op,
+                operands,
+                signed,
+                bits=bits,
+                floating_point=floating_point,
+                rounding_mode=rounding_mode,
+                vector_count=vector_count,
+                vector_size=vector_size,
+                **tags,
             )
-            + 1
-        )
 
-        super().__init__(idx, depth, op, **kwargs)
+    class ITE(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``ITE``."""
 
-        assert len(operands) == 2
-        self.operands = operands
+        _kind = EK.ITE
 
-        if bits is not None:
-            self.bits = bits
-        elif self.op == "CmpF":
-            self.bits = 32  # floating point comparison
-        elif self.op in {
-            "CmpEQ",
-            "CmpNE",
-            "CmpLT",
-            "CmpGE",
-            "CmpLE",
-            "CmpGT",
-            "ExpCmpNE",
-        }:
-            self.bits = 1
-        elif self.op in {"Carry", "SCarry", "SBorrow"}:
-            self.bits = 8
-        elif self.op == "Concat":
-            self.bits = get_bits(operands[0]) + get_bits(operands[1])
-        elif self.op == "Mull":
-            self.bits = get_bits(operands[0]) * 2 if not isinstance(operands[0], int) else get_bits(operands[1]) * 2
-        else:
-            self.bits = get_bits(operands[0]) if not isinstance(operands[0], int) else get_bits(operands[1])
-        self.signed = signed
-        self.floating_point = floating_point
-        self.rounding_mode: str | None = rounding_mode
-        self.vector_count = vector_count
-        self.vector_size = vector_size
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            cond,
+            iffalse,
+            iftrue,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_ite(idx, cond, iffalse, iftrue, **tags)
 
-        # TODO: sanity check of operands' sizes for some ops
-        # assert self.bits == operands[1].bits
+    class Extract(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Extract``."""
 
-    def __str__(self):
-        op_str = self.OPSTR_MAP.get(self.verbose_op, self.verbose_op)
-        return f"({self.operands[0]!s} {op_str} {self.operands[1]!s})"
+        _kind = EK.Extract
 
-    def __repr__(self):
-        return f"{self.verbose_op}({self.operands[0]}, {self.operands[1]})"
+        def __new__(cls, idx, bits, base, offset, endness, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_extract(idx, bits, base, offset, endness, **tags)
 
-    def likes(self, other):
-        return (
-            type(other) is BinaryOp
-            and self.op == other.op
-            and self.bits == other.bits
-            and self.signed == other.signed
-            and is_none_or_likeable(self.operands, other.operands, is_list=True)
-            and self.floating_point == other.floating_point
-            and self.rounding_mode == other.rounding_mode
-        )
+    class Insert(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Insert``."""
 
-    def matches(self, other):
-        return (
-            type(other) is BinaryOp
-            and self.op == other.op
-            and self.bits == other.bits
-            and self.signed == other.signed
-            and is_none_or_matchable(self.operands, other.operands, is_list=True)
-            and self.floating_point == other.floating_point
-            and self.rounding_mode == other.rounding_mode
-        )
+        _kind = EK.Insert
 
-    def _hash_core(self):
-        return stable_hash(
-            (self.op, tuple(self.operands), self.bits, self.signed, self.floating_point, self.rounding_mode)
-        )
+        def __new__(cls, idx, base, offset, value, endness, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_insert(idx, base, offset, value, endness, **tags)
 
-    def has_atom(self, atom, identity=True):
-        if super().has_atom(atom, identity=identity):
-            return True
+    class StringLiteral(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``StringLiteral``."""
 
-        for op in self.operands:
-            if identity and op == atom:
-                return True
-            if not identity and isinstance(op, Expression) and op.likes(atom):
-                return True
-            if isinstance(op, Expression) and op.has_atom(atom, identity=identity):
-                return True
+        _kind = EK.StringLiteral
 
-        if self.rounding_mode is not None:
-            if identity and self.rounding_mode == atom:
-                return True
-            if not identity and isinstance(self.rounding_mode, Atom) and self.rounding_mode.likes(atom):
-                return True
-            if isinstance(self.rounding_mode, Atom) and self.rounding_mode.has_atom(atom, identity=identity):
-                return True
+        def __new__(cls, idx, data, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_string_literal(idx, data, bits, **tags)
 
-        return False
+    class BasePointerOffset(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``BasePointerOffset``."""
 
-    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, BinaryOp]:
-        if self.operands[0] == old_expr:
-            r0 = True
-            replaced_operand_0 = new_expr
-        elif isinstance(self.operands[0], Expression):
-            r0, replaced_operand_0 = self.operands[0].replace(old_expr, new_expr)
-        else:
-            r0, replaced_operand_0 = False, new_expr
+        _kind = EK.BasePointerOffset
 
-        if self.operands[1] == old_expr:
-            r1 = True
-            replaced_operand_1 = new_expr
-        elif isinstance(self.operands[1], Expression):
-            r1, replaced_operand_1 = self.operands[1].replace(old_expr, new_expr)
-        else:
-            r1, replaced_operand_1 = False, new_expr
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            bits,
+            base,
+            offset,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_base_pointer_offset(idx, bits, base, offset, **tags)
 
-        r2, replaced_rm = False, None
-        if self.rounding_mode is not None and self.rounding_mode == old_expr:
-            r2 = True
-            replaced_rm = new_expr
+    class StackBaseOffset(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``StackBaseOffset``."""
 
-        if r0 or r1:
-            return True, BinaryOp(
-                self.idx,
-                self.op,
-                [replaced_operand_0 if r0 else self.operands[0], replaced_operand_1 if r1 else self.operands[1]],
-                signed=self.signed,
-                bits=self.bits,
-                floating_point=self.floating_point,
-                rounding_mode=replaced_rm if r2 else self.rounding_mode,
-                **self.tags,
+        _kind = EK.StackBaseOffset
+
+        def __new__(cls, idx, bits, offset, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_stack_base_offset(idx, bits, offset, **tags)
+
+    class Call(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Call``.
+
+        ``isinstance`` also matches ``Macro`` / ``FunctionLikeMacro``
+        instances to preserve the former subclass relationships.
+        """
+
+        _kind = EK.Call
+        _kinds = frozenset({EK.Call, EK.Macro, EK.FunctionLikeMacro})
+
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            target,
+            args=None,
+            bits=None,
+            arg_vvars=None,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_call(
+                idx,
+                target,
+                args=args,
+                bits=bits,
+                arg_vvars=arg_vvars,
+                **tags,
             )
-        return False, self
 
-    @property
-    def verbose_op(self):
-        op = self.op
-        if self.floating_point:
-            op += " (float)"
-        else:
-            if self.signed:
-                op += " (signed)"
-        return op
+    class Struct(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Struct``."""
 
-    def copy(self) -> BinaryOp:
-        return BinaryOp(
-            self.idx,
-            self.op,
-            self.operands[::],
-            signed=self.signed,
-            bits=self.bits,
-            floating_point=self.floating_point,
-            rounding_mode=self.rounding_mode,
-            **self.tags,
-        )
+        _kind = EK.Struct
 
-    def deep_copy(self, manager) -> BinaryOp:
-        return self._transfer_varmap(
-            BinaryOp(
-                manager.next_atom(),
-                self.op,
-                [op.deep_copy(manager) for op in self.operands],
-                signed=self.signed,
-                bits=self.bits,
-                floating_point=self.floating_point,
-                rounding_mode=self.rounding_mode,
-                **self.tags,
-            ),
-            manager,
-        )
+        def __new__(cls, idx, name, fields, field_offsets, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_struct(idx, name, fields, field_offsets, bits, **tags)
 
+    class RustEnum(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``RustEnum``."""
 
-class Load(Expression):
-    __slots__ = (
-        "addr",
-        "alt",
-        "endness",
-        "guard",
-    )
+        _kind = EK.RustEnum
 
-    def __init__(
-        self,
-        idx: int,
-        addr: Expression,
-        size: int,
-        endness: str,
-        guard=None,
-        alt=None,
-        **kwargs,
-    ):
-        depth = max(addr.depth, size.depth if isinstance(size, Expression) else 0) + 1
-        super().__init__(idx, depth, **kwargs)
+        def __new__(cls, idx, name, fields, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_rust_enum(idx, name, fields, bits, **tags)
 
-        self.addr = addr
-        self.bits = size * 8
-        self.endness = endness
-        self.guard = guard
-        self.alt = alt
-        self.bits = self.size * 8
+    class Array(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Array``."""
 
-    def __repr__(self):
-        return str(self)
+        _kind = EK.Array
 
-    def __str__(self):
-        return f"Load(addr={self.addr}, size={self.size}, endness={self.endness})"
+        def __new__(cls, idx, elements, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_array(idx, elements, bits, **tags)
 
-    def has_atom(self, atom, identity=True):
-        if super().has_atom(atom, identity=identity):
-            return True
+    class Let(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Let``."""
 
-        if isinstance(self.addr, (int, claripy.ast.Base)):
-            return False
-        return self.addr.has_atom(atom, identity=identity)
+        _kind = EK.Let
 
-    def replace(self, old_expr, new_expr):
-        if self.addr == old_expr:
-            r = True
-            replaced_addr = new_expr
-        else:
-            r, replaced_addr = self.addr.replace(old_expr, new_expr)
+        def __new__(cls, idx, defs, src, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_let(idx, defs, src, **tags)
 
-        if r:
-            return True, Load(self.idx, replaced_addr, self.size, self.endness, **self.tags)
-        return False, self
+    class Macro(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Macro`` (abstract).
 
-    def _likes_addr(self, other_addr):
-        if hasattr(self.addr, "likes") and hasattr(other_addr, "likes"):
-            return self.addr.likes(other_addr)
+        Also matches ``FunctionLikeMacro`` instances to preserve the
+        ``isinstance(x, Macro)`` -> True relationship of the former
+        class hierarchy.
+        """
 
-        return self.addr == other_addr
+        _kind = EK.Macro
+        _kinds = frozenset({EK.Macro, EK.FunctionLikeMacro})
 
-    def likes(self, other):
-        return (
-            type(other) is Load
-            and self._likes_addr(other.addr)
-            and self.size == other.size
-            and self.endness == other.endness
-            and self.guard == other.guard
-            and self.alt == other.alt
-        )
+        def __new__(cls, idx, name, delimiter="()", **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_macro(idx, name, delimiter=delimiter, **tags)
 
-    def _matches_addr(self, other_addr):
-        if hasattr(self.addr, "matches") and hasattr(other_addr, "matches"):
-            return self.addr.matches(other_addr)
-        return self.addr == other_addr
+    class FunctionLikeMacro(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``FunctionLikeMacro``."""
 
-    def matches(self, other):
-        return (
-            type(other) is Load
-            and self._matches_addr(other.addr)
-            and self.size == other.size
-            and self.endness == other.endness
-            and self.guard == other.guard
-            and self.alt == other.alt
-        )
+        _kind = EK.FunctionLikeMacro
 
-    def _hash_core(self):
-        return stable_hash(("Load", self.addr, self.size, self.endness))
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            name,
+            args,
+            bits=None,
+            delimiter="()",
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_function_like_macro(idx, name, args, bits=bits, delimiter=delimiter, **tags)
 
-    def copy(self) -> Load:
-        return Load(
-            self.idx,
-            self.addr,
-            self.size,
-            self.endness,
-            guard=self.guard,
-            alt=self.alt,
-            **self.tags,
-        )
+    class DirtyExpression(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``DirtyExpression``."""
 
-    def deep_copy(self, manager) -> Load:
-        return self._transfer_varmap(
-            Load(
-                manager.next_atom(),
-                self.addr.deep_copy(manager),
-                self.size,
-                self.endness,
-                guard=self.guard.deep_copy(manager) if self.guard is not None else None,
-                alt=self.alt,
-                **self.tags,
-            ),
-            manager,
-        )
+        _kind = EK.DirtyExpression
 
-
-class ITE(Expression):
-    __slots__ = (
-        "cond",
-        "iffalse",
-        "iftrue",
-    )
-
-    def __init__(
-        self,
-        idx: int,
-        cond: Expression,
-        iffalse: Expression,
-        iftrue: Expression,
-        **kwargs,
-    ):
-        depth = (
-            max(
-                cond.depth if isinstance(cond, Expression) else 0,
-                iffalse.depth if isinstance(iffalse, Expression) else 0,
-                iftrue.depth if isinstance(iftrue, Expression) else 0,
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            callee,
+            operands,
+            *,
+            guard=None,
+            mfx=None,
+            maddr=None,
+            msize=None,
+            bits,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_dirty_expression(
+                idx,
+                callee,
+                operands,
+                guard=guard,
+                mfx=mfx,
+                maddr=maddr,
+                msize=msize,
+                bits=bits,
+                **tags,
             )
-            + 1
-        )
-        super().__init__(idx, depth, **kwargs)
 
-        self.cond = cond
-        self.iffalse = iffalse
-        self.iftrue = iftrue
-        self.bits = iftrue.bits
+    class VEXCCallExpression(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``VEXCCallExpression``."""
 
-    def __repr__(self):
-        return str(self)
+        _kind = EK.VEXCCallExpression
 
-    def __str__(self):
-        return f"(({self.cond}) ? ({self.iftrue}) : ({self.iffalse}))"
+        def __new__(cls, idx, callee, operands, bits, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_vex_ccall_expression(idx, callee, operands, bits, **tags)
 
-    def likes(self, other):
-        return (
-            type(other) is ITE
-            and self.cond.likes(other.cond)
-            and self.iffalse == other.iffalse
-            and self.iftrue == other.iftrue
-            and self.bits == other.bits
-        )
+    class MultiStatementExpression(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``MultiStatementExpression``."""
 
-    def matches(self, other):
-        return (
-            type(other) is ITE
-            and self.cond.matches(other.cond)
-            and self.iffalse == other.iffalse
-            and self.iftrue == other.iftrue
-            and self.bits == other.bits
-        )
+        _kind = EK.MultiStatementExpression
 
-    def _hash_core(self):
-        return stable_hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
+        def __new__(cls, idx, stmts, expr, **tags) -> _Expression:  # type: ignore[misc]
+            return _Expression._new_multi_statement_expression(idx, stmts, expr, **tags)
 
-    def has_atom(self, atom, identity=True):
-        if super().has_atom(atom, identity=identity):
-            return True
+    class Load(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``Load``."""
 
-        return (
-            self.cond.has_atom(atom, identity=identity)
-            or self.iftrue.has_atom(atom, identity=identity)
-            or self.iffalse.has_atom(atom, identity=identity)
-        )
+        _kind = EK.Load
 
-    def replace(self, old_expr, new_expr):
-        if self.cond == old_expr:
-            cond_replaced = True
-            new_cond = new_expr
-        else:
-            cond_replaced, new_cond = self.cond.replace(old_expr, new_expr)
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            addr,
+            size,
+            endness,
+            *,
+            guard=None,
+            alt=None,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_load(idx, addr, size, endness, guard=guard, alt=alt, **tags)
 
-        if self.iffalse == old_expr:
-            iffalse_replaced = True
-            new_iffalse = new_expr
-        else:
-            iffalse_replaced, new_iffalse = self.iffalse.replace(old_expr, new_expr)
 
-        if self.iftrue == old_expr:
-            iftrue_replaced = True
-            new_iftrue = new_expr
-        else:
-            iftrue_replaced, new_iftrue = self.iftrue.replace(old_expr, new_expr)
+if not TYPE_CHECKING:
 
-        replaced = cond_replaced or iftrue_replaced or iffalse_replaced
-
-        if replaced:
-            return True, ITE(self.idx, new_cond, new_iffalse, new_iftrue, **self.tags)
-        return False, self
-
-    def copy(self) -> ITE:
-        return ITE(self.idx, self.cond, self.iffalse, self.iftrue, **self.tags)
-
-    def deep_copy(self, manager) -> ITE:
-        return self._transfer_varmap(
-            ITE(
-                manager.next_atom(),
-                self.cond.deep_copy(manager),
-                self.iffalse.deep_copy(manager),
-                self.iftrue.deep_copy(manager),
-                **self.tags,
-            ),
-            manager,
+    class _ExpressionMeta(type):
+        _MEMBERS = (
+            Const,
+            Tmp,
+            Register,
+            ComboRegister,
+            VirtualVariable,
+            Phi,
+            UnaryOp,
+            BinaryOp,
+            Convert,
+            Reinterpret,
+            Load,
+            ITE,
+            Extract,
+            Insert,
+            Call,
+            DirtyExpression,
+            VEXCCallExpression,
+            MultiStatementExpression,
+            BasePointerOffset,
+            StackBaseOffset,
+            StringLiteral,
+            Struct,
+            RustEnum,
+            Array,
+            Let,
+            Macro,
+            FunctionLikeMacro,
         )
 
+        def __instancecheck__(cls, instance):
+            if cls.__dict__.get("_is_expression_marker"):
+                return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
+            return type.__instancecheck__(cls, instance)
 
-class DirtyExpression(Expression):
-    __slots__ = (
-        "callee",
-        "guard",
-        "maddr",
-        "mfx",
-        "msize",
-        "operands",
-    )
+        def __subclasscheck__(cls, subclass):
+            if cls.__dict__.get("_is_expression_marker"):
+                return subclass is cls or issubclass(subclass, cls._MEMBERS)
+            return type.__subclasscheck__(cls, subclass)
 
-    def __init__(
-        self,
-        idx,
-        callee: str,
-        operands: list[Expression],
-        *,
-        guard: Expression | None = None,
-        mfx: str | None = None,
-        maddr: Expression | None = None,
-        msize: int | None = None,
-        # TODO: fxstate (guest state effects) is not modeled yet
-        bits: int,
-        **kwargs,
-    ):
-        super().__init__(idx, 1, **kwargs)
+    class Expression(metaclass=_ExpressionMeta):  # pylint:disable=function-redefined
+        """Marker for ``isinstance(x, Expression)`` checks.
 
-        self.callee = callee
-        self.guard = guard
-        self.operands = operands
-        self.mfx = mfx
-        self.maddr = maddr
-        self.msize = msize
-        self.bits = bits
+        Real AIL expression instances are ``angr.rustylib.ailment.Expression``
+        (a single fat-enum pyclass). The per-variant markers (Const,
+        BinaryOp, ...) dispatch on the variant tag via metaclass
+        ``__instancecheck__``.
+        """
 
-    @property
-    def op(self) -> str:
-        return self.callee
+        _is_expression_marker = True
 
-    @property
-    def verbose_op(self) -> str:
-        return self.op
+        def __init__(self, idx=None, *_extra, **tags):  # pylint:disable=keyword-arg-before-vararg
+            self.idx = idx
+            self.tags = tags
 
-    def likes(self, other):
-        return (
-            type(other) is DirtyExpression
-            and other.callee == self.callee
-            and is_none_or_likeable(other.guard, self.guard)
-            and len(self.operands) == len(other.operands)
-            and all(op1.likes(op2) for op1, op2 in zip(self.operands, other.operands))
-            and other.mfx == self.mfx
-            and is_none_or_likeable(other.maddr, self.maddr)
-            and other.msize == self.msize
-            and self.bits == other.bits
-        )
-
-    def matches(self, other):
-        return (
-            type(other) is DirtyExpression
-            and other.callee == self.callee
-            and is_none_or_matchable(other.guard, self.guard)
-            and len(self.operands) == len(other.operands)
-            and all(op1.matches(op2) for op1, op2 in zip(self.operands, other.operands))
-            and other.mfx == self.mfx
-            and is_none_or_matchable(other.maddr, self.maddr)
-            and other.msize == self.msize
-            and self.bits == other.bits
-        )
-
-    def _hash_core(self):
-        return stable_hash(
-            (
-                DirtyExpression,
-                self.callee,
-                self.guard,
-                tuple(self.operands),
-                self.mfx,
-                self.maddr,
-                self.msize,
-                self.bits,
+        @staticmethod
+        def from_bytes(data: bytes):
+            """Deserialize an Expression from bytes."""
+            from angr.rustylib.ailment import (  # pylint:disable=import-error,import-outside-toplevel
+                Expression as _RustExpression,
             )
-        )
 
-    def __repr__(self):
-        return f"[D] {self.callee}({', '.join(repr(op) for op in self.operands)})"
+            return _RustExpression.from_bytes(data)
 
-    def __str__(self):
-        return f"[D] {self.callee}({', '.join(repr(op) for op in self.operands)})"
+    class _AtomMeta(type):
+        """Metaclass that makes ``isinstance(x, Atom)`` match any atom marker."""
 
-    def copy(self) -> DirtyExpression:
-        return DirtyExpression(
-            self.idx,
-            self.callee,
-            self.operands,
-            guard=self.guard,
-            mfx=self.mfx,
-            maddr=self.maddr,
-            msize=self.msize,
-            bits=self.bits,
-            **self.tags,
-        )
+        _MEMBERS = (Const, Tmp, Register, ComboRegister, VirtualVariable, Phi)
 
-    def deep_copy(self, manager) -> DirtyExpression:
-        return DirtyExpression(
-            manager.next_atom(),
-            self.callee,
-            [op.deep_copy(manager) for op in self.operands],
-            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
-            mfx=self.mfx,
-            maddr=self.maddr.deep_copy(manager) if self.maddr is not None else None,
-            msize=self.msize,
-            bits=self.bits,
-            **self.tags,
-        )
+        def __instancecheck__(cls, instance):
+            return isinstance(instance, cls._MEMBERS)
 
-    def replace(self, old_expr: Expression, new_expr: Expression):
-        new_operands = []
-        replaced = False
-        for op in self.operands:
-            if old_expr == op:
-                replaced = True
-                new_operands.append(new_expr)
-            else:
-                r, new_op = op.replace(old_expr, new_expr)
-                if r:
-                    replaced = True
-                    new_operands.append(new_op)
-                else:
-                    new_operands.append(op)
+        def __subclasscheck__(cls, subclass):
+            return issubclass(subclass, cls._MEMBERS) or subclass is cls
 
-        if replaced:
-            return True, DirtyExpression(
-                self.idx,
-                self.callee,
-                new_operands,
-                guard=self.guard,
-                mfx=self.mfx,
-                maddr=self.maddr,
-                msize=self.msize,
-                bits=self.bits,
-                **self.tags,
-            )
-        return False, self
+    class Atom(metaclass=_AtomMeta):  # pylint:disable=function-redefined
+        """Marker class for ``isinstance(x, Atom)`` checks."""
+
+    class _OpMeta(type):
+        """``isinstance(x, Op)`` matches any op-shaped expression (UnaryOp,
+        BinaryOp, Convert, Reinterpret, Let)."""
+
+        _MEMBERS = (UnaryOp, BinaryOp, Convert, Reinterpret, Let)
+
+        def __instancecheck__(cls, instance):
+            return isinstance(instance, cls._MEMBERS)
+
+        def __subclasscheck__(cls, subclass):
+            return issubclass(subclass, cls._MEMBERS) or subclass is cls
+
+    class Op(metaclass=_OpMeta):  # pylint:disable=function-redefined
+        """Marker for ``isinstance(x, Op)`` checks."""
 
 
-class VEXCCallExpression(Expression):
-    __slots__ = (
-        "callee",
-        "operands",
-    )
-
-    def __init__(self, idx: int, callee: str, operands: tuple[Expression, ...], bits: int, **kwargs):
-        super().__init__(idx, max(operand.depth for operand in operands), **kwargs)
-        self.callee = callee
-        self.operands = operands
-        self.bits = bits
-
-    @property
-    def op(self) -> str:
-        return self.callee
-
-    @property
-    def verbose_op(self) -> str:
-        return self.op
-
-    def likes(self, other):
-        return (
-            type(other) is VEXCCallExpression
-            and other.callee == self.callee
-            and len(self.operands) == len(other.operands)
-            and self.bits == other.bits
-            and all(op1.likes(op2) for op1, op2 in zip(other.operands, self.operands))
-        )
-
-    def matches(self, other):
-        return (
-            type(other) is VEXCCallExpression
-            and other.callee == self.callee
-            and len(self.operands) == len(other.operands)
-            and self.bits == other.bits
-            and all(op1.matches(op2) for op1, op2 in zip(other.operands, self.operands))
-        )
-
-    def _hash_core(self):
-        return stable_hash((VEXCCallExpression, self.callee, self.bits, tuple(self.operands)))
-
-    def __repr__(self):
-        return f"VEXCCallExpression [{self.callee}({', '.join(repr(op) for op in self.operands)})]"
-
-    def __str__(self):
-        operands_str = ", ".join(repr(op) for op in self.operands)
-        return f"{self.callee}({operands_str})"
-
-    def copy(self) -> VEXCCallExpression:
-        return VEXCCallExpression(self.idx, self.callee, self.operands, bits=self.bits, **self.tags)
-
-    def deep_copy(self, manager) -> VEXCCallExpression:
-        return VEXCCallExpression(
-            manager.next_atom(),
-            self.callee,
-            tuple(op.deep_copy(manager) for op in self.operands),
-            bits=self.bits,
-            **self.tags,
-        )
-
-    def replace(self, old_expr, new_expr):
-        new_operands = []
-        replaced = False
-        for operand in self.operands:
-            if operand is old_expr:
-                new_operands.append(new_expr)
-                replaced = True
-            else:
-                operand_replaced, new_operand = operand.replace(old_expr, new_expr)
-                if operand_replaced:
-                    new_operands.append(new_operand)
-                    replaced = True
-                else:
-                    new_operands.append(operand)
-
-        if replaced:
-            return True, VEXCCallExpression(self.idx, self.callee, tuple(new_operands), bits=self.bits, **self.tags)
-        return False, self
-
-
-class MultiStatementExpression(Expression):
-    """
-    For representing comma-separated statements and expression in C.
-    """
-
-    __slots__ = (
-        "expr",
-        "stmts",
-    )
-
-    def __init__(self, idx: int, stmts: list[Statement], expr: Expression, **kwargs):
-        super().__init__(idx, expr.depth + 1, **kwargs)
-        self.stmts = stmts
-        self.expr = expr
-        self.bits = self.expr.bits
-
-    def _hash_core(self):
-        return stable_hash((MultiStatementExpression, *tuple(self.stmts), self.expr))
-
-    def likes(self, other):
-        return (
-            type(self) is type(other)
-            and len(self.stmts) == len(other.stmts)
-            and all(s_stmt.likes(o_stmt) for s_stmt, o_stmt in zip(self.stmts, other.stmts))
-            and self.expr.likes(other.expr)
-        )
-
-    def matches(self, other):
-        return (
-            type(self) is type(other)
-            and len(self.stmts) == len(other.stmts)
-            and all(s_stmt.matches(o_stmt) for s_stmt, o_stmt in zip(self.stmts, other.stmts))
-            and self.expr.matches(other.expr)
-        )
-
-    def __repr__(self):
-        return f"MultiStatementExpression({self.stmts}, {self.expr})"
-
-    def __str__(self):
-        stmts_str = [str(stmt) for stmt in self.stmts]
-        expr_str = str(self.expr)
-        concatenated_str = ", ".join([*stmts_str, expr_str])
-        return f"({concatenated_str})"
-
-    def replace(self, old_expr, new_expr):
-        replaced = False
-
-        new_stmts = []
-        for stmt in self.stmts:
-            r, new_stmt = stmt.replace(old_expr, new_expr)
-            new_stmts.append(new_stmt if new_stmt is not None else stmt)
-            replaced |= r
-
-        if self.expr is old_expr:
-            replaced = True
-            new_expr_ = new_expr
-        else:
-            r, new_expr_ = self.expr.replace(old_expr, new_expr)
-            replaced |= r
-
-        if replaced:
-            return True, MultiStatementExpression(
-                self.idx, new_stmts, new_expr_ if new_expr_ is not None else self.expr, **self.tags
-            )
-        return False, self
-
-    def copy(self) -> MultiStatementExpression:
-        return MultiStatementExpression(self.idx, self.stmts[::], self.expr, **self.tags)
-
-    def deep_copy(self, manager) -> MultiStatementExpression:
-        return MultiStatementExpression(
-            manager.next_atom(),
-            [stmt.deep_copy(manager) for stmt in self.stmts],
-            self.expr.deep_copy(manager),
-            **self.tags,
-        )
-
-
-#
-# Special (Dummy) expressions
-#
-
-
-class BasePointerOffset(Expression):
-    __slots__ = (
-        "base",
-        "offset",
-    )
-
-    def __init__(
-        self,
-        idx: int,
-        bits: int,
-        base: Expression | str,
-        offset: int,
-        **kwargs,
-    ):
-        super().__init__(idx, (offset.depth if isinstance(offset, Expression) else 0) + 1, **kwargs)
-        self.bits = bits
-        self.base = base
-        self.offset = offset
-
-    def __repr__(self):
-        if self.offset is None:
-            return f"BaseOffset({self.base})"
-        return f"BaseOffset({self.base}, {self.offset})"
-
-    def __str__(self):
-        if self.offset is None:
-            return str(self.base)
-        if isinstance(self.offset, int):
-            return f"{self.base}{self.offset:+d}"
-        return f"{self.base}+{self.offset}"
-
-    def likes(self, other):
-        return (
-            type(other) is type(self)
-            and self.bits == other.bits
-            and self.base == other.base
-            and self.offset == other.offset
-        )
-
-    matches = likes
-
-    def _hash_core(self):
-        return stable_hash((self.bits, self.base, self.offset))
-
-    def replace(self, old_expr, new_expr):
-        if isinstance(self.base, Expression):
-            base_replaced, new_base = self.base.replace(old_expr, new_expr)
-        else:
-            base_replaced, new_base = False, self.base
-        if isinstance(self.offset, Expression):
-            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
-        else:
-            offset_replaced, new_offset = False, self.offset
-
-        if base_replaced or offset_replaced:
-            return True, BasePointerOffset(self.idx, self.bits, new_base, new_offset, **self.tags)
-        return False, self
-
-    def copy(self) -> BasePointerOffset:
-        return BasePointerOffset(self.idx, self.bits, self.base, self.offset, **self.tags)
-
-    def deep_copy(self, manager) -> BasePointerOffset:
-        return self._transfer_varmap(
-            BasePointerOffset(manager.next_atom(), self.bits, self.base, self.offset, **self.tags), manager
-        )
-
-
-class StackBaseOffset(BasePointerOffset):
-    __slots__ = ()
-
-    def __init__(self, idx: int, bits: int, offset: int, **kwargs):
-        # stack base offset is always signed
-        if offset >= (1 << (bits - 1)):
-            offset -= 1 << bits
-        super().__init__(idx, bits, "stack_base", offset, **kwargs)
-
-    def copy(self) -> StackBaseOffset:
-        return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
-
-    def deep_copy(self, manager) -> StackBaseOffset:
-        return StackBaseOffset(manager.next_atom(), self.bits, self.offset, **self.tags)
-
-
-def negate(expr: Expression, manager: Manager) -> Expression:
+def negate(expr: Expression, manager) -> Expression:
+    """Negate a comparison or boolean expression."""
     if isinstance(expr, UnaryOp) and expr.op == "Not":
-        # unpack
         return expr.operand
     if isinstance(expr, BinaryOp) and expr.op in BinaryOp.COMPARISON_NEGATION:
         return BinaryOp(
@@ -1719,647 +724,43 @@ def negate(expr: Expression, manager: Manager) -> Expression:
             bits=expr.bits,
             floating_point=expr.floating_point,
             rounding_mode=expr.rounding_mode,
-            **expr.tags,
+            **dict(expr.tags),
         )
-    return UnaryOp(manager.next_atom(), "Not", expr, **expr.tags)
-
-
-class Extract(Expression):
-    __slots__ = ("base", "endness", "offset")
-
-    def __init__(self, idx: int, bits: int, base: Expression, offset: Expression, endness: str, **kwargs):
-        super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
-
-        self.bits = bits
-        self.base = base
-        self.offset = offset
-        self.endness = endness
-        assert self.base.bits >= self.bits
-
-    def is_lsb_extract(self) -> bool:
-        if not isinstance(self.offset, Const):
-            return False
-        if self.endness == archinfo.Endness.LE:
-            return self.offset.value == 0
-        return self.offset.value * 8 + self.bits == self.base.bits
-
-    def copy(self) -> Extract:
-        return Extract(self.idx, self.bits, self.base, self.offset, self.endness, **self.tags)
-
-    def deep_copy(self, manager) -> Extract:
-        return Extract(
-            manager.next_atom(),
-            self.bits,
-            self.base.deep_copy(manager),
-            self.offset.deep_copy(manager),
-            self.endness,
-            **self.tags,
-        )
-
-    def __repr__(self):
-        return f"Extract({self.base}, {self.bits}bits@{self.offset})"
-
-    def __str__(self):
-        return f"Extract({self.base}, {self.bits}bits@{self.offset})"
-
-    def likes(self, other):
-        return (
-            type(other) is type(self)
-            and self.base == other.base
-            and self.offset == other.offset
-            and self.bits == other.bits
-            and self.endness == other.endness
-        )
-
-    matches = likes
-
-    def _hash_core(self):
-        return stable_hash((self.bits, self.base, self.offset, self.endness))
-
-    def replace(self, old_expr, new_expr):
-        if self.base == old_expr:
-            base_replaced, new_base = True, new_expr
-        else:
-            base_replaced, new_base = self.base.replace(old_expr, new_expr)
-
-        if self.offset == old_expr:
-            offset_replaced, new_offset = True, new_expr
-        else:
-            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
-
-        if base_replaced or offset_replaced:
-            return True, Extract(self.idx, self.bits, new_base, new_offset, self.endness, **self.tags)
-        return False, self
-
-
-class Insert(Expression):
-    __slots__ = ("base", "endness", "offset", "value")
-
-    def __init__(self, idx: int, base: Expression, offset: Expression, value: Expression, endness: str, **kwargs):
-        super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
-
-        assert value.bits <= base.bits
-        assert not isinstance(offset, Const) or offset.value * 8 + value.bits <= base.bits
-        self.bits = base.bits
-        self.base = base
-        self.offset = offset
-        self.value = value
-        self.endness = endness
-
-    def is_lsb_overwrite(self) -> bool:
-        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
-            return False
-        if self.endness == archinfo.Endness.LE:
-            return self.offset.value == 0
-        return self.offset.value * 8 + self.value.bits == self.bits
-
-    def copy(self) -> Insert:
-        return Insert(self.idx, self.base, self.offset, self.value, self.endness, **self.tags)
-
-    def deep_copy(self, manager) -> Insert:
-        return Insert(
-            manager.next_atom(),
-            self.base.deep_copy(manager),
-            self.offset.deep_copy(manager),
-            self.value.deep_copy(manager),
-            self.endness,
-            **self.tags,
-        )
-
-    def __repr__(self):
-        return f"Insert({self.base}, {self.offset}, {self.value})"
-
-    def __str__(self):
-        return f"Insert({self.base}, {self.offset}, {self.value})"
-
-    def likes(self, other):
-        return (
-            type(other) is type(self)
-            and self.base == other.base
-            and self.offset == other.offset
-            and self.value == other.value
-            and self.endness == other.endness
-        )
-
-    matches = likes
-
-    def _hash_core(self):
-        return stable_hash((self.bits, self.base, self.offset, self.value, self.endness))
-
-    def replace(self, old_expr, new_expr):
-        if self.base == old_expr:
-            base_replaced, new_base = True, new_expr
-        else:
-            base_replaced, new_base = self.base.replace(old_expr, new_expr)
-
-        if self.offset == old_expr:
-            offset_replaced, new_offset = True, new_expr
-        else:
-            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
-
-        if self.value == old_expr:
-            value_replaced, new_value = True, new_expr
-        else:
-            value_replaced, new_value = self.value.replace(old_expr, new_expr)
-
-        if base_replaced or offset_replaced or value_replaced:
-            return True, Insert(self.idx, new_base, new_offset, new_value, self.endness, **self.tags)
-        return False, self
-
-
-class Call(Expression):
-    """
-    Call expression. Represents a function call that produces a value.
-
-    When used as a standalone statement (not part of an assignment), wrap it in a SideEffectStatement.
-    """
-
-    __slots__ = (
-        "args",
-        "target",
-    )
-
-    def __init__(
-        self,
-        idx: int,
-        target: Expression | str,
-        args: Sequence[Expression] | None = None,
-        bits: int | None = None,
-        **kwargs,
-    ):
-        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
-
-        self.target = target
-        self.args = args
-        if bits is not None:
-            self.bits = bits
-        else:
-            self.bits = 0
-
-    def likes(self, other):
-        return (
-            type(other) is Call
-            and is_none_or_likeable(self.target, other.target)
-            and is_none_or_likeable(self.args, other.args, is_list=True)
-        )
-
-    def matches(self, other):
-        return (
-            type(other) is Call
-            and is_none_or_matchable(self.target, other.target)
-            and is_none_or_matchable(self.args, other.args, is_list=True)
-        )
-
-    def _hash_core(self):
-        return stable_hash((Call, self.idx, self.target))
-
-    def __repr__(self):
-        return f"Call (target: {self.target}, args: {self.args})"
-
-    def __str__(self):
-        return f"Call({self.target}, {self.args})"
-
-    @property
-    def verbose_op(self) -> str:
-        return "call"
-
-    @property
-    def op(self) -> str:
-        return "call"
-
-    def has_atom(self, atom, identity=True):
-        if identity:
-            if self is atom:
-                return True
-        elif self.likes(atom):
-            return True
-        if isinstance(self.target, Expression) and self.target.has_atom(atom, identity=identity):
-            return True
-        if self.args:
-            for arg in self.args:
-                if arg.has_atom(atom, identity=identity):
-                    return True
-        return False
-
-    def replace(self, old_expr: Expression, new_expr: Expression):
-        if isinstance(self.target, Expression):
-            r0, replaced_target = self.target.replace(old_expr, new_expr)
-        else:
-            r0 = False
-            replaced_target = self.target
-
-        r = r0
-
-        new_args = None
-        if self.args:
-            new_args = []
-            for arg in self.args:
-                if arg == old_expr:
-                    r_arg = True
-                    replaced_arg = new_expr
-                else:
-                    r_arg, replaced_arg = arg.replace(old_expr, new_expr)
-                r |= r_arg
-                new_args.append(replaced_arg)
-
-        if r:
-            return True, Call(
-                self.idx,
-                replaced_target,
-                args=new_args,
-                bits=self.bits,
-                **self.tags,
-            )
-        return False, self
-
-    def copy(self):
-        return Call(
-            self.idx,
-            self.target,
-            args=self.args[::] if self.args is not None else None,
-            bits=self.bits,
-            **self.tags,
-        )
-
-    def deep_copy(self, manager):
-        return self._transfer_varmap(
-            Call(
-                manager.next_atom(),
-                self.target.deep_copy(manager) if not isinstance(self.target, str) else self.target,
-                args=[arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
-                bits=self.bits,
-                **self.tags,
-            ),
-            manager,
-        )
-
-
-#
-# Rust-specific expressions
-#
-
-
-class StringLiteral(Expression):
-    __slots__ = ("data",)
-
-    def __init__(self, idx, data, bits, **kwargs):
-        super().__init__(idx, 0, **kwargs)
-        self.data = data
-        self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    def __repr__(self):
-        return f'"{repr(self.data)[1:-1]}"'
-
-    def __str__(self):
-        return f"StringLiteral({self!r})"
-
-    __hash__ = TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash(self.data)
-
-    def likes(self, other):
-        return type(self) is type(other) and self.data == other.data
-
-    def copy(self):
-        return StringLiteral(self.idx, self.data, self.bits, **self.tags)
-
-    def deep_copy(self, manager):
-        return StringLiteral(manager.next_atom(), self.data, self.bits, **self.tags)
-
-    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
-        if old_expr.likes(self):
-            r, replaced = True, new_expr
-        else:
-            r, replaced = False, self
-
-        return r, replaced  # pyright: ignore[reportReturnType]
-
-    matches = likes
-
-
-class Struct(Expression):
-    __slots__ = ("field_names", "field_offsets", "fields", "name")
-
-    def __init__(self, idx, name, fields, field_offsets, bits, **kwargs):
-        super().__init__(idx, (max(field.depth for field in fields.values()) if len(fields) else 0) + 1, **kwargs)
-        self.name = name
-        self.fields = fields
-        self.field_offsets = field_offsets
-        self.field_names = OrderedDict([(v, k) for k, v in field_offsets.items()])
-        self.bits = bits
-
-    def get_field(self, name):
-        path = name.split(".")
-        offset = self.field_offsets.get(path[0], None)
-        field = self.fields.get(offset, None)
-        if len(path) == 1:
-            return field
-        if isinstance(field, Struct):
-            return field.get_field(".".join(path[1:]))
-        return None
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return self.name + " " + str(self.fields)
-
-    __hash__ = TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash((self.name, tuple(self.fields.items()), tuple(self.field_offsets.items()), self.bits))
-
-    def likes(self, other):
-        return (
-            type(self) is type(other)
-            and self.name == other.name
-            and self.fields.keys() == other.fields.keys()
-            and all(self.fields[k].likes(other.fields[k]) for k in self.fields)
-            and self.field_offsets == other.field_offsets
-        )
-
-    def copy(self):
-        return Struct(self.idx, self.name, self.fields, self.field_offsets, self.bits)
-
-    def deep_copy(self, manager):
-        idx = manager.next_atom()
-        return Struct(
-            idx,
-            self.name,
-            OrderedDict((offset, field.deep_copy(manager)) for offset, field in self.fields.items()),
-            self.field_offsets.copy(),
-            self.bits,
-            **self.tags,
-        )
-
-    def replace(self, old_expr, new_expr):
-        new_fields = OrderedDict()
-        replaced = False
-        for offset, field in self.fields.items():
-            if field is old_expr:
-                new_fields[offset] = new_expr
-                replaced = True
-            else:
-                field_replaced, new_field = field.replace(old_expr, new_expr)
-                if field_replaced:
-                    new_fields[offset] = new_field
-                    replaced = True
-                else:
-                    new_fields[offset] = field
-
-        if replaced:
-            return True, Struct(self.idx, self.name, new_fields, self.field_offsets, self.bits, **self.tags)
-        return False, self
-
-    matches = likes
-
-
-class RustEnum(Expression):
-    def __init__(self, idx, name, fields, bits, **kwargs):
-        super().__init__(idx, (max(field.depth for field in fields) if len(fields) else 0) + 1, **kwargs)
-        self.name = name
-        self.fields = fields
-        self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return f"{self.name}({self.fields!s})"
-
-    __hash__ = TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash((self.name, tuple(self.fields), self.bits))
-
-    def likes(self, other):
-        return (
-            type(self) is type(other)
-            and self.name == other.name
-            and self.fields == other.fields
-            and self.bits == other.bits
-        )
-
-    def copy(self):
-        return RustEnum(self.idx, self.name, self.fields, self.bits)
-
-    def deep_copy(self, manager):
-        idx = manager.next_atom()
-        if isinstance(self.fields, tuple):
-            new_fields = tuple(field.deep_copy(manager) for field in self.fields)
-        else:
-            new_fields = [field.deep_copy(manager) for field in self.fields]
-        return RustEnum(idx, self.name, new_fields, self.bits, **self.tags)
-
-    def replace(self, old_expr, new_expr):
-        new_fields = []
-        replaced = False
-        for field in self.fields:
-            if field is old_expr:
-                new_fields.append(new_expr)
-                replaced = True
-            else:
-                field_replaced, new_field = field.replace(old_expr, new_expr)
-                if field_replaced:
-                    new_fields.append(new_field)
-                    replaced = True
-                else:
-                    new_fields.append(field)
-
-        if replaced:
-            return True, RustEnum(self.idx, self.name, new_fields, self.bits, **self.tags)
-        return False, self
-
-    matches = likes
-
-
-class Array(Expression):
-    def __init__(self, idx, elements, bits, **kwargs):
-        super().__init__(idx, (max(ele.depth for ele in elements) if len(elements) else 0) + 1, **kwargs)
-        self.elements = elements
-        self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    @property
-    def length(self):
-        return len(self.elements)
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return str(self.elements)
-
-    __hash__ = TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash((tuple(self.elements), self.bits))
-
-    def likes(self, other):
-        return type(self) is type(other) and self.elements == other.elements and self.bits == other.bits
-
-    def copy(self):
-        return Array(self.idx, self.elements, self.bits)
-
-    def deep_copy(self, manager):
-        idx = manager.next_atom()
-        if isinstance(self.elements, tuple):
-            new_elements = tuple(element.deep_copy(manager) for element in self.elements)
-        else:
-            new_elements = [element.deep_copy(manager) for element in self.elements]
-        return Array(idx, new_elements, self.bits, **self.tags)
-
-    def replace(self, old_expr, new_expr):
-        new_elements = []
-        replaced = False
-        for element in self.elements:
-            if element is old_expr:
-                new_elements.append(new_expr)
-                replaced = True
-            else:
-                element_replaced, new_element = element.replace(old_expr, new_expr)
-                if element_replaced:
-                    new_elements.append(new_element)
-                    replaced = True
-                else:
-                    new_elements.append(element)
-
-        if replaced:
-            return True, Array(self.idx, new_elements, self.bits, **self.tags)
-        return False, self
-
-    matches = likes
-
-
-class Let(Op):
-    __slots__ = ("defs", "src")
-
-    def __init__(self, idx, defs, src, **kwargs):
-        super().__init__(idx, depth=src.depth + 1, op="let", **kwargs)
-        self.defs = defs
-        self.src = src
-
-        self.bits = src.bits
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        # The bound enum variant lives in the VariableMap (keyed by .idx) and is not available here.
-        return f"let (_) = {self.src}"
-
-    __hash__ = TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash((self.src,))
-
-    def likes(self, other):
-        return type(self) is type(other) and self.src == other.src
-
-    matches = likes
-
-    def copy(self):
-        return Let(self.idx, self.defs, self.src, **self.tags)
-
-    def deep_copy(self, manager):
-        return self._transfer_varmap(
-            Let(
-                manager.next_atom(),
-                [def_.deep_copy(manager) for def_ in self.defs],
-                self.src.deep_copy(manager),
-                **self.tags,
-            ),
-            manager,
-        )
-
-
-#
-# Rust-specific expressions
-#
-
-
-class Macro(Call, ABC):
-    __slots__ = ("delimiter", "name")
-
-    def __init__(self, idx, name: str, delimiter="()", **kwargs):
-        # TODO: Update depth
-        super().__init__(idx, target=name, **kwargs)
-        self.name = name
-        self.delimiter = delimiter
-
-
-class FunctionLikeMacro(Macro):
-    __slots__ = ()
-
-    def __init__(self, idx, name: str, args, bits=None, delimiter="()", **kwargs):
-        super().__init__(idx, name, delimiter, bits=bits, **kwargs)
-        self.args = args
-
-    __hash__ = TaggedObject.__hash__
-
-    @property
-    def size(self) -> int:
-        if self.bits:
-            return self.bits // 8
-        return 0
-
-    def _hash_core(self):
-        return stable_hash((FunctionLikeMacro, self.idx, self.name))
-
-    def __str__(self):
-        return f"{self.name}!{self.delimiter[0]}{self.args}{self.delimiter[1]}"
-
-    def __repr__(self):
-        return f"Macro(name={self.name}, args={self.args})"
-
-    def likes(self, other):
-        return (
-            type(self) is type(other)
-            and self.name == other.name
-            and self.delimiter == other.delimiter
-            and self.bits == other.bits
-            and len(self.args) == len(other.args)
-            and all(arg.likes(other_arg) for arg, other_arg in zip(self.args, other.args))
-        )
-
-    matches = likes
-
-    def copy(self):
-        return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, **self.tags)
-
-    def deep_copy(self, manager) -> FunctionLikeMacro:
-        return self._transfer_varmap(
-            FunctionLikeMacro(
-                manager.next_atom(),
-                self.name,
-                [arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
-                self.bits,
-                self.delimiter,
-                **self.tags,
-            ),
-            manager,
-        )
-
-    @property
-    def verbose_op(self):
-        return "macro_call"
-
-    @property
-    def op(self):
-        return "macro_call"
+    return UnaryOp(manager.next_atom(), "Not", expr, **dict(expr.tags))
+
+
+__all__ = [
+    "ITE",
+    "Array",
+    "Atom",
+    "BasePointerOffset",
+    "BinaryOp",
+    "Call",
+    "ComboRegister",
+    "Const",
+    "Convert",
+    "ConvertType",
+    "DirtyExpression",
+    "Expression",
+    "Extract",
+    "FunctionLikeMacro",
+    "Insert",
+    "Let",
+    "Load",
+    "Macro",
+    "MultiStatementExpression",
+    "Op",
+    "Phi",
+    "Register",
+    "Reinterpret",
+    "RustEnum",
+    "StackBaseOffset",
+    "StringLiteral",
+    "Struct",
+    "Tmp",
+    "UnaryOp",
+    "VEXCCallExpression",
+    "VirtualVariable",
+    "VirtualVariableCategory",
+    "negate",
+]

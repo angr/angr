@@ -27,11 +27,13 @@ class RecordingWalker(AILBlockWalker[None, None, list[str]]):
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         del expr_idx, stmt_idx, stmt, block
-        self.seen.append(type(expr).__name__)
+        kind = getattr(expr, "kind", None)
+        self.seen.append(kind.name if kind is not None else type(expr).__name__)
 
     def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
         del stmt_idx, block
-        self.seen.append(type(stmt).__name__)
+        kind = getattr(stmt, "kind", None)
+        self.seen.append(kind.name if kind is not None else type(stmt).__name__)
 
     def _handle_block_end(self, stmt_results: list[None], block: Block):
         del stmt_results, block
@@ -92,9 +94,9 @@ def test_block_rewriter_rebuilds_rust_ail_expression_containers():
     new_struct = new_enum.fields[0]
     assert isinstance(new_struct, Struct)
 
-    assert old_stmt.src is macro
-    assert new_macro is not macro
-    assert new_array is not array
-    assert new_enum is not enum
-    assert new_struct is not struct
+    assert old_stmt.src.likes(macro)
+    assert not new_macro.likes(macro)
+    assert not new_array.likes(array)
+    assert not new_enum.likes(enum)
+    assert not new_struct.likes(struct)
     assert new_struct.fields[0].value == 2
