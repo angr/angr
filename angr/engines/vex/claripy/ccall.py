@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 from archinfo.arch_arm import is_arm_arch
 
-from angr import errors
+from angr import claripy, errors
 from angr.errors import SimCCallError, SimError
 from angr.sim_options import USE_SIMPLIFIED_CCALLS
 from angr.state_plugins.sim_action_object import SimActionObject, _raw_ast

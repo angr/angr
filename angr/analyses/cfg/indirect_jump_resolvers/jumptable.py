@@ -8,15 +8,15 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal, cast
 
-import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
-from claripy.annotation import UninitializedAnnotation
 
+from angr import claripy
 from angr import sim_options as o
 from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
 from angr.annocfg import AnnotatedCFG
 from angr.blade import Blade
+from angr.claripy.annotation import UninitializedAnnotation
 from angr.concretization_strategies import SimConcretizationStrategyAny
 from angr.engines.light import RegisterOffset, SimEngineNostmtVEX, SpOffset
 from angr.engines.vex.claripy import ccall

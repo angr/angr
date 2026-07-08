@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import cast
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr.analyses.analysis import register_analysis
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.analyses.propagator import PropagatorAnalysis

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 import cle
 import pyvex
 from archinfo import ArchARM
 from cachetools import LRUCache
 
+from angr import claripy
 from angr import sim_options as o
 from angr.engines.engine import SimEngine
 from angr.errors import SimEngineError, SimError, SimTranslationError

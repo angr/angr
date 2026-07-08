@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Self
 
-import claripy
+from angr import claripy
 
 from angr.utils.hashing import stable_hash
 

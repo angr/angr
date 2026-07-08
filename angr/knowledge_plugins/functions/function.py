@@ -13,12 +13,12 @@ from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 import pydemumble
 from archinfo.arch_arm import get_real_address_if_arm
 from cle.backends.symbol import Symbol
 
+from angr import claripy
 from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError

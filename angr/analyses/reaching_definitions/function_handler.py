@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 from functools import wraps
 from typing import TYPE_CHECKING, Literal, cast
 
-import claripy
 from cle import Symbol
 from cle.backends import ELF
 
+from angr import claripy
 from angr.calling_conventions import SimCC, SimReferenceArgument
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.functions import Function
