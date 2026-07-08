@@ -78,7 +78,8 @@ class DecompilationCache(Serializable):
 
     # -----------------------------------------------------------------------------------------------------------------
     # Protobuf serialization. Heavy sub-objects (clinic, codegen) are embedded as already-serialized bytes from their
-    # own Serializable interfaces; AIL-typed top-level fields (arg_vvars, ite_exprs) use the pickle bridge.
+    # own Serializable interfaces; AIL-typed top-level fields (arg_vvars, ite_exprs) use the typed messages from
+    # ail_types.proto.
     #
     # The 4 typehoon-typed slots (type_constraints, func_typevar, var_to_typevar, stack_offset_typevars) and the
     # ``cfg`` / ``variable_kb`` runtime inputs are intentionally NOT serialized and come back as None.
