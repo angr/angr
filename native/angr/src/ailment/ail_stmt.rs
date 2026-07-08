@@ -13,8 +13,8 @@
 //! See ``angr/ailment/statement.py`` for the marker classes.
 
 use std::fmt;
-use std::sync::Arc;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;

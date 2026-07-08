@@ -17,8 +17,8 @@
 //!   live in ``angr/ailment/expression.py``.
 
 use std::fmt;
-use std::sync::Arc;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
