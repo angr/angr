@@ -14,6 +14,13 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
+clarirs-core = { path = "../clarirs-core", features = ["runtime-checks"] }
+clarirs-num = { path = "../clarirs-num" }
+clarirs-vsa = { path = "../clarirs-vsa" }
+clarirs-z3 = { path = "../clarirs-z3" }
+dashmap = "6.2.1"
+log = "0.4.32"
+thiserror = { workspace = true }
 icicle-fuzzing = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c845f91ba85fc072ad87bf7c3f4a28cc" }
 icicle-vm = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c845f91ba85fc072ad87bf7c3f4a28cc" }
 libafl = { version = "=0.16.1" }

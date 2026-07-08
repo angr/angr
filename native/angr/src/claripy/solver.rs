@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use crate::ast::{and, or};
-use crate::{dynsolver::DynSolver, prelude::*};
+use crate::claripy::ast::{and, or};
+use crate::claripy::{dynsolver::DynSolver, prelude::*};
 use clarirs_core::solver::HybridSolver;
 use clarirs_core::solver_mixins::{
     ConcreteEarlyResolutionMixin, ModelCacheMixin, SimplificationMixin,
@@ -11,7 +11,7 @@ use clarirs_z3::Z3Solver;
 use num_bigint::BigInt;
 use pyo3::types::PyTuple;
 
-#[pyclass(name = "Solver", module = "claripy.solver", subclass)]
+#[pyclass(name = "Solver", module = "angr.rustylib.claripy.solver", subclass)]
 #[derive(Debug)]
 pub struct PySolver {
     inner: DynSolver,
@@ -962,7 +962,7 @@ impl PySolver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverConcrete", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverConcrete", module = "angr.rustylib.claripy.solver")]
 pub struct PyConcreteSolver;
 
 #[pymethods]
@@ -978,7 +978,7 @@ impl PyConcreteSolver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverZ3", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverZ3", module = "angr.rustylib.claripy.solver")]
 pub struct PyZ3Solver;
 
 #[pymethods]
@@ -998,7 +998,7 @@ impl PyZ3Solver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverCacheless", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverCacheless", module = "angr.rustylib.claripy.solver")]
 pub struct PyCachelessSolver;
 
 #[pymethods]
@@ -1019,7 +1019,7 @@ impl PyCachelessSolver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverVSA", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverVSA", module = "angr.rustylib.claripy.solver")]
 pub struct PyVSASolver;
 
 #[pymethods]
@@ -1035,7 +1035,7 @@ impl PyVSASolver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverHybrid", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverHybrid", module = "angr.rustylib.claripy.solver")]
 pub struct PyHybridSolver;
 
 #[pymethods]
@@ -1061,7 +1061,7 @@ impl PyHybridSolver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverReplacement", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverReplacement", module = "angr.rustylib.claripy.solver")]
 pub struct PyReplacementSolver;
 
 #[pymethods]
@@ -1081,7 +1081,7 @@ impl PyReplacementSolver {
     }
 }
 
-#[pyclass(extends = PySolver, name = "SolverComposite", module = "claripy.solver")]
+#[pyclass(extends = PySolver, name = "SolverComposite", module = "angr.rustylib.claripy.solver")]
 pub struct PyCompositeSolver;
 
 #[pymethods]

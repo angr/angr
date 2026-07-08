@@ -3,6 +3,8 @@ from __future__ import annotations
 import claripy
 from claripy.ast.base import Base
 
+import angr  # noqa: F401  # registers the claripy module aliases
+
 
 class MyAnnotation(claripy.Annotation):
     def __init__(self, value):

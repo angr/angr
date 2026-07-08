@@ -8,12 +8,17 @@ use std::sync::{
 use dashmap::DashMap;
 use pyo3::types::{PyTuple, PyWeakrefReference};
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 static FPS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PY_FP_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> = LazyLock::new(DashMap::new);
 
-#[pyclass(name = "RM", module = "claripy.ast.fp", eq, from_py_object)]
+#[pyclass(
+    name = "RM",
+    module = "angr.rustylib.claripy.ast.fp",
+    eq,
+    from_py_object
+)]
 #[derive(Clone, PartialEq, Eq, Default)]
 #[allow(non_camel_case_types)]
 pub enum PyRM {
@@ -70,7 +75,11 @@ impl From<&FPRM> for PyRM {
     }
 }
 
-#[pyclass(name = "FSort", module = "claripy.ast.fp", from_py_object)]
+#[pyclass(
+    name = "FSort",
+    module = "angr.rustylib.claripy.ast.fp",
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyFSort(FSort);
 
@@ -153,7 +162,7 @@ pub fn fsort_double() -> PyFSort {
     PyFSort(FSort::f64())
 }
 
-#[pyclass(extends=Bits, subclass, frozen, weakref, module="claripy.ast.fp")]
+#[pyclass(extends=Bits, subclass, frozen, weakref, module="angr.rustylib.claripy.ast.fp")]
 pub struct FP {
     pub(crate) inner: AstRef<'static>,
 }
