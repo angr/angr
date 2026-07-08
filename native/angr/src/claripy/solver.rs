@@ -389,6 +389,13 @@ impl PySolver {
         Ok(())
     }
 
+    /// Free memory associated with the solver by clearing internal caches.
+    ///
+    /// claripy exposes this as a memory-management hint; clarirs manages its
+    /// caches internally, so this is a no-op that exists for API parity (angr
+    /// calls `state.solver.downsize()`). It never affects results.
+    fn downsize(&self) {}
+
     #[pyo3(signature = (extra_constraints = None, exact = None))]
     fn satisfiable<'py>(
         &mut self,
