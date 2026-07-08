@@ -3,10 +3,11 @@
 //! There's a single ``Expression`` and a single ``Statement`` pyclass,
 //! both with their own
 //! ``to_bytes`` / ``from_bytes`` methods that postcard-encode the
-//! inline ``AilExpression`` / ``AilStatement`` fat enums. The
-//! module-level ``dumps`` / ``loads`` just wrap that payload with a
-//! one-byte format version and a discriminator so callers don't have
-//! to know which kind of node they're handling.
+//! inline ``AilExpression`` / ``AilStatement`` fat enums (via the
+//! hand-written serde impls in ``ail_expr.rs`` / ``ail_stmt.rs``).
+//! The module-level ``dumps`` / ``loads`` just wrap that payload with
+//! a one-byte format version and a discriminator so callers don't
+//! have to know which kind of node they're handling.
 
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
@@ -18,17 +19,19 @@ use crate::ailment::ail_stmt::Statement;
 use crate::ailment::block::Block;
 
 /// One-byte version header prepended to every ``dumps`` payload. Bump
-/// when the AilNode shape (below) changes incompatibly.
-pub const FORMAT_VERSION: u8 = 0x02;
+/// when the AilNode shape (below) or the per-node encoding (the
+/// hand-written serde impls in ``ail_expr.rs`` / ``ail_stmt.rs``)
+/// changes incompatibly.
+pub const FORMAT_VERSION: u8 = 0x03;
 
 /// Top-level node carried by ``dumps`` / ``loads``. Per-node payloads
-/// are the postcard-encoded ``Wire`` / ``StmtWire`` bytes produced by
-/// ``Expression::to_bytes`` / ``Statement::to_bytes``.
+/// are the postcard-encoded ``AilExpression`` / ``AilStatement`` bytes
+/// produced by ``Expression::to_bytes`` / ``Statement::to_bytes``.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AilNode {
-    /// AIL ``Expression`` -- bytes of the postcard ``Wire``.
+    /// AIL ``Expression`` -- postcard bytes of the ``AilExpression``.
     Expr(Vec<u8>),
-    /// AIL ``Statement`` -- bytes of the postcard ``StmtWire``.
+    /// AIL ``Statement`` -- postcard bytes of the ``AilStatement``.
     Stmt(Vec<u8>),
     /// AIL ``Block`` -- the block header + per-statement
     /// ``to_bytes`` payloads.

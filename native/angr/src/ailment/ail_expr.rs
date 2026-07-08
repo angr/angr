@@ -16,6 +16,7 @@
 //!   metaclass to make ``isinstance(load, Load)`` work. The markers
 //!   live in ``angr/ailment/expression.py``.
 
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use pyo3::IntoPyObjectExt;
@@ -28,6 +29,9 @@ use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVa
 use crate::ailment::tags::{Tags, TagsView};
 use crate::ailment::{CachedHash, hash_of};
 use indexmap::IndexMap;
+use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
+use serde::ser::{SerializeStruct, SerializeTupleVariant};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 // ---------------------------------------------------------------------------
 // Header
@@ -309,7 +313,7 @@ impl ExprInner {
 /// re-extracting from Python on every call, and removes the
 /// ``py_target_likes`` / ``py_slot_likes`` helper chains that previously
 /// sat in each comparison method.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CFGTarget {
     Expr(Box<AilExpression>),
     Symbol(String),
@@ -454,7 +458,7 @@ impl Hash for CFGTarget {
 /// every call. The constructor parses based on the surrounding
 /// ``category`` so callers keep passing the same shape they always did
 /// (``int``, ``tuple``, or ``None``).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OIdent {
     /// UNKNOWN / explicit ``None``.
     None,
@@ -469,7 +473,7 @@ pub enum OIdent {
     Parameter(ParameterOIdent),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ParameterOIdent {
     Register(i64),
     Stack(i64),
@@ -631,7 +635,7 @@ impl OIdent {
 /// storing only the varid loses too much information. The variant
 /// invariant -- the inner expression is always a ``VirtualVariable`` --
 /// is enforced by ``extract_phi_entries`` at construction time.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhiEntry {
     pub src_addr: i64,
     pub src_idx: Option<i64>,
@@ -2664,11 +2668,11 @@ impl Expression {
         self.__str__(py)
     }
 
-    /// Native postcard serialization to the `Wire` bytes. Same output as the
-    /// `to_bytes` pymethod but callable from Rust without a Python method
-    /// dispatch (used by the module serializer).
+    /// Native postcard serialization of the inner [`AilExpression`]. Same
+    /// output as the `to_bytes` pymethod but callable from Rust without a
+    /// Python method dispatch (used by the module serializer).
     pub fn to_wire_bytes(&self) -> PyResult<Vec<u8>> {
-        postcard::to_stdvec(&serialize::Wire::from(&self.expr))
+        postcard::to_stdvec(&self.expr)
             .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))
     }
 }
@@ -5346,11 +5350,11 @@ impl Expression {
 
     // --- Byte serialization ------------------------------------------
     //
-    // Round-trips every variant via the postcard-encoded ``Wire``
-    // mirror (see the ``serialize`` module below).
+    // Round-trips every variant via the hand-written serde impls on
+    // ``AilExpression`` (see the Serialization section below).
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = postcard::to_stdvec(&serialize::Wire::from(&self.expr))
+        let bytes = postcard::to_stdvec(&self.expr)
             .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))?;
         Ok(PyBytes::new(py, &bytes))
     }
@@ -5361,9 +5365,9 @@ impl Expression {
         py: Python<'py>,
         data: &[u8],
     ) -> PyResult<Py<Expression>> {
-        let wire: serialize::Wire = postcard::from_bytes(data)
+        let expr: AilExpression = postcard::from_bytes(data)
             .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
-        Py::new(py, Expression::wrap(wire.into_ail()))
+        Py::new(py, Expression::wrap(expr))
     }
 }
 
@@ -5549,1084 +5553,572 @@ impl<'py> IntoPyObject<'py> for AilExpression {
 // Serialization
 // ---------------------------------------------------------------------------
 
-pub mod serialize {
-    use super::{
-        AilExpression, CFGTarget, ConstValue, ExprHeader, ExprInner, Expression, OIdent,
-        ParameterOIdent,
-    };
-    use crate::ailment::enums::{ConvertType, RoundingMode};
-    use crate::ailment::tags::Tags;
-    use indexmap::IndexMap;
-    use pyo3::IntoPyObjectExt;
-    use pyo3::prelude::*;
-    use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-    use serde::{Deserialize, Serialize};
+// Hand-written serde impls for [`AilExpression`].
+//
+// The encoding (postcard, non-self-describing) is: the shared
+// header fields (``idx``, ``bits``, ``depth``, ``tags``) followed
+// by the [`ExprInner`] variant index and that variant's fields in
+// declaration order. Two fields deliberately do not round-trip
+// bit-for-bit:
+//
+// * ``ExprHeader::cached_hash`` is transient and rebuilt empty.
+// * ``ExprInner::Struct::field_names`` is derived data; it is
+//   skipped on write and rebuilt from ``field_offsets`` on read.
+//
+// Keep the variant order and per-variant field lists in sync with
+// the [`ExprInner`] declaration; any change to either is a wire
+// format break and must bump ``FORMAT_VERSION`` in
+// ``ailment/serialize.rs``.
 
-    #[derive(Serialize, Deserialize)]
-    pub struct Hdr {
-        pub idx: i64,
-        pub bits: u32,
-        pub depth: u32,
-        pub tags: Tags,
-    }
+// -- Shared helpers (also used by ail_stmt.rs) ---------------------
 
-    /// Typed serialization wrapper for polymorphic Python-typed slots
-    /// (SimVariable, calling-convention, rounding-mode, oident, ...).
-    ///
-    /// AIL Expressions embed losslessly via the recursive ``Expr``
-    /// variant; primitive Python types (int/float/str/bytes/bool) map
-    /// to their direct counterparts; lists/tuples/dicts recurse;
-    /// anything else falls back to ``pickle.dumps`` -- which covers
-    /// SimVariables, calling conventions, prototypes, etc. Every
-    /// polymorphic slot round-trips with full fidelity.
-    #[derive(Serialize, Deserialize)]
-    pub enum PolyValue {
-        None,
-        /// Recursive AIL Expression embedding.
-        Expr(Box<Wire>),
-        /// Pickle bytes for arbitrary Python objects.
-        Pickle(Vec<u8>),
-        Bool(bool),
-        Int(i64),
-        /// Hex (no `0x` prefix, optional `-`) for ints outside i64.
-        BigInt(String),
-        Float(f64),
-        Str(String),
-        Bytes(Vec<u8>),
-        Tuple(Vec<PolyValue>),
-        List(Vec<PolyValue>),
-        Dict(Vec<(PolyValue, PolyValue)>),
-    }
+/// Read the next field of a fixed-shape payload sequence, turning
+/// "sequence ended early" into a deserialization error.
+pub(crate) fn next<'de, A, T>(seq: &mut A) -> Result<T, A::Error>
+where
+    A: SeqAccess<'de>,
+    T: Deserialize<'de>,
+{
+    seq.next_element()?
+        .ok_or_else(|| de::Error::custom("truncated AIL payload"))
+}
 
-    impl<'py> FromPyObject<'_, 'py> for PolyValue {
-        type Error = PyErr;
+/// Enum variant index read back from the wire. Postcard hands the
+/// index to the seed as an unsigned varint via
+/// ``deserialize_identifier``.
+pub(crate) struct VariantIdx(pub u32);
 
-        fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
-            let py = obj.py();
-            if obj.is_none() {
-                return Ok(Self::None);
+impl<'de> Deserialize<'de> for VariantIdx {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct IdxVisitor;
+        impl Visitor<'_> for IdxVisitor {
+            type Value = VariantIdx;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a variant index")
             }
-            // AIL Expression -- recursive Wire embedding.
-            if let Ok(e) = obj.cast::<Expression>() {
-                return Ok(Self::Expr(Box::new(Wire::from(&e.borrow().expr))));
-            }
-            // PyBool BEFORE PyInt (bool is a subclass of int).
-            if let Ok(b) = obj.cast::<PyBool>() {
-                return Ok(Self::Bool(b.is_true()));
-            }
-            if let Ok(_i) = obj.cast::<PyInt>() {
-                if let Ok(v) = obj.extract::<i64>() {
-                    return Ok(Self::Int(v));
-                }
-                // Outside i64 range -- preserve as hex. `format!("{:x}")` on a
-                // num-bigint value matches Python `format(n, "x")` (lowercase,
-                // no prefix, sign-magnitude for negatives).
-                let b: num_bigint::BigInt = obj.extract()?;
-                return Ok(Self::BigInt(format!("{b:x}")));
-            }
-            if let Ok(f) = obj.cast::<PyFloat>() {
-                return Ok(Self::Float(f.value()));
-            }
-            if let Ok(s) = obj.cast::<PyString>() {
-                return Ok(Self::Str(s.extract()?));
-            }
-            if let Ok(b) = obj.cast::<PyBytes>() {
-                return Ok(Self::Bytes(b.as_bytes().to_vec()));
-            }
-            if let Ok(t) = obj.cast::<PyTuple>() {
-                let mut v = Vec::with_capacity(t.len());
-                for x in t.iter() {
-                    v.push(x.extract::<PolyValue>()?);
-                }
-                return Ok(Self::Tuple(v));
-            }
-            if let Ok(l) = obj.cast::<PyList>() {
-                let mut v = Vec::with_capacity(l.len());
-                for x in l.iter() {
-                    v.push(x.extract::<PolyValue>()?);
-                }
-                return Ok(Self::List(v));
-            }
-            if let Ok(d) = obj.cast::<PyDict>() {
-                let mut v = Vec::with_capacity(d.len());
-                for (k, vv) in d.iter() {
-                    v.push((k.extract::<PolyValue>()?, vv.extract::<PolyValue>()?));
-                }
-                return Ok(Self::Dict(v));
-            }
-            // Fallback: pickle.
-            let pickle = py.import("pickle")?;
-            let bytes: Vec<u8> = pickle
-                .call_method1("dumps", (obj,))?
-                .cast::<PyBytes>()?
-                .as_bytes()
-                .to_vec();
-            Ok(Self::Pickle(bytes))
-        }
-    }
-
-    impl<'py> IntoPyObject<'py> for PolyValue {
-        type Target = PyAny;
-        type Output = Bound<'py, PyAny>;
-        type Error = PyErr;
-
-        fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-            match self {
-                Self::None => Ok(py.None().into_bound(py)),
-                Self::Expr(w) => Ok(Bound::new(py, Expression::wrap(w.into_ail()))?.into_any()),
-                Self::Pickle(bytes) => {
-                    let pickle = py.import("pickle")?;
-                    pickle.call_method1("loads", (PyBytes::new(py, &bytes),))
-                }
-                Self::Bool(b) => b.into_bound_py_any(py),
-                Self::Int(i) => i.into_bound_py_any(py),
-                Self::BigInt(s) => {
-                    let builtins = py.import("builtins")?;
-                    builtins.getattr("int")?.call1((s.as_str(), 16))
-                }
-                Self::Float(f) => f.into_bound_py_any(py),
-                Self::Str(s) => Ok(PyString::new(py, &s).into_any()),
-                Self::Bytes(b) => Ok(PyBytes::new(py, &b).into_any()),
-                Self::Tuple(v) => {
-                    let items: Vec<Bound<'py, PyAny>> = v
-                        .into_iter()
-                        .map(|x| x.into_pyobject(py))
-                        .collect::<PyResult<Vec<_>>>()?;
-                    Ok(PyTuple::new(py, items)?.into_any())
-                }
-                Self::List(v) => {
-                    let l = PyList::empty(py);
-                    for x in v {
-                        l.append(x.into_pyobject(py)?)?;
-                    }
-                    Ok(l.into_any())
-                }
-                Self::Dict(v) => {
-                    let d = PyDict::new(py);
-                    for (k, vv) in v {
-                        d.set_item(k.into_pyobject(py)?, vv.into_pyobject(py)?)?;
-                    }
-                    Ok(d.into_any())
-                }
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<VariantIdx, E> {
+                u32::try_from(v)
+                    .map(VariantIdx)
+                    .map_err(|_| E::custom(format_args!("variant index {v} out of range")))
             }
         }
+        d.deserialize_identifier(IdxVisitor)
     }
+}
 
-    #[derive(Serialize, Deserialize)]
-    pub enum Wire {
-        Const {
-            h: Hdr,
-            value: ConstValue,
-        },
-        Tmp {
-            h: Hdr,
-            tmp_idx: i64,
-        },
-        Register {
-            h: Hdr,
-            reg_offset: i64,
-        },
-        ComboRegister {
-            h: Hdr,
-            registers: Vec<Wire>,
-        },
-        Phi {
-            h: Hdr,
-            src_and_vvars: PolyValue,
-        },
-        VirtualVariable {
-            h: Hdr,
-            varid: i64,
-            category: u8,
-            oident: PolyValue,
-            reg_vvars: Option<Vec<Wire>>,
-        },
-        UnaryOp {
-            h: Hdr,
-            op: String,
-            operand: Box<Wire>,
-        },
-        Convert {
-            h: Hdr,
-            operand: Box<Wire>,
-            from_bits: u32,
-            to_bits: u32,
-            is_signed: bool,
-            from_type: ConvertType,
-            to_type: ConvertType,
-            rounding_mode: Option<RoundingMode>,
-        },
-        Reinterpret {
-            h: Hdr,
-            operand: Box<Wire>,
-            from_bits: u32,
-            from_type: String,
-            to_bits: u32,
-            to_type: String,
-        },
-        BinaryOp {
-            h: Hdr,
-            op: String,
-            lhs: Box<Wire>,
-            rhs: Box<Wire>,
-            signed: bool,
-            floating_point: bool,
-            vector_count: Option<i64>,
-            vector_size: Option<i64>,
-            rounding_mode: Option<RoundingMode>,
-        },
-        Load {
-            h: Hdr,
-            addr: Box<Wire>,
-            size: i32,
-            endness: String,
-            guard: Option<Box<Wire>>,
-            alt: Option<Box<Wire>>,
-        },
-        Call {
-            h: Hdr,
-            target: PolyValue,
-            args: Option<Vec<Wire>>,
-            arg_vvars: Option<Vec<Wire>>,
-        },
-        ITE {
-            h: Hdr,
-            cond: Box<Wire>,
-            iffalse: Box<Wire>,
-            iftrue: Box<Wire>,
-        },
-        Extract {
-            h: Hdr,
-            base: Box<Wire>,
-            offset: Box<Wire>,
-            endness: String,
-        },
-        Insert {
-            h: Hdr,
-            base: Box<Wire>,
-            offset: Box<Wire>,
-            value: Box<Wire>,
-            endness: String,
-        },
-        StringLiteral {
-            h: Hdr,
-            data: String,
-        },
-        BasePointerOffset {
-            h: Hdr,
-            base: String,
-            offset: i64,
-        },
-        StackBaseOffset {
-            h: Hdr,
-            offset: i128,
-        },
-        DirtyExpression {
-            h: Hdr,
-            callee: String,
-            operands: Vec<Wire>,
-            guard: Option<Box<Wire>>,
-            mfx: Option<String>,
-            maddr: Option<Box<Wire>>,
-            msize: Option<i64>,
-        },
-        VEXCCallExpression {
-            h: Hdr,
-            callee: String,
-            operands: Vec<Wire>,
-        },
-        /// Full-fidelity round-trip via the Statement-side ``StmtWire``
-        /// (Statements joined the fat-enum design in a later commit).
-        MultiStatementExpression {
-            h: Hdr,
-            stmts: Vec<crate::ailment::ail_stmt::StmtWire>,
-            expr: Box<Wire>,
-        },
-        Struct {
-            h: Hdr,
-            name: String,
-            /// Insertion-ordered ``(offset, expression)`` pairs.
-            fields: Vec<(i64, Wire)>,
-            /// Insertion-ordered ``(name, offset)`` pairs. ``field_names``
-            /// is omitted -- it's derivable as the reverse of this map
-            /// during ``into_ail``.
-            field_offsets: Vec<(String, i64)>,
-        },
-        RustEnum {
-            h: Hdr,
-            name: String,
-            fields: Vec<Wire>,
-        },
-        Array {
-            h: Hdr,
-            elements: Vec<Wire>,
-        },
-        Let {
-            h: Hdr,
-            defs: Vec<crate::ailment::ail_stmt::StmtWire>,
-            src: Box<Wire>,
-        },
-        Macro {
-            h: Hdr,
-            name: String,
-            delimiter: String,
-        },
-        FunctionLikeMacro {
-            h: Hdr,
-            name: String,
-            delimiter: String,
-            args: Option<Vec<Wire>>,
-        },
+// -- AilExpression: header fields + inner variant -------------------
+
+const EXPR_FIELDS: &[&str] = &["idx", "bits", "depth", "tags", "inner"];
+
+impl Serialize for AilExpression {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut st = s.serialize_struct("AilExpression", EXPR_FIELDS.len())?;
+        st.serialize_field("idx", &self.header.idx)?;
+        st.serialize_field("bits", &self.header.bits)?;
+        st.serialize_field("depth", &self.header.depth)?;
+        st.serialize_field("tags", &self.header.tags)?;
+        st.serialize_field("inner", &self.inner)?;
+        st.end()
     }
+}
 
-    impl Wire {
-        pub fn from(ail: &AilExpression) -> Self {
-            let hdr = Hdr {
-                idx: ail.header.idx,
-                bits: ail.header.bits,
-                depth: ail.header.depth,
-                tags: ail.header.tags.clone(),
-            };
-            match &ail.inner {
-                ExprInner::Const { value } => Wire::Const {
-                    h: hdr,
-                    value: value.clone(),
-                },
-                ExprInner::Tmp { tmp_idx } => Wire::Tmp {
-                    h: hdr,
-                    tmp_idx: *tmp_idx,
-                },
-                ExprInner::Register { reg_offset } => Wire::Register {
-                    h: hdr,
-                    reg_offset: *reg_offset,
-                },
-                ExprInner::ComboRegister { registers } => Wire::ComboRegister {
-                    h: hdr,
-                    registers: registers.iter().map(Wire::from).collect(),
-                },
-                ExprInner::Phi { src_and_vvars } => {
-                    // Project the typed ``Vec<PhiEntry>`` into the
-                    // existing ``PolyValue`` wire shape -- each entry
-                    // becomes a 2-tuple
-                    // ``((src_addr, src_idx), VirtualVariable_wire | None)``.
-                    let items: Vec<PolyValue> = src_and_vvars
-                        .iter()
-                        .map(|e| {
-                            let src_tuple = PolyValue::Tuple(vec![
-                                PolyValue::Int(e.src_addr),
-                                match e.src_idx {
-                                    Some(v) => PolyValue::Int(v),
-                                    None => PolyValue::None,
-                                },
-                            ]);
-                            let vvar_value = match &e.vvar {
-                                Some(v) => PolyValue::Expr(Box::new(Wire::from(v.as_ref()))),
-                                None => PolyValue::None,
-                            };
-                            PolyValue::Tuple(vec![src_tuple, vvar_value])
-                        })
-                        .collect();
-                    Wire::Phi {
-                        h: hdr,
-                        src_and_vvars: PolyValue::List(items),
-                    }
-                }
-                ExprInner::VirtualVariable {
-                    varid,
-                    category,
-                    oident,
-                    reg_vvars,
-                } => {
-                    // Project the typed ``OIdent`` into the existing
-                    // ``PolyValue`` wire shape so cached AIL blobs stay
-                    // compatible.
-                    fn ident_to_poly(o: &OIdent) -> PolyValue {
-                        match o {
-                            OIdent::None => PolyValue::None,
-                            OIdent::Int(v) => PolyValue::Int(*v),
-                            OIdent::RegList(offs) => {
-                                PolyValue::Tuple(offs.iter().map(|x| PolyValue::Int(*x)).collect())
-                            }
-                            OIdent::Parameter(p) => {
-                                let inner_cat = p.inner_category() as i64;
-                                let inner = match p {
-                                    ParameterOIdent::Register(v) | ParameterOIdent::Stack(v) => {
-                                        PolyValue::Int(*v)
-                                    }
-                                    ParameterOIdent::ComboRegister(offs) => PolyValue::Tuple(
-                                        offs.iter().map(|x| PolyValue::Int(*x)).collect(),
-                                    ),
-                                };
-                                PolyValue::Tuple(vec![PolyValue::Int(inner_cat), inner])
-                            }
-                        }
-                    }
-                    Wire::VirtualVariable {
-                        h: hdr,
-                        varid: *varid,
-                        category: *category as u8,
-                        oident: ident_to_poly(oident),
-                        reg_vvars: reg_vvars
-                            .as_ref()
-                            .map(|vec| vec.iter().map(|b| Wire::from(b.as_ref())).collect()),
-                    }
-                }
-                ExprInner::UnaryOp { op, operand } => Wire::UnaryOp {
-                    h: hdr,
-                    op: op.clone(),
-                    operand: Box::new(Wire::from(operand)),
-                },
-                ExprInner::Convert {
-                    operand,
-                    from_bits,
-                    to_bits,
-                    is_signed,
-                    from_type,
-                    to_type,
-                    rounding_mode,
-                } => Wire::Convert {
-                    h: hdr,
-                    operand: Box::new(Wire::from(operand)),
-                    from_bits: *from_bits,
-                    to_bits: *to_bits,
-                    is_signed: *is_signed,
-                    from_type: *from_type,
-                    to_type: *to_type,
-                    rounding_mode: *rounding_mode,
-                },
-                ExprInner::Reinterpret {
-                    operand,
-                    from_bits,
-                    from_type,
-                    to_bits,
-                    to_type,
-                } => Wire::Reinterpret {
-                    h: hdr,
-                    operand: Box::new(Wire::from(operand)),
-                    from_bits: *from_bits,
-                    from_type: from_type.clone(),
-                    to_bits: *to_bits,
-                    to_type: to_type.clone(),
-                },
-                ExprInner::BinaryOp {
-                    op,
-                    operands,
-                    signed,
-                    floating_point,
-                    vector_count,
-                    vector_size,
-                    rounding_mode,
-                } => Wire::BinaryOp {
-                    h: hdr,
-                    op: op.clone(),
-                    lhs: Box::new(Wire::from(&operands[0])),
-                    rhs: Box::new(Wire::from(&operands[1])),
-                    signed: *signed,
-                    floating_point: *floating_point,
-                    vector_count: *vector_count,
-                    vector_size: *vector_size,
-                    rounding_mode: *rounding_mode,
-                },
-                ExprInner::Load {
-                    addr,
-                    size,
-                    endness,
-                    guard,
-                    alt,
-                } => Wire::Load {
-                    h: hdr,
-                    addr: Box::new(Wire::from(addr)),
-                    size: *size,
-                    endness: endness.clone(),
-                    guard: guard.as_ref().map(|g| Box::new(Wire::from(g))),
-                    alt: alt.as_ref().map(|a| Box::new(Wire::from(a))),
-                },
-                ExprInner::Call {
-                    target,
-                    args,
-                    arg_vvars,
-                } => Wire::Call {
-                    h: hdr,
-                    target: match target {
-                        CFGTarget::Expr(e) => PolyValue::Expr(Box::new(Wire::from(e.as_ref()))),
-                        CFGTarget::Symbol(s) => PolyValue::Str(s.clone()),
-                    },
-                    args: args.as_ref().map(|v| v.iter().map(Wire::from).collect()),
-                    arg_vvars: arg_vvars
-                        .as_ref()
-                        .map(|v| v.iter().map(Wire::from).collect()),
-                },
-                ExprInner::ITE {
-                    cond,
-                    iffalse,
-                    iftrue,
-                } => Wire::ITE {
-                    h: hdr,
-                    cond: Box::new(Wire::from(cond)),
-                    iffalse: Box::new(Wire::from(iffalse)),
-                    iftrue: Box::new(Wire::from(iftrue)),
-                },
-                ExprInner::Extract {
-                    base,
-                    offset,
-                    endness,
-                } => Wire::Extract {
-                    h: hdr,
-                    base: Box::new(Wire::from(base)),
-                    offset: Box::new(Wire::from(offset)),
-                    endness: endness.clone(),
-                },
-                ExprInner::Insert {
-                    base,
-                    offset,
-                    value,
-                    endness,
-                } => Wire::Insert {
-                    h: hdr,
-                    base: Box::new(Wire::from(base)),
-                    offset: Box::new(Wire::from(offset)),
-                    value: Box::new(Wire::from(value)),
-                    endness: endness.clone(),
-                },
-                ExprInner::StringLiteral { data } => Wire::StringLiteral {
-                    h: hdr,
-                    data: data.clone(),
-                },
-                ExprInner::BasePointerOffset { base, offset } => Wire::BasePointerOffset {
-                    h: hdr,
-                    base: base.clone(),
-                    offset: *offset,
-                },
-                ExprInner::StackBaseOffset { offset } => Wire::StackBaseOffset {
-                    h: hdr,
-                    offset: *offset,
-                },
-                ExprInner::DirtyExpression {
-                    callee,
-                    operands,
-                    guard,
-                    mfx,
-                    maddr,
-                    msize,
-                } => Wire::DirtyExpression {
-                    h: hdr,
-                    callee: callee.clone(),
-                    operands: operands.iter().map(Wire::from).collect(),
-                    guard: guard.as_ref().map(|g| Box::new(Wire::from(g))),
-                    mfx: mfx.clone(),
-                    maddr: maddr.as_ref().map(|m| Box::new(Wire::from(m))),
-                    msize: *msize,
-                },
-                ExprInner::VEXCCallExpression { callee, operands } => Wire::VEXCCallExpression {
-                    h: hdr,
-                    callee: callee.clone(),
-                    operands: operands.iter().map(Wire::from).collect(),
-                },
-                ExprInner::MultiStatementExpression { stmts, expr } => {
-                    Wire::MultiStatementExpression {
-                        h: hdr,
-                        stmts: stmts
-                            .iter()
-                            .map(crate::ailment::ail_stmt::StmtWire::from)
-                            .collect(),
-                        expr: Box::new(Wire::from(expr)),
-                    }
-                }
-                ExprInner::Struct {
-                    name,
-                    fields,
-                    field_offsets,
-                    ..
-                } => Wire::Struct {
-                    h: hdr,
-                    name: name.clone(),
-                    fields: fields
-                        .iter()
-                        .map(|(off, e)| (*off, Wire::from(e.as_ref())))
-                        .collect(),
-                    field_offsets: field_offsets
-                        .iter()
-                        .map(|(n, off)| (n.clone(), *off))
-                        .collect(),
-                },
-                ExprInner::RustEnum { name, fields } => Wire::RustEnum {
-                    h: hdr,
-                    name: name.clone(),
-                    fields: fields.iter().map(|b| Wire::from(b.as_ref())).collect(),
-                },
-                ExprInner::Array { elements } => Wire::Array {
-                    h: hdr,
-                    elements: elements.iter().map(|b| Wire::from(b.as_ref())).collect(),
-                },
-                ExprInner::Let { defs, src } => Wire::Let {
-                    h: hdr,
-                    defs: defs
-                        .iter()
-                        .map(|b| crate::ailment::ail_stmt::StmtWire::from(b.as_ref()))
-                        .collect(),
-                    src: Box::new(Wire::from(src)),
-                },
-                ExprInner::Macro { name, delimiter } => Wire::Macro {
-                    h: hdr,
-                    name: name.clone(),
-                    delimiter: delimiter.clone(),
-                },
-                ExprInner::FunctionLikeMacro {
-                    name,
-                    delimiter,
-                    args,
-                } => Wire::FunctionLikeMacro {
-                    h: hdr,
-                    name: name.clone(),
-                    delimiter: delimiter.clone(),
-                    args: args
-                        .as_ref()
-                        .map(|v| v.iter().map(|b| Wire::from(b.as_ref())).collect()),
-                },
+impl<'de> Deserialize<'de> for AilExpression {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct ExprVisitor;
+        impl<'de> Visitor<'de> for ExprVisitor {
+            type Value = AilExpression;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("an AIL expression")
+            }
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let idx: i64 = next(&mut seq)?;
+                let bits: u32 = next(&mut seq)?;
+                let depth: u32 = next(&mut seq)?;
+                let tags: Tags = next(&mut seq)?;
+                let inner: ExprInner = next(&mut seq)?;
+                Ok(AilExpression {
+                    header: ExprHeader::new(idx, depth, bits, tags),
+                    inner,
+                })
             }
         }
+        d.deserialize_struct("AilExpression", EXPR_FIELDS, ExprVisitor)
+    }
+}
 
-        pub fn into_ail(self) -> AilExpression {
-            fn rebuild_header(h: Hdr) -> ExprHeader {
-                ExprHeader::new(h.idx, h.depth, h.bits, h.tags)
+// -- ExprInner ------------------------------------------------------
+
+/// Variant names and per-variant field counts, in [`ExprInner`]
+/// declaration order. The index into these tables is the wire tag.
+const EXPR_VARIANTS: &[&str] = &[
+    "Const",
+    "Tmp",
+    "Register",
+    "ComboRegister",
+    "Phi",
+    "VirtualVariable",
+    "UnaryOp",
+    "Convert",
+    "Reinterpret",
+    "BinaryOp",
+    "Load",
+    "Call",
+    "DirtyExpression",
+    "VEXCCallExpression",
+    "MultiStatementExpression",
+    "Struct",
+    "RustEnum",
+    "Array",
+    "Let",
+    "Macro",
+    "FunctionLikeMacro",
+    "ITE",
+    "Extract",
+    "Insert",
+    "StringLiteral",
+    "BasePointerOffset",
+    "StackBaseOffset",
+];
+#[rustfmt::skip]
+const EXPR_FIELD_COUNTS: &[usize] = &[
+    1, 1, 1, 1, 1, 4, 2, 7, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1,
+];
+
+impl Serialize for ExprInner {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ExprInner::Const { value } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 0, "Const", 1)?;
+                tv.serialize_field(value)?;
+                tv.end()
             }
-            match self {
-                Wire::Const { h, value } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Const { value },
-                },
-                Wire::Tmp { h, tmp_idx } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Tmp { tmp_idx },
-                },
-                Wire::Register { h, reg_offset } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Register { reg_offset },
-                },
-                Wire::ComboRegister { h, registers } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::ComboRegister {
-                        registers: registers.into_iter().map(Wire::into_ail).collect(),
-                    },
-                },
-                Wire::Phi { h, src_and_vvars } => {
-                    // Inverse of the projection in ``Wire::from``: walk
-                    // the wire ``PolyValue::List`` of 2-tuples and
-                    // reconstruct typed ``PhiEntry``s.
-                    let entries: Vec<crate::ailment::ail_expr::PhiEntry> = match src_and_vvars {
-                        PolyValue::List(items) => items
-                            .into_iter()
-                            .map(|item| match item {
-                                PolyValue::Tuple(pair) => {
-                                    let mut it = pair.into_iter();
-                                    let src = it.next().unwrap_or(PolyValue::None);
-                                    let vvar_pv = it.next().unwrap_or(PolyValue::None);
-                                    let (src_addr, src_idx) = match src {
-                                        PolyValue::Tuple(srcs) => {
-                                            let mut sit = srcs.into_iter();
-                                            let a = match sit.next() {
-                                                Some(PolyValue::Int(v)) => v,
-                                                _ => 0,
-                                            };
-                                            let b = match sit.next() {
-                                                Some(PolyValue::Int(v)) => Some(v),
-                                                _ => None,
-                                            };
-                                            (a, b)
-                                        }
-                                        _ => (0, None),
-                                    };
-                                    let vvar = match vvar_pv {
-                                        PolyValue::Expr(wire) => Some(Box::new(wire.into_ail())),
-                                        _ => None,
-                                    };
-                                    crate::ailment::ail_expr::PhiEntry {
-                                        src_addr,
-                                        src_idx,
-                                        vvar,
-                                    }
-                                }
-                                _ => crate::ailment::ail_expr::PhiEntry {
-                                    src_addr: 0,
-                                    src_idx: None,
-                                    vvar: None,
-                                },
-                            })
-                            .collect(),
-                        _ => Vec::new(),
-                    };
-                    AilExpression {
-                        header: rebuild_header(h),
-                        inner: ExprInner::Phi {
-                            src_and_vvars: entries,
-                        },
-                    }
-                }
-                Wire::VirtualVariable {
-                    h,
-                    varid,
-                    category,
-                    oident,
-                    reg_vvars,
-                } => Python::attach(|py| {
-                    use crate::ailment::enums::VirtualVariableCategory;
-                    let cat = VirtualVariableCategory::from_int(category as i64)
-                        .unwrap_or(VirtualVariableCategory::Unknown);
-                    // Inverse of ``ident_to_poly`` in ``Wire::from``.
-                    fn poly_to_ident(pv: PolyValue, cat: VirtualVariableCategory) -> OIdent {
-                        use VirtualVariableCategory::*;
-                        match (cat, pv) {
-                            (Unknown, _) | (_, PolyValue::None) => OIdent::None,
-                            (Register | Stack | Memory | Tmp, PolyValue::Int(v)) => OIdent::Int(v),
-                            (ComboRegister, PolyValue::Tuple(items)) => {
-                                let offs = items
-                                    .into_iter()
-                                    .filter_map(|x| match x {
-                                        PolyValue::Int(v) => Some(v),
-                                        _ => None,
-                                    })
-                                    .collect();
-                                OIdent::RegList(offs)
-                            }
-                            (Parameter, PolyValue::Tuple(items)) => {
-                                let mut it = items.into_iter();
-                                let inner_cat_pv = it.next().unwrap_or(PolyValue::None);
-                                let inner_payload = it.next().unwrap_or(PolyValue::None);
-                                let inner_cat = match inner_cat_pv {
-                                    PolyValue::Int(v) => {
-                                        VirtualVariableCategory::from_int(v).unwrap_or(Unknown)
-                                    }
-                                    _ => Unknown,
-                                };
-                                let p = match (inner_cat, inner_payload) {
-                                    (Register, PolyValue::Int(v)) => ParameterOIdent::Register(v),
-                                    (Stack, PolyValue::Int(v)) => ParameterOIdent::Stack(v),
-                                    (ComboRegister, PolyValue::Tuple(items)) => {
-                                        let offs = items
-                                            .into_iter()
-                                            .filter_map(|x| match x {
-                                                PolyValue::Int(v) => Some(v),
-                                                _ => None,
-                                            })
-                                            .collect();
-                                        ParameterOIdent::ComboRegister(offs)
-                                    }
-                                    _ => return OIdent::None,
-                                };
-                                OIdent::Parameter(p)
-                            }
-                            _ => OIdent::None,
-                        }
-                    }
-                    let oident_typed = poly_to_ident(oident, cat);
-                    let _ = py;
-                    AilExpression {
-                        header: rebuild_header(h),
-                        inner: ExprInner::VirtualVariable {
-                            varid,
-                            category: cat,
-                            oident: oident_typed,
-                            reg_vvars: reg_vvars.map(|vec| {
-                                vec.into_iter().map(|w| Box::new(w.into_ail())).collect()
-                            }),
-                        },
-                    }
-                }),
-                Wire::UnaryOp { h, op, operand } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::UnaryOp {
-                        op,
-                        operand: Box::new(operand.into_ail()),
-                    },
-                },
-                Wire::Convert {
-                    h,
-                    operand,
-                    from_bits,
-                    to_bits,
-                    is_signed,
-                    from_type,
-                    to_type,
-                    rounding_mode,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Convert {
-                        operand: Box::new(operand.into_ail()),
-                        from_bits,
-                        to_bits,
-                        is_signed,
-                        from_type,
-                        to_type,
-                        rounding_mode,
-                    },
-                },
-                Wire::Reinterpret {
-                    h,
-                    operand,
-                    from_bits,
-                    from_type,
-                    to_bits,
-                    to_type,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Reinterpret {
-                        operand: Box::new(operand.into_ail()),
-                        from_bits,
-                        from_type,
-                        to_bits,
-                        to_type,
-                    },
-                },
-                Wire::BinaryOp {
-                    h,
-                    op,
-                    lhs,
-                    rhs,
-                    signed,
-                    floating_point,
-                    vector_count,
-                    vector_size,
-                    rounding_mode,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::BinaryOp {
-                        op,
-                        operands: [Box::new(lhs.into_ail()), Box::new(rhs.into_ail())],
-                        signed,
-                        floating_point,
-                        rounding_mode,
-                        vector_count,
-                        vector_size,
-                    },
-                },
-                Wire::Load {
-                    h,
-                    addr,
-                    size,
-                    endness,
-                    guard,
-                    alt,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Load {
-                        addr: Box::new(addr.into_ail()),
-                        size,
-                        endness,
-                        guard: guard.map(|g| Box::new(g.into_ail())),
-                        alt: alt.map(|a| Box::new(a.into_ail())),
-                    },
-                },
-                Wire::Call {
-                    h,
-                    target,
-                    args,
-                    arg_vvars,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Call {
-                        target: match target {
-                            PolyValue::Expr(wire) => CFGTarget::Expr(Box::new(wire.into_ail())),
-                            PolyValue::Str(s) => CFGTarget::Symbol(s),
-                            PolyValue::Int(i) => CFGTarget::Symbol(format!("{}", i)),
-                            PolyValue::BigInt(s) => CFGTarget::Symbol(format!("0x{}", s)),
-                            _ => CFGTarget::Symbol("<unsupported call target>".to_string()),
-                        },
-                        args: args.map(|v| v.into_iter().map(Wire::into_ail).collect()),
-                        arg_vvars: arg_vvars.map(|v| v.into_iter().map(Wire::into_ail).collect()),
-                    },
-                },
-                Wire::ITE {
-                    h,
-                    cond,
-                    iffalse,
-                    iftrue,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::ITE {
-                        cond: Box::new(cond.into_ail()),
-                        iffalse: Box::new(iffalse.into_ail()),
-                        iftrue: Box::new(iftrue.into_ail()),
-                    },
-                },
-                Wire::Extract {
-                    h,
-                    base,
-                    offset,
-                    endness,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Extract {
-                        base: Box::new(base.into_ail()),
-                        offset: Box::new(offset.into_ail()),
-                        endness,
-                    },
-                },
-                Wire::Insert {
-                    h,
-                    base,
-                    offset,
-                    value,
-                    endness,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Insert {
-                        base: Box::new(base.into_ail()),
-                        offset: Box::new(offset.into_ail()),
-                        value: Box::new(value.into_ail()),
-                        endness,
-                    },
-                },
-                Wire::StringLiteral { h, data } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::StringLiteral { data },
-                },
-                Wire::BasePointerOffset { h, base, offset } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::BasePointerOffset { base, offset },
-                },
-                Wire::StackBaseOffset { h, offset } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::StackBaseOffset { offset },
-                },
-                Wire::DirtyExpression {
-                    h,
-                    callee,
-                    operands,
-                    guard,
-                    mfx,
-                    maddr,
-                    msize,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::DirtyExpression {
-                        callee,
-                        operands: operands.into_iter().map(Wire::into_ail).collect(),
-                        guard: guard.map(|g| Box::new(g.into_ail())),
-                        mfx,
-                        maddr: maddr.map(|m| Box::new(m.into_ail())),
-                        msize,
-                    },
-                },
-                Wire::VEXCCallExpression {
-                    h,
-                    callee,
-                    operands,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::VEXCCallExpression {
-                        callee,
-                        operands: operands.into_iter().map(Wire::into_ail).collect(),
-                    },
-                },
-                Wire::MultiStatementExpression { h, stmts, expr } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::MultiStatementExpression {
-                        stmts: stmts
-                            .into_iter()
-                            .map(crate::ailment::ail_stmt::StmtWire::into_ail)
-                            .collect(),
-                        expr: Box::new(expr.into_ail()),
-                    },
-                },
-                Wire::Struct {
-                    h,
-                    name,
-                    fields,
-                    field_offsets,
-                } => {
-                    let fields_map: IndexMap<i64, Box<AilExpression>> = fields
-                        .into_iter()
-                        .map(|(off, w)| (off, Box::new(w.into_ail())))
-                        .collect();
-                    let mut offsets_map: IndexMap<String, i64> = IndexMap::new();
-                    let mut names_map: IndexMap<i64, String> = IndexMap::new();
-                    for (n, off) in field_offsets {
-                        offsets_map.insert(n.clone(), off);
-                        names_map.insert(off, n);
-                    }
-                    AilExpression {
-                        header: rebuild_header(h),
-                        inner: ExprInner::Struct {
-                            name,
-                            fields: fields_map,
-                            field_offsets: offsets_map,
-                            field_names: names_map,
-                        },
-                    }
-                }
-                Wire::RustEnum { h, name, fields } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::RustEnum {
-                        name,
-                        fields: fields.into_iter().map(|w| Box::new(w.into_ail())).collect(),
-                    },
-                },
-                Wire::Array { h, elements } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Array {
-                        elements: elements
-                            .into_iter()
-                            .map(|w| Box::new(w.into_ail()))
-                            .collect(),
-                    },
-                },
-                Wire::Let { h, defs, src } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Let {
-                        defs: defs.into_iter().map(|w| Box::new(w.into_ail())).collect(),
-                        src: Box::new(src.into_ail()),
-                    },
-                },
-                Wire::Macro { h, name, delimiter } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::Macro { name, delimiter },
-                },
-                Wire::FunctionLikeMacro {
-                    h,
-                    name,
-                    delimiter,
-                    args,
-                } => AilExpression {
-                    header: rebuild_header(h),
-                    inner: ExprInner::FunctionLikeMacro {
-                        name,
-                        delimiter,
-                        args: args.map(|v| v.into_iter().map(|w| Box::new(w.into_ail())).collect()),
-                    },
-                },
+            ExprInner::Tmp { tmp_idx } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 1, "Tmp", 1)?;
+                tv.serialize_field(tmp_idx)?;
+                tv.end()
+            }
+            ExprInner::Register { reg_offset } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 2, "Register", 1)?;
+                tv.serialize_field(reg_offset)?;
+                tv.end()
+            }
+            ExprInner::ComboRegister { registers } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 3, "ComboRegister", 1)?;
+                tv.serialize_field(registers)?;
+                tv.end()
+            }
+            ExprInner::Phi { src_and_vvars } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 4, "Phi", 1)?;
+                tv.serialize_field(src_and_vvars)?;
+                tv.end()
+            }
+            ExprInner::VirtualVariable {
+                varid,
+                category,
+                oident,
+                reg_vvars,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 5, "VirtualVariable", 4)?;
+                tv.serialize_field(varid)?;
+                tv.serialize_field(category)?;
+                tv.serialize_field(oident)?;
+                tv.serialize_field(reg_vvars)?;
+                tv.end()
+            }
+            ExprInner::UnaryOp { op, operand } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 6, "UnaryOp", 2)?;
+                tv.serialize_field(op)?;
+                tv.serialize_field(operand)?;
+                tv.end()
+            }
+            ExprInner::Convert {
+                operand,
+                from_bits,
+                to_bits,
+                is_signed,
+                from_type,
+                to_type,
+                rounding_mode,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 7, "Convert", 7)?;
+                tv.serialize_field(operand)?;
+                tv.serialize_field(from_bits)?;
+                tv.serialize_field(to_bits)?;
+                tv.serialize_field(is_signed)?;
+                tv.serialize_field(from_type)?;
+                tv.serialize_field(to_type)?;
+                tv.serialize_field(rounding_mode)?;
+                tv.end()
+            }
+            ExprInner::Reinterpret {
+                operand,
+                from_bits,
+                from_type,
+                to_bits,
+                to_type,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 8, "Reinterpret", 5)?;
+                tv.serialize_field(operand)?;
+                tv.serialize_field(from_bits)?;
+                tv.serialize_field(from_type)?;
+                tv.serialize_field(to_bits)?;
+                tv.serialize_field(to_type)?;
+                tv.end()
+            }
+            ExprInner::BinaryOp {
+                op,
+                operands,
+                signed,
+                floating_point,
+                rounding_mode,
+                vector_count,
+                vector_size,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 9, "BinaryOp", 7)?;
+                tv.serialize_field(op)?;
+                tv.serialize_field(operands)?;
+                tv.serialize_field(signed)?;
+                tv.serialize_field(floating_point)?;
+                tv.serialize_field(rounding_mode)?;
+                tv.serialize_field(vector_count)?;
+                tv.serialize_field(vector_size)?;
+                tv.end()
+            }
+            ExprInner::Load {
+                addr,
+                size,
+                endness,
+                guard,
+                alt,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 10, "Load", 5)?;
+                tv.serialize_field(addr)?;
+                tv.serialize_field(size)?;
+                tv.serialize_field(endness)?;
+                tv.serialize_field(guard)?;
+                tv.serialize_field(alt)?;
+                tv.end()
+            }
+            ExprInner::Call {
+                target,
+                args,
+                arg_vvars,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 11, "Call", 3)?;
+                tv.serialize_field(target)?;
+                tv.serialize_field(args)?;
+                tv.serialize_field(arg_vvars)?;
+                tv.end()
+            }
+            ExprInner::DirtyExpression {
+                callee,
+                operands,
+                guard,
+                mfx,
+                maddr,
+                msize,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 12, "DirtyExpression", 6)?;
+                tv.serialize_field(callee)?;
+                tv.serialize_field(operands)?;
+                tv.serialize_field(guard)?;
+                tv.serialize_field(mfx)?;
+                tv.serialize_field(maddr)?;
+                tv.serialize_field(msize)?;
+                tv.end()
+            }
+            ExprInner::VEXCCallExpression { callee, operands } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 13, "VEXCCallExpression", 2)?;
+                tv.serialize_field(callee)?;
+                tv.serialize_field(operands)?;
+                tv.end()
+            }
+            ExprInner::MultiStatementExpression { stmts, expr } => {
+                let mut tv =
+                    s.serialize_tuple_variant("ExprInner", 14, "MultiStatementExpression", 2)?;
+                tv.serialize_field(stmts)?;
+                tv.serialize_field(expr)?;
+                tv.end()
+            }
+            ExprInner::Struct {
+                name,
+                fields,
+                field_offsets,
+                // Derived from ``field_offsets``; rebuilt on read.
+                field_names: _,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 15, "Struct", 3)?;
+                tv.serialize_field(name)?;
+                tv.serialize_field(fields)?;
+                tv.serialize_field(field_offsets)?;
+                tv.end()
+            }
+            ExprInner::RustEnum { name, fields } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 16, "RustEnum", 2)?;
+                tv.serialize_field(name)?;
+                tv.serialize_field(fields)?;
+                tv.end()
+            }
+            ExprInner::Array { elements } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 17, "Array", 1)?;
+                tv.serialize_field(elements)?;
+                tv.end()
+            }
+            ExprInner::Let { defs, src } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 18, "Let", 2)?;
+                tv.serialize_field(defs)?;
+                tv.serialize_field(src)?;
+                tv.end()
+            }
+            ExprInner::Macro { name, delimiter } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 19, "Macro", 2)?;
+                tv.serialize_field(name)?;
+                tv.serialize_field(delimiter)?;
+                tv.end()
+            }
+            ExprInner::FunctionLikeMacro {
+                name,
+                delimiter,
+                args,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 20, "FunctionLikeMacro", 3)?;
+                tv.serialize_field(name)?;
+                tv.serialize_field(delimiter)?;
+                tv.serialize_field(args)?;
+                tv.end()
+            }
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 21, "ITE", 3)?;
+                tv.serialize_field(cond)?;
+                tv.serialize_field(iffalse)?;
+                tv.serialize_field(iftrue)?;
+                tv.end()
+            }
+            ExprInner::Extract {
+                base,
+                offset,
+                endness,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 22, "Extract", 3)?;
+                tv.serialize_field(base)?;
+                tv.serialize_field(offset)?;
+                tv.serialize_field(endness)?;
+                tv.end()
+            }
+            ExprInner::Insert {
+                base,
+                offset,
+                value,
+                endness,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 23, "Insert", 4)?;
+                tv.serialize_field(base)?;
+                tv.serialize_field(offset)?;
+                tv.serialize_field(value)?;
+                tv.serialize_field(endness)?;
+                tv.end()
+            }
+            ExprInner::StringLiteral { data } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 24, "StringLiteral", 1)?;
+                tv.serialize_field(data)?;
+                tv.end()
+            }
+            ExprInner::BasePointerOffset { base, offset } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 25, "BasePointerOffset", 2)?;
+                tv.serialize_field(base)?;
+                tv.serialize_field(offset)?;
+                tv.end()
+            }
+            ExprInner::StackBaseOffset { offset } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 26, "StackBaseOffset", 1)?;
+                tv.serialize_field(offset)?;
+                tv.end()
             }
         }
     }
 }
 
-#[cfg(test)]
-mod bigint_hex_tests {
-    use num_bigint::BigInt;
-
-    /// `PolyValue`'s `FromPyObject` renders out-of-i64 ints via `format!("{:x}")`
-    /// instead of Python `format(n, "x")`. These reference strings are the
-    /// exact CPython outputs -- lowercase, no `0x`, sign-magnitude negatives.
-    #[test]
-    fn matches_python_format_x() {
-        let cases: &[(&str, i128)] = &[("ff", 255), ("-ff", -255)];
-        for (expected, n) in cases {
-            assert_eq!(&format!("{:x}", BigInt::from(*n)), expected);
+impl<'de> Deserialize<'de> for ExprInner {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct InnerVisitor;
+        impl<'de> Visitor<'de> for InnerVisitor {
+            type Value = ExprInner;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("an AIL expression variant")
+            }
+            fn visit_enum<A: EnumAccess<'de>>(self, data: A) -> Result<Self::Value, A::Error> {
+                let (VariantIdx(tag), variant) = data.variant()?;
+                let Some(&nfields) = EXPR_FIELD_COUNTS.get(tag as usize) else {
+                    return Err(de::Error::custom(format_args!(
+                        "invalid AIL expression variant index {tag}"
+                    )));
+                };
+                variant.tuple_variant(nfields, FieldsVisitor { tag })
+            }
         }
-        assert_eq!(
-            format!("{:x}", BigInt::from(1u32) << 70u32),
-            "400000000000000000"
-        );
-        assert_eq!(
-            format!("{:x}", -(BigInt::from(1u32) << 70u32)),
-            "-400000000000000000"
-        );
-        assert_eq!(
-            format!("{:x}", (BigInt::from(1u32) << 64u32) + BigInt::from(5)),
-            "10000000000000005"
-        );
-        assert_eq!(
-            format!("{:x}", -(BigInt::from(1u32) << 63u32) - BigInt::from(1)),
-            "-8000000000000001"
-        );
+
+        /// Decodes the payload of the variant selected by ``tag``.
+        /// Fields are read in the same order the ``Serialize`` impl
+        /// writes them (= ``ExprInner`` declaration order).
+        struct FieldsVisitor {
+            tag: u32,
+        }
+        impl<'de> Visitor<'de> for FieldsVisitor {
+            type Value = ExprInner;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "AIL {} payload", EXPR_VARIANTS[self.tag as usize])
+            }
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                Ok(match self.tag {
+                    0 => ExprInner::Const {
+                        value: next(&mut seq)?,
+                    },
+                    1 => ExprInner::Tmp {
+                        tmp_idx: next(&mut seq)?,
+                    },
+                    2 => ExprInner::Register {
+                        reg_offset: next(&mut seq)?,
+                    },
+                    3 => ExprInner::ComboRegister {
+                        registers: next(&mut seq)?,
+                    },
+                    4 => ExprInner::Phi {
+                        src_and_vvars: next(&mut seq)?,
+                    },
+                    5 => ExprInner::VirtualVariable {
+                        varid: next(&mut seq)?,
+                        category: next(&mut seq)?,
+                        oident: next(&mut seq)?,
+                        reg_vvars: next(&mut seq)?,
+                    },
+                    6 => ExprInner::UnaryOp {
+                        op: next(&mut seq)?,
+                        operand: next(&mut seq)?,
+                    },
+                    7 => ExprInner::Convert {
+                        operand: next(&mut seq)?,
+                        from_bits: next(&mut seq)?,
+                        to_bits: next(&mut seq)?,
+                        is_signed: next(&mut seq)?,
+                        from_type: next(&mut seq)?,
+                        to_type: next(&mut seq)?,
+                        rounding_mode: next(&mut seq)?,
+                    },
+                    8 => ExprInner::Reinterpret {
+                        operand: next(&mut seq)?,
+                        from_bits: next(&mut seq)?,
+                        from_type: next(&mut seq)?,
+                        to_bits: next(&mut seq)?,
+                        to_type: next(&mut seq)?,
+                    },
+                    9 => ExprInner::BinaryOp {
+                        op: next(&mut seq)?,
+                        operands: next(&mut seq)?,
+                        signed: next(&mut seq)?,
+                        floating_point: next(&mut seq)?,
+                        rounding_mode: next(&mut seq)?,
+                        vector_count: next(&mut seq)?,
+                        vector_size: next(&mut seq)?,
+                    },
+                    10 => ExprInner::Load {
+                        addr: next(&mut seq)?,
+                        size: next(&mut seq)?,
+                        endness: next(&mut seq)?,
+                        guard: next(&mut seq)?,
+                        alt: next(&mut seq)?,
+                    },
+                    11 => ExprInner::Call {
+                        target: next(&mut seq)?,
+                        args: next(&mut seq)?,
+                        arg_vvars: next(&mut seq)?,
+                    },
+                    12 => ExprInner::DirtyExpression {
+                        callee: next(&mut seq)?,
+                        operands: next(&mut seq)?,
+                        guard: next(&mut seq)?,
+                        mfx: next(&mut seq)?,
+                        maddr: next(&mut seq)?,
+                        msize: next(&mut seq)?,
+                    },
+                    13 => ExprInner::VEXCCallExpression {
+                        callee: next(&mut seq)?,
+                        operands: next(&mut seq)?,
+                    },
+                    14 => ExprInner::MultiStatementExpression {
+                        stmts: next(&mut seq)?,
+                        expr: next(&mut seq)?,
+                    },
+                    15 => {
+                        let name: String = next(&mut seq)?;
+                        let fields: IndexMap<i64, Box<AilExpression>> = next(&mut seq)?;
+                        let field_offsets: IndexMap<String, i64> = next(&mut seq)?;
+                        let field_names = field_offsets
+                            .iter()
+                            .map(|(n, off)| (*off, n.clone()))
+                            .collect();
+                        ExprInner::Struct {
+                            name,
+                            fields,
+                            field_offsets,
+                            field_names,
+                        }
+                    }
+                    16 => ExprInner::RustEnum {
+                        name: next(&mut seq)?,
+                        fields: next(&mut seq)?,
+                    },
+                    17 => ExprInner::Array {
+                        elements: next(&mut seq)?,
+                    },
+                    18 => ExprInner::Let {
+                        defs: next(&mut seq)?,
+                        src: next(&mut seq)?,
+                    },
+                    19 => ExprInner::Macro {
+                        name: next(&mut seq)?,
+                        delimiter: next(&mut seq)?,
+                    },
+                    20 => ExprInner::FunctionLikeMacro {
+                        name: next(&mut seq)?,
+                        delimiter: next(&mut seq)?,
+                        args: next(&mut seq)?,
+                    },
+                    21 => ExprInner::ITE {
+                        cond: next(&mut seq)?,
+                        iffalse: next(&mut seq)?,
+                        iftrue: next(&mut seq)?,
+                    },
+                    22 => ExprInner::Extract {
+                        base: next(&mut seq)?,
+                        offset: next(&mut seq)?,
+                        endness: next(&mut seq)?,
+                    },
+                    23 => ExprInner::Insert {
+                        base: next(&mut seq)?,
+                        offset: next(&mut seq)?,
+                        value: next(&mut seq)?,
+                        endness: next(&mut seq)?,
+                    },
+                    24 => ExprInner::StringLiteral {
+                        data: next(&mut seq)?,
+                    },
+                    25 => ExprInner::BasePointerOffset {
+                        base: next(&mut seq)?,
+                        offset: next(&mut seq)?,
+                    },
+                    26 => ExprInner::StackBaseOffset {
+                        offset: next(&mut seq)?,
+                    },
+                    // visit_enum validated the tag before dispatching here.
+                    _ => unreachable!(),
+                })
+            }
+        }
+
+        d.deserialize_enum("ExprInner", EXPR_VARIANTS, InnerVisitor)
     }
 }

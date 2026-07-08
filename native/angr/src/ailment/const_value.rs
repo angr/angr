@@ -3,8 +3,8 @@
 //! Every concrete Expression variant lives behind a single
 //! ``Expression`` pyclass with an inline ``ExprInner`` enum. The
 //! ``ConstValue`` data type captures the int/float/big-int
-//! distinction in a serde-friendly shape that both the serialization
-//! ``Wire`` and the in-memory ``ExprInner::Const`` arm reuse.
+//! distinction in a serde-friendly shape that the in-memory
+//! ``ExprInner::Const`` arm stores and serializes directly.
 
 use std::hash::{Hash, Hasher};
 

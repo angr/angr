@@ -12,16 +12,20 @@
 //! metaclass ``__instancecheck__`` that dispatches on the variant kind.
 //! See ``angr/ailment/statement.py`` for the marker classes.
 
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 
-use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
+use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
 use crate::ailment::{CachedHash, hash_of};
+use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
+use serde::ser::{SerializeStruct, SerializeTupleVariant};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 // ---------------------------------------------------------------------------
 // StmtHeader -- shared header carried by every variant
@@ -959,11 +963,11 @@ impl Statement {
         self.__str__(py)
     }
 
-    /// Native postcard serialization to the `StmtWire` bytes. Same output as
-    /// the `to_bytes` pymethod but callable from Rust without a Python method
-    /// dispatch (used by the block/graph serializer).
+    /// Native postcard serialization of the inner [`AilStatement`]. Same
+    /// output as the `to_bytes` pymethod but callable from Rust without a
+    /// Python method dispatch (used by the block/graph serializer).
     pub fn to_wire_bytes(&self) -> PyResult<Vec<u8>> {
-        postcard::to_stdvec(&serialize::StmtWire::from(&self.stmt))
+        postcard::to_stdvec(&self.stmt)
             .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))
     }
 }
@@ -1981,7 +1985,7 @@ impl Statement {
     // --- Byte serialization --------------------------------------------
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = postcard::to_stdvec(&serialize::StmtWire::from(&self.stmt))
+        let bytes = postcard::to_stdvec(&self.stmt)
             .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))?;
         Ok(PyBytes::new(py, &bytes))
     }
@@ -1992,9 +1996,9 @@ impl Statement {
         py: Python<'py>,
         data: &[u8],
     ) -> PyResult<Py<Statement>> {
-        let wire: serialize::StmtWire = postcard::from_bytes(data)
+        let stmt: AilStatement = postcard::from_bytes(data)
             .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
-        Py::new(py, Statement::wrap(wire.into_ail()))
+        Py::new(py, Statement::wrap(stmt))
     }
 }
 
@@ -2032,348 +2036,271 @@ impl<'py> IntoPyObject<'py> for AilStatement {
 // Serialization
 // ---------------------------------------------------------------------------
 
-mod serialize {
-    use super::{AilStatement, CFGTarget, StmtHeader, StmtInner};
-    use crate::ailment::ail_expr::serialize as expr_serialize;
-    use crate::ailment::tags::Tags;
-    use serde::{Deserialize, Serialize};
+// Hand-written serde impls for [`AilStatement`]; companion to the
+// expression-side impls in ``ail_expr.rs`` (which also
+// documents the encoding). The header fields (``idx``, ``tags``)
+// come first, then the [`StmtInner`] variant index and its fields
+// in declaration order; ``cached_hash`` is rebuilt empty on read.
+//
+// Keep the variant order and per-variant field lists in sync with
+// the [`StmtInner`] declaration; any change to either is a wire
+// format break and must bump ``FORMAT_VERSION`` in
+// ``ailment/serialize.rs``.
 
-    /// Bridge a runtime ``CFGTarget`` to the wire-format ``PolyValue``
-    /// already used for serialization. Symbol → ``PolyValue::Str``;
-    /// Expr → ``PolyValue::Expr(Wire)``. Keeps the on-disk format
-    /// unchanged so older cached blobs deserialize.
-    fn cfgtarget_to_poly(t: &CFGTarget) -> expr_serialize::PolyValue {
-        match t {
-            CFGTarget::Expr(e) => {
-                expr_serialize::PolyValue::Expr(Box::new(expr_serialize::Wire::from(e.as_ref())))
+// -- AilStatement: header fields + inner variant ---------------------
+
+const STMT_FIELDS: &[&str] = &["idx", "tags", "inner"];
+
+impl Serialize for AilStatement {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut st = s.serialize_struct("AilStatement", STMT_FIELDS.len())?;
+        st.serialize_field("idx", &self.header.idx)?;
+        st.serialize_field("tags", &self.header.tags)?;
+        st.serialize_field("inner", &self.inner)?;
+        st.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for AilStatement {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct StmtVisitor;
+        impl<'de> Visitor<'de> for StmtVisitor {
+            type Value = AilStatement;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("an AIL statement")
             }
-            CFGTarget::Symbol(s) => expr_serialize::PolyValue::Str(s.clone()),
-        }
-    }
-
-    /// Reverse of ``cfgtarget_to_poly``: read a ``PolyValue`` from the
-    /// wire format and project into ``CFGTarget``. Any other ``PolyValue``
-    /// shape (legacy ``Int`` for raw addresses, ``Pickle`` for opaque
-    /// payloads, ...) is rendered as a ``Symbol`` carrying the value's
-    /// debug string -- this keeps deserialization total but the
-    /// resulting target won't ``likes`` an Expression peer, which is
-    /// acceptable for the legacy unresolved-target case.
-    fn poly_to_cfgtarget(pv: expr_serialize::PolyValue) -> CFGTarget {
-        match pv {
-            expr_serialize::PolyValue::Expr(wire) => CFGTarget::Expr(Box::new(wire.into_ail())),
-            expr_serialize::PolyValue::Str(s) => CFGTarget::Symbol(s),
-            expr_serialize::PolyValue::Int(i) => CFGTarget::Symbol(format!("{}", i)),
-            expr_serialize::PolyValue::BigInt(s) => CFGTarget::Symbol(format!("0x{}", s)),
-            _ => CFGTarget::Symbol("<unsupported jump target>".to_string()),
-        }
-    }
-
-    #[derive(Serialize, Deserialize)]
-    pub struct Hdr {
-        pub idx: i64,
-        pub tags: Tags,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    pub enum StmtWire {
-        Assignment {
-            h: Hdr,
-            dst: expr_serialize::Wire,
-            src: expr_serialize::Wire,
-        },
-        WeakAssignment {
-            h: Hdr,
-            dst: expr_serialize::Wire,
-            src: expr_serialize::Wire,
-        },
-        Label {
-            h: Hdr,
-            name: String,
-        },
-        Store {
-            h: Hdr,
-            addr: expr_serialize::Wire,
-            data: expr_serialize::Wire,
-            size: i32,
-            endness: String,
-            guard: Option<expr_serialize::Wire>,
-        },
-        Jump {
-            h: Hdr,
-            target: expr_serialize::PolyValue,
-            target_idx: Option<i64>,
-        },
-        ConditionalJump {
-            h: Hdr,
-            condition: expr_serialize::Wire,
-            true_target: Option<expr_serialize::PolyValue>,
-            false_target: Option<expr_serialize::PolyValue>,
-            true_target_idx: Option<i64>,
-            false_target_idx: Option<i64>,
-        },
-        SideEffectStatement {
-            h: Hdr,
-            expr: expr_serialize::Wire,
-            ret_expr: Option<expr_serialize::Wire>,
-            fp_ret_expr: Option<expr_serialize::Wire>,
-        },
-        Return {
-            h: Hdr,
-            ret_exprs: Vec<expr_serialize::Wire>,
-        },
-        // The ``Wire`` payloads are boxed to keep this variant's inline size
-        // close to the other variants' (clippy::large_enum_variant); postcard
-        // encodes ``Box<T>`` / ``Option<Box<T>>`` identically to ``T`` /
-        // ``Option<T>``, so the wire format is unaffected.
-        CAS {
-            h: Hdr,
-            addr: Box<expr_serialize::Wire>,
-            data_lo: Box<expr_serialize::Wire>,
-            data_hi: Option<Box<expr_serialize::Wire>>,
-            expd_lo: Box<expr_serialize::Wire>,
-            expd_hi: Option<Box<expr_serialize::Wire>>,
-            old_lo: Box<expr_serialize::Wire>,
-            old_hi: Option<Box<expr_serialize::Wire>>,
-            endness: String,
-        },
-        DirtyStatement {
-            h: Hdr,
-            dirty: expr_serialize::Wire,
-        },
-        NoOp {
-            h: Hdr,
-        },
-    }
-
-    impl StmtWire {
-        pub fn from(stmt: &AilStatement) -> Self {
-            let h = Hdr {
-                idx: stmt.header.idx,
-                tags: stmt.header.tags.clone(),
-            };
-            match &stmt.inner {
-                StmtInner::Assignment { dst, src } => StmtWire::Assignment {
-                    h,
-                    dst: expr_serialize::Wire::from(dst),
-                    src: expr_serialize::Wire::from(src),
-                },
-                StmtInner::WeakAssignment { dst, src } => StmtWire::WeakAssignment {
-                    h,
-                    dst: expr_serialize::Wire::from(dst),
-                    src: expr_serialize::Wire::from(src),
-                },
-                StmtInner::Label { name } => StmtWire::Label {
-                    h,
-                    name: name.clone(),
-                },
-                StmtInner::Store {
-                    addr,
-                    data,
-                    size,
-                    endness,
-                    guard,
-                } => StmtWire::Store {
-                    h,
-                    addr: expr_serialize::Wire::from(addr),
-                    data: expr_serialize::Wire::from(data),
-                    size: *size,
-                    endness: endness.clone(),
-                    guard: guard.as_ref().map(|g| expr_serialize::Wire::from(g)),
-                },
-                StmtInner::Jump { target, target_idx } => StmtWire::Jump {
-                    h,
-                    target: cfgtarget_to_poly(target),
-                    target_idx: *target_idx,
-                },
-                StmtInner::ConditionalJump {
-                    condition,
-                    true_target,
-                    false_target,
-                    true_target_idx,
-                    false_target_idx,
-                } => StmtWire::ConditionalJump {
-                    h,
-                    condition: expr_serialize::Wire::from(condition),
-                    true_target: true_target.as_ref().map(cfgtarget_to_poly),
-                    false_target: false_target.as_ref().map(cfgtarget_to_poly),
-                    true_target_idx: *true_target_idx,
-                    false_target_idx: *false_target_idx,
-                },
-                StmtInner::SideEffectStatement {
-                    expr,
-                    ret_expr,
-                    fp_ret_expr,
-                } => StmtWire::SideEffectStatement {
-                    h,
-                    expr: expr_serialize::Wire::from(expr),
-                    ret_expr: ret_expr.as_ref().map(|e| expr_serialize::Wire::from(e)),
-                    fp_ret_expr: fp_ret_expr.as_ref().map(|e| expr_serialize::Wire::from(e)),
-                },
-                StmtInner::Return { ret_exprs } => StmtWire::Return {
-                    h,
-                    ret_exprs: ret_exprs.iter().map(expr_serialize::Wire::from).collect(),
-                },
-                StmtInner::CAS {
-                    addr,
-                    data_lo,
-                    data_hi,
-                    expd_lo,
-                    expd_hi,
-                    old_lo,
-                    old_hi,
-                    endness,
-                } => StmtWire::CAS {
-                    h,
-                    addr: Box::new(expr_serialize::Wire::from(addr)),
-                    data_lo: Box::new(expr_serialize::Wire::from(data_lo)),
-                    data_hi: data_hi
-                        .as_ref()
-                        .map(|e| Box::new(expr_serialize::Wire::from(e))),
-                    expd_lo: Box::new(expr_serialize::Wire::from(expd_lo)),
-                    expd_hi: expd_hi
-                        .as_ref()
-                        .map(|e| Box::new(expr_serialize::Wire::from(e))),
-                    old_lo: Box::new(expr_serialize::Wire::from(old_lo)),
-                    old_hi: old_hi
-                        .as_ref()
-                        .map(|e| Box::new(expr_serialize::Wire::from(e))),
-                    endness: endness.clone(),
-                },
-                StmtInner::DirtyStatement { dirty } => StmtWire::DirtyStatement {
-                    h,
-                    dirty: expr_serialize::Wire::from(dirty),
-                },
-                StmtInner::NoOp => StmtWire::NoOp { h },
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let idx: i64 = next(&mut seq)?;
+                let tags: Tags = next(&mut seq)?;
+                let inner: StmtInner = next(&mut seq)?;
+                Ok(AilStatement {
+                    header: StmtHeader::new(idx, tags),
+                    inner,
+                })
             }
         }
+        d.deserialize_struct("AilStatement", STMT_FIELDS, StmtVisitor)
+    }
+}
 
-        pub fn into_ail(self) -> AilStatement {
-            fn rebuild_header(h: Hdr) -> StmtHeader {
-                StmtHeader::new(h.idx, h.tags)
+// -- StmtInner --------------------------------------------------------
+
+/// Variant names and per-variant field counts, in [`StmtInner`]
+/// declaration order. The index into these tables is the wire tag.
+const STMT_VARIANTS: &[&str] = &[
+    "Assignment",
+    "WeakAssignment",
+    "Label",
+    "Store",
+    "Jump",
+    "ConditionalJump",
+    "SideEffectStatement",
+    "Return",
+    "CAS",
+    "DirtyStatement",
+    "NoOp",
+];
+#[rustfmt::skip]
+const STMT_FIELD_COUNTS: &[usize] = &[2, 2, 1, 5, 2, 5, 3, 1, 8, 1, 0];
+
+const NOOP_TAG: u32 = 10;
+
+impl Serialize for StmtInner {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            StmtInner::Assignment { dst, src } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 0, "Assignment", 2)?;
+                tv.serialize_field(dst)?;
+                tv.serialize_field(src)?;
+                tv.end()
             }
-            match self {
-                StmtWire::Assignment { h, dst, src } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::Assignment {
-                        dst: Box::new(dst.into_ail()),
-                        src: Box::new(src.into_ail()),
-                    },
-                },
-                StmtWire::WeakAssignment { h, dst, src } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::WeakAssignment {
-                        dst: Box::new(dst.into_ail()),
-                        src: Box::new(src.into_ail()),
-                    },
-                },
-                StmtWire::Label { h, name } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::Label { name },
-                },
-                StmtWire::Store {
-                    h,
-                    addr,
-                    data,
-                    size,
-                    endness,
-                    guard,
-                } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::Store {
-                        addr: Box::new(addr.into_ail()),
-                        data: Box::new(data.into_ail()),
-                        size,
-                        endness,
-                        guard: guard.map(|g| Box::new(g.into_ail())),
-                    },
-                },
-                StmtWire::Jump {
-                    h,
-                    target,
-                    target_idx,
-                } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::Jump {
-                        target: poly_to_cfgtarget(target),
-                        target_idx,
-                    },
-                },
-                StmtWire::ConditionalJump {
-                    h,
-                    condition,
-                    true_target,
-                    false_target,
-                    true_target_idx,
-                    false_target_idx,
-                } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::ConditionalJump {
-                        condition: Box::new(condition.into_ail()),
-                        true_target: true_target.map(poly_to_cfgtarget),
-                        false_target: false_target.map(poly_to_cfgtarget),
-                        true_target_idx,
-                        false_target_idx,
-                    },
-                },
-                StmtWire::SideEffectStatement {
-                    h,
-                    expr,
-                    ret_expr,
-                    fp_ret_expr,
-                } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::SideEffectStatement {
-                        expr: Box::new(expr.into_ail()),
-                        ret_expr: ret_expr.map(|e| Box::new(e.into_ail())),
-                        fp_ret_expr: fp_ret_expr.map(|e| Box::new(e.into_ail())),
-                    },
-                },
-                StmtWire::Return { h, ret_exprs } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::Return {
-                        ret_exprs: ret_exprs
-                            .into_iter()
-                            .map(expr_serialize::Wire::into_ail)
-                            .collect(),
-                    },
-                },
-                StmtWire::CAS {
-                    h,
-                    addr,
-                    data_lo,
-                    data_hi,
-                    expd_lo,
-                    expd_hi,
-                    old_lo,
-                    old_hi,
-                    endness,
-                } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::CAS {
-                        addr: Box::new(addr.into_ail()),
-                        data_lo: Box::new(data_lo.into_ail()),
-                        data_hi: data_hi.map(|e| Box::new(e.into_ail())),
-                        expd_lo: Box::new(expd_lo.into_ail()),
-                        expd_hi: expd_hi.map(|e| Box::new(e.into_ail())),
-                        old_lo: Box::new(old_lo.into_ail()),
-                        old_hi: old_hi.map(|e| Box::new(e.into_ail())),
-                        endness,
-                    },
-                },
-                StmtWire::DirtyStatement { h, dirty } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::DirtyStatement {
-                        dirty: Box::new(dirty.into_ail()),
-                    },
-                },
-                StmtWire::NoOp { h } => AilStatement {
-                    header: rebuild_header(h),
-                    inner: StmtInner::NoOp,
-                },
+            StmtInner::WeakAssignment { dst, src } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 1, "WeakAssignment", 2)?;
+                tv.serialize_field(dst)?;
+                tv.serialize_field(src)?;
+                tv.end()
             }
+            StmtInner::Label { name } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 2, "Label", 1)?;
+                tv.serialize_field(name)?;
+                tv.end()
+            }
+            StmtInner::Store {
+                addr,
+                data,
+                size,
+                endness,
+                guard,
+            } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 3, "Store", 5)?;
+                tv.serialize_field(addr)?;
+                tv.serialize_field(data)?;
+                tv.serialize_field(size)?;
+                tv.serialize_field(endness)?;
+                tv.serialize_field(guard)?;
+                tv.end()
+            }
+            StmtInner::Jump { target, target_idx } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 4, "Jump", 2)?;
+                tv.serialize_field(target)?;
+                tv.serialize_field(target_idx)?;
+                tv.end()
+            }
+            StmtInner::ConditionalJump {
+                condition,
+                true_target,
+                false_target,
+                true_target_idx,
+                false_target_idx,
+            } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 5, "ConditionalJump", 5)?;
+                tv.serialize_field(condition)?;
+                tv.serialize_field(true_target)?;
+                tv.serialize_field(false_target)?;
+                tv.serialize_field(true_target_idx)?;
+                tv.serialize_field(false_target_idx)?;
+                tv.end()
+            }
+            StmtInner::SideEffectStatement {
+                expr,
+                ret_expr,
+                fp_ret_expr,
+            } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 6, "SideEffectStatement", 3)?;
+                tv.serialize_field(expr)?;
+                tv.serialize_field(ret_expr)?;
+                tv.serialize_field(fp_ret_expr)?;
+                tv.end()
+            }
+            StmtInner::Return { ret_exprs } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 7, "Return", 1)?;
+                tv.serialize_field(ret_exprs)?;
+                tv.end()
+            }
+            StmtInner::CAS {
+                addr,
+                data_lo,
+                data_hi,
+                expd_lo,
+                expd_hi,
+                old_lo,
+                old_hi,
+                endness,
+            } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 8, "CAS", 8)?;
+                tv.serialize_field(addr)?;
+                tv.serialize_field(data_lo)?;
+                tv.serialize_field(data_hi)?;
+                tv.serialize_field(expd_lo)?;
+                tv.serialize_field(expd_hi)?;
+                tv.serialize_field(old_lo)?;
+                tv.serialize_field(old_hi)?;
+                tv.serialize_field(endness)?;
+                tv.end()
+            }
+            StmtInner::DirtyStatement { dirty } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 9, "DirtyStatement", 1)?;
+                tv.serialize_field(dirty)?;
+                tv.end()
+            }
+            StmtInner::NoOp => s.serialize_unit_variant("StmtInner", NOOP_TAG, "NoOp"),
         }
     }
 }
 
-// Re-export for parent module
-pub use serialize::StmtWire;
+impl<'de> Deserialize<'de> for StmtInner {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct InnerVisitor;
+        impl<'de> Visitor<'de> for InnerVisitor {
+            type Value = StmtInner;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("an AIL statement variant")
+            }
+            fn visit_enum<A: EnumAccess<'de>>(self, data: A) -> Result<Self::Value, A::Error> {
+                let (VariantIdx(tag), variant) = data.variant()?;
+                if tag == NOOP_TAG {
+                    variant.unit_variant()?;
+                    return Ok(StmtInner::NoOp);
+                }
+                let Some(&nfields) = STMT_FIELD_COUNTS.get(tag as usize) else {
+                    return Err(de::Error::custom(format_args!(
+                        "invalid AIL statement variant index {tag}"
+                    )));
+                };
+                variant.tuple_variant(nfields, FieldsVisitor { tag })
+            }
+        }
+
+        /// Decodes the payload of the variant selected by ``tag``.
+        /// Fields are read in the same order the ``Serialize`` impl
+        /// writes them (= ``StmtInner`` declaration order).
+        struct FieldsVisitor {
+            tag: u32,
+        }
+        impl<'de> Visitor<'de> for FieldsVisitor {
+            type Value = StmtInner;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "AIL {} payload", STMT_VARIANTS[self.tag as usize])
+            }
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                Ok(match self.tag {
+                    0 => StmtInner::Assignment {
+                        dst: next(&mut seq)?,
+                        src: next(&mut seq)?,
+                    },
+                    1 => StmtInner::WeakAssignment {
+                        dst: next(&mut seq)?,
+                        src: next(&mut seq)?,
+                    },
+                    2 => StmtInner::Label {
+                        name: next(&mut seq)?,
+                    },
+                    3 => StmtInner::Store {
+                        addr: next(&mut seq)?,
+                        data: next(&mut seq)?,
+                        size: next(&mut seq)?,
+                        endness: next(&mut seq)?,
+                        guard: next(&mut seq)?,
+                    },
+                    4 => StmtInner::Jump {
+                        target: next(&mut seq)?,
+                        target_idx: next(&mut seq)?,
+                    },
+                    5 => StmtInner::ConditionalJump {
+                        condition: next(&mut seq)?,
+                        true_target: next(&mut seq)?,
+                        false_target: next(&mut seq)?,
+                        true_target_idx: next(&mut seq)?,
+                        false_target_idx: next(&mut seq)?,
+                    },
+                    6 => StmtInner::SideEffectStatement {
+                        expr: next(&mut seq)?,
+                        ret_expr: next(&mut seq)?,
+                        fp_ret_expr: next(&mut seq)?,
+                    },
+                    7 => StmtInner::Return {
+                        ret_exprs: next(&mut seq)?,
+                    },
+                    8 => StmtInner::CAS {
+                        addr: next(&mut seq)?,
+                        data_lo: next(&mut seq)?,
+                        data_hi: next(&mut seq)?,
+                        expd_lo: next(&mut seq)?,
+                        expd_hi: next(&mut seq)?,
+                        old_lo: next(&mut seq)?,
+                        old_hi: next(&mut seq)?,
+                        endness: next(&mut seq)?,
+                    },
+                    9 => StmtInner::DirtyStatement {
+                        dirty: next(&mut seq)?,
+                    },
+                    // NoOp is handled as a unit variant in
+                    // ``visit_enum``; other tags were validated there.
+                    _ => unreachable!(),
+                })
+            }
+        }
+
+        d.deserialize_enum("StmtInner", STMT_VARIANTS, InnerVisitor)
+    }
+}

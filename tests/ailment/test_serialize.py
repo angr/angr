@@ -549,9 +549,10 @@ def test_statement_to_from_bytes():
 def test_version_byte_prefix():
     c = Const(1, 42, 32)
     data = a.dumps(c)
-    # FORMAT_VERSION 0x02: the universal ``Expression`` / ``Statement``
-    # pyclasses replaced the per-class AilNode payloads of format 0x01.
-    assert data[0] == 0x02  # FORMAT_VERSION
+    # FORMAT_VERSION 0x03: hand-written serde impls on ``AilExpression`` /
+    # ``AilStatement`` replaced the ``Wire`` / ``StmtWire`` mirror enums
+    # (and their ``PolyValue`` projections) of format 0x02.
+    assert data[0] == 0x03  # FORMAT_VERSION
 
 
 def test_loads_empty_input_raises():
