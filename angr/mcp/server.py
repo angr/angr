@@ -684,3 +684,45 @@ def close_project(project_id: str) -> dict[str, Any]:
 def create_server() -> FastMCP:
     """Create and return the configured MCP server instance."""
     return mcp
+
+
+# ============================================================================
+# Server Entry Point
+# ============================================================================
+
+
+def main():
+    """Main entry point for the MCP server."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="angr MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse", "http"],
+        default="stdio",
+        help="Transport type (default: stdio)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind to (for SSE/HTTP transport)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to (for SSE/HTTP transport)",
+    )
+
+    args = parser.parse_args()
+
+    if args.transport == "stdio":
+        mcp.run(transport="stdio")
+    elif args.transport == "sse":
+        mcp.run(transport="sse", host=args.host, port=args.port)
+    elif args.transport == "http":
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()
