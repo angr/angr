@@ -1841,12 +1841,12 @@ impl Statement {
     fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let bytes = slf.borrow().to_bytes(py)?;
-        let helper = py
-            .import("angr.ailment._reconstruct")?
-            .getattr("reconstruct_statement")?;
+        let from_bytes = py.get_type::<Statement>().getattr("from_bytes")?;
         let args = pyo3::types::PyTuple::new(py, [bytes.into_any()])?;
-        let tup =
-            pyo3::types::PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
+        let tup = pyo3::types::PyTuple::new(
+            py,
+            [from_bytes.unbind().into_any(), args.into_any().unbind()],
+        )?;
         Ok(tup.into_any().unbind())
     }
 
@@ -1990,8 +1990,11 @@ impl Statement {
         Ok(PyBytes::new(py, &bytes))
     }
 
+    /// Inverse of ``to_bytes`` / [`Self::to_wire_bytes`]. ``pub`` so the
+    /// module deserializer can call it natively (the ``cls`` argument is
+    /// unused; pass the ``Statement`` type object).
     #[classmethod]
-    fn from_bytes<'py>(
+    pub fn from_bytes<'py>(
         _cls: &Bound<'_, pyo3::types::PyType>,
         py: Python<'py>,
         data: &[u8],

@@ -116,25 +116,16 @@ fn pyobj_to_node(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<AilNode> {
 fn node_to_pyobj(py: Python<'_>, node: AilNode) -> PyResult<Py<PyAny>> {
     match node {
         AilNode::Expr(bytes) => {
-            let helper = py
-                .import("angr.ailment._reconstruct")?
-                .getattr("reconstruct_expression")?;
-            Ok(helper.call1((PyBytes::new(py, &bytes),))?.unbind())
+            Ok(Expression::from_bytes(&py.get_type::<Expression>(), py, &bytes)?.into_any())
         }
         AilNode::Stmt(bytes) => {
-            let helper = py
-                .import("angr.ailment._reconstruct")?
-                .getattr("reconstruct_statement")?;
-            Ok(helper.call1((PyBytes::new(py, &bytes),))?.unbind())
+            Ok(Statement::from_bytes(&py.get_type::<Statement>(), py, &bytes)?.into_any())
         }
         AilNode::Block(b) => {
-            let helper = py
-                .import("angr.ailment._reconstruct")?
-                .getattr("reconstruct_statement")?;
+            let stmt_cls = py.get_type::<Statement>();
             let stmts = PyList::empty(py);
             for sb in b.statements {
-                let s = helper.call1((PyBytes::new(py, &sb),))?;
-                stmts.append(s)?;
+                stmts.append(Statement::from_bytes(&stmt_cls, py, &sb)?)?;
             }
             let block_cls = py.import("angr.ailment.block")?.getattr("Block")?;
             let kwargs = PyDict::new(py);

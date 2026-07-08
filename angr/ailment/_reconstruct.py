@@ -1,11 +1,5 @@
-"""Helpers used by the Rust ailment classes' ``__reduce__`` /
-``__deepcopy__`` implementations.
-
-``Expression`` / ``Statement`` round-trip through ``pickle`` by
-serializing to bytes (``to_bytes``) and reducing to
-``(reconstruct_expression | reconstruct_statement, (data,))``, which
-restores them via the matching ``from_bytes`` classmethod. ``Block``
-reduces to ``(cls, args)`` directly.
+"""Helpers used by the Rust ailment classes' ``__deepcopy__``
+implementations.
 
 ``copy.deepcopy`` on an AIL tree is satisfied by routing every class
 through its existing ``deep_copy(manager)`` method, with a private
@@ -40,25 +34,6 @@ def deepcopy_via_deep_copy(self, memo):
     return self.deep_copy(manager)
 
 
-def reconstruct_expression(data: bytes):
-    """Reconstruct an ``Expression`` from its ``to_bytes`` output.
-
-    Used by ``Expression.__reduce__`` to satisfy pickle.
-    """
-    from angr.rustylib.ailment import Expression  # pylint:disable=import-error,import-outside-toplevel
-
-    return Expression.from_bytes(data)
-
-
-def reconstruct_statement(data: bytes):
-    """Reconstruct a ``Statement`` from its ``to_bytes`` output."""
-    from angr.rustylib.ailment import Statement  # pylint:disable=import-error,import-outside-toplevel
-
-    return Statement.from_bytes(data)
-
-
 __all__ = [
     "deepcopy_via_deep_copy",
-    "reconstruct_expression",
-    "reconstruct_statement",
 ]

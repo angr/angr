@@ -5031,11 +5031,12 @@ impl Expression {
     fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let bytes = slf.borrow().to_bytes(py)?;
-        let helper = py
-            .import("angr.ailment._reconstruct")?
-            .getattr("reconstruct_expression")?;
+        let from_bytes = py.get_type::<Expression>().getattr("from_bytes")?;
         let args = PyTuple::new(py, [bytes.into_any()])?;
-        let tup = PyTuple::new(py, [helper.unbind().into_any(), args.into_any().unbind()])?;
+        let tup = PyTuple::new(
+            py,
+            [from_bytes.unbind().into_any(), args.into_any().unbind()],
+        )?;
         Ok(tup.into_any().unbind())
     }
 
@@ -5359,8 +5360,11 @@ impl Expression {
         Ok(PyBytes::new(py, &bytes))
     }
 
+    /// Inverse of ``to_bytes`` / [`Self::to_wire_bytes`]. ``pub`` so the
+    /// module deserializer can call it natively (the ``cls`` argument is
+    /// unused; pass the ``Expression`` type object).
     #[classmethod]
-    fn from_bytes<'py>(
+    pub fn from_bytes<'py>(
         _cls: &Bound<'_, pyo3::types::PyType>,
         py: Python<'py>,
         data: &[u8],
