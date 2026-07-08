@@ -12,15 +12,15 @@ use pyo3::exceptions::PyValueError;
 use pyo3::types::PyTuple;
 use pyo3::types::{PyDict, PyWeakrefMethods, PyWeakrefReference};
 
-use crate::ast::{and, not, or, xor};
-use crate::prelude::*;
+use crate::claripy::ast::{and, not, or, xor};
+use crate::claripy::prelude::*;
 
 use super::r#if;
 
 static BOOLS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PY_BOOL_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> = LazyLock::new(DashMap::new);
 
-#[pyclass(extends=Base, subclass, frozen, weakref, module="claripy.ast.bool")]
+#[pyclass(extends=Base, subclass, frozen, weakref, module="angr.rustylib.claripy.ast.bool")]
 pub struct Bool {
     pub(crate) inner: AstRef<'static>,
 }
