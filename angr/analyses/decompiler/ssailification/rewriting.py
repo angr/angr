@@ -243,6 +243,8 @@ class RewritingAnalysis:
         func_args_map = {}
         # maps the varid of each constituent register vvar of a combo-register argument to the argument vvar itself
         combo_reg_vvar_to_arg = {}
+        # maps the varid of each non-combo argument vvar to its own starting offset
+        arg_offset_by_varid: dict[int, int] = {}
         # we may identify args that are not identified by Traversal. make sure these still get used
         unused_func_args = set(self._func_args)
         for arg_vvar in self._func_args:
@@ -271,8 +273,19 @@ class RewritingAnalysis:
                 )
             )
             assert offset is not None
+            arg_offset_by_varid[arg_vvar.varid] = offset
             for suboffset in range(offset, offset + arg_vvar.size):
                 func_args_map[(arg_vvar.parameter_category, suboffset)] = arg_vvar
+
+        # bytes of each (non-combo) argument that extern defs read; when the extern defs jointly read the entire
+        # argument (e.g., a wide stack argument slot accessed as two narrower slices), the argument must stay
+        # full-width, and the narrower reads extract from it
+        arg_extern_coverage: dict[int, set[int]] = {}
+        for kind, offset, size in self._extern_defs:
+            category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
+            arg_vvar = func_args_map.get((category, offset))
+            if arg_vvar is not None and arg_vvar.varid not in combo_reg_vvar_to_arg:
+                arg_extern_coverage.setdefault(arg_vvar.varid, set()).update(range(offset, offset + size))
 
         state = RewritingState(
             AILCodeLocation(node.addr, node.idx, 0, node.addr),
@@ -283,15 +296,22 @@ class RewritingAnalysis:
         more_args: list[VirtualVariable] = []
         for kind, offset, size in sorted(self._extern_defs):
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
+            vvar = None
             if (arg_vvar := func_args_map.get((category, offset))) is not None:
                 unused_func_args.discard(combo_reg_vvar_to_arg.get(arg_vvar.varid, arg_vvar))
                 if arg_vvar.varid in combo_reg_vvar_to_arg or arg_vvar.size == size:
                     # never resize constituent register vvars of combo-register arguments; they stay full-width, and
                     # narrower uses are handled by extraction
                     vvar = arg_vvar
-                elif arg_vvar in self.resized_func_args:
-                    vvar = self.resized_func_args[arg_vvar]
-                else:
+                elif (
+                    (arg_offset := arg_offset_by_varid[arg_vvar.varid]) <= offset
+                    and offset + size <= arg_offset + arg_vvar.size
+                    and arg_extern_coverage[arg_vvar.varid] >= set(range(arg_offset, arg_offset + arg_vvar.size))
+                ):
+                    # the argument contains this def, and the entirety of the argument is read, just in multiple
+                    # slices; keep the argument full-width and let the narrower reads extract from it
+                    vvar = arg_vvar
+                elif (resized := self.resized_func_args.get(arg_vvar)) is None:
                     # rewriting the size the arg
                     vvar = VirtualVariable(
                         arg_vvar.idx,
@@ -302,7 +322,19 @@ class RewritingAnalysis:
                         **arg_vvar.tags,
                     )
                     self.resized_func_args[arg_vvar] = vvar
-            else:
+                else:
+                    resized_offset = (
+                        resized.parameter_reg_offset
+                        if category == VirtualVariableCategory.REGISTER
+                        else resized.parameter_stack_offset
+                    )
+                    if resized_offset == offset and resized.size == size:
+                        vvar = resized
+                    # otherwise, the argument has already been resized for a different sub-range of the same
+                    # argument (e.g., a wide stack argument slot that the function accesses as two narrower
+                    # slices). reusing the resized vvar would seed the resized sub-range again and leave this
+                    # def's bytes out of the initial state, so this slice gets its own extern vvar below.
+            if vvar is None:
                 varid = self._engine_ail._current_vvar_id
                 self._engine_ail._current_vvar_id += 1
                 vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
