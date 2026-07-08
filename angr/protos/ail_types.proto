@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+import "angr/protos/key_defs.proto";
+
+package angr.protos;
+
+// =====================================================================================================================
+// Typed containers for AIL-typed state.
+//
+// AIL leaves (Block / Statement / Expression) are stored as ``bytes`` produced by the native ``to_bytes()`` methods
+// (postcard encoding, implemented in Rust); the messages below only describe the Python container structure around
+// them. There is no generic fallback: packing helpers in ``angr.utils.ail_serialization`` raise on any value shape
+// not covered here, so the schema stays the single source of truth.
+// =====================================================================================================================
+
+// -----------------------------------------------------------------------------------------------------------------
+// networkx.DiGraph[ailment.Block]
+// -----------------------------------------------------------------------------------------------------------------
+
+// Mirror of the "type" edge attribute strings used in function (transition) graphs, from which AIL graph edge data
+// is copied. Only TRANSITION / EXCEPTION / FAKE_RETURN can currently reach an AIL graph (the others never survive
+// ``Function.graph``'s edge filter), but the enum covers the full vocabulary.
+enum AilEdgeType {
+    AIL_EDGE_TYPE_UNSPECIFIED = 0;
+    AIL_EDGE_TRANSITION = 1;
+    AIL_EDGE_EXCEPTION = 2;
+    AIL_EDGE_FAKE_RETURN = 3;
+    AIL_EDGE_CALL = 4;
+    AIL_EDGE_SYSCALL = 5;
+    AIL_EDGE_RETURN = 6;
+}
+
+// One optional field per edge-attribute key observed in AIL graphs. Attributes whose value is None are packed as
+// unset and come back as absent keys. Unknown keys raise at pack time -- extend this message when a new edge
+// attribute is introduced.
+message AilEdgeData {
+    optional AilEdgeType type = 1;
+    optional bool outside = 2;
+    optional uint64 ins_addr = 3;
+    optional sint64 stmt_idx = 4;  // DEFAULT_STATEMENT == -2
+    optional bool confirmed = 5;
+}
+
+message AilEdge {
+    uint32 src = 1;  // index into AilGraph.blocks
+    uint32 dst = 2;
+    optional AilEdgeData data = 3;
+}
+
+message AilGraph {
+    repeated bytes blocks = 1;  // ailment.Block.to_bytes() payloads, in node-insertion order
+    repeated AilEdge edges = 2;
+}
+
+// -----------------------------------------------------------------------------------------------------------------
+// dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]]  (Clinic.arg_vvars, DecompilationCache.arg_vvars)
+// -----------------------------------------------------------------------------------------------------------------
+
+message ArgVVar {
+    bytes vvar = 1;    // ailment.Expr.VirtualVariable via Expression.to_bytes()
+    bytes simvar = 2;  // polymorphic "<ClassName>\0<proto bytes>" SimVariable encoding
+}
+
+message ArgVVars {
+    map<int64, ArgVVar> entries = 1;
+}
+
+// -----------------------------------------------------------------------------------------------------------------
+// set[ailment.Expr.VirtualVariable]  (SRDAModel.func_args)
+// -----------------------------------------------------------------------------------------------------------------
+
+message VVarSet {
+    repeated bytes vvars = 1;  // Expression.to_bytes() payloads
+}
+
+// -----------------------------------------------------------------------------------------------------------------
+// list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]  (Clinic._type_hints)
+// -----------------------------------------------------------------------------------------------------------------
+
+message TypeHint {
+    Atom atom = 1;
+    string hint = 2;
+}
+
+message TypeHints {
+    repeated TypeHint hints = 1;
+}
+
+// -----------------------------------------------------------------------------------------------------------------
+// set[tuple[int, ailment.Expr.Expression]]  (DecompilationCache.ite_exprs)
+// -----------------------------------------------------------------------------------------------------------------
+
+message IteExpr {
+    int64 addr = 1;
+    bytes expr = 2;  // Expression.to_bytes()
+}
+
+message IteExprs {
+    repeated IteExpr entries = 1;
+}
+
+// -----------------------------------------------------------------------------------------------------------------
+// Static buffer parameters (optimization_passes.static_vvar_rewriter)
+// -----------------------------------------------------------------------------------------------------------------
+
+message FixedBufferMsg {
+    string ident = 1;
+    int64 size = 2;
+    bytes content = 3;
+}
+
+message FixedBufferPtrMsg {
+    string buffer_ident = 1;
+    int64 offset = 2;
+}
+
+// dict[int, FixedBufferPtr | ailment.Expr.Const]  (decompilation parameter "static_vvars")
+message StaticVVar {
+    oneof v {
+        FixedBufferPtrMsg ptr = 1;
+        bytes const_expr = 2;  // Expression.to_bytes()
+    }
+}
+
+message StaticVVars {
+    map<int64, StaticVVar> entries = 1;
+}
+
+// dict[str, FixedBuffer]  (decompilation parameter "static_buffers")
+message StaticBuffers {
+    map<string, FixedBufferMsg> entries = 1;
+}

@@ -1,67 +1,19 @@
 syntax = "proto3";
 
-import "angr/protos/ailment_blob.proto";
-import "angr/protos/key_defs.proto";
+import "angr/protos/ail_types.proto";
 
 package angr.protos;
 
-// SRDAModel.all_tmp_definitions inner row: a Tmp definition under one block-address key.
-message TmpDefEntry {
-    TmpAtom tmp = 1;
-    int32 stmt_idx = 2;
-}
-
-// SRDAModel.all_tmp_definitions outer row: all TmpDefEntries under one (block_addr, block_idx) key.
-// ailment.Address = tuple[int, int | None].
-message BlockTmpDefs {
-    int64 block_addr = 1;
-    optional int32 block_idx = 2;
-    repeated TmpDefEntry defs = 3;
-}
-
-// SRDAModel.all_vvar_definitions row: vvar id -> definition location.
-message VVarDefEntry {
-    uint32 varid = 1;
-    AILCodeLocation codeloc = 2;
-}
-
-// SRDAModel.phivarid_to_varids row.
-message PhiEntry {
-    uint32 phi_varid = 1;
-    repeated uint32 source_varids = 2;
-}
-
-// SRDAModel.phivarid_to_varids_with_unknown row. ``set[int | None]`` is split into the int sources plus a boolean
-// flag indicating whether None is present in the set.
-message PhiUnknownEntry {
-    uint32 phi_varid = 1;
-    repeated uint32 source_varids = 2;
-    bool has_unknown = 3;
-}
-
-// SRDAModel.vvar_uses_by_loc row.
-message UseByLocEntry {
-    AILCodeLocation loc = 1;
-    repeated uint32 varids = 2;
-}
-
+// Only the scan inputs are serialized. Everything else on SRDAModel (varid_to_vvar, all_vvar_definitions,
+// all_vvar_uses, all_tmp_definitions, all_tmp_uses, phi_vvar_ids, phivarid_to_varids{,_with_unknown},
+// vvar_uses_by_loc) is derived by a linear scan over the AIL graph and is reconstructed at parse time via
+// ``angr.analyses.s_reaching_definitions.populate_model``.
 message SRDAModel {
     // arch is reattached from the parent Project at parse time; the name is stored as a hint so callers can detect
     // a mismatch when reconstructing.
     optional string arch_name = 1;
 
-    // Ailment-typed slots: pickled as AilmentBlob during the bridging period.
-    optional AilmentBlob func_graph = 2;        // networkx.DiGraph[ailment.Block]
-    optional AilmentBlob func_args = 3;         // set[ailment.VirtualVariable] | None
-    optional AilmentBlob varid_to_vvar = 4;     // dict[int, ailment.VirtualVariable]
-    optional AilmentBlob all_vvar_uses = 5;     // dict[int, list[tuple[ailment.VirtualVariable | None, AILCodeLocation]]]
-    optional AilmentBlob all_tmp_uses = 6;      // dict[Address, dict[atoms.Tmp, set[tuple[ailment.Tmp, int]]]]
-
-    // CLEAN fields.
-    repeated VVarDefEntry all_vvar_definitions = 7;
-    repeated BlockTmpDefs all_tmp_definitions = 8;
-    repeated uint32 phi_vvar_ids = 9;
-    repeated PhiUnknownEntry phivarid_to_varids_with_unknown = 10;
-    repeated PhiEntry phivarid_to_varids = 11;
-    repeated UseByLocEntry vvar_uses_by_loc = 12;
+    optional AilGraph func_graph = 2;  // networkx.DiGraph[ailment.Block]
+    optional VVarSet func_args = 3;    // set[ailment.VirtualVariable] | None
+    bool track_tmps = 4;               // whether the tmp-tracking scan populated the tmp dicts
 }

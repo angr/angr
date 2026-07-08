@@ -10,7 +10,7 @@ from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import Definition, atoms
 from angr.protos import srda_model_pb2
 from angr.serializable import Serializable
-from angr.utils.ailment_blob import pack as ailment_blob_pack, unpack as ailment_blob_unpack
+from angr.utils.ail_serialization import pack_graph, pack_vvar_set, parse_graph, parse_vvar_set
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
@@ -283,8 +283,10 @@ class SRDAModel(Serializable):
             return self.get_vvar_uses(def_.atom)
         return set()
 
-    # Ailment-typed slots (func_graph, func_args, varid_to_vvar, all_vvar_uses, all_tmp_uses) are pickled into an
-    # AilmentBlob during the bridging period; arch is reattached from the parent Project at parse time.
+    # Only the scan inputs (func_graph, func_args) are serialized; every derived field (varid_to_vvar,
+    # all_vvar_definitions, all_vvar_uses, all_tmp_definitions, all_tmp_uses, phi bookkeeping, vvar_uses_by_loc) is
+    # reconstructed at parse time by re-running the linear scan (``populate_model``) over the deserialized graph.
+    # arch is reattached from the parent Project at parse time.
 
     @classmethod
     def _get_cmsg(cls):
@@ -295,84 +297,24 @@ class SRDAModel(Serializable):
         if self.arch is not None:
             msg.arch_name = self.arch.name
 
-        msg.func_graph.CopyFrom(ailment_blob_pack(self.func_graph))
-        msg.func_args.CopyFrom(ailment_blob_pack(self.func_args))
-        msg.varid_to_vvar.CopyFrom(ailment_blob_pack(self.varid_to_vvar))
-        msg.all_vvar_uses.CopyFrom(ailment_blob_pack(dict(self.all_vvar_uses)))
-        msg.all_tmp_uses.CopyFrom(ailment_blob_pack(dict(self.all_tmp_uses)))
-
-        for varid, codeloc in self.all_vvar_definitions.items():
-            entry = msg.all_vvar_definitions.add()
-            entry.varid = varid
-            entry.codeloc.CopyFrom(codeloc.serialize_to_cmessage())
-
-        for block_loc, tmp_defs in self.all_tmp_definitions.items():
-            row = msg.all_tmp_definitions.add()
-            row.block_addr = block_loc[0]
-            if block_loc[1] is not None:
-                row.block_idx = block_loc[1]
-            for tmp_atom, stmt_idx in tmp_defs.items():
-                def_entry = row.defs.add()
-                def_entry.tmp.CopyFrom(tmp_atom._serialize_inner())
-                def_entry.stmt_idx = stmt_idx
-
-        msg.phi_vvar_ids.extend(sorted(self.phi_vvar_ids))
-
-        for phi_varid, sources in self.phivarid_to_varids_with_unknown.items():
-            entry = msg.phivarid_to_varids_with_unknown.add()
-            entry.phi_varid = phi_varid
-            entry.has_unknown = None in sources
-            entry.source_varids.extend(sorted(s for s in sources if s is not None))
-
-        for phi_varid, sources in self.phivarid_to_varids.items():
-            entry = msg.phivarid_to_varids.add()
-            entry.phi_varid = phi_varid
-            entry.source_varids.extend(sorted(sources))
-
-        for loc, varids in self.vvar_uses_by_loc.items():
-            entry = msg.vvar_uses_by_loc.add()
-            entry.loc.CopyFrom(loc.serialize_to_cmessage())
-            entry.varids.extend(varids)
+        if self.func_graph is not None:
+            msg.func_graph.CopyFrom(pack_graph(self.func_graph))
+        if self.func_args is not None:
+            msg.func_args.CopyFrom(pack_vvar_set(self.func_args))
+        msg.track_tmps = bool(self.all_tmp_definitions) or bool(self.all_tmp_uses)
 
         return msg
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, *, arch=None, **kwargs):  # pylint:disable=arguments-differ
-        func_graph = ailment_blob_unpack(cmsg.func_graph) if cmsg.HasField("func_graph") else None
-        func_args = ailment_blob_unpack(cmsg.func_args) if cmsg.HasField("func_args") else None
+        from .s_reaching_definitions import populate_model
+
+        func_graph = parse_graph(cmsg.func_graph) if cmsg.HasField("func_graph") else None
+        func_args = parse_vvar_set(cmsg.func_args) if cmsg.HasField("func_args") else None
         model = cls(func_graph, func_args, arch)
 
-        if cmsg.HasField("varid_to_vvar"):
-            model.varid_to_vvar = ailment_blob_unpack(cmsg.varid_to_vvar)
-        if cmsg.HasField("all_vvar_uses"):
-            unpacked = ailment_blob_unpack(cmsg.all_vvar_uses)
-            model.all_vvar_uses = defaultdict(list, unpacked)
-        if cmsg.HasField("all_tmp_uses"):
-            unpacked = ailment_blob_unpack(cmsg.all_tmp_uses)
-            model.all_tmp_uses = defaultdict(dict, unpacked)
-
-        model.all_vvar_definitions = {
-            entry.varid: AILCodeLocation.parse_from_cmessage(entry.codeloc) for entry in cmsg.all_vvar_definitions
-        }
-
-        all_tmp_definitions: dict[Address, dict[atoms.Tmp, int]] = defaultdict(dict)
-        for row in cmsg.all_tmp_definitions:
-            block_idx = row.block_idx if row.HasField("block_idx") else None
-            block_loc: Address = (row.block_addr, block_idx)
-            for def_entry in row.defs:
-                tmp_atom = atoms.Tmp._parse_from_inner(def_entry.tmp)
-                all_tmp_definitions[block_loc][tmp_atom] = def_entry.stmt_idx
-        model.all_tmp_definitions = all_tmp_definitions
-
-        model.phi_vvar_ids = set(cmsg.phi_vvar_ids)
-
-        model.phivarid_to_varids_with_unknown = {
-            entry.phi_varid: ({*entry.source_varids} | ({None} if entry.has_unknown else set()))
-            for entry in cmsg.phivarid_to_varids_with_unknown
-        }
-        model.phivarid_to_varids = {entry.phi_varid: set(entry.source_varids) for entry in cmsg.phivarid_to_varids}
-        model.vvar_uses_by_loc = {
-            AILCodeLocation.parse_from_cmessage(entry.loc): list(entry.varids) for entry in cmsg.vvar_uses_by_loc
-        }
+        if func_graph is not None:
+            blocks = {(block.addr, block.idx): block for block in func_graph}
+            populate_model(model, blocks, func_args, fix_undefined_vvars=True, track_tmps=cmsg.track_tmps)
 
         return model

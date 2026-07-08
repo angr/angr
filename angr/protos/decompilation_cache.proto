@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "angr/protos/ailment_blob.proto";
+import "angr/protos/ail_types.proto";
 
 package angr.protos;
 
@@ -78,9 +78,9 @@ message DecompilationParameters {
     repeated BinopOperatorEntry binop_operators = 16;
     bool _binop_operators_set = 17;
 
-    optional AilmentBlob ite_exprs = 18;      // set[tuple[int, ailment.Expression]] | None
-    optional AilmentBlob static_vvars = 19;
-    optional AilmentBlob static_buffers = 20;
+    optional IteExprs ite_exprs = 18;         // set[tuple[int, ailment.Expression]] | None
+    optional StaticVVars static_vvars = 19;
+    optional StaticBuffers static_buffers = 20;
 }
 
 // =====================================================================================================================
@@ -100,8 +100,8 @@ message DecompilationCache {
     // Top-level cache state.
     repeated string errors = 4;
     optional string function_summary = 5;
-    optional AilmentBlob arg_vvars = 6;       // dict[int, (VirtualVariable, SimVariable)]
-    optional AilmentBlob ite_exprs = 7;       // set[tuple[int, ailment.Expression]]
+    optional ArgVVars arg_vvars = 6;          // dict[int, (VirtualVariable, SimVariable)]
+    optional IteExprs ite_exprs = 7;          // set[tuple[int, ailment.Expression]]
     repeated BinopOperatorEntry binop_operators = 8;
     bool _binop_operators_set = 9;
     repeated StackvarMaxSizeEntry stackvar_max_sizes = 10;

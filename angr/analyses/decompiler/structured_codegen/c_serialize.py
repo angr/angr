@@ -12,14 +12,14 @@ stay focused on rendering logic and a future audit of the serialization can look
 """
 
 from __future__ import annotations
+
 import json
-from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from angr.protos import codegen_pb2
 from angr.sim_type import SimType
 from angr.sim_variable import SimVariable
-from angr.utils.ailment_blob import pack as ailment_blob_pack, unpack as ailment_blob_unpack
 
 if TYPE_CHECKING:
     from .c import CConstruct
@@ -407,6 +407,7 @@ def _rebuild_ast_to_pos(pos_to_node):
     """Mirror of the logic in :meth:`CStructuredCodeGenerator.render_text` that builds ``map_ast_to_pos`` from
     ``pos_to_node``. Used after parse to restore the cross-reference map without serializing the heterogeneous keys."""
     from collections import defaultdict
+
     from .c import CConstant, CFunctionCall, CStructField, CVariable
 
     ast_to_pos = defaultdict(set)
@@ -1094,35 +1095,38 @@ def register_all() -> None:
     _register(cmod.CFunction, codegen_pb2.CCK_FUNCTION, _ser_cfunction, _parse_cfunction)
 
     # -----------------------------------------------------------------------------------------------------------------
-    # Ailment-coupled subclasses (use AilmentBlob).
+    # Ailment-coupled subclasses (native AIL to_bytes payloads).
     # -----------------------------------------------------------------------------------------------------------------
+    from angr.rustylib.ailment import Block as AilBlock
+    from angr.rustylib.ailment import Expression as AilExpression
+    from angr.rustylib.ailment import Statement as AilStatement
 
     def _ser_cailblock(node, pb, ctx):
-        pb.cailblock.block.CopyFrom(ailment_blob_pack(node.block))
+        pb.cailblock.block = node.block.to_bytes()
 
     def _parse_cailblock(pb, ctx):
         obj = cmod.CAILBlock.__new__(cmod.CAILBlock)
-        obj.block = ailment_blob_unpack(pb.cailblock.block)
+        obj.block = AilBlock.from_bytes(pb.cailblock.block)
         return obj
 
     _register(cmod.CAILBlock, codegen_pb2.CCK_AIL_BLOCK, _ser_cailblock, _parse_cailblock)
 
     def _ser_cunsupported(node, pb, ctx):
-        pb.cunsupported.stmt.CopyFrom(ailment_blob_pack(node.stmt))
+        pb.cunsupported.stmt = node.stmt.to_bytes()
 
     def _parse_cunsupported(pb, ctx):
         obj = cmod.CUnsupportedStatement.__new__(cmod.CUnsupportedStatement)
-        obj.stmt = ailment_blob_unpack(pb.cunsupported.stmt)
+        obj.stmt = AilStatement.from_bytes(pb.cunsupported.stmt)
         return obj
 
     _register(cmod.CUnsupportedStatement, codegen_pb2.CCK_UNSUPPORTED_STATEMENT, _ser_cunsupported, _parse_cunsupported)
 
     def _ser_cdirtyexpr(node, pb, ctx):
-        pb.cdirty_expr.dirty.CopyFrom(ailment_blob_pack(node.dirty))
+        pb.cdirty_expr.dirty = node.dirty.to_bytes()
 
     def _parse_cdirtyexpr(pb, ctx):
         obj = cmod.CDirtyExpression.__new__(cmod.CDirtyExpression)
-        obj.dirty = ailment_blob_unpack(pb.cdirty_expr.dirty)
+        obj.dirty = AilExpression.from_bytes(pb.cdirty_expr.dirty)
         return obj
 
     _register(cmod.CDirtyExpression, codegen_pb2.CCK_DIRTY_EXPRESSION, _ser_cdirtyexpr, _parse_cdirtyexpr)

@@ -4,9 +4,10 @@ Protobuf serialization helpers for :class:`Clinic`.
 Clinic state splits into three buckets:
 - **CLEAN**: primitives, sets / lists of ints, dicts of primitives, already-Serializable types (SimVariable variants,
   SRDAModel). Round-tripped natively in :mod:`angr.protos.clinic_pb2`.
-- **AIL-typed**: networkx graphs of ailment Blocks, dicts holding ailment.VirtualVariable, etc. Pickled into an
-  :class:`AilmentBlob` during the bridging period; will switch to a serde encoding once the ailment Rust port lands.
-- **Runtime back-references**: project / kb / function / variable_kb / _cfg / _handlers / _cache / typehoon / _spt.
+- **AIL-typed**: networkx graphs of ailment Blocks, dicts holding ailment.VirtualVariable, etc. Encoded with the
+  typed messages from :mod:`angr.protos.ail_types_pb2` via :mod:`angr.utils.ail_serialization`; AIL leaves are the
+  native ``to_bytes()`` payloads.
+- **Runtime back-references**: project / kb / function / variable_kb / _cfg / _cache / typehoon / _spt.
   Not serialized; reattached at parse time from the caller's kwargs.
 
 ``parse_clinic`` uses ``__new__`` to bypass :meth:`Clinic.__init__` because the original constructor runs the full
@@ -14,6 +15,7 @@ decompilation pipeline.
 """
 
 from __future__ import annotations
+
 import json
 from typing import TYPE_CHECKING
 
@@ -21,28 +23,23 @@ from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pa
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.protos import clinic_pb2
-from angr.utils.ailment_blob import pack as ailment_blob_pack, unpack as ailment_blob_unpack
+from angr.utils.ail_serialization import (
+    pack_arg_vvars,
+    pack_graph,
+    pack_type_hints,
+    parse_arg_vvars,
+    parse_graph,
+    parse_type_hints,
+)
+from angr.utils.ail_serialization import (
+    simvar_from_bytes_polymorphic as _simvar_from_bytes_polymorphic,
+)
+from angr.utils.ail_serialization import (
+    simvar_to_bytes_polymorphic as _simvar_to_bytes_polymorphic,
+)
 
 if TYPE_CHECKING:
     from .clinic import Clinic
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------------------------------------------------
-
-
-def _simvar_to_bytes_polymorphic(v) -> bytes:
-    """Mirror of the polymorphic SimVariable encoding used by c_serialize: ``b"<ClassName>\\0<proto bytes>"``."""
-    return type(v).__name__.encode("ascii") + b"\0" + v.serialize()
-
-
-def _simvar_from_bytes_polymorphic(b: bytes):
-    import angr.sim_variable as sv_mod
-
-    sep = b.index(b"\0")
-    cls_name = b[:sep].decode("ascii")
-    return getattr(sv_mod, cls_name).parse(b[sep + 1 :])
 
 
 def _serialize_notes(notes, out_msg) -> None:
@@ -104,17 +101,23 @@ def serialize_clinic(clinic: Clinic) -> clinic_pb2.Clinic:
     if clinic.flavor is not None:
         msg.flavor = clinic.flavor
 
-    # AIL-typed slots → AilmentBlob.
-    msg.graph.CopyFrom(ailment_blob_pack(clinic.graph))
-    msg.cc_graph.CopyFrom(ailment_blob_pack(clinic.cc_graph))
-    msg.unoptimized_graph.CopyFrom(ailment_blob_pack(clinic.unoptimized_graph))
-    msg._ail_graph.CopyFrom(ailment_blob_pack(clinic._ail_graph))
-    msg._init_ail_graph.CopyFrom(ailment_blob_pack(clinic._init_ail_graph))
-    msg._blocks_by_addr_and_size.CopyFrom(ailment_blob_pack(clinic._blocks_by_addr_and_size))
-    msg.arg_vvars.CopyFrom(ailment_blob_pack(clinic.arg_vvars))
-    msg._init_arg_vvars.CopyFrom(ailment_blob_pack(clinic._init_arg_vvars))
-    msg.func_args.CopyFrom(ailment_blob_pack(clinic.func_args))
-    msg._type_hints.CopyFrom(ailment_blob_pack(clinic._type_hints))
+    # AIL-typed slots → typed ail_types messages. _blocks_by_addr_and_size and func_args are reconstructed at parse
+    # time (from _init_ail_graph and arg_vvars respectively) and are not serialized.
+    if clinic.graph is not None:
+        msg.graph.CopyFrom(pack_graph(clinic.graph))
+    if clinic.cc_graph is not None:
+        msg.cc_graph.CopyFrom(pack_graph(clinic.cc_graph))
+    if clinic.unoptimized_graph is not None:
+        msg.unoptimized_graph.CopyFrom(pack_graph(clinic.unoptimized_graph))
+    if clinic._ail_graph is not None:
+        msg._ail_graph.CopyFrom(pack_graph(clinic._ail_graph))
+    if clinic._init_ail_graph is not None:
+        msg._init_ail_graph.CopyFrom(pack_graph(clinic._init_ail_graph))
+    if clinic.arg_vvars is not None:
+        msg.arg_vvars.CopyFrom(pack_arg_vvars(clinic.arg_vvars))
+    if clinic._init_arg_vvars is not None:
+        msg._init_arg_vvars.CopyFrom(pack_arg_vvars(clinic._init_arg_vvars))
+    msg._type_hints.CopyFrom(pack_type_hints(clinic._type_hints))
 
     # Already-Serializable sub-objects.
     if clinic.arg_list is not None:
@@ -238,9 +241,9 @@ def parse_clinic(msg: clinic_pb2.Clinic, *, project=None, kb=None, function=None
     back-references — project / kb / function / variable_kb / _cfg — come from kwargs.
 
     If ``function`` is None and ``kb`` is provided, the function is resolved by address from the cmessage."""
-    from .clinic import Clinic, ClinicMode, ClinicStage
-    from angr.knowledge_plugins.key_definitions import atoms  # noqa: F401  (needed for unpickled _type_hints)
     import importlib
+
+    from .clinic import Clinic, ClinicMode, ClinicStage
 
     clinic = Clinic.__new__(Clinic)
 
@@ -260,18 +263,21 @@ def parse_clinic(msg: clinic_pb2.Clinic, *, project=None, kb=None, function=None
     clinic.optimization_scratch = {}
 
     # AIL-typed slots.
-    clinic.graph = ailment_blob_unpack(msg.graph) if msg.HasField("graph") else None
-    clinic.cc_graph = ailment_blob_unpack(msg.cc_graph) if msg.HasField("cc_graph") else None
-    clinic.unoptimized_graph = ailment_blob_unpack(msg.unoptimized_graph) if msg.HasField("unoptimized_graph") else None
-    clinic._ail_graph = ailment_blob_unpack(msg._ail_graph) if msg.HasField("_ail_graph") else None
-    clinic._init_ail_graph = ailment_blob_unpack(msg._init_ail_graph) if msg.HasField("_init_ail_graph") else None
+    clinic.graph = parse_graph(msg.graph) if msg.HasField("graph") else None
+    clinic.cc_graph = parse_graph(msg.cc_graph) if msg.HasField("cc_graph") else None
+    clinic.unoptimized_graph = parse_graph(msg.unoptimized_graph) if msg.HasField("unoptimized_graph") else None
+    clinic._ail_graph = parse_graph(msg._ail_graph) if msg.HasField("_ail_graph") else None
+    clinic._init_ail_graph = parse_graph(msg._init_ail_graph) if msg.HasField("_init_ail_graph") else None
+    clinic.arg_vvars = parse_arg_vvars(msg.arg_vvars) if msg.HasField("arg_vvars") else None
+    clinic._init_arg_vvars = parse_arg_vvars(msg._init_arg_vvars) if msg.HasField("_init_arg_vvars") else None
+    clinic._type_hints = parse_type_hints(msg._type_hints) if msg.HasField("_type_hints") else []
+
+    # Reconstructed (not serialized) slots: _blocks_by_addr_and_size mirrors the initial machine-block -> AIL-block
+    # conversion keys; func_args is derived from arg_vvars exactly as the decompilation pipeline does.
     clinic._blocks_by_addr_and_size = (
-        ailment_blob_unpack(msg._blocks_by_addr_and_size) if msg.HasField("_blocks_by_addr_and_size") else {}
+        {(b.addr, b.original_size): b for b in clinic._init_ail_graph} if clinic._init_ail_graph is not None else {}
     )
-    clinic.arg_vvars = ailment_blob_unpack(msg.arg_vvars) if msg.HasField("arg_vvars") else None
-    clinic._init_arg_vvars = ailment_blob_unpack(msg._init_arg_vvars) if msg.HasField("_init_arg_vvars") else None
-    clinic.func_args = ailment_blob_unpack(msg.func_args) if msg.HasField("func_args") else None
-    clinic._type_hints = ailment_blob_unpack(msg._type_hints) if msg.HasField("_type_hints") else []
+    clinic.func_args = {arg_vvar for arg_vvar, _ in clinic.arg_vvars.values()} if clinic.arg_vvars is not None else None
 
     # Already-Serializable sub-objects.
     clinic.arg_list = [_simvar_from_bytes_polymorphic(e.payload) for e in msg.arg_list] if msg.arg_list else None

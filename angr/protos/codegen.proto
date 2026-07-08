@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "angr/protos/ailment_blob.proto";
+
 
 package angr.protos;
 
@@ -99,7 +99,7 @@ message CStatementsMsg {
 
 // CAILBlock (ailment-coupled)
 message CAILBlockMsg {
-    AilmentBlob block = 1;                        // ailment.Block via pickle
+    bytes block = 1;                              // ailment.Block.to_bytes()
 }
 
 // CWhileLoop / CDoWhileLoop — same shape.
@@ -187,7 +187,7 @@ message CGotoMsg {
 
 // CUnsupportedStatement (ailment-coupled)
 message CUnsupportedStatementMsg {
-    AilmentBlob stmt = 1;                         // ailment.Stmt.* via pickle
+    bytes stmt = 1;                               // ailment Statement.to_bytes()
 }
 
 // CDirtyStatement (NOT ailment-coupled; wraps a CDirtyExpression)
@@ -315,7 +315,7 @@ message CVEXCCallExpressionMsg {
 
 // CDirtyExpression (ailment-coupled)
 message CDirtyExpressionMsg {
-    AilmentBlob dirty = 1;                        // ailment.Expr.DirtyExpression via pickle
+    bytes dirty = 1;                              // ailment Expression.to_bytes()
 }
 
 // =====================================================================================================================

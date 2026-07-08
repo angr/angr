@@ -7,18 +7,28 @@ beyond what's in ``decompilation_cache.proto``; it just wires up the cmsg ↔ Py
 
 Conventions:
 - Heavy sub-objects (``clinic``, ``codegen``) are embedded as already-serialized bytes (each manages its own format).
-- AIL-typed top-level slots (``arg_vvars``, ``ite_exprs``) go through :class:`AilmentBlob`.
+- AIL-typed top-level slots (``arg_vvars``, ``ite_exprs``) use the typed messages from ``ail_types.proto``.
 - ``cfg`` and ``variable_kb`` are intentionally not serialized — they come from the parent Project.
 - The 4 typehoon-typed slots are skipped entirely (typehoon is out of scope for now).
 """
 
 from __future__ import annotations
+
 import json
 from typing import TYPE_CHECKING
 
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.protos import decompilation_cache_pb2
-from angr.utils.ailment_blob import pack as ailment_blob_pack, unpack as ailment_blob_unpack
+from angr.utils.ail_serialization import (
+    pack_arg_vvars,
+    pack_ite_exprs,
+    pack_static_buffers,
+    pack_static_vvars,
+    parse_arg_vvars,
+    parse_ite_exprs,
+    parse_static_buffers,
+    parse_static_vvars,
+)
 
 if TYPE_CHECKING:
     from .decompilation_cache import DecompilationCache
@@ -103,11 +113,11 @@ def _serialize_parameters(params: dict, out_msg) -> None:
         out_msg._binop_operators_set = True
         _serialize_binop_operators(params["binop_operators"], out_msg.binop_operators)
     if "ite_exprs" in params and params["ite_exprs"] is not None:
-        out_msg.ite_exprs.CopyFrom(ailment_blob_pack(params["ite_exprs"]))
+        out_msg.ite_exprs.CopyFrom(pack_ite_exprs(params["ite_exprs"]))
     if "static_vvars" in params and params["static_vvars"] is not None:
-        out_msg.static_vvars.CopyFrom(ailment_blob_pack(params["static_vvars"]))
+        out_msg.static_vvars.CopyFrom(pack_static_vvars(params["static_vvars"]))
     if "static_buffers" in params and params["static_buffers"] is not None:
-        out_msg.static_buffers.CopyFrom(ailment_blob_pack(params["static_buffers"]))
+        out_msg.static_buffers.CopyFrom(pack_static_buffers(params["static_buffers"]))
 
 
 def _parse_parameters(msg) -> dict:
@@ -136,9 +146,9 @@ def _parse_parameters(msg) -> dict:
         "expr_comments": dict(msg.expr_comments) if msg._expr_comments_set else None,
         "stmt_comments": dict(msg.stmt_comments) if msg._stmt_comments_set else None,
         "binop_operators": _parse_binop_operators(msg.binop_operators) if msg._binop_operators_set else None,
-        "ite_exprs": ailment_blob_unpack(msg.ite_exprs) if msg.HasField("ite_exprs") else None,
-        "static_vvars": ailment_blob_unpack(msg.static_vvars) if msg.HasField("static_vvars") else None,
-        "static_buffers": ailment_blob_unpack(msg.static_buffers) if msg.HasField("static_buffers") else None,
+        "ite_exprs": parse_ite_exprs(msg.ite_exprs) if msg.HasField("ite_exprs") else None,
+        "static_vvars": parse_static_vvars(msg.static_vvars) if msg.HasField("static_vvars") else None,
+        "static_buffers": parse_static_buffers(msg.static_buffers) if msg.HasField("static_buffers") else None,
     }
 
 
@@ -159,9 +169,9 @@ def serialize_cache(cache: DecompilationCache) -> decompilation_cache_pb2.Decomp
     if cache.function_summary is not None:
         msg.function_summary = cache.function_summary
     if cache.arg_vvars is not None:
-        msg.arg_vvars.CopyFrom(ailment_blob_pack(cache.arg_vvars))
+        msg.arg_vvars.CopyFrom(pack_arg_vvars(cache.arg_vvars))
     if cache.ite_exprs is not None:
-        msg.ite_exprs.CopyFrom(ailment_blob_pack(cache.ite_exprs))
+        msg.ite_exprs.CopyFrom(pack_ite_exprs(cache.ite_exprs))
     if cache.binop_operators is not None:
         msg._binop_operators_set = True
         _serialize_binop_operators(cache.binop_operators, msg.binop_operators)
@@ -219,8 +229,8 @@ def parse_cache(
     cache.errors = list(cmsg.errors)
     if cmsg.HasField("function_summary"):
         cache.function_summary = cmsg.function_summary
-    cache.arg_vvars = ailment_blob_unpack(cmsg.arg_vvars) if cmsg.HasField("arg_vvars") else None
-    cache.ite_exprs = ailment_blob_unpack(cmsg.ite_exprs) if cmsg.HasField("ite_exprs") else None
+    cache.arg_vvars = parse_arg_vvars(cmsg.arg_vvars) if cmsg.HasField("arg_vvars") else None
+    cache.ite_exprs = parse_ite_exprs(cmsg.ite_exprs) if cmsg.HasField("ite_exprs") else None
     cache.binop_operators = _parse_binop_operators(cmsg.binop_operators) if cmsg._binop_operators_set else None
     if cmsg._stackvar_max_sizes_set:
         cache.stackvar_max_sizes = {_simvar_from_bytes(e.simvar): e.max_size for e in cmsg.stackvar_max_sizes}

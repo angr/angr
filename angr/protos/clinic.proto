@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "angr/protos/ailment_blob.proto";
+import "angr/protos/ail_types.proto";
 
 package angr.protos;
 
@@ -81,17 +81,18 @@ message Clinic {
     optional uint64 function_addr = 1;
     optional string flavor = 2;
 
-    // ---- AIL-typed slots (AilmentBlob pickle bridge) -----------------------------------------------------------------
-    optional AilmentBlob graph = 10;                  // networkx.DiGraph[ailment.Block]
-    optional AilmentBlob cc_graph = 11;
-    optional AilmentBlob unoptimized_graph = 12;
-    optional AilmentBlob _ail_graph = 13;
-    optional AilmentBlob _init_ail_graph = 14;
-    optional AilmentBlob _blocks_by_addr_and_size = 15;  // dict[(addr,size), ailment.Block]
-    optional AilmentBlob arg_vvars = 16;              // dict[int, tuple[VirtualVariable, SimVariable]]
-    optional AilmentBlob _init_arg_vvars = 17;
-    optional AilmentBlob func_args = 18;              // set[VirtualVariable] | None
-    optional AilmentBlob _type_hints = 19;            // list[tuple[VirtualVariable | MemoryLocation, str]]
+    // ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
+    // Two former slots are reconstructed at parse time instead of being serialized:
+    //   - _blocks_by_addr_and_size is rebuilt from _init_ail_graph as {(b.addr, b.original_size): b};
+    //   - func_args is recomputed from arg_vvars as {vvar for vvar, _ in arg_vvars.values()}.
+    optional AilGraph graph = 10;                     // networkx.DiGraph[ailment.Block]
+    optional AilGraph cc_graph = 11;
+    optional AilGraph unoptimized_graph = 12;
+    optional AilGraph _ail_graph = 13;
+    optional AilGraph _init_ail_graph = 14;
+    optional ArgVVars arg_vvars = 16;                 // dict[int, tuple[VirtualVariable, SimVariable]]
+    optional ArgVVars _init_arg_vvars = 17;
+    optional TypeHints _type_hints = 19;              // list[tuple[VirtualVariable | MemoryLocation, str]]
 
     // ---- Already-Serializable sub-objects ---------------------------------------------------------------------------
     // arg_list: list[SimVariable] | None
