@@ -190,24 +190,24 @@ async def solve_ctf_challenge(binary_path):
     # 1. 加载二进制
     binary = await load_binary(binary_path=binary_path)
     print(f"Architecture: {binary['architecture']}")
-    
+
     # 2. 查找关键字符串
     strings = await find_strings(min_length=4)
     for s in strings["strings"]:
         if "flag" in s["value"].lower() or "win" in s["value"].lower():
             print(f"Found: {s['value']} @ {hex(s['address'])}")
-    
+
     # 3. 列出函数
     functions = await get_functions()
     main_func = next(f for f in functions["functions"] if f["name"] == "main")
-    
+
     # 4. 符号执行找到获胜路径
     result = await symbolic_execution(
         start_address=main_func["address"],
         find_address=0x401200,  # "You win!" 地址
         avoid_address=0x401300  # "You lose!" 地址
     )
-    
+
     # 5. 求解输入约束
     if result["status"] == "success":
         solution = await solve_constraint(
@@ -223,10 +223,10 @@ async def solve_ctf_challenge(binary_path):
 async def find_vulnerability_path(binary_path, vuln_address):
     # 1. 加载二进制
     await load_binary(binary_path=binary_path)
-    
+
     # 2. 获取所有函数
     functions = await get_functions()
-    
+
     # 3. 对每个函数进行符号执行
     for func in functions["functions"]:
         result = await symbolic_execution(
@@ -234,18 +234,18 @@ async def find_vulnerability_path(binary_path, vuln_address):
             find_address=vuln_address,
             max_depth=10
         )
-        
+
         if result["status"] == "success":
             print(f"Found path from {func['name']} to vulnerability")
             print(f"Constraints: {result['constraints']}")
-            
+
             # 求解输入
             solution = await solve_constraint(
                 constraint=result["constraints"],
                 variables=["input"]
             )
             return solution["solutions"]
-    
+
     return None
 ```
 
@@ -257,21 +257,21 @@ async def combined_analysis(binary_path):
     ghidra_result = await ghidra_client.call_tool(
         "get_functions", {}
     )
-    
+
     # 2. 识别可疑函数
-    suspicious = [f for f in ghidra_result["functions"] 
+    suspicious = [f for f in ghidra_result["functions"]
                  if any(kw in f["name"].lower() for kw in ["vuln", "check", "verify"])]
-    
+
     # 3. 使用 angr 进行符号执行
     await load_binary(binary_path=binary_path)
-    
+
     for func in suspicious:
         # 探索从函数入口到关键代码的路径
         paths = await explore_paths(
             start_address=func["address"],
             max_paths=10
         )
-        
+
         for path in paths["paths"]:
             # 分析每个路径
             disasm = await disassemble(
@@ -293,7 +293,7 @@ async def analyze_with_angr():
         tool_name="load_binary",
         arguments={"binary_path": "/path/to/binary"}
     )
-    
+
     if result["status"] == "success":
         binary = result["data"]
         print(f"Loaded: {binary['architecture']}")
@@ -315,18 +315,18 @@ async def automated_ctf_solver(binary_path, target_address):
     """
     # 加载
     await mcp_client.call_tool("load_binary", {"binary_path": binary_path})
-    
+
     # 查找字符串
     strings = await mcp_client.call_tool("find_strings", {"min_length": 4})
-    interesting = [s for s in strings["data"]["strings"] 
+    interesting = [s for s in strings["data"]["strings"]
                   if "flag" in s["value"].lower()]
-    
+
     # 符号执行
     result = await mcp_client.call_tool("symbolic_execution", {
         "start_address": 0x401000,
         "find_address": target_address
     })
-    
+
     if result["status"] == "success":
         # 求解
         solution = await mcp_client.call_tool("solve_constraint", {
@@ -353,18 +353,18 @@ async def main():
             "binary_path": "challenge"
         })
         print(f"Architecture: {binary['data']['architecture']}")
-        
+
         # 查找字符串
         strings = await client.call_tool("find_strings", {"min_length": 4})
         for s in strings["data"]["strings"][:10]:
             print(f"String: {s['value']}")
-        
+
         # 符号执行
         result = await client.call_tool("symbolic_execution", {
             "start_address": 0x401000,
             "find_address": 0x401200
         })
-        
+
         if result["status"] == "success":
             print(f"Found path with {len(result['data']['path'])} steps")
 

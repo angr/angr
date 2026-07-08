@@ -151,12 +151,12 @@ async def analyze_binary():
             "binary_path": "/path/to/binary"
         })
         print(f"Architecture: {binary['architecture']}")
-        
+
         # 列出函数
         functions = await client.call_tool("get_functions", {})
         for func in functions["functions"]:
             print(f"{func['name']} @ {hex(func['address'])}")
-        
+
         # 符号执行
         result = await client.call_tool("symbolic_execution", {
             "start_address": 0x401000,
