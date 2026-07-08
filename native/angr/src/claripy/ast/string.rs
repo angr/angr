@@ -8,13 +8,13 @@ use std::sync::{
 use dashmap::DashMap;
 use pyo3::types::PyWeakrefReference;
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 static STRINGS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PY_STRING_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> =
     LazyLock::new(DashMap::new);
 
-#[pyclass(name="String", extends=Base, subclass, frozen, module="claripy.ast.strings")]
+#[pyclass(name="String", extends=Base, subclass, frozen, module="angr.rustylib.claripy.ast.strings")]
 pub struct PyAstString {
     pub(crate) inner: AstRef<'static>,
 }

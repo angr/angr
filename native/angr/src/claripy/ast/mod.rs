@@ -10,7 +10,7 @@ pub mod string;
 
 use std::sync::LazyLock;
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 use super::import_submodule;
 
@@ -266,12 +266,18 @@ pub fn r#if<'py>(
 }
 
 pub(crate) fn import(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
-    import_submodule(py, m, "claripy.ast", "base", base::import)?;
-    import_submodule(py, m, "claripy.ast", "bits", bits::import)?;
-    import_submodule(py, m, "claripy.ast", "bool", bool::import)?;
-    import_submodule(py, m, "claripy.ast", "bv", bv::import)?;
-    import_submodule(py, m, "claripy.ast", "fp", fp::import)?;
-    import_submodule(py, m, "claripy.ast", "strings", string::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy.ast", "base", base::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy.ast", "bits", bits::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy.ast", "bool", bool::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy.ast", "bv", bv::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy.ast", "fp", fp::import)?;
+    import_submodule(
+        py,
+        m,
+        "angr.rustylib.claripy.ast",
+        "strings",
+        string::import,
+    )?;
 
     m.add_class::<base::Base>()?;
     m.add_class::<bits::Bits>()?;

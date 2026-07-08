@@ -10,15 +10,15 @@ use num_bigint::{BigInt, BigUint, Sign};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::types::{PySlice, PyWeakrefReference};
 
-use crate::ast::fp::{PyFSort, PyRM};
-use crate::ast::{and, not, or, xor};
-use crate::prelude::*;
-use crate::pyslicemethodsext::PySliceMethodsExt;
+use crate::claripy::ast::fp::{PyFSort, PyRM};
+use crate::claripy::ast::{and, not, or, xor};
+use crate::claripy::prelude::*;
+use crate::claripy::pyslicemethodsext::PySliceMethodsExt;
 
 static BVS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PY_BV_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> = LazyLock::new(DashMap::new);
 
-#[pyclass(extends=Bits, subclass, frozen, weakref, module="claripy.ast.bv")]
+#[pyclass(extends=Bits, subclass, frozen, weakref, module="angr.rustylib.claripy.ast.bv")]
 pub struct BV {
     pub(crate) inner: AstRef<'static>,
 }

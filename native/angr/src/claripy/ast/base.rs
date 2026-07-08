@@ -3,14 +3,14 @@ use std::collections::BTreeSet;
 use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
 use pyo3::types::{PyDict, PyFrozenSet, PySet, PyType};
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 /// The base class for all AST wrappers. It holds the underlying [`AstRef`] and
 /// implements every operation that does not depend on the concrete sort
 /// (structure queries, hashing, simplification, replacement, annotation
 /// management). The sort-specific subclasses (`Bool`, `BV`, `FP`, `String`)
 /// inherit these and add only their own typed operations.
-#[pyclass(subclass, frozen, weakref, module = "claripy.ast.base")]
+#[pyclass(subclass, frozen, weakref, module = "angr.rustylib.claripy.ast.base")]
 pub struct Base {
     inner: AstRef<'static>,
     errored: Py<PySet>,

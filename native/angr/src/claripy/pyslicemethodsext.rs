@@ -1,6 +1,6 @@
 use pyo3::types::PySlice;
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 pub trait PySliceMethodsExt {
     fn start(&self) -> PyResult<Option<isize>>;

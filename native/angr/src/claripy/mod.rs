@@ -23,14 +23,14 @@ fn import_submodule<'py>(
     name: &str,
     import_func: impl FnOnce(Python<'py>, &Bound<'py, PyModule>) -> PyResult<()>,
 ) -> PyResult<()> {
-    let submodule = PyModule::new(py, name)?;
+    let submodule = PyModule::new(py, &format!("{package}.{name}"))?;
     import_func(py, &submodule)?;
     pyo3::py_run!(
         py,
         submodule,
         &format!("import sys; sys.modules['{package}.{name}'] = submodule")
     );
-    m.add_submodule(&submodule)?;
+    m.add(name, &submodule)?;
     Ok(())
 }
 
@@ -47,7 +47,6 @@ fn add_submodule<'py>(
         submodule,
         &format!("import sys; sys.modules['{package}.{name}'] = submodule")
     );
-    m.add_submodule(&submodule)?;
     m.add(name, submodule.clone())?;
     Ok(submodule)
 }
@@ -159,12 +158,21 @@ fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
     }
 }
 
-#[pymodule]
+/// Populate the `claripy` module. Its canonical home is
+/// `angr.rustylib.claripy` (pickled objects reference these paths);
+/// `angr/__init__.py` additionally aliases it as `angr.claripy` and plain
+/// `claripy` in sys.modules so existing imports keep working.
 pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let annotation = add_submodule(py, m, "claripy", "annotation", annotation::build_module)?;
-    import_submodule(py, m, "claripy", "ast", ast::import)?;
-    import_submodule(py, m, "claripy", "solver", solver::import)?;
-    import_submodule(py, m, "claripy", "vsa", vsa::import)?;
+    let annotation = add_submodule(
+        py,
+        m,
+        "angr.rustylib.claripy",
+        "annotation",
+        annotation::build_module,
+    )?;
+    import_submodule(py, m, "angr.rustylib.claripy", "ast", ast::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy", "solver", solver::import)?;
+    import_submodule(py, m, "angr.rustylib.claripy", "vsa", vsa::import)?;
 
     add_pyfunctions!(
         m,
@@ -331,7 +339,7 @@ pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Compat
 
     // fp
-    import_submodule(py, m, "claripy", "fp", |py, fp| {
+    import_submodule(py, m, "angr.rustylib.claripy", "fp", |py, fp| {
         fp.add_class::<ast::fp::PyRM>()?;
         fp.add_class::<ast::fp::PyFSort>()?;
         fp.add("FSORT_FLOAT", ast::fp::fsort_float())?;
@@ -341,7 +349,7 @@ pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     })?;
 
     // errors
-    import_submodule(py, m, "claripy", "errors", |py, errors| {
+    import_submodule(py, m, "angr.rustylib.claripy", "errors", |py, errors| {
         errors.add("ClaripyError", py.get_type::<py_err::ClaripyError>())?;
         errors.add(
             "ClaripyTypeError",

@@ -5,7 +5,7 @@ use clarirs_vsa::reduce::Reduce;
 use clarirs_vsa::strided_interval::ComparisonResult;
 use num_bigint::{BigInt, BigUint};
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 /// Reduce an AST expression using VSA abstract interpretation.
 ///
@@ -26,7 +26,7 @@ pub fn reduce<'py>(
             ComparisonResult::True => Bool::new(py, &GLOBAL_CONTEXT.true_()?)?,
             ComparisonResult::False => Bool::new(py, &GLOBAL_CONTEXT.false_()?)?,
             ComparisonResult::Maybe => {
-                use crate::ast::bool::BoolS;
+                use crate::claripy::ast::bool::BoolS;
                 BoolS(py, "maybe", false)?
             }
         };

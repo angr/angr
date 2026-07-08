@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 pub trait ToOpString {
     fn to_opstring(&self) -> String;
