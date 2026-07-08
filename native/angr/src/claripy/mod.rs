@@ -160,8 +160,8 @@ fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
 
 /// Populate the `claripy` module. Its canonical home is
 /// `angr.rustylib.claripy` (pickled objects reference these paths);
-/// `angr/__init__.py` additionally aliases it as `angr.claripy` and plain
-/// `claripy` in sys.modules so existing imports keep working.
+/// `angr/__init__.py` additionally aliases it as `angr.claripy`. There is
+/// no top-level `claripy` module.
 pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let annotation = add_submodule(
         py,

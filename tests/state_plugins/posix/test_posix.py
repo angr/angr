@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
-
-from angr import SimFile, SimState
+from angr import SimFile, SimState, claripy
 
 
 class TestPosix(unittest.TestCase):

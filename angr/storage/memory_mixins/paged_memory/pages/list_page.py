@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 from angr.utils.dynamic_dictlist import DynamicDictList
 

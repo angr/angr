@@ -4,9 +4,9 @@ import logging
 from collections import defaultdict
 
 import archinfo
-import claripy
 
 import angr
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.analyses.typehoon.typevars import TypeVariableManager

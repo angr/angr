@@ -3,7 +3,7 @@ from __future__ import annotations
 import pickle
 import unittest
 
-import claripy
+from angr import claripy
 
 
 class TestHybridApproximateFirst(unittest.TestCase):

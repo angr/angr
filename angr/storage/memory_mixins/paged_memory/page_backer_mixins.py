@@ -4,8 +4,9 @@ import logging
 from collections.abc import Generator
 from mmap import mmap
 
-import claripy
 import cle
+
+from angr import claripy
 
 from .paged_memory_mixin import PagedMemoryMixin
 

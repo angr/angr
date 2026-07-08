@@ -4,9 +4,8 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-import claripy
-from claripy.annotation import UninitializedAnnotation
-
+from angr import claripy
+from angr.claripy.annotation import UninitializedAnnotation
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 l = logging.getLogger(name=__name__)

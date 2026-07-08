@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import claripy
-from claripy.ast.base import Base
-
-import angr  # noqa: F401  # registers the claripy module aliases
+from angr import claripy
+from angr.claripy.ast.base import Base
 
 
 class MyAnnotation(claripy.Annotation):

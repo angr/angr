@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
+from angr import claripy
 
 
 class TestVSABoolOperations(unittest.TestCase):

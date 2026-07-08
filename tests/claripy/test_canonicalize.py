@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 import unittest
 
-import claripy
+from angr import claripy
 
 
 class TestCanonicalize(unittest.TestCase):

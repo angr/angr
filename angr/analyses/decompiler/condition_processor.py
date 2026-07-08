@@ -6,10 +6,9 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
-import claripy
 import networkx
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import StringLiteral
 from angr.block import Block, BlockNode
 from angr.errors import AngrRuntimeError

@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 from unittest import TestCase, main
 
-import claripy
-
 import angr
+from angr import claripy
 
 
 class TestSqrt(TestCase):

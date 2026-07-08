@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-import claripy as claripy
-from claripy.annotation import EmptyStridedIntervalAnnotation
+from angr import claripy
+from angr.claripy.annotation import EmptyStridedIntervalAnnotation
 
 
 class CustomAnnotation(claripy.Annotation):
