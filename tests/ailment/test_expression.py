@@ -261,6 +261,43 @@ class TestExpression(unittest.TestCase):
         assert BasePointerOffset(0, 32, "bp", -8).offset == -8
         assert BasePointerOffset(0, 32, "bp", 8).offset == 8
 
+    def test_const_sign_bit(self):
+        # ``Const.sign_bit`` is bit ``bits - 1`` of the value's raw (unsigned
+        # two's-complement) pattern, regardless of how the value is stored
+        # internally (small i128 vs. wide/BigInt).
+        def sign_bit(value, bits):
+            return Const(0, value, bits).sign_bit
+
+        # Small widths (fast i128 path).
+        assert sign_bit(0x00, 8) == 0
+        assert sign_bit(0x7F, 8) == 0
+        assert sign_bit(0x80, 8) == 1
+        assert sign_bit(0xFF, 8) == 1
+
+        # 64-bit: a negative value carried as its unsigned two's-complement
+        # pattern (e.g. ``-8`` as ``2**64 - 8``) reports its top bit as set.
+        assert sign_bit(0xFFFFFFFFFFFFFFF8, 64) == 1
+        assert sign_bit(5, 64) == 0
+        assert sign_bit(1 << 63, 64) == 1
+
+        # 128-bit boundary.
+        assert sign_bit(1 << 127, 128) == 1
+        assert sign_bit((1 << 127) - 1, 128) == 0
+
+        # Values/widths beyond i128 are stored as a BigInt -- this used to
+        # raise "sign_bit on Const with BigInt value ... is not supported".
+        assert sign_bit(1 << 255, 256) == 1  # top bit set
+        assert sign_bit(1 << 200, 256) == 0  # BigInt value, but bit 255 clear
+        assert sign_bit(5, 256) == 0  # small value, wide width
+        assert sign_bit((1 << 256) - 1, 256) == 1  # all ones
+
+        # A zero-width const has no sign bit.
+        assert sign_bit(0, 0) == 0
+
+        # sign_bit is only defined for integer constants.
+        with pytest.raises(TypeError):
+            _ = Const(0, 1.5, 64).sign_bit
+
 
 if __name__ == "__main__":
     unittest.main()

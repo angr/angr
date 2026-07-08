@@ -3578,17 +3578,22 @@ impl Expression {
                     ));
                 }
                 let bits = self.expr.header.bits;
-                let v = match value {
-                    ConstValue::Int(v) => *v,
-                    ConstValue::BigInt(b) => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "sign_bit on Const with BigInt value ({b:#x}) is not supported"
-                        )));
-                    }
+                if bits == 0 {
+                    return Ok(0);
+                }
+                // The sign bit is bit ``bits - 1`` of the value's raw pattern.
+                let top = (bits - 1) as u64;
+                let sign = match value {
+                    // Fast path when the whole width fits in i128.
+                    ConstValue::Int(v) if bits <= 128 => (*v >> top) & 1 != 0,
+                    // Wide (bits > 128) but still i128-range value, or a value
+                    // outside i128 stored as a BigInt: extract the bit via
+                    // num-bigint so no shift overflows.
+                    ConstValue::Int(v) => num_bigint::BigInt::from(*v).bit(top),
+                    ConstValue::BigInt(b) => b.bit(top),
                     ConstValue::Float(_) => unreachable!(),
                 };
-                let mask = 1i128 << (bits - 1);
-                Ok(if (v & mask) != 0 { 1 } else { 0 })
+                Ok(if sign { 1 } else { 0 })
             }
             _ => Err(PyAttributeError::new_err(
                 "no 'sign_bit' on this Expression",
