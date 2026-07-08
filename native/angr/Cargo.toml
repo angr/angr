@@ -2,6 +2,12 @@
 name = "angr"
 version = "0.1.0"
 edition = "2024"
+description = "Native extension for angr, a multi-architecture binary analysis toolkit"
+license.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
 
 [lib]
 name = "rustylib"
