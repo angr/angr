@@ -1007,8 +1007,6 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     ) -> Expression:
         changed = False
 
-        # Cache slot accessors -- ``expr.target`` and ``expr.args``
-        # each mint fresh wrapper objects per call.
         target_in = expr.target
         if isinstance(target_in, str):
             new_target = target_in
