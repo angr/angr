@@ -51,7 +51,13 @@ class ActionsMixinHigh(MemoryMixin):
 
     def _add_constraints(self, c, *, action=None, **kwargs):
         if action is not None:
-            action.added_constraints = claripy.And(action.added_constraints, c)
+            # added_constraints starts as None (SimActionData default); claripy's
+            # And tolerated a None operand, clarirs does not, so seed it with the
+            # first constraint and And subsequent ones in.
+            if action.added_constraints is None:
+                action.added_constraints = c
+            else:
+                action.added_constraints = claripy.And(action.added_constraints, c)
         return super()._add_constraints(c, action=action, **kwargs)
 
 
