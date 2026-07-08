@@ -143,15 +143,16 @@ impl Default for CachedHash {
 
 // Convert an integer to a signed integer of a given bit width, wrapping as necessary.
 fn to_signed_i(v: i128, bits: u32) -> i128 {
-    let mut off = v;
-    let mask = (1i128 << bits) - 1;
-    let signed: bool = off < 0;
-    if !signed {
-        off &= mask;
-    } else {
-        off = -(mask - (off & mask) + 1);
+    if bits == 0 || bits >= 128 {
+        return v;
     }
-    off
+    // Truncate to `bits` bits, then sign-extend from bit `bits - 1`.
+    let masked = v & ((1i128 << bits) - 1);
+    if masked >= 1i128 << (bits - 1) {
+        masked - (1i128 << bits)
+    } else {
+        masked
+    }
 }
 
 #[cfg(test)]
@@ -161,6 +162,26 @@ mod tests {
     #[test]
     fn unset_by_default() {
         assert_eq!(CachedHash::new().get(), None);
+    }
+
+    #[test]
+    fn to_signed_i_wraps_to_bit_width() {
+        // Unsigned two's-complement forms normalize to negative values.
+        assert_eq!(to_signed_i((1i128 << 64) - 8, 64), -8);
+        assert_eq!(to_signed_i(0xFFFF_FFF8, 32), -8);
+        // Values already in the signed range pass through unchanged.
+        assert_eq!(to_signed_i(-8, 64), -8);
+        assert_eq!(to_signed_i(-8, 32), -8);
+        assert_eq!(to_signed_i(8, 32), 8);
+        assert_eq!(to_signed_i(0, 32), 0);
+        // Boundary values.
+        assert_eq!(to_signed_i(1i128 << 31, 32), -(1i128 << 31));
+        assert_eq!(to_signed_i((1i128 << 31) - 1, 32), (1i128 << 31) - 1);
+        // Negative multiples of 2^bits wrap to zero, and anything beyond
+        // the width wraps modulo 2^bits.
+        assert_eq!(to_signed_i(-(1i128 << 32), 32), 0);
+        assert_eq!(to_signed_i(-(1i128 << 32) - 8, 32), -8);
+        assert_eq!(to_signed_i((1i128 << 33) + 8, 32), 8);
     }
 
     #[test]
