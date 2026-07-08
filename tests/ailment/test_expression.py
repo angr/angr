@@ -10,12 +10,14 @@ import pytest
 import angr.ailment as ailment
 from angr.ailment.expression import (
     Array,
+    BasePointerOffset,
     ComboRegister,
     Const,
     FunctionLikeMacro,
     Let,
     Register,
     RustEnum,
+    StackBaseOffset,
     StringLiteral,
     Struct,
     VirtualVariable,
@@ -218,6 +220,46 @@ class TestExpression(unittest.TestCase):
         assert macro_dc.args[0] is not old  # type:ignore
         assert vmap.returnty(macro_dc) is returnty  # transferred to the new .idx
         assert FunctionLikeMacro(18, "dbg", None).deep_copy(manager).args is None
+
+    def test_stack_base_offset_offset_wraparound(self):
+        # Offsets supplied in unsigned two's-complement form are normalized to
+        # signed values at the declared bit width.
+        assert StackBaseOffset(0, 64, 2**64 - 8).offset == -8
+        assert StackBaseOffset(0, 32, 0xFFFF_FFF8).offset == -8
+
+        # Values already in the signed range pass through unchanged.
+        assert StackBaseOffset(0, 64, -8).offset == -8
+        assert StackBaseOffset(0, 32, -8).offset == -8
+        assert StackBaseOffset(0, 64, 8).offset == 8
+        assert StackBaseOffset(0, 64, 0).offset == 0
+
+        # Boundary values at the declared width.
+        assert StackBaseOffset(0, 32, 2**31).offset == -(2**31)
+        assert StackBaseOffset(0, 32, 2**31 - 1).offset == 2**31 - 1
+
+        # Values beyond the declared width wrap modulo 2**bits, including
+        # negative exact multiples of 2**bits.
+        assert StackBaseOffset(0, 32, -(2**32)).offset == 0
+        assert StackBaseOffset(0, 32, -(2**32) - 8).offset == -8
+        assert StackBaseOffset(0, 32, 2**33 + 8).offset == 8
+
+        # The offset setter normalizes as well.
+        sbo = StackBaseOffset(0, 64, -16)
+        sbo.offset = 2**64 - 8
+        assert sbo.offset == -8
+        sbo.offset = -(2**64)
+        assert sbo.offset == 0
+
+        # Raw and normalized forms are the same expression.
+        assert StackBaseOffset(0, 64, 2**64 - 8) == StackBaseOffset(0, 64, -8)
+        assert hash(StackBaseOffset(0, 64, 2**64 - 8)) == hash(StackBaseOffset(0, 64, -8))
+        assert StackBaseOffset(0, 64, 2**64 - 8).likes(StackBaseOffset(1, 64, -8))
+
+        # BasePointerOffset wraps according to its bit width, too.
+        bpo = BasePointerOffset(0, 32, "bp", 0xFFFF_FFF8)
+        assert bpo.offset == -8
+        assert BasePointerOffset(0, 32, "bp", -8).offset == -8
+        assert BasePointerOffset(0, 32, "bp", 8).offset == 8
 
 
 if __name__ == "__main__":
