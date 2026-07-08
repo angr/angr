@@ -10,6 +10,7 @@ Classes to structure the different types of <Tag>s that can be attached to <Defi
 """
 
 from __future__ import annotations
+
 import json
 
 from angr.protos import key_defs_pb2

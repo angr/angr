@@ -4192,9 +4192,10 @@ register_analysis(Clinic, "Clinic")
 
 # Attach Serializable methods to Clinic. Imported after the class is defined so that ``clinic_serialize`` can reference
 # Clinic without circular-import gymnastics.
-from . import clinic_serialize as _clinic_serialize
-from angr.protos import clinic_pb2 as _clinic_pb2
-from angr.serializable import Serializable as _Serializable
+from angr.protos import clinic_pb2 as _clinic_pb2  # noqa: E402
+from angr.serializable import Serializable as _Serializable  # noqa: E402
+
+from . import clinic_serialize as _clinic_serialize  # noqa: E402
 
 
 def _clinic_get_cmsg(cls):

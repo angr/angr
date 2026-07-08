@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from angr.protos import decompilation_cache_pb2
 from angr.serializable import Serializable
+
 from .clinic import Clinic
 
 if TYPE_CHECKING:

@@ -15,7 +15,6 @@ from angr.serializable import Serializable
 from .heap_address import HeapAddress
 from .undefined import UNDEFINED, Undefined
 
-
 # The local protobuf enum VirtualVariableCategory mirrors ailment.Expr.VirtualVariableCategory. We rely on the
 # integer values agreeing so that round-tripping through protobuf cannot drift; verify this once at import time.
 assert all(
