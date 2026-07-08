@@ -305,7 +305,7 @@ impl Block {
     fn __deepcopy__<'py>(slf: Bound<'py, Self>, memo: Bound<'py, PyAny>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let helper = py
-            .import("angr.ailment._reconstruct")?
+            .import("angr.ailment._deepcopy")?
             .getattr("deepcopy_via_deep_copy")?;
         Ok(helper.call1((slf, memo))?.unbind())
     }

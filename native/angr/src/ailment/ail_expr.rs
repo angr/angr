@@ -5017,11 +5017,11 @@ impl Expression {
     }
 
     /// Python ``copy.deepcopy`` protocol -- routes through ``deep_copy``
-    /// with a stand-in ``Manager`` from ``angr.ailment._reconstruct``.
+    /// with a stand-in ``Manager`` from ``angr.ailment._deepcopy``.
     fn __deepcopy__<'py>(slf: Bound<'py, Self>, memo: Bound<'py, PyAny>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let helper = py
-            .import("angr.ailment._reconstruct")?
+            .import("angr.ailment._deepcopy")?
             .getattr("deepcopy_via_deep_copy")?;
         Ok(helper.call1((slf, memo))?.unbind())
     }
