@@ -240,11 +240,18 @@ class Decompiler(Analysis):
         if self._cache_parameters is None or cache.parameters is None:
             return False
         # cfg and variable_kb are identity-checked off the cache directly; they are not part of the parameters dict
-        # because they are not part of the decompilation result.
-        if cache.cfg is not self._cfg or cache.variable_kb is not self._variable_kb:
+        # because they are not part of the decompilation result. Deserialized caches (protobuf, AngrDB) come back
+        # with these unset until the caller re-attaches them; an unset input is not a mismatch.
+        if cache.cfg is not None and cache.cfg is not self._cfg:
+            return False
+        if cache.variable_kb is not None and cache.variable_kb is not self._variable_kb:
             return False
         a, b = self._cache_parameters, cache.parameters
-        return all(a[k] == b[k] for k in self._cache_parameters)
+        if not b:
+            # AngrDB-loaded caches carry no recorded parameters; there is nothing to validate against (matching the
+            # pre-existing behavior where such caches were always used).
+            return True
+        return all(k in b and a[k] == b[k] for k in a)
 
     @staticmethod
     def _parse_options(options: list[tuple[DecompilationOption | str, Any]]) -> list[tuple[DecompilationOption, Any]]:
