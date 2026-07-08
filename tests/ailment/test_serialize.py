@@ -2,6 +2,7 @@
 through pickle -- the production path (``__reduce__`` -> ``to_bytes`` /
 ``from_bytes``)."""
 
+# pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 import pickle
