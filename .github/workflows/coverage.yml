@@ -26,6 +26,10 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    env:
+      # Authenticate z3-sys's gh-release download against the GitHub API to
+      # avoid anonymous rate limits (HTTP 403).
+      READ_ONLY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
@@ -99,6 +103,8 @@ jobs:
   test_rust:
     name: Test Rust packages
     runs-on: ubuntu-latest
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2
