@@ -3055,7 +3055,10 @@ impl Expression {
         let off = crate::ailment::to_signed_i(offset as i128, bits as u32);
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits as u32, tags),
-            inner: ExprInner::BasePointerOffset { base, offset: off as i64 },
+            inner: ExprInner::BasePointerOffset {
+                base,
+                offset: off as i64,
+            },
         }))
     }
 
@@ -4887,7 +4890,9 @@ impl Expression {
             }
             ExprInner::StackBaseOffset { offset } => {
                 self.expr.header.cached_hash.clear();
-                *offset = crate::ailment::to_signed_i(value.extract::<i128>()?, self.expr.header.bits) as i64;
+                *offset =
+                    crate::ailment::to_signed_i(value.extract::<i128>()?, self.expr.header.bits)
+                        as i64;
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
