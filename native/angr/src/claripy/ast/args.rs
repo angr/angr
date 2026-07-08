@@ -1,6 +1,6 @@
 use ast::fp::{PyFSort, PyRM};
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 pub trait ExtractPyArgs {
     fn extract_py_args<'py>(&self, py: Python<'py>)

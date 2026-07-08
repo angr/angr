@@ -3,7 +3,7 @@ use std::{cmp::max, str};
 use num_bigint::{BigInt, BigUint};
 use pyo3::types::{PyFloat, PyInt};
 
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
 /// Coerce a BV into a Bool: concrete BVVs resolve to true/false directly,
 /// symbolic BVs become `bv != 0`.

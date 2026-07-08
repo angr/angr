@@ -1,6 +1,6 @@
-use crate::prelude::*;
+use crate::claripy::prelude::*;
 
-#[pyclass(extends=Base, subclass, frozen, weakref, module="claripy.ast.bits")]
+#[pyclass(extends=Base, subclass, frozen, weakref, module="angr.rustylib.claripy.ast.bits")]
 #[derive(Default)]
 pub struct Bits;
 
