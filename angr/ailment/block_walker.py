@@ -96,26 +96,9 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
 
 
 def _dispatch_key(obj):
-    """Resolve a handler-dict key for ``obj``.
-
-    Every AIL Expression/Statement is the universal ``Expression``
-    or ``Statement`` pyclass; ``type(obj)`` returns the same class for all
-    variants and dispatch keyed on per-class types breaks. The fat-enum
-    surfaces the variant tag as ``obj.kind`` (a string), and this module's
-    marker classes are stored in the handler dict keyed by class; we map
-    ``kind`` -> marker class via the per-class ``_kinds``/``_kind`` attrs.
-
-    Pure-Python instances (e.g. structurer helper statements) that
-    don't expose a known ``kind`` fall back to ``type(obj)``.
-    """
-    # Fast path: fat-enum instances are the overwhelming majority
-    # of dispatches (~4M / decompile on ``doit``). Dispatch on the
-    # cached ``pykind`` (a ``Py<int>``) instead of ``kind`` (a fresh
-    # ``ExpressionKind`` / ``StatementKind`` pyclass per access).
-    # Expression / Statement integer tag spaces overlap (both start at
-    # 0), so route through per-side tables. ``type(obj) is`` (the
-    # pyclasses are final) is a C-level identity check, cheaper than
-    # ``isinstance`` and its metaclass path.
+    """Resolve a handler-dict key for ``obj``."""
+    # Fast path: fat-enum instances are the overwhelming majority of dispatches (e.g., ~4M on ``doit``).
+    # Dispatch on the cached ``pykind`` instead of ``kind`` to avoid extra Rust-to-C conversion.
     t = type(obj)
     if t is _RustExpression:
         return _EXPR_KIND_TO_MARKER.get(obj.pykind, _RustExpression)
@@ -128,11 +111,6 @@ def _dispatch_key(obj):
     return _KIND_TO_MARKER.get(kind, type(obj))
 
 
-# Build per-side lookups ``kind -> marker class``. Expression and
-# Statement integer tag spaces overlap (both start at 0) so the dicts
-# can't be merged when keyed on ``ExpressionKind`` / ``StatementKind``
-# values (or their integer aliases via ``pykind``). The combined
-# ``_KIND_TO_MARKER`` is preserved for the pure-Python slow path.
 _EXPR_MARKERS = (
     Const,
     Tmp,
@@ -225,8 +203,6 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def rebuild_default_handler_funcs(cls) -> None:
         cls._default_stmt_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_STMT_HANDLER_TYPES}
         cls._default_expr_funcs = {t: getattr(cls, f"_handle_{t.__name__}") for t in _DEFAULT_EXPR_HANDLER_TYPES}
-        # pykind-keyed shadows: for Rust nodes on the default handler set,
-        # dispatch becomes one int-keyed lookup with no marker-class step.
         cls._default_stmt_funcs_by_pykind = {
             k: f for t, f in cls._default_stmt_funcs.items() if (k := t.__dict__.get("_kind")) is not None
         }
@@ -286,9 +262,8 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         return self._handle_expr(0, expr, stmt_idx or 0, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> StmtType:
-        # Inline the stmt-side dispatch: a Rust statement (the common case,
-        # ~1M/decompile) skips the ``_dispatch_key`` frame and the redundant
-        # expr-side check, dispatching on the cached ``pykind`` int directly.
+        # Inline the stmt-side dispatch: a Rust statement (the common case, ~1M/decompile) skips the ``_dispatch_key``
+        # frame and the redundant expr-side check, dispatching on the cached ``pykind`` int directly.
         handlers = self._stmt_handlers
         if handlers is None:
             if type(stmt) is _RustStatement:
@@ -310,9 +285,8 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        # Inline the expr-side dispatch: a Rust expression (the common case)
-        # dispatches on the cached ``pykind`` int with no ``_dispatch_key``
-        # frame and no redundant stmt-side check.
+        # Inline the expr-side dispatch: a Rust expression (the common case) dispatches on the cached ``pykind`` int
+        # with no ``_dispatch_key`` frame and no redundant stmt-side check.
         handlers = self._expr_handlers
         if handlers is None:
             if type(expr) is _RustExpression:
@@ -420,7 +394,6 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
-        # ``expr.operands`` mints fresh wrappers per access; cache.
         ops = expr.operands
         self._handle_expr(0, ops[0], stmt_idx, stmt, block)
         self._handle_expr(1, ops[1], stmt_idx, stmt, block)
@@ -639,7 +612,6 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        # ``expr.operands`` mints fresh wrappers per access; cache.
         ops = expr.operands
         self._handle_expr(0, ops[0], stmt_idx, stmt, block)
         self._handle_expr(1, ops[1], stmt_idx, stmt, block)
@@ -788,9 +760,6 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     #
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
-        # Bind child accessors once -- ``stmt.dst``/``stmt.src`` each mint a
-        # fresh Py<Expression>; comparing against the bound value keeps the
-        # structural ``!=`` semantics while halving the wrapper allocations.
         dst_in = stmt.dst
         dst = self._handle_expr(0, dst_in, stmt_idx, stmt, block)
         assert isinstance(dst, Atom)
@@ -883,13 +852,10 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
                 changed = True
 
         if changed:
-            # ``FunctionLikeMacro`` is included because it is a Call-shaped
-            # expression that may legitimately replace a Call inside a
-            # SideEffectStatement (e.g. format_macro_simplifier rewrites
-            # ``stmt.expr`` from a Call to ``format!(...)``). Before the
-            # ailment Rust flatten, FunctionLikeMacro inherited from Call
-            # via the pyclass hierarchy and matched ``isinstance(_, Call)``
-            # automatically; after the flatten the union must be explicit.
+            # ``FunctionLikeMacro`` is included because it is a Call-shaped expression that may legitimately replace a
+            # Call inside a SideEffectStatement (e.g. format_macro_simplifier rewrites ``stmt.expr`` from a Call to
+            # ``format!(...)``). Before the ailment Rust flatten, FunctionLikeMacro inherited from Call via the pyclass
+            # hierarchy and matched ``isinstance(_, Call)`` automatically; after the flatten the union must be explicit.
             side_effect_expr: Call = new_expr if isinstance(new_expr, (Call, FunctionLikeMacro)) else expr_in
             return SideEffectStatement(
                 stmt.idx,
@@ -993,16 +959,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     # Expression handlers
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        # Reach a fixed point. Handlers return the input ``expr`` Python
-        # object when nothing changed (legacy convention), so ``is`` is
-        # the right termination check. One wrinkle:
-        # ``expr.X`` accessors mint fresh wrappers each time, so handlers
-        # that compare ``new_X != expr.X`` for ``changed`` may produce
-        # a structurally-equal-but-different-identity replacement even
-        # when no rewrite happened. Cap the iteration at a few rounds and
-        # fall back to a structural ``likes`` check to avoid infinite
-        # loops in that corner case.
-        for _ in range(8):
+        for _ in range(16):  # limit the number of iterations to avoid infinite loops
             result = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
             if result is expr:
                 return expr
@@ -1075,9 +1032,6 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
-        # ``expr.operands`` mints a fresh 2-tuple of fresh wrappers
-        # per access; cache once so the recurse + compare pair costs one
-        # allocation instead of four.
         ops = expr.operands
         op0_in, op1_in = ops[0], ops[1]
         operand_0 = self._handle_expr(0, op0_in, stmt_idx, stmt, block)

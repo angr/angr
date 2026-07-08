@@ -40,9 +40,6 @@ def is_similar(
 
     if type(ail_obj1) is not type(ail_obj2):
         return False
-    # ``type(x)`` collapses to the single ``Expression`` / ``Statement``
-    # fat-enum pyclass, so the ``type`` check above does not discriminate
-    # variants. Fall back to comparing the variant tag.
     k1 = getattr(ail_obj1, "kind", None)
     k2 = getattr(ail_obj2, "kind", None)
     if k1 is not None and k2 is not None and k1 != k2:

@@ -95,12 +95,11 @@ class VariableMap:
         self._variants: dict[int, Any] = {}
         # ``returnty`` (a :class:`SimType`): the return type of a Rust ``FunctionLikeMacro`` call.
         self._returntys: dict[int, SimType] = {}
-        # Secondary index for VirtualVariable atoms keyed by their stable
-        # ``varid``. Intermediate passes that don't propagate variable_map
-        # entries via ``transfer`` mint fresh Expression wrappers (each
-        # carrying a new ``.idx``); without this fallback those
-        # later vvar wrappers render as raw ``vvar_X`` in the C output even
+        # Secondary index for VirtualVariable atoms keyed by their stable ``varid``. Intermediate passes that don't
+        # propagate variable_map entries via ``transfer`` create fresh Expression wrappers (each carrying a new
+        # ``.idx``); without this fallback those later vvar wrappers render as raw ``vvar_X`` in the C output even
         # though their varid was registered at variable-recovery time.
+        # TODO: Identify these cases, fix them, and get rid of this fallback.
         self._vvar_id_to_variable: dict[int, SimVariable] = {}
         self._vvar_id_to_variable_offset: dict[int, int] = {}
 
@@ -120,10 +119,6 @@ class VariableMap:
         v = self._variables.get(self._key(obj))
         if v is not None:
             return v
-        # VirtualVariable varid fallback: mid-pipeline
-        # rewrites can re-wrap a vvar with a fresh ``.idx`` whose entry
-        # was never registered. The varid is the stable SSA identifier,
-        # so a same-varid hit is semantically equivalent.
         varid = getattr(obj, "varid", None)
         if varid is not None:
             return self._vvar_id_to_variable.get(varid)
@@ -183,10 +178,6 @@ class VariableMap:
         else:
             self._variables[key] = variable
             self._variable_offsets[key] = offset
-        # Mirror into the varid-keyed secondary index so subsequent
-        # lookups via a fresh-wrapper vvar of the same logical SSA
-        # variable still resolve. We only mirror when ``obj`` carries a
-        # ``varid`` -- i.e. it's a VirtualVariable instance (or wrapper).
         varid = getattr(obj, "varid", None)
         if varid is not None:
             if variable is None:

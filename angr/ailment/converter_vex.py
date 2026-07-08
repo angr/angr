@@ -32,15 +32,7 @@ log = logging.getLogger(name=__name__)
 
 
 def _vex_rm_to_enum(rm: object) -> RoundingMode | None:
-    """Translate a VEX rounding-mode operand to the typed ``RoundingMode`` enum.
-
-    VEX encodes the rounding mode as a 2-bit integer (matching
-    ``claripy.fp.RM`` ordering) carried as the first operand of FP
-    triops / conversion ops. In practice ``rm`` is an AIL ``Const``
-    with value 0..=3; symbolic operands are rare and the engine falls
-    back to ``claripy.fp.RM.default()`` for them, so we drop to
-    ``None`` (with a one-shot log) on anything we can't decode.
-    """
+    """Translate a VEX rounding-mode operand to the typed ``RoundingMode`` enum."""
     if isinstance(rm, Const) and isinstance(rm.value, int):
         return RoundingMode._from_int_py(rm.value & 0b11)
     log.warning("Non-Const VEX rounding-mode operand (%r); dropping to None", rm)

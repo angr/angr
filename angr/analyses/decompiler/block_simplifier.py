@@ -131,9 +131,9 @@ class BlockSimplifier(Analysis):
         new_block = self._eliminate_self_assignments(block)
         if self._count_nonconstant_statements(new_block) >= 2 and self._has_propagatable_assignments(new_block):
             new_block = self._eliminate_dead_assignments(new_block)
-        # Structural ``likes`` (idx-agnostic) instead of ``!=`` which
-        # always trips on fresh ``manager.next_atom()`` ids even when nothing
-        # changed structurally.
+        # Structural ``likes`` (idx-agnostic) instead of ``!=`` which always trips on fresh ``manager.next_atom()``
+        # ids even when nothing changed structurally.
+        # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
         if not new_block.likes(block):
             self._clear_cache()
             block = new_block
@@ -141,11 +141,7 @@ class BlockSimplifier(Analysis):
         while True:
             ctr += 1
             new_block = self._simplify_block_once(block)
-            # ``Statement.__eq__`` requires matching ``idx``, but each
-            # simplification round mints fresh statements via
-            # ``manager.next_atom()``, so ``new_block == block`` is always
-            # False even when nothing changed structurally. Use ``.likes()``
-            # which compares structural shape regardless of ``idx``.
+            # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
             if new_block.likes(block):
                 break
             self._clear_cache()

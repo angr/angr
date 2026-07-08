@@ -68,9 +68,6 @@ class SimEngineVRAIL(
     # Statement handlers
 
     def _handle_stmt_Assignment(self, stmt):
-        # ``type(stmt.dst) is …`` identity checks cannot discriminate AIL
-        # variants (every variant shares one pyclass). ``isinstance``
-        # dispatches through the marker metaclass on ``stmt.dst.kind``.
         if isinstance(stmt.dst, ailment.Expr.Register):
             offset = stmt.dst.reg_offset
             data = self._expr(stmt.src)
@@ -271,9 +268,6 @@ class SimEngineVRAIL(
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
     def _handle_stmt_SideEffectStatement(self, stmt):
-        # FunctionLikeMacro (placed by format_macro_simplifier) is shaped like
-        # a Call but does not carry a ``target`` -- it does not contribute a
-        # callsite for variable recovery to type-link.
         if not isinstance(stmt.expr, ailment.Expr.Call):
             return
         target = stmt.expr.target

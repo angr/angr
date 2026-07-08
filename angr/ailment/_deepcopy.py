@@ -1,9 +1,7 @@
-"""Helpers used by the Rust ailment classes' ``__deepcopy__``
-implementations.
+"""Helpers used by the Rust ailment classes' ``__deepcopy__`` implementations.
 
-``copy.deepcopy`` on an AIL tree is satisfied by routing every class
-through its existing ``deep_copy(manager)`` method, with a private
-``_DeepcopyManager`` standing in for ``ailment.Manager``.
+``copy.deepcopy`` on an AIL tree is satisfied by routing every class through its existing ``deep_copy(manager)``
+method, with a private ``_DeepcopyManager`` standing in for ``ailment.Manager``.
 """
 
 from __future__ import annotations
@@ -28,8 +26,9 @@ class _DeepcopyManager:
 
 def deepcopy_via_deep_copy(self, memo):
     """Use ``self.deep_copy(manager)`` to satisfy ``copy.deepcopy``."""
-    _ = memo  # we don't share substructures during deep_copy; ailment trees are
-    # acyclic by construction, so the memo dict is unused.
+    # we don't share substructures during deep_copy; ailment trees are acyclic by construction, so the memo dict is
+    # unused.
+    _ = memo
     manager = _DeepcopyManager()
     return self.deep_copy(manager)
 

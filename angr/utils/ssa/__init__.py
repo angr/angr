@@ -121,11 +121,6 @@ def get_vvar_deflocs(
     walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
-            # Dispatch on ``stmt.kind`` directly (~20 ns) instead
-            # of ``isinstance(stmt, MarkerCls)`` (~150 ns via the marker
-            # metaclass). The pure-Python ``IncompleteSwitchCaseHeadStatement``
-            # subclass declares its own class-level ``kind`` attribute
-            # (``"IncompleteSwitchCaseHead"``) so this read always works.
             kind = stmt.kind
             if kind == _SK_ASSIGNMENT:
                 dst = stmt.dst
@@ -176,7 +171,6 @@ def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, in
     for block in blocks:
         codeloc = (block.addr, block.idx)
         for stmt_idx, stmt in enumerate(block.statements):
-            # See ``get_vvar_deflocs`` for the .kind vs isinstance() rationale.
             kind = stmt.kind
             if kind == _SK_ASSIGNMENT:
                 dst = stmt.dst
@@ -420,9 +414,6 @@ def is_const_vvar_load_dirty_assignment(
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
-    # Native projection -- one FFI call, no dst/src wrapper cloning. The
-    # native getter additionally requires ``dst`` to be a VirtualVariable,
-    # which every phi assignment in SSA form satisfies.
     return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 

@@ -27,9 +27,6 @@ class RecordingWalker(AILBlockWalker[None, None, list[str]]):
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         del expr_idx, stmt_idx, stmt, block
-        # ``type(expr).__name__`` is the universal ``Expression`` for
-        # every variant; the variant tag is exposed as ``expr.kind``. Use
-        # the kind's ``.name`` for string-based assertions.
         kind = getattr(expr, "kind", None)
         self.seen.append(kind.name if kind is not None else type(expr).__name__)
 
@@ -97,10 +94,6 @@ def test_block_rewriter_rebuilds_rust_ail_expression_containers():
     new_struct = new_enum.fields[0]
     assert isinstance(new_struct, Struct)
 
-    # Every accessor materializes a fresh wrapper around the
-    # underlying AIL tree, so identity checks against the original
-    # constructor argument do not apply. ``likes`` (structural
-    # equality with idx) preserves the intent of "wasn't replaced".
     assert old_stmt.src.likes(macro)
     assert not new_macro.likes(macro)
     assert not new_array.likes(array)

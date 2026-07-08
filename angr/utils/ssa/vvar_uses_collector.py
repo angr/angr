@@ -37,15 +37,6 @@ class VVarUsesCollector(AILBlockViewer):
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
-        # Read ``stmt.dst`` / ``stmt.src`` exactly once per statement: each
-        # access materializes a fresh wrapper around a clone of the whole
-        # subtree (O(subtree size)), so reading them per visited vvar --
-        # as a def-vs-use check inside ``_handle_VirtualVariable`` would --
-        # makes walking a statement quadratic in its size. Discriminating
-        # the def site positionally (are we inside the dst subtree?) is
-        # also the only sound option: ``idx`` is not unique (``idx=None``
-        # normalizes to 0), and ``is`` identity never survives the
-        # wrapper boundary.
         dst = stmt.dst
         src = stmt.src
         # MultiStatementExpression can nest assignments inside ``src``;

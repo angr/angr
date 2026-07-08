@@ -883,13 +883,6 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
-        # Every AIL Expression is the universal ``Expression`` pyclass
-        # so ``type(expr)`` does not discriminate -- the variant tag lives on
-        # ``expr.kind``. Index optimizers by kind string instead, expanding
-        # each marker class's ``_kind`` / ``_kinds`` so unions (e.g. ``Call``
-        # covering ``"Call" | "Macro" | "FunctionLikeMacro"``) register under
-        # every kind they match. Non-marker class entries fall back to
-        # ``cls.__name__``.
         self.expr_opts_by_kind: dict[str, list[PeepholeOptimizationExprBase]] = {}
 
         for expr_opt in expr_opts:
@@ -915,12 +908,6 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         redo = True
         while redo:
             redo = False
-            # Dispatch on the cached ``pykind`` (a Python int). The
-            # ``expr_opts_by_kind`` dict is keyed by the marker class's
-            # ``_kind`` attr (an ``ExpressionKind`` enum value), but the
-            # enum's ``__hash__`` matches its integer value so an int
-            # lookup hits the same entry. Use ``is None`` rather than
-            # truthiness because ``ExpressionKind.Const`` is 0.
             kind = getattr(expr, "pykind", None)
             if kind is None:
                 kind = type(expr).__name__
@@ -1020,16 +1007,7 @@ def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
 
 
 def build_stmt_opts_by_kind(stmt_opts):
-    """Index statement-peephole optimizers by ``kind`` string.
-
-    Each optimizer declares ``stmt_classes`` -- a class or tuple of
-    marker classes. A per-opt-per-stmt ``isinstance(stmt,
-    opt.stmt_classes)`` inner loop in ``peephole_optimize_stmts`` would
-    cost ~150 ns per check through the marker metaclass (~107 k calls /
-    ~16 ms on the ``doit`` benchmark). The kind-keyed dict turns the
-    inner loop into a single dict.get on ``stmt.kind`` followed by an
-    iteration over only the opts that actually match.
-    """
+    """Index statement-peephole optimizers by ``kind`` string."""
     by_kind: dict[str, list] = {}
     for opt in stmt_opts:
         classes = opt.stmt_classes if isinstance(opt.stmt_classes, tuple) else (opt.stmt_classes,)
@@ -1055,7 +1033,6 @@ def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
         redo = True
         while redo:
             redo = False
-            # See expr peephole loop above for the pykind rationale.
             kind = getattr(stmt, "pykind", None)
             if kind is None:
                 kind = type(stmt).__name__

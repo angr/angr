@@ -43,10 +43,6 @@ class TestRustPatternMatchSimplifier(unittest.TestCase):
             condition
         )
 
-        # Operand access mints a fresh Expression wrapper, so
-        # ``assertIs`` cannot discriminate "returned the operand
-        # verbatim". Use structural ``.likes()`` -- it ignores ``.idx``
-        # mismatches.
         self.assertTrue(scrutinee is not None and scrutinee.likes(vvar))
         self.assertEqual(discriminant, -(1 << 63))
         self.assertEqual(cmp_op, "CmpEQ")

@@ -33,10 +33,6 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         assert result.from_bits == 32
         assert result.to_bits == 64
         assert result.is_signed is False
-        # Operand access mints a fresh wrapper around the stored
-        # AilExpression, so ``is`` cannot discriminate "returned
-        # the operand verbatim". Use structural ``likes`` -- it ignores
-        # ``.idx`` mismatches between equivalent wrappers.
         assert result.operand.likes(low)
 
     def test_sign_extend_concat(self):
@@ -70,9 +66,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         and_expr = BinaryOp(None, "And", [concat, Const(None, 0xFFFFFFFF, 64)], False, bits=64)
 
         result = self.opt.optimize(and_expr)
-        # Result should be low, possibly with zero-extension. See
-        # ``test_zero_extend_concat`` above for why this requires
-        # structural ``.likes()`` rather than ``is``.
+        # Result should be low, possibly with zero-extension.
         if isinstance(result, Convert):
             assert result.operand.likes(low)
             assert result.is_signed is False

@@ -1,35 +1,26 @@
 """AIL Expression classes.
 
-AIL expression instances are ``angr.rustylib.ailment.Expression`` -- a
-single Rust pyclass wrapping the ``AilExpression`` fat enum. The
-per-variant classes in this module (``Const``, ``BinaryOp``, ``Load``,
-...) are Python-side *marker* classes:
+AIL expression instances are ``angr.rustylib.ailment.Expression`` -- a single Rust pyclass wrapping the
+``AilExpression`` enum. The per-variant classes in this module (``Const``, ``BinaryOp``, ``Load``, ...) are Python-side
+*marker* classes:
 
-* Each marker's ``__new__`` calls one of the ``Expression._new_*``
-  factory staticmethods and returns the resulting ``Expression``
-  instance. The caller writes ``Const(0, 42, 64)`` but the value's
-  ``__class__`` is ``Expression`` -- the marker doesn't participate in
-  the instance.
+* Each marker's ``__new__`` calls one of the ``Expression._new_*`` factory static methods and returns the resulting
+  ``Expression`` instance.
 
-* A metaclass on each marker makes ``isinstance(x, Const)`` work by
-  dispatching on the variant tag (``Expression.kind``). The
-  ``_AilMarkerMeta`` checks the tag rather than walking the MRO.
+* A metaclass on each marker makes ``isinstance(x, Const)`` work by dispatching on the variant tag
+  (``Expression.kind``). The ``_AilMarkerMeta`` checks the tag.
 
-* For static type checkers each marker name is aliased to the
-  ``Expression`` pyclass itself (see the ``TYPE_CHECKING`` branch):
-  annotations like ``-> Const`` mean "an Expression whose variant is
-  Const" and all variant accessors come from the Expression stub.
+* For static type checkers each marker name is aliased to the ``Expression`` pyclass itself.
 
-* Python-side subclassing of these markers is *not supported* (see
-  the metaclass: ``__subclasscheck__`` only matches the marker itself).
-  The codebase prefers the factory pattern.
+* Python-side subclassing of these markers is not supported.
 """
 
+# pylint:disable=import-error,no-name-in-module
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from angr.rustylib.ailment import ConvertType, VirtualVariableCategory  # pylint:disable=import-error
+from angr.rustylib.ailment import ConvertType, VirtualVariableCategory
 
 if TYPE_CHECKING:
     # Static typing story: at runtime every marker below produces (and
@@ -39,7 +30,7 @@ if TYPE_CHECKING:
     # pyclass; annotations like ``-> Const`` mean "an Expression whose
     # variant is Const" and all variant accessors come from the
     # Expression stub.
-    from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    from angr.rustylib.ailment import (
         Expression,
     )
     from angr.rustylib.ailment import (
@@ -137,16 +128,8 @@ else:
         """Metaclass for the Expression marker classes.
 
         ``_kind`` (class attr) is the variant tag this marker matches.
-        Most markers match a single variant; the ``Call`` and ``Macro``
-        markers match a union so the class-inheritance relationships of
-        the former per-class hierarchy (``Macro`` is-a ``Call``;
-        ``FunctionLikeMacro`` is-a ``Macro``) are preserved at
-        ``isinstance`` boundaries -- analyses across angr rely on
-        ``isinstance(x, Call)`` being True for Macro / FunctionLikeMacro
-        instances.
 
-        ``__instancecheck__`` returns True iff the instance is an
-        ``Expression`` whose ``kind`` is in ``_kinds``.
+        ``__instancecheck__`` returns True iff the instance is an ``Expression`` whose ``kind`` is in ``_kinds``.
         """
 
         _kind: EK
@@ -345,15 +328,6 @@ else:
         ) -> _Expression:
             return _Expression._new_reinterpret(idx, from_bits, from_type, to_bits, to_type, operand, **tags)
 
-    # ``BinaryOp`` derives ``bits`` from ``op`` when callers don't pass one
-    # explicitly (CmpEQ/Not/LogicalOr/... are 1-bit, Carry is 8-bit, Concat
-    # is the sum of operand widths, etc.). The Rust factory only knows to
-    # fall back to ``operands[0].bits``, so the marker computes the
-    # op-specific width here -- without it a freshly-built
-    # ``BinaryOp('CmpEQ', [v8, v8])`` would end up 8 bits wide and
-    # downstream code treating its result as a boolean would break (e.g.
-    # ``condition_processor`` asserting the condition coerces to a claripy
-    # Bool).
     _BINOP_FIXED_BITS = {
         "CmpF": 32,
         "CmpEQ": 1,
@@ -641,12 +615,6 @@ else:
 
 
 if not TYPE_CHECKING:
-    # --- Expression marker ---------------------------------------------------
-    #
-    # ``Expression`` is a Python-side marker whose metaclass matches any
-    # concrete variant. ``isinstance(x, _MEMBERS)`` fans out to each marker's
-    # own ``__instancecheck__`` (variant-tag dispatch), so
-    # ``isinstance(x, Expression)`` works for every AIL expression.
 
     class _ExpressionMeta(type):
         _MEMBERS = (
@@ -680,13 +648,7 @@ if not TYPE_CHECKING:
         )
 
         def __instancecheck__(cls, instance):
-            # Only the bare ``Expression`` marker uses the union check.
-            # Subclassing the marker is rare but should fall back to normal
-            # MRO -- otherwise a sibling-type instance would falsely match
-            # simply because it appears in ``_MEMBERS``.
             if cls.__dict__.get("_is_expression_marker"):
-                # Union of the variant markers, plus normal MRO dispatch so
-                # pure-Python subclasses of the marker still match.
                 return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
             return type.__instancecheck__(cls, instance)
 
@@ -707,9 +669,6 @@ if not TYPE_CHECKING:
         _is_expression_marker = True
 
         def __init__(self, idx=None, *_extra, **tags):  # pylint:disable=keyword-arg-before-vararg
-            # Pure-Python subclasses of the marker (e.g. some structurer
-            # helpers) call ``super().__init__(idx, **kwargs)`` and expect
-            # those attributes to be readable afterwards.
             self.idx = idx
             self.tags = tags
 

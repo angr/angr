@@ -72,10 +72,6 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         super().__init__()
         self._ignore_call_args = ignore_call_args
         # transient per-node constraints established during the walk, keyed by the expression node's ``idx``.
-        # ``id()`` is unusable as a key: expression accessors mint a fresh wrapper object on every access, the
-        # wrappers are freed as soon as the walk moves on, and CPython recycles their addresses -- constraints
-        # would silently leak between unrelated nodes. ``idx`` survives the wrapper boundary; nodes duplicated by
-        # substitution share an idx and thus intentionally merge their constraints.
         self._node_effective_bits: dict[int, tuple[int, int]] = {}
         # varid -> {occurrence idx -> (lo_bits, hi_bits)}
         self.vvar_effective_bits: dict[int, dict[int, tuple[int, int]]] = {}

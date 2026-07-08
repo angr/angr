@@ -1472,20 +1472,10 @@ class Clinic(Analysis):
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
                         # found a single successor - replace the last statement.
-                        # ``new_last_stmt.expr`` materializes a fresh
-                        # wrapper around a clone of the stored Call, so a
-                        # ``new_last_stmt.expr.target = const`` chain
-                        # would mutate the throwaway clone and the actual stored
-                        # Call would keep its original (indirect) target. Rebuild
-                        # the Call with the resolved target and write it back
-                        # through the ``expr`` setter.
                         assert isinstance(last_stmt.expr.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
                         old_call = new_last_stmt.expr
-                        # cc + prototype live in the VariableMap side
-                        # container now; carry them over from the old
-                        # Call to the rebuilt one.
                         old_cc = self.variable_map.calling_convention(old_call)
                         old_proto = self.variable_map.prototype(old_call)
                         new_call = ailment.Expr.Call(
@@ -1532,9 +1522,8 @@ class Clinic(Analysis):
                 continue
 
             last_stmt = block.statements[-1]
-            # Enumerate (slot_name, target) pairs so we can route
-            # the call_block.addr rewrite through the statement's setter
-            # (``target.value = X`` would mutate a fresh-wrapper clone).
+            # Enumerate (slot_name, target) pairs so we can route the call_block.addr rewrite through the statement's
+            # setter (``target.value = X`` would mutate a fresh-wrapper clone in Python).
             if isinstance(last_stmt, ailment.Stmt.Jump):
                 slots = [("target", last_stmt.target)]
                 replace_last_stmt = True
@@ -2503,9 +2492,6 @@ class Clinic(Analysis):
         variable_manager = kb.variables[self.function.addr]
         global_variables = kb.variables["global"]
 
-        # ``type(stmt) is …`` identity checks cannot discriminate AIL
-        # variants (every variant shares one pyclass). ``isinstance``
-        # dispatches through the marker metaclass on ``stmt.kind``.
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.Store):
                 # find a memory variable
@@ -2884,13 +2870,6 @@ class Clinic(Analysis):
                 if self.kb.functions.contains_addr(callee):
                     callee_func = self.kb.functions.get_by_addr(callee)
                     if callee_func.info.get("jmp_rax", False) is True:
-                        # rewrite this statement into Call(rax). Statement
-                        # accessors mint fresh wrappers around clones, so
-                        # ``call_stmt.expr.target = ...`` would write into a throwaway.
-                        # Rebuild the Call and route the new expression through the
-                        # ``Statement.expr =`` setter. Preserve ``arg_vvars`` -- it
-                        # is a structural field on Call, not a tag, so
-                        # ``**old_call.tags`` does not carry it.
                         call_stmt = last_stmt.copy()
                         old_call = call_stmt.expr
                         new_target = ailment.Expr.Register(
@@ -2899,7 +2878,6 @@ class Clinic(Analysis):
                             64,
                             ins_addr=call_stmt.tags["ins_addr"],
                         )
-                        # cc + prototype live in VariableMap now; carry over.
                         old_cc = self.variable_map.calling_convention(old_call)
                         old_proto = self.variable_map.prototype(old_call)
                         call_stmt.expr = ailment.Expr.Call(
@@ -3458,11 +3436,6 @@ class Clinic(Analysis):
             return None
 
         def patch_conditional_jump_target(cond_jump_stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int):
-            # ``cond_jump_stmt.true_target`` mints a fresh
-            # ``Expression`` wrapper around a clone of the stored target.
-            # ``cond_jump_stmt.true_target.value = X`` would mutate the
-            # throwaway clone; route the new Const through the
-            # ``true_target =`` setter so the rewrite persists.
             tt = cond_jump_stmt.true_target
             if isinstance(tt, ailment.Expr.Const) and tt.value == old_addr:
                 cond_jump_stmt.true_target = ailment.Expr.Const(tt.idx, new_addr, tt.bits, **tt.tags)

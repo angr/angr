@@ -3440,12 +3440,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # if (node, is_expr) in self.ailexpr2cnode:
         #     return self.ailexpr2cnode[(node, is_expr)]
 
-        # AIL Expressions / Statements all share one rustlib
-        # pyclass; ``node.__class__`` no longer discriminates. ``_dispatch_key``
-        # maps the variant tag back to the marker class registered in
-        # ``self._handlers``. Non-AIL nodes (CodeNode/SequenceNode/...) have
-        # no ``kind`` and fall through to ``type(node)`` cleanly. Mirrors the
-        # C codegen fix.
         handler: Callable | None = self._handlers.get(_dispatch_key(node), None)
         if handler is not None:
             if isinstance(node, (Expr.Call, FunctionLikeMacro)):

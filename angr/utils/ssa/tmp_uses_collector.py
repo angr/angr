@@ -24,10 +24,6 @@ class TmpUsesCollector(AILBlockViewer):
         self._walking_assignment_dst = False
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
-        # Read ``stmt.dst`` / ``stmt.src`` exactly once per statement (each
-        # access clones the whole subtree) and discriminate the def site
-        # positionally instead of via ``idx`` comparison -- see
-        # ``VVarUsesCollector._handle_Assignment``.
         dst = stmt.dst
         src = stmt.src
         prev = self._walking_assignment_dst

@@ -7,8 +7,6 @@ import os
 import re
 import unittest
 
-import pytest
-
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location
@@ -42,15 +40,12 @@ class TestRustcVersionIdentification(unittest.TestCase):
         version = p.rustc_version
         self.assertEqual(version, expected, f"fmt [{configuration}]: expected {expected}, got {version}")
 
-    @pytest.mark.timeout(600)
     def test_fmt_version_nightly_2023_05_22_O3(self):
         self._check_fmt_version("nightly-2023-05-22-O3")
 
-    @pytest.mark.timeout(600)
     def test_fmt_version_nightly_2025_05_22_O3(self):
         self._check_fmt_version("nightly-2025-05-22-O3")
 
-    @pytest.mark.timeout(600)
     def test_fmt_version_nightly_2025_05_22_O0(self):
         self._check_fmt_version("nightly-2025-05-22-O0")
 

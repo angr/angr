@@ -184,10 +184,6 @@ class BlockIOFinder(AILBlockViewer):
         block: Block | None,
         is_memory=False,
     ) -> Any:
-        # ``type(expr)`` returns the universal ``Expression``
-        # pyclass for every variant. ``_dispatch_key`` resolves the
-        # registered marker class via ``expr.kind`` (with a ``type()``
-        # fallback for pure-Python classes).
         handler = self.expr_handlers.get(_dispatch_key(expr))
         if handler:
             return handler(expr_idx, expr, stmt_idx, stmt, block, is_memory=is_memory)

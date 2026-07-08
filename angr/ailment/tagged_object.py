@@ -1,10 +1,6 @@
-"""``TaggedObject`` -- Python-side marker for the legacy
-``isinstance(x, TaggedObject)`` checks.
+"""Python-side marker for the legacy ``isinstance(x, TaggedObject)`` checks.
 
-Every concrete Expression / Statement subclass is collapsed into a
-single ``Expression`` / ``Statement`` pyclass on the Rust side. There is
-no per-class hierarchy to union over -- ``isinstance(x,
-TaggedObject)`` is equivalent to "``x`` is one of the Rust pyclasses".
+We can get rid of this base class once IncompleteSwitchCaseHeadStatement is migrated to Rust.
 """
 
 from __future__ import annotations
@@ -81,17 +77,15 @@ class TaggedObject(metaclass=_TaggedObjectMeta):
         def _hash_core(self) -> int: ...  # pylint:disable=no-self-use
 
     def __hash__(self) -> int:
-        """Pure-Python cached-hash dispatcher used by Python-side classes
-        that subclass the Statement / Expression markers (e.g.
-        ``IncompleteSwitchCaseHeadStatement``). The Rust pyclasses
-        provide their own ``__hash__`` -- this one is the fallback for
-        pure-Python subclasses that define ``_hash_core``."""
+        """
+        The Rust pyclasses provide their own ``__hash__``. This one is the fallback for pure-Python subclasses that
+        define ``_hash_core``.
+        """
         cached = getattr(self, "_cached_hash", None)
         if cached is not None:
             return cached
         h = self._hash_core()  # pylint:disable=no-member,assignment-from-no-return
-        # Classes with ``__slots__`` that don't reserve ``_cached_hash``
-        # fall through without caching.
+        # Classes with ``__slots__`` that don't reserve ``_cached_hash`` fall through without caching.
         with contextlib.suppress(AttributeError):
             self._cached_hash = h  # pylint:disable=attribute-defined-outside-init
         return h

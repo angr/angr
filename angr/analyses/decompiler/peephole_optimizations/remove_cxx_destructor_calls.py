@@ -21,8 +21,6 @@ class RemoveCxxDestructorCalls(PeepholeOptimizationStmtBase):
         # are we calling a function that we deem as a C++ destructor?
         assert self.project is not None
 
-        # FunctionLikeMacro (placed by format_macro_simplifier) does not have
-        # ``target``; only direct Call expressions can be destructor calls.
         if not isinstance(stmt.expr, Call):
             return None
 

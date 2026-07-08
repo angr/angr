@@ -147,7 +147,7 @@ class TestExpression(unittest.TestCase):
         nested = Struct(6, "inner", OrderedDict([(0, old)]), OrderedDict([("value", 0)]), 32)
         outer = Struct(7, "outer", OrderedDict([(0, nested)]), OrderedDict([("inner", 0)]), 32)
         # ``Struct.fields`` is stored as ``IndexMap<i64, Box<AilExpression>>``
-        # and ``get_field`` mints a fresh ``Expression`` wrapper per call --
+        # and ``get_field`` creates a fresh ``Expression`` wrapper per call --
         # identity does not survive the round-trip. Use ``likes`` for the
         # structural compare instead.
         inner_value = outer.get_field("inner.value")
@@ -158,9 +158,8 @@ class TestExpression(unittest.TestCase):
         assert outer.likes(outer.copy())
         replaced, new_outer = outer.replace(old, new)
         assert replaced
-        # Getters materialize a fresh ``Expression`` wrapper, so
-        # ``is new`` identity through replace doesn't survive into nested
-        # containers. Use structural equality (``likes``) instead.
+        # Getters create a fresh ``Expression`` wrapper, so ``is new`` identity through replace doesn't survive into
+        # nested containers. Use structural equality (``likes``) instead.
         new_inner_value = new_outer.get_field("inner.value")
         assert new_inner_value is not None and new_inner_value.likes(new)
         assert not outer.replace(Const(8, 99, 32), new)[0]
@@ -169,15 +168,13 @@ class TestExpression(unittest.TestCase):
         assert enum_expr.size == 4
         assert str(enum_expr).startswith("Ok")
         assert enum_expr.likes(enum_expr.copy())
-        # ``deep_copy`` should give the child a fresh ``idx``; accessors
-        # materialize a fresh wrapper on every read so ``is not`` does
-        # not apply. Check ``idx`` differs instead.
+        # ``deep_copy`` should give the child a fresh ``idx``; accessors create a fresh wrapper on every read so
+        # ``is not`` does not apply. Check ``idx`` differs instead.
         assert enum_expr.deep_copy(manager).fields[0].idx != old.idx
         replaced, new_enum = enum_expr.replace(old, new)
         assert replaced and new_enum.fields[0].likes(new)
-        # ``RustEnum.fields`` is stored as ``Vec<Box<AilExpression>>``
-        # internally; the getter always returns a list regardless of the
-        # iterable passed to the constructor.
+        # ``RustEnum.fields`` is stored as ``Vec<Box<AilExpression>>`` internally; the getter always returns a list\
+        # regardless of the iterable passed to the constructor.
         tuple_enum = RustEnum(10, "Tuple", (old,), 32)
         assert isinstance(tuple_enum.deep_copy(manager).fields, list)
 
@@ -188,9 +185,8 @@ class TestExpression(unittest.TestCase):
         assert array_expr.deep_copy(manager).elements[0].idx != old.idx
         replaced, new_array = array_expr.replace(old, new)
         assert replaced and new_array.elements[0].likes(new)
-        # ``Array.elements`` is stored as ``Vec<Box<AilExpression>>``
-        # internally; the getter always returns a list regardless of the
-        # iterable passed to the constructor.
+        # ``Array.elements`` is stored as ``Vec<Box<AilExpression>>`` internally; the getter always returns a list
+        # regardless of the iterable passed to the constructor.
         tuple_array = Array(12, (old,), 32)
         assert isinstance(tuple_array.deep_copy(manager).elements, list)
 

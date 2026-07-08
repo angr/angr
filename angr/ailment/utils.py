@@ -115,12 +115,8 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
 
 def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
     """
-    Return ``True`` if ``expr`` is an ``Extract`` that takes the
-    least-significant ``expr.bits`` bits of its base, considering endianness.
-
-    Because the per-variant pyclasses are collapsed into a single
-    ``Expression`` fat enum, variant-specific helpers like this live
-    here as plain functions taking an ``Expression`` argument.
+    Return ``True`` if ``expr`` is an ``Extract`` that takes the least-significant ``expr.bits`` bits of its base,
+    considering endianness.
     """
     if not isinstance(expr, ailment.expression.Extract):
         return False
@@ -133,9 +129,8 @@ def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
 
 def is_lsb_overwrite(expr: ailment.expression.Expression) -> bool:
     """
-    Return ``True`` if ``expr`` is an ``Insert`` that overwrites the
-    least-significant ``expr.value.bits`` bits of its base, considering
-    endianness.
+    Return ``True`` if ``expr`` is an ``Insert`` that overwrites the least-significant ``expr.value.bits`` bits of its
+    base, considering endianness.
 
     ``Insert`` counterpart of ``is_lsb_extract``.
     """

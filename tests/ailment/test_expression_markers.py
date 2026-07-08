@@ -1,9 +1,5 @@
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
-"""Smoke tests for the Expression marker classes.
-
-Locks in the variant coverage and the metaclass dispatch contract for
-all 27 Expression variants in ``angr.ailment.expression``.
-"""
+"""Smoke tests for the Expression marker classes."""
 
 from __future__ import annotations
 

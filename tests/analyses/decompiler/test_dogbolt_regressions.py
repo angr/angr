@@ -5,8 +5,6 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
-import pytest
-
 import angr
 from tests.common import bin_location
 
@@ -38,7 +36,6 @@ class TestDogboltRegressions(unittest.TestCase):
             decompiler = p.analyses.Decompiler(func, cfg=cfg.model)
             self.assertIsNotNone(decompiler.codegen, f"No decompilation output for function {func.name}")
 
-    @pytest.mark.timeout(300)
     def test_megatest_arm64_freebsd(self):
         """
         This binary is used as a sample output on dogbolt as of October 2024,

@@ -1,17 +1,9 @@
 """AIL Statement classes.
 
-Mirror of ``angr.ailment.expression`` for the Statement side. AIL
-statement instances are ``angr.rustylib.ailment.Statement`` -- a single
-Rust pyclass wrapping the ``AilStatement`` fat enum. The per-variant
-classes in this module (``Assignment``, ``Store``, ...) are Python-side
-marker classes whose ``__new__`` calls a ``Statement._new_*`` factory
-and returns a ``Statement`` instance whose ``__class__`` is
-``Statement`` (not the marker); ``isinstance`` dispatches on the
-variant tag via metaclass. For static type checkers each marker name
-is aliased to the ``Statement`` pyclass itself (see the
-``TYPE_CHECKING`` branch).
+Mirror of ``angr.ailment.expression`` for the Statement side.
 """
 
+# pylint:disable=import-error,no-name-in-module
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -19,14 +11,7 @@ from typing import TYPE_CHECKING, Any
 from .tagged_object import TaggedObject  # re-export for backward compat
 
 if TYPE_CHECKING:
-    # Static typing story: at runtime every marker below produces (and
-    # every ``isinstance`` matches) ``angr.rustylib.ailment.Statement``
-    # instances -- the marker classes never appear in an instance's MRO.
-    # For the type checker each marker name therefore *is* the Statement
-    # pyclass; annotations like ``-> Assignment`` mean "a Statement whose
-    # variant is Assignment" and all variant accessors come from the
-    # Statement stub.
-    from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    from angr.rustylib.ailment import (
         Statement,
     )
     from angr.rustylib.ailment import (
@@ -63,18 +48,16 @@ if TYPE_CHECKING:
         Statement as WeakAssignment,
     )
 else:
-    from angr.rustylib.ailment import Statement as _Statement  # pylint:disable=import-error
-    from angr.rustylib.ailment import StatementKind as SK  # pylint:disable=import-error
+    from angr.rustylib.ailment import Statement as _Statement
+    from angr.rustylib.ailment import StatementKind as SK
 
     class _AilStmtMarkerMeta(type):
         """Metaclass for the Statement marker classes.
 
         ``_kind`` (class attr) is the variant tag this marker matches.
-        ``__instancecheck__`` returns True iff the instance is a
-        ``Statement`` whose ``kind`` matches.
 
-        ``_kinds`` is an optional frozenset for markers that match a union
-        of variants (e.g. an abstract ``Statement`` parent marker).
+        ``_kinds`` is an optional frozenset for markers that match a union of variants (e.g. an abstract ``Statement``
+        parent marker).
         """
 
         _kind: SK
@@ -102,8 +85,6 @@ else:
                 )
 
         def __instancecheck__(cls, instance: Any) -> bool:
-            # ``type(x) is`` (final pyclass) + direct int compare for
-            # single-kind markers; see ``expression._AilMarkerMeta``.
             if type(instance) is not _Statement:
                 return False
             k = cls._match_kind_int_single
@@ -115,9 +96,7 @@ else:
             return subclass is cls
 
         def __call__(cls, *args, **kwargs):
-            # Normalize ``idx=None`` to 0 -- the constructors accept
-            # ``Optional[int]`` for ``idx`` while the fat-enum factories use
-            # plain ``i64``.
+            # Normalize idx=None to 0.
             if args and args[0] is None:
                 args = (0, *args[1:])
             return type.__call__(cls, *args, **kwargs)
@@ -279,9 +258,6 @@ else:
 
         def __instancecheck__(cls, instance):
             if cls.__dict__.get("_is_statement_marker"):
-                # Union of the variant markers, plus normal MRO dispatch so
-                # pure-Python subclasses of the marker (e.g. the structurer's
-                # IncompleteSwitchCaseHeadStatement) still match.
                 return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
             return type.__instancecheck__(cls, instance)
 
@@ -302,11 +278,7 @@ else:
         @staticmethod
         def from_bytes(data: bytes):
             """Deserialize a Statement from bytes."""
-            from angr.rustylib.ailment import (  # pylint:disable=import-error,import-outside-toplevel
-                Statement as _RustStatement,
-            )
-
-            return _RustStatement.from_bytes(data)
+            return _Statement.from_bytes(data)
 
 
 __all__ = [

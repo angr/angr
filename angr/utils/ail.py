@@ -13,10 +13,6 @@ if TYPE_CHECKING:
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
-    # Native projection: one FFI call, no dst/src wrapper materialization
-    # (each wrapper access deep-clones its whole subtree). Pure-Python
-    # Statement subclasses (e.g. IncompleteSwitchCaseHeadStatement) are
-    # never phi assignments.
     return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 
@@ -154,9 +150,6 @@ def is_expr_used_as_reg_base_value(stmt: Statement, expr: Expression, srda: SRDA
     if not (isinstance(stmt.src, BinaryOp) and stmt.src.op == "Or"):
         return False
 
-    # ``stmt.src.operands`` materializes fresh wrappers every read,
-    # so ``op0 is stmt.src.operands[1]`` never matches. Compare ``.idx`` --
-    # AIL idx is unique per expression and survives the wrapper clone.
     operands = stmt.src.operands
     for op0 in operands:
         op1 = operands[0] if op0.idx == operands[1].idx else operands[1]

@@ -206,11 +206,6 @@ class DFAMixin:
 
     def get_def_block_and_stmt(self, data):
         assert self.graph is not None
-        # The ``stmt.src`` accessor mints a fresh ``Expression``
-        # wrapper around the stored ``AilExpression`` on every call, so
-        # ``is`` cannot discriminate "this Assignment's source
-        # is the same AIL expression". ``likes`` is the meaningful
-        # equality check (idx-agnostic structural equivalence).
         for block in self.graph.nodes:
             for _, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment):

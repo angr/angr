@@ -423,11 +423,6 @@ class IncompleteSwitchCaseNode(BaseNode):
 #
 
 if TYPE_CHECKING:
-    # Statically the ``Statement`` marker aliases the rustlib pyclass, whose
-    # variant accessors / ``kind`` property clash with this pure-Python
-    # subclass. Type against ``TaggedObject`` (idx + cached-hash machinery)
-    # instead; at runtime the base stays the marker ``Statement`` so
-    # ``isinstance(x, Statement)`` keeps matching.
     from angr.ailment.tagged_object import TaggedObject as _IncompleteSwitchCaseHeadStatementBase
 else:
     _IncompleteSwitchCaseHeadStatementBase = ailment.statement.Statement

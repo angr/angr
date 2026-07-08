@@ -37,9 +37,6 @@ class ReturnMaker(AILGraphWalker):
             and type(self.function.prototype.returnty) is not SimTypeBottom
         ):
             new_stmt = stmt.copy()
-            # ``new_stmt.ret_exprs`` materializes a fresh list each
-            # access, so mutating via ``.append`` is silently dropped. Build
-            # the new list locally and assign via the setter.
             new_ret_exprs = list(new_stmt.ret_exprs)
             returnty = (
                 dereference_simtype_by_lib(self.function.prototype.returnty, self.function.prototype_libname)

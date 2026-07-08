@@ -26,9 +26,6 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
     def optimize(self, stmt: SideEffectStatement, block=None, **kwargs):  # type: ignore
         assert self.project is not None
 
-        # ``stmt.expr`` is usually a Call, but the format-macro simplifier may
-        # rewrite it to a FunctionLikeMacro which does not have a ``target``.
-        # The cxx operator rewrite only applies to direct Call expressions.
         if not isinstance(stmt.expr, Call):
             return None
 
