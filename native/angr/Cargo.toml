@@ -21,7 +21,7 @@ rangemap = "1.7.1"
 send_wrapper = "0.6.0"
 indexmap = { version = "2.14", features = ["serde"] }
 fixedbitset = "0.5"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_bytes = "0.11"
 rustc-hash = "2"
 target-lexicon = "0.13.5"

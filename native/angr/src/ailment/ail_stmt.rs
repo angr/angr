@@ -13,6 +13,7 @@
 //! See ``angr/ailment/statement.py`` for the marker classes.
 
 use std::fmt;
+use std::sync::Arc;
 use std::hash::{Hash, Hasher};
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
@@ -65,23 +66,23 @@ impl StmtHeader {
 #[derive(Clone, Debug)]
 pub enum StmtInner {
     Assignment {
-        dst: Box<AilExpression>,
-        src: Box<AilExpression>,
+        dst: Arc<AilExpression>,
+        src: Arc<AilExpression>,
     },
     WeakAssignment {
-        dst: Box<AilExpression>,
-        src: Box<AilExpression>,
+        dst: Arc<AilExpression>,
+        src: Arc<AilExpression>,
     },
     Label {
         name: String,
     },
     Store {
-        addr: Box<AilExpression>,
-        data: Box<AilExpression>,
+        addr: Arc<AilExpression>,
+        data: Arc<AilExpression>,
         /// Signed to accommodate the ``UNDETERMINED_SIZE = -0xC0DE`` sentinel.
         size: i32,
         endness: String,
-        guard: Option<Box<AilExpression>>,
+        guard: Option<Arc<AilExpression>>,
     },
     Jump {
         /// Typically a Const expression (resolved target) but may be a
@@ -92,33 +93,33 @@ pub enum StmtInner {
         target_idx: Option<i64>,
     },
     ConditionalJump {
-        condition: Box<AilExpression>,
+        condition: Arc<AilExpression>,
         true_target: Option<CFGTarget>,
         false_target: Option<CFGTarget>,
         true_target_idx: Option<i64>,
         false_target_idx: Option<i64>,
     },
     SideEffectStatement {
-        expr: Box<AilExpression>,
-        ret_expr: Option<Box<AilExpression>>,
-        fp_ret_expr: Option<Box<AilExpression>>,
+        expr: Arc<AilExpression>,
+        ret_expr: Option<Arc<AilExpression>>,
+        fp_ret_expr: Option<Arc<AilExpression>>,
     },
     Return {
         ret_exprs: Vec<AilExpression>,
     },
     CAS {
-        addr: Box<AilExpression>,
-        data_lo: Box<AilExpression>,
-        data_hi: Option<Box<AilExpression>>,
-        expd_lo: Box<AilExpression>,
-        expd_hi: Option<Box<AilExpression>>,
-        old_lo: Box<AilExpression>,
-        old_hi: Option<Box<AilExpression>>,
+        addr: Arc<AilExpression>,
+        data_lo: Arc<AilExpression>,
+        data_hi: Option<Arc<AilExpression>>,
+        expd_lo: Arc<AilExpression>,
+        expd_hi: Option<Arc<AilExpression>>,
+        old_lo: Arc<AilExpression>,
+        old_hi: Option<Arc<AilExpression>>,
         endness: String,
     },
     DirtyStatement {
         /// Wraps a DirtyExpression AIL expression.
-        dirty: Box<AilExpression>,
+        dirty: Arc<AilExpression>,
     },
     /// In-place placeholder for a removed statement. Defines and uses
     /// no atoms; primarily used by the AIL simplifier's dead-assignment
@@ -265,13 +266,13 @@ impl AilStatement {
             vmap.call_method1("transfer", (self.header.idx, new_idx))?;
         }
         let new_header = StmtHeader::new(new_idx, self.header.tags.clone());
-        let recurse = |child: &AilExpression| -> PyResult<Box<AilExpression>> {
-            Ok(Box::new(child.deep_copy_ail(py, manager)?))
+        let recurse = |child: &AilExpression| -> PyResult<Arc<AilExpression>> {
+            Ok(Arc::new(child.deep_copy_ail(py, manager)?))
         };
-        let recurse_opt = |o: &Option<Box<AilExpression>>| -> PyResult<Option<Box<AilExpression>>> {
+        let recurse_opt = |o: &Option<Arc<AilExpression>>| -> PyResult<Option<Arc<AilExpression>>> {
             match o {
                 None => Ok(None),
-                Some(c) => Ok(Some(Box::new(c.deep_copy_ail(py, manager)?))),
+                Some(c) => Ok(Some(Arc::new(c.deep_copy_ail(py, manager)?))),
             }
         };
         let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
@@ -281,7 +282,7 @@ impl AilStatement {
         // expression for ``Expr``, clone the string for ``Symbol``.
         let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
             match t {
-                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Box::new(e.deep_copy_ail(py, manager)?))),
+                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Arc::new(e.deep_copy_ail(py, manager)?))),
                 CFGTarget::Symbol(s) => Ok(CFGTarget::Symbol(s.clone())),
             }
         };
@@ -383,16 +384,16 @@ impl AilStatement {
         old_expr: &AilExpression,
         new_expr: &AilExpression,
     ) -> (bool, AilStatement) {
-        let walk = |child: &AilExpression| -> (bool, Box<AilExpression>) {
+        let walk = |child: &AilExpression| -> (bool, Arc<AilExpression>) {
             let (c, r) = child.replace_ail(old_expr, new_expr);
-            (c, Box::new(r))
+            (c, Arc::new(r))
         };
-        let walk_opt = |o: &Option<Box<AilExpression>>| -> (bool, Option<Box<AilExpression>>) {
+        let walk_opt = |o: &Option<Arc<AilExpression>>| -> (bool, Option<Arc<AilExpression>>) {
             match o {
                 None => (false, None),
                 Some(c) => {
                     let (changed, r) = c.replace_ail(old_expr, new_expr);
-                    (changed, Some(Box::new(r)))
+                    (changed, Some(Arc::new(r)))
                 }
             }
         };
@@ -704,7 +705,7 @@ impl AilStatement {
                 },
             ) => {
                 let opt_likes =
-                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
                         (Some(x), Some(y)) => x.likes(y),
                         _ => false,
@@ -737,7 +738,7 @@ impl AilStatement {
                 },
             ) => {
                 let opt_likes =
-                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
                         (Some(x), Some(y)) => x.likes(y),
                         _ => false,
@@ -854,7 +855,7 @@ impl AilStatement {
                 },
             ) => {
                 let opt_matches =
-                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
                         (Some(x), Some(y)) => x.matches(y),
                         _ => false,
@@ -887,7 +888,7 @@ impl AilStatement {
                 },
             ) => {
                 let opt_matches =
-                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
                         (Some(x), Some(y)) => x.matches(y),
                         _ => false,
@@ -980,8 +981,8 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Assignment {
-                dst: Box::new(dst),
-                src: Box::new(src),
+                dst: Arc::new(dst),
+                src: Arc::new(src),
             },
         }))
     }
@@ -998,8 +999,8 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::WeakAssignment {
-                dst: Box::new(dst),
-                src: Box::new(src),
+                dst: Arc::new(dst),
+                src: Arc::new(src),
             },
         }))
     }
@@ -1030,11 +1031,11 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Store {
-                addr: Box::new(addr),
-                data: Box::new(data),
+                addr: Arc::new(addr),
+                data: Arc::new(data),
                 size,
                 endness,
-                guard: guard.map(Box::new),
+                guard: guard.map(Arc::new),
             },
         }))
     }
@@ -1073,7 +1074,7 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::ConditionalJump {
-                condition: Box::new(condition),
+                condition: Arc::new(condition),
                 true_target,
                 false_target,
                 true_target_idx,
@@ -1095,9 +1096,9 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::SideEffectStatement {
-                expr: Box::new(expr),
-                ret_expr: ret_expr.map(Box::new),
-                fp_ret_expr: fp_ret_expr.map(Box::new),
+                expr: Arc::new(expr),
+                ret_expr: ret_expr.map(Arc::new),
+                fp_ret_expr: fp_ret_expr.map(Arc::new),
             },
         }))
     }
@@ -1143,13 +1144,13 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::CAS {
-                addr: Box::new(addr),
-                data_lo: Box::new(data_lo),
-                data_hi: data_hi.map(Box::new),
-                expd_lo: Box::new(expd_lo),
-                expd_hi: expd_hi.map(Box::new),
-                old_lo: Box::new(old_lo),
-                old_hi: old_hi.map(Box::new),
+                addr: Arc::new(addr),
+                data_lo: Arc::new(data_lo),
+                data_hi: data_hi.map(Arc::new),
+                expd_lo: Arc::new(expd_lo),
+                expd_hi: expd_hi.map(Arc::new),
+                old_lo: Arc::new(old_lo),
+                old_hi: old_hi.map(Arc::new),
                 endness,
             },
         }))
@@ -1166,7 +1167,7 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::DirtyStatement {
-                dirty: Box::new(dirty),
+                dirty: Arc::new(dirty),
             },
         }))
     }
@@ -1404,7 +1405,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump { condition, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **condition = value;
+                *condition = Arc::new(value);
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(
@@ -1515,7 +1516,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::SideEffectStatement { expr, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **expr = value;
+                *expr = Arc::new(value);
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
@@ -1668,7 +1669,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::Assignment { dst, .. } | StmtInner::WeakAssignment { dst, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **dst = value;
+                *dst = Arc::new(value);
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'dst' on this Statement")),
@@ -1690,7 +1691,7 @@ impl Statement {
         match &mut self.stmt.inner {
             StmtInner::Assignment { src, .. } | StmtInner::WeakAssignment { src, .. } => {
                 self.stmt.header.cached_hash.clear();
-                **src = value;
+                *src = Arc::new(value);
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'src' on this Statement")),

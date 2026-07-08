@@ -5,7 +5,7 @@
 //! * [`AilExpression`] is a pure Rust struct holding the shared header
 //!   (idx, tags, bits, depth, cached hash) plus an [`ExprInner`] variant
 //!   carrying all variant-specific fields **inline**, with operand
-//!   subtrees stored as ``Box<AilExpression>`` -- no ``Py<T>`` for
+//!   subtrees stored as ``Arc<AilExpression>`` -- no ``Py<T>`` for
 //!   operand fields.
 //!
 //! * [`Expression`] is the single ``#[pyclass]`` exposed to Python. It
@@ -17,6 +17,7 @@
 //!   live in ``angr/ailment/expression.py``.
 
 use std::fmt;
+use std::sync::Arc;
 use std::hash::{Hash, Hasher};
 
 use pyo3::IntoPyObjectExt;
@@ -66,7 +67,7 @@ impl ExprHeader {
 
 /// Concrete Expression variants.
 ///
-/// Layout note: operand subtrees are owned via ``Box<AilExpression>``
+/// Layout note: operand subtrees are owned via ``Arc<AilExpression>``
 /// (one heap allocation per subtree). Variable information used to live
 /// on each variant (``variable`` / ``variable_offset``); it now lives in
 /// a side ``VariableMap`` keyed on ``ExprHeader::idx``.
@@ -107,14 +108,14 @@ pub enum ExprInner {
         /// vvars are computed. Each element is invariantly an
         /// ``AilExpression`` of variant ``VirtualVariable``; the
         /// constructor enforces this once at construction.
-        reg_vvars: Option<Vec<Box<AilExpression>>>,
+        reg_vvars: Option<Vec<Arc<AilExpression>>>,
     },
     UnaryOp {
         op: String,
-        operand: Box<AilExpression>,
+        operand: Arc<AilExpression>,
     },
     Convert {
-        operand: Box<AilExpression>,
+        operand: Arc<AilExpression>,
         from_bits: u32,
         to_bits: u32,
         is_signed: bool,
@@ -123,7 +124,7 @@ pub enum ExprInner {
         rounding_mode: Option<RoundingMode>,
     },
     Reinterpret {
-        operand: Box<AilExpression>,
+        operand: Arc<AilExpression>,
         from_bits: u32,
         from_type: String,
         to_bits: u32,
@@ -131,7 +132,7 @@ pub enum ExprInner {
     },
     BinaryOp {
         op: String,
-        operands: [Box<AilExpression>; 2],
+        operands: [Arc<AilExpression>; 2],
         signed: bool,
         floating_point: bool,
         rounding_mode: Option<RoundingMode>,
@@ -139,11 +140,11 @@ pub enum ExprInner {
         vector_size: Option<i64>,
     },
     Load {
-        addr: Box<AilExpression>,
+        addr: Arc<AilExpression>,
         size: i32,
         endness: String,
-        guard: Option<Box<AilExpression>>,
-        alt: Option<Box<AilExpression>>,
+        guard: Option<Arc<AilExpression>>,
+        alt: Option<Arc<AilExpression>>,
     },
     Call {
         /// Expression (typically Const for direct calls) or str (for
@@ -158,9 +159,9 @@ pub enum ExprInner {
     DirtyExpression {
         callee: String,
         operands: Vec<AilExpression>,
-        guard: Option<Box<AilExpression>>,
+        guard: Option<Arc<AilExpression>>,
         mfx: Option<String>,
-        maddr: Option<Box<AilExpression>>,
+        maddr: Option<Arc<AilExpression>>,
         msize: Option<i64>,
     },
     VEXCCallExpression {
@@ -169,13 +170,13 @@ pub enum ExprInner {
     },
     MultiStatementExpression {
         stmts: Vec<crate::ailment::ail_stmt::AilStatement>,
-        expr: Box<AilExpression>,
+        expr: Arc<AilExpression>,
     },
     Struct {
         name: String,
         /// Struct fields, keyed by byte offset, ordered by insertion
         /// (matches the Python ``OrderedDict`` callers pass in).
-        fields: IndexMap<i64, Box<AilExpression>>,
+        fields: IndexMap<i64, Arc<AilExpression>>,
         /// Field name -> byte offset, ordered by insertion.
         field_offsets: IndexMap<String, i64>,
         /// Byte offset -> field name. Derived in the constructor as
@@ -186,12 +187,12 @@ pub enum ExprInner {
         name: String,
         /// Variant fields. The marker class accepts a list or tuple of
         /// ``Expression`` -- the constructor normalizes to a typed
-        /// ``Vec<Box<AilExpression>>`` so the data round-trips through
+        /// ``Vec<Arc<AilExpression>>`` so the data round-trips through
         /// Rust without re-extracting via Python on every read.
-        fields: Vec<Box<AilExpression>>,
+        fields: Vec<Arc<AilExpression>>,
     },
     Array {
-        elements: Vec<Box<AilExpression>>,
+        elements: Vec<Arc<AilExpression>>,
     },
     Let {
         /// List of bound definitions -- each entry is an AIL
@@ -200,7 +201,7 @@ pub enum ExprInner {
         /// ``EnumVariant`` itself lives in the ``VariableMap`` side
         /// container keyed by the ``Let`` expression's ``.idx``.
         defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>>,
-        src: Box<AilExpression>,
+        src: Arc<AilExpression>,
     },
     Macro {
         name: String,
@@ -213,22 +214,22 @@ pub enum ExprInner {
         /// (distinct from ``Some(vec![])``, an empty argument list).
         /// Each entry is an ``AilExpression``; the constructor accepts
         /// any iterable of ``Expression``.
-        args: Option<Vec<Box<AilExpression>>>,
+        args: Option<Vec<Arc<AilExpression>>>,
     },
     ITE {
-        cond: Box<AilExpression>,
-        iffalse: Box<AilExpression>,
-        iftrue: Box<AilExpression>,
+        cond: Arc<AilExpression>,
+        iffalse: Arc<AilExpression>,
+        iftrue: Arc<AilExpression>,
     },
     Extract {
-        base: Box<AilExpression>,
-        offset: Box<AilExpression>,
+        base: Arc<AilExpression>,
+        offset: Arc<AilExpression>,
         endness: String,
     },
     Insert {
-        base: Box<AilExpression>,
-        offset: Box<AilExpression>,
-        value: Box<AilExpression>,
+        base: Arc<AilExpression>,
+        offset: Arc<AilExpression>,
+        value: Arc<AilExpression>,
         endness: String,
     },
     StringLiteral {
@@ -315,7 +316,7 @@ impl ExprInner {
 /// sat in each comparison method.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CFGTarget {
-    Expr(Box<AilExpression>),
+    Expr(Arc<AilExpression>),
     Symbol(String),
 }
 
@@ -329,7 +330,7 @@ impl<'py> FromPyObject<'_, 'py> for CFGTarget {
             return Ok(CFGTarget::Symbol(s));
         }
         if let Ok(cell) = obj.cast::<Expression>() {
-            return Ok(CFGTarget::Expr(Box::new(cell.borrow().expr.clone())));
+            return Ok(CFGTarget::Expr(Arc::new(cell.borrow().expr.clone())));
         }
         Err(PyTypeError::new_err(
             "CFG target must be an Expression or str",
@@ -346,7 +347,7 @@ impl<'py> IntoPyObject<'py> for CFGTarget {
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         match self {
-            CFGTarget::Expr(e) => Ok(Bound::new(py, Expression::wrap(*e))?.into_any()),
+            CFGTarget::Expr(e) => Ok(Bound::new(py, Expression::wrap((*e).clone()))?.into_any()),
             CFGTarget::Symbol(s) => Ok(PyString::new(py, &s).into_any()),
         }
     }
@@ -397,7 +398,7 @@ impl CFGTarget {
             CFGTarget::Expr(e) => {
                 let (c, r) = e.replace_ail(old, new);
                 if c {
-                    (true, CFGTarget::Expr(Box::new(r)))
+                    (true, CFGTarget::Expr(Arc::new(r)))
                 } else {
                     (false, self.clone())
                 }
@@ -639,7 +640,7 @@ impl OIdent {
 pub struct PhiEntry {
     pub src_addr: i64,
     pub src_idx: Option<i64>,
-    pub vvar: Option<Box<AilExpression>>,
+    pub vvar: Option<Arc<AilExpression>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1037,9 +1038,9 @@ impl AilExpression {
         if self.eq_ail(old) {
             return (true, new.clone());
         }
-        let walk = |child: &AilExpression| -> (bool, Box<AilExpression>) {
+        let walk = |child: &AilExpression| -> (bool, Arc<AilExpression>) {
             let (c, r) = child.replace_ail(old, new);
-            (c, Box::new(r))
+            (c, Arc::new(r))
         };
         let walk_vec = |v: &Vec<AilExpression>| -> (bool, Vec<AilExpression>) {
             let mut changed = false;
@@ -1051,12 +1052,12 @@ impl AilExpression {
             }
             (changed, out)
         };
-        let walk_opt = |o: &Option<Box<AilExpression>>| -> (bool, Option<Box<AilExpression>>) {
+        let walk_opt = |o: &Option<Arc<AilExpression>>| -> (bool, Option<Arc<AilExpression>>) {
             match o {
                 None => (false, None),
                 Some(c) => {
                     let (changed, r) = c.replace_ail(old, new);
-                    (changed, Some(Box::new(r)))
+                    (changed, Some(Arc::new(r)))
                 }
             }
         };
@@ -1326,13 +1327,13 @@ impl AilExpression {
                 // Walk the value map; rebuild only if any field needs
                 // replacement. Offsets/names are scalar metadata.
                 let mut changed = false;
-                let mut new_fields: IndexMap<i64, Box<AilExpression>> =
+                let mut new_fields: IndexMap<i64, Arc<AilExpression>> =
                     IndexMap::with_capacity(fields.len());
                 for (off, e) in fields {
                     let (c, r) = e.replace_ail(old, new);
                     if c {
                         changed = true;
-                        new_fields.insert(*off, Box::new(r));
+                        new_fields.insert(*off, Arc::new(r));
                     } else {
                         new_fields.insert(*off, e.clone());
                     }
@@ -1352,12 +1353,12 @@ impl AilExpression {
             }
             ExprInner::RustEnum { name, fields } => {
                 let mut changed = false;
-                let mut new_fields: Vec<Box<AilExpression>> = Vec::with_capacity(fields.len());
+                let mut new_fields: Vec<Arc<AilExpression>> = Vec::with_capacity(fields.len());
                 for f in fields {
                     let (c, r) = f.replace_ail(old, new);
                     if c {
                         changed = true;
-                        new_fields.push(Box::new(r));
+                        new_fields.push(Arc::new(r));
                     } else {
                         new_fields.push(f.clone());
                     }
@@ -1375,12 +1376,12 @@ impl AilExpression {
             }
             ExprInner::Array { elements } => {
                 let mut changed = false;
-                let mut new_elements: Vec<Box<AilExpression>> = Vec::with_capacity(elements.len());
+                let mut new_elements: Vec<Arc<AilExpression>> = Vec::with_capacity(elements.len());
                 for e in elements {
                     let (c, r) = e.replace_ail(old, new);
                     if c {
                         changed = true;
-                        new_elements.push(Box::new(r));
+                        new_elements.push(Arc::new(r));
                     } else {
                         new_elements.push(e.clone());
                     }
@@ -1404,12 +1405,12 @@ impl AilExpression {
                     return (false, self.clone());
                 };
                 let mut changed = false;
-                let mut new_args: Vec<Box<AilExpression>> = Vec::with_capacity(l.len());
+                let mut new_args: Vec<Arc<AilExpression>> = Vec::with_capacity(l.len());
                 for a in l {
                     let (c, r) = a.replace_ail(old, new);
                     if c {
                         changed = true;
-                        new_args.push(Box::new(r));
+                        new_args.push(Arc::new(r));
                     } else {
                         new_args.push(a.clone());
                     }
@@ -1449,7 +1450,7 @@ impl AilExpression {
                             PhiEntry {
                                 src_addr: e.src_addr,
                                 src_idx: e.src_idx,
-                                vvar: Some(Box::new(new.clone())),
+                                vvar: Some(Arc::new(new.clone())),
                             }
                         }
                         _ => e.clone(),
@@ -1599,22 +1600,22 @@ impl AilExpression {
             self.header.bits,
             self.header.tags.clone(),
         );
-        let recurse = |child: &AilExpression| -> PyResult<Box<AilExpression>> {
-            Ok(Box::new(child.deep_copy_ail(py, manager)?))
+        let recurse = |child: &AilExpression| -> PyResult<Arc<AilExpression>> {
+            Ok(Arc::new(child.deep_copy_ail(py, manager)?))
         };
         let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
             v.iter().map(|x| x.deep_copy_ail(py, manager)).collect()
         };
-        let recurse_opt = |o: &Option<Box<AilExpression>>| -> PyResult<Option<Box<AilExpression>>> {
+        let recurse_opt = |o: &Option<Arc<AilExpression>>| -> PyResult<Option<Arc<AilExpression>>> {
             match o {
                 None => Ok(None),
-                Some(c) => Ok(Some(Box::new(c.deep_copy_ail(py, manager)?))),
+                Some(c) => Ok(Some(Arc::new(c.deep_copy_ail(py, manager)?))),
             }
         };
         // Deep copy a CFGTarget: recursively deep-copy the inner expr.
         let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
             match t {
-                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Box::new(e.deep_copy_ail(py, manager)?))),
+                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Arc::new(e.deep_copy_ail(py, manager)?))),
                 CFGTarget::Symbol(s) => Ok(CFGTarget::Symbol(s.clone())),
             }
         };
@@ -2150,7 +2151,7 @@ impl AilExpression {
                     return false;
                 }
                 let opt_likes =
-                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
                         (Some(x), Some(y)) => x.likes(y),
                         _ => false,
@@ -2550,7 +2551,7 @@ impl AilExpression {
                     return false;
                 }
                 let opt_matches =
-                    |a: &Option<Box<AilExpression>>, b: &Option<Box<AilExpression>>| match (a, b) {
+                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
                         (Some(x), Some(y)) => x.matches(y),
                         _ => false,
@@ -2734,7 +2735,7 @@ impl Expression {
                         )
                     })?
                     .collect::<PyResult<Vec<_>>>()?;
-                let mut decoded: Vec<Box<AilExpression>> = Vec::with_capacity(items.len());
+                let mut decoded: Vec<Arc<AilExpression>> = Vec::with_capacity(items.len());
                 for (i, item) in items.into_iter().enumerate() {
                     let ail = item.extract::<AilExpression>()?;
                     if !matches!(ail.inner, ExprInner::VirtualVariable { .. }) {
@@ -2743,7 +2744,7 @@ impl Expression {
                             i
                         )));
                     }
-                    decoded.push(Box::new(ail));
+                    decoded.push(Arc::new(ail));
                 }
                 Some(decoded)
             }
@@ -2838,7 +2839,7 @@ impl Expression {
             header: ExprHeader::new(idx, depth, final_bits, tags),
             inner: ExprInner::UnaryOp {
                 op,
-                operand: Box::new(operand),
+                operand: Arc::new(operand),
             },
         }))
     }
@@ -2866,7 +2867,7 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, to_bits, tags),
             inner: ExprInner::Convert {
-                operand: Box::new(operand),
+                operand: Arc::new(operand),
                 from_bits,
                 to_bits,
                 is_signed,
@@ -2894,7 +2895,7 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, to_bits, tags),
             inner: ExprInner::Reinterpret {
-                operand: Box::new(operand),
+                operand: Arc::new(operand),
                 from_bits,
                 from_type,
                 to_bits,
@@ -2943,7 +2944,7 @@ impl Expression {
             header: ExprHeader::new(idx, depth, final_bits, tags),
             inner: ExprInner::BinaryOp {
                 op,
-                operands: [Box::new(lhs_ail), Box::new(rhs_ail)],
+                operands: [Arc::new(lhs_ail), Arc::new(rhs_ail)],
                 signed,
                 floating_point,
                 rounding_mode,
@@ -2973,9 +2974,9 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::ITE {
-                cond: Box::new(cond),
-                iffalse: Box::new(iffalse),
-                iftrue: Box::new(iftrue),
+                cond: Arc::new(cond),
+                iffalse: Arc::new(iffalse),
+                iftrue: Arc::new(iftrue),
             },
         }))
     }
@@ -2995,8 +2996,8 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Extract {
-                base: Box::new(base),
-                offset: Box::new(offset),
+                base: Arc::new(base),
+                offset: Arc::new(offset),
                 endness,
             },
         }))
@@ -3018,9 +3019,9 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Insert {
-                base: Box::new(base),
-                offset: Box::new(offset),
-                value: Box::new(value),
+                base: Arc::new(base),
+                offset: Arc::new(offset),
+                value: Arc::new(value),
                 endness,
             },
         }))
@@ -3100,11 +3101,11 @@ impl Expression {
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Load {
-                addr: Box::new(addr),
+                addr: Arc::new(addr),
                 size,
                 endness,
-                guard: guard.map(Box::new),
-                alt: alt.map(Box::new),
+                guard: guard.map(Arc::new),
+                alt: alt.map(Arc::new),
             },
         }))
     }
@@ -3182,9 +3183,9 @@ impl Expression {
             inner: ExprInner::DirtyExpression {
                 callee,
                 operands: ops,
-                guard: guard.map(Box::new),
+                guard: guard.map(Arc::new),
                 mfx,
-                maddr: maddr.map(Box::new),
+                maddr: maddr.map(Arc::new),
                 msize,
             },
         }))
@@ -3235,7 +3236,7 @@ impl Expression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::MultiStatementExpression {
                 stmts: stmt_vec,
-                expr: Box::new(expr),
+                expr: Arc::new(expr),
             },
         }))
     }
@@ -3251,7 +3252,7 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let mut decoded_fields: IndexMap<i64, Box<AilExpression>> =
+        let mut decoded_fields: IndexMap<i64, Arc<AilExpression>> =
             IndexMap::with_capacity(fields.len());
         let mut depth: u32 = 0;
         for (k, v) in fields.iter() {
@@ -3260,7 +3261,7 @@ impl Expression {
                 .map_err(|_| PyTypeError::new_err("Struct fields keys must be int offsets"))?;
             let ail = v.extract::<AilExpression>()?;
             depth = depth.max(ail.header.depth);
-            decoded_fields.insert(off, Box::new(ail));
+            decoded_fields.insert(off, Arc::new(ail));
         }
         depth += 1;
         let mut decoded_offsets: IndexMap<String, i64> =
@@ -3297,13 +3298,13 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let mut decoded: Vec<Box<AilExpression>> = Vec::new();
+        let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
         let mut depth: u32 = 0;
         for f in fields.try_iter()? {
             let f = f?;
             let ail = f.extract::<AilExpression>()?;
             depth = depth.max(ail.header.depth);
-            decoded.push(Box::new(ail));
+            decoded.push(Arc::new(ail));
         }
         depth += 1;
         Ok(Self::wrap(AilExpression {
@@ -3324,13 +3325,13 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let mut decoded: Vec<Box<AilExpression>> = Vec::new();
+        let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
         let mut depth: u32 = 0;
         for e in elements.try_iter()? {
             let e = e?;
             let ail = e.extract::<AilExpression>()?;
             depth = depth.max(ail.header.depth);
-            decoded.push(Box::new(ail));
+            decoded.push(Arc::new(ail));
         }
         depth += 1;
         Ok(Self::wrap(AilExpression {
@@ -3361,7 +3362,7 @@ impl Expression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Let {
                 defs: decoded_defs,
-                src: Box::new(src),
+                src: Arc::new(src),
             },
         }))
     }
@@ -3396,10 +3397,10 @@ impl Expression {
         let args_decoded = if args.is_none() {
             None
         } else {
-            let mut decoded: Vec<Box<AilExpression>> = Vec::new();
+            let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
             for x in args.try_iter()? {
                 let x = x?;
-                decoded.push(Box::new(x.extract::<AilExpression>()?));
+                decoded.push(Arc::new(x.extract::<AilExpression>()?));
             }
             Some(decoded)
         };
@@ -3515,7 +3516,7 @@ impl Expression {
             ExprInner::Insert { value, .. } => {
                 let new = new_value.extract::<AilExpression>()?;
                 self.expr.header.cached_hash.clear();
-                **value = new;
+                *value = Arc::new(new);
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err("no 'value' on this Expression")),
@@ -4053,8 +4054,8 @@ impl Expression {
                     )));
                 }
                 self.expr.header.cached_hash.clear();
-                let rhs = Box::new(v.pop().unwrap());
-                let lhs = Box::new(v.pop().unwrap());
+                let rhs = Arc::new(v.pop().unwrap());
+                let lhs = Arc::new(v.pop().unwrap());
                 *operands = [lhs, rhs];
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
@@ -4178,13 +4179,13 @@ impl Expression {
                 let dict = value
                     .cast_into::<PyDict>()
                     .map_err(|_| PyTypeError::new_err("fields must be a dict"))?;
-                let mut decoded: IndexMap<i64, Box<AilExpression>> =
+                let mut decoded: IndexMap<i64, Arc<AilExpression>> =
                     IndexMap::with_capacity(dict.len());
                 for (k, v) in dict.iter() {
                     let off: i64 = k.extract().map_err(|_| {
                         PyTypeError::new_err("Struct fields keys must be int offsets")
                     })?;
-                    decoded.insert(off, Box::new(v.extract::<AilExpression>()?));
+                    decoded.insert(off, Arc::new(v.extract::<AilExpression>()?));
                 }
                 self.expr.header.cached_hash.clear();
                 *fields = decoded;
@@ -4192,10 +4193,10 @@ impl Expression {
                 Ok(())
             }
             ExprInner::RustEnum { fields, .. } => {
-                let mut decoded: Vec<Box<AilExpression>> = Vec::new();
+                let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
                 for f in value.try_iter()? {
                     let f = f?;
-                    decoded.push(Box::new(f.extract::<AilExpression>()?));
+                    decoded.push(Arc::new(f.extract::<AilExpression>()?));
                 }
                 self.expr.header.cached_hash.clear();
                 *fields = decoded;
@@ -4271,7 +4272,7 @@ impl Expression {
     /// Array.elements
     ///
     /// Returns a fresh ``list[Expression]`` built from the inner
-    /// ``Vec<Box<AilExpression>>`` -- each call mints new ``Py<Expression>``
+    /// ``Vec<Arc<AilExpression>>`` -- each call mints new ``Py<Expression>``
     /// wrappers, matching the wrapper-minting semantics of ``.operands``.
     #[getter]
     fn elements<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
@@ -4298,10 +4299,10 @@ impl Expression {
     fn set_elements(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         match &mut self.expr.inner {
             ExprInner::Array { elements } => {
-                let mut decoded: Vec<Box<AilExpression>> = Vec::new();
+                let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
                 for e in value.try_iter()? {
                     let e = e?;
-                    decoded.push(Box::new(e.extract::<AilExpression>()?));
+                    decoded.push(Arc::new(e.extract::<AilExpression>()?));
                 }
                 self.expr.header.cached_hash.clear();
                 *elements = decoded;
@@ -4326,7 +4327,7 @@ impl Expression {
     /// Let.defs
     ///
     /// Returns a fresh ``list[Statement]`` built from the inner
-    /// ``Vec<Box<AilStatement>>`` -- each call mints new
+    /// ``Vec<Arc<AilStatement>>`` -- each call mints new
     /// ``Py<Statement>`` wrappers around clones of the inner
     /// statements, matching the wrapper-minting semantics of
     /// ``.operands`` / ``Array.elements``.
@@ -4431,7 +4432,7 @@ impl Expression {
                     Some(v) if !v.is_none() => {
                         let mut out = Vec::new();
                         for item in v.try_iter()? {
-                            out.push(Box::new(item?.extract::<AilExpression>()?));
+                            out.push(Arc::new(item?.extract::<AilExpression>()?));
                         }
                         Some(out)
                     }
@@ -4461,7 +4462,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::MultiStatementExpression { expr, .. } => {
                 self.expr.header.cached_hash.clear();
-                **expr = value;
+                *expr = Arc::new(value);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4559,7 +4560,7 @@ impl Expression {
             | ExprInner::Convert { operand, .. }
             | ExprInner::Reinterpret { operand, .. } => {
                 self.expr.header.cached_hash.clear();
-                **operand = value;
+                *operand = Arc::new(value);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4696,7 +4697,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::Load { addr, .. } => {
                 self.expr.header.cached_hash.clear();
-                **addr = value;
+                *addr = Arc::new(value);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4735,7 +4736,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
                 self.expr.header.cached_hash.clear();
-                *guard = value.map(Box::new);
+                *guard = value.map(Arc::new);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4758,7 +4759,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::ITE { cond, .. } => {
                 self.expr.header.cached_hash.clear();
-                **cond = value;
+                *cond = Arc::new(value);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4781,7 +4782,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::ITE { iftrue, .. } => {
                 self.expr.header.cached_hash.clear();
-                **iftrue = value;
+                *iftrue = Arc::new(value);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4804,7 +4805,7 @@ impl Expression {
         match &mut self.expr.inner {
             ExprInner::ITE { iffalse, .. } => {
                 self.expr.header.cached_hash.clear();
-                **iffalse = value;
+                *iffalse = Arc::new(value);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4836,7 +4837,7 @@ impl Expression {
             ExprInner::Extract { base, .. } | ExprInner::Insert { base, .. } => {
                 let ail = value.extract::<AilExpression>()?;
                 self.expr.header.cached_hash.clear();
-                **base = ail;
+                *base = Arc::new(ail);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4879,7 +4880,7 @@ impl Expression {
             ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
                 let ail = value.extract::<AilExpression>()?;
                 self.expr.header.cached_hash.clear();
-                **offset = ail;
+                *offset = Arc::new(ail);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -5464,7 +5465,7 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
             })?)
         };
         let vvar_obj = pair.get_item(1)?;
-        let vvar: Option<Box<AilExpression>> = if vvar_obj.is_none() {
+        let vvar: Option<Arc<AilExpression>> = if vvar_obj.is_none() {
             None
         } else if let Ok(e) = vvar_obj.cast::<Expression>() {
             let inner = e.borrow().expr.clone();
@@ -5479,7 +5480,7 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
                     ),
                 ));
             }
-            Some(Box::new(inner))
+            Some(Arc::new(inner))
         } else {
             return Err(phi_validation_error(
                 py,
@@ -6048,7 +6049,7 @@ impl<'de> Deserialize<'de> for ExprInner {
                     },
                     15 => {
                         let name: String = next(&mut seq)?;
-                        let fields: IndexMap<i64, Box<AilExpression>> = next(&mut seq)?;
+                        let fields: IndexMap<i64, Arc<AilExpression>> = next(&mut seq)?;
                         let field_offsets: IndexMap<String, i64> = next(&mut seq)?;
                         let field_names = field_offsets
                             .iter()
