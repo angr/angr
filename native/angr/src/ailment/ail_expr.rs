@@ -256,7 +256,7 @@ pub enum ExprInner {
     /// A ``BasePointerOffset`` specialized to the stack pointer. The
     /// ``offset`` lives in the variant; the base is implicit (sp).
     StackBaseOffset {
-        offset: i128,
+        offset: i64,
     },
 }
 
@@ -3046,15 +3046,16 @@ impl Expression {
     #[pyo3(signature = (idx, bits, base, offset, **kwargs))]
     fn _new_base_pointer_offset(
         idx: i64,
-        bits: u32,
+        bits: u8,
         base: String,
         offset: i64,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
+        let off = crate::ailment::to_signed_i(offset as i128, bits as u32);
         Ok(Self::wrap(AilExpression {
-            header: ExprHeader::new(idx, 1, bits, tags),
-            inner: ExprInner::BasePointerOffset { base, offset },
+            header: ExprHeader::new(idx, 1, bits as u32, tags),
+            inner: ExprInner::BasePointerOffset { base, offset: off as i64 },
         }))
     }
 
@@ -3062,24 +3063,15 @@ impl Expression {
     #[pyo3(signature = (idx, bits, offset, **kwargs))]
     fn _new_stack_base_offset(
         idx: i64,
-        bits: u32,
+        bits: u8,
         offset: i128,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        // Sign-normalize the offset: when the supplied value has its
-        // top bit set at the Const's declared width (callers regularly
-        // pass ``-8`` as its u64 two's-complement form ``2^64 - 8``),
-        // subtract ``2^bits`` to bring it into the signed range.
-        // ``bits`` is at most 64 in practice so this happens in i128
-        // to avoid overflow.
-        let mut off = offset;
-        if bits < 128 && off >= (1i128 << (bits - 1)) {
-            off -= 1i128 << bits;
-        }
+        let off = crate::ailment::to_signed_i(offset, bits as u32);
         Ok(Self::wrap(AilExpression {
-            header: ExprHeader::new(idx, 1, bits, tags),
-            inner: ExprInner::StackBaseOffset { offset: off },
+            header: ExprHeader::new(idx, 1, bits as u32, tags),
+            inner: ExprInner::StackBaseOffset { offset: off as i64 },
         }))
     }
 
@@ -4895,7 +4887,7 @@ impl Expression {
             }
             ExprInner::StackBaseOffset { offset } => {
                 self.expr.header.cached_hash.clear();
-                *offset = value.extract::<i128>()?;
+                *offset = crate::ailment::to_signed_i(value.extract::<i128>()?, self.expr.header.bits) as i64;
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }

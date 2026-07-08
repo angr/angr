@@ -141,6 +141,19 @@ impl Default for CachedHash {
     }
 }
 
+// Convert an integer to a signed integer of a given bit width, wrapping as necessary.
+fn to_signed_i(v: i128, bits: u32) -> i128 {
+    let mut off = v;
+    let mask = (1i128 << bits) - 1;
+    let signed: bool = off < 0;
+    if !signed {
+        off &= mask;
+    } else {
+        off = -(mask - (off & mask) + 1);
+    }
+    off
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
