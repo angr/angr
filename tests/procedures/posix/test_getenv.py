@@ -67,7 +67,10 @@ class TestRunEcho(unittest.TestCase):
         solved_flag = []
         for s in simgr.deadended:
             if b"Bingo" in s.posix.dumps(1):
-                solved_flag.append(s.solver.eval(flag, cast_to=bytes).strip(b"\x00"))
+                # The flag is NUL-terminated; bytes past the terminator are never
+                # read and so stay unconstrained, taking whatever value the solver
+                # picks. Compare only the meaningful prefix.
+                solved_flag.append(s.solver.eval(flag, cast_to=bytes).split(b"\x00")[0])
 
         assert len(solved_flag) == 1
         assert solved_flag[0].decode() == self.flag
