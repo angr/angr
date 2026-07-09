@@ -31,94 +31,36 @@ if TYPE_CHECKING:
     # variant is Const" and all variant accessors come from the
     # Expression stub.
     from angr.rustylib.ailment import (
+        ITE,
+        Array,
+        Atom,
+        BasePointerOffset,
+        BinaryOp,
+        Call,
+        ComboRegister,
+        Const,
+        Convert,
+        DirtyExpression,
         Expression,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Array,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Atom,
-    )
-    from angr.rustylib.ailment import (
-        Expression as BasePointerOffset,
-    )
-    from angr.rustylib.ailment import (
-        Expression as BinaryOp,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Call,
-    )
-    from angr.rustylib.ailment import (
-        Expression as ComboRegister,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Const,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Convert,
-    )
-    from angr.rustylib.ailment import (
-        Expression as DirtyExpression,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Extract,
-    )
-    from angr.rustylib.ailment import (
-        Expression as FunctionLikeMacro,
-    )
-    from angr.rustylib.ailment import (
-        Expression as ITE,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Insert,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Let,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Load,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Macro,
-    )
-    from angr.rustylib.ailment import (
-        Expression as MultiStatementExpression,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Op,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Phi,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Register,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Reinterpret,
-    )
-    from angr.rustylib.ailment import (
-        Expression as RustEnum,
-    )
-    from angr.rustylib.ailment import (
-        Expression as StackBaseOffset,
-    )
-    from angr.rustylib.ailment import (
-        Expression as StringLiteral,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Struct,
-    )
-    from angr.rustylib.ailment import (
-        Expression as Tmp,
-    )
-    from angr.rustylib.ailment import (
-        Expression as UnaryOp,
-    )
-    from angr.rustylib.ailment import (
-        Expression as VEXCCallExpression,
-    )
-    from angr.rustylib.ailment import (
-        Expression as VirtualVariable,
+        Extract,
+        FunctionLikeMacro,
+        Insert,
+        Let,
+        Load,
+        Macro,
+        MultiStatementExpression,
+        Op,
+        Phi,
+        Register,
+        Reinterpret,
+        RustEnum,
+        StackBaseOffset,
+        StringLiteral,
+        Struct,
+        Tmp,
+        UnaryOp,
+        VEXCCallExpression,
+        VirtualVariable,
     )
 else:
     from angr.rustylib.ailment import Expression as _Expression  # pylint:disable=import-error
