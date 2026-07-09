@@ -262,6 +262,23 @@ def test_demangle_falls_back_to_original_string_when_unrecognized():
     assert demangle(raw) == raw
 
 
+def test_demangle_survives_malformed_rust_v0_symbol():
+    # Regression for angr#6598: a garbage name that merely *looks* like a Rust v0 symbol
+    # ("_R" prefix) makes the third-party rust_demangler walk past the end of its input and
+    # leak a raw IndexError. demangle() must swallow it and fall back to the original string.
+    raw = "_RBOJyX"
+    assert demangle(raw) == raw
+
+
+def test_demangle_survives_assorted_malformed_v0_symbols():
+    # Various truncated/garbage "_R..." names that previously crashed the demangler with an
+    # IndexError. Every one must fall through to a non-empty string without raising.
+    for raw in ("_R", "_RNvC", "_RNvNtCs", "_RINvNtCs", "_RNvMC0", "_RNCNvC0"):
+        result = demangle(raw)
+        assert isinstance(result, str)
+        assert result
+
+
 def test_normalize_strips_generic_type_arguments_when_monopolizing():
     assert normalize("alloc::vec::Vec<u8>::push") == "alloc::vec::Vec::push"
 
