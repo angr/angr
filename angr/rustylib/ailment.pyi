@@ -169,17 +169,11 @@ class Expression:
     # names alias this class, so accept anything here.
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
 
-    # Class attributes that live on the Python marker classes at runtime
-    # (``Convert.TYPE_INT``, ``BinaryOp.COMPARISON_NEGATION``). The markers
-    # statically alias ``Expression``, so declare them here.
-    TYPE_INT: ClassVar[ConvertType]
-    TYPE_FP: ClassVar[ConvertType]
-    COMPARISON_NEGATION: ClassVar[dict[str, str]]
-
-    # --- Header accessors (every variant) ------------------------------
+    # --- Header accessors (common to every variant) --------------------
     idx: int
     bits: int
     depth: int
+    variable_offset: int
     @property
     def size(self) -> int: ...
     @property
@@ -187,132 +181,20 @@ class Expression:
     @tags.setter
     def tags(self, value: Any) -> None: ...
     @property
-    def kind(self) -> ExpressionKind: ...
+    def kind(self) -> ExpressionKind:
+        """Variant discriminator. Python-side metaclass uses this for ``isinstance(load, Load)`` dispatch."""
     @property
-    def kind_name(self) -> str: ...
+    def kind_name(self) -> str:
+        """String name of the variant, for repr/debug."""
     @property
-    def pykind(self) -> int: ...
+    def pykind(self) -> int:
+        """Cached ``Py<int>`` form of the kind tag. Pre-materialized at construction; access is a single ``clone_ref``."""
     def clear_hash(self) -> None: ...
-    variable_offset: int
-
-    # --- Common variant-specific accessors -----------------------------
-    # Each raises ``AttributeError`` on a variant that doesn't carry
-    # the slot.
-    value: Any
-    @property
-    def value_int(self) -> int: ...
-    @property
-    def value_float(self) -> float: ...
-    @property
-    def is_int(self) -> bool: ...
-    @property
-    def sign_bit(self) -> int: ...
+    # ``variable`` / ``variable_offset`` are side-channel utility accessors
+    # shared across the atom-shaped variants; kept on the base rather than
+    # duplicated onto each atom.
     @property
     def variable(self) -> Any | None: ...
-    # ``int`` on Tmp / TMP-category VirtualVariables -- the only variants
-    # consumers read it from. (Returns None on non-TMP vvars at runtime.)
-    @property
-    def tmp_idx(self) -> int: ...
-    @property
-    def reg_offset(self) -> int: ...
-    registers: list[Expression]
-    src_and_vvars: Any
-    @property
-    def varid(self) -> int: ...
-    @property
-    def category(self) -> VirtualVariableCategory: ...
-    @property
-    def oident(self) -> Any: ...
-    @property
-    def reg_vvars(self) -> dict[int, Expression]: ...
-    @property
-    def was_reg(self) -> bool: ...
-    @property
-    def was_stack(self) -> bool: ...
-    @property
-    def was_parameter(self) -> bool: ...
-    @property
-    def was_tmp(self) -> bool: ...
-    @property
-    def was_combo_reg(self) -> bool: ...
-    @property
-    def parameter_category(self) -> VirtualVariableCategory | None: ...
-    @property
-    def parameter_reg_offset(self) -> int | None: ...
-    @property
-    def parameter_stack_offset(self) -> int | None: ...
-    @property
-    def stack_offset(self) -> int: ...
-    @property
-    def reg_offsets(self) -> tuple[int, ...]: ...
-    @property
-    def op(self) -> str: ...
-    @property
-    def verbose_op(self) -> str: ...
-    operand: Expression
-    operands: Any
-    @property
-    def from_bits(self) -> int: ...
-    @property
-    def to_bits(self) -> int: ...
-    @property
-    def is_signed(self) -> bool: ...
-    @property
-    def from_type(self) -> Any: ...
-    @property
-    def to_type(self) -> Any: ...
-    @property
-    def rounding_mode(self) -> Any | None: ...
-    @property
-    def signed(self) -> bool: ...
-    @property
-    def floating_point(self) -> bool: ...
-    @property
-    def vector_count(self) -> int | None: ...
-    @property
-    def vector_size(self) -> int | None: ...
-    addr: Expression
-    @property
-    def endness(self) -> str: ...
-    guard: Expression | None
-    @property
-    def alt(self) -> Expression | None: ...
-    cond: Expression
-    iftrue: Expression
-    iffalse: Expression
-    base: Any
-    offset: Any
-    @property
-    def data(self) -> Any: ...
-    target: Any
-    args: Any
-    arg_vvars: Any
-    callee: str
-    @property
-    def mfx(self) -> str | None: ...
-    @property
-    def maddr(self) -> Expression | None: ...
-    @property
-    def msize(self) -> int | None: ...
-    stmts: Any
-    expr: Expression
-    @property
-    def name(self) -> str: ...
-    fields: Any
-    @property
-    def field_offsets(self) -> dict[str, int]: ...
-    @property
-    def field_names(self) -> dict[int, str]: ...
-    elements: Any
-    @property
-    def length(self) -> int: ...
-    @property
-    def defs(self) -> list[Any]: ...
-    @property
-    def src(self) -> Expression: ...
-    @property
-    def delimiter(self) -> str: ...
-    def get_field(self, name: str) -> Any | None: ...
 
     # --- Variant factories ---------------------------------------------
     # One per ``ExprInner`` variant; the Python marker classes
@@ -444,22 +326,32 @@ class Expression:
     # --- Equality / hash / methods -------------------------------------
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
-    def likes(self, other: Any) -> bool: ...
-    def matches(self, other: Any) -> bool: ...
-    def replace(self, old_expr: Any, new_expr: Any) -> tuple[bool, Expression]: ...
-    def has_atom(self, atom: Any, identity: bool = True) -> bool: ...
-    def copy(self) -> Self: ...
-    def deep_copy(self, manager: Any) -> Self: ...
-    def __copy__(self) -> Self: ...
-    def __deepcopy__(self, memo: Any) -> Self: ...
-    def __reduce__(self) -> tuple[Any, ...]: ...
+    def likes(self, other: Any) -> bool:
+        """Structural equality (ignores ``idx``). Same logic as ``__eq__`` after the kind/idx short-circuit; exposed as a method because ~160 callers in angr/analyses use ``a.likes(b)`` rather than ``a == b``."""
+    def matches(self, other: Any) -> bool:
+        """Structural-only equality. See ``AilExpression::matches`` for the full contract. In one line: ``matches`` is ``likes`` with SSA identifying info (notably ``VirtualVariable.varid``) stripped, so two structurally identical expressions originating from different SSA definitions compare equal. Used by dedup/similarity passes; not used by Python ``__eq__``."""
+    def replace(self, old_expr: Any, new_expr: Any) -> tuple[bool, Expression]:
+        """``replace(old, new)`` -- substitute any ``__eq__``-matching node (idx-aware; see ``eq_ail``) in the operand subtrees. Returns ``(replaced, new_expr)`` to match the legacy contract; analyses use ``replaced`` to gate further work."""
+    def has_atom(self, atom: Any, identity: bool = True) -> bool:
+        """``has_atom(atom, identity=True)`` -- recursive subtree search."""
+    def copy(self) -> Self:
+        """``copy()`` -- shallow clone (same ``idx``). Mirrors the legacy per-class ``copy`` contract: produce a new Python wrapper over the same AIL tree without re-numbering."""
+    def deep_copy(self, manager: Any) -> Self:
+        """``deep_copy(manager)`` -- recursive clone with fresh ``idx`` from ``manager.next_atom()`` at every node. Used by clinic to re-number atoms when cloning blocks."""
+    def __copy__(self) -> Self:
+        """Python ``copy.copy`` protocol -- delegates to ``copy()``."""
+    def __deepcopy__(self, memo: Any) -> Self:
+        """Python ``copy.deepcopy`` protocol -- routes through ``deep_copy`` with a stand-in ``Manager`` from ``angr.ailment._deepcopy``."""
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Python ``pickle`` protocol. Routes through ``to_bytes`` / ``from_bytes`` to preserve the full ``AilExpression`` shape."""
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
 
     # --- Serialization -------------------------------------------------
     def to_bytes(self) -> bytes: ...
     @classmethod
-    def from_bytes(cls, data: bytes) -> Expression: ...
+    def from_bytes(cls, data: bytes) -> Expression:
+        """Inverse of ``to_bytes``; the pickle path (``__reduce__``) restores through this classmethod."""
 
 # ---------------------------------------------------------------------------
 # Statement -- single fat-enum pyclass
@@ -479,66 +371,30 @@ class Statement:
     # names alias this class, so accept anything here.
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
 
-    # --- Header accessors ---------------------------------------------
+    # --- Header accessors (common to every variant) -------------------
     idx: int
     @property
     def tags(self) -> TagsView: ...
     @tags.setter
     def tags(self, value: Any) -> None: ...
     @property
-    def kind(self) -> StatementKind: ...
+    def kind(self) -> StatementKind:
+        """Variant discriminator. Python-side metaclass uses this for ``isinstance(x, Assignment)`` dispatch."""
     @property
-    def kind_name(self) -> str: ...
+    def kind_name(self) -> str:
+        """String name of the variant, for repr/debug."""
     @property
-    def pykind(self) -> int: ...
+    def pykind(self) -> int:
+        """Cached ``Py<int>`` form of the kind tag. Pre-materialized at construction; access is a single ``clone_ref``."""
     @property
-    def depth(self) -> int: ...
+    def depth(self) -> int:
+        """Assignment/WeakAssignment/Store/CJump/SES/Return/CAS/Dirty depth"""
     def clear_hash(self) -> None: ...
+    # Utility query available on any statement (true only for Assignments
+    # whose source is a ``Phi``); kept on the base.
     @property
-    def is_phi_assignment(self) -> bool: ...
-
-    # --- Variant-specific accessors -----------------------------------
-    dst: Expression
-    src: Expression
-    @property
-    def name(self) -> str: ...
-    @property
-    def addr(self) -> Expression: ...
-    @property
-    def data(self) -> Expression: ...
-    @property
-    def size(self) -> int: ...
-    @property
-    def endness(self) -> str: ...
-    @property
-    def guard(self) -> Expression | None: ...
-    target: Any
-    target_idx: int | None
-    condition: Expression
-    true_target: Any
-    false_target: Any
-    true_target_idx: int | None
-    false_target_idx: int | None
-    expr: Expression
-    @property
-    def ret_expr(self) -> Expression | None: ...
-    @property
-    def fp_ret_expr(self) -> Expression | None: ...
-    ret_exprs: Any
-    @property
-    def data_lo(self) -> Expression: ...
-    @property
-    def data_hi(self) -> Expression | None: ...
-    @property
-    def expd_lo(self) -> Expression: ...
-    @property
-    def expd_hi(self) -> Expression | None: ...
-    @property
-    def old_lo(self) -> Expression: ...
-    @property
-    def old_hi(self) -> Expression | None: ...
-    @property
-    def dirty(self) -> Expression: ...
+    def is_phi_assignment(self) -> bool:
+        """True iff this is an SSA phi assignment: an ``Assignment`` whose ``dst`` is a ``VirtualVariable`` and whose ``src`` is a ``Phi``.  Cheap projection for the hot ``is_phi_assignment`` helpers in ``angr.utils.ail`` / ``angr.utils.ssa``: answers the question in one FFI call without materializing ``dst`` / ``src`` wrappers (each of which deep-clones its whole subtree)."""
 
     # --- Variant factories ---------------------------------------------
     # One per ``StmtInner`` variant; the Python marker classes
@@ -603,22 +459,32 @@ class Statement:
     # --- Equality / hash / methods -------------------------------------
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
-    def likes(self, other: Any) -> bool: ...
-    def matches(self, other: Any) -> bool: ...
-    def replace(self, old_expr: Any, new_expr: Any) -> tuple[bool, Statement]: ...
-    def has_atom(self, atom: Any, identity: bool = True) -> bool: ...
-    def copy(self) -> Self: ...
-    def deep_copy(self, manager: Any) -> Self: ...
-    def __copy__(self) -> Self: ...
-    def __deepcopy__(self, memo: Any) -> Self: ...
-    def __reduce__(self) -> tuple[Any, ...]: ...
+    def likes(self, other: Any) -> bool:
+        """Structural-with-identity equality. See ``AilStatement::likes`` for the full contract. Backs Python ``Statement.__eq__`` after the idx-first short-circuit and is used by rewriting passes that swap a statement for an SSA-equivalent one; in particular, two statements that operate on the same source-level register through different SSA ``varid``s will *not* ``likes`` each other."""
+    def matches(self, other: Any) -> bool:
+        """Structural-only equality. See ``AilStatement::matches`` for the full contract. In one line: ``matches`` is ``likes`` with SSA identifying info on sub-expressions stripped, so two statements that compile from the same source but landed in different SSA numberings compare equal. Primary callers are dedup / similarity passes; not used by Python ``__eq__``."""
+    def replace(self, old_expr: Any, new_expr: Any) -> tuple[bool, Statement]:
+        """``replace(old, new)`` -- substitute any expression node in operand subtrees that ``__eq__``-matches ``old``."""
+    def has_atom(self, atom: Any, identity: bool = True) -> bool:
+        """``has_atom(atom, identity=True)`` -- recursive subtree search."""
+    def copy(self) -> Self:
+        """``copy()`` -- shallow clone (same idx)."""
+    def deep_copy(self, manager: Any) -> Self:
+        """``deep_copy(manager)`` -- recursive clone with fresh idx."""
+    def __copy__(self) -> Self:
+        """Python ``copy.copy`` protocol -- delegates to ``copy()``."""
+    def __deepcopy__(self, memo: Any) -> Self:
+        """Python ``copy.deepcopy`` protocol -- routes through ``deep_copy`` with a stand-in ``Manager`` from ``angr.ailment._deepcopy``."""
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Python ``pickle`` protocol via ``to_bytes`` / ``from_bytes``. Same lossy-field caveat as ``Expression.__reduce__``."""
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
 
     # --- Serialization -------------------------------------------------
     def to_bytes(self) -> bytes: ...
     @classmethod
-    def from_bytes(cls, data: bytes) -> Statement: ...
+    def from_bytes(cls, data: bytes) -> Statement:
+        """Inverse of ``to_bytes``; the pickle path (``__reduce__``) restores through this classmethod."""
 
 # ---------------------------------------------------------------------------
 # Block
@@ -645,3 +511,676 @@ class Block:
     def __str__(self) -> str: ...
     def copy(self, statements: list[Statement] | None = ...) -> Self: ...
     def dbg_repr(self, indent: int = ...) -> str: ...
+
+# ---------------------------------------------------------------------------
+# Expression variant marker classes
+# ---------------------------------------------------------------------------
+#
+# At runtime these are ``angr.ailment.expression`` marker classes whose
+# ``isinstance`` dispatches on the variant tag; every instance is really an
+# ``Expression``. For the type checker each variant subclasses ``Expression``
+# (directly, or via the ``Atom`` / ``Op`` union markers) so that ``isinstance``
+# narrows and constructors carry the right signature. All variant accessors are
+# inherited from ``Expression`` -- only the constructor and any class-level
+# marker attributes are declared here.
+
+class Atom(Expression):
+    """isinstance-only union marker for atom-shaped expressions."""
+
+class Op(Expression):
+    """isinstance-only union marker for op-shaped expressions."""
+
+    @property
+    def op(self) -> str:
+        """UnaryOp.op / BinaryOp.op / Call.op (== "call") / DirtyExpression.op / VEXCCallExpression.op (== callee) / Let.op (== "let") / Macro.op + FunctionLikeMacro.op (== "call")"""
+    @property
+    def verbose_op(self) -> str:
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+
+# --- Atom subclasses -------------------------------------------------------
+
+class Const(Atom):
+    value: Any
+    """Const.value (literal)"""
+    @property
+    def value_int(self) -> int:
+        """``Const.value_int`` -- the int value (errors on float constants)."""
+    @property
+    def value_float(self) -> float:
+        """``Const.value_float`` -- the float value (errors on int constants)."""
+    @property
+    def is_int(self) -> bool:
+        """``Const.is_int`` (only int constants -- not floats)."""
+    @property
+    def sign_bit(self) -> int:
+        """``Const.sign_bit`` -- the top bit of the int value at the Const's declared width. Computed as a bit-extract (not an arithmetic shift) so values stored as their u64 two's-complement form -- e.g. ``-8`` carried as ``2^64 - 8`` from the lifter -- correctly report ``1``."""
+    def __init__(self, idx: int | None, value: int, bits: int, **tags: Any) -> None: ...
+
+class Tmp(Atom):
+    @property
+    def tmp_idx(self) -> int:
+        """Tmp.tmp_idx (i64)"""
+    def __init__(self, idx: int | None, tmp_idx: int, bits: int, **tags: Any) -> None: ...
+
+class Register(Atom):
+    @property
+    def reg_offset(self) -> int:
+        """Register.reg_offset"""
+    def __init__(self, idx: int | None, reg_offset: int, bits: int, **tags: Any) -> None: ...
+
+class ComboRegister(Atom):
+    registers: list[Expression]
+    """ComboRegister.registers -- list of Register Expression instances."""
+    def __init__(self, idx: int | None, registers: list[Expression], **tags: Any) -> None: ...
+
+class VirtualVariable(Atom):
+    @property
+    def varid(self) -> int:
+        """VirtualVariable.varid"""
+    @property
+    def category(self) -> VirtualVariableCategory:
+        """VirtualVariable.category"""
+    @property
+    def oident(self) -> Any:
+        """VirtualVariable.oident"""
+    @property
+    def reg_vvars(self) -> dict[int, Expression]:
+        """VirtualVariable.reg_vvars  Returns ``None`` for non-COMBO_REGISTER vvars, an empty list for COMBO_REGISTER vvars whose sub-registers haven't been populated yet, and a list of ``VirtualVariable`` Expression wrappers otherwise. Each call mints fresh wrappers around clones of the inner ``AilExpression`` nodes (same pattern as ``.operands``)."""
+    @property
+    def was_reg(self) -> bool:
+        """VirtualVariable.was_reg"""
+    @property
+    def was_stack(self) -> bool:
+        """VirtualVariable.was_stack"""
+    @property
+    def was_parameter(self) -> bool:
+        """VirtualVariable.was_parameter"""
+    @property
+    def was_tmp(self) -> bool:
+        """VirtualVariable.was_tmp"""
+    @property
+    def was_combo_reg(self) -> bool:
+        """VirtualVariable.was_combo_reg"""
+    @property
+    def reg_offset(self) -> int:
+        """VirtualVariable.reg_offset (when category is REGISTER, or parameter with REGISTER inner category)"""
+    @property
+    def reg_offsets(self) -> tuple[int, ...]:
+        """VirtualVariable.reg_offsets (combo register)"""
+    @property
+    def stack_offset(self) -> int:
+        """VirtualVariable.stack_offset"""
+    # ``int`` on TMP-category vvars; None otherwise (at runtime).
+    @property
+    def tmp_idx(self) -> int:
+        """VirtualVariable.tmp_idx (Option<i64>, present when category is TMP)"""
+    @property
+    def parameter_category(self) -> VirtualVariableCategory | None:
+        """VirtualVariable.parameter_category"""
+    @property
+    def parameter_reg_offset(self) -> int | None:
+        """VirtualVariable.parameter_reg_offset"""
+    @property
+    def parameter_stack_offset(self) -> int | None:
+        """VirtualVariable.parameter_stack_offset"""
+    def __init__(
+        self,
+        idx: int | None,
+        varid: int,
+        bits: int,
+        category: VirtualVariableCategory,
+        oident: Any | None = ...,
+        reg_vvars: dict[int, Expression] | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class Phi(Atom):
+    src_and_vvars: Any
+    """Phi.src_and_vvars  Returns a Python list of ``((src_addr, src_idx), vvar)`` tuples. The ``vvar`` slot is a ``VirtualVariable`` Expression (or ``None``)."""
+    @property
+    def op(self) -> str: ...
+    @property
+    def verbose_op(self) -> str:
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+    def __init__(self, idx: int | None, bits: int, src_and_vvars: Any, **tags: Any) -> None: ...
+
+# --- Op subclasses ---------------------------------------------------------
+
+class UnaryOp(Op):
+    operand: Expression
+    """UnaryOp.operand"""
+    operands: Any
+    """UnaryOp.operands (single-element list, legacy quirk)"""
+    def __init__(self, idx: int | None, op: str, operand: Expression, bits: int | None = ..., **tags: Any) -> None: ...
+
+class BinaryOp(Op):
+    COMPARISON_NEGATION: ClassVar[dict[str, str]]
+    operands: Any
+    """BinaryOp.operands"""
+    @property
+    def signed(self) -> bool:
+        """BinaryOp.signed"""
+    @property
+    def floating_point(self) -> bool:
+        """BinaryOp.floating_point"""
+    @property
+    def rounding_mode(self) -> Any | None:
+        """BinaryOp.rounding_mode"""
+    @property
+    def vector_count(self) -> int | None:
+        """BinaryOp.vector_count"""
+    @property
+    def vector_size(self) -> int | None:
+        """BinaryOp.vector_size"""
+    def __init__(
+        self,
+        idx: int | None,
+        op: str,
+        operands: Any,
+        signed: bool = ...,
+        *,
+        bits: int | None = ...,
+        floating_point: bool = ...,
+        rounding_mode: RoundingMode | None = ...,
+        vector_count: int | None = ...,
+        vector_size: int | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class Convert(Op):
+    TYPE_INT: ClassVar[ConvertType]
+    TYPE_FP: ClassVar[ConvertType]
+    operand: Expression
+    """Convert.operand"""
+    operands: Any
+    """Convert.operands"""
+    @property
+    def from_bits(self) -> int:
+        """Convert.from_bits"""
+    @property
+    def to_bits(self) -> int:
+        """Convert.to_bits"""
+    @property
+    def is_signed(self) -> bool:
+        """Convert.is_signed"""
+    @property
+    def from_type(self) -> Any:
+        """Convert.from_type"""
+    @property
+    def to_type(self) -> Any:
+        """Convert.to_type"""
+    @property
+    def rounding_mode(self) -> Any | None:
+        """Convert.rounding_mode"""
+    def __init__(
+        self,
+        idx: int | None,
+        from_bits: int,
+        to_bits: int,
+        is_signed: bool,
+        operand: Expression,
+        from_type: ConvertType | None = ...,
+        to_type: ConvertType | None = ...,
+        rounding_mode: RoundingMode | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class Reinterpret(Op):
+    operand: Expression
+    """Reinterpret.operand"""
+    operands: Any
+    """Reinterpret.operands (same single-element wrap for legacy compat)"""
+    @property
+    def from_bits(self) -> int:
+        """Reinterpret.from_bits"""
+    @property
+    def to_bits(self) -> int:
+        """Reinterpret.to_bits"""
+    @property
+    def from_type(self) -> Any:
+        """Reinterpret.from_type (different types -- Reinterpret is a String)"""
+    @property
+    def to_type(self) -> Any:
+        """Reinterpret.to_type"""
+    def __init__(
+        self,
+        idx: int | None,
+        from_bits: int,
+        from_type: str,
+        to_bits: int,
+        to_type: str,
+        operand: Expression,
+        **tags: Any,
+    ) -> None: ...
+
+class Let(Op):
+    @property
+    def defs(self) -> list[Any]:
+        """Let.defs  Returns a fresh ``list[Statement]`` built from the inner ``Vec<Arc<AilStatement>>`` -- each call mints new ``Py<Statement>`` wrappers around clones of the inner statements, matching the wrapper-minting semantics of ``.operands`` / ``Array.elements``."""
+    @property
+    def src(self) -> Expression:
+        """Let.src"""
+    def __init__(self, idx: int | None, defs: Any, src: Expression, **tags: Any) -> None: ...
+
+# --- Expression subclasses -------------------------------------------------
+
+class Array(Expression):
+    elements: Any
+    """Array.elements  Returns a fresh ``list[Expression]`` built from the inner ``Vec<Arc<AilExpression>>`` -- each call mints new ``Py<Expression>`` wrappers, matching the wrapper-minting semantics of ``.operands``."""
+    @property
+    def length(self) -> int:
+        """Array.length"""
+    def __init__(self, idx: int | None, elements: Any, bits: int, **tags: Any) -> None: ...
+
+class BasePointerOffset(Expression):
+    base: Any
+    """BasePointerOffset.base (str)"""
+    offset: Any
+    """BasePointerOffset.offset (int)"""
+    def __init__(self, idx: int | None, bits: int, base: str, offset: Any, **tags: Any) -> None: ...
+
+class StackBaseOffset(Expression):
+    base: Any
+    """StackBaseOffset.base (== ``"stack_base"``, the legacy contract)"""
+    offset: Any
+    """StackBaseOffset.offset (int)"""
+    def __init__(self, idx: int | None, bits: int, offset: Any, **tags: Any) -> None: ...
+
+class Call(Expression):
+    """Call expression. Represents a function call that produces a value.
+
+    When used as a standalone statement (not part of an assignment), wrap it in a SideEffectStatement.
+    """
+
+    target: Any
+    """Call.target"""
+    args: Any
+    arg_vvars: Any
+    """Call.arg_vvars"""
+    @property
+    def op(self) -> str:
+        """Call.op (== "call")"""
+    @property
+    def verbose_op(self) -> str:
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+    def __init__(
+        self,
+        idx: int | None,
+        target: Any,
+        args: Any | None = ...,
+        bits: int | None = ...,
+        arg_vvars: Any | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class DirtyExpression(Expression):
+    callee: str
+    """DirtyExpression.callee"""
+    operands: Any
+    """DirtyExpression.operands"""
+    guard: Expression | None
+    """DirtyExpression.guard"""
+    @property
+    def op(self) -> str:
+        """DirtyExpression.op"""
+    @property
+    def verbose_op(self) -> str:
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+    @property
+    def mfx(self) -> str | None:
+        """DirtyExpression.mfx"""
+    @property
+    def maddr(self) -> Expression | None:
+        """DirtyExpression.maddr"""
+    @property
+    def msize(self) -> int | None:
+        """DirtyExpression.msize"""
+    def __init__(
+        self,
+        idx: int | None,
+        callee: str,
+        operands: Any,
+        *,
+        guard: Expression | None = ...,
+        mfx: str | None = ...,
+        maddr: Expression | None = ...,
+        msize: int | None = ...,
+        bits: int,
+        **tags: Any,
+    ) -> None: ...
+
+class Extract(Expression):
+    base: Any
+    """Extract.base (Expression)"""
+    offset: Any
+    """Extract.offset (Expression)"""
+    @property
+    def endness(self) -> str:
+        """Extract.endness"""
+    def __init__(
+        self, idx: int | None, bits: int, base: Expression, offset: Expression, endness: str, **tags: Any
+    ) -> None: ...
+
+class FunctionLikeMacro(Expression):
+    args: Any
+    """FunctionLikeMacro.args"""
+    @property
+    def name(self) -> str:
+        """FunctionLikeMacro.name"""
+    @property
+    def delimiter(self) -> str:
+        """FunctionLikeMacro.delimiter"""
+    @property
+    def op(self) -> str:
+        """FunctionLikeMacro.op (== "call")"""
+    @property
+    def verbose_op(self) -> str:
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+    def __init__(
+        self,
+        idx: int | None,
+        name: str,
+        args: Any,
+        bits: int | None = ...,
+        delimiter: str = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class ITE(Expression):
+    cond: Expression
+    """ITE.cond"""
+    iftrue: Expression
+    """ITE.iftrue"""
+    iffalse: Expression
+    """ITE.iffalse"""
+    def __init__(
+        self, idx: int | None, cond: Expression, iffalse: Expression, iftrue: Expression, **tags: Any
+    ) -> None: ...
+
+class Insert(Expression):
+    base: Any
+    """Insert.base (Expression)"""
+    offset: Any
+    """Insert.offset (Expression)"""
+    value: Any
+    """Insert.value (Expression operand)"""
+    @property
+    def endness(self) -> str:
+        """Insert.endness"""
+    def __init__(
+        self, idx: int | None, base: Expression, offset: Expression, value: Expression, endness: str, **tags: Any
+    ) -> None: ...
+
+class Load(Expression):
+    addr: Expression
+    """Load.addr"""
+    guard: Expression | None
+    """Load.guard"""
+    @property
+    def endness(self) -> str:
+        """Load.endness"""
+    @property
+    def alt(self) -> Expression | None:
+        """Load.alt"""
+    def __init__(
+        self,
+        idx: int | None,
+        addr: Expression,
+        size: int,
+        endness: str,
+        *,
+        guard: Expression | None = ...,
+        alt: Expression | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class Macro(Expression):
+    @property
+    def name(self) -> str:
+        """Macro.name"""
+    @property
+    def delimiter(self) -> str:
+        """Macro.delimiter"""
+    def __init__(self, idx: int | None, name: str, delimiter: str = ..., **tags: Any) -> None: ...
+
+class MultiStatementExpression(Expression):
+    """For representing comma-separated statements and expression in C."""
+
+    stmts: Any
+    """MultiStatementExpression.stmts -- materializes a fresh ``list[Statement]`` on each read; setter accepts any iterable of ``Statement`` instances."""
+    expr: Expression
+    """MultiStatementExpression.expr"""
+    def __init__(self, idx: int | None, stmts: Any, expr: Expression, **tags: Any) -> None: ...
+
+class RustEnum(Expression):
+    fields: Any
+    """RustEnum.fields (list)"""
+    @property
+    def name(self) -> str:
+        """RustEnum.name"""
+    def __init__(self, idx: int | None, name: str, fields: Any, bits: int, **tags: Any) -> None: ...
+
+class StringLiteral(Expression):
+    @property
+    def data(self) -> Any:
+        """StringLiteral.data"""
+    def __init__(self, idx: int | None, data: str, bits: int, **tags: Any) -> None: ...
+
+class Struct(Expression):
+    fields: Any
+    """Struct.fields (dict)"""
+    @property
+    def name(self) -> str:
+        """Struct.name"""
+    @property
+    def field_offsets(self) -> dict[str, int]:
+        """Struct.field_offsets"""
+    @property
+    def field_names(self) -> dict[int, str]:
+        """Struct.field_names"""
+    def get_field(self, name: str) -> Any | None:
+        """Struct.get_field(name) -- dotted-path lookup through nested Structs"""
+    def __init__(self, idx: int | None, name: str, fields: Any, field_offsets: Any, bits: int, **tags: Any) -> None: ...
+
+class VEXCCallExpression(Expression):
+    callee: str
+    """VEXCCallExpression.callee"""
+    operands: Any
+    """VEXCCallExpression.operands"""
+    @property
+    def op(self) -> str:
+        """VEXCCallExpression.op (== callee)"""
+    @property
+    def verbose_op(self) -> str:
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+    def __init__(self, idx: int | None, callee: str, operands: Any, bits: int, **tags: Any) -> None: ...
+
+# ---------------------------------------------------------------------------
+# Statement variant marker classes
+# ---------------------------------------------------------------------------
+#
+# As with the expression variants above: runtime marker classes that all wrap a
+# single ``Statement`` pyclass; statically each subclasses ``Statement`` so
+# ``isinstance`` narrows and constructors carry the right signature. All variant
+# accessors are inherited from ``Statement``.
+
+class Assignment(Statement):
+    """Assignment statement: expr_a = expr_b"""
+
+    dst: Expression
+    """Assignment.dst"""
+    src: Expression
+    """Assignment.src"""
+    def __init__(self, idx: int | None, dst: Expression, src: Expression, **tags: Any) -> None: ...
+
+class WeakAssignment(Statement):
+    """An assignment statement that does not create a new variable at its destination; It should be seen as
+    operator=(&dst, &src) in C++-like syntax.
+    """
+
+    dst: Expression
+    """WeakAssignment.dst (operand subtree)"""
+    src: Expression
+    """WeakAssignment.src"""
+    def __init__(self, idx: int | None, dst: Expression, src: Expression, **tags: Any) -> None: ...
+
+class Label(Statement):
+    """A dummy statement that indicates a label with a name."""
+    @property
+    def name(self) -> str:
+        """Label.name"""
+    def __init__(self, idx: int | None, name: str, **tags: Any) -> None: ...
+
+class Store(Statement):
+    """Store statement: ``*addr = data``"""
+    @property
+    def addr(self) -> Expression:
+        """Store.addr"""
+    @property
+    def data(self) -> Expression:
+        """Store.data"""
+    @property
+    def size(self) -> int:
+        """Store.size"""
+    @property
+    def endness(self) -> str:
+        """Store.endness"""
+    @property
+    def guard(self) -> Expression | None:
+        """Store.guard"""
+    def __init__(
+        self,
+        idx: int | None,
+        addr: Expression,
+        data: Expression,
+        size: int,
+        endness: str,
+        guard: Expression | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class Jump(Statement):
+    """Jump statement: goto target"""
+
+    target: Any
+    """Jump.target / ConditionalJump callers reach for true_target/false_target (distinct getters below)"""
+    target_idx: int | None
+    """Jump.target_idx"""
+    def __init__(self, idx: int | None, target: Any, target_idx: int | None = ..., **tags: Any) -> None: ...
+
+class ConditionalJump(Statement):
+    """if (cond) {true_target} else {false_target}"""
+
+    condition: Expression
+    """ConditionalJump.condition"""
+    true_target: Any
+    """ConditionalJump.true_target"""
+    false_target: Any
+    """ConditionalJump.false_target"""
+    true_target_idx: int | None
+    """ConditionalJump.true_target_idx"""
+    false_target_idx: int | None
+    """ConditionalJump.false_target_idx"""
+    def __init__(
+        self,
+        idx: int | None,
+        condition: Expression,
+        true_target: Any,
+        false_target: Any,
+        *,
+        true_target_idx: int | None = ...,
+        false_target_idx: int | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class SideEffectStatement(Statement):
+    """A statement wrapping an expression that has side effects (e.g., a function call).
+
+    When wrapping a Call expression, ret_expr and fp_ret_expr hold the return value destinations.
+    """
+
+    expr: Expression
+    """SideEffectStatement.expr"""
+    @property
+    def size(self) -> int: ...
+    @property
+    def ret_expr(self) -> Expression | None:
+        """SideEffectStatement.ret_expr"""
+    @property
+    def fp_ret_expr(self) -> Expression | None:
+        """SideEffectStatement.fp_ret_expr"""
+    def __init__(
+        self,
+        idx: int | None,
+        expr: Expression,
+        ret_expr: Expression | None = ...,
+        fp_ret_expr: Expression | None = ...,
+        **tags: Any,
+    ) -> None: ...
+
+class Return(Statement):
+    """Return statement: (return expr_a), (return)"""
+
+    ret_exprs: Any
+    """Return.ret_exprs"""
+    def __init__(self, idx: int | None, ret_exprs: Any, **tags: Any) -> None: ...
+
+class CAS(Statement):
+    """Atomic compare-and-swap.
+
+    ``*_lo`` and ``*_hi`` are used to represent the low and high parts of a 128-bit CAS operation; ``*_hi`` is None if
+    the CAS operation works on values that are less than or equal to 64 bits.
+
+    addr: The address to be compared and swapped.
+    data: The value to be written if the comparison is successful.
+    expd: The expected value to be compared against.
+    old: The value that is currently stored at addr before compare-and-swap; it will be returned after compare-and-swap.
+    """
+    @property
+    def addr(self) -> Expression:
+        """CAS.addr"""
+    @property
+    def endness(self) -> str:
+        """CAS.endness"""
+    @property
+    def size(self) -> int: ...
+    @property
+    def data_lo(self) -> Expression:
+        """CAS.data_lo / data_hi / expd_lo / expd_hi / old_lo / old_hi"""
+    @property
+    def data_hi(self) -> Expression | None: ...
+    @property
+    def expd_lo(self) -> Expression: ...
+    @property
+    def expd_hi(self) -> Expression | None: ...
+    @property
+    def old_lo(self) -> Expression: ...
+    @property
+    def old_hi(self) -> Expression | None: ...
+    def __init__(
+        self,
+        idx: int | None,
+        addr: Expression,
+        data_lo: Expression,
+        data_hi: Expression | None,
+        expd_lo: Expression,
+        expd_hi: Expression | None,
+        old_lo: Expression,
+        old_hi: Expression | None,
+        endness: str,
+        **tags: Any,
+    ) -> None: ...
+
+class DirtyStatement(Statement):
+    """Wrapper around the original statement, which is usually not convertible (temporarily)."""
+    @property
+    def dirty(self) -> Expression:
+        """DirtyStatement.dirty"""
+    def __init__(self, idx: int | None, dirty: Expression, **tags: Any) -> None: ...
+
+class NoOp(Statement):
+    """A statement that does nothing. It defines and uses no atoms. It is primarily used as an in-place placeholder for a
+    removed statement so that the indices of the surrounding statements (and code locations referencing them) remain
+    stable until the block is compacted.
+    """
+    def __init__(self, idx: int | None, **tags: Any) -> None: ...

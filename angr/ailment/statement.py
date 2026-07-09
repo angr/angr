@@ -12,40 +12,18 @@ from .tagged_object import TaggedObject  # re-export for backward compat
 
 if TYPE_CHECKING:
     from angr.rustylib.ailment import (
+        CAS,
+        Assignment,
+        ConditionalJump,
+        DirtyStatement,
+        Jump,
+        Label,
+        NoOp,
+        Return,
+        SideEffectStatement,
         Statement,
-    )
-    from angr.rustylib.ailment import (
-        Statement as Assignment,
-    )
-    from angr.rustylib.ailment import (
-        Statement as CAS,
-    )
-    from angr.rustylib.ailment import (
-        Statement as ConditionalJump,
-    )
-    from angr.rustylib.ailment import (
-        Statement as DirtyStatement,
-    )
-    from angr.rustylib.ailment import (
-        Statement as Jump,
-    )
-    from angr.rustylib.ailment import (
-        Statement as Label,
-    )
-    from angr.rustylib.ailment import (
-        Statement as NoOp,
-    )
-    from angr.rustylib.ailment import (
-        Statement as Return,
-    )
-    from angr.rustylib.ailment import (
-        Statement as SideEffectStatement,
-    )
-    from angr.rustylib.ailment import (
-        Statement as Store,
-    )
-    from angr.rustylib.ailment import (
-        Statement as WeakAssignment,
+        Store,
+        WeakAssignment,
     )
 else:
     from angr.rustylib.ailment import Statement as _Statement
