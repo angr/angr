@@ -28,7 +28,7 @@ RTDB_BASEDIR: str | None = os.environ.get("RTDB_BASE")
 # directory holds a shared flock on this file; the process that acquires an exclusive lock during cleanup is the
 # last process and can safely remove the directory.
 PIN_FILENAME = "angr_rtdb.pin"
-# All live RuntimeDb instances in this process. 
+# All live RuntimeDb instances in this process.
 _live_rtdbs: weakref.WeakValueDictionary[int, RuntimeDb] = weakref.WeakValueDictionary()
 _rtdb_counter = itertools.count()
 
