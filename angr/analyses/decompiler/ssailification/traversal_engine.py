@@ -98,8 +98,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.functions = functions
         self.variable_map: VariableMap | None = variable_map
         self.def_info: dict[Def, DefInfo] = {}
+        # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[
-            int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool]
+            int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool, bool]
         ] = {}
         # the state which skipped the last few statements; the state that breaks the loop
         self.hclb_side_exit_state: TraversalState | None = None
@@ -115,12 +116,21 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         for k, lst in self.state.pending_ptr_defines.items():
             v1, v2 = lst[0]
             if k not in self.pending_ptr_defines_nonlocal:
-                self.pending_ptr_defines_nonlocal[k] = (v1, v2, set(), k not in self.state.live_stackvars)
+                # make sure the pending pointer def has a definition of its own
+                no_reaching_def = k not in self.state.stackvar_defs
+                required = k not in self.state.live_stackvars or no_reaching_def
+                self.pending_ptr_defines_nonlocal[k] = v1, v2, set(), required, no_reaching_def
                 self.state.pending_ptr_defines_nonlocal_live.add(k)
         self.state.pending_ptr_defines.clear()  # just in case
 
     def finalize(self):
-        for stack_offset, (loc, def_, suggestions, required) in self.pending_ptr_defines_nonlocal.items():
+        for stack_offset, (
+            loc,
+            def_,
+            suggestions,
+            required,
+            no_reaching_def,
+        ) in self.pending_ptr_defines_nonlocal.items():
             if not required:
                 continue
             full_offset, full_endoffset = stack_offset, stack_offset + 1
@@ -136,7 +146,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 full_endoffset - full_offset,
                 stack_offset,
                 0,
-                loc,
+                AILCodeLocation.make_extern(0) if no_reaching_def else loc,
             )
 
         # sketchy situation. we want to make sure everything in the extern set
