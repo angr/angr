@@ -27,7 +27,7 @@ from angr.rust.utils.ail import (
     unwrap_stack_vvar_reference,
     unwrap_stack_vvar_reference_with_offset,
 )
-from angr.rust.utils.demangler import _is_rust_hash, demangle, normalize
+from angr.rust.utils.demangler import demangle, normalize
 
 
 def _stack_vvar(vvar_id: int = 0, offset: int = 16) -> VirtualVariable:
@@ -245,13 +245,6 @@ def test_extract_str_from_addr_returns_none_when_no_section_covers_address():
     assert extract_str_from_addr(project, addr=0x0) is None
 
 
-def test_is_rust_hash_accepts_only_17_char_hex_with_h_prefix():
-    assert _is_rust_hash("h0123456789abcdef") is True
-    assert _is_rust_hash("h12") is False  # too short
-    assert _is_rust_hash("x0123456789abcdef") is False  # wrong prefix
-    assert _is_rust_hash("h0123456789abcdez") is False  # non-hex digit
-
-
 def test_demangle_strips_trailing_rust_hash_segment():
     mangled = "_ZN4core3fmt9Formatter9write_str17h0123456789abcdefE"
     assert demangle(mangled) == "core::fmt::Formatter::write_str"
@@ -281,33 +274,22 @@ def test_normalize_concise_returns_only_last_path_segment():
     assert normalize("foo::bar::baz", concise=True) == "baz"
 
 
-def test_is_rust_hash_rejects_empty_and_short_inputs():
-    assert _is_rust_hash("") is False
-    assert _is_rust_hash("h") is False
-
-
-def test_is_rust_hash_rejects_uppercase_hex_digits():
-    # Cargo's hash suffix is always lowercase hex; uppercase must not match.
-    assert _is_rust_hash("hABCDEF0123456789") is False
-
-
 def test_demangle_handles_empty_string_without_raising():
     assert demangle("") == ""
 
 
 def test_demangle_returns_input_for_legacy_symbol_with_no_hash_suffix():
-    # A well-formed legacy symbol whose final segment isn't a 17-char h-hex hash:
-    # the demangler still parses it, but our hash-stripping branch must not fire.
+    # A well-formed legacy symbol with no trailing hash segment: the demangler
+    # must not truncate the tail when there is no hash to strip.
     mangled = "_ZN4core3fmt9Formatter9write_strE"
     out = demangle(mangled)
-    # Whatever rust_demangler returns, our wrapper must not silently truncate the tail.
     assert out.endswith("write_str")
 
 
 def test_demangle_passes_through_non_rust_input():
     # Inputs that aren't recognized as Rust mangled names fall through unchanged.
     for raw in ("plain_c_symbol", "main", "?something@msvc@@", "_Z3fooi"):
-        # _Z3fooi is itanium C++ mangling; rust_demangler may or may not raise,
+        # _Z3fooi is itanium C++ mangling; the demangler may or may not raise,
         # but the wrapper must always return a non-None string for non-Rust input.
         result = demangle(raw)
         assert isinstance(result, str)

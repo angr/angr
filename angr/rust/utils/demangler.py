@@ -2,15 +2,7 @@ from __future__ import annotations
 
 import re
 
-import rust_demangler
-from rust_demangler.rust import TypeNotFoundError
-from rust_demangler.rust_legacy import UnableToLegacyDemangle
-from rust_demangler.rust_v0 import UnableTov0Demangle
-
-
-def _is_rust_hash(s):
-    return len(s) == 17 and s.startswith("h") and all(c in "0123456789abcdef" for c in s[1:])
-
+import pyderust
 
 GENERIC_TYPE_PATTERN = re.compile(r"(?:::)?<(?:(?!\sas\s)[^<])*?>")
 XXX_AS_YYY_PATTERN = re.compile(r"<(?!impl\s)([^<]+?)\sas\s([^<]+?)>")
@@ -19,14 +11,9 @@ IMPL_XXX_AS_YYY_PATTERN = re.compile(r"<impl\s([^<]+?)\sas\s([^<]+?)>")
 
 def demangle(s):
     try:
-        demangled = rust_demangler.demangle(s).split("::")
-    except (TypeNotFoundError, UnableTov0Demangle, UnableToLegacyDemangle):
+        return pyderust.demangle(s, include_hash=False)
+    except pyderust.DemangleError:
         return s
-    if len(demangled) >= 2 and _is_rust_hash(demangled[-1]):
-        demangled = "::".join(demangled[:-1])
-    else:
-        demangled = "::".join(demangled)
-    return demangled
 
 
 def normalize(name, monopolize=True, concise=False, use_trait_name=False):
