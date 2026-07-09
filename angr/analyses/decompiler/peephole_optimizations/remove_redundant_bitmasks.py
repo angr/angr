@@ -28,7 +28,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
         if isinstance(expr, BinaryOp):
             return self._optimize_BinaryOp(expr)
         if isinstance(expr, Convert):
-            return RemoveRedundantBitmasks._optimize_Convert(expr)
+            return self._optimize_Convert(expr)
         if isinstance(expr, Extract):
             return self._optimize_Extract(expr)
         if isinstance(expr, Insert):
@@ -119,8 +119,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
 
         return None
 
-    @staticmethod
-    def _optimize_Convert(expr: Convert):
+    def _optimize_Convert(self, expr: Convert):
         # Conv(64->32, (expr & bitmask) + expr)
         # => Conv(64->32, (expr + expr))
         if (
@@ -161,7 +160,15 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 new_op1 = op1.operands[0]
                 replaced, new_operand_expr = operand_expr.replace(op1, new_op1)
                 if replaced:
-                    expr.operand = new_operand_expr
-                    return expr
-
+                    return Convert(
+                        self.manager.next_atom(),
+                        expr.from_bits,
+                        expr.to_bits,
+                        expr.is_signed,
+                        new_operand_expr,
+                        from_type=expr.from_type,
+                        to_type=expr.to_type,
+                        rounding_mode=expr.rounding_mode,
+                        **expr.tags,
+                    )
         return None
