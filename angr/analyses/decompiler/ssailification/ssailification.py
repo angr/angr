@@ -143,7 +143,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         for def2 in defmap.get(suboffset, ()):
                             definfo2 = traversal.def_info[def2]
                             ranges.add((definfo2.variable_offset, definfo2.variable_size))
-                    if ranges != {(udef[1], udef[2])}:
+                    # Reaching defs that share this udef's start offset but are narrower are partial writes of the same
+                    # variable (e.g. a 1-byte store into a 4-byte variable at the end of a loop). They do not
+                    # invalidate the phi for the full-width variable.
+                    if any(r_off != udef[1] for r_off, _ in ranges):
                         # print('passed up phi for', udef, 'at', block, '(2)')
                         continue
                 phi_id = next(phi_id_ctr)
