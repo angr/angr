@@ -35,11 +35,14 @@ _AIL_RM_TO_CLARIPY = {
 }
 
 
-def _claripy_rm(rm: RoundingMode | None) -> object:
-    """Resolve an AIL ``RoundingMode`` to a ``claripy.fp.RM`` value
-    (or claripy's default if ``rm`` is ``None``).
+def _claripy_rm(rm: object) -> object:
+    """Resolve an AIL ``RoundingMode`` to a ``claripy.fp.RM`` value.
+
+    Falls back to claripy's default when ``rm`` is ``None`` or is still an
+    unresolved ``Expression`` (VEX sometimes carries the rounding mode in a
+    tmp that only becomes a constant later in the decompilation pipeline).
     """
-    if rm is None:
+    if not isinstance(rm, RoundingMode):
         return claripy.fp.RM.default()
     return _AIL_RM_TO_CLARIPY[rm]
 

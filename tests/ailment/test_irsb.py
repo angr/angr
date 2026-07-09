@@ -49,6 +49,72 @@ class TestIrsb(unittest.TestCase):
         assert from_py.statements  # non-empty
 
 
+class TestNonConstRoundingMode(unittest.TestCase):
+    """VEX sometimes carries the rounding mode in a tmp (e.g. ARM ``vcvtr``
+    reads it from FPSCR); the converter must pass it through as an AIL
+    ``Expression`` rather than dropping it, so the decompilation pipeline can
+    resolve it to a constant later."""
+
+    # vcvtr.s32.f64 s0, d1 ; bx lr -- F64toI32S(t_rm, t_val) with a computed rm
+    block_bytes = bytes.fromhex("410bbdee1eff2fe1")
+
+    @staticmethod
+    def _find_convert(expr):
+        if isinstance(expr, ailment.Expr.Convert):
+            return expr
+        for attr in ("operand", "src"):
+            inner = getattr(expr, attr, None)
+            if inner is not None:
+                found = TestNonConstRoundingMode._find_convert(inner)
+                if found is not None:
+                    return found
+        return None
+
+    def test_tmp_rounding_mode_is_expression(self):
+        import pickle
+
+        arch = archinfo.arch_from_id("armel")
+        irsb = pyvex.IRSB(self.block_bytes, 0x1000, arch, opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+        from_lift = VEXIRSBConverter.convert_from_lift(
+            arch, 0x1000, self.block_bytes, ailment.Manager(arch=arch), opt_level=1
+        )
+        assert from_py == from_lift
+
+        conv = next(c for c in (self._find_convert(getattr(s, "src", s)) for s in from_py.statements) if c is not None)
+        rm = conv.rounding_mode
+        assert isinstance(rm, ailment.expression.Expression)
+        assert isinstance(rm, ailment.Expr.Tmp)
+        # a rebuilt Convert accepts the expression form back
+        rebuilt = ailment.Expr.Convert(
+            conv.idx,
+            conv.from_bits,
+            conv.to_bits,
+            conv.is_signed,
+            conv.operand,
+            from_type=conv.from_type,
+            to_type=conv.to_type,
+            rounding_mode=rm,
+            **dict(conv.tags),
+        )
+        assert rebuilt == conv
+        # serde round-trip keeps the expression form
+        assert pickle.loads(pickle.dumps(from_py)) == from_py
+
+    def test_const_rounding_mode_still_enum(self):
+        from angr.rustylib.ailment import RoundingMode
+
+        arch = archinfo.arch_from_id("i386")
+        irsb = pyvex.IRSB(bytes.fromhex("d8c1c3"), 0x1000, arch, opt_level=1)  # fadd st0, st1 ; ret
+        blk = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+        binop = next(
+            s.src
+            for s in blk.statements
+            if isinstance(getattr(s, "src", None), ailment.Expr.BinaryOp) and s.src.floating_point
+        )
+        assert isinstance(binop.rounding_mode, RoundingMode)
+
+
 class TestVexConverterAcrossArches(unittest.TestCase):
     """Convert real blocks from test binaries through both the Python-IRSB path
     and the libVEX-lift path, and assert the two agree."""

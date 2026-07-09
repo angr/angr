@@ -62,6 +62,70 @@ impl ExprHeader {
 }
 
 // ---------------------------------------------------------------------------
+// Rounding mode payload
+// ---------------------------------------------------------------------------
+
+/// The rounding mode of a float ``Convert`` / ``BinaryOp``: either the typed
+/// [`RoundingMode`] enum (the usual, resolved form) or an arbitrary AIL
+/// expression -- VEX sometimes carries the rounding mode in a tmp, which only
+/// becomes a constant later in the decompilation pipeline.
+///
+/// The expression form is a payload, not an operand: ``likes`` / ``matches``
+/// / ``__eq__`` ignore the rounding mode entirely (as they always have), and
+/// the operand walks (``replace`` / recursive maps) do not descend into it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum RoundingModeOrExpr {
+    Mode(RoundingMode),
+    Expr(Arc<AilExpression>),
+}
+
+impl Hash for RoundingModeOrExpr {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        match self {
+            RoundingModeOrExpr::Mode(m) => {
+                0u8.hash(h);
+                m.hash(h);
+            }
+            RoundingModeOrExpr::Expr(e) => {
+                1u8.hash(h);
+                e.cached_hash_or_compute().hash(h);
+            }
+        }
+    }
+}
+
+impl<'py> FromPyObject<'_, 'py> for RoundingModeOrExpr {
+    type Error = PyErr;
+
+    fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
+        if let Ok(m) = obj.extract::<RoundingMode>() {
+            return Ok(RoundingModeOrExpr::Mode(m));
+        }
+        if let Ok(e) = obj.cast::<Expression>() {
+            return Ok(RoundingModeOrExpr::Expr(Arc::new(e.borrow().expr.clone())));
+        }
+        Err(PyTypeError::new_err(
+            "rounding_mode must be a RoundingMode, an Expression, or None",
+        ))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for &RoundingModeOrExpr {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        match self {
+            RoundingModeOrExpr::Mode(m) => Ok(m.into_pyobject(py)?.into_any()),
+            RoundingModeOrExpr::Expr(e) => Ok(Expression::wrap((**e).clone())
+                .into_pyobject(py)?
+                .into_any()),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Variant payload
 // ---------------------------------------------------------------------------
 
@@ -121,7 +185,7 @@ pub enum ExprInner {
         is_signed: bool,
         from_type: ConvertType,
         to_type: ConvertType,
-        rounding_mode: Option<RoundingMode>,
+        rounding_mode: Option<RoundingModeOrExpr>,
     },
     Reinterpret {
         operand: Arc<AilExpression>,
@@ -135,7 +199,7 @@ pub enum ExprInner {
         operands: [Arc<AilExpression>; 2],
         signed: bool,
         floating_point: bool,
-        rounding_mode: Option<RoundingMode>,
+        rounding_mode: Option<RoundingModeOrExpr>,
         vector_count: Option<i64>,
         vector_size: Option<i64>,
     },
@@ -1097,7 +1161,7 @@ impl AilExpression {
                         is_signed: *is_signed,
                         from_type: *from_type,
                         to_type: *to_type,
-                        rounding_mode: *rounding_mode,
+                        rounding_mode: rounding_mode.clone(),
                     }),
                 )
             }
@@ -1144,7 +1208,7 @@ impl AilExpression {
                         operands: [rl, rr],
                         signed: *signed,
                         floating_point: *floating_point,
-                        rounding_mode: *rounding_mode,
+                        rounding_mode: rounding_mode.clone(),
                         vector_count: *vector_count,
                         vector_size: *vector_size,
                     }),
@@ -1666,7 +1730,7 @@ impl AilExpression {
                 is_signed: *is_signed,
                 from_type: *from_type,
                 to_type: *to_type,
-                rounding_mode: *rounding_mode,
+                rounding_mode: rounding_mode.clone(),
             },
             ExprInner::Reinterpret {
                 operand,
@@ -1694,7 +1758,7 @@ impl AilExpression {
                 operands: [recurse(&operands[0])?, recurse(&operands[1])?],
                 signed: *signed,
                 floating_point: *floating_point,
-                rounding_mode: *rounding_mode,
+                rounding_mode: rounding_mode.clone(),
                 vector_count: *vector_count,
                 vector_size: *vector_size,
             },
@@ -2859,7 +2923,7 @@ impl Expression {
         operand: AilExpression,
         from_type: Option<ConvertType>,
         to_type: Option<ConvertType>,
-        rounding_mode: Option<RoundingMode>,
+        rounding_mode: Option<RoundingModeOrExpr>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
@@ -2919,7 +2983,7 @@ impl Expression {
         signed: bool,
         bits: Option<u32>,
         floating_point: bool,
-        rounding_mode: Option<RoundingMode>,
+        rounding_mode: Option<RoundingModeOrExpr>,
         vector_count: Option<i64>,
         vector_size: Option<i64>,
         kwargs: Option<&Bound<'_, PyDict>>,
@@ -4629,13 +4693,18 @@ impl Expression {
         }
     }
 
-    /// Convert.rounding_mode / BinaryOp.rounding_mode
+    /// Convert.rounding_mode / BinaryOp.rounding_mode -- a ``RoundingMode``
+    /// enum member, an ``Expression`` (unresolved, e.g. a VEX tmp rounding
+    /// mode before constant propagation), or ``None``.
     #[getter]
-    fn rounding_mode(&self) -> Option<RoundingMode> {
+    fn rounding_mode(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.expr.inner {
             ExprInner::Convert { rounding_mode, .. }
-            | ExprInner::BinaryOp { rounding_mode, .. } => *rounding_mode,
-            _ => None,
+            | ExprInner::BinaryOp { rounding_mode, .. } => match rounding_mode {
+                Some(rm) => Ok(rm.into_pyobject(py)?.unbind()),
+                None => Ok(py.None()),
+            },
+            _ => Ok(py.None()),
         }
     }
 

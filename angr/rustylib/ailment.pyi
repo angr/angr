@@ -230,7 +230,7 @@ class Expression:
         operand: Expression,
         from_type: ConvertType | None = ...,
         to_type: ConvertType | None = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         **tags: Any,
     ) -> Expression: ...
     @staticmethod
@@ -252,7 +252,7 @@ class Expression:
         *,
         bits: int | None = ...,
         floating_point: bool = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         vector_count: int | None = ...,
         vector_size: int | None = ...,
         **tags: Any,
@@ -664,7 +664,7 @@ class BinaryOp(Op):
     def floating_point(self) -> bool:
         """BinaryOp.floating_point"""
     @property
-    def rounding_mode(self) -> Any | None:
+    def rounding_mode(self) -> RoundingMode | Expression | None:
         """BinaryOp.rounding_mode"""
     @property
     def vector_count(self) -> int | None:
@@ -681,7 +681,7 @@ class BinaryOp(Op):
         *,
         bits: int | None = ...,
         floating_point: bool = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         vector_count: int | None = ...,
         vector_size: int | None = ...,
         **tags: Any,
@@ -710,7 +710,7 @@ class Convert(Op):
     def to_type(self) -> Any:
         """Convert.to_type"""
     @property
-    def rounding_mode(self) -> Any | None:
+    def rounding_mode(self) -> RoundingMode | Expression | None:
         """Convert.rounding_mode"""
     def __init__(
         self,
@@ -721,7 +721,7 @@ class Convert(Op):
         operand: Expression,
         from_type: ConvertType | None = ...,
         to_type: ConvertType | None = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         **tags: Any,
     ) -> None: ...
 

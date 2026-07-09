@@ -581,7 +581,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let from_size = simop.from_size.unwrap_or(0);
             let to_size = simop.to_size.unwrap_or(0);
             if simop.from_type.as_deref() == Some("I") && simop.to_type.as_deref() == Some("F") {
-                let rm = vex_rm_to_enum(self.py, &operands[0]);
+                let rm = vex_rm_value(self.py, &operands[0])?;
                 let operand = operands[1].clone_ref(self.py);
                 return Ok(self.make_convert_typed(
                     from_size,
@@ -598,7 +598,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } else if simop.from_type.as_deref() == Some("F")
                 && simop.to_type.as_deref() == Some("F")
             {
-                let rm = vex_rm_to_enum(self.py, &operands[0]);
+                let rm = vex_rm_value(self.py, &operands[0])?;
                 let operand = operands[1].clone_ref(self.py);
                 return Ok(self.make_convert_typed(
                     from_size,
@@ -612,7 +612,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } else if simop.from_type.as_deref() == Some("F")
                 && simop.to_type.as_deref() == Some("I")
             {
-                let rm = vex_rm_to_enum(self.py, &operands[0]);
+                let rm = vex_rm_value(self.py, &operands[0])?;
                 let operand = operands[1].clone_ref(self.py);
                 return Ok(self.make_convert_typed(
                     from_size,
@@ -677,7 +677,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         let bits = simop.output_size_bits;
         if simop.float {
             // first operand is the rounding mode -> BinaryOp over the rest
-            let rm = vex_rm_to_enum(self.py, &operands[0]);
+            let rm = vex_rm_value(self.py, &operands[0])?;
             let rest = &operands[1..];
             let idx = self.next_atom()?;
             let kw = self.tags()?;
@@ -740,15 +740,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         operand: Py<PyAny>,
         from_type: ConvertType,
         to_type: ConvertType,
-        rm: Option<RoundingMode>,
+        rm: Py<PyAny>,
     ) -> PyResult<Py<PyAny>> {
         let idx = self.next_atom()?;
         let kw = self.tags()?;
         kw.set_item("from_type", from_type)?;
         kw.set_item("to_type", to_type)?;
-        if let Some(rm) = rm {
-            kw.set_item("rounding_mode", rm)?;
-        }
+        kw.set_item("rounding_mode", rm)?;
         self.build(
             &self.ail.convert.clone(),
             (idx, from, to, signed, operand),
@@ -1311,15 +1309,21 @@ fn int_const_negated(py: Python<'_>, v: &IntConst, bits: u32) -> PyResult<Py<PyA
     }
 }
 
-/// The Python converter's `_vex_rm_to_enum`: a Const int operand maps to
-/// `RoundingMode(value & 0b11)`; anything else drops to `None`.
-fn vex_rm_to_enum(py: Python<'_>, rm: &Py<PyAny>) -> Option<RoundingMode> {
-    let (_, v, _) = const_int_parts(py, rm)?;
-    let low2 = match v {
-        IntConst::Small(v) => (v & 3) as i64,
-        IntConst::Big(b) => i64::try_from(b & num_bigint::BigInt::from(3)).ok()?,
-    };
-    RoundingMode::from_int(low2)
+/// The rounding-mode operand of a float op: a Const int operand maps to the
+/// typed `RoundingMode(value & 0b11)` enum; any other expression (e.g. a tmp
+/// -- VEX sometimes carries the rounding mode in a tmp that only becomes a
+/// constant later in the decompilation pipeline) is passed through as-is.
+fn vex_rm_value(py: Python<'_>, rm: &Py<PyAny>) -> PyResult<Py<PyAny>> {
+    if let Some((_, v, _)) = const_int_parts(py, rm) {
+        let low2 = match v {
+            IntConst::Small(v) => Some((v & 3) as i64),
+            IntConst::Big(b) => i64::try_from(b & num_bigint::BigInt::from(3)).ok(),
+        };
+        if let Some(m) = low2.and_then(RoundingMode::from_int) {
+            return m.into_py_any(py);
+        }
+    }
+    Ok(rm.clone_ref(py))
 }
 
 // ===========================================================================
