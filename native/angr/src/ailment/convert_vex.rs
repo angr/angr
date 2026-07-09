@@ -11,16 +11,22 @@
 //! only the IR-reading layer differs.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use pyo3::IntoPyObjectExt;
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList};
+use pyo3::types::PyList;
 
-use crate::ailment::ail_expr::{ExprInner, Expression};
+use crate::ailment::CachedHash;
+use crate::ailment::ail_expr::{
+    AilExpression, CFGTarget, ExprHeader, ExprInner, RoundingModeOrExpr,
+};
+use crate::ailment::ail_stmt::{AilStatement, Statement, StmtHeader, StmtInner};
+use crate::ailment::block::Block;
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, RoundingMode};
 use crate::ailment::manager::Manager;
+use crate::ailment::tags::{TagExtra, TagKey, Tags};
 use crate::ailment::vex_ffi::{self, IRExpr, IRSB};
 use crate::ailment::vexop;
 
@@ -45,9 +51,9 @@ impl From<PyErr> for ConvErr {
 // IR node descriptions produced by a reader and consumed by the core.
 // ===========================================================================
 
-/// A converted constant value (already a Python int/float object) + its width.
+/// A converted constant value + its width.
 struct ConstVal {
-    value: Py<PyAny>,
+    value: ConstValue,
     bits: u32,
 }
 
@@ -79,7 +85,7 @@ enum ExprKind<E> {
         args: Vec<E>,
     },
     Const {
-        value: Py<PyAny>,
+        value: ConstValue,
         bits: u32,
     },
     Ite {
@@ -231,76 +237,21 @@ impl<'py> ArchCtx<'py> {
 }
 
 // ===========================================================================
-// Cached AIL class objects.
-//
-// The concrete AIL classes are the Python-side marker classes (see
-// ``angr/ailment/expression.py`` / ``statement.py``); calling one constructs
-// the single Rust ``Expression`` / ``Statement`` pyclass with the matching
-// variant. ``Block`` is still a Rust pyclass.
-// ===========================================================================
-
-struct Ail<'py> {
-    const_: Bound<'py, PyAny>,
-    tmp: Bound<'py, PyAny>,
-    register: Bound<'py, PyAny>,
-    load: Bound<'py, PyAny>,
-    unary_op: Bound<'py, PyAny>,
-    binary_op: Bound<'py, PyAny>,
-    convert: Bound<'py, PyAny>,
-    reinterpret: Bound<'py, PyAny>,
-    ite: Bound<'py, PyAny>,
-    vex_ccall: Bound<'py, PyAny>,
-    call: Bound<'py, PyAny>,
-    dirty_expr: Bound<'py, PyAny>,
-    assignment: Bound<'py, PyAny>,
-    store: Bound<'py, PyAny>,
-    jump: Bound<'py, PyAny>,
-    cond_jump: Bound<'py, PyAny>,
-    side_effect: Bound<'py, PyAny>,
-    ret: Bound<'py, PyAny>,
-    cas: Bound<'py, PyAny>,
-    dirty_stmt: Bound<'py, PyAny>,
-    block: Bound<'py, PyAny>,
-}
-
-impl<'py> Ail<'py> {
-    fn new(py: Python<'py>) -> PyResult<Self> {
-        let exprs = py.import("angr.ailment.expression")?;
-        let stmts = py.import("angr.ailment.statement")?;
-        Ok(Self {
-            const_: exprs.getattr("Const")?,
-            tmp: exprs.getattr("Tmp")?,
-            register: exprs.getattr("Register")?,
-            load: exprs.getattr("Load")?,
-            unary_op: exprs.getattr("UnaryOp")?,
-            binary_op: exprs.getattr("BinaryOp")?,
-            convert: exprs.getattr("Convert")?,
-            reinterpret: exprs.getattr("Reinterpret")?,
-            ite: exprs.getattr("ITE")?,
-            vex_ccall: exprs.getattr("VEXCCallExpression")?,
-            call: exprs.getattr("Call")?,
-            dirty_expr: exprs.getattr("DirtyExpression")?,
-            assignment: stmts.getattr("Assignment")?,
-            store: stmts.getattr("Store")?,
-            jump: stmts.getattr("Jump")?,
-            cond_jump: stmts.getattr("ConditionalJump")?,
-            side_effect: stmts.getattr("SideEffectStatement")?,
-            ret: stmts.getattr("Return")?,
-            cas: stmts.getattr("CAS")?,
-            dirty_stmt: stmts.getattr("DirtyStatement")?,
-            block: py.get_type::<crate::ailment::block::Block>().into_any(),
-        })
-    }
-}
-
-// ===========================================================================
 // Conversion core.
+//
+// Builds `AilExpression` / `AilStatement` values natively -- no Python
+// constructor calls; each statement is wrapped into a `Statement` pyclass
+// object exactly once, when the final `Block` is assembled.
+//
+// Field defaults (depth, bits, tags) mirror the `_new_*` factories in
+// `ail_expr.rs` / `ail_stmt.rs` exactly, and atom idx allocation follows the
+// deleted Python converter's left-to-right argument evaluation order, so the
+// output stays idx-identical to the factory-calling implementation.
 // ===========================================================================
 
 struct Conv<'py, 'r, R: IrReader> {
     py: Python<'py>,
     reader: &'r R,
-    ail: Ail<'py>,
     arch: ArchCtx<'py>,
     // atom allocation: local counter, optionally backed by a native Manager.
     atom: i64,
@@ -322,32 +273,20 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         }
     }
 
-    /// Standard tag dict (ins_addr / vex_block_addr / vex_stmt_idx).
-    fn tags(&self) -> PyResult<Bound<'py, PyDict>> {
-        let d = PyDict::new(self.py);
-        if let Some(ia) = self.ins_addr {
-            d.set_item("ins_addr", ia)?;
+    /// Standard tags (ins_addr / vex_block_addr / vex_stmt_idx).
+    fn tags(&self) -> Tags {
+        Tags {
+            ins_addr: self.ins_addr,
+            vex_block_addr: Some(self.block_addr),
+            vex_stmt_idx: Some(self.vex_stmt_idx as i32),
+            block_idx: None,
+            extras: HashMap::new(),
         }
-        d.set_item("vex_block_addr", self.block_addr)?;
-        d.set_item("vex_stmt_idx", self.vex_stmt_idx)?;
-        Ok(d)
-    }
-
-    fn build<A>(
-        &self,
-        cls: &Bound<'py, PyAny>,
-        args: A,
-        kwargs: &Bound<'py, PyDict>,
-    ) -> PyResult<Py<PyAny>>
-    where
-        A: pyo3::call::PyCallArgs<'py>,
-    {
-        Ok(cls.call(args, Some(kwargs))?.unbind())
     }
 
     // ---- expression conversion ----------------------------------------
 
-    fn convert_expr(&mut self, e: &R::E) -> PyResult<Py<PyAny>> {
+    fn convert_expr(&mut self, e: &R::E) -> PyResult<AilExpression> {
         let kind = self.reader.expr_kind(self.py, e)?;
         match kind {
             ExprKind::RdTmp { tmp, bits } => self.make_tmp(tmp as i64, bits),
@@ -355,13 +294,19 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             ExprKind::Load { end, bits, addr } => {
                 // Python arg eval order: Load(next_atom(), convert(addr), ...).
                 let idx = self.next_atom()?;
-                let addr_obj = self.convert_expr(&addr)?;
-                let kw = self.tags()?;
-                self.build(
-                    &self.ail.load.clone(),
-                    (idx, addr_obj, (bits / 8) as i32, end),
-                    &kw,
-                )
+                let addr_e = self.convert_expr(&addr)?;
+                let size = (bits / 8) as i32;
+                let depth = addr_e.header.depth + 1;
+                Ok(AilExpression {
+                    header: ExprHeader::new(idx, depth, size.wrapping_mul(8) as u32, self.tags()),
+                    inner: ExprInner::Load {
+                        addr: Arc::new(addr_e),
+                        size,
+                        endness: end,
+                        guard: None,
+                        alt: None,
+                    },
+                })
             }
             ExprKind::Const { value, bits } => self.make_const(value, bits),
             ExprKind::Ite {
@@ -373,19 +318,33 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let f = self.convert_expr(&iffalse)?;
                 let t = self.convert_expr(&iftrue)?;
                 let idx = self.next_atom()?;
-                let kw = self.tags()?;
-                self.build(&self.ail.ite.clone(), (idx, c, f, t), &kw)
+                let depth = c.header.depth.max(f.header.depth).max(t.header.depth) + 1;
+                let bits = t.header.bits;
+                Ok(AilExpression {
+                    header: ExprHeader::new(idx, depth, bits, self.tags()),
+                    inner: ExprInner::ITE {
+                        cond: Arc::new(c),
+                        iffalse: Arc::new(f),
+                        iftrue: Arc::new(t),
+                    },
+                })
             }
             ExprKind::CCall { callee, args, bits } => {
                 let mut ops = Vec::with_capacity(args.len());
                 for a in &args {
                     ops.push(self.convert_expr(a)?);
                 }
-                let ops_list = PyList::new(self.py, ops)?;
                 let idx = self.next_atom()?;
-                let kw = self.tags()?;
-                kw.set_item("bits", bits)?;
-                self.build(&self.ail.vex_ccall.clone(), (idx, callee, ops_list), &kw)
+                // The VEXCCallExpression factory's depth is the max over the
+                // operands, with no +1.
+                let depth = ops.iter().map(|o| o.header.depth).max().unwrap_or(0);
+                Ok(AilExpression {
+                    header: ExprHeader::new(idx, depth, bits, self.tags()),
+                    inner: ExprInner::VEXCCallExpression {
+                        callee,
+                        operands: ops,
+                    },
+                })
             }
             ExprKind::Unop { op, arg } => {
                 let bits = self.reader.result_bits(e);
@@ -406,7 +365,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         }
     }
 
-    fn convert_list(&mut self, args: &[R::E]) -> PyResult<Vec<Py<PyAny>>> {
+    fn convert_list(&mut self, args: &[R::E]) -> PyResult<Vec<AilExpression>> {
         let mut out = Vec::with_capacity(args.len());
         for a in args {
             out.push(self.convert_expr(a)?);
@@ -414,39 +373,44 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         Ok(out)
     }
 
-    fn make_tmp(&mut self, tmp_idx: i64, bits: u32) -> PyResult<Py<PyAny>> {
+    fn make_tmp(&mut self, tmp_idx: i64, bits: u32) -> PyResult<AilExpression> {
         let idx = self.next_atom()?;
-        let kw = self.tags()?;
-        self.build(&self.ail.tmp.clone(), (idx, tmp_idx, bits), &kw)
+        Ok(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, self.tags()),
+            inner: ExprInner::Tmp { tmp_idx },
+        })
     }
 
-    fn make_register(&mut self, offset: i64, bits: u32) -> PyResult<Py<PyAny>> {
+    fn make_register(&mut self, offset: i64, bits: u32) -> PyResult<AilExpression> {
         let reg_size = bits / self.arch.byte_width;
         let reg_name = self.arch.reg_name(offset, reg_size)?;
         let idx = self.next_atom()?;
-        let kw = self.tags()?;
+        let mut tags = self.tags();
         if let Some(n) = reg_name {
-            kw.set_item("reg_name", n)?;
+            tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
         }
-        self.build(&self.ail.register.clone(), (idx, offset, bits), &kw)
+        Ok(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, tags),
+            inner: ExprInner::Register { reg_offset: offset },
+        })
     }
 
-    fn make_const(&mut self, value: Py<PyAny>, bits: u32) -> PyResult<Py<PyAny>> {
+    fn make_const(&mut self, value: ConstValue, bits: u32) -> PyResult<AilExpression> {
         let idx = self.next_atom()?;
-        let kw = self.tags()?;
-        self.build(&self.ail.const_.clone(), (idx, value, bits), &kw)
+        Ok(AilExpression {
+            header: ExprHeader::new(idx, 0, bits, self.tags()),
+            inner: ExprInner::Const { value },
+        })
     }
 
-    fn unsupported_expr(&mut self, label: String, bits: u32) -> PyResult<Py<PyAny>> {
+    fn unsupported_expr(&mut self, label: String, bits: u32) -> PyResult<AilExpression> {
         let idx = self.next_atom()?;
-        let kw = self.tags()?;
-        kw.set_item("bits", bits)?;
-        let empty = PyList::empty(self.py);
-        self.build(
-            &self.ail.dirty_expr.clone(),
-            (idx, format!("unsupported_{label}"), empty),
-            &kw,
-        )
+        Ok(new_dirty_expr(
+            idx,
+            format!("unsupported_{label}"),
+            bits,
+            self.tags(),
+        ))
     }
 
     // ---- Unop ----------------------------------------------------------
@@ -456,7 +420,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     ///
     /// `bits` is the VEX result size of the whole unop expression (the
     /// Python converter's `expr.result_size(manager.tyenv)`).
-    fn convert_unop(&mut self, op: u32, arg: &R::E, bits: u32) -> Result<Py<PyAny>, ConvErr> {
+    fn convert_unop(&mut self, op: u32, arg: &R::E, bits: u32) -> Result<AilExpression, ConvErr> {
         let simop = vexop::vexop_to_simop(op).map_err(|_| ConvErr::Unsupported)?;
         let op_name = simop.generic_name.clone();
 
@@ -464,19 +428,18 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             // Python arg eval order: Reinterpret(next_atom(), ..., convert(arg)).
             let idx = self.next_atom()?;
             let operand = self.convert_expr(arg)?;
-            let kw = self.tags()?;
-            return Ok(self.build(
-                &self.ail.reinterpret.clone(),
-                (
-                    idx,
-                    simop.from_size.unwrap_or(0),
-                    simop.from_type.clone().unwrap_or_default(),
-                    simop.to_size.unwrap_or(0),
-                    simop.to_type.clone().unwrap_or_default(),
-                    operand,
-                ),
-                &kw,
-            )?);
+            let to_bits = simop.to_size.unwrap_or(0);
+            let depth = operand.header.depth + 1;
+            return Ok(AilExpression {
+                header: ExprHeader::new(idx, depth, to_bits, self.tags()),
+                inner: ExprInner::Reinterpret {
+                    operand: Arc::new(operand),
+                    from_bits: simop.from_size.unwrap_or(0),
+                    from_type: simop.from_type.clone().unwrap_or_default(),
+                    to_bits,
+                    to_type: simop.to_type.clone().unwrap_or_default(),
+                },
+            });
         }
 
         if op_name.is_none() {
@@ -493,32 +456,48 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let inner = self.convert_expr(arg)?;
                 let shifted = {
                     let idx = self.next_atom()?;
-                    let shift_const = self.make_const(to_size.into_py_any(self.py)?, 8)?;
-                    let kw = self.tags()?;
-                    let operands = PyList::new(self.py, [inner, shift_const])?;
-                    self.build(
-                        &self.ail.binary_op.clone(),
-                        (idx, "Shr", operands, false),
-                        &kw,
-                    )?
+                    let shift_const = self.make_const(ConstValue::Int(to_size as i128), 8)?;
+                    new_binop(
+                        idx,
+                        "Shr".to_string(),
+                        inner,
+                        shift_const,
+                        false,
+                        false,
+                        None,
+                        None,
+                        None,
+                        None,
+                        self.tags(),
+                    )
                 };
                 let idx = self.next_atom()?;
-                let kw = self.tags()?;
-                return Ok(self.build(
-                    &self.ail.convert.clone(),
-                    (idx, from_size, to_size, signed, shifted),
-                    &kw,
-                )?);
+                return Ok(new_convert(
+                    idx,
+                    from_size,
+                    to_size,
+                    signed,
+                    shifted,
+                    ConvertType::TypeInt,
+                    ConvertType::TypeInt,
+                    None,
+                    self.tags(),
+                ));
             }
             // Python arg eval order: Convert(next_atom(), ..., convert(arg)).
             let idx = self.next_atom()?;
             let operand = self.convert_expr(arg)?;
-            let kw = self.tags()?;
-            return Ok(self.build(
-                &self.ail.convert.clone(),
-                (idx, from_size, to_size, signed, operand),
-                &kw,
-            )?);
+            return Ok(new_convert(
+                idx,
+                from_size,
+                to_size,
+                signed,
+                operand,
+                ConvertType::TypeInt,
+                ConvertType::TypeInt,
+                None,
+                self.tags(),
+            ));
         }
 
         let mut name = op_name.unwrap();
@@ -528,26 +507,47 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         // Python arg eval order: UnaryOp(next_atom(), name, convert(arg), bits=...).
         let idx = self.next_atom()?;
         let operand = self.convert_expr(arg)?;
-        let kw = self.tags()?;
-        kw.set_item("bits", bits)?;
-        Ok(self.build(&self.ail.unary_op.clone(), (idx, name, operand), &kw)?)
+        let depth = operand.header.depth + 1;
+        Ok(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, self.tags()),
+            inner: ExprInner::UnaryOp {
+                op: name,
+                operand: Arc::new(operand),
+            },
+        })
     }
 
     // ---- Binop ---------------------------------------------------------
 
-    fn convert_binop(&mut self, op: u32, a1: &R::E, a2: &R::E) -> Result<Py<PyAny>, ConvErr> {
+    fn convert_binop(&mut self, op: u32, a1: &R::E, a2: &R::E) -> Result<AilExpression, ConvErr> {
         let simop = vexop::vexop_to_simop(op).map_err(|_| ConvErr::Unsupported)?;
         let mut op_name = simop.generic_name.clone();
         let mut operands = vec![self.convert_expr(a1)?, self.convert_expr(a2)?];
 
         // Add + negative Const -> Sub
-        if op_name.as_deref() == Some("Add")
-            && let Some((cidx, val, bits)) = const_int_parts(self.py, &operands[1])
-            && int_const_sign_bit(&val, bits)
-        {
-            op_name = Some("Sub".to_string());
-            let new_val = int_const_negated(self.py, &val, bits)?;
-            operands[1] = self.make_const_no_tags(cidx, new_val, bits)?;
+        if op_name.as_deref() == Some("Add") {
+            let negated = match &operands[1].inner {
+                ExprInner::Const { value }
+                    if const_value_sign_bit(value, operands[1].header.bits) =>
+                {
+                    Some(const_value_negated(value, operands[1].header.bits))
+                }
+                _ => None,
+            };
+            if let Some(new_val) = negated {
+                op_name = Some("Sub".to_string());
+                // Const(operands[1].idx, new_val, bits) with NO tags --
+                // matches the Python rewrite.
+                operands[1] = AilExpression {
+                    header: ExprHeader::new(
+                        operands[1].header.idx,
+                        0,
+                        operands[1].header.bits,
+                        Tags::default(),
+                    ),
+                    inner: ExprInner::Const { value: new_val },
+                };
+            }
         }
 
         let mut signed = false;
@@ -581,115 +581,208 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let from_size = simop.from_size.unwrap_or(0);
             let to_size = simop.to_size.unwrap_or(0);
             if simop.from_type.as_deref() == Some("I") && simop.to_type.as_deref() == Some("F") {
-                let rm = vex_rm_value(self.py, &operands[0])?;
-                let operand = operands[1].clone_ref(self.py);
-                return Ok(self.make_convert_typed(
+                let rm = vex_rm_value(&operands[0]);
+                let operand = operands.pop().unwrap();
+                let idx = self.next_atom()?;
+                return Ok(new_convert(
+                    idx,
                     from_size,
                     to_size,
                     simop.is_signed(),
                     operand,
                     ConvertType::TypeInt,
                     ConvertType::TypeFp,
-                    rm,
-                )?);
+                    Some(rm),
+                    self.tags(),
+                ));
             }
             if simop.from_side.as_deref() == Some("HL") {
                 op_name = Some("Concat".to_string());
             } else if simop.from_type.as_deref() == Some("F")
                 && simop.to_type.as_deref() == Some("F")
             {
-                let rm = vex_rm_value(self.py, &operands[0])?;
-                let operand = operands[1].clone_ref(self.py);
-                return Ok(self.make_convert_typed(
+                let rm = vex_rm_value(&operands[0]);
+                let operand = operands.pop().unwrap();
+                let idx = self.next_atom()?;
+                return Ok(new_convert(
+                    idx,
                     from_size,
                     to_size,
                     simop.is_signed(),
                     operand,
                     ConvertType::TypeFp,
                     ConvertType::TypeFp,
-                    rm,
-                )?);
+                    Some(rm),
+                    self.tags(),
+                ));
             } else if simop.from_type.as_deref() == Some("F")
                 && simop.to_type.as_deref() == Some("I")
             {
-                let rm = vex_rm_value(self.py, &operands[0])?;
-                let operand = operands[1].clone_ref(self.py);
-                return Ok(self.make_convert_typed(
+                let rm = vex_rm_value(&operands[0]);
+                let operand = operands.pop().unwrap();
+                let idx = self.next_atom()?;
+                return Ok(new_convert(
+                    idx,
                     from_size,
                     to_size,
                     simop.is_signed(),
                     operand,
                     ConvertType::TypeFp,
                     ConvertType::TypeInt,
-                    rm,
-                )?);
+                    Some(rm),
+                    self.tags(),
+                ));
             }
         }
 
         let bits = simop.output_size_bits;
 
         if op_name.as_deref() == Some("DivMod") {
-            let op1_size = simop
-                .from_size
-                .unwrap_or_else(|| pyobj_bits(operands[0].bind(self.py)).unwrap_or(0));
-            let mut op2_size = simop
-                .to_size
-                .unwrap_or_else(|| pyobj_bits(operands[1].bind(self.py)).unwrap_or(0));
+            let op1_size = simop.from_size.unwrap_or(operands[0].header.bits);
+            let op2_size = simop.to_size.unwrap_or(operands[1].header.bits);
             if op2_size < op1_size {
+                // Python arg eval order: Convert(next_atom(), ..., operands[1]).
                 let signed_cvt = simop.from_signed.as_deref() != Some("U");
-                let o = operands[1].clone_ref(self.py);
-                operands[1] = self.make_convert(op2_size, op1_size, signed_cvt, o)?;
-                op2_size = op1_size;
+                let idx = self.next_atom()?;
+                let o = operands.pop().unwrap();
+                operands.push(new_convert(
+                    idx,
+                    op2_size,
+                    op1_size,
+                    signed_cvt,
+                    o,
+                    ConvertType::TypeInt,
+                    ConvertType::TypeInt,
+                    None,
+                    self.tags(),
+                ));
             }
-            let _ = op2_size;
             let chunk_bits = bits / 2;
-            let div = self.make_binop_bits("Div", &operands, signed, op1_size)?;
-            let truncated_div = self.make_convert(op1_size, chunk_bits, signed, div)?;
-            let modd = self.make_binop_bits("Mod", &operands, signed, op1_size)?;
-            let truncated_mod = self.make_convert(op1_size, chunk_bits, signed, modd)?;
-            operands = vec![truncated_mod, truncated_div];
-            op_name = Some("Concat".to_string());
-            signed = false;
-            return Ok(self.make_binop(
-                op_name.unwrap(),
-                &operands,
-                signed,
+            let div = {
+                let idx = self.next_atom()?;
+                new_binop(
+                    idx,
+                    "Div".to_string(),
+                    operands[0].clone(),
+                    operands[1].clone(),
+                    signed,
+                    false,
+                    None,
+                    Some(op1_size),
+                    None,
+                    None,
+                    self.tags(),
+                )
+            };
+            let truncated_div = {
+                let idx = self.next_atom()?;
+                new_convert(
+                    idx,
+                    op1_size,
+                    chunk_bits,
+                    signed,
+                    div,
+                    ConvertType::TypeInt,
+                    ConvertType::TypeInt,
+                    None,
+                    self.tags(),
+                )
+            };
+            let modd = {
+                let idx = self.next_atom()?;
+                new_binop(
+                    idx,
+                    "Mod".to_string(),
+                    operands[0].clone(),
+                    operands[1].clone(),
+                    signed,
+                    false,
+                    None,
+                    Some(op1_size),
+                    None,
+                    None,
+                    self.tags(),
+                )
+            };
+            let truncated_mod = {
+                let idx = self.next_atom()?;
+                new_convert(
+                    idx,
+                    op1_size,
+                    chunk_bits,
+                    signed,
+                    modd,
+                    ConvertType::TypeInt,
+                    ConvertType::TypeInt,
+                    None,
+                    self.tags(),
+                )
+            };
+            let idx = self.next_atom()?;
+            return Ok(new_binop(
+                idx,
+                "Concat".to_string(),
+                truncated_mod,
+                truncated_div,
+                false,
+                false,
+                None,
                 Some(bits),
                 None,
                 None,
-            )?);
+                self.tags(),
+            ));
         }
 
-        Ok(self.make_binop(
+        let idx = self.next_atom()?;
+        let rhs = operands.pop().unwrap();
+        let lhs = operands.pop().unwrap();
+        Ok(new_binop(
+            idx,
             op_name.unwrap_or_default(),
-            &operands,
+            lhs,
+            rhs,
             signed,
+            false,
+            None,
             Some(bits),
             vector_count,
             vector_size,
-        )?)
+            self.tags(),
+        ))
     }
 
-    fn convert_triop(&mut self, op: u32, args: &[R::E]) -> Result<Py<PyAny>, ConvErr> {
+    fn convert_triop(&mut self, op: u32, args: &[R::E]) -> Result<AilExpression, ConvErr> {
         let simop = vexop::vexop_to_simop(op).map_err(|_| ConvErr::Unsupported)?;
         let op_name = simop.generic_name.clone().unwrap_or_default();
-        let operands = self.convert_list(args)?;
+        let mut operands = self.convert_list(args)?;
         let bits = simop.output_size_bits;
         if simop.float {
             // first operand is the rounding mode -> BinaryOp over the rest
-            let rm = vex_rm_value(self.py, &operands[0])?;
-            let rest = &operands[1..];
+            if operands.len() != 3 {
+                // The BinaryOp factory would reject this; mirror its error.
+                return Err(ConvErr::Py(PyTypeError::new_err(format!(
+                    "BinaryOp requires exactly 2 operands, got {}",
+                    operands.len().saturating_sub(1)
+                ))));
+            }
+            let rm = vex_rm_value(&operands[0]);
+            let rhs = operands.pop().unwrap();
+            let lhs = operands.pop().unwrap();
             let idx = self.next_atom()?;
-            let kw = self.tags()?;
-            kw.set_item("floating_point", true)?;
-            kw.set_item("rounding_mode", rm)?;
-            kw.set_item("bits", bits)?;
-            let operands_list = PyList::new(self.py, rest.iter().map(|o| o.clone_ref(self.py)))?;
-            return Ok(self.build(
-                &self.ail.binary_op.clone(),
-                (idx, op_name, operands_list, true),
-                &kw,
-            )?);
+            return Ok(new_binop(
+                idx,
+                op_name,
+                lhs,
+                rhs,
+                true, // all floating-point operations are signed
+                true,
+                Some(rm),
+                Some(bits),
+                None,
+                None,
+                self.tags(),
+            ));
         }
         // Non-fp triop: Python raises TypeError (unsupported in practice).
         Err(ConvErr::Unsupported)
@@ -697,106 +790,15 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
     fn finish_op(
         &mut self,
-        r: Result<Py<PyAny>, ConvErr>,
+        r: Result<AilExpression, ConvErr>,
         op: u32,
         bits: u32,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<AilExpression> {
         match r {
             Ok(o) => Ok(o),
             Err(ConvErr::Unsupported) => self.unsupported_expr(op_label(op), bits),
             Err(ConvErr::Py(e)) => Err(e),
         }
-    }
-
-    // ---- small AIL builders -------------------------------------------
-
-    fn make_const_no_tags(&self, idx: i64, value: Py<PyAny>, bits: u32) -> PyResult<Py<PyAny>> {
-        let kw = PyDict::new(self.py);
-        self.build(&self.ail.const_.clone(), (idx, value, bits), &kw)
-    }
-
-    fn make_convert(
-        &mut self,
-        from: u32,
-        to: u32,
-        signed: bool,
-        operand: Py<PyAny>,
-    ) -> PyResult<Py<PyAny>> {
-        let idx = self.next_atom()?;
-        let kw = self.tags()?;
-        self.build(
-            &self.ail.convert.clone(),
-            (idx, from, to, signed, operand),
-            &kw,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn make_convert_typed(
-        &mut self,
-        from: u32,
-        to: u32,
-        signed: bool,
-        operand: Py<PyAny>,
-        from_type: ConvertType,
-        to_type: ConvertType,
-        rm: Py<PyAny>,
-    ) -> PyResult<Py<PyAny>> {
-        let idx = self.next_atom()?;
-        let kw = self.tags()?;
-        kw.set_item("from_type", from_type)?;
-        kw.set_item("to_type", to_type)?;
-        kw.set_item("rounding_mode", rm)?;
-        self.build(
-            &self.ail.convert.clone(),
-            (idx, from, to, signed, operand),
-            &kw,
-        )
-    }
-
-    fn make_binop(
-        &mut self,
-        op_name: String,
-        operands: &[Py<PyAny>],
-        signed: bool,
-        bits: Option<u32>,
-        vector_count: Option<i64>,
-        vector_size: Option<i64>,
-    ) -> PyResult<Py<PyAny>> {
-        let idx = self.next_atom()?;
-        let kw = self.tags()?;
-        if let Some(b) = bits {
-            kw.set_item("bits", b)?;
-        }
-        if let Some(vc) = vector_count {
-            kw.set_item("vector_count", vc)?;
-        }
-        if let Some(vs) = vector_size {
-            kw.set_item("vector_size", vs)?;
-        }
-        let operands_list = PyList::new(self.py, operands.iter().map(|o| o.clone_ref(self.py)))?;
-        self.build(
-            &self.ail.binary_op.clone(),
-            (idx, op_name, operands_list, signed),
-            &kw,
-        )
-    }
-
-    fn make_binop_bits(
-        &mut self,
-        op_name: &str,
-        operands: &[Py<PyAny>],
-        signed: bool,
-        bits: u32,
-    ) -> PyResult<Py<PyAny>> {
-        self.make_binop(
-            op_name.to_string(),
-            operands,
-            signed,
-            Some(bits),
-            None,
-            None,
-        )
     }
 
     // ---- statement conversion -----------------------------------------
@@ -807,7 +809,11 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     /// Statement idx values come from `next_atom()` (like every expression),
     /// allocated at the exact point the Python converter's arg-eval order
     /// reaches the statement constructor's `manager.next_atom()` call.
-    fn convert_stmt(&mut self, kind: StmtKind<R::E>, out: &mut Vec<Py<PyAny>>) -> PyResult<bool> {
+    fn convert_stmt(
+        &mut self,
+        kind: StmtKind<R::E>,
+        out: &mut Vec<AilStatement>,
+    ) -> PyResult<bool> {
         match kind {
             StmtKind::WrTmp {
                 tmp,
@@ -817,17 +823,29 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let var = self.make_tmp(tmp as i64, data_bits)?;
                 let val = self.convert_expr(&data)?;
                 let idx = self.next_atom()?;
-                let kw = self.tags()?;
-                out.push(self.build(&self.ail.assignment.clone(), (idx, var, val), &kw)?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::Assignment {
+                        dst: Arc::new(var),
+                        src: Arc::new(val),
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::Put { offset, data } => {
                 let val = self.convert_expr(&data)?;
-                let bits = pyobj_bits(val.bind(self.py))?;
+                let bits = val.header.bits;
                 let reg = self.make_register(offset, bits)?;
                 let idx = self.next_atom()?;
-                let kw = self.tags()?;
-                out.push(self.build(&self.ail.assignment.clone(), (idx, reg, val), &kw)?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::Assignment {
+                        dst: Arc::new(reg),
+                        src: Arc::new(val),
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::Store {
@@ -840,12 +858,17 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let idx = self.next_atom()?;
                 let a = self.convert_expr(&addr)?;
                 let d = self.convert_expr(&data)?;
-                let kw = self.tags()?;
-                out.push(self.build(
-                    &self.ail.store.clone(),
-                    (idx, a, d, size_bytes, endness),
-                    &kw,
-                )?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::Store {
+                        addr: Arc::new(a),
+                        data: Arc::new(d),
+                        size: size_bytes,
+                        endness,
+                        guard: None,
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::Exit { guard, dst, jk } => {
@@ -856,12 +879,17 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let idx = self.next_atom()?;
                 let g = self.convert_expr(&guard)?;
                 let d = self.convert_expr(&dst)?;
-                let kw = self.tags()?;
-                out.push(self.build(
-                    &self.ail.cond_jump.clone(),
-                    (idx, g, d, self.py.None()),
-                    &kw,
-                )?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::ConditionalJump {
+                        condition: Arc::new(g),
+                        true_target: Some(CFGTarget::Expr(Arc::new(d))),
+                        false_target: None, // filled in right afterwards
+                        true_target_idx: None,
+                        false_target_idx: None,
+                    },
+                ));
                 Ok(true)
             }
             StmtKind::LoadG {
@@ -882,30 +910,48 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let g = self.convert_expr(&guard)?;
                 let al = self.convert_expr(&alt)?;
                 // Load has NO tags in the Python converter for LoadG.
-                let load = {
-                    let kw = PyDict::new(self.py);
-                    kw.set_item("guard", g)?;
-                    kw.set_item("alt", al)?;
-                    self.build(
-                        &self.ail.load.clone(),
-                        (lidx, a, (load_bits / 8) as i32, end),
-                        &kw,
-                    )?
+                let size = (load_bits / 8) as i32;
+                let load = AilExpression {
+                    header: ExprHeader::new(
+                        lidx,
+                        a.header.depth + 1,
+                        size.wrapping_mul(8) as u32,
+                        Tags::default(),
+                    ),
+                    inner: ExprInner::Load {
+                        addr: Arc::new(a),
+                        size,
+                        endness: end,
+                        guard: Some(Arc::new(g)),
+                        alt: Some(Arc::new(al)),
+                    },
                 };
                 let src = if convert_bits != load_bits {
+                    // ... and neither has this Convert.
                     let cidx = self.next_atom()?;
-                    let kw = PyDict::new(self.py);
-                    self.build(
-                        &self.ail.convert.clone(),
-                        (cidx, load_bits, convert_bits, signed, load),
-                        &kw,
-                    )?
+                    new_convert(
+                        cidx,
+                        load_bits,
+                        convert_bits,
+                        signed,
+                        load,
+                        ConvertType::TypeInt,
+                        ConvertType::TypeInt,
+                        None,
+                        Tags::default(),
+                    )
                 } else {
                     load
                 };
                 let idx = self.next_atom()?;
-                let kw = self.tags()?;
-                out.push(self.build(&self.ail.assignment.clone(), (idx, dst_var, src), &kw)?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::Assignment {
+                        dst: Arc::new(dst_var),
+                        src: Arc::new(src),
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::StoreG {
@@ -921,13 +967,17 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let a = self.convert_expr(&addr)?;
                 let d = self.convert_expr(&data)?;
                 let g = self.convert_expr(&guard)?;
-                let kw = self.tags()?;
-                kw.set_item("guard", g)?;
-                out.push(self.build(
-                    &self.ail.store.clone(),
-                    (idx, a, d, size_bytes, endness),
-                    &kw,
-                )?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::Store {
+                        addr: Arc::new(a),
+                        data: Arc::new(d),
+                        size: size_bytes,
+                        endness,
+                        guard: Some(Arc::new(g)),
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::Cas {
@@ -945,30 +995,39 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let a = self.convert_expr(&addr)?;
                 let dl = self.convert_expr(&data_lo)?;
                 let dh = match data_hi {
-                    Some(e) => self.convert_expr(&e)?,
-                    None => self.py.None(),
+                    Some(e) => Some(self.convert_expr(&e)?),
+                    None => None,
                 };
                 let el = self.convert_expr(&expd_lo)?;
                 let eh = match expd_hi {
-                    Some(e) => self.convert_expr(&e)?,
-                    None => self.py.None(),
+                    Some(e) => Some(self.convert_expr(&e)?),
+                    None => None,
                 };
                 let ol = self.make_tmp(old_lo as i64, old_lo_bits)?;
                 let oh = match old_hi {
-                    Some(t) => self.make_tmp(t as i64, old_hi_bits)?,
-                    None => self.py.None(),
+                    Some(t) => Some(self.make_tmp(t as i64, old_hi_bits)?),
+                    None => None,
                 };
                 let idx = self.next_atom()?;
                 // CAS only sets ins_addr (matches Python).
-                let kw = PyDict::new(self.py);
-                if let Some(ia) = self.ins_addr {
-                    kw.set_item("ins_addr", ia)?;
-                }
-                out.push(self.build(
-                    &self.ail.cas.clone(),
-                    (idx, a, dl, dh, el, eh, ol, oh, endness),
-                    &kw,
-                )?);
+                let tags = Tags {
+                    ins_addr: self.ins_addr,
+                    ..Default::default()
+                };
+                out.push(new_stmt(
+                    idx,
+                    tags,
+                    StmtInner::CAS {
+                        addr: Arc::new(a),
+                        data_lo: Arc::new(dl),
+                        data_hi: dh.map(Arc::new),
+                        expd_lo: Arc::new(el),
+                        expd_hi: eh.map(Arc::new),
+                        old_lo: Arc::new(ol),
+                        old_hi: oh.map(Arc::new),
+                        endness,
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::Dirty {
@@ -991,56 +1050,55 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     None => None,
                 };
                 let didx = self.next_atom()?;
-                let kw = self.tags()?;
-                if let Some(g) = g {
-                    kw.set_item("guard", g)?;
-                }
-                if let Some(mfx) = mfx {
-                    kw.set_item("mfx", mfx)?;
-                }
-                if let Some(ma) = ma {
-                    kw.set_item("maddr", ma)?;
-                }
-                if let Some(ms) = msize {
-                    kw.set_item("msize", ms)?;
-                }
-                kw.set_item("bits", tmp_bits)?;
-                let ops_list = PyList::new(self.py, ops)?;
-                let dirty_expr =
-                    self.build(&self.ail.dirty_expr.clone(), (didx, callee, ops_list), &kw)?;
+                // The DirtyExpression factory's depth is a constant 1.
+                let dirty_expr = AilExpression {
+                    header: ExprHeader::new(didx, 1, tmp_bits, self.tags()),
+                    inner: ExprInner::DirtyExpression {
+                        callee,
+                        operands: ops,
+                        guard: g.map(Arc::new),
+                        mfx,
+                        maddr: ma.map(Arc::new),
+                        msize,
+                    },
+                };
                 match tmp {
                     None => {
                         let idx = self.next_atom()?;
-                        let kw2 = self.tags()?;
-                        out.push(self.build(
-                            &self.ail.dirty_stmt.clone(),
-                            (idx, dirty_expr),
-                            &kw2,
-                        )?);
+                        out.push(new_stmt(
+                            idx,
+                            self.tags(),
+                            StmtInner::DirtyStatement {
+                                dirty: Arc::new(dirty_expr),
+                            },
+                        ));
                     }
                     Some(t) => {
                         let tmp_var = self.make_tmp(t as i64, tmp_bits)?;
                         let idx = self.next_atom()?;
-                        let kw2 = self.tags()?;
-                        out.push(self.build(
-                            &self.ail.assignment.clone(),
-                            (idx, tmp_var, dirty_expr),
-                            &kw2,
-                        )?);
+                        out.push(new_stmt(
+                            idx,
+                            self.tags(),
+                            StmtInner::Assignment {
+                                dst: Arc::new(tmp_var),
+                                src: Arc::new(dirty_expr),
+                            },
+                        ));
                     }
                 }
                 Ok(false)
             }
             StmtKind::Other { label } => {
                 let didx = self.next_atom()?;
-                let kw = self.tags()?;
-                kw.set_item("bits", 0u32)?;
-                let empty = PyList::empty(self.py);
-                let dirty_expr =
-                    self.build(&self.ail.dirty_expr.clone(), (didx, label, empty), &kw)?;
+                let dirty_expr = new_dirty_expr(didx, label, 0, self.tags());
                 let idx = self.next_atom()?;
-                let kw2 = self.tags()?;
-                out.push(self.build(&self.ail.dirty_stmt.clone(), (idx, dirty_expr), &kw2)?);
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::DirtyStatement {
+                        dirty: Arc::new(dirty_expr),
+                    },
+                ));
                 Ok(false)
             }
             StmtKind::IMark { .. } | StmtKind::AbiHint | StmtKind::NoOp => Ok(false),
@@ -1050,7 +1108,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     // ---- whole IRSB ----------------------------------------------------
 
     fn convert_block(&mut self) -> PyResult<Py<PyAny>> {
-        let mut statements: Vec<Py<PyAny>> = Vec::new();
+        let mut statements: Vec<AilStatement> = Vec::new();
         let mut addr = self.block_addr;
         let mut first_imark = true;
         let mut cond_jump_positions: Vec<usize> = Vec::new();
@@ -1085,92 +1143,131 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             if let Some(&pos) = cond_jump_positions.last() {
                 let next = self.reader.next_expr();
                 let false_target = self.convert_expr(&next)?;
-                statements[pos]
-                    .bind(self.py)
-                    .setattr("false_target", false_target)?;
+                match &mut statements[pos].inner {
+                    StmtInner::ConditionalJump {
+                        false_target: ft, ..
+                    } => *ft = Some(CFGTarget::Expr(Arc::new(false_target))),
+                    _ => unreachable!("cond_jump_positions points at a non-ConditionalJump"),
+                }
             } else {
                 // Match the original's arg eval order: the Jump's idx
                 // (next_atom) is allocated *before* the target is converted.
                 let jidx = self.next_atom()?;
                 let next = self.reader.next_expr();
                 let target = self.convert_expr(&next)?;
-                let kw = self.tags()?;
-                statements.push(self.build(&self.ail.jump.clone(), (jidx, target), &kw)?);
+                statements.push(new_stmt(
+                    jidx,
+                    self.tags(),
+                    StmtInner::Jump {
+                        target: CFGTarget::Expr(Arc::new(target)),
+                        target_idx: None,
+                    },
+                ));
             }
         } else if jk == "Ijk_Ret" {
             let ridx = self.next_atom()?;
-            let kw = self.tags()?;
-            let empty = PyList::empty(self.py);
-            statements.push(self.build(&self.ail.ret.clone(), (ridx, empty), &kw)?);
+            statements.push(new_stmt(
+                ridx,
+                self.tags(),
+                StmtInner::Return {
+                    ret_exprs: Vec::new(),
+                },
+            ));
         } else if jk == "Ijk_SigTRAP" {
             // int3 -> MSVC __debugbreak() intrinsic: a side-effecting call to
             // an opaque (dirty) intrinsic, mirroring the syscall path.
             let target = {
                 let didx = self.next_atom()?;
-                let kw = PyDict::new(self.py);
-                kw.set_item("bits", self.arch.bits)?;
-                let empty = PyList::empty(self.py);
-                self.build(
-                    &self.ail.dirty_expr.clone(),
-                    (didx, "__debugbreak", empty),
-                    &kw,
-                )?
+                new_dirty_expr(
+                    didx,
+                    "__debugbreak".to_string(),
+                    self.arch.bits,
+                    Tags::default(),
+                )
             };
             let call_expr = {
                 let cidx = self.next_atom()?;
-                let kw = self.tags()?;
-                kw.set_item("args", PyList::empty(self.py))?;
-                kw.set_item("bits", self.py.None())?;
-                self.build(&self.ail.call.clone(), (cidx, target), &kw)?
+                // Call(..., args=[], bits=None): empty args vec; the factory's
+                // bits default (bits.unwrap_or(0)) puts 0 in the header.
+                let depth = target.header.depth + 1;
+                AilExpression {
+                    header: ExprHeader::new(cidx, depth, 0, self.tags()),
+                    inner: ExprInner::Call {
+                        target: CFGTarget::Expr(Arc::new(target)),
+                        args: Some(Vec::new()),
+                        arg_vvars: None,
+                    },
+                }
             };
             let seidx = self.next_atom()?;
-            let kw = self.tags()?;
-            statements.push(self.build(&self.ail.side_effect.clone(), (seidx, call_expr), &kw)?);
+            statements.push(new_stmt(
+                seidx,
+                self.tags(),
+                StmtInner::SideEffectStatement {
+                    expr: Arc::new(call_expr),
+                    ret_expr: None,
+                    fp_ret_expr: None,
+                },
+            ));
         } else {
             // Unknown/unsupported jumpkind: an opaque dirty placeholder whose
             // callee is a clean C identifier (never an internal diagnostic
             // string, which must not leak into the AIL/C output).
             let dirty_expr = {
                 let didx = self.next_atom()?;
-                let kw = PyDict::new(self.py);
-                kw.set_item("bits", 0u32)?;
-                let empty = PyList::empty(self.py);
-                self.build(
-                    &self.ail.dirty_expr.clone(),
-                    (didx, format!("__unsupported_jumpkind_{jk}"), empty),
-                    &kw,
-                )?
+                new_dirty_expr(
+                    didx,
+                    format!("__unsupported_jumpkind_{jk}"),
+                    0,
+                    Tags::default(),
+                )
             };
             let sidx = self.next_atom()?;
-            let kw = self.tags()?;
-            statements.push(self.build(&self.ail.dirty_stmt.clone(), (sidx, dirty_expr), &kw)?);
+            statements.push(new_stmt(
+                sidx,
+                self.tags(),
+                StmtInner::DirtyStatement {
+                    dirty: Arc::new(dirty_expr),
+                },
+            ));
         }
 
-        // Build the Block.
-        let stmts_list = PyList::new(self.py, statements)?;
-        let size = self.reader.block_size();
-        let block = self
-            .ail
-            .block
-            .call((addr, size, stmts_list), None::<&Bound<'py, PyDict>>)?;
-        Ok(block.unbind())
+        // Wrap each statement into its pyclass exactly once and assemble the
+        // Block.
+        let py_stmts = PyList::empty(self.py);
+        for st in statements {
+            py_stmts.append(Bound::new(self.py, Statement::wrap(st))?)?;
+        }
+        let block = Block {
+            addr,
+            original_size: self.reader.block_size(),
+            statements: py_stmts.unbind(),
+            idx: None,
+            cached_hash: CachedHash::new(),
+        };
+        Ok(Bound::new(self.py, block)?.into_any().unbind())
     }
 
-    fn emit_call_tail(&mut self, jk: &str, statements: &mut Vec<Py<PyAny>>) -> PyResult<()> {
+    fn emit_call_tail(&mut self, jk: &str, statements: &mut Vec<AilStatement>) -> PyResult<()> {
         let ret_offset: i64 = self.arch.arch.getattr("ret_offset")?.extract()?;
         let bits = self.arch.bits;
         let ret_name = self.arch.reg_name(ret_offset, bits)?;
         let ret_expr = {
             let aidx = self.next_atom()?;
-            let kw = self.tags()?;
+            let mut tags = self.tags();
             if let Some(n) = ret_name {
-                kw.set_item("reg_name", n)?;
+                tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
             }
-            self.build(&self.ail.register.clone(), (aidx, ret_offset, bits), &kw)?
+            AilExpression {
+                header: ExprHeader::new(aidx, 0, bits, tags),
+                inner: ExprInner::Register {
+                    reg_offset: ret_offset,
+                },
+            }
         };
 
         let fp_ret_obj = self.arch.arch.getattr("fp_ret_offset")?;
-        let fp_ret_expr: Option<Py<PyAny>> = if fp_ret_obj.is_none() {
+        let fp_ret_expr: Option<AilExpression> = if fp_ret_obj.is_none() {
             None
         } else {
             let fp_ret_offset: i64 = fp_ret_obj.extract()?;
@@ -1179,11 +1276,16 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } else {
                 let fp_name = self.arch.reg_name(fp_ret_offset, bits)?;
                 let aidx = self.next_atom()?;
-                let kw = self.tags()?;
+                let mut tags = self.tags();
                 if let Some(n) = fp_name {
-                    kw.set_item("reg_name", n)?;
+                    tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
                 }
-                Some(self.build(&self.ail.register.clone(), (aidx, fp_ret_offset, bits), &kw)?)
+                Some(AilExpression {
+                    header: ExprHeader::new(aidx, 0, bits, tags),
+                    inner: ExprInner::Register {
+                        reg_offset: fp_ret_offset,
+                    },
+                })
             }
         };
 
@@ -1193,28 +1295,119 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         } else {
             // Ijk_Sys*: hack -- DirtyExpression("syscall")
             let didx = self.next_atom()?;
-            let kw = PyDict::new(self.py);
-            kw.set_item("bits", bits)?;
-            let empty = PyList::empty(self.py);
-            self.build(&self.ail.dirty_expr.clone(), (didx, "syscall", empty), &kw)?
+            new_dirty_expr(didx, "syscall".to_string(), bits, Tags::default())
         };
 
-        let ret_bits = pyobj_bits(ret_expr.bind(self.py))?;
+        let ret_bits = ret_expr.header.bits;
         let call_expr = {
             let cidx = self.next_atom()?;
-            let kw = self.tags()?;
-            kw.set_item("bits", ret_bits)?;
-            self.build(&self.ail.call.clone(), (cidx, target), &kw)?
+            let depth = target.header.depth + 1;
+            AilExpression {
+                header: ExprHeader::new(cidx, depth, ret_bits, self.tags()),
+                inner: ExprInner::Call {
+                    target: CFGTarget::Expr(Arc::new(target)),
+                    args: None,
+                    arg_vvars: None,
+                },
+            }
         };
 
         let seidx = self.next_atom()?;
-        let kw = self.tags()?;
-        kw.set_item("ret_expr", ret_expr)?;
-        if let Some(fp) = fp_ret_expr {
-            kw.set_item("fp_ret_expr", fp)?;
-        }
-        statements.push(self.build(&self.ail.side_effect.clone(), (seidx, call_expr), &kw)?);
+        statements.push(new_stmt(
+            seidx,
+            self.tags(),
+            StmtInner::SideEffectStatement {
+                expr: Arc::new(call_expr),
+                ret_expr: Some(Arc::new(ret_expr)),
+                fp_ret_expr: fp_ret_expr.map(Arc::new),
+            },
+        ));
         Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Native node constructors -- mirror the `_new_*` factory defaults exactly.
+// ---------------------------------------------------------------------------
+
+fn new_stmt(idx: i64, tags: Tags, inner: StmtInner) -> AilStatement {
+    AilStatement {
+        header: StmtHeader::new(idx, tags),
+        inner,
+    }
+}
+
+/// `_new_binary_op`: depth = max(lhs, rhs) + 1; bits defaults to lhs bits.
+#[allow(clippy::too_many_arguments)]
+fn new_binop(
+    idx: i64,
+    op: String,
+    lhs: AilExpression,
+    rhs: AilExpression,
+    signed: bool,
+    floating_point: bool,
+    rounding_mode: Option<RoundingModeOrExpr>,
+    bits: Option<u32>,
+    vector_count: Option<i64>,
+    vector_size: Option<i64>,
+    tags: Tags,
+) -> AilExpression {
+    let depth = lhs.header.depth.max(rhs.header.depth) + 1;
+    let final_bits = bits.unwrap_or(lhs.header.bits);
+    AilExpression {
+        header: ExprHeader::new(idx, depth, final_bits, tags),
+        inner: ExprInner::BinaryOp {
+            op,
+            operands: [Arc::new(lhs), Arc::new(rhs)],
+            signed,
+            floating_point,
+            rounding_mode,
+            vector_count,
+            vector_size,
+        },
+    }
+}
+
+/// `_new_convert`: depth = operand + 1; header bits = to_bits.
+#[allow(clippy::too_many_arguments)]
+fn new_convert(
+    idx: i64,
+    from_bits: u32,
+    to_bits: u32,
+    is_signed: bool,
+    operand: AilExpression,
+    from_type: ConvertType,
+    to_type: ConvertType,
+    rounding_mode: Option<RoundingModeOrExpr>,
+    tags: Tags,
+) -> AilExpression {
+    let depth = operand.header.depth + 1;
+    AilExpression {
+        header: ExprHeader::new(idx, depth, to_bits, tags),
+        inner: ExprInner::Convert {
+            operand: Arc::new(operand),
+            from_bits,
+            to_bits,
+            is_signed,
+            from_type,
+            to_type,
+            rounding_mode,
+        },
+    }
+}
+
+/// `_new_dirty_expression` with no operands: depth is a constant 1.
+fn new_dirty_expr(idx: i64, callee: String, bits: u32, tags: Tags) -> AilExpression {
+    AilExpression {
+        header: ExprHeader::new(idx, 1, bits, tags),
+        inner: ExprInner::DirtyExpression {
+            callee,
+            operands: Vec::new(),
+            guard: None,
+            mfx: None,
+            maddr: None,
+            msize: None,
+        },
     }
 }
 
@@ -1251,61 +1444,38 @@ fn unbind_any(o: Bound<'_, PyAny>) -> Py<PyAny> {
     o.unbind()
 }
 
-fn pyobj_bits(o: &Bound<'_, PyAny>) -> PyResult<u32> {
-    o.getattr("bits")?.extract()
-}
-
 // ---------------------------------------------------------------------------
-// Native readers into Const-variant Expressions, used by the Add->Sub rewrite
-// and the rounding-mode extraction. These mirror the Python-side `Const.value`
-// / `Const.sign_bit` accessors without a Python attribute round-trip.
+// Const-value helpers for the Add->Sub rewrite and the rounding-mode
+// extraction. These mirror the Python-side `Const.sign_bit` semantics.
 // ---------------------------------------------------------------------------
 
-/// An integer constant read out of a Const-variant `Expression`.
-enum IntConst {
-    Small(i128),
-    Big(num_bigint::BigInt),
-}
-
-/// `(idx, int value, bits)` of a Const-variant int `Expression`; `None` if the
-/// object is not a Const or holds a float.
-fn const_int_parts(py: Python<'_>, obj: &Py<PyAny>) -> Option<(i64, IntConst, u32)> {
-    let e = obj.bind(py).cast::<Expression>().ok()?;
-    let b = e.borrow();
-    match &b.expr.inner {
-        ExprInner::Const { value } => {
-            let v = match value {
-                ConstValue::Int(v) => IntConst::Small(*v),
-                ConstValue::BigInt(bi) => IntConst::Big(bi.clone()),
-                ConstValue::Float(_) => return None,
-            };
-            Some((b.expr.header.idx, v, b.expr.header.bits))
-        }
-        _ => None,
-    }
-}
-
-/// Bit `bits - 1` of the value's raw pattern (the Python `Const.sign_bit`).
-fn int_const_sign_bit(v: &IntConst, bits: u32) -> bool {
+/// Bit `bits - 1` of the value's raw pattern (the Python `Const.sign_bit`);
+/// `false` for float constants and zero-width values.
+fn const_value_sign_bit(v: &ConstValue, bits: u32) -> bool {
     if bits == 0 {
         return false;
     }
     let top = (bits - 1) as u64;
     match v {
-        IntConst::Small(v) if bits <= 128 => (*v >> top) & 1 != 0,
-        IntConst::Small(v) => num_bigint::BigInt::from(*v).bit(top),
-        IntConst::Big(b) => b.bit(top),
+        ConstValue::Int(v) if bits <= 128 => (*v >> top) & 1 != 0,
+        ConstValue::Int(v) => num_bigint::BigInt::from(*v).bit(top),
+        ConstValue::BigInt(b) => b.bit(top),
+        ConstValue::Float(_) => false,
     }
 }
 
-/// The Python converter's `(1 << bits) - value`, as a Python int.
-fn int_const_negated(py: Python<'_>, v: &IntConst, bits: u32) -> PyResult<Py<PyAny>> {
-    match v {
-        IntConst::Small(v) if bits < 127 => ((1i128 << bits) - v).into_py_any(py),
-        IntConst::Small(v) => {
-            ((num_bigint::BigInt::from(1) << bits) - num_bigint::BigInt::from(*v)).into_py_any(py)
-        }
-        IntConst::Big(b) => ((num_bigint::BigInt::from(1) << bits) - b).into_py_any(py),
+/// The Python converter's `(1 << bits) - value`. Only called on int consts
+/// (`const_value_sign_bit` returned true).
+fn const_value_negated(v: &ConstValue, bits: u32) -> ConstValue {
+    let big = match v {
+        ConstValue::Int(v) if bits < 127 => return ConstValue::Int((1i128 << bits) - v),
+        ConstValue::Int(v) => (num_bigint::BigInt::from(1) << bits) - num_bigint::BigInt::from(*v),
+        ConstValue::BigInt(b) => (num_bigint::BigInt::from(1) << bits) - b,
+        ConstValue::Float(_) => unreachable!("negating a float const"),
+    };
+    match i128::try_from(&big) {
+        Ok(v) => ConstValue::Int(v),
+        Err(_) => ConstValue::BigInt(big),
     }
 }
 
@@ -1313,17 +1483,18 @@ fn int_const_negated(py: Python<'_>, v: &IntConst, bits: u32) -> PyResult<Py<PyA
 /// typed `RoundingMode(value & 0b11)` enum; any other expression (e.g. a tmp
 /// -- VEX sometimes carries the rounding mode in a tmp that only becomes a
 /// constant later in the decompilation pipeline) is passed through as-is.
-fn vex_rm_value(py: Python<'_>, rm: &Py<PyAny>) -> PyResult<Py<PyAny>> {
-    if let Some((_, v, _)) = const_int_parts(py, rm) {
-        let low2 = match v {
-            IntConst::Small(v) => Some((v & 3) as i64),
-            IntConst::Big(b) => i64::try_from(b & num_bigint::BigInt::from(3)).ok(),
+fn vex_rm_value(rm: &AilExpression) -> RoundingModeOrExpr {
+    if let ExprInner::Const { value } = &rm.inner {
+        let low2 = match value {
+            ConstValue::Int(v) => Some((v & 3) as i64),
+            ConstValue::BigInt(b) => i64::try_from(b & num_bigint::BigInt::from(3)).ok(),
+            ConstValue::Float(_) => None,
         };
         if let Some(m) = low2.and_then(RoundingMode::from_int) {
-            return m.into_py_any(py);
+            return RoundingModeOrExpr::Mode(m);
         }
     }
-    Ok(rm.clone_ref(py))
+    RoundingModeOrExpr::Expr(Arc::new(rm.clone()))
 }
 
 // ===========================================================================
@@ -1362,41 +1533,41 @@ impl CReader {
     }
 }
 
-unsafe fn const_value(py: Python<'_>, c: *const vex_ffi::IRConst) -> PyResult<ConstVal> {
+unsafe fn const_value(c: *const vex_ffi::IRConst) -> ConstVal {
     use vex_ffi::*;
     let tag = unsafe { (*c).tag };
     let ico = unsafe { &(*c).ico };
-    let (value, bits): (Py<PyAny>, u32) = unsafe {
+    let (value, bits): (ConstValue, u32) = unsafe {
         match tag {
-            ICO_U1 => ((ico.u1 as i64).into_py_any(py)?, 1),
-            ICO_U8 => ((ico.u8_ as i64).into_py_any(py)?, 8),
-            ICO_U16 => ((ico.u16_ as i64).into_py_any(py)?, 16),
-            ICO_U32 => ((ico.u32_ as i64).into_py_any(py)?, 32),
-            ICO_U64 => (ico.u64_.into_py_any(py)?, 64),
-            ICO_F32 | ICO_F32I => ((ico.f32_ as f64).into_py_any(py)?, 32),
-            ICO_F64 | ICO_F64I => (ico.f64_.into_py_any(py)?, 64),
-            ICO_V128 => (expand_vector(py, ico.v128 as u64, 16)?, 128),
-            ICO_V256 => (expand_vector(py, ico.v256 as u64, 32)?, 256),
-            _ => (0i64.into_py_any(py)?, 0),
+            ICO_U1 => (ConstValue::Int(ico.u1 as i128), 1),
+            ICO_U8 => (ConstValue::Int(ico.u8_ as i128), 8),
+            ICO_U16 => (ConstValue::Int(ico.u16_ as i128), 16),
+            ICO_U32 => (ConstValue::Int(ico.u32_ as i128), 32),
+            ICO_U64 => (ConstValue::Int(ico.u64_ as i128), 64),
+            ICO_F32 | ICO_F32I => (ConstValue::Float(ico.f32_ as f64), 32),
+            ICO_F64 | ICO_F64I => (ConstValue::Float(ico.f64_), 64),
+            ICO_V128 => (expand_vector(ico.v128 as u64, 16), 128),
+            ICO_V256 => (expand_vector(ico.v256 as u64, 32), 256),
+            _ => (ConstValue::Int(0), 0),
         }
     };
-    Ok(ConstVal { value, bits })
+    ConstVal { value, bits }
 }
 
 /// Mirror of pyvex V128/V256 `_from_c`: each set bit `i` in `base` becomes a
-/// 0xFF byte at position `i`. Returns a Python int.
-fn expand_vector(py: Python<'_>, base: u64, nbytes: usize) -> PyResult<Py<PyAny>> {
+/// 0xFF byte at position `i`, read back as a little-endian unsigned int.
+fn expand_vector(base: u64, nbytes: usize) -> ConstValue {
     let mut bytes = vec![0u8; nbytes];
     for (i, b) in bytes.iter_mut().enumerate() {
         if (base >> i) & 1 == 1 {
             *b = 0xFF;
         }
     }
-    let int_ty = py.import("builtins")?.getattr("int")?;
-    let pybytes = PyBytes::new(py, &bytes);
-    Ok(int_ty
-        .call_method1("from_bytes", (pybytes, "little"))?
-        .unbind())
+    let big = num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &bytes);
+    match i128::try_from(&big) {
+        Ok(v) => ConstValue::Int(v),
+        Err(_) => ConstValue::BigInt(big),
+    }
 }
 
 fn jk_name(jk: u32) -> String {
@@ -1627,7 +1798,7 @@ impl IrReader for CReader {
         })
     }
 
-    fn expr_kind(&self, py: Python<'_>, e: &Self::E) -> PyResult<ExprKind<Self::E>> {
+    fn expr_kind(&self, _py: Python<'_>, e: &Self::E) -> PyResult<ExprKind<Self::E>> {
         use vex_ffi::*;
         let e = *e;
         let tag = unsafe { (*e).tag };
@@ -1664,7 +1835,7 @@ impl IrReader for CReader {
                     }
                 }
                 IEX_CONST => {
-                    let cv = const_value(py, iex.con.con)?;
+                    let cv = const_value(iex.con.con);
                     ExprKind::Const {
                         value: cv.value,
                         bits: cv.bits,
@@ -1819,7 +1990,6 @@ impl VEXIRSBConverter {
         let mut conv = Conv {
             py,
             reader,
-            ail: Ail::new(py)?,
             arch: ArchCtx::new(arch)?,
             atom: start_atom,
             native_manager: native_manager.as_ref().map(|m| m.clone_ref(py)),
@@ -2188,7 +2358,7 @@ impl<'py> IrReader for PyReader<'py> {
         let irconst_ty = py.import("pyvex")?.getattr("const")?.getattr("IRConst")?;
         if expr.is_instance(&irconst_ty)? {
             return Ok(ExprKind::Const {
-                value: expr.getattr("value")?.unbind(),
+                value: expr.getattr("value")?.extract()?,
                 bits: expr.getattr("size")?.extract()?,
             });
         }
@@ -2235,7 +2405,7 @@ impl<'py> IrReader for PyReader<'py> {
             "Const" => {
                 let con = expr.getattr("con")?;
                 ExprKind::Const {
-                    value: con.getattr("value")?.unbind(),
+                    value: con.getattr("value")?.extract()?,
                     bits: self.result_size(expr),
                 }
             }
