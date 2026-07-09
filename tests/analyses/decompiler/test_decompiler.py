@@ -707,6 +707,7 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         code = dec.codegen.text
+        assert code is not None
         # with ReturnDuplicatorLow applied, there should be no goto!
         assert "goto" not in code.lower(), "Found goto statements. ReturnDuplicator might have failed."
         # with global variables discovered, there should not be any loads of constant addresses.
@@ -720,7 +721,7 @@ class TestDecompiler(unittest.TestCase):
         m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == -1\)", code)
         if m is None:
             # Try with 0xffff_ffff
-            m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == 4294967295\)", code)
+            m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == 0xffffffff\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
         # Arguments to the convert call should be fully folded into the call statement itself
@@ -740,7 +741,7 @@ class TestDecompiler(unittest.TestCase):
         assert "free(" in code
         assert "free(NULL" not in code and "free(0" not in code
 
-        assert "return 4294967295;" in code or "return -1;" in code
+        assert "return 0xffffffff;" in code or "return -1;" in code
 
         # the while loop containing puts("Empty title"); must have both continue and break
         for i, line in enumerate(code_lines):
@@ -1790,7 +1791,7 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
         print_decompilation_result(d)
-        assert re.search(r"\([av]\d \* 48271\) % 2147483647;", d.codegen.text) is not None
+        assert re.search(r"\([av]\d \* 48271\) % 0x7fffffff;", d.codegen.text) is not None
 
     # @for_all_structuring_algos
     @structuring_algo("dream")
@@ -2159,6 +2160,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
 
         assert "faccessat(" in d.codegen.text
@@ -2182,7 +2184,7 @@ class TestDecompiler(unittest.TestCase):
             # ensure all return values are still there
             assert "1;" in d.codegen.text
             assert "0;" in d.codegen.text
-            assert "-1;" in d.codegen.text or "4294967295" in d.codegen.text
+            assert "-1;" in d.codegen.text or "0xffffffff" in d.codegen.text
 
     @structuring_algo("sailr")
     def test_decompiling_split_lines_split(self, decompiler_options=None):
@@ -2819,8 +2821,8 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(\w+ != 4294967295 \|\| \(\w+ = NULL, !\*\(\(int \*\)\w+\)\)\)", d.codegen.text) is not None
-            or re.search(r"if \(\w+ != 4294967295 \|\| \(\w+ = NULL, !\*\(\w+\)\)\)", d.codegen.text) is not None
+            re.search(r"if \(\w+ != 0xffffffff \|\| \(\w+ = NULL, !\*\(\(int \*\)\w+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(\w+ != 0xffffffff \|\| \(\w+ = NULL, !\*\(\w+\)\)\)", d.codegen.text) is not None
             or re.search(r"if \(\w+ != -1 \|\| \(\w+ = NULL, !\*\(\(int \*\)\w+\)\)\)", d.codegen.text) is not None
             or re.search(r"if \(\w+ != -1 \|\| \(\w+ = NULL, !\*\(\w+\)\)\)", d.codegen.text) is not None
         )
@@ -3652,12 +3654,12 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["flush_rule"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
-
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
 
         # XXX: this a hack that should be fixed in some other place
-        text = d.codegen.text.replace("4294967295", "-1")
-        text = text.replace("4294967294", "-2")
+        text = d.codegen.text.replace("0xffffffff", "-1")
+        text = text.replace("0xfffffffe", "-2")
         text = text.replace("\n", " ")
 
         first_if_location = text.find("if (")
@@ -3678,7 +3680,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, analyze_callsites=True)
         f = proj.kb.functions["client_request_tun_fwd"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
-
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         text = d.codegen.text
 
@@ -3693,7 +3695,7 @@ class TestDecompiler(unittest.TestCase):
         assert first_good_if.start() == all_if_stmts[0].start()
 
         # the if-stmt immediately after the first one should be a true check on -1
-        second_good_if = re.search("if \\(.*? == -1\\)", text) or re.search("if \\(.*? == 4294967295\\)", text)
+        second_good_if = re.search("if \\(.*? == -1\\)", text) or re.search("if \\(.*? == 0xffffffff\\)", text)
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
 
@@ -3971,11 +3973,13 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg)
         f = proj.kb.functions["science_process"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
 
         text = d.codegen.text
         text = text.replace("4294967295", "-1")
 
-        assert "-1" in text
+        assert "-1" in text or "0xffffffff" in text
         assert "16" in text
 
     @structuring_algo("sailr")
@@ -4730,7 +4734,7 @@ class TestDecompiler(unittest.TestCase):
 
         # x | 0xffff_ffff   ==>   0xffff_ffff
         # ReturnDuplicatorHigh must run before the last run of function simplification for proper constant propagation
-        assert "return -1;" in d.codegen.text or "return 4294967295;" in d.codegen.text
+        assert "return -1;" in d.codegen.text or "return 0xffffffff;" in d.codegen.text
 
     def test_decompiling_msvcrt_setsbuplow(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")

@@ -35,11 +35,9 @@ class TestShouldUseHex(unittest.TestCase):
         # a sub-word mask stays hex in a wider type
         self._assert_hex(0xFFFFFF, bits=64)  # 24 ones, not a type boundary
 
-    def test_type_saturating_values_stay_decimal(self):
-        # values that saturate their declared width are rendered as signed decimal by the codegen,
-        # so the heuristic must not force them to hex
-        self._assert_dec(0xFFFFFFFF, 0xFFFFFFFE, 0x7FFFFFFF, bits=32)  # -1, -2, INT_MAX
-        self._assert_dec(0xFFFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, bits=64)  # -1, INT64_MAX
+    def test_type_saturating_values_stay_hex(self):
+        self._assert_hex(0xFFFFFFFF, 0xFFFFFFFE, 0x7FFFFFFF, bits=32)  # -1, -2, INT_MAX
+        self._assert_hex(0xFFFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, bits=64)  # -1, INT64_MAX
 
     def test_consecutive_ones_below_threshold(self):
         # 7 consecutive 1s is not enough on its own
@@ -80,16 +78,20 @@ class TestShouldUseHex(unittest.TestCase):
         self._assert_dec(0)
 
     def test_negative_values(self):
-        # negative inputs are interpreted as their unsigned two's-complement form using ``bits``
-        # -16 in 32-bit is 0xFFFFFFF0 -> alignment mask -> hex
-        self._assert_hex(-16, bits=32)
-        # -1 in 32-bit is 0xFFFFFFFF -> type-saturating -> decimal (the codegen renders it as -1)
+        # small negative values are always decimal
+        self._assert_dec(-16, bits=32)
         self._assert_dec(-1, bits=32)
+        self._assert_hex(-256, bits=32)
 
     def test_bits_none_defaults_to_value_width(self):
         # should not raise when bits is unknown
         assert should_use_hex(0xFF, None) is True
         assert should_use_hex(42, None) is False
+
+    def test_common_error_codes(self):
+        # 0xc0000005 should be displayed as hex
+        self._assert_hex(0xC0000005, bits=32)
+        self._assert_hex(0xC0000005, bits=64)
 
 
 if __name__ == "__main__":
