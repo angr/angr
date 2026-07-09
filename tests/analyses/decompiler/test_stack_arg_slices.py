@@ -8,8 +8,7 @@ import os
 import re
 import unittest
 
-import angr
-from tests.common import WORKER, bin_location, print_decompilation_result
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -25,10 +24,7 @@ class TestStackArgSlices(unittest.TestCase):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "2ac79168ca17bfdbf70b591dc681114afc29f09aba0df978c3a7db6ed69a3b59"
         )
-        proj = angr.Project(bin_path)
-
-        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
-        proj.analyses.CompleteCallingConventions()
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x1800722C4)
         func = cfg.functions[0x1800722C4]
         assert func is not None
         dec = proj.analyses.Decompiler(func, fail_fast=True)

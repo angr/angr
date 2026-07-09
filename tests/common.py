@@ -5,11 +5,12 @@ import os
 import pickle
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from tempfile import NamedTemporaryFile
 from unittest import SkipTest, skip, skipIf, skipUnless
 
+import networkx
 from rich.console import Console
 from rich.syntax import Syntax
 
@@ -182,3 +183,94 @@ def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[t
                 decompiler_options.append((option, value))
 
     return decompiler_options
+
+
+def _merged_regions(addrs: Iterable[int], window: int) -> list[tuple[int, int]]:
+    regions: list[list[int]] = []
+    for addr in sorted(addrs):
+        if regions and addr <= regions[-1][1]:
+            regions[-1][1] = max(regions[-1][1], addr + window)
+        else:
+            regions.append([addr, addr + window])
+    return [(start, end) for start, end in regions]
+
+
+def load_project_with_scoped_cfg(
+    bin_path: str,
+    func_addr: int,
+    extra_func_addrs: Sequence[int] = (),
+    window: int = 0x2000,
+    expand_call_tree: bool = True,
+    project_kwargs: dict | None = None,
+    cfg_kwargs: dict | None = None,
+    run_ccc: bool = True,
+    ccc_kwargs: dict | None = None,
+) -> tuple[Project, angr.analyses.cfg.CFGFast]:
+    """
+    Build a Project whose CFG covers only the function under test instead of the whole binary.
+
+    Most decompiler tests decompile a single function, but a whole-binary CFGFast plus
+    CompleteCallingConventions can take minutes on large binaries while the decompilation itself takes
+    less than a second. This helper restricts CFG recovery to regions around ``func_addr`` (plus
+    ``extra_func_addrs``) and, when ``expand_call_tree`` is set, the transitive callees inside the main
+    object, so callee analysis (e.g. register preservation of helpers like __chkstk) still matches the
+    whole-binary result. CompleteCallingConventions then runs only on those functions.
+
+    Call-tree discovery runs on throwaway knowledge bases so partial results never leak into the
+    Project's real knowledge base.
+
+    :param bin_path:          Path of the binary to load.
+    :param func_addr:         Address of the function under test.
+    :param extra_func_addrs:  Additional function addresses that must be present in the CFG.
+    :param window:            Size in bytes of the region scanned after each function start; must cover
+                              the function's full extent.
+    :param expand_call_tree:  Also cover the transitive callees of the given functions.
+    :param project_kwargs:    Extra keyword arguments for angr.Project.
+    :param cfg_kwargs:        Overrides for the final CFGFast call.
+    :param run_ccc:           Run CompleteCallingConventions, scoped to the covered functions.
+    :param ccc_kwargs:        Extra keyword arguments for CompleteCallingConventions.
+    :return:                  A (project, cfg) tuple.
+    """
+    proj = Project(bin_path, **(project_kwargs or {}))
+    main_object = proj.loader.main_object
+    roots = [func_addr, *extra_func_addrs]
+    known: set[int] = set(roots)
+
+    if expand_call_tree:
+        for _ in range(8):
+            tmp_kb = angr.KnowledgeBase(proj)
+            proj.analyses[angr.analyses.CFGFast].prep(kb=tmp_kb)(
+                normalize=True,
+                regions=_merged_regions(known, window),
+                start_at_entry=False,
+                function_starts=sorted(known),
+                symbols=False,
+                force_smart_scan=False,
+            )
+            callees: set[int] = set()
+            callgraph = tmp_kb.functions.callgraph
+            for root in roots:
+                if root in callgraph:
+                    callees |= networkx.descendants(callgraph, root)
+            new_addrs = {addr for addr in callees - known if main_object.contains_addr(addr)}
+            if not new_addrs:
+                break
+            known |= new_addrs
+
+    final_cfg_kwargs = {
+        "normalize": True,
+        "regions": _merged_regions(known, window),
+        "start_at_entry": False,
+        "function_starts": roots,
+        "symbols": True,
+        "force_smart_scan": False,
+    }
+    final_cfg_kwargs.update(cfg_kwargs or {})
+    cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, **final_cfg_kwargs)
+
+    if run_ccc:
+        final_ccc_kwargs = {"prioritize_func_addrs": sorted(known), "skip_other_funcs": True}
+        final_ccc_kwargs.update(ccc_kwargs or {})
+        proj.analyses.CompleteCallingConventions(show_progressbar=not WORKER, **final_ccc_kwargs)
+
+    return proj, cfg
