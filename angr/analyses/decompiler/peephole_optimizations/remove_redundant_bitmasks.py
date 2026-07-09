@@ -28,7 +28,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
         if isinstance(expr, BinaryOp):
             return self._optimize_BinaryOp(expr)
         if isinstance(expr, Convert):
-            return RemoveRedundantBitmasks._optimize_Convert(expr)
+            return self._optimize_Convert(expr)
         if isinstance(expr, Extract):
             return self._optimize_Extract(expr)
         if isinstance(expr, Insert):
