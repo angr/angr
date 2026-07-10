@@ -72,7 +72,8 @@ class KnowledgeBase:
         object.__setattr__(self, "_project", state["project"])
         object.__setattr__(self, "_plugins", state["plugins"])
 
-        for plugin in self._plugins.values():
+        # iterate over a copy: set_kb() may lazily create plugins (e.g., rtdb) and mutate self._plugins
+        for plugin in list(self._plugins.values()):
             plugin.set_kb(self)
 
     def __getstate__(self):

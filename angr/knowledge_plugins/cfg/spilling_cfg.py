@@ -257,6 +257,10 @@ class SpillingCFGNodeDict:
             return evicted_any
 
     def _evict_n(self, n: int) -> int:
+        if self.rtdb is None:
+            # without a RuntimeDb we cannot persist evicted nodes; evicting anyway would silently lose data
+            # (this happens e.g. while unpickling, before an rtdb is re-attached via CFGManager.set_kb()).
+            return 0
         if not self._lru_order:
             return 0
 
@@ -403,7 +407,8 @@ class SpillingCFGNodeDict:
     #
 
     def __getstate__(self):
-        # Load all spilled nodes before pickling
+        # Load all spilled nodes before pickling.
+        # We load the entire node store into memory (make sure there is enough RAM!); otherwise we will lose data.
         self.load_all_spilled()
         return {
             "cache_limit": self._cache_limit,
@@ -426,6 +431,9 @@ class SpillingCFGNodeDict:
         self._db_store_lock = threading.Lock()
 
         for k, v in state["items"].items():
+            # nodes restored from a pickle have no LMDB backing store behind them; mark them dirty so that
+            # they will be written out if they are ever evicted again (after an rtdb is re-attached)
+            v.dirty = True
             self[k] = v
 
 
@@ -1140,6 +1148,15 @@ class SpillingCFG:
 
     def evict_all_cached(self) -> None:
         self._nodes.evict_all_cached()
+
+    def set_rtdb(self, rtdb: RuntimeDb | None) -> None:
+        """
+        (Re-)attach a RuntimeDb to this graph and its spilling containers. This is used after unpickling
+        (rtdb references are not preserved across pickling) so that node/edge spilling works again.
+        """
+        self._rtdb = rtdb
+        self._nodes.rtdb = rtdb
+        self._graph.set_rtdb(rtdb)
 
     #
     # Pickling

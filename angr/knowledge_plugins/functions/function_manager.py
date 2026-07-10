@@ -278,13 +278,15 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._cache_limit = state["cache_limit"]
         self._db_batch_size = state["db_batch_size"]
         self.data = {}
+        self._backref = None
+        self._key_types = state.get("key_types", int)
         self.rtdb = None  # type: ignore
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
         self._list = SortedList()
         self.irange = self._list.irange
 
-        self._meta_func_cache = LRUCache(maxsize=self._cache_limit)
+        self._meta_func_cache = SmartLRUCache(maxsize=self._cache_limit, evict=self._meta_func_cache_evicted)
         self._funcsdb = None
         self._eviction_enabled = True
         self._loading_from_lmdb = False
@@ -292,12 +294,18 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._db_store_lock = threading.Lock()
 
         for k, v in state["items"].items():
+            # Functions restored from a pickle have no LMDB backing store behind them; mark them dirty so that
+            # they will be written out if they are ever evicted again.
+            v.mark_dirty()
+            v.evicted = False
             self[k] = v
 
     def __getstate__(self):
+        self.load_all_spilled()
         return {
             "cache_limit": self._cache_limit,
             "db_batch_size": self._db_batch_size,
+            "key_types": self._key_types,
             "items": dict(self.items()),
         }
 
@@ -486,6 +494,10 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         :return: The number of functions that were successfully evicted.
         """
+        if self.rtdb is None:
+            # without a RuntimeDb we cannot persist evicted functions; evicting anyway would silently lose
+            # data (this happens e.g. while unpickling, before an rtdb is re-attached via set_kb()).
+            return 0
         if not self._lru_order:
             return 0
 
