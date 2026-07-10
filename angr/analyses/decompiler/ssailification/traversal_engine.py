@@ -410,8 +410,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 break
 
         defs: set[Def] = set().union(*secret_stash.values())
+        blacked_out = full_offset in self.state.register_blackout
         def_as = None
-        if not defs or full_offset in self.state.register_blackout:
+        if not defs or blacked_out:
             assert def_ is not None, "register_get() requires def_, but no definition reaches this point"
             self.perform_def(
                 "reg",
@@ -420,10 +421,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 full_size,
                 offset,
                 size,
-                AILCodeLocation.make_extern(0) if full_offset not in self.state.register_blackout else None,
+                AILCodeLocation.make_extern(0) if not blacked_out else None,
             )
             def_as = {def_}
-            self.state.register_blackout.discard(full_offset)
+            for suboff in range(full_offset, full_offset + full_size):
+                self.state.register_blackout.discard(suboff)
         else:
             def_as = defs
 
@@ -443,9 +445,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         for suboff in range(offset, offset + size):
             self.state.register_defs.pop(suboff, None)
             self.state.register_bases[suboff] = (offset, size)
+            self.state.register_blackout.discard(suboff)
 
         self.perform_def("reg", def_, offset, size, offset, size)
-        self.state.register_blackout.discard(offset)
 
         for suboff in range(offset, offset + size):
             self.state.register_defs[suboff] = {def_}
@@ -603,13 +605,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             reg_offset, _ = self.arch.registers[reg_name]
             base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch)
             self.state.live_registers.pop(base_off, None)
-            self.state.register_blackout.add(base_off)
             for suboff in range(base_off, base_off + base_size):
+                self.state.register_blackout.add(suboff)
                 self.state.register_defs.pop(suboff, None)
         for reg in cc.arch.vex_cc_regs or []:
             self.state.live_registers.pop(reg.vex_offset, None)
-            self.state.register_blackout.add(reg.vex_offset)
             for suboff in range(reg.vex_offset, reg.vex_offset + reg.size):
+                self.state.register_blackout.add(suboff)
                 self.state.register_defs.pop(suboff, None)
 
         return set()
