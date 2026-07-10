@@ -186,13 +186,13 @@ def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[t
 
 
 def _merged_regions(addrs: Iterable[int], window: int) -> list[tuple[int, int]]:
-    regions: list[list[int]] = []
+    regions: list[tuple[int, int]] = []
     for addr in sorted(addrs):
         if regions and addr <= regions[-1][1]:
-            regions[-1][1] = max(regions[-1][1], addr + window)
+            regions[-1] = regions[-1][0], max(regions[-1][1], addr + window)
         else:
-            regions.append([addr, addr + window])
-    return [(start, end) for start, end in regions]
+            regions.append((addr, addr + window))
+    return regions
 
 
 def load_project_with_scoped_cfg(

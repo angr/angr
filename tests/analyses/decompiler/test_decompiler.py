@@ -11,6 +11,8 @@ import time
 import unittest
 from functools import wraps
 
+import networkx
+
 import angr
 import angr.ailment as ailment
 from angr.analyses import (
@@ -251,9 +253,12 @@ class TestDecompiler(unittest.TestCase):
         # that branch and the output write. Guard against the body shrinking by requiring the calls that vanish
         # when it does -- the full result is ~5.5k chars; the regressed one is ~2.2k.
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
-        p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
-
-        cfg = p.analyses[CFGFast].prep()(normalize=True)
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4099CD,  # quote_name
+            project_kwargs={"load_debug_info": True},
+            run_ccc=False,
+        )
 
         f = cfg.functions["quote_name"]
         dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
@@ -1909,8 +1914,11 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
+        # a region-scoped CFG subtly changes the recovered return type of align_nstrftime, so the
+        # whole-binary CFG must stay; CompleteCallingConventions is scoped to the call tree instead.
         cfg = proj.analyses.CFGFast(normalize=True)
-        proj.analyses.CompleteCallingConventions(cfg=cfg)
+        funcs = networkx.descendants(proj.kb.functions.callgraph, 0x40ADE4) | {0x40ADE4}  # print_long_format
+        proj.analyses.CompleteCallingConventions(cfg=cfg, prioritize_func_addrs=funcs, skip_other_funcs=True)
 
         dec = proj.analyses.Decompiler(proj.kb.functions["print_long_format"], options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
@@ -2028,9 +2036,15 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_decompiling_du_di_set_alloc(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "du")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        # di_ent_hash/di_ent_compare/di_ent_free are never called, only passed as function pointers;
+        # they must exist in the CFG for the function-pointer resolution this test asserts on.
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x406918,  # di_set_alloc
+            extra_func_addrs=(0x40683C, 0x4068AB, 0x4068E1),  # di_ent_hash, di_ent_compare, di_ent_free
+            expand_call_tree=False,
+            run_ccc=False,
+        )
 
         f = proj.kb.functions["di_set_alloc"]
 
@@ -2043,9 +2057,11 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_decompiling_du_humblock_missing_conditions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "du")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x410069,  # humblock
+            run_ccc=False,
+        )
 
         f = proj.kb.functions["humblock"]
 
@@ -4548,9 +4564,12 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(
             test_location, "i386", "windows", "736cb27201273f6c4f83da362c9595b50d12333362e02bc7a77dd327cc6b045a"
         )
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x42CCA0,
+            window=0x10000,
+            run_ccc=False,
+        )
         f = proj.kb.functions[0x42CCA0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert d.codegen is not None and d.codegen.text is not None
@@ -4660,10 +4679,10 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_lighttpd_expression_over_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "lighttpd")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(normalize=True)
-        proj.analyses.CompleteCallingConventions()
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x422E80,
+        )
         f = proj.kb.functions[0x422E80]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("rewrite_ites_to_diamonds", False)])
