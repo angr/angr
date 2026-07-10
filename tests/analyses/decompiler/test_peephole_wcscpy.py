@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use,no-member
+# pylint: disable=missing-class-docstring,no-self-use,no-member,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -9,7 +9,7 @@ import os
 import unittest
 
 import angr
-from tests.common import WORKER, bin_location, print_decompilation_result
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -21,7 +21,14 @@ class TestPeepholeWcscpy(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+        # the extra region covers the XFG hash at 0x18000a798 that the assertions below rely on
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(0x18000A780, 0x18000A7C0), (0x18003CA70, 0x18003CA70 + 0x4000)],
+            start_at_entry=False,
+            function_starts=[0x18003CA70],
+            force_smart_scan=True,
+        )
 
         # since we are computing the CFG here, let's also ensure XFG hashes are not marked as code
         assert cfg._seg_list.is_occupied(0x18000A798) is True
@@ -44,9 +51,7 @@ class TestPeepholeWcscpy(unittest.TestCase):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
         )
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(fail_fast=True, force_smart_scan=False, show_progressbar=not WORKER, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x14000FB60, run_ccc=False)
         func = cfg.functions[0x14000FB60]
         assert func is not None
         dec = proj.analyses.Decompiler(func, cfg=cfg)

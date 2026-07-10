@@ -7,6 +7,8 @@ import os
 import re
 import unittest
 
+import networkx
+
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location
@@ -36,6 +38,15 @@ class TestRustcVersionIdentification(unittest.TestCase):
         assert os.path.isfile(path)
         expected = self.EXPECTED_VERSIONS[configuration]
         p = angr.Project(path)
+        # Pre-build a sampled, region-limited CFG.
+        # FLIRT matching over the first quarter of each executable section is enough to discriminate rustc versions
+        # while being several times cheaper than a whole-binary CFG.
+        regions = [
+            (sec.vaddr, sec.vaddr + max(0x1000, int(sec.memsize * 0.25)))
+            for sec in p.loader.main_object.sections
+            if sec.is_executable and sec.memsize > 0
+        ]
+        p.analyses.CFGFast(normalize=True, regions=regions)
         p.analyses.RustcVersionIdentification()
         version = p.rustc_version
         self.assertEqual(version, expected, f"fmt [{configuration}]: expected {expected}, got {version}")
@@ -83,7 +94,13 @@ class RustDecompilationTarget(unittest.TestCase):
             proj = angr.Project(path, auto_load_libs=False)
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
             proj.analyses.CFGFast(normalize=True)
-            proj.analyses.CompleteCallingConventions(recover_variables=False)
+            func_addrs = {
+                addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
+            }
+            call_tree = set(func_addrs)
+            for addr in func_addrs:
+                call_tree |= networkx.descendants(proj.kb.functions.callgraph, addr)
+            proj.analyses.CompleteCallingConventions(prioritize_func_addrs=call_tree, skip_other_funcs=True)
             proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS[config]
             proj.analyses.RustSymbolRecovery()
             proj.analyses.TypeDBLoader()

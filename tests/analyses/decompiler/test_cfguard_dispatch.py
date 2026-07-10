@@ -16,9 +16,8 @@ import os
 import re
 import unittest
 
-import angr
 from angr.analyses import Decompiler
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -33,9 +32,12 @@ NORMAL_FUNC = 0x18000A7F8
 class TestCFGuardDispatch(unittest.TestCase):
     def test_guard_dispatch_marker_propagated_to_jump_thunk(self):
         """CFGFast must copy the jmp_rax marker from the real dispatcher onto the trivial jump thunk."""
-        bin_path = BIN_PATH
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        _, cfg = load_project_with_scoped_cfg(
+            BIN_PATH,
+            NORMAL_FUNC,
+            extra_func_addrs=(GUARD_DISPATCH_THUNK,),
+            run_ccc=False,
+        )
 
         thunk = cfg.functions.function(GUARD_DISPATCH_THUNK)
         assert thunk is not None
@@ -49,15 +51,16 @@ class TestCFGuardDispatch(unittest.TestCase):
 
     def test_cfguard_dispatch_calls_are_decollapsed(self):
         """After the fix, indirect calls resolve to distinct real targets instead of one bogus sub_<thunk>()."""
-        bin_path = BIN_PATH
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-        proj.analyses.CompleteCallingConventions(cfg=cfg)
+        proj, cfg = load_project_with_scoped_cfg(
+            BIN_PATH,
+            NORMAL_FUNC,
+            extra_func_addrs=(GUARD_DISPATCH_THUNK,),
+        )
 
         func = cfg.functions.function(NORMAL_FUNC)
         assert func is not None
         d = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
-        assert d.codegen is not None
+        assert d.codegen is not None and d.codegen.text is not None
         text = d.codegen.text
 
         # The guard dispatch thunk must NOT appear as a direct callee. Before the fix every indirect call collapsed

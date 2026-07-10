@@ -9,7 +9,7 @@ import unittest
 
 import angr
 from angr.analyses import CFGFast, Decompiler
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -56,8 +56,12 @@ class TestMipsGpSettingSimplifier(unittest.TestCase):
         depends on t9 (the function address at call time).
         """
         bin_path = os.path.join(test_location, "mipsel", "busybox")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4091EC,  # main
+            expand_call_tree=False,  # main's call tree covers most of busybox
+            run_ccc=False,
+        )
 
         func = cfg.functions["main"]
         gp_value = func.info.get("gp")

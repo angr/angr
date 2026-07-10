@@ -6,6 +6,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os.path
 import unittest
 
+import networkx
+
 import angr
 from angr.analyses.decompiler import Decompiler
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
@@ -29,6 +31,8 @@ class TestDecompilationNotes(unittest.TestCase):
 
         proj = angr.Project(bin_path, auto_load_libs=False)
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=True)
+        decompiled_funcs = (0x140005174, 0x140003504, 0x140006208, 0x1400035A0)
+        deobfuscators = (0x140001A90, 0x140001A18)
 
         proj.kb.functions["PsLookupProcessByProcessId"].prototype = parse_signature(
             "int PsLookupProcessByProcessId(uint64_t a, uint64_t b);"
@@ -37,7 +41,10 @@ class TestDecompilationNotes(unittest.TestCase):
         # ensure we correctly recognize security_check_cookie
         assert proj.kb.functions[0x1400070B0].name == "_security_check_cookie"
 
-        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        ccc_funcs = set(decompiled_funcs) | set(deobfuscators)
+        for root in tuple(ccc_funcs):
+            ccc_funcs |= networkx.descendants(proj.kb.functions.callgraph, root)
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=ccc_funcs, skip_other_funcs=True)
 
         type1_deobfuscator = proj.kb.functions[0x140001A90]
         type2_deobfuscator = proj.kb.functions[0x140001A18]

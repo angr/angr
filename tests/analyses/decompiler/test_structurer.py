@@ -15,7 +15,7 @@ from angr.ailment import Manager
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.structuring import DreamStructurer
-from tests.common import bin_location, print_decompilation_result
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -314,9 +314,7 @@ class TestStructurer(unittest.TestCase):
         assert if_code_corrected != full_text
 
     def test_infallable_switch_with_condition(self):
-        p = angr.Project(
-            os.path.join(test_location, "x86_64", "cgc-linux64", "Simple_Stack_Machine"), auto_load_libs=False
-        )
+        p = angr.Project(os.path.join(test_location, "x86_64", "cgc-linux64", "Simple_Stack_Machine"))
         p.analyses.CFGFast(normalize=True)
         dec = p.analyses[Decompiler]("main", options=[(get_structurer_option(), "Phoenix")])
         assert dec.codegen is not None and dec.codegen.text is not None
@@ -327,13 +325,10 @@ class TestStructurer(unittest.TestCase):
         # assert '<= 7' not in dec.codegen.text
 
     def test_complete_successor_causing_structuring_a_node_twice(self):
-        proj = angr.Project(
-            os.path.join(
-                test_location, "x86_64", "windows", "1309c8993adeb587e629615eb6838a280f0a1faa6ac74fdb11b80d5bddc1c94f"
-            ),
-            auto_load_libs=False,
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "1309c8993adeb587e629615eb6838a280f0a1faa6ac74fdb11b80d5bddc1c94f"
         )
-        cfg = proj.analyses.CFGFast(normalize=True, force_smart_scan=False)
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x140071D40, expand_call_tree=False, run_ccc=False)
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x140071D40, cfg=cfg.model)
         # it should not raise any exceptions
         assert dec.codegen is not None and dec.codegen.text is not None
@@ -342,8 +337,7 @@ class TestStructurer(unittest.TestCase):
         proj = angr.Project(
             os.path.join(
                 test_location, "x86_64", "windows", "7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb"
-            ),
-            auto_load_libs=False,
+            )
         )
         cfg = proj.analyses.CFGFast(
             normalize=True,
@@ -389,13 +383,10 @@ class TestStructurer(unittest.TestCase):
         assert dec.codegen.text.count("switch (") == 1
 
     def test_phoenix_loop_refinement_natural_loop_creation_logic(self):
-        proj = angr.Project(
-            os.path.join(
-                test_location, "i386", "windows", "0c694dfa7ad465bded90c4faf63100c7008b5efc4bc49b38644a9770b42669b0"
-            ),
-            auto_load_libs=False,
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "0c694dfa7ad465bded90c4faf63100c7008b5efc4bc49b38644a9770b42669b0"
         )
-        cfg = proj.analyses.CFG(force_smart_scan=False, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x408060, expand_call_tree=False, run_ccc=False)
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x408060, cfg=cfg.model)
         # it should not raise any exceptions
         assert dec.codegen is not None and dec.codegen.text is not None

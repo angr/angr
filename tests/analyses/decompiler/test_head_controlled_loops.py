@@ -9,8 +9,7 @@ import os
 import re
 import unittest
 
-import angr
-from tests.common import WORKER, bin_location, print_decompilation_result, set_decompiler_option
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result, set_decompiler_option
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -26,9 +25,9 @@ class TestHeadControlledLoops(unittest.TestCase):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
         )
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x1400036C0, project_kwargs={"auto_load_libs": False}, run_ccc=False
+        )
         func = cfg.functions[0x1400036C0]
         assert func is not None
         dec = proj.analyses.Decompiler(

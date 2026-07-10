@@ -17,7 +17,14 @@ import sys
 import angr
 
 project = angr.Project(sys.argv[1], auto_load_libs=False)
-project.analyses.CFGFast(normalize=True)
+# scope CFG recovery to the region of sub_4012f5; a whole-binary CFG takes ~10s per seed
+project.analyses.CFGFast(
+    normalize=True,
+    regions=[(0x4012F5, 0x4022F5)],
+    start_at_entry=False,
+    function_starts=[0x4012F5],
+    force_smart_scan=False,
+)
 dec = project.analyses.Decompiler(
     sys.argv[2],
     preset="malware",

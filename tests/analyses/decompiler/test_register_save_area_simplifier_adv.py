@@ -7,6 +7,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
+import networkx
+
 import angr
 from tests.common import WORKER, bin_location, print_decompilation_result
 
@@ -21,7 +23,8 @@ class TestRegisterSaveAreaSimplifierAdv(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
-        proj.analyses.CompleteCallingConventions(fail_fast=True)
+        funcs = networkx.descendants(proj.kb.functions.callgraph, 0x46A6C0) | {0x46A6C0, 0x46AAE0}
+        proj.analyses.CompleteCallingConventions(fail_fast=True, prioritize_func_addrs=funcs, skip_other_funcs=True)
 
         callee = cfg.functions[0x46AAE0]
         func = cfg.functions[0x46A6C0]
