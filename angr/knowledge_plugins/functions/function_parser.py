@@ -219,10 +219,13 @@ class FunctionParser:
         obj.previous_names = list(cmsg.previous_names)
 
         # signature matched?
+        # set the backing slot directly so that loading a function from LMDB does not mark it dirty or
+        # trigger the FunctionManager cache hook (the cache is already populated when the function is
+        # first added and persists across spilling)
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:
-            obj.from_signature = None
+            obj._from_signature = None
         elif cmsg.matched_from == function_pb2.Function.FLIRT:
-            obj.from_signature = "flirt"
+            obj._from_signature = "flirt"
         else:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 

@@ -128,6 +128,7 @@ class Function(Serializable):
         "_cyclomatic_complexity",
         "_dirty",
         "_endpoints",
+        "_from_signature",
         "_function_manager",
         "_info",
         "_is_alignment",
@@ -150,7 +151,6 @@ class Function(Serializable):
         "binary_name",
         "bp_on_stack",
         "evicted",
-        "from_signature",
         "is_default_name",
         "meta_only",
         "normalized",
@@ -320,7 +320,7 @@ class Function(Serializable):
             self.is_default_name = False
             self._name = name
         self.previous_names = []
-        self.from_signature: str | None = None
+        self._from_signature: str | None = None
 
         # Determine the name the binary where this function is.
         if binary_name is not None:
@@ -356,6 +356,21 @@ class Function(Serializable):
             self._function_manager._kb.labels[self.addr] = v
         self._name = v
         self.mark_dirty()
+
+    @property
+    def from_signature(self) -> str | None:
+        return self._from_signature
+
+    @from_signature.setter
+    def from_signature(self, v: str | None):
+        if self._from_signature == v:
+            return
+        self._from_signature = v
+        self.mark_dirty()
+
+        # update the cache
+        if self._function_manager is not None:
+            self._function_manager.set_function_from_signature(self.addr, v)
 
     @property
     def project(self) -> Project | None:
