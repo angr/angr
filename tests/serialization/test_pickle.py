@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint:disable=protected-access,no-self-use,missing-class-docstring
 from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
@@ -23,7 +24,6 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestPickle(unittest.TestCase):
-    @classmethod
     def tearDown(self):
         shutil.rmtree("pickletest", ignore_errors=True)
         shutil.rmtree("pickletest2", ignore_errors=True)
@@ -61,7 +61,7 @@ class TestPickle(unittest.TestCase):
 
         # If you do not have a state you cannot write
         _ = p.factory.entry_state(fs=fs)
-        for f in fs:
+        for f in fs:  # pylint:disable=consider-using-dict-items
             mem = mem_bvv[f]
             fs[f].write(0, mem, MEM_SIZE)
 

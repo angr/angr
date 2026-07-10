@@ -118,7 +118,7 @@ class CFGManager(KnowledgeBasePlugin):
         # re-attach the RuntimeDb to all CFG models so that node/edge spilling works again after unpickling
         rtdb = kb.rtdb
         for cfg_model in self.cfgs.values():
-            cfg_model._cfg_manager = self
+            cfg_model._cfg_manager = self  # pylint:disable=protected-access
             if cfg_model.graph is not None:
                 cfg_model.graph.set_rtdb(rtdb)
 
