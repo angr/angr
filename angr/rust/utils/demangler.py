@@ -22,6 +22,9 @@ def demangle(s):
         demangled = rust_demangler.demangle(s).split("::")
     except (TypeNotFoundError, UnableTov0Demangle, UnableToLegacyDemangle):
         return s
+    except (IndexError, ValueError, RecursionError):
+        # work around bugs in rust_demangler. see angr issue #6598
+        return s
     if len(demangled) >= 2 and _is_rust_hash(demangled[-1]):
         demangled = "::".join(demangled[:-1])
     else:
