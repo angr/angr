@@ -305,8 +305,11 @@ class TypeDBLoader(Analysis):
         # SpillingFunctionDict's LRU eviction creating new object instances
         name_to_func_addrs = defaultdict(list)
         for addr in self.kb.functions:
-            func = self.kb.functions[addr]
-            name_to_func_addrs[demangle(func.name)].append(addr)
+            # read the name from the FunctionManager cache instead of loading every full Function
+            raw_name = self.kb.functions.get_func_name(addr)
+            if raw_name is None:
+                raw_name = self.kb.functions.get_by_addr(addr, meta_only=True).name
+            name_to_func_addrs[demangle(raw_name)].append(addr)
 
         name_to_prototypes = defaultdict(list)
         for func_data in prototype_db:
