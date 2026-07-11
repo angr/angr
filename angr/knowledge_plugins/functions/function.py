@@ -370,7 +370,7 @@ class Function(Serializable):
 
         # update the cache
         if self._function_manager is not None:
-            self._function_manager.set_function_from_signature(self.addr, v)
+            self._function_manager.set_from_signature(self.addr, v)
 
     @property
     def project(self) -> Project | None:

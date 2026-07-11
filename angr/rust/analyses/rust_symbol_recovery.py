@@ -36,7 +36,7 @@ class RustSymbolRecovery(Analysis):
         subset instead of constructing a meta object for every function in the binary.
         """
         functions = self.project.kb.functions
-        for addr in functions.get_func_addrs_from_signature("flirt"):
+        for addr in functions.get_all_funcaddrs_from_signature("flirt"):
             name = functions.get_func_name(addr)
             if name is None:
                 name = functions.get_by_addr(addr, meta_only=True).name

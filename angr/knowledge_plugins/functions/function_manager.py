@@ -711,13 +711,11 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._unknown_returning_func_addrs: set[K] = set()
         # function number of blocks cache
         self._func_block_counts: dict[K, int] = {}
-        # function name cache
+        # function name to address cache
         self._func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
-        # reverse function name cache (address to current name); lets callers read a function's name
-        # without loading the (possibly spilled) Function object
+        # function address to current name cache
         self._func_names: dict[K, str] = {}
-        # function signature-source cache (address to Function.from_signature); lets callers find
-        # FLIRT-matched functions without loading every Function object
+        # function signature-source cache (function address to Function.from_signature)
         self._func_from_signature: dict[K, str | None] = {}
         # historical function name cache
         self._old_func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
@@ -1465,7 +1463,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         return self._func_names.get(addr)
 
-    def get_func_from_signature(self, addr: K) -> str | None:
+    def get_from_signature(self, addr: K) -> str | None:
         """
         Get the ``from_signature`` value of a function without loading the (possibly spilled) Function
         object.
@@ -1475,7 +1473,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         return self._func_from_signature.get(addr)
 
-    def set_function_from_signature(self, addr: K, from_signature: str | None) -> None:
+    def set_from_signature(self, addr: K, from_signature: str | None) -> None:
         """
         Update the cached ``from_signature`` value for a function. Called by Function.from_signature's
         setter.
@@ -1486,7 +1484,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         self._func_from_signature[addr] = from_signature
 
-    def get_func_addrs_from_signature(self, from_signature: str = "flirt") -> set[K]:
+    def get_all_funcaddrs_from_signature(self, from_signature: str = "flirt") -> set[K]:
         """
         Get the addresses of all functions whose ``from_signature`` matches, without loading any
         Function object.

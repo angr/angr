@@ -225,8 +225,7 @@ class FunctionParser:
 
         # signature matched?
         # set the backing slot directly so that loading a function from LMDB does not mark it dirty or
-        # trigger the FunctionManager cache hook (the cache is already populated when the function is
-        # first added and persists across spilling)
+        # trigger the FunctionManager cache hook
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:
             obj._from_signature = None
         elif cmsg.matched_from == function_pb2.Function.FLIRT:

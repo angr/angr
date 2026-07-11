@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from functools import cache
+from functools import lru_cache
 
 import rust_demangler
 from rust_demangler.rust import TypeNotFoundError
@@ -18,11 +18,8 @@ XXX_AS_YYY_PATTERN = re.compile(r"<(?!impl\s)([^<]+?)\sas\s([^<]+?)>")
 IMPL_XXX_AS_YYY_PATTERN = re.compile(r"<impl\s([^<]+?)\sas\s([^<]+?)>")
 
 
-@cache
+@lru_cache(maxsize=4096)
 def demangle(s):
-    # demangle() is a pure, deterministic function of its input string, so the result can be memoized.
-    # The set of mangled names is bounded per process and results are identical across analyses and
-    # binaries, so an unbounded cache is safe and shares correctly.
     try:
         demangled = rust_demangler.demangle(s).split("::")
     except (TypeNotFoundError, UnableTov0Demangle, UnableToLegacyDemangle):

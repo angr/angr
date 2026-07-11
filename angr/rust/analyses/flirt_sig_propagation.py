@@ -19,6 +19,7 @@ class FlirtSigPropagation(Analysis):
         The single-block requirement is checked first via the FunctionManager block-count cache, so
         that multi-block functions are rejected without loading and disassembling the Function object.
         """
+        # TODO: Support architectures beyond x86 and x86-64
         functions = self.project.kb.functions
         if functions.get_func_block_count(func_addr) != 1:
             return False
@@ -34,19 +35,19 @@ class FlirtSigPropagation(Analysis):
         functions = self.project.kb.functions
         # read the FLIRT-matched function addresses from the FunctionManager cache instead of loading
         # every Function object just to inspect from_signature
-        queue: deque[int] = deque(functions.get_func_addrs_from_signature("flirt"))
+        queue: deque[int] = deque(functions.get_all_funcaddrs_from_signature("flirt"))
         while queue:
             func_addr = queue.popleft()
             for pred_addr in self.project.kb.callgraph.predecessors(func_addr):
                 # skip predecessors that already carry a signature, and non-simple ones, using cached
                 # metadata before touching the (possibly spilled) Function objects
-                if functions.get_func_from_signature(pred_addr):
+                if functions.get_from_signature(pred_addr):
                     continue
                 if not self._is_simple_function(pred_addr):
                     continue
                 # only now do we need the matched function's name and an editable predecessor object
                 func_name = functions.get_func_name(func_addr)
-                pred_func = functions[pred_addr]
+                pred_func = functions.get_by_addr(pred_addr)
                 pred_func.from_signature = "flirt"
                 pred_func.is_default_name = False
                 pred_func.name = func_name

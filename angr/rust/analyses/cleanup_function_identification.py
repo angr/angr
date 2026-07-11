@@ -21,13 +21,8 @@ class CleanupFunctionIdentification(Analysis):
     """Identify cleanup functions (deallocators, drop glue, etc.) in Rust binaries."""
 
     def __init__(self):
-        # cache normalized names by raw name (normalize() is a pure function of its input) and null-stub
-        # results by function address (the null-stub check is purely structural and never changes). The
-        # combined cleanup status is intentionally NOT cached: a function can become a cleanup function
-        # mid-analysis when a caller is renamed, so the name-match half is always recomputed from the
-        # current (cached) name.
-        self._normalize_cache: dict[str, str] = {}
-        self._nullstub_cache: dict[int, bool] = {}
+        self._normalize_cache: dict[str, str] = {}  # raw name to normalized name
+        self._nullstub_cache: dict[int, bool] = {}  # function address to is_nullstub result
         self._analyze()
 
     def _normalize_name(self, raw_name: str) -> str:
@@ -39,9 +34,10 @@ class CleanupFunctionIdentification(Analysis):
 
     @staticmethod
     def _compute_nullstub(func: Function) -> bool:
+        # TODO: Support architectures beyond x86 and x86-64
         if func.size == 0 and not func.is_plt:
             return True
-        if len(list(func.blocks)) == 1:
+        if len(func.block_addrs_set) == 1:
             block = next(iter(func.blocks))
             if len(block.capstone.insns) == 4 and [insn.mnemonic for insn in block.capstone.insns] == [
                 "push",
@@ -61,9 +57,7 @@ class CleanupFunctionIdentification(Analysis):
         functions = self.project.kb.functions
         block_count = functions.get_func_block_count(func_addr)
         # a null-stub is either a size-0 function (no blocks) or a single block; anything with more than
-        # one block can be rejected without loading and disassembling the Function. This must stay an
-        # if/else (not a ternary) so _compute_nullstub -- which loads and disassembles the function -- is
-        # never evaluated for a multi-block function.
+        # one block can be rejected.
         if block_count is not None and block_count > 1:  # noqa: SIM108
             result = False
         else:
@@ -73,10 +67,11 @@ class CleanupFunctionIdentification(Analysis):
 
     def _is_cleanup_function(self, func_addr: int) -> bool:
         functions = self.project.kb.functions
+        if not functions.contains_addr(func_addr):
+            return False
         raw_name = functions.get_func_name(func_addr)
         if raw_name is None:
-            # defensive fallback: the name cache should always know a valid function
-            raw_name = functions[func_addr].name
+            raw_name = functions.get_by_addr(func_addr, meta_only=True).name
         if self._normalize_name(raw_name) in CLEANUP_FUNCTIONS:
             return True
         return self._is_nullstub_function(func_addr)
@@ -88,8 +83,9 @@ class CleanupFunctionIdentification(Analysis):
         for func_addr in functions:
             if self._is_cleanup_function(func_addr):
                 queue.append(func_addr)
-                func = functions[func_addr]
-                if func.is_default_name:
+                func_meta = functions.get_by_addr(func_addr, meta_only=True)
+                if func_meta.is_default_name:
+                    func = functions.get_by_addr(func_addr)
                     func.name = "core::ptr::drop_in_place"
                     func.from_signature = "flirt"
                     func.is_default_name = False
@@ -98,13 +94,15 @@ class CleanupFunctionIdentification(Analysis):
             current_func_addr = queue.popleft()
             raw_name = functions.get_func_name(current_func_addr)
             if raw_name is None:
-                raw_name = functions[current_func_addr].name
+                func_meta = functions.get_by_addr(current_func_addr, meta_only=True)
+                raw_name = func_meta.name
             name = self._normalize_name(raw_name)
             for caller_addr in callgraph.predecessors(current_func_addr):
                 callee_addrs = callgraph.successors(caller_addr)
                 if all(self._is_cleanup_function(callee_addr) for callee_addr in callee_addrs):
-                    caller_func = functions[caller_addr]
-                    if caller_func.is_default_name:
+                    caller_func_meta = functions.get_by_addr(caller_addr, meta_only=True)
+                    if caller_func_meta.is_default_name:
+                        caller_func = functions.get_by_addr(caller_addr)
                         caller_func.name = name
                         caller_func.from_signature = "flirt"
                         caller_func.is_default_name = False

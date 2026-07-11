@@ -216,22 +216,20 @@ class FlirtAnalysis(Analysis):
             if block_addr <= call_addr < block_addr + block.size and call_ins_addr <= call_addr:
                 if call_target is None or not self.kb.functions.contains_addr(call_target):
                     return None
-                # only the callee's name is needed here, so a meta-only load avoids deserializing the
-                # full Function (blocks, transition graph, prototype)
-                callee = self.kb.functions.get_by_addr(call_target, meta_only=True)
-                return callee.name
+                return self.kb.functions.get_func_name(call_target)
         return None
 
-    def _get_func_for_addr(self, func_addr) -> Function | None:
-        # the caller (_on_func_matched) only reads meta fields (addr, is_default_name), so a meta-only
-        # load avoids deserializing the full Function
+    def _get_func_for_addr(self, func_addr, meta_only: bool = True) -> Function | None:
+        """
+        Return a Function object for the given address.
+        """
         try:
-            return self.kb.functions.get_by_addr(func_addr, meta_only=True)
+            return self.kb.functions.get_by_addr(func_addr, meta_only=meta_only)
         except KeyError:
             # the function is not found. Try the THUMB version
             if self._is_arm:
                 with contextlib.suppress(KeyError):
-                    return self.kb.functions.get_by_addr(func_addr + 1, meta_only=True)
+                    return self.kb.functions.get_by_addr(func_addr + 1, meta_only=meta_only)
         return None
 
     def _on_func_matched(self, func: Function, base_addr: int, flirt_func: FlirtFunction):
