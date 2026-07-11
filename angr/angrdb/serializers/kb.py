@@ -64,7 +64,7 @@ class KnowledgeBaseSerializer:
             kb.cfgs["CFGFast"] = cfg_model
 
         # Load functions
-        funcs = FunctionManagerSerializer.load(session, db_kb, kb)
+        funcs = FunctionManagerSerializer.load(session, db_kb, kb, cfg_model=cfg_model)
         if funcs is not None:
             kb.functions = funcs
 
@@ -95,13 +95,7 @@ class KnowledgeBaseSerializer:
 
         if cfg_model is not None:
             # CFG may not exist for all knowledge bases
-
-            # fill in CFGNode.function_address
-            for func in funcs.values():
-                for block_addr in func.block_addrs_set:
-                    node = cfg_model.get_any_node(block_addr)
-                    if node is not None:
-                        node.function_address = func.addr
+            # note that CFGNode.function_address is filled in by FunctionManagerSerializer.load()
 
             # re-initialize CFGModel.insn_addr_to_memory_data
             # fill in insn_addr_to_memory_data

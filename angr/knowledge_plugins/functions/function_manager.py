@@ -639,6 +639,45 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             if self._eviction_enabled and self._cache_limit is not None and self.cached_count > self._cache_limit:
                 self._evict_lru()
 
+    def bulk_import_serialized(self, items: list[tuple[K, bytes]]) -> None:
+        """
+        Bulk-import already-serialized functions directly into the LMDB backing store and register them as spilled,
+        without deserializing them. The serialized bytes must be serialized function_pb2.Function messages, i.e., the
+        exact format that _save_to_lmdb() writes.
+
+        Imported functions are deserialized lazily upon first access, through the regular _load_from_lmdb() path.
+
+        :param items:   A list of (address, serialized function bytes) tuples.
+        """
+
+        if not items:
+            return
+
+        self._init_lmdb()
+        assert self._funcsdb is not None
+
+        with self._db_store_lock:
+            while True:
+                try:
+                    with self.rtdb.begin_txn(self._funcsdb, write=True) as txn:
+                        for addr, blob in items:
+                            txn.put(str(addr).encode("utf-8"), blob)
+                    break
+                except lmdb.MapFullError:
+                    # Increase map size and retry
+                    self.rtdb.increase_lmdb_map_size()
+
+            for addr, _ in items:
+                if self.is_cached(addr):
+                    # drop the stale in-memory copy; LMDB now holds the authoritative data
+                    super().__delitem__(addr)
+                    self._lru_order.pop(addr, None)
+                elif addr not in self._spilled_keys:
+                    self._list.add(addr)
+                self._spilled_keys.add(addr)
+                if addr in self._meta_func_cache:
+                    del self._meta_func_cache[addr]
+
     def load_all_spilled(self) -> None:
         """
         Load all spilled functions back into memory (disables eviction temporarily).
