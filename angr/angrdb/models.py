@@ -45,6 +45,7 @@ class DbKnowledgeBase(Base):
 
     cfgs = relationship("DbCFGModel", back_populates="kb")
     funcs = relationship("DbFunction", back_populates="kb")
+    callgraphs = relationship("DbCallGraph", back_populates="kb")
     xrefs = relationship("DbXRefs", uselist=False, back_populates="kb")
     comments = relationship("DbComment", back_populates="kb")
     labels = relationship("DbLabel", back_populates="kb")
@@ -86,6 +87,23 @@ class DbFunction(Base):
     kb = relationship("DbKnowledgeBase", uselist=False, back_populates="funcs")
     addr = Column(Integer)
     blob = Column(BLOB)
+
+
+class DbCallGraph(Base):
+    """
+    Models the callgraph of a function manager.
+    """
+
+    __tablename__ = "callgraphs"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="callgraphs")
+    blob = Column(BLOB, nullable=True)
 
 
 class DbVariableCollection(Base):

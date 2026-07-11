@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.angrdb.models import DbKnowledgeBase
 from angr.knowledge_base import KnowledgeBase
 
+from .callgraph import CallGraphSerializer
 from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
 from .funcs import FunctionManagerSerializer
@@ -38,6 +39,7 @@ class KnowledgeBaseSerializer:
                 CFGModelSerializer.dump(session, db_kb, "CFGFast", cfg_model)
 
         FunctionManagerSerializer.dump(session, db_kb, kb.functions)
+        CallGraphSerializer.dump(session, db_kb, kb.functions.callgraph)
         XRefsSerializer.dump(session, db_kb, kb.xrefs)
         CommentsSerializer.dump(session, db_kb, kb.comments)
         LabelsSerializer.dump(session, db_kb, kb.labels)
@@ -63,8 +65,12 @@ class KnowledgeBaseSerializer:
         if cfg_model is not None:
             kb.cfgs["CFGFast"] = cfg_model
 
+        # Load the callgraph. Databases created before callgraph serialization was introduced do not store a
+        # callgraph; in that case, the callgraph is rebuilt from function transition graphs.
+        callgraph = CallGraphSerializer.load(session, db_kb)
+
         # Load functions
-        funcs = FunctionManagerSerializer.load(session, db_kb, kb, cfg_model=cfg_model)
+        funcs = FunctionManagerSerializer.load(session, db_kb, kb, callgraph=callgraph, cfg_model=cfg_model)
         if funcs is not None:
             kb.functions = funcs
 
