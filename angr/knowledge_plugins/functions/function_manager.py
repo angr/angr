@@ -711,8 +711,12 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._unknown_returning_func_addrs: set[K] = set()
         # function number of blocks cache
         self._func_block_counts: dict[K, int] = {}
-        # function name cache
+        # function name to address cache
         self._func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
+        # function address to current name cache
+        self._func_names: dict[K, str] = {}
+        # function signature-source cache (function address to Function.from_signature)
+        self._func_from_signature: dict[K, str | None] = {}
         # historical function name cache
         self._old_func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
         # key function addresses cache
@@ -732,6 +736,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._unknown_returning_func_addrs = set()
         self._func_block_counts = {}
         self._func_name_to_addrs = defaultdict(set)
+        self._func_names = {}
+        self._func_from_signature = {}
         self._old_func_name_to_addrs = defaultdict(set)
         self.function_addrs_set = set()
 
@@ -744,6 +750,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 self._non_returning_func_addrs.add(func.addr)
             self._func_block_counts[func.addr] = len(func.block_addrs_set)
             self._func_name_to_addrs[func.name].add(func.addr)
+            self._func_names[func.addr] = func.name
+            self._func_from_signature[func.addr] = func.from_signature
             for old_name in func.previous_names:
                 self._old_func_name_to_addrs[old_name].add(func.addr)
             self.function_addrs_set.add(func.addr)
@@ -782,6 +790,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         fm._unknown_returning_func_addrs = self._unknown_returning_func_addrs.copy()
         fm._func_block_counts = self._func_block_counts.copy()
         fm._func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._func_name_to_addrs.items()})
+        fm._func_names = self._func_names.copy()
+        fm._func_from_signature = self._func_from_signature.copy()
         fm._old_func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._old_func_name_to_addrs.items()})
         fm._key_func_addrs = defaultdict(set, {k: v.copy() for k, v in self._key_func_addrs.items()})
 
@@ -807,6 +817,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._unknown_returning_func_addrs = set()
         self._func_block_counts = {}
         self._func_name_to_addrs = defaultdict(set)
+        self._func_names = {}
+        self._func_from_signature = {}
         self._old_func_name_to_addrs = defaultdict(set)
         self._key_func_addrs = defaultdict(set)
 
@@ -898,6 +910,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                     del self._func_name_to_addrs[old_name]
             self._old_func_name_to_addrs[old_name].add(addr)
         self._func_name_to_addrs[new_name].add(addr)
+        self._func_names[addr] = new_name
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):
@@ -1097,6 +1110,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self._unknown_returning_func_addrs.discard(k)
             self._func_block_counts.pop(k, None)
             self._func_name_to_addrs.pop(k, None)
+            self._func_names.pop(k, None)
+            self._func_from_signature.pop(k, None)
             if func_meta is not None:
                 for old_name in func_meta.previous_names:
                     self._old_func_name_to_addrs.get(old_name, set()).discard(k)
@@ -1159,6 +1174,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         # update the function block count cache
         self.set_func_block_count(func.addr, len(func.block_addrs_set))
+
+        # update the signature-source cache
+        self._func_from_signature[func.addr] = func.from_signature
 
         # update key function address cache
         for key, value in func.info.items():
@@ -1431,6 +1449,50 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:            The set of matching function addresses.
         """
         return {addr for addr, count in self._func_block_counts.items() if count == block_count}
+
+    #
+    # Function name / signature-source caches
+    #
+
+    def get_func_name(self, addr: K) -> str | None:
+        """
+        Get the name of a function without loading the (possibly spilled) Function object.
+
+        :param addr:    Address of the function.
+        :return:        The function's name, or None if unknown.
+        """
+        return self._func_names.get(addr)
+
+    def get_from_signature(self, addr: K) -> str | None:
+        """
+        Get the ``from_signature`` value of a function without loading the (possibly spilled) Function
+        object.
+
+        :param addr:    Address of the function.
+        :return:        The function's ``from_signature`` value (e.g. ``"flirt"``), or None.
+        """
+        return self._func_from_signature.get(addr)
+
+    def set_from_signature(self, addr: K, from_signature: str | None) -> None:
+        """
+        Update the cached ``from_signature`` value for a function. Called by Function.from_signature's
+        setter.
+
+        :param addr:            Address of the function.
+        :param from_signature:  The new ``from_signature`` value.
+        :return:                None
+        """
+        self._func_from_signature[addr] = from_signature
+
+    def get_all_funcaddrs_from_signature(self, from_signature: str = "flirt") -> set[K]:
+        """
+        Get the addresses of all functions whose ``from_signature`` matches, without loading any
+        Function object.
+
+        :param from_signature:  The ``from_signature`` value to match (default ``"flirt"``).
+        :return:                The set of matching function addresses.
+        """
+        return {addr for addr, value in self._func_from_signature.items() if value == from_signature}
 
     #
     # Key functions

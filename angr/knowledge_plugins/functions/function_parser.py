@@ -10,7 +10,12 @@ from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.protos import function_pb2, primitives_pb2
 from angr.sim_type import SimType, SimTypeFunction
-from angr.utils.enums_conv import func_edge_type_from_pb, func_edge_type_to_pb
+from angr.utils.enums_conv import (
+    _EDGETYPE_MISSING,
+    _PB_TO_FUNCTION_EDGETYPES,
+    func_edge_type_from_pb,
+    func_edge_type_to_pb,
+)
 from angr.utils.types import make_type_reference
 
 l = logging.getLogger(name=__name__)
@@ -219,10 +224,12 @@ class FunctionParser:
         obj.previous_names = list(cmsg.previous_names)
 
         # signature matched?
+        # set the backing slot directly so that loading a function from LMDB does not mark it dirty or
+        # trigger the FunctionManager cache hook
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:
-            obj.from_signature = None
+            obj._from_signature = None
         elif cmsg.matched_from == function_pb2.Function.FLIRT:
-            obj.from_signature = "flirt"
+            obj._from_signature = "flirt"
         else:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
@@ -273,6 +280,9 @@ class FunctionParser:
         # edges
         edges = {}
         fake_return_edges = defaultdict(list)
+        # inline the protobuf-jumpkind -> edge-type lookup on this hot per-edge path; fall back to
+        # func_edge_type_from_pb only to log the error for an unrecognized value
+        edge_type_of = _PB_TO_FUNCTION_EDGETYPES.get
         for edge_cmsg in cmsg.graph.edges:
             if edge_cmsg.src_ea in blocks:
                 src = blocks[edge_cmsg.src_ea]
@@ -284,7 +294,9 @@ class FunctionParser:
                     project,
                 )
 
-            edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
+            edge_type = edge_type_of(edge_cmsg.jumpkind, _EDGETYPE_MISSING)
+            if edge_type is _EDGETYPE_MISSING:
+                edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
             if edge_type == "call":

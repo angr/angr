@@ -29,6 +29,19 @@ class RustSymbolRecovery(Analysis):
 
         self._analyze()
 
+    def _collect_rust_symbols(self):
+        """Record the demangled name of every FLIRT-matched function.
+
+        Driven from the FunctionManager ``from_signature`` cache so it iterates only the FLIRT-matched
+        subset instead of constructing a meta object for every function in the binary.
+        """
+        functions = self.project.kb.functions
+        for addr in functions.get_all_funcaddrs_from_signature("flirt"):
+            name = functions.get_func_name(addr)
+            if name is None:
+                name = functions.get_by_addr(addr, meta_only=True).name
+            self.rust_symbols[addr] = demangle(name)
+
     def _analyze(self):
         version = self.project.rustc_version
         sig_dir = self.best_sig_dir
@@ -49,23 +62,17 @@ class RustSymbolRecovery(Analysis):
 
         l.info("Applied %d signature files for version %s", applied, version)
 
-        for func in self.project.kb.functions.values(meta_only=True):
-            if func.from_signature == "flirt":
-                self.rust_symbols[func.addr] = demangle(func.name)
+        self._collect_rust_symbols()
         l.info("Recovered %d rust symbols (after Flirt)", len(self.rust_symbols))
 
         self.project.analyses.FlirtSigPropagation(cfg=self.project.kb.cfgs.get_most_accurate())
 
-        for func in self.project.kb.functions.values(meta_only=True):
-            if func.from_signature == "flirt":
-                self.rust_symbols[func.addr] = demangle(func.name)
+        self._collect_rust_symbols()
         l.info("Recovered %d rust symbols (after FlirtSigPropagation)", len(self.rust_symbols))
 
         self.project.analyses.CleanupFunctionIdentification()
 
-        for func in self.project.kb.functions.values(meta_only=True):
-            if func.from_signature == "flirt":
-                self.rust_symbols[func.addr] = demangle(func.name)
+        self._collect_rust_symbols()
         l.info("Recovered %d rust symbols (after CleanupFunctionIdentification)", len(self.rust_symbols))
 
         total_functions = len(self.project.kb.functions)
