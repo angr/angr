@@ -7,10 +7,12 @@
 //! synchronously, before any other lift, while holding the GIL (and pyvex's
 //! `_libvex_lock`).
 //!
-//! Symbols are resolved with `dlsym(RTLD_DEFAULT, ...)`: pyvex `dlopen`s
-//! `libpyvex.so` with `RTLD_GLOBAL`, so once pyvex is imported (always true on
-//! this code path) the symbols are in the global namespace and we need no
-//! link-time dependency on the shared object.
+//! Symbols are resolved at runtime against the already-loaded libpyvex: we
+//! reopen it by path (`dlopen` on POSIX, `LoadLibraryA` on Windows -- the
+//! library is already mapped once pyvex is imported, always true on this code
+//! path, so this just hands back a usable handle) and resolve `vex_lift` /
+//! `typeOfPrimop` against that handle. No link-time dependency on the shared
+//! object is needed. See the `dl` module below for the platform split.
 
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
@@ -520,19 +522,79 @@ pub unsafe fn cstr(p: *const c_char) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// libpyvex symbol resolution (dlsym against the already-loaded library)
+// libpyvex symbol resolution (against the already-loaded library)
 // ---------------------------------------------------------------------------
+//
+// We reopen libpyvex *by path* and resolve symbols against the returned handle
+// rather than the global namespace, so no link-time dependency on the shared
+// object is needed. The two platform helpers below -- `lib_open(path)` and
+// `lib_sym(handle, name)` -- wrap the POSIX (`dlopen`/`dlsym`) and Windows
+// (`LoadLibraryA`/`GetProcAddress`) loaders behind one interface.
 
-unsafe extern "C" {
-    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-    fn dlopen(file: *const c_char, flag: c_int) -> *mut c_void;
+#[cfg(unix)]
+mod dl {
+    use std::ffi::{CStr, CString, c_char, c_int, c_void};
+
+    unsafe extern "C" {
+        fn dlopen(file: *const c_char, flag: c_int) -> *mut c_void;
+        fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+    }
+
+    // RTLD_NOW | RTLD_GLOBAL (Linux). cffi loads libpyvex RTLD_LOCAL, so its
+    // symbols aren't in the default scope; we reopen it by path (the library
+    // is already mapped, so this just returns a usable handle) and promote it
+    // global. We then resolve against that handle directly, so the flags only
+    // affect the bind mode / scope, not whether resolution succeeds.
+    const RTLD_NOW: c_int = 0x0002;
+    const RTLD_GLOBAL: c_int = 0x0100;
+
+    pub(super) fn lib_open(path: &str) -> *mut c_void {
+        let Ok(cpath) = CString::new(path) else {
+            return std::ptr::null_mut();
+        };
+        unsafe { dlopen(cpath.as_ptr(), RTLD_NOW | RTLD_GLOBAL) }
+    }
+
+    pub(super) fn lib_sym(handle: *mut c_void, name: &CStr) -> *mut c_void {
+        if handle.is_null() {
+            return std::ptr::null_mut();
+        }
+        unsafe { dlsym(handle, name.as_ptr()) }
+    }
 }
 
-// RTLD_NOW | RTLD_GLOBAL (Linux). cffi loads libpyvex RTLD_LOCAL, so its
-// symbols aren't in the default scope; we re-open it by path (the library is
-// already mapped, so this just returns a usable handle) and promote it global.
-const RTLD_NOW: c_int = 0x0002;
-const RTLD_GLOBAL: c_int = 0x0100;
+#[cfg(windows)]
+mod dl {
+    use std::ffi::{CStr, c_char, c_void};
+
+    // kernel32 is auto-linked by the Windows toolchains. `GetProcAddress` really
+    // returns `FARPROC` (a function pointer); a pointer-sized `*mut c_void` is
+    // ABI-compatible and matches how the resolved symbol is used. We use the
+    // wide `LoadLibraryW` so a pyvex install path with non-ASCII characters
+    // (e.g. under a user profile) still loads -- the ANSI `LoadLibraryA` would
+    // misread the UTF-8-sourced path through the current code page. Symbol
+    // names are always ASCII, so `GetProcAddress` (ANSI-only) is fine.
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn LoadLibraryW(lp_lib_file_name: *const u16) -> *mut c_void;
+        fn GetProcAddress(h_module: *mut c_void, lp_proc_name: *const c_char) -> *mut c_void;
+    }
+
+    pub(super) fn lib_open(path: &str) -> *mut c_void {
+        // pyvex.dll is already loaded; LoadLibraryW by full path returns the
+        // existing module handle (bumping its refcount). Encode to
+        // NUL-terminated UTF-16.
+        let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe { LoadLibraryW(wide.as_ptr()) }
+    }
+
+    pub(super) fn lib_sym(handle: *mut c_void, name: &CStr) -> *mut c_void {
+        if handle.is_null() {
+            return std::ptr::null_mut();
+        }
+        unsafe { GetProcAddress(handle, name.as_ptr()) }
+    }
+}
 
 /// `VexArchInfo` is passed to `vex_lift` *by value*.
 pub type VexLiftFn = unsafe extern "C" fn(
@@ -573,9 +635,9 @@ unsafe impl Sync for Symbols {}
 
 static SYMBOLS: OnceLock<Symbols> = OnceLock::new();
 
-fn dlsym_as<T: Copy>(handle: *mut c_void, name: &str) -> Option<T> {
+fn sym_as<T: Copy>(handle: *mut c_void, name: &str) -> Option<T> {
     let cname = std::ffi::CString::new(name).ok()?;
-    let ptr = unsafe { dlsym(handle, cname.as_ptr()) };
+    let ptr = dl::lib_sym(handle, &cname);
     if ptr.is_null() {
         return None;
     }
@@ -602,13 +664,13 @@ fn pyvex_lib_path(py: pyo3::Python<'_>) -> Option<String> {
 }
 
 fn resolve_all(py: pyo3::Python<'_>) -> Symbols {
-    let handle = match pyvex_lib_path(py).and_then(|p| std::ffi::CString::new(p).ok()) {
-        Some(cpath) => unsafe { dlopen(cpath.as_ptr(), RTLD_NOW | RTLD_GLOBAL) },
+    let handle = match pyvex_lib_path(py) {
+        Some(path) => dl::lib_open(&path),
         None => std::ptr::null_mut(),
     };
     Symbols {
-        vex_lift: dlsym_as::<VexLiftFn>(handle, "vex_lift"),
-        type_of_primop: dlsym_as::<TypeOfPrimopFn>(handle, "typeOfPrimop"),
+        vex_lift: sym_as::<VexLiftFn>(handle, "vex_lift"),
+        type_of_primop: sym_as::<TypeOfPrimopFn>(handle, "typeOfPrimop"),
     }
 }
 
