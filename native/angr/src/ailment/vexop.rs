@@ -253,9 +253,7 @@ fn op_attrs(name: &str) -> Option<Attrs> {
 /// Build + classify, mirroring `SimIROp.__init__`. `Err(())` means the op
 /// would raise (BCD / size-mismatch / no calculate function) and the converter
 /// must emit a `DirtyExpression`.
-fn build(name: &str, op_int: u32, a: &Attrs) -> Result<SimOpInfo, ()> {
-    let output_size_bits = vex_ffi::type_size_bits(vex_ffi::op_result_type(op_int));
-
+fn build(name: &str, output_size_bits: u32, a: &Attrs) -> Result<SimOpInfo, ()> {
     // size_check
     if let Some(to_size) = a.to_size {
         let effective = if a.generic_name.as_deref() == Some("DivMod") {
@@ -449,20 +447,37 @@ fn explicit_attrs(name: &str) -> Option<Attrs> {
 }
 
 /// Faithful port of `vexop_to_simop(op)`. `Err(())` => unsupported (the
-/// converter emits a `DirtyExpression`).
+/// converter emits a `DirtyExpression`). The op's output size comes from
+/// libVEX `typeOfPrimop`.
 pub(crate) fn vexop_to_simop(op_int: u32) -> Result<SimOpInfo, ()> {
     let name = op_name(op_int).ok_or(())?;
+    let output_size_bits = vex_ffi::type_size_bits(vex_ffi::op_result_type(op_int));
+    classify(name, output_size_bits)
+}
 
+/// Classify an op by *name*, with the output size supplied by the caller.
+///
+/// The Python-IRSB reader takes this path for ops that libVEX emits but pyvex
+/// does not expose as an integer constant -- e.g. `Iop_DivU8` / `Iop_Mod8`,
+/// which pyvex's Python lifter synthesizes for AAM/AAD. `op_name` /
+/// `typeOfPrimop` can't be used (there is no valid integer), so the size is
+/// read from the pyvex expression's `result_size` instead. Mirrors how angr's
+/// `irop.vexop_to_simop` classifies purely from the op name.
+pub(crate) fn vexop_to_simop_by_name(name: &str, output_size_bits: u32) -> Result<SimOpInfo, ()> {
+    classify(name, output_size_bits)
+}
+
+fn classify(name: &str, output_size_bits: u32) -> Result<SimOpInfo, ()> {
     // make_operations: attrs from explicit_attrs-or-op_attrs; if it builds, it
     // is cached in `operations` and returned directly.
     let primary = explicit_attrs(name).or_else(|| op_attrs(name));
     if let Some(a) = &primary
-        && let Ok(info) = build(name, op_int, a)
+        && let Ok(info) = build(name, output_size_bits, a)
     {
         return Ok(info);
     }
 
     // Not in the cache -> extended re-parse uses op_attrs only.
     let a2 = op_attrs(name).ok_or(())?;
-    build(name, op_int, &a2)
+    build(name, output_size_bits, &a2)
 }

@@ -57,6 +57,40 @@ struct ConstVal {
     bits: u32,
 }
 
+/// How a reader identifies a VEX op. The C reader has the libVEX integer; the
+/// Python-IRSB reader has the op *name* (plus the pyvex-reported result size),
+/// which is the only way to classify ops libVEX emits but pyvex does not expose
+/// as an integer constant -- e.g. `Iop_DivU8` / `Iop_Mod8`, which pyvex's Python
+/// lifter synthesizes for AAM/AAD.
+enum OpRef {
+    Int(u32),
+    Named { name: String, result_bits: u32 },
+}
+
+impl OpRef {
+    fn simop(&self) -> Result<vexop::SimOpInfo, ()> {
+        match self {
+            OpRef::Int(i) => vexop::vexop_to_simop(*i),
+            // Prefer the exact integer path for ops pyvex *does* expose (so the
+            // output size still comes from libVEX `typeOfPrimop`); fall back to
+            // name-only classification for the ones it doesn't.
+            OpRef::Named { name, result_bits } => match vexop::op_int_from_name(name) {
+                Some(i) => vexop::vexop_to_simop(i),
+                None => vexop::vexop_to_simop_by_name(name, *result_bits),
+            },
+        }
+    }
+
+    /// Op name, for the `Not1` special-case and unsupported-op DirtyExpression
+    /// labels.
+    fn label(&self) -> String {
+        match self {
+            OpRef::Int(i) => op_label(*i),
+            OpRef::Named { name, .. } => name.clone(),
+        }
+    }
+}
+
 enum ExprKind<E> {
     RdTmp {
         tmp: u32,
@@ -72,16 +106,16 @@ enum ExprKind<E> {
         addr: E,
     },
     Unop {
-        op: u32,
+        op: OpRef,
         arg: E,
     },
     Binop {
-        op: u32,
+        op: OpRef,
         arg1: E,
         arg2: E,
     },
     Triop {
-        op: u32,
+        op: OpRef,
         args: Vec<E>,
     },
     Const {
@@ -348,18 +382,18 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             }
             ExprKind::Unop { op, arg } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_unop(op, &arg, bits);
-                self.finish_op(r, op, bits)
+                let r = self.convert_unop(&op, &arg, bits);
+                self.finish_op(r, op.label(), bits)
             }
             ExprKind::Binop { op, arg1, arg2 } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_binop(op, &arg1, &arg2);
-                self.finish_op(r, op, bits)
+                let r = self.convert_binop(&op, &arg1, &arg2);
+                self.finish_op(r, op.label(), bits)
             }
             ExprKind::Triop { op, args } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_triop(op, &args);
-                self.finish_op(r, op, bits)
+                let r = self.convert_triop(&op, &args);
+                self.finish_op(r, op.label(), bits)
             }
             ExprKind::Unsupported { label, bits } => self.unsupported_expr(label, bits),
         }
@@ -420,8 +454,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     ///
     /// `bits` is the VEX result size of the whole unop expression (the
     /// Python converter's `expr.result_size(manager.tyenv)`).
-    fn convert_unop(&mut self, op: u32, arg: &R::E, bits: u32) -> Result<AilExpression, ConvErr> {
-        let simop = vexop::vexop_to_simop(op).map_err(|_| ConvErr::Unsupported)?;
+    fn convert_unop(
+        &mut self,
+        op: &OpRef,
+        arg: &R::E,
+        bits: u32,
+    ) -> Result<AilExpression, ConvErr> {
+        let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let op_name = simop.generic_name.clone();
 
         if op_name.as_deref() == Some("Reinterp") {
@@ -501,7 +540,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         }
 
         let mut name = op_name.unwrap();
-        if name == "Not" && op_label(op) != "Iop_Not1" {
+        if name == "Not" && op.label() != "Iop_Not1" {
             name = "BitwiseNeg".to_string();
         }
         // Python arg eval order: UnaryOp(next_atom(), name, convert(arg), bits=...).
@@ -519,8 +558,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
     // ---- Binop ---------------------------------------------------------
 
-    fn convert_binop(&mut self, op: u32, a1: &R::E, a2: &R::E) -> Result<AilExpression, ConvErr> {
-        let simop = vexop::vexop_to_simop(op).map_err(|_| ConvErr::Unsupported)?;
+    fn convert_binop(
+        &mut self,
+        op: &OpRef,
+        a1: &R::E,
+        a2: &R::E,
+    ) -> Result<AilExpression, ConvErr> {
+        let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let mut op_name = simop.generic_name.clone();
         let mut operands = vec![self.convert_expr(a1)?, self.convert_expr(a2)?];
 
@@ -752,8 +796,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         ))
     }
 
-    fn convert_triop(&mut self, op: u32, args: &[R::E]) -> Result<AilExpression, ConvErr> {
-        let simop = vexop::vexop_to_simop(op).map_err(|_| ConvErr::Unsupported)?;
+    fn convert_triop(&mut self, op: &OpRef, args: &[R::E]) -> Result<AilExpression, ConvErr> {
+        let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let op_name = simop.generic_name.clone().unwrap_or_default();
         let mut operands = self.convert_list(args)?;
         let bits = simop.output_size_bits;
@@ -791,12 +835,12 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     fn finish_op(
         &mut self,
         r: Result<AilExpression, ConvErr>,
-        op: u32,
+        op_label: String,
         bits: u32,
     ) -> PyResult<AilExpression> {
         match r {
             Ok(o) => Ok(o),
-            Err(ConvErr::Unsupported) => self.unsupported_expr(op_label(op), bits),
+            Err(ConvErr::Unsupported) => self.unsupported_expr(op_label, bits),
             Err(ConvErr::Py(e)) => Err(e),
         }
     }
@@ -1110,6 +1154,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     fn convert_block(&mut self) -> PyResult<Py<PyAny>> {
         let mut statements: Vec<AilStatement> = Vec::new();
         let mut addr = self.block_addr;
+        // Guarantee every emitted statement carries an ``ins_addr``: seed it
+        // with the block address so a statement produced before the first
+        // IMark -- or the terminator of a block that decodes no instructions
+        // at all (pure NoDecode / invalid bytes, hence no IMark) -- still gets
+        // a source address instead of ``None``. Each IMark overrides it with
+        // the real instruction address below.
+        self.ins_addr = Some(addr);
         let mut first_imark = true;
         let mut cond_jump_positions: Vec<usize> = Vec::new();
 
@@ -1819,18 +1870,18 @@ impl IrReader for CReader {
                     addr: iex.load.addr,
                 },
                 IEX_UNOP => ExprKind::Unop {
-                    op: iex.unop.op,
+                    op: OpRef::Int(iex.unop.op),
                     arg: iex.unop.arg,
                 },
                 IEX_BINOP => ExprKind::Binop {
-                    op: iex.binop.op,
+                    op: OpRef::Int(iex.binop.op),
                     arg1: iex.binop.arg1,
                     arg2: iex.binop.arg2,
                 },
                 IEX_TRIOP => {
                     let d = &*iex.triop.details;
                     ExprKind::Triop {
-                        op: d.op,
+                        op: OpRef::Int(d.op),
                         args: vec![d.arg1, d.arg2, d.arg3],
                     }
                 }
@@ -2378,14 +2429,19 @@ impl<'py> IrReader for PyReader<'py> {
                 addr: unbind_any(expr.getattr("addr")?),
             },
             "Unop" => ExprKind::Unop {
-                op: vexop::op_int_from_name(&expr.getattr("op")?.extract::<String>()?).unwrap_or(0),
+                op: OpRef::Named {
+                    name: expr.getattr("op")?.extract::<String>()?,
+                    result_bits: self.result_size(expr),
+                },
                 arg: unbind_any(expr.getattr("args")?.get_item(0)?),
             },
             "Binop" => {
                 let args = expr.getattr("args")?;
                 ExprKind::Binop {
-                    op: vexop::op_int_from_name(&expr.getattr("op")?.extract::<String>()?)
-                        .unwrap_or(0),
+                    op: OpRef::Named {
+                        name: expr.getattr("op")?.extract::<String>()?,
+                        result_bits: self.result_size(expr),
+                    },
                     arg1: unbind_any(args.get_item(0)?),
                     arg2: unbind_any(args.get_item(1)?),
                 }
@@ -2397,8 +2453,10 @@ impl<'py> IrReader for PyReader<'py> {
                     v.push(a?.unbind());
                 }
                 ExprKind::Triop {
-                    op: vexop::op_int_from_name(&expr.getattr("op")?.extract::<String>()?)
-                        .unwrap_or(0),
+                    op: OpRef::Named {
+                        name: expr.getattr("op")?.extract::<String>()?,
+                        result_bits: self.result_size(expr),
+                    },
                     args: v,
                 }
             }
