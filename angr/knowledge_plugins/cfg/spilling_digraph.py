@@ -583,6 +583,19 @@ class SpillingDiGraph(networkx.DiGraph):
         self._adj.evict_all_cached()
         self._pred.evict_all_cached()
 
+    def set_edge_eviction_enabled(self, enabled: bool) -> None:
+        """
+        Enable or disable eviction of adjacency entries. Disabling eviction is useful during bulk edge insertion;
+        call spill_down_edges() afterwards to bring the caches back within their limits.
+        """
+        self._adj._eviction_enabled = enabled
+        self._pred._eviction_enabled = enabled
+
+    def spill_down_edges(self) -> None:
+        """Evict least-recently-used adjacency entries until the caches are back within their limits."""
+        self._adj._evict_lru()
+        self._pred._evict_lru()
+
     #
     #  Pickling
     #

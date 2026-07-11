@@ -253,25 +253,39 @@ class CFGModel(Serializable):
         # create a new model unassociated from any project
         model = cls(cmsg.ident) if cfg_manager is None else cfg_manager.new_model(cmsg.ident)
 
-        # nodes
-        for node_pb2 in cmsg.nodes:
-            node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
-            node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
-            model.graph.add_node(node)
+        if (
+            model.graph._spilling_enabled
+            and model.graph._nodes.rtdb is not None
+            and model.addr_type == "int"
+            and len(cmsg.nodes) > model.graph._nodes.cache_limit
+        ):
+            # Fast path: there are more nodes than the node cache may keep in memory. Adding all nodes and edges
+            # through the regular code path would thrash the LRU caches (nodes and adjacency entries would be
+            # repeatedly serialized, evicted, and reloaded). Instead, the serialized node bytes are moved directly
+            # into the LMDB backing store (they are in the exact format that SpillingCFGNodeDict spills to LMDB)
+            # and the adjacency structure is built without materializing any CFGNode object. Nodes are then
+            # deserialized on-demand upon first access.
+            cls._parse_graph_spilled(cmsg, model)
+        else:
+            # nodes
+            for node_pb2 in cmsg.nodes:
+                node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
+                node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
+                model.graph.add_node(node)
 
-        model._node_addrs = None
+            model._node_addrs = None
 
-        # edges
-        for edge_pb2 in cmsg.edges:
-            # more than one node at a given address is unsupported, grab the first one
-            src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
-            dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
-            data = {
-                "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-                "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
-            }
-            model.graph.add_edge(src, dst, **data)
+            # edges
+            for edge_pb2 in cmsg.edges:
+                # more than one node at a given address is unsupported, grab the first one
+                src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
+                dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
+                data = {
+                    "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
+                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+                    "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
+                }
+                model.graph.add_edge(src, dst, **data)
 
         # memory data
         for data_pb2 in cmsg.memory_data:
@@ -292,6 +306,47 @@ class CFGModel(Serializable):
         model._block_addrs_with_return = set(cmsg.block_addrs_with_return)
 
         return model
+
+    @staticmethod
+    def _parse_graph_spilled(cmsg, model: CFGModel) -> None:
+        """
+        Parse the nodes and edges of a serialized CFG directly into the spilling backing stores of the graph of the
+        given model, without materializing CFGNode objects.
+        """
+
+        graph = model.graph
+
+        # nodes: LMDB records of SpillingCFGNodeDict are a type byte (0x00 for CFGNode) followed by the serialized
+        # CFGNode message, which is the exact message stored in the database. Copy the bytes directly.
+        items = []
+        for node_pb2 in cmsg.nodes:
+            # this mirrors what get_block_key() returns for the node that CFGNode.parse_from_cmessage() would build:
+            # the block ID (which defaults to the node address) and the node size
+            block_id = node_pb2.block_id[0] if node_pb2.block_id else node_pb2.ea
+            block_key = (block_id, node_pb2.size)
+            items.append((block_key, node_pb2.ea, b"\x00" + node_pb2.SerializeToString()))
+
+        # disable adjacency eviction while nodes and edges are inserted; spill down once at the end
+        graph._graph.set_edge_eviction_enabled(False)
+        try:
+            graph.bulk_import_serialized_nodes(items)
+            model._node_addrs = None
+
+            # edges
+            keys_by_addr = graph._keys_by_addr
+            for edge_pb2 in cmsg.edges:
+                # more than one node at a given address is unsupported, grab the first one
+                src_key = next(iter(keys_by_addr.get(edge_pb2.src_ea, ())))
+                dst_key = next(iter(keys_by_addr.get(edge_pb2.dst_ea, ())))
+                data = {
+                    "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
+                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+                    "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
+                }
+                graph.add_edge_by_key(src_key, dst_key, **data)
+        finally:
+            graph._graph.set_edge_eviction_enabled(True)
+        graph._graph.spill_down_edges()
 
     #
     # Other methods

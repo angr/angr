@@ -382,6 +382,41 @@ class SpillingCFGNodeDict:
             ):
                 self._evict_lru()
 
+    def bulk_import_serialized(self, items: list[tuple[K, bytes]]) -> None:
+        """
+        Bulk-import already-serialized CFG nodes directly into the LMDB backing store and register them as spilled,
+        without deserializing them. Each payload must be in the exact format that _save_to_lmdb() writes: a type
+        byte (0x00 for CFGNode, 0x01 for CFGENode) followed by the serialized protobuf message.
+
+        Imported nodes are deserialized lazily upon first access, through the regular _load_from_lmdb() path.
+
+        :param items:   A list of (block key, serialized node payload) tuples.
+        """
+
+        if not items or self.rtdb is None:
+            return
+
+        self._init_lmdb()
+        assert self._nodesdb is not None
+
+        with self._db_store_lock:
+            while True:
+                try:
+                    with self.rtdb.begin_txn(self._nodesdb, write=True) as txn:
+                        for block_key, payload in items:
+                            txn.put(str(block_key).encode("utf-8"), payload)
+                    break
+                except lmdb.MapFullError:
+                    # Increase map size and retry
+                    self.rtdb.increase_lmdb_map_size()
+
+            for block_key, _ in items:
+                if block_key in self._data:
+                    # drop the stale in-memory copy; LMDB now holds the authoritative data
+                    del self._data[block_key]
+                    self._lru_order.pop(block_key, None)
+                self._spilled_keys.add(block_key)
+
     def load_all_spilled(self) -> None:
         if not self._spilled_keys:
             return
@@ -820,6 +855,23 @@ class SpillingCFG:
         self._graph.add_node(block_key, **attr)
         # update _keys_by_addr
         self._keys_by_addr[node.addr].add(block_key)
+
+    def bulk_import_serialized_nodes(self, items: list[tuple[K, int | SootAddressDescriptor, bytes]]) -> None:
+        """
+        Bulk-import already-serialized nodes directly into the LMDB backing store as spilled entries, without
+        constructing any CFGNode objects, and register each node in the underlying graph structure and the
+        address index. Nodes are deserialized lazily upon first access.
+
+        :param items:   A list of (block key, node address, serialized node payload) tuples. See
+                        SpillingCFGNodeDict.bulk_import_serialized() for the payload format.
+        """
+
+        self._nodes.bulk_import_serialized([(block_key, payload) for block_key, _, payload in items])
+        graph_add_node = self._graph.add_node
+        keys_by_addr = self._keys_by_addr
+        for block_key, addr, _ in items:
+            graph_add_node(block_key)
+            keys_by_addr[addr].add(block_key)
 
     def remove_node(self, node: CFGNode) -> None:
         block_key = get_block_key(node)

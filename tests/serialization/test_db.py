@@ -167,6 +167,71 @@ class TestDb(unittest.TestCase):
         assert set(old_format_proj.kb.functions.callgraph.nodes) == set(proj.kb.functions.callgraph.nodes)
         assert set(old_format_proj.kb.functions.callgraph.edges()) == set(proj.kb.functions.callgraph.edges())
 
+    def test_angrdb_fast_load_spilled_cfg_nodes(self):
+        # When the database contains more CFG nodes than the CFG node cache may keep in memory, the serialized node
+        # bytes are moved directly into the LMDB backing store on load without being deserialized, and the graph
+        # structure is built without materializing CFGNode objects.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # force the fast path by using tiny CFG node/edge cache limits
+        with (
+            mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
+            mock.patch.object(angr.Project, "get_cfg_edge_cache_limit", return_value=5),
+        ):
+            new_proj = AngrDB(nullpool=True).load(db_file)
+
+        new_cfg = new_proj.kb.cfgs["CFGFast"]
+        assert new_cfg.graph.spilled_count > 0
+
+        assert new_cfg.graph.number_of_nodes() == cfg.model.graph.number_of_nodes()
+        assert new_cfg.graph.number_of_edges() == cfg.model.graph.number_of_edges()
+
+        # on-demand access must fully deserialize each node, and node content must round-trip
+        def _node_rec(n):
+            return (
+                n.addr,
+                n.size,
+                n.block_id,
+                n.name,
+                n.function_address,
+                n.no_ret,
+                n.thumb,
+                n.is_syscall,
+                n.simprocedure_name,
+                n.byte_string,
+                tuple(n.instruction_addrs),
+            )
+
+        assert sorted(_node_rec(n) for n in new_cfg.graph.nodes()) == sorted(
+            _node_rec(n) for n in cfg.model.graph.nodes()
+        )
+
+        # edge content (including edge data) must round-trip
+        def _edge_recs(model):
+            return sorted(
+                (src.addr, src.size, dst.addr, dst.size, data.get("jumpkind"), data.get("ins_addr"))
+                for src, dst, data in model.graph.edges(data=True)
+            )
+
+        assert _edge_recs(new_cfg) == _edge_recs(cfg.model)
+
+        # get_any_node must work and return nodes with the correct function addresses
+        for func in proj.kb.functions.values():
+            for block_addr in func.block_addrs_set:
+                node = new_cfg.get_any_node(block_addr)
+                old_node = cfg.model.get_any_node(block_addr)
+                if old_node is not None:
+                    assert node is not None
+                    assert node.function_address == old_node.function_address
+
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
