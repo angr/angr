@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import deque
+
 from angr.analyses.analysis import AnalysesHub, Analysis
 
 
@@ -32,9 +34,9 @@ class FlirtSigPropagation(Analysis):
         functions = self.project.kb.functions
         # read the FLIRT-matched function addresses from the FunctionManager cache instead of loading
         # every Function object just to inspect from_signature
-        queue = list(functions.get_func_addrs_from_signature("flirt"))
+        queue: deque[int] = deque(functions.get_func_addrs_from_signature("flirt"))
         while queue:
-            func_addr = queue.pop(0)
+            func_addr = queue.popleft()
             for pred_addr in self.project.kb.callgraph.predecessors(func_addr):
                 # skip predecessors that already carry a signature, and non-simple ones, using cached
                 # metadata before touching the (possibly spilled) Function objects
