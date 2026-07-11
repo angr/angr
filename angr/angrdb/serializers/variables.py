@@ -32,6 +32,11 @@ class VariableManagerSerializer:
         session, db_kb: DbKnowledgeBase, internal_manager: VariableManagerInternal, func_addr: int, ident=None
     ):
         blob = internal_manager.serialize()
+        if not blob:
+            # the variable manager is empty: it serializes to a zero-length protobuf message, which by proto3
+            # semantics happens exactly when it holds no variables, no phi variables, no variable accesses, no
+            # unified variables, and no relations. Empty variable managers are not stored.
+            return
 
         db_varcoll = DbVariableCollection(kb=db_kb, ident=ident or None, func_addr=func_addr, blob=blob)
         session.add(db_varcoll)
@@ -42,6 +47,10 @@ class VariableManagerSerializer:
 
         db_varcolls = session.query(DbVariableCollection).filter_by(kb=db_kb, ident=ident)
         for db_varcoll in db_varcolls:
+            if not db_varcoll.blob:
+                # databases created by older versions of angr may contain empty variable managers; they decode to
+                # managers without any content and are re-created on demand, so they are not loaded
+                continue
             internal = VariableManagerSerializer.load_internal(db_varcoll, variable_manager)
             if internal.func_addr is None:
                 variable_manager.global_manager = internal

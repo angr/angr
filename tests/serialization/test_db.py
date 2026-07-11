@@ -297,6 +297,62 @@ class TestDb(unittest.TestCase):
                     assert node is not None
                     assert node.function_address == old_node.function_address
 
+    def test_angrdb_variables_empty_managers_not_serialized(self):
+        # Empty variable managers are not serialized into the database, and empty rows in databases created by
+        # older versions of angr are ignored on load. Non-empty variable managers round-trip with their content.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        vm = proj.kb.variables
+        # force-create empty variable managers for two functions that have none
+        empty_addrs = [addr for addr in sorted(proj.kb.functions) if addr not in vm.function_managers][:2]
+        assert len(empty_addrs) == 2
+        for addr in empty_addrs:
+            vm.get_function_manager(addr)
+            assert not vm.function_managers[addr].serialize()
+
+        nonempty_addrs = {addr for addr, internal in vm.function_managers.items() if internal.serialize()}
+        assert nonempty_addrs, "decompilation should have produced at least one non-empty variable manager"
+
+        def content(internal):
+            return (
+                sorted(v.ident for v in internal._variables),
+                sorted(v.ident for v in internal._unified_variables),
+                sorted(v.ident for v in internal._phi_variables),
+            )
+
+        pre_content = {addr: content(vm.function_managers[addr]) for addr in nonempty_addrs}
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # no empty rows are written
+        conn = sqlite3.connect(db_file)
+        rows = conn.execute("SELECT func_addr, length(blob) FROM variables").fetchall()
+        conn.close()
+        assert all(blob_len > 0 for _, blob_len in rows)
+        assert {func_addr for func_addr, _ in rows if func_addr != -1} == nonempty_addrs
+
+        # only non-empty managers are present after loading, with identical content
+        new_proj = AngrDB(nullpool=True).load(db_file)
+        new_vm = new_proj.kb.variables
+        assert set(new_vm.function_managers) == nonempty_addrs
+        for addr in nonempty_addrs:
+            assert content(new_vm.function_managers[addr]) == pre_content[addr]
+
+        # empty rows in old-format databases are ignored on load
+        conn = sqlite3.connect(db_file)
+        conn.execute("INSERT INTO variables (kb_id, func_addr, blob) VALUES (1, ?, ?)", (empty_addrs[0], b""))
+        conn.commit()
+        conn.close()
+        old_format_proj = AngrDB(nullpool=True).load(db_file)
+        assert set(old_format_proj.kb.variables.function_managers) == nonempty_addrs
+
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
