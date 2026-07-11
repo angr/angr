@@ -294,13 +294,30 @@ class X86CCallRewriter(CCallRewriterBase):
                     }:
                         # dep_1 <= dep_2  if CondBE
                         # dep_1 < dep_2   if CondB
-                        return Expr.BinaryOp(
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            X86_OpTypes["G_CC_OP_SUBB"],
+                            X86_OpTypes["G_CC_OP_SUBW"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            X86_OpTypes["G_CC_OP_SUBB"],
+                            X86_OpTypes["G_CC_OP_SUBW"],
+                            ccall.tags,
+                        )
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLE" if cond_v == X86_CondTypes["CondBE"] else "CmpLT",
                             (dep_1, dep_2),
                             False,
                             bits=1,
                             **ccall.tags,
+                        )
+                        return Expr.Convert(
+                            self.ail_manager.next_atom(), cmp.bits, ccall.bits, False, cmp, **ccall.tags
                         )
                     if op_v in {
                         X86_OpTypes["G_CC_OP_LOGICB"],

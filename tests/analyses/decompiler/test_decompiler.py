@@ -5901,6 +5901,25 @@ class TestDecompiler(unittest.TestCase):
         extern_ptr_count = len(re.findall(rf"extern {u64_struct_name} \*g_", text))
         assert extern_ptr_count == 8, f"expected 8 extern globals typed as {u64_struct_name} *, got {extern_ptr_count}"
 
+    def test_x86_ccall_rewriter_condbe_sub_width(self, decompiler_options=None):
+        # sub_74d6a1 uses unsigned byte comparisons (cmp cl, ...; jbe/jb ...) whose flags are recovered through
+        # x86g_calculate_condition ccalls. This regression test covers a bug found in the x86 ccall rewriter.
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
+        )
+        func_addr = 0x74D6A1
+        proj, _ = load_project_with_scoped_cfg(
+            bin_path,
+            func_addr,
+            window=0x5000,
+            cfg_kwargs={"force_complete_scan": True},
+        )
+
+        f = proj.kb.functions[func_addr]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+
 
 if __name__ == "__main__":
     unittest.main()
