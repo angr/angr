@@ -66,8 +66,26 @@ class AddressConcretizationMixin(MemoryMixin):
     @MemoryMixin.memo
     def copy(self, memo):
         o = super().copy(memo)
-        o.read_strategies = list(self.read_strategies)
-        o.write_strategies = list(self.write_strategies)
+
+        # Concretization strategies are usually stateless and their ``copy()`` method
+        # returns ``self``. Some strategies do carry per-state data, however (for
+        # example, the no-repeat strategies), and explicitly implement ``copy()`` so
+        # that forks do not mutate one another. Merely copying the two lists leaves the
+        # strategy instances shared and makes that API ineffective.
+        #
+        # A strategy may intentionally be installed for both reads and writes. Preserve
+        # that alias within the new memory while still separating it from the source
+        # memory by copying each distinct source strategy exactly once.
+        copied_strategies = {}
+
+        def copy_strategy(strategy):
+            key = id(strategy)
+            if key not in copied_strategies:
+                copied_strategies[key] = strategy.copy()
+            return copied_strategies[key]
+
+        o.read_strategies = [copy_strategy(s) for s in self.read_strategies]
+        o.write_strategies = [copy_strategy(s) for s in self.write_strategies]
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
