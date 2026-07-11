@@ -11,7 +11,7 @@ import archinfo
 
 import angr
 from angr import ailment
-from angr.ailment.expression import BinaryOp, Const, Convert, Register
+from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert, Register
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
@@ -20,6 +20,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ConstantDereferences,
     EagerEvaluation,
     OptimizedDivisionSimplifier,
+    SimplifyBitwiseInserts,
 )
 from angr.analyses.decompiler.utils import peephole_optimize_expr
 from tests.common import bin_location
@@ -231,6 +232,62 @@ class TestPeepholeOptimizations(unittest.TestCase):
                 assert isinstance(r.operand, BinaryOp) and r.operand.op == "Div"
                 divisor_operand = r.operand.operands[1]
                 assert isinstance(divisor_operand, Const) and divisor_operand.value == divisor
+
+    def test_bitwise_inserts(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = SimplifyBitwiseInserts(proj, proj.kb, manager)
+
+        # Insert(a, 0<64>, (Extract(8, a, 0<8>) Or 44570<16>)) => a Or 44570<16>
+        expr = Insert(
+            manager.next_atom(),
+            Register(manager.next_atom(), 0, 64),
+            Const(manager.next_atom(), 0, 64),
+            BinaryOp(
+                manager.next_atom(),
+                "Or",
+                [
+                    Extract(
+                        manager.next_atom(),
+                        8,
+                        Register(manager.next_atom(), 0, 64),
+                        Const(manager.next_atom(), 0, 8),
+                        "Iend_LE",
+                    ),
+                    Const(manager.next_atom(), 44570, 16),
+                ],
+                False,
+            ),
+            "Iend_LE",
+        )
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "Or"
+        assert isinstance(out.operands[0], Register) and out.operands[0].bits == 64
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
+
+        # Insert(Conv(8->64, a), 0<64>, (Conv(8->16, a) Or 44570<16>))
+        #   => Conv(8->64, a) Or 44570<16>
+        expr = Insert(
+            manager.next_atom(),
+            Convert(manager.next_atom(), 8, 64, False, Register(manager.next_atom(), 0, 8)),
+            Const(manager.next_atom(), 0, 64),
+            BinaryOp(
+                manager.next_atom(),
+                "Or",
+                [
+                    Convert(manager.next_atom(), 8, 16, False, Register(manager.next_atom(), 0, 8)),
+                    Const(manager.next_atom(), 44570, 16),
+                ],
+                False,
+            ),
+            "Iend_LE",
+        )
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "Or"
+        assert isinstance(out.operands[0], Convert) and out.operands[0].operand.likes(
+            Register(manager.next_atom(), 0, 8)
+        )
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
 
 
 if __name__ == "__main__":
