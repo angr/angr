@@ -6,6 +6,7 @@ import logging
 import math
 import re
 import string
+import time
 from collections import OrderedDict, defaultdict
 from enum import Enum, unique
 from typing import TYPE_CHECKING, Any
@@ -80,6 +81,8 @@ if TYPE_CHECKING:
 
 
 VEX_IRSB_MAX_SIZE = 400
+# the minimum interval (in seconds) between two consecutive progress notifications
+PROGRESS_NOTIFY_INTERVAL = 0.05
 
 
 l = logging.getLogger(name=__name__)
@@ -886,6 +889,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._exception_handling_by_endaddr = SortedDict()
 
         self._last_percentage = 0.0
+        self._last_progress_notify = 0.0
         # record the number of resolved and unresolved indirect jumps *during* _process_unresolved_indirect_jumps()
         # always clear them after returning from _process_unresolved_indirect_jumps()
         self._transitory_resolved_indirect_jumps = 0
@@ -991,6 +995,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Do not calculate progress if the user doesn't care about the progress at all
         if not (self._show_progressbar or self._progress_callback):
             return
+
+        # Do not notify too often; this method is called hundreds of thousands of times on large binaries.
+        now = time.perf_counter()
+        if now - self._last_progress_notify < PROGRESS_NOTIFY_INTERVAL:
+            return
+        self._last_progress_notify = now
 
         max_percentage_stage_1 = 50.0
         if not skip_percentage:
