@@ -678,6 +678,48 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 if addr in self._meta_func_cache:
                     del self._meta_func_cache[addr]
 
+    def export_serialized(self) -> list[tuple[K, bytes, bool]]:
+        """
+        Export all functions as serialized bytes, e.g., for dumping into an angr database.
+
+        Functions whose LMDB records are guaranteed to be current are copied directly from the LMDB backing store
+        (in a single read transaction) without being deserialized and re-serialized. This applies to all spilled
+        functions and to cached functions that are clean: a Function instance is only ever clean if it was
+        deserialized from serialized bytes and has not been modified since (eviction relies on the same invariant
+        to skip writing clean functions back to LMDB). Dirty functions, and functions whose LMDB record is missing,
+        are serialized from their in-memory objects through the regular path.
+
+        :return: A list of (address, serialized function bytes, copied_from_lmdb) tuples, ordered by address.
+        """
+
+        # determine which functions may be copied directly from LMDB
+        copy_addrs = []
+        for addr in self._list:
+            func = self.data.get(addr)
+            if func is None or not func.dirty:
+                copy_addrs.append(addr)
+
+        copied: dict[K, bytes] = {}
+        if copy_addrs and self.rtdb is not None and self._funcsdb is not None:
+            with self._db_load_lock, self.rtdb.begin_txn(self._funcsdb) as txn:
+                for addr in copy_addrs:
+                    value = txn.get(str(addr).encode("utf-8"))
+                    if value is not None:
+                        copied[addr] = value
+
+        result: list[tuple[K, bytes, bool]] = []
+        for addr in self._list:
+            blob = copied.get(addr)
+            if blob is not None:
+                result.append((addr, blob, True))
+            else:
+                func = self.data.get(addr)
+                if func is None:
+                    # the function is spilled but its LMDB record is missing; fall back to the regular access path
+                    func = self.get(addr)
+                result.append((addr, func.serialize(), False))
+        return result
+
     def load_all_spilled(self) -> None:
         """
         Load all spilled functions back into memory (disables eviction temporarily).

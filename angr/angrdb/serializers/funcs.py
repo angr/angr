@@ -34,13 +34,26 @@ class FunctionManagerSerializer:
         # remove all existing functions
         session.query(DbFunction).filter_by(kb=db_kb).delete()
 
-        for func in func_manager.values():
-            db_func = DbFunction(
-                kb=db_kb,
-                addr=func.addr,
-                blob=func.serialize(),
-            )
-            session.add(db_func)
+        function_map = func_manager._function_map
+        if isinstance(function_map, SpillingFunctionDict):
+            # Fast path: copy the serialized bytes of spilled and clean functions directly out of the LMDB backing
+            # store (they are guaranteed to be current; see SpillingFunctionDict.export_serialized) instead of
+            # deserializing and re-serializing every function. Dirty functions are serialized normally.
+            for addr, blob, _copied in function_map.export_serialized():
+                db_func = DbFunction(
+                    kb=db_kb,
+                    addr=addr,
+                    blob=blob,
+                )
+                session.add(db_func)
+        else:
+            for func in func_manager.values():
+                db_func = DbFunction(
+                    kb=db_kb,
+                    addr=func.addr,
+                    blob=func.serialize(),
+                )
+                session.add(db_func)
 
     @staticmethod
     def load(

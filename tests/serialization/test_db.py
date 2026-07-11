@@ -167,6 +167,71 @@ class TestDb(unittest.TestCase):
         assert set(old_format_proj.kb.functions.callgraph.nodes) == set(proj.kb.functions.callgraph.nodes)
         assert set(old_format_proj.kb.functions.callgraph.edges()) == set(proj.kb.functions.callgraph.edges())
 
+    def test_angrdb_dump_byte_copies_clean_spilled_functions(self):
+        # When dumping a function manager whose functions are spilled to LMDB and clean, the serialized bytes are
+        # copied directly out of the LMDB backing store; only dirty functions are re-serialized.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        db_file2 = os.path.join(dtemp, "fauxware2.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # force the load fast path so that all functions end up spilled and clean
+        with mock.patch.object(
+            angr.knowledge_plugins.functions.function_manager.FunctionManager,
+            "get_default_cache_limit",
+            return_value=3,
+        ):
+            loaded_proj = AngrDB(nullpool=True).load(db_file)
+
+        funcs = loaded_proj.kb.functions
+        num_funcs = len(funcs)
+
+        # mixed state: mutate two functions so they become dirty and cached
+        addrs = sorted(funcs)
+        rename_addr = addrs[0]
+        returning_addr = addrs[1]
+        funcs[rename_addr].name = "renamed_for_dump_test"
+        funcs[returning_addr].returning = funcs[returning_addr].returning is False
+
+        # count byte-copied vs re-serialized functions during the dump
+        spilling_dict_cls = angr.knowledge_plugins.functions.function_manager.SpillingFunctionDict
+        orig_export = spilling_dict_cls.export_serialized
+        stats = {}
+
+        def counting_export(self):
+            result = orig_export(self)
+            stats["copied"] = sum(1 for _, _, copied in result if copied)
+            stats["serialized"] = sum(1 for _, _, copied in result if not copied)
+            return result
+
+        with mock.patch.object(spilling_dict_cls, "export_serialized", counting_export):
+            AngrDB(loaded_proj, nullpool=True).dump(db_file2)
+
+        assert stats["copied"] + stats["serialized"] == num_funcs
+        # the two mutated functions are re-serialized; everything else must have been byte-copied
+        assert stats["serialized"] >= 2
+        assert stats["copied"] >= num_funcs - 5
+
+        # the dumped database must round-trip both the mutations and the byte-copied functions
+        reloaded_proj = AngrDB(nullpool=True).load(db_file2)
+        new_funcs = reloaded_proj.kb.functions
+        assert len(new_funcs) == num_funcs
+        assert new_funcs[rename_addr].name == "renamed_for_dump_test"
+        assert new_funcs[returning_addr].returning == funcs[returning_addr].returning
+        for func in proj.kb.functions.values():
+            new_func = new_funcs[func.addr]
+            if func.addr not in (rename_addr, returning_addr):
+                assert new_func.name == func.name
+                assert new_func.returning == func.returning
+            assert new_func.block_addrs_set == func.block_addrs_set
+            assert len(new_func.transition_graph.edges()) == len(func.transition_graph.edges())
+
     def test_angrdb_fast_load_spilled_cfg_nodes(self):
         # When the database contains more CFG nodes than the CFG node cache may keep in memory, the serialized node
         # bytes are moved directly into the LMDB backing store on load without being deserialized, and the graph
