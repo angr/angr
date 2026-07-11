@@ -8,13 +8,15 @@ import networkx
 
 from angr.codenode import BlockNode
 
-from .function import Function
+from .function import Function, FunctionInfo
 
 
 class SootFunction(Function):
     """
     A representation of a function and various information about it.
     """
+
+    __slots__ = ()
 
     def __init__(self, function_manager, addr, name=None, syscall=None):
         """
@@ -46,6 +48,7 @@ class SootFunction(Function):
         self.addr = addr
         self._function_manager = function_manager
         self._is_syscall = syscall
+        self._from_signature = None
 
         self._project = project = self._function_manager._kb._project
 
@@ -77,10 +80,10 @@ class SootFunction(Function):
         self.sp_delta = 0
 
         # Calling convention
-        self.calling_convention = None
+        self._calling_convention = None
 
         # Function prototype
-        self.prototype = None
+        self._prototype = None
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -99,11 +102,11 @@ class SootFunction(Function):
 
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
-        self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = {}  # a dict of all blocks inside the function
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
-        self.info = {}  # storing special information, like $gp values for MIPS32
+        self._info = FunctionInfo(self)
+        self._dirty = False
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
     def normalize(self):
