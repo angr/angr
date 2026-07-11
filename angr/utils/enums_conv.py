@@ -90,9 +90,14 @@ def cfg_jumpkind_from_pb(pb):
         return None
 
 
+# sentinel used by callers that inline the dict lookup on a hot path (e.g. FunctionParser) so they can
+# distinguish "protobuf value not in the map" from "value maps to None" (Edge.UnknownJumpkind -> None).
+_EDGETYPE_MISSING = object()
+
+
 def func_edge_type_from_pb(pb):
-    try:
-        return _PB_TO_FUNCTION_EDGETYPES[pb]
-    except KeyError:
+    edge_type = _PB_TO_FUNCTION_EDGETYPES.get(pb, _EDGETYPE_MISSING)
+    if edge_type is _EDGETYPE_MISSING:
         l.error("Unsupported protobuf jumpkind %s in func_edge_type_to_pb. Please report it on GitHub.", pb)
         return None
+    return edge_type
