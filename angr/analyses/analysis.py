@@ -61,6 +61,9 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 t = telemetry.get_tracer(name=__name__)
 
+# the minimum interval (in seconds) between two consecutive sleeps in _release_gil()
+GIL_RELEASE_INTERVAL = 0.05
+
 
 class AnalysisLogEntry:
     def __init__(self, message, exc_info=False):
@@ -287,6 +290,7 @@ class Analysis:
     named_errors: defaultdict[str, list[AnalysisLogEntry]] = defaultdict(list)
     _ram_usage: float | None = None
     _last_ramusage_update: float = 0.0
+    _last_gil_release: float = 0.0
     _progress_callback: Callable | None = None
     _show_progressbar = False
     _progressbar = None
@@ -375,22 +379,28 @@ class Analysis:
         if self._progress_callback is not None:
             self._progress_callback(100.0)  # pylint:disable=not-callable
 
-    @staticmethod
-    def _release_gil(ctr, freq, sleep_time=0.001):
+    def _release_gil(self, ctr, freq, sleep_time=0.001):
         """
         Periodically calls time.sleep() and releases the GIL so other threads (like, GUI threads) have a much better
         chance to be scheduled, and other critical components (like the GUI) can be kept responsiveness.
 
         This is, of course, a hack before we move all computational intensive tasks to pure C++ implementations.
 
+        Sleeping is throttled: regardless of how often this method is called, it sleeps at most once every
+        GIL_RELEASE_INTERVAL seconds. This keeps the GUI responsive while bounding the overhead on tight
+        analysis loops.
+
         :param int ctr:     A number provided by the caller.
-        :param int freq:    How frequently time.sleep() should be called. time.sleep() is called when ctr % freq == 0.
+        :param int freq:    How frequently the wall clock should be checked. The check happens when ctr % freq == 0.
         :param sleep_time:  Number (or fraction) of seconds to sleep.
         :return:            None
         """
 
         if ctr != 0 and ctr % freq == 0:
-            time.sleep(sleep_time)
+            now = time.perf_counter()
+            if now - self._last_gil_release >= GIL_RELEASE_INTERVAL:
+                time.sleep(sleep_time)
+                self._last_gil_release = time.perf_counter()
 
     @property
     def ram_usage(self) -> float:
