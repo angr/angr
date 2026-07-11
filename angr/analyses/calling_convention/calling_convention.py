@@ -45,6 +45,7 @@ from angr.sim_type import (
     SimTypeInt128,
     SimTypeLongLong,
     SimTypePointer,
+    SimTypeReg,
     SimTypeShort,
     parse_cpp_file,
 )
@@ -183,13 +184,23 @@ class CallingConventionAnalysis(Analysis):
 
         assert self._function is not None
 
+        cpp_symbol_result = None
         demangled_name = self._function.demangled_name
         if demangled_name != self._function.name:
             r_demangled = self._analyze_demangled_name(demangled_name)
             if r_demangled is not None:
-                self.cc, self.prototype, self.prototype_libname = r_demangled
-                self.proto_from_symbol = True
-                return
+                # Itanium names usually omit the return type, and a qualified name does
+                # not distinguish a namespace/static function from a non-static member.
+                # parse_cpp_file() consequently carries a possible-this placeholder.
+                # Do not let that incomplete declaration bypass callee/callsite analysis;
+                # refine it with machine facts below.  Non-C++ symbol declarations remain
+                # authoritative as before.
+                if isinstance(r_demangled[1], SimTypeCppFunction):
+                    cpp_symbol_result = r_demangled
+                else:
+                    self.cc, self.prototype, self.prototype_libname = r_demangled
+                    self.proto_from_symbol = True
+                    return
 
         if self._function.is_simprocedure:
             hooker = self.project.hooked_by(self._function.addr)
@@ -282,6 +293,9 @@ class CallingConventionAnalysis(Analysis):
         r = self._analyze_function()
         if r is None:
             l.warning("Cannot determine calling convention for %r.", self._function)
+            if cpp_symbol_result is not None:
+                self.cc, self.prototype, self.prototype_libname = cpp_symbol_result
+                self.proto_from_symbol = True
         else:
             # adjust prototype if needed
             cc, prototype = r
@@ -296,8 +310,47 @@ class CallingConventionAnalysis(Analysis):
                     else None
                 )
 
+            if cpp_symbol_result is not None and prototype is not None:
+                prototype = self._refine_cpp_symbol_prototype(prototype, cpp_symbol_result[1])
             self.cc = cc
             self.prototype = prototype
+
+    @staticmethod
+    def _refine_cpp_symbol_prototype(
+        machine_proto: SimTypeFunction, symbol_proto: SimTypeCppFunction
+    ) -> SimTypeFunction:
+        """Merge encoded C++ types only where machine ABI arity disambiguates them.
+
+        The parser's first pointer is a *possible* ``this``.  If machine facts recover
+        one fewer arguments, the qualified name was a namespace/static function and the
+        placeholder is removed.  If arity agrees it is retained.  Any other disagreement
+        keeps the machine-derived arguments.  A non-Bottom encoded template return may
+        refine the return type; ordinary Itanium names keep the machine-derived return.
+        """
+        machine_args = tuple(machine_proto.args or ())
+        symbol_args = tuple(symbol_proto.args or ())
+        if len(symbol_args) == len(machine_args):
+            selected = symbol_args
+        elif len(symbol_args) == len(machine_args) + 1 and symbol_args and isinstance(symbol_args[0], SimTypePointer):
+            selected = symbol_args[1:]
+        else:
+            selected = machine_args
+        # Opaque C++ classes cannot be laid out by a calling convention.  Preserve the
+        # machine-derived slot for those arguments; only scalar/reference or pointer
+        # types from the linkage name are safe refinements.
+        args = tuple(
+            sym if isinstance(sym, (SimTypeReg, SimTypePointer)) else machine
+            for machine, sym in zip(machine_args, selected)
+        )
+        symbol_ret = symbol_proto.returnty
+        ret = (
+            symbol_ret
+            if symbol_ret is not None
+            and not isinstance(symbol_ret, SimTypeBottom)
+            and isinstance(symbol_ret, (SimTypeReg, SimTypePointer))
+            else machine_proto.returnty
+        )
+        return SimTypeFunction(args, ret, variadic=machine_proto.variadic)
 
     def _analyze_callsite_only(self):
         assert self.caller_func_addr is not None
