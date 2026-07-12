@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from sqlalchemy import insert
+
 from angr.angrdb.models import DbFunction
 from angr.knowledge_plugins import Function, FunctionManager
 from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict
@@ -34,26 +36,25 @@ class FunctionManagerSerializer:
         # remove all existing functions
         session.query(DbFunction).filter_by(kb=db_kb).delete()
 
+        # make sure db_kb has a primary key so it can be used as a foreign key in the Core bulk insert below
+        session.flush()
+        assert db_kb.id is not None
+
         function_map = func_manager._function_map
         if isinstance(function_map, SpillingFunctionDict):
             # Fast path: copy the serialized bytes of spilled and clean functions directly out of the LMDB backing
             # store (they are guaranteed to be current; see SpillingFunctionDict.export_serialized) instead of
             # deserializing and re-serializing every function. Dirty functions are serialized normally.
-            for addr, blob, _copied in function_map.export_serialized():
-                db_func = DbFunction(
-                    kb=db_kb,
-                    addr=addr,
-                    blob=blob,
-                )
-                session.add(db_func)
+            rows = [
+                {"kb_id": db_kb.id, "addr": addr, "blob": blob}
+                for addr, blob, _copied in function_map.export_serialized()
+            ]
         else:
-            for func in func_manager.values():
-                db_func = DbFunction(
-                    kb=db_kb,
-                    addr=func.addr,
-                    blob=func.serialize(),
-                )
-                session.add(db_func)
+            rows = [{"kb_id": db_kb.id, "addr": func.addr, "blob": func.serialize()} for func in func_manager.values()]
+
+        # bulk-insert the function rows via Core to avoid the per-row ORM unit-of-work overhead
+        if rows:
+            session.execute(insert(DbFunction), rows)
 
     @staticmethod
     def load(
