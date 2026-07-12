@@ -154,11 +154,31 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                         if unexpected_pred in jump_node_descedents:
                             continue
 
+                        if out_graph is None:
+                            out_graph = self._graph
+                        if not out_graph.has_edge(unexpected_pred, default_case_block):
+                            # the predecessor block may have been broken into multiple nodes in clinic (e.g., at a
+                            # cmov); find the fragment that actually jumps to the default-case node
+                            unexpected_pred = None
+                            cfg_pred = self._func.get_node(unexpected_pred_addr)
+                            if cfg_pred is not None:
+                                for pred in out_graph.predecessors(default_case_block):
+                                    if cfg_pred.addr <= pred.addr < cfg_pred.addr + cfg_pred.size:
+                                        unexpected_pred = pred
+                                        break
+                            if unexpected_pred is None:
+                                _l.warning(
+                                    "Cannot find the actual predecessor node at %#x for default case at %#x",
+                                    unexpected_pred_addr,
+                                    default_addr,
+                                )
+                                continue
+                            if unexpected_pred in jump_node_descedents:
+                                continue
+
                         assert default_case_block is not None
                         default_case_block_copy = default_case_block.deep_copy(self.manager)
                         default_case_block_copy.idx = next(self.node_idx)
-                        if out_graph is None:
-                            out_graph = self._graph
                         out_graph.remove_edge(unexpected_pred, default_case_block)
                         out_graph.add_edge(unexpected_pred, default_case_block_copy)
                         out_graph.add_edge(default_case_block_copy, default_case_succ_block)
