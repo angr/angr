@@ -80,6 +80,13 @@ class FunctionManagerSerializer:
 
         db_funcs = session.query(DbFunction).filter_by(kb=db_kb)
 
+        # when every serialized CFG node record already carries a function_address (which is the case for all
+        # databases that angr dumps), on-demand node deserialization restores it, so there is no need to fill in
+        # CFGNode.function_address here; doing so would materialize every CFG node
+        fill_cfg_model = cfg_model
+        if cfg_model is not None and getattr(cfg_model, "_node_function_addrs_complete", False):
+            fill_cfg_model = None
+
         function_map = funcs._function_map
         if (
             isinstance(function_map, SpillingFunctionDict)
@@ -92,16 +99,16 @@ class FunctionManagerSerializer:
             # exact format that SpillingFunctionDict spills to LMDB) and register all functions as spilled, instead
             # of deserializing every function and thrashing the LRU cache. Functions are then deserialized on-demand
             # upon first access.
-            FunctionManagerSerializer._load_spilled(db_funcs, funcs, function_map, kb._project, cfg_model)
+            FunctionManagerSerializer._load_spilled(db_funcs, funcs, function_map, kb._project, fill_cfg_model)
         else:
             for db_func in db_funcs:
                 func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project)
                 # Mark as dirty so SpillingFunctionDict will save it to LMDB upon eviction.
                 func.mark_dirty()
                 funcs[func.addr] = func
-                if cfg_model is not None:
+                if fill_cfg_model is not None:
                     FunctionManagerSerializer._set_cfg_node_function_addresses(
-                        cfg_model, func.addr, func.block_addrs_set
+                        fill_cfg_model, func.addr, func.block_addrs_set
                     )
 
         if callgraph is not None:

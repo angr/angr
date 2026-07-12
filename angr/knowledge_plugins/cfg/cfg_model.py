@@ -53,6 +53,7 @@ class CFGModel(Serializable):
         "_edge_db_batch_size",
         "_iropt_level",
         "_node_addrs",
+        "_node_function_addrs_complete",
         "edges_to_repair",
         "graph",
         "ident",
@@ -124,6 +125,11 @@ class CFGModel(Serializable):
 
         self.edges_to_repair = []
 
+        # True if this model was deserialized through the spilled fast path and every serialized node record
+        # carried a function_address; in that case, filling in CFGNode.function_address after loading functions is
+        # unnecessary (on-demand node deserialization restores it), and FunctionManagerSerializer skips it
+        self._node_function_addrs_complete: bool = False
+
     #
     # Properties
     #
@@ -181,6 +187,9 @@ class CFGModel(Serializable):
         return {x: self.__getattribute__(x) for x in self.__slots__ if x not in {"__weakref__", "_cfg_manager"}}
 
     def __setstate__(self, state):
+        # defaults for attributes that may be missing from states pickled by older versions of angr
+        self._node_function_addrs_complete = False
+
         for attribute, value in state.items():
             self.__setattr__(attribute, value)
 
@@ -332,12 +341,16 @@ class CFGModel(Serializable):
         # nodes: LMDB records of SpillingCFGNodeDict are a type byte (0x00 for CFGNode) followed by the serialized
         # CFGNode message, which is the exact message stored in the database. Copy the bytes directly.
         items = []
+        function_addrs_complete = True
         for node_pb2 in cmsg.nodes:
             # this mirrors what get_block_key() returns for the node that CFGNode.parse_from_cmessage() would build:
             # the block ID (which defaults to the node address) and the node size
             block_id = node_pb2.block_id[0] if node_pb2.block_id else node_pb2.ea
             block_key = (block_id, node_pb2.size)
             items.append((block_key, node_pb2.ea, b"\x00" + node_pb2.SerializeToString()))
+            if function_addrs_complete and not node_pb2.HasField("function_address"):
+                function_addrs_complete = False
+        model._node_function_addrs_complete = function_addrs_complete
 
         # disable adjacency eviction while nodes and edges are inserted; spill down once at the end
         graph._graph.set_edge_eviction_enabled(False)
@@ -382,6 +395,7 @@ class CFGModel(Serializable):
         model.memory_data = self.memory_data.copy()
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
         model.edges_to_repair = self.edges_to_repair.copy()
+        model._node_function_addrs_complete = self._node_function_addrs_complete
 
         return model
 
