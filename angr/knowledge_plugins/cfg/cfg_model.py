@@ -205,18 +205,31 @@ class CFGModel(Serializable):
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
 
-        # nodes
+        # nodes; while serializing each node, remember its address keyed by block key so that edges can be
+        # serialized at the key level below without having to materialize the endpoint nodes again
+        key_to_addr: dict = {}
+        spilling = isinstance(self.graph, SpillingCFG)
         nodes = []
         for n in self.graph.nodes():
             nodes.append(n.serialize_to_cmessage())
+            if spilling:
+                key_to_addr[get_block_key(n)] = n.addr
         cmsg.nodes.extend(nodes)
 
-        # edges
+        # edges. When the graph supports spilling, iterate the underlying adjacency at the key level so that no
+        # endpoint node is materialized; the endpoint addresses come from the key_to_addr map built above. This
+        # yields the exact same edge order and edge data as iterating self.graph.edges(data=True) (that view is a
+        # thin wrapper around the same underlying graph), only without the on-demand node loads.
+        edge_iter = (
+            ((key_to_addr[s], key_to_addr[d], data) for s, d, data in self.graph._graph.edges(data=True))
+            if spilling
+            else ((src.addr, dst.addr, data) for src, dst, data in self.graph.edges(data=True))
+        )
         edges = []
-        for src, dst, data in self.graph.edges(data=True):
+        for src_ea, dst_ea, data in edge_iter:
             edge = primitives_pb2.Edge()  # type:ignore
-            edge.src_ea = src.addr
-            edge.dst_ea = dst.addr
+            edge.src_ea = src_ea
+            edge.dst_ea = dst_ea
             for k, v in data.items():
                 if k == "jumpkind":
                     jk = cfg_jumpkind_to_pb(v)
