@@ -21,7 +21,7 @@ import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
-from angr.protos import cfg_pb2
+from angr.protos import cfg_pb2, primitives_pb2
 from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 from angr.utils.json_utils import json_decode, json_encode
 
@@ -216,30 +216,36 @@ class SpillingAdjDict(MutableMapping):
             self._edgesdb = None
 
     #
-    #  Serialization helpers  (Edge protobuf)
+    #  Serialization helpers  (edge data)
     #
+
+    # Edge attribute dicts hold exactly three fields (jumpkind, ins_addr, stmt_idx). They are packed with struct
+    # instead of protobuf for speed: the jumpkind as its protobuf enum value, and ins_addr/stmt_idx with the same
+    # None-sentinels that the previous CFGEdgeData protobuf encoding used. This encoding only ever lives in the
+    # process-private RuntimeDb LMDB (created per process and removed at exit, never shared across angr versions or
+    # persisted), so there is no format-versioning concern.
+    _EDGE_DATA_STRUCT = struct.Struct("<BQi")
 
     @staticmethod
     def _serialize_edge_data(edge_data: dict) -> bytes:
-        """Serialize an edge attribute dict to CFGEdgeData protobuf bytes."""
-        edge = cfg_pb2.CFGEdgeData()  # type:ignore
+        """Serialize an edge attribute dict to packed bytes."""
         jk = cfg_jumpkind_to_pb(edge_data.get("jumpkind"))
-        edge.jumpkind = cfg_pb2.CFGEdgeData.UnknownJumpkind if jk is None else jk  # type:ignore
-        v = edge_data.get("ins_addr")
-        edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
-        v = edge_data.get("stmt_idx")
-        edge.stmt_idx = v if v is not None else -1
-        return edge.SerializeToString()
+        ins_addr = edge_data.get("ins_addr")
+        stmt_idx = edge_data.get("stmt_idx")
+        return SpillingAdjDict._EDGE_DATA_STRUCT.pack(
+            primitives_pb2.Edge.UnknownJumpkind if jk is None else jk,  # type:ignore
+            ins_addr if ins_addr is not None else 0xFFFF_FFFF_FFFF_FFFF,
+            stmt_idx if stmt_idx is not None else -1,
+        )
 
     @staticmethod
     def _deserialize_edge_data(data: bytes) -> dict:
-        """Deserialize CFGEdgeData protobuf bytes to an edge attribute dict."""
-        edge = cfg_pb2.CFGEdgeData()  # type:ignore
-        edge.ParseFromString(data)
+        """Deserialize packed bytes to an edge attribute dict."""
+        jk, ins_addr, stmt_idx = SpillingAdjDict._EDGE_DATA_STRUCT.unpack(data)
         return {
-            "jumpkind": cfg_jumpkind_from_pb(edge.jumpkind),
-            "ins_addr": edge.ins_addr if edge.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-            "stmt_idx": edge.stmt_idx if edge.stmt_idx != -1 else None,
+            "jumpkind": cfg_jumpkind_from_pb(jk),
+            "ins_addr": ins_addr if ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+            "stmt_idx": stmt_idx if stmt_idx != -1 else None,
         }
 
     def _serialize_inner_dict(self, inner_dict: DirtyDict[K, dict]) -> bytes:
