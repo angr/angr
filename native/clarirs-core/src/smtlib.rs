@@ -249,6 +249,56 @@ impl<'c> AstNode<'c> {
     }
 }
 
+/// SMT-LIB `(name, sort)` declaration pair for a symbolic leaf, or `None` when
+/// `ast` is not a variable.
+fn var_declaration(ast: &AstRef<'_>) -> Option<(String, String)> {
+    match ast.op() {
+        AstOp::BoolS(s) => Some((s.to_string(), "Bool".to_string())),
+        AstOp::BVS(s, width) => Some((s.to_string(), format!("(_ BitVec {width})"))),
+        // SMT-LIB's FloatingPoint significand width counts the implicit hidden
+        // bit, which clarirs' FSort::mantissa does not.
+        AstOp::FPS(s, sort) => Some((
+            s.to_string(),
+            format!("(_ FloatingPoint {} {})", sort.exponent, sort.mantissa + 1),
+        )),
+        AstOp::StringS(s) => Some((s.to_string(), "String".to_string())),
+        _ => None,
+    }
+}
+
+/// Renders a full SMT-LIB 2 benchmark for a set of assertions: a two-line
+/// header, one `(declare-fun ...)` per distinct free variable, one
+/// `(assert ...)` per constraint, and a trailing `(check-sat)`.
+///
+/// The framing mirrors z3's `Solver.to_smt2()` (two header lines, and a
+/// `(check-sat)` + trailing newline footer) so consumers that slice the output
+/// line-wise keep working across the migration.
+pub fn constraints_to_smtlib(constraints: &[AstRef<'_>]) -> Result<String, ClarirsError> {
+    use crate::algorithms::collect_vars::collect_vars;
+    use std::collections::BTreeMap;
+
+    // Declare each variable once, even when shared across constraints. BTreeMap
+    // keeps declarations in a stable (name-sorted) order.
+    let mut decls: BTreeMap<String, String> = BTreeMap::new();
+    for constraint in constraints {
+        for var in collect_vars(constraint)? {
+            if let Some((name, sort)) = var_declaration(&var) {
+                decls.insert(name, sort);
+            }
+        }
+    }
+
+    let mut out = String::from("; benchmark generated from clarirs\n(set-info :status unknown)\n");
+    for (name, sort) in &decls {
+        out.push_str(&format!("(declare-fun {name} () {sort})\n"));
+    }
+    for constraint in constraints {
+        out.push_str(&format!("(assert {})\n", constraint.to_smtlib()));
+    }
+    out.push_str("(check-sat)\n");
+    Ok(out)
+}
+
 impl fmt::Display for SmtLibDisplay<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.to_smtlib())
@@ -386,6 +436,41 @@ mod tests {
         let x = ctx.bvs("x", 64).unwrap();
         let displayed = format!("{}", SmtLibDisplay(&x));
         assert_eq!(displayed, "x");
+    }
+
+    #[test]
+    fn test_constraints_to_smtlib_benchmark() {
+        let ctx = Context::new();
+        let x = ctx.bvs("x", 8).unwrap();
+        let y = ctx.bvs("y", 8).unwrap();
+        let c0 = ctx.eq_(&x, ctx.bvv(BitVec::from((5, 8))).unwrap()).unwrap();
+        let c1 = ctx.ult(&x, &y).unwrap();
+
+        let smt = constraints_to_smtlib(&[c0, c1]).unwrap();
+        let lines: Vec<&str> = smt.split('\n').collect();
+
+        // Two header lines and a (check-sat) + trailing-empty footer, matching
+        // z3's to_smt2() framing that downstream slicing relies on.
+        assert_eq!(lines[0], "; benchmark generated from clarirs");
+        assert_eq!(lines[1], "(set-info :status unknown)");
+        assert_eq!(lines[lines.len() - 2], "(check-sat)");
+        assert_eq!(lines[lines.len() - 1], "");
+
+        // Both variables declared exactly once, in sorted order.
+        assert_eq!(lines[2], "(declare-fun x () (_ BitVec 8))");
+        assert_eq!(lines[3], "(declare-fun y () (_ BitVec 8))");
+        // One assert per constraint.
+        assert!(smt.contains("(assert (= x (_ bv5 8)))"));
+        assert!(smt.contains("(assert (bvult x y))"));
+    }
+
+    #[test]
+    fn test_constraints_to_smtlib_empty() {
+        let smt = constraints_to_smtlib(&[]).unwrap();
+        assert_eq!(
+            smt,
+            "; benchmark generated from clarirs\n(set-info :status unknown)\n(check-sat)\n"
+        );
     }
 
     #[test]
