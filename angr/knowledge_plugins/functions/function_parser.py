@@ -172,6 +172,15 @@ class FunctionParser:
         obj.external_functions.extend(external_func_addrs)  # pylint:disable=no-member
         obj.external_blocks.extend(external_blocks)  # pylint:disable=no-member
 
+        for call_site_addr, (call_target_addr, retn_addr) in function._call_sites.items():
+            call_site = function_pb2.CallSite()
+            call_site.ea = call_site_addr
+            if call_target_addr is not None:
+                call_site.target_ea = call_target_addr
+            if retn_addr is not None:
+                call_site.return_ea = retn_addr
+            obj.call_sites.append(call_site)  # pylint:disable=no-member
+
         return obj
 
     @staticmethod
@@ -412,6 +421,12 @@ class FunctionParser:
                 obj._register_node(True, block)
 
         obj.update_func_block_count()
+
+        for call_site_cmsg in cmsg.call_sites:
+            obj._call_sites[call_site_cmsg.ea] = (
+                call_site_cmsg.target_ea if call_site_cmsg.HasField("target_ea") else None,
+                call_site_cmsg.return_ea if call_site_cmsg.HasField("return_ea") else None,
+            )
 
         obj._dirty = False
 
