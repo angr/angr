@@ -396,6 +396,16 @@ impl PySolver {
     /// calls `state.solver.downsize()`). It never affects results.
     fn downsize(&self) {}
 
+    /// Render the solver's constraints as a self-contained SMT-LIB 2 benchmark
+    /// string, mirroring claripy's `solver._get_solver().to_smt2()`. rex's CGC
+    /// exploit generation slices this output line-wise, so it keeps z3's
+    /// two-line header and `(check-sat)` footer framing.
+    fn to_smt2(&self) -> Result<String, ClaripyError> {
+        Ok(clarirs_core::smtlib::constraints_to_smtlib(
+            &self.inner.constraints()?,
+        )?)
+    }
+
     #[pyo3(signature = (extra_constraints = None, exact = None))]
     fn satisfiable<'py>(
         &mut self,
