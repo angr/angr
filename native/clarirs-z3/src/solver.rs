@@ -527,7 +527,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         // Simplify and check if concrete
         let expr = expr.simplify_z3()?;
         if expr.concrete() {
-            return Ok(vec![expr; n as usize]);
+            return Ok(vec![expr]);
         }
 
         let ctx = self.context();
