@@ -179,12 +179,16 @@ class SpillingAdjDict(MutableMapping):
         evicted = 0
         entries_to_save: list[tuple[K, DirtyDict[K, dict]]] = []
 
-        for lru_key in list(self._lru_order):
+        # Iterate the live LRU order directly (least-recently-used first) and collect the keys to remove; do NOT copy
+        # the whole order, otherwise batched eviction becomes O(total * cache_size). Deletions from _lru_order are
+        # deferred until after the loop so we never mutate it while iterating.
+        keys_to_remove = []
+        for lru_key in self._lru_order:
             if evicted >= n:
                 break
 
             if lru_key not in self._data:
-                self._lru_order.pop(lru_key)
+                keys_to_remove.append(lru_key)
                 continue
 
             inner_dict = self._data[lru_key]
@@ -192,9 +196,12 @@ class SpillingAdjDict(MutableMapping):
                 entries_to_save.append((lru_key, inner_dict))
 
             del self._data[lru_key]
-            del self._lru_order[lru_key]
+            keys_to_remove.append(lru_key)
             self._spilled_keys.add(lru_key)
             evicted += 1
+
+        for lru_key in keys_to_remove:
+            del self._lru_order[lru_key]
 
         if entries_to_save:
             self._save_to_lmdb(entries_to_save)

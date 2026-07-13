@@ -503,13 +503,17 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         evicted = 0
         funcs_to_evict = []
-        for lru_addr in list(self._lru_order):
+        # Iterate the live LRU order directly (least-recently-used first) and collect the keys to remove; do NOT copy
+        # the whole order, otherwise batched eviction becomes O(total * cache_size). Deletions from _lru_order are
+        # deferred until after the loop so we never mutate it while iterating.
+        addrs_to_remove = []
+        for lru_addr in self._lru_order:
             if evicted >= n:
                 break
 
-            # Don't evict if it's not in memory
+            # Don't evict if it's not in memory; still schedule its stale LRU entry for removal
             if not self.is_cached(lru_addr):
-                self._lru_order.pop(lru_addr)
+                addrs_to_remove.append(lru_addr)
                 continue
 
             # Get the function
@@ -521,14 +525,17 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             # Remove from in-memory map
             super().__delitem__(lru_addr)
 
-            # Remove from LRU order
-            del self._lru_order[lru_addr]
+            # Schedule removal from LRU order
+            addrs_to_remove.append(lru_addr)
 
             # Add to spilled set
             self._spilled_keys.add(lru_addr)
             evicted += 1
 
             # l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
+
+        for lru_addr in addrs_to_remove:
+            del self._lru_order[lru_addr]
 
         if funcs_to_evict:
             self._save_to_lmdb(funcs_to_evict)
