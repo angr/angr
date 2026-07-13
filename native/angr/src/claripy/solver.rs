@@ -563,7 +563,7 @@ impl PySolver {
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyTuple>>> {
         if exprs.is_empty() {
-            return Ok(vec![]);
+            return Ok(vec![PyTuple::empty(py)]);
         }
 
         let asts: Vec<AstRef<'static>> = exprs
