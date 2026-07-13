@@ -856,6 +856,62 @@ class SpillingCFG:
         # update _keys_by_addr
         self._keys_by_addr[node.addr].add(block_key)
 
+    def export_serialized_nodes(self) -> list[tuple[K, bytes, bool]]:
+        """
+        Export every node as the serialized bytes of its CFGNode/CFGENode protobuf message (without the LMDB type
+        byte), e.g. for dumping into an angr database.
+
+        Nodes whose LMDB record is guaranteed to be current are byte-copied directly out of the LMDB backing store
+        (in a single read transaction) without being deserialized and re-serialized. This applies to all spilled
+        nodes and to cached nodes that are clean: a CFGNode instance is only ever clean if it was deserialized from
+        serialized bytes and has not been modified since (``dirty`` is cleared only in ``_load_from_lmdb_core``), the
+        same invariant used for functions. Dirty cached nodes, and any node whose LMDB record is missing or is a
+        CFGENode (type byte 0x01, which the byte-copy consumer does not handle), are serialized from their in-memory
+        objects through the regular path.
+
+        :return: A list of (block key, serialized CFGNode message bytes, copied_from_lmdb) tuples.
+        """
+
+        node_dict = self._nodes
+        cached = node_dict._data
+
+        # classify keys: byte-copyable (spilled, or cached-and-clean) vs must-materialize (cached-and-dirty)
+        copyable_keys: list[K] = []
+        materialize: list[K] = []
+        for block_key in list(node_dict):
+            node = cached.get(block_key)
+            if node is not None and node.dirty:
+                materialize.append(block_key)
+            else:
+                copyable_keys.append(block_key)
+
+        result: list[tuple[K, bytes, bool]] = []
+
+        copied_payloads: dict[K, bytes] = {}
+        if copyable_keys and node_dict.rtdb is not None and node_dict._nodesdb is not None:
+            with node_dict.rtdb.begin_txn(node_dict._nodesdb) as txn:
+                for block_key in copyable_keys:
+                    payload = txn.get(str(block_key).encode("utf-8"))
+                    # only byte-copy plain CFGNode records (type byte 0x00); fall back for missing records or
+                    # CFGENode records (0x01) that the consumer parses as CFGNode
+                    if payload is not None and payload[0] == 0x00:
+                        copied_payloads[block_key] = payload[1:]
+
+        for block_key in copyable_keys:
+            payload = copied_payloads.get(block_key)
+            if payload is not None:
+                result.append((block_key, payload, True))
+            else:
+                # LMDB record missing or not a plain CFGNode: materialize and serialize
+                node = self.get_node_by_key(block_key)
+                result.append((block_key, node.serialize_to_cmessage().SerializeToString(), False))
+
+        for block_key in materialize:
+            node = cached[block_key]
+            result.append((block_key, node.serialize_to_cmessage().SerializeToString(), False))
+
+        return result
+
     def bulk_import_serialized_nodes(self, items: list[tuple[K, int | SootAddressDescriptor, bytes]]) -> None:
         """
         Bulk-import already-serialized nodes directly into the LMDB backing store as spilled entries, without

@@ -214,16 +214,21 @@ class CFGModel(Serializable):
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
 
-        # nodes; while serializing each node, remember its address keyed by block key so that edges can be
-        # serialized at the key level below without having to materialize the endpoint nodes again
+        # nodes. When the graph supports spilling, byte-copy the serialized message of every clean/spilled node
+        # straight out of the LMDB backing store instead of materializing a CFGNode and re-serializing it (dirty
+        # cached nodes are still serialized normally). The endpoint-address map consumed by the key-level edge
+        # serialization below is re-sourced from the node messages themselves (their ``ea`` field), so no endpoint
+        # node has to be materialized for the edges either.
         key_to_addr: dict = {}
         spilling = isinstance(self.graph, SpillingCFG)
-        nodes = []
-        for n in self.graph.nodes():
-            nodes.append(n.serialize_to_cmessage())
-            if spilling:
-                key_to_addr[get_block_key(n)] = n.addr
-        cmsg.nodes.extend(nodes)
+        if spilling:
+            for block_key, msg_bytes, _copied in self.graph.export_serialized_nodes():
+                node_pb = cmsg.nodes.add()
+                node_pb.ParseFromString(msg_bytes)
+                key_to_addr[block_key] = node_pb.ea
+        else:
+            nodes = [n.serialize_to_cmessage() for n in self.graph.nodes()]
+            cmsg.nodes.extend(nodes)
 
         # edges. When the graph supports spilling, iterate the underlying adjacency at the key level so that no
         # endpoint node is materialized; the endpoint addresses come from the key_to_addr map built above. This

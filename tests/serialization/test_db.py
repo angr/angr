@@ -297,6 +297,77 @@ class TestDb(unittest.TestCase):
                     assert node is not None
                     assert node.function_address == old_node.function_address
 
+    def test_angrdb_dump_byte_copies_clean_spilled_cfg_nodes(self):
+        # When dumping a spilling CFG whose nodes are spilled to LMDB and clean, the serialized node bytes are
+        # copied directly out of the LMDB backing store; only dirty cached nodes are re-serialized.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        db_file2 = os.path.join(dtemp, "fauxware2.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # force the load fast path so that all nodes end up spilled and clean
+        with (
+            mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
+            mock.patch.object(angr.Project, "get_cfg_edge_cache_limit", return_value=5),
+        ):
+            loaded_proj = AngrDB(nullpool=True).load(db_file)
+
+        loaded_cfg = loaded_proj.kb.cfgs["CFGFast"]
+        num_nodes = loaded_cfg.graph.number_of_nodes()
+
+        # mutate a handful of nodes so they become cached and dirty. We toggle ``no_ret`` (rather than e.g.
+        # ``function_address``, which the load-time CFGNode.function_address fill legitimately restores on the
+        # non-fast load path this tiny binary takes).
+        addrs = sorted(n.addr for n in loaded_cfg.graph.nodes())
+        mutated = {}
+        for addr in addrs[:4]:
+            node = loaded_cfg.get_any_node(addr)
+            node.no_ret = not bool(node.no_ret)
+            node.dirty = True
+            mutated[addr] = node.no_ret
+
+        # count byte-copied vs re-serialized nodes during the dump
+        spilling_cfg_cls = angr.knowledge_plugins.cfg.spilling_cfg.SpillingCFG
+        orig_export = spilling_cfg_cls.export_serialized_nodes
+        stats = {}
+
+        def counting_export(self):
+            result = orig_export(self)
+            stats["copied"] = sum(1 for _, _, copied in result if copied)
+            stats["serialized"] = sum(1 for _, _, copied in result if not copied)
+            return result
+
+        with mock.patch.object(spilling_cfg_cls, "export_serialized_nodes", counting_export):
+            AngrDB(loaded_proj, nullpool=True).dump(db_file2)
+
+        assert stats["copied"] + stats["serialized"] == num_nodes
+        # the mutated nodes are re-serialized; everything else must have been byte-copied
+        assert stats["serialized"] >= len(mutated)
+        assert stats["copied"] >= num_nodes - len(mutated) - 2
+
+        # the dumped database must round-trip both the mutations and the byte-copied nodes
+        reloaded_proj = AngrDB(nullpool=True).load(db_file2)
+        reloaded_cfg = reloaded_proj.kb.cfgs["CFGFast"]
+        assert reloaded_cfg.graph.number_of_nodes() == num_nodes
+        assert reloaded_cfg.graph.number_of_edges() == loaded_cfg.graph.number_of_edges()
+        for addr, no_ret in mutated.items():
+            assert bool(reloaded_cfg.get_any_node(addr).no_ret) == bool(no_ret)
+
+        def _node_rec(n):
+            return (n.addr, n.size, n.block_id, n.name, n.function_address, n.thumb, n.is_syscall, n.byte_string)
+
+        for node in cfg.model.graph.nodes():
+            if node.addr not in mutated:
+                new_node = reloaded_cfg.get_any_node(node.addr)
+                assert new_node is not None
+                assert _node_rec(new_node) == _node_rec(node)
+
     def test_angrdb_variables_empty_managers_not_serialized(self):
         # Empty variable managers are not serialized into the database, and empty rows in databases created by
         # older versions of angr are ignored on load. Non-empty variable managers round-trip with their content.
