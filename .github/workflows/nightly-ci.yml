@@ -36,7 +36,7 @@ jobs:
           repository: angr/binaries
           path: binaries
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
-      - uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v6
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v6
       - name: Setup Java for pysoot
         uses: actions/setup-java@v5
         with:
@@ -61,7 +61,7 @@ jobs:
         with:
           repository: angr/binaries
           path: binaries
-      - uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v6
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v6
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.12
       - name: Run pytest
