@@ -1150,7 +1150,7 @@ class Function(Serializable):
     def _call_to(
         self,
         from_node,
-        to_func: FuncNode,
+        to_func: FuncNode | HookNode,
         ret_node,
         stmt_idx=None,
         ins_addr=None,

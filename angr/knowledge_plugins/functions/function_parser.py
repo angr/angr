@@ -1,4 +1,5 @@
 # pylint:disable=no-member,raise-missing-from,protected-access
+# pyright: reportAttributeAccessIssue=false
 from __future__ import annotations
 
 import json
