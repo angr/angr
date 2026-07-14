@@ -181,7 +181,9 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         proj.analyses.CFGFast()
 
         fm = proj.kb.functions
-        main_addr = fm.function(name="main").addr
+        main_func = fm.function(name="main")
+        assert main_func is not None
+        main_addr = main_func.addr
         fm[main_addr]._add_call_site(0x4007D3, None, None)
         call_sites_before = dict(fm[main_addr]._call_sites)
         assert len(call_sites_before) > 1
