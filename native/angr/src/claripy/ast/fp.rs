@@ -134,6 +134,16 @@ impl PyFSort {
     pub fn __repr__(&self) -> String {
         format!("FSORT_{}", self.0.size())
     }
+
+    #[getter]
+    pub fn exponent(&self) -> u32 {
+        self.0.exponent
+    }
+
+    #[getter]
+    pub fn mantissa(&self) -> u32 {
+        self.0.mantissa
+    }
 }
 
 impl From<PyFSort> for FSort {
