@@ -47,4 +47,4 @@ class TestBatchEval(unittest.TestCase):
 
     def test_batch_eval_empty(self):
         s = claripy.Solver()
-        self.assertEqual(s.batch_eval([], 5), [])
+        self.assertEqual(s.batch_eval([], 5), [()])
