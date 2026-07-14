@@ -287,24 +287,22 @@ struct Conv<'py, 'r, R: IrReader> {
     py: Python<'py>,
     reader: &'r R,
     arch: ArchCtx<'py>,
-    // atom allocation: local counter, optionally backed by a native Manager.
+    // Atom allocation: a local counter seeded from the Manager's `atom_ctr`
+    // and committed back only when the conversion succeeds -- a failing fast
+    // path leaves the Manager untouched, so the fallback stays idx-identical.
+    // The Manager is always the Rust pyclass (the typed `run()` signature
+    // enforces it), so no per-atom Python `next_atom()` round-trip is needed.
     atom: i64,
-    native_manager: Option<Py<Manager>>,
-    py_manager: Bound<'py, PyAny>,
     ins_addr: Option<i64>,
     block_addr: i64,
     vex_stmt_idx: i64,
 }
 
 impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
-    fn next_atom(&mut self) -> PyResult<i64> {
-        if self.native_manager.is_some() {
-            let v = self.atom;
-            self.atom += 1;
-            Ok(v)
-        } else {
-            self.py_manager.call_method0("next_atom")?.extract()
-        }
+    fn next_atom(&mut self) -> i64 {
+        let v = self.atom;
+        self.atom += 1;
+        v
     }
 
     /// Standard tags (ins_addr / vex_block_addr / vex_stmt_idx).
@@ -327,7 +325,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             ExprKind::Get { offset, bits } => self.make_register(offset, bits),
             ExprKind::Load { end, bits, addr } => {
                 // Python arg eval order: Load(next_atom(), convert(addr), ...).
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 let addr_e = self.convert_expr(&addr)?;
                 let size = (bits / 8) as i32;
                 let depth = addr_e.header.depth + 1;
@@ -351,7 +349,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let c = self.convert_expr(&cond)?;
                 let f = self.convert_expr(&iffalse)?;
                 let t = self.convert_expr(&iftrue)?;
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 let depth = c.header.depth.max(f.header.depth).max(t.header.depth) + 1;
                 let bits = t.header.bits;
                 Ok(AilExpression {
@@ -368,7 +366,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 for a in &args {
                     ops.push(self.convert_expr(a)?);
                 }
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 // The VEXCCallExpression factory's depth is the max over the
                 // operands, with no +1.
                 let depth = ops.iter().map(|o| o.header.depth).max().unwrap_or(0);
@@ -408,7 +406,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     }
 
     fn make_tmp(&mut self, tmp_idx: i64, bits: u32) -> PyResult<AilExpression> {
-        let idx = self.next_atom()?;
+        let idx = self.next_atom();
         Ok(AilExpression {
             header: ExprHeader::new(idx, 0, bits, self.tags()),
             inner: ExprInner::Tmp { tmp_idx },
@@ -418,7 +416,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     fn make_register(&mut self, offset: i64, bits: u32) -> PyResult<AilExpression> {
         let reg_size = bits / self.arch.byte_width;
         let reg_name = self.arch.reg_name(offset, reg_size)?;
-        let idx = self.next_atom()?;
+        let idx = self.next_atom();
         let mut tags = self.tags();
         if let Some(n) = reg_name {
             tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
@@ -430,7 +428,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     }
 
     fn make_const(&mut self, value: ConstValue, bits: u32) -> PyResult<AilExpression> {
-        let idx = self.next_atom()?;
+        let idx = self.next_atom();
         Ok(AilExpression {
             header: ExprHeader::new(idx, 0, bits, self.tags()),
             inner: ExprInner::Const { value },
@@ -438,7 +436,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
     }
 
     fn unsupported_expr(&mut self, label: String, bits: u32) -> PyResult<AilExpression> {
-        let idx = self.next_atom()?;
+        let idx = self.next_atom();
         Ok(new_dirty_expr(
             idx,
             format!("unsupported_{label}"),
@@ -465,7 +463,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
         if op_name.as_deref() == Some("Reinterp") {
             // Python arg eval order: Reinterpret(next_atom(), ..., convert(arg)).
-            let idx = self.next_atom()?;
+            let idx = self.next_atom();
             let operand = self.convert_expr(arg)?;
             let to_bits = simop.to_size.unwrap_or(0);
             let depth = operand.header.depth + 1;
@@ -494,7 +492,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 // atom, then the shift-amount Const's atom.
                 let inner = self.convert_expr(arg)?;
                 let shifted = {
-                    let idx = self.next_atom()?;
+                    let idx = self.next_atom();
                     let shift_const = self.make_const(ConstValue::Int(to_size as i128), 8)?;
                     new_binop(
                         idx,
@@ -510,7 +508,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                         self.tags(),
                     )
                 };
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 return Ok(new_convert(
                     idx,
                     from_size,
@@ -524,7 +522,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 ));
             }
             // Python arg eval order: Convert(next_atom(), ..., convert(arg)).
-            let idx = self.next_atom()?;
+            let idx = self.next_atom();
             let operand = self.convert_expr(arg)?;
             return Ok(new_convert(
                 idx,
@@ -544,7 +542,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             name = "BitwiseNeg".to_string();
         }
         // Python arg eval order: UnaryOp(next_atom(), name, convert(arg), bits=...).
-        let idx = self.next_atom()?;
+        let idx = self.next_atom();
         let operand = self.convert_expr(arg)?;
         let depth = operand.header.depth + 1;
         Ok(AilExpression {
@@ -627,7 +625,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             if simop.from_type.as_deref() == Some("I") && simop.to_type.as_deref() == Some("F") {
                 let rm = vex_rm_value(&operands[0]);
                 let operand = operands.pop().unwrap();
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 return Ok(new_convert(
                     idx,
                     from_size,
@@ -647,7 +645,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             {
                 let rm = vex_rm_value(&operands[0]);
                 let operand = operands.pop().unwrap();
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 return Ok(new_convert(
                     idx,
                     from_size,
@@ -664,7 +662,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             {
                 let rm = vex_rm_value(&operands[0]);
                 let operand = operands.pop().unwrap();
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 return Ok(new_convert(
                     idx,
                     from_size,
@@ -687,7 +685,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             if op2_size < op1_size {
                 // Python arg eval order: Convert(next_atom(), ..., operands[1]).
                 let signed_cvt = simop.from_signed.as_deref() != Some("U");
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 let o = operands.pop().unwrap();
                 operands.push(new_convert(
                     idx,
@@ -703,7 +701,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             }
             let chunk_bits = bits / 2;
             let div = {
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 new_binop(
                     idx,
                     "Div".to_string(),
@@ -719,7 +717,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 )
             };
             let truncated_div = {
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 new_convert(
                     idx,
                     op1_size,
@@ -733,7 +731,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 )
             };
             let modd = {
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 new_binop(
                     idx,
                     "Mod".to_string(),
@@ -749,7 +747,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 )
             };
             let truncated_mod = {
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 new_convert(
                     idx,
                     op1_size,
@@ -762,7 +760,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     self.tags(),
                 )
             };
-            let idx = self.next_atom()?;
+            let idx = self.next_atom();
             return Ok(new_binop(
                 idx,
                 "Concat".to_string(),
@@ -778,7 +776,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             ));
         }
 
-        let idx = self.next_atom()?;
+        let idx = self.next_atom();
         let rhs = operands.pop().unwrap();
         let lhs = operands.pop().unwrap();
         Ok(new_binop(
@@ -813,7 +811,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let rm = vex_rm_value(&operands[0]);
             let rhs = operands.pop().unwrap();
             let lhs = operands.pop().unwrap();
-            let idx = self.next_atom()?;
+            let idx = self.next_atom();
             return Ok(new_binop(
                 idx,
                 op_name,
@@ -866,7 +864,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } => {
                 let var = self.make_tmp(tmp as i64, data_bits)?;
                 let val = self.convert_expr(&data)?;
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 out.push(new_stmt(
                     idx,
                     self.tags(),
@@ -881,7 +879,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let val = self.convert_expr(&data)?;
                 let bits = val.header.bits;
                 let reg = self.make_register(offset, bits)?;
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 out.push(new_stmt(
                     idx,
                     self.tags(),
@@ -899,7 +897,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 endness,
             } => {
                 // Python arg eval order: Store(next_atom(), convert(addr), convert(data), ...).
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 let a = self.convert_expr(&addr)?;
                 let d = self.convert_expr(&data)?;
                 out.push(new_stmt(
@@ -920,7 +918,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     return Ok(false); // SkipConversionNotice
                 }
                 // Python arg eval order: ConditionalJump(next_atom(), convert(guard), convert(dst), None).
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 let g = self.convert_expr(&guard)?;
                 let d = self.convert_expr(&dst)?;
                 out.push(new_stmt(
@@ -949,7 +947,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let dst_var = self.make_tmp(dst as i64, dst_bits)?;
                 // Python arg eval order: Load(next_atom(), convert(addr), ...,
                 // guard=convert(guard), alt=convert(alt)).
-                let lidx = self.next_atom()?;
+                let lidx = self.next_atom();
                 let a = self.convert_expr(&addr)?;
                 let g = self.convert_expr(&guard)?;
                 let al = self.convert_expr(&alt)?;
@@ -972,7 +970,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 };
                 let src = if convert_bits != load_bits {
                     // ... and neither has this Convert.
-                    let cidx = self.next_atom()?;
+                    let cidx = self.next_atom();
                     new_convert(
                         cidx,
                         load_bits,
@@ -987,7 +985,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 } else {
                     load
                 };
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 out.push(new_stmt(
                     idx,
                     self.tags(),
@@ -1007,7 +1005,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } => {
                 // Python arg eval order: Store(next_atom(), convert(addr),
                 // convert(data), ..., guard=convert(guard)).
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 let a = self.convert_expr(&addr)?;
                 let d = self.convert_expr(&data)?;
                 let g = self.convert_expr(&guard)?;
@@ -1052,7 +1050,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     Some(t) => Some(self.make_tmp(t as i64, old_hi_bits)?),
                     None => None,
                 };
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 // CAS only sets ins_addr (matches Python).
                 let tags = Tags {
                     ins_addr: self.ins_addr,
@@ -1093,7 +1091,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     Some(e) => Some(self.convert_expr(&e)?),
                     None => None,
                 };
-                let didx = self.next_atom()?;
+                let didx = self.next_atom();
                 // The DirtyExpression factory's depth is a constant 1.
                 let dirty_expr = AilExpression {
                     header: ExprHeader::new(didx, 1, tmp_bits, self.tags()),
@@ -1108,7 +1106,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 };
                 match tmp {
                     None => {
-                        let idx = self.next_atom()?;
+                        let idx = self.next_atom();
                         out.push(new_stmt(
                             idx,
                             self.tags(),
@@ -1119,7 +1117,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     }
                     Some(t) => {
                         let tmp_var = self.make_tmp(t as i64, tmp_bits)?;
-                        let idx = self.next_atom()?;
+                        let idx = self.next_atom();
                         out.push(new_stmt(
                             idx,
                             self.tags(),
@@ -1133,9 +1131,9 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 Ok(false)
             }
             StmtKind::Other { label } => {
-                let didx = self.next_atom()?;
+                let didx = self.next_atom();
                 let dirty_expr = new_dirty_expr(didx, label, 0, self.tags());
-                let idx = self.next_atom()?;
+                let idx = self.next_atom();
                 out.push(new_stmt(
                     idx,
                     self.tags(),
@@ -1203,7 +1201,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } else {
                 // Match the original's arg eval order: the Jump's idx
                 // (next_atom) is allocated *before* the target is converted.
-                let jidx = self.next_atom()?;
+                let jidx = self.next_atom();
                 let next = self.reader.next_expr();
                 let target = self.convert_expr(&next)?;
                 statements.push(new_stmt(
@@ -1216,7 +1214,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 ));
             }
         } else if jk == "Ijk_Ret" {
-            let ridx = self.next_atom()?;
+            let ridx = self.next_atom();
             statements.push(new_stmt(
                 ridx,
                 self.tags(),
@@ -1228,7 +1226,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             // int3 -> MSVC __debugbreak() intrinsic: a side-effecting call to
             // an opaque (dirty) intrinsic, mirroring the syscall path.
             let target = {
-                let didx = self.next_atom()?;
+                let didx = self.next_atom();
                 new_dirty_expr(
                     didx,
                     "__debugbreak".to_string(),
@@ -1237,7 +1235,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 )
             };
             let call_expr = {
-                let cidx = self.next_atom()?;
+                let cidx = self.next_atom();
                 // Call(..., args=[], bits=None): empty args vec; the factory's
                 // bits default (bits.unwrap_or(0)) puts 0 in the header.
                 let depth = target.header.depth + 1;
@@ -1250,7 +1248,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     },
                 }
             };
-            let seidx = self.next_atom()?;
+            let seidx = self.next_atom();
             statements.push(new_stmt(
                 seidx,
                 self.tags(),
@@ -1265,7 +1263,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             // callee is a clean C identifier (never an internal diagnostic
             // string, which must not leak into the AIL/C output).
             let dirty_expr = {
-                let didx = self.next_atom()?;
+                let didx = self.next_atom();
                 new_dirty_expr(
                     didx,
                     format!("__unsupported_jumpkind_{jk}"),
@@ -1273,7 +1271,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     Tags::default(),
                 )
             };
-            let sidx = self.next_atom()?;
+            let sidx = self.next_atom();
             statements.push(new_stmt(
                 sidx,
                 self.tags(),
@@ -1304,7 +1302,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         let bits = self.arch.bits;
         let ret_name = self.arch.reg_name(ret_offset, bits)?;
         let ret_expr = {
-            let aidx = self.next_atom()?;
+            let aidx = self.next_atom();
             let mut tags = self.tags();
             if let Some(n) = ret_name {
                 tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
@@ -1326,7 +1324,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 None
             } else {
                 let fp_name = self.arch.reg_name(fp_ret_offset, bits)?;
-                let aidx = self.next_atom()?;
+                let aidx = self.next_atom();
                 let mut tags = self.tags();
                 if let Some(n) = fp_name {
                     tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
@@ -1345,13 +1343,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             self.convert_expr(&next)?
         } else {
             // Ijk_Sys*: hack -- DirtyExpression("syscall")
-            let didx = self.next_atom()?;
+            let didx = self.next_atom();
             new_dirty_expr(didx, "syscall".to_string(), bits, Tags::default())
         };
 
         let ret_bits = ret_expr.header.bits;
         let call_expr = {
-            let cidx = self.next_atom()?;
+            let cidx = self.next_atom();
             let depth = target.header.depth + 1;
             AilExpression {
                 header: ExprHeader::new(cidx, depth, ret_bits, self.tags()),
@@ -1363,7 +1361,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             }
         };
 
-        let seidx = self.next_atom()?;
+        let seidx = self.next_atom();
         statements.push(new_stmt(
             seidx,
             self.tags(),
@@ -2024,18 +2022,13 @@ impl VEXIRSBConverter {
         py: Python<'_>,
         reader: &R,
         block_addr_override: Option<i64>,
-        manager: Bound<'_, PyAny>,
+        manager: &Bound<'_, Manager>,
         arch: Bound<'_, PyAny>,
     ) -> PyResult<Py<PyAny>> {
-        let native_manager: Option<Py<Manager>> = manager
-            .clone()
-            .cast_into::<Manager>()
-            .ok()
-            .map(|b| b.unbind());
-        let start_atom = match &native_manager {
-            Some(m) => m.borrow(py).atom_ctr,
-            None => 0,
-        };
+        // The Manager is touched exactly twice: seed the local atom counter
+        // here, and commit it back below -- only on success, so a failing
+        // fast path leaves the Manager untouched (idx-identical fallback).
+        let start_atom = manager.borrow().atom_ctr;
         let block_addr = block_addr_override.unwrap_or_else(|| reader.block_addr());
 
         let mut conv = Conv {
@@ -2043,17 +2036,12 @@ impl VEXIRSBConverter {
             reader,
             arch: ArchCtx::new(arch)?,
             atom: start_atom,
-            native_manager: native_manager.as_ref().map(|m| m.clone_ref(py)),
-            py_manager: manager,
             ins_addr: None,
             block_addr,
             vex_stmt_idx: DEFAULT_STATEMENT,
         };
         let block = conv.convert_block()?;
-        let final_atom = conv.atom;
-        if let Some(m) = &native_manager {
-            m.borrow_mut(py).atom_ctr = final_atom;
-        }
+        manager.borrow_mut().atom_ctr = conv.atom;
         Ok(block)
     }
 }
@@ -2076,7 +2064,7 @@ impl VEXIRSBConverter {
         arch: Bound<'_, PyAny>,
         addr: u64,
         data: Bound<'_, PyAny>,
-        manager: Bound<'_, PyAny>,
+        manager: Bound<'_, Manager>,
         opt_level: i32,
         traceflags: i32,
         strict_block_end: bool,
@@ -2171,7 +2159,7 @@ impl VEXIRSBConverter {
         };
         // The C IRSB has no addr; the AIL block addr is the lift address
         // (matches pyvex IRSB.addr / the first IMark).
-        VEXIRSBConverter::run(py, &reader, Some(addr as i64), manager, arch)
+        VEXIRSBConverter::run(py, &reader, Some(addr as i64), &manager, arch)
     }
 
     /// Fallback: convert a cached pyvex Python `IRSB` object.
@@ -2179,26 +2167,31 @@ impl VEXIRSBConverter {
     fn convert(
         py: Python<'_>,
         irsb: Bound<'_, PyAny>,
-        manager: Bound<'_, PyAny>,
+        manager: Bound<'_, Manager>,
     ) -> PyResult<Py<PyAny>> {
         vex_ffi::init_symbols(py);
-        let arch = manager.getattr("arch")?;
-        if arch.is_none() {
-            return Err(PyValueError::new_err(
-                "manager.arch must be set for VEX conversion",
-            ));
-        }
+        let arch = match &manager.borrow().arch {
+            Some(a) => a.bind(py).clone(),
+            None => {
+                return Err(PyValueError::new_err(
+                    "manager.arch must be set for VEX conversion",
+                ));
+            }
+        };
         let tyenv = irsb.getattr("tyenv")?;
         let block_addr: i64 = irsb.getattr("addr")?.extract()?;
         // Keep manager state in sync with the legacy converter.
-        manager.setattr("tyenv", &tyenv)?;
-        manager.setattr("block_addr", block_addr)?;
+        {
+            let mut m = manager.borrow_mut();
+            m.tyenv = Some(tyenv.clone().unbind());
+            m.block_addr = Some(block_addr);
+        }
         let reader = PyReader {
             irsb: irsb.clone(),
             tyenv,
             statements: irsb.getattr("statements")?.cast_into::<PyList>()?,
         };
-        VEXIRSBConverter::run(py, &reader, Some(block_addr), manager, arch)
+        VEXIRSBConverter::run(py, &reader, Some(block_addr), &manager, arch)
     }
 }
 
