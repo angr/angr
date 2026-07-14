@@ -1,4 +1,4 @@
-# pylint:disable=no-member,raise-missing-from
+# pylint:disable=no-member,raise-missing-from,protected-access
 from __future__ import annotations
 
 import json
