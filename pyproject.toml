@@ -33,7 +33,7 @@ dependencies = [
     "psutil",
     "pycparser~=3.0",
     "platformdirs",
-    "pydemumble",
+    "pydemumble==0.0.1",
     "pypcode~=4.0",
     "pyvex==9.3.0.dev0",
     "rich>=13.1.0",
