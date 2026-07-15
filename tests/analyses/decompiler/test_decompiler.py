@@ -3866,6 +3866,32 @@ class TestDecompiler(unittest.TestCase):
             f"the decompilation output contains struct typedef(s) that nothing references: {unreferenced}"
         )
 
+    @structuring_algo("sailr")
+    def test_decompiling_03fb29da_132b0_bp_as_gpr_reg_spill(self, decompiler_options=None):
+        # Regression test covering two bugs in sub_132b0, which uses bp as a general-purpose register,
+        # conditionally spills the callee-saved registers rbp/rsi/rdi/r12 into its local frame at 0x13365
+        # ("shrink-wrapped" prologue), and restores them at 0x134e5.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "03fb29dab8ab848f15852a37a1c04aa65289c0160d9200dceff64d890b3290dd"
+        )
+        proj, _ = load_project_with_scoped_cfg(bin_path, 0x132B0)
+        f = proj.kb.functions[0x132B0]
+        assert f.info.get("bp_as_gpr", None) is True
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        assert "unsupported instruction" not in d.codegen.text
+
+        # The shrink-wrapped callee-saved spill previously showed up as a run of four consecutive dead
+        # "vX = vY;" register-copy statements. After the fix no such spill block survives.
+        copy_re = re.compile(r"^\s*v\d+ = v\d+;\s*$")
+        max_run = run = 0
+        for line in d.codegen.text.splitlines():
+            run = run + 1 if copy_re.match(line) else 0
+            max_run = max(max_run, run)
+        assert max_run < 3, f"a callee-saved register spill block survived: {max_run} consecutive copy statements"
+
     def test_test_binop_ret_dup(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)

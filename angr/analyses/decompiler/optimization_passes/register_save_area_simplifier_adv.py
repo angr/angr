@@ -6,7 +6,7 @@ import logging
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.code_location import CodeLocation
 from angr.utils.ail import is_phi_assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -60,17 +60,16 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         if cache is None:
             return
 
-        info: list[tuple[int, CodeLocation, int, CodeLocation, int]] = cache["info"]
+        info: list[tuple[list[CodeLocation], int]] = cache["info"]
         updated_blocks = {}
 
-        for _regvar, regvar_loc, _stackvar, stackvar_loc, _ in info:
-            # remove storing statements
-            old_block = self._get_block(regvar_loc.block_addr, idx=regvar_loc.block_idx)
-            assert regvar_loc.stmt_idx is not None
-            self._modify_statement(old_block, regvar_loc.stmt_idx, updated_blocks)
-            old_block = self._get_block(stackvar_loc.block_addr, idx=stackvar_loc.block_idx)
-            assert stackvar_loc.stmt_idx is not None
-            self._modify_statement(old_block, stackvar_loc.stmt_idx, updated_blocks)
+        for locs, _ in info:
+            # remove all statements involved in this save (the store plus its matching restore, or the store plus the
+            # dead phi statements it feeds)
+            for loc in locs:
+                old_block = self._get_block(loc.block_addr, idx=loc.block_idx)
+                assert old_block is not None and loc.stmt_idx is not None
+                self._modify_statement(old_block, loc.stmt_idx, updated_blocks)
 
         for old_block, new_block in updated_blocks.items():
             # remove all statements that are None
@@ -80,20 +79,23 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
 
         if updated_blocks:
             # update stack_items
-            for _, _, _, _, stack_offset in info:
+            for _, stack_offset in info:
                 self.stack_items[stack_offset] = StackItem(
                     stack_offset, self.project.arch.bytes, "regs", StackItemType.SAVED_REGS
                 )
 
-    def _find_reg_store_and_restore_locations(self) -> list[tuple[int, CodeLocation, int, CodeLocation, int]]:
-        results = []
+    def _find_reg_store_and_restore_locations(self) -> list[tuple[list[CodeLocation], int]]:
+        results: list[tuple[list[CodeLocation], int]] = []
 
         assert self._srda is not None
         srda_model = self._srda.model
         # find all registers that are defined externally and used exactly once
         saved_vvars: set[tuple[int, CodeLocation]] = set()
         for vvar_id, loc in srda_model.all_vvar_definitions.items():
-            if isinstance(loc, ExternalCodeLocation):
+            # SReachingDefinitions records externally-defined (function live-in) vvars via
+            # AILCodeLocation.make_extern(). These are AILCodeLocation instances (not ExternalCodeLocation), so the
+            # extern check must go through AILCodeLocation.is_extern.
+            if loc.is_extern:
                 uses = srda_model.all_vvar_uses.get(vvar_id, [])
                 if len(uses) == 1:
                     vvar, used_loc = next(iter(uses))
@@ -105,8 +107,13 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
 
         # for each candidate, we check to ensure:
         # - it is stored onto the stack (into a stack virtual variable)
-        # - the stack virtual variable is only used once and restores the value to the same register
-        # - the restore location is in the dominance frontier of the store location
+        # - either
+        #   (a) the stack virtual variable is used exactly once (ignoring phi uses) to restore the value to the same
+        #       register, and the restore location is in the dominance frontier of the store location; or
+        #   (b) the stack virtual variable has no non-phi uses and only feeds phi nodes whose results are dead. This
+        #       happens with shrink-wrapped prologues (e.g. MSVC drivers) where the callee-saved register is
+        #       conditionally spilled and the matching restore has already been removed as a dead assignment; what
+        #       remains is a dead store whose stack vvar merges with an undefined value at a loop/branch join.
         for vvar_id, used_loc in saved_vvars:
             def_block = self._get_block(used_loc.block_addr, idx=used_loc.block_idx)
             assert def_block is not None and used_loc.stmt_idx is not None
@@ -122,39 +129,58 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
                 continue
             stack_vvar = stmt.dst
             all_stack_vvar_uses = srda_model.all_vvar_uses.get(stack_vvar.varid, [])
-            # eliminate the use location if it's a phi statement
+            # partition the uses into phi uses and non-phi uses
             stack_vvar_uses = set()
+            phi_use_locs: list[CodeLocation] = []
             for vvar_, loc_ in all_stack_vvar_uses:
                 use_block = self._get_block(loc_.block_addr, idx=loc_.block_idx)
                 if use_block is None or loc_.stmt_idx is None:
                     continue
                 use_stmt = use_block.statements[loc_.stmt_idx]
                 if is_phi_assignment(use_stmt):
+                    phi_use_locs.append(loc_)
                     continue
                 stack_vvar_uses.add((vvar_, loc_))
-            if len(stack_vvar_uses) != 1:
-                continue
-            _, stack_vvar_use_loc = next(iter(stack_vvar_uses))
-            restore_block = self._get_block(stack_vvar_use_loc.block_addr, idx=stack_vvar_use_loc.block_idx)
-            assert restore_block is not None
-            restore_stmt = restore_block.statements[stack_vvar_use_loc.stmt_idx]
 
-            if not (
-                isinstance(restore_stmt, Assignment)
-                and isinstance(restore_stmt.src, VirtualVariable)
-                and restore_stmt.src.varid == stack_vvar.varid
-                and isinstance(restore_stmt.dst, VirtualVariable)
-                and restore_stmt.dst.was_reg
-                and restore_stmt.dst.reg_offset == stmt.src.reg_offset
-            ):
-                continue
-            # this is the dumb version of the dominance frontier check
-            if self._within_dominance_frontier(def_block, restore_block, True, True):
-                results.append(
-                    (stmt.src.varid, used_loc, stack_vvar.varid, stack_vvar_use_loc, stack_vvar.stack_offset)
-                )
+            if len(stack_vvar_uses) == 1:
+                # case (a): a genuine store/restore pair
+                _, stack_vvar_use_loc = next(iter(stack_vvar_uses))
+                restore_block = self._get_block(stack_vvar_use_loc.block_addr, idx=stack_vvar_use_loc.block_idx)
+                assert restore_block is not None
+                restore_stmt = restore_block.statements[stack_vvar_use_loc.stmt_idx]
+
+                if not (
+                    isinstance(restore_stmt, Assignment)
+                    and isinstance(restore_stmt.src, VirtualVariable)
+                    and restore_stmt.src.varid == stack_vvar.varid
+                    and isinstance(restore_stmt.dst, VirtualVariable)
+                    and restore_stmt.dst.was_reg
+                    and restore_stmt.dst.reg_offset == stmt.src.reg_offset
+                ):
+                    continue
+                # this is the dumb version of the dominance frontier check
+                if self._within_dominance_frontier(def_block, restore_block, True, True):
+                    results.append(([used_loc, stack_vvar_use_loc], stack_vvar.stack_offset))
+            elif not stack_vvar_uses and phi_use_locs and self._phi_uses_are_dead(srda_model, phi_use_locs):
+                # case (b): a dead spill whose stack vvar only feeds dead phi nodes
+                results.append(([used_loc, *phi_use_locs], stack_vvar.stack_offset))
 
         return results
+
+    def _phi_uses_are_dead(self, srda_model, phi_use_locs: list[CodeLocation]) -> bool:
+        """Return True iff every phi statement at ``phi_use_locs`` defines a virtual variable that has no uses. Such a
+        phi is dead and can be removed together with the store that feeds it."""
+
+        for loc in phi_use_locs:
+            block = self._get_block(loc.block_addr, idx=loc.block_idx)
+            if block is None or loc.stmt_idx is None:
+                return False
+            phi_stmt = block.statements[loc.stmt_idx]
+            if not (isinstance(phi_stmt, Assignment) and isinstance(phi_stmt.dst, VirtualVariable)):
+                return False
+            if srda_model.all_vvar_uses.get(phi_stmt.dst.varid, []):
+                return False
+        return True
 
     def _within_dominance_frontier(self, dom_node, node, use_preds: bool, use_succs: bool) -> bool:
         if use_succs:
