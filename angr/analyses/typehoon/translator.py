@@ -56,8 +56,7 @@ class TypeTranslator:
         # angr-generated structs that share an identical layout. See _translate_Struct for the rationale.
         self._struct_sig_cache: dict[tuple, sim_type.SimStruct] = {}
         self._struct_ctr = count()
-        # a name-independent, deterministic per-function ordering id stamped onto each translated struct, used by
-        # the code generator to break ties when sorting structurally identical structs (see SimStruct._def_order)
+        # a name-independent, deterministic per-function ordering id stamped onto each translated struct
         self._struct_def_ctr = count()
         self.memo = {}
         self.named_struct_id_counter = count(133337)

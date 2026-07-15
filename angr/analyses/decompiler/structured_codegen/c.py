@@ -194,17 +194,14 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
 
 
 def _safe_type_size(ty) -> int:
-    try:
-        sz = ty.size
-    except Exception:  # pylint:disable=broad-except
-        return -1
+    sz = getattr(ty, "size", -1)
     return sz if isinstance(sz, int) else -1
 
 
 def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
     """
-    A structural sort key for a type, derived purely from its memory layout -- sizes, field offsets, and the
-    layouts of field/element/pointee types -- and never from any user-renamable struct or field name. This lets
+    A structural sort key for a type, derived purely from its memory layout (sizes, field offsets, and the
+    layouts of field/element/pointee types) and not from any user-renamable struct or field name. This lets
     the code generator order type definitions stably without their order changing when the user renames a struct
     or a field. Cycles through recursive struct/pointer references are broken with a marker.
     """
@@ -213,10 +210,7 @@ def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
         if id(ty) in _seen:
             return "@"  # a reference back to an enclosing struct (recursive type)
         _seen = _seen | {id(ty)}
-        try:
-            offsets = ty.offsets
-        except Exception:  # pylint:disable=broad-except
-            offsets = {}
+        offsets = ty.offsets
         fields = sorted(f"{offsets.get(fname, -1)}:{type_layout_key(fty, _seen)}" for fname, fty in ty.fields.items())
         return f"S[{_safe_type_size(ty)};{int(bool(getattr(ty, 'packed', False)))};{';'.join(fields)}]"
     if isinstance(ty, SimTypePointer):
@@ -712,8 +706,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 if self.codegen.show_local_types
                 else set()
             )
-            # iterate externs in a stable, rename-independent order (by variable address) so the discovered
-            # struct types -- and therefore their emission order -- are deterministic
+            # iterate externs in a stable, rename-independent order (by variable address) so the emission order of the
+            # discovered struct types are deterministic
             for v in sorted(self.codegen.cexterns, key=cextern_sort_key):
                 if v.variable not in self.variables_in_use or v.type is None:
                     continue

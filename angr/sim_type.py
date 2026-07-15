@@ -1643,9 +1643,7 @@ class SimStruct(NamedTypeMixin, SimType):
             self.anonymous = True
 
         self._arch_memo = {}
-        # An optional, name-independent ordering id assigned by the type translator (see analyses/typehoon/
-        # translator.py). The code generator uses it to break ties when sorting structurally identical struct
-        # types, so that the emission order stays put when the user renames a struct or a field.
+        # An optional, name-independent ordering id assigned by the type translator.
         self._def_order: int | None = def_order
 
     #
@@ -1658,7 +1656,6 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @property
     def def_order(self):
-        # exposed so SimType.to_json / from_json can round-trip the field via _args
         return self._def_order
 
     @property

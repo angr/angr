@@ -14,5 +14,4 @@ class Variance(enum.Enum):
     CONTRAVARIANT = 1
 
     def __hash__(self):
-        # hash by value (not by member identity, which varies across processes)
         return hash((type_tag(Variance), self.value))
