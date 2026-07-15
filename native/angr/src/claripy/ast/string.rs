@@ -193,15 +193,14 @@ impl PyAstString {
 #[pyfunction(signature = (name, explicit_name = false))]
 pub fn StringS<'py>(
     py: Python<'py>,
-    name: &str,
+    name: NameString,
     explicit_name: bool,
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-    let name: String = if explicit_name {
-        name.to_string()
-    } else {
+    let mut name: String = name.into();
+    if !explicit_name {
         let counter = STRINGS_COUNTER.fetch_add(1, Ordering::Relaxed);
-        format!("{name}_{counter}")
-    };
+        name = format!("{name}_{counter}");
+    }
     PyAstString::new_with_name(py, &GLOBAL_CONTEXT.strings(&name)?, Some(name))
 }
 

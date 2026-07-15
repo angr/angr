@@ -361,15 +361,14 @@ impl Bool {
 #[pyfunction(signature = (name, explicit_name = false))]
 pub fn BoolS<'py>(
     py: Python<'py>,
-    name: &str,
+    name: NameString,
     explicit_name: bool,
 ) -> Result<Bound<'py, Bool>, ClaripyError> {
-    let name: String = if explicit_name {
-        name.to_string()
-    } else {
+    let mut name: String = name.into();
+    if !explicit_name {
         let counter = BOOLS_COUNTER.fetch_add(1, Ordering::Relaxed);
-        format!("{name}_{counter}")
-    };
+        name = format!("{name}_{counter}");
+    }
     Bool::new_with_name(py, &GLOBAL_CONTEXT.bools(&name)?, Some(name.clone()))
 }
 
