@@ -403,8 +403,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)
         if self.project.arch.sp_offset is not None:
             state.register_region.store(self.project.arch.sp_offset, initial_sp)
-        # give it enough stack space
-        if self.project.arch.bp_offset is not None:
+        # give it enough stack space, but only when bp is used as a frame pointer; when bp is a general-purpose
+        # register, seeding it with a stack address would misclassify bp-based memory accesses as stack accesses
+        # and suppress the creation of a register variable for the initial value of bp.
+        if self.project.arch.bp_offset is not None and not self.function.info.get("bp_as_gpr", False):
             state.register_region.store(self.project.arch.bp_offset, initial_sp + 0x100000)
 
         internal_manager = self.variable_manager[self.function.addr]
