@@ -404,6 +404,42 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(cexterns[mousex_addr], SimTypeInt)
         assert isinstance(cexterns[gametic_addr], SimTypeInt)
 
+    def _decompile_function_scoped(self, proj, func_addr: int, func_size: int):
+        # scope the CFG to the target function so tests on large (static) binaries stay fast
+        cfg = proj.analyses.CFGFast(
+            regions=[(func_addr, func_addr + func_size + 0x80)],
+            function_starts=[func_addr],
+            normalize=True,
+        )
+        proj.analyses.CompleteCallingConventions(cfg=cfg, kb=cfg.kb, recover_variables=True)
+        func = cfg.kb.functions.get_by_addr(func_addr)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, kb=cfg.kb)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec
+
+    def _assert_extern_is_function_pointer(self, proj, func_symbol: str, global_symbol: str) -> SimTypePointer:
+        func_sym = proj.loader.find_symbol(func_symbol)
+        global_sym = proj.loader.find_symbol(global_symbol)
+        assert func_sym is not None and global_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        ext_ty = cexterns.get(global_sym.rebased_addr)
+        assert isinstance(ext_ty, SimTypePointer), (
+            f"{global_symbol} in {func_symbol}: expected a function pointer, got {ext_ty!r}"
+        )
+        assert isinstance(ext_ty.pts_to, SimTypeFunction), (
+            f"{global_symbol} in {func_symbol}: expected a function pointer, got {ext_ty!r}"
+        )
+        return ext_ty
+
+    def test_fnptr_global_guarded_hook_call(self):
+        # glibc's __after_morecore_hook: `if (__after_morecore_hook) (*__after_morecore_hook)();`
+        # exercised from two different functions, one of them a gcc isra clone
+        bin_path = os.path.join(test_location, "x86_64", "static")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        self._assert_extern_is_function_pointer(proj, "top_check", "__after_morecore_hook")
+        self._assert_extern_is_function_pointer(proj, "systrim.isra.1", "__after_morecore_hook")
+
     def test_type_inference_with_custom_label(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
         proj = angr.Project(bin_path, auto_load_libs=False)

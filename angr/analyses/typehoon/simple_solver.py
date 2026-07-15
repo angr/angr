@@ -2004,7 +2004,29 @@ class SimpleSolver:
         # now, what is this variable?
         result = None
 
-        if last_labels and all(isinstance(label, (FuncIn, FuncOut)) for label in last_labels):
+        def _is_whole_cell_access(labels: tuple[BaseLabel, ...]) -> bool:
+            # a pointer-sized Load/Store at offset 0 reads or writes the cell's entire value
+            # (e.g. a null check of a function-pointer global, or storing a new target into it).
+            # such an access is consistent with the cell holding a function pointer, so it must
+            # not veto function-type formation.
+            last = labels[-1]
+            return (
+                isinstance(last, HasField)
+                and last.offset == 0
+                and last.bits == self.bits
+                and len(labels) >= 2
+                and isinstance(labels[-2], (Load, Store))
+            )
+
+        if (
+            last_labels
+            and any(isinstance(label, (FuncIn, FuncOut)) for label in last_labels)
+            and all(
+                isinstance(labels[-1], (FuncIn, FuncOut)) or _is_whole_cell_access(labels)
+                for labels, _ in path_and_successors
+                if labels
+            )
+        ):
             # create a dummy result and dump it to the cache
             func_type = Function([], [])
             result = self._pointer_class()(basetype=func_type)
@@ -2024,7 +2046,9 @@ class SimpleSolver:
                 elif isinstance(last_label, FuncOut):
                     func_outputs[last_label.loc].add(succ)
                 else:
-                    raise RuntimeError("Unreachable")
+                    # whole-cell accesses (and label-less paths) carry no parameter or
+                    # return-value information
+                    continue
 
             input_args = []
             output_values = []
