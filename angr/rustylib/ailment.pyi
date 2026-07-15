@@ -13,6 +13,8 @@ The rustlib surface is intentionally minimal:
 
 * ``Expression`` / ``Statement`` -- the universal pyclasses
 * ``Block`` -- the AIL Block container
+* ``Manager`` -- atom-index allocation + per-conversion scratch state
+* ``VEXIRSBConverter`` -- the VEX -> AIL converter
 * ``VirtualVariableCategory`` / ``ConvertType`` -- the AIL enums
 * ``TagsView`` / ``TagsKeyIter`` -- the tag plumbing
 
@@ -230,7 +232,7 @@ class Expression:
         operand: Expression,
         from_type: ConvertType | None = ...,
         to_type: ConvertType | None = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         **tags: Any,
     ) -> Expression: ...
     @staticmethod
@@ -252,7 +254,7 @@ class Expression:
         *,
         bits: int | None = ...,
         floating_point: bool = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         vector_count: int | None = ...,
         vector_size: int | None = ...,
         **tags: Any,
@@ -513,6 +515,55 @@ class Block:
     def dbg_repr(self, indent: int = ...) -> str: ...
 
 # ---------------------------------------------------------------------------
+# Manager + VEX -> AIL converter
+# ---------------------------------------------------------------------------
+
+class Manager:
+    """AIL manager: hands out atom indices and holds per-conversion scratch state."""
+
+    name: str | None
+    arch: Any | None
+    variable_map: Any | None
+    ins_addr: int | None
+    vex_stmt_idx: int | None
+    tyenv: Any | None
+    block_addr: int | None
+    atom_ctr: int
+    def __init__(self, name: str | None = ..., arch: Any | None = ...) -> None: ...
+    def next_atom(self) -> int: ...
+    def reset(self) -> None: ...
+
+class VEXIRSBConverter:
+    """The VEX -> AIL converter."""
+
+    @staticmethod
+    def convert(irsb: Any, manager: Manager) -> Block:
+        """Convert a cached pyvex Python ``IRSB``."""
+
+    @staticmethod
+    def convert_from_lift(
+        arch: Any,
+        addr: int,
+        data: bytes | bytearray | memoryview,
+        manager: Manager,
+        *,
+        opt_level: int = ...,
+        traceflags: int = ...,
+        strict_block_end: bool = ...,
+        collect_data_refs: bool = ...,
+        load_from_ro_regions: bool = ...,
+        const_prop: bool = ...,
+        cross_insn_opt: bool = ...,
+        max_inst: int = ...,
+        max_bytes: int | None = ...,
+        bytes_offset: int = ...,
+    ) -> Block:
+        """Lift ``data`` at ``addr`` directly into libVEX and convert the C IRSB."""
+
+def _vexop_debug(op_int: int) -> dict[str, Any] | None:
+    """Classify a VEX op integer via the Rust port; ``None`` if unsupported."""
+
+# ---------------------------------------------------------------------------
 # Expression variant marker classes
 # ---------------------------------------------------------------------------
 #
@@ -664,7 +715,7 @@ class BinaryOp(Op):
     def floating_point(self) -> bool:
         """BinaryOp.floating_point"""
     @property
-    def rounding_mode(self) -> Any | None:
+    def rounding_mode(self) -> RoundingMode | Expression | None:
         """BinaryOp.rounding_mode"""
     @property
     def vector_count(self) -> int | None:
@@ -681,7 +732,7 @@ class BinaryOp(Op):
         *,
         bits: int | None = ...,
         floating_point: bool = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         vector_count: int | None = ...,
         vector_size: int | None = ...,
         **tags: Any,
@@ -710,7 +761,7 @@ class Convert(Op):
     def to_type(self) -> Any:
         """Convert.to_type"""
     @property
-    def rounding_mode(self) -> Any | None:
+    def rounding_mode(self) -> RoundingMode | Expression | None:
         """Convert.rounding_mode"""
     def __init__(
         self,
@@ -721,7 +772,7 @@ class Convert(Op):
         operand: Expression,
         from_type: ConvertType | None = ...,
         to_type: ConvertType | None = ...,
-        rounding_mode: RoundingMode | None = ...,
+        rounding_mode: RoundingMode | Expression | None = ...,
         **tags: Any,
     ) -> None: ...
 

@@ -13,15 +13,48 @@ pub mod ail_expr;
 pub mod ail_stmt;
 pub mod block;
 pub mod const_value;
+pub mod convert_vex;
 pub mod enums;
+pub mod manager;
 pub mod tags;
+pub mod vex_ffi;
+pub mod vexop;
+pub mod vexop_names;
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyDict, PyModule};
+use pyo3::wrap_pyfunction;
 use rustc_hash::FxHasher;
+
+/// Debug helper for the `test_vexop_parity` cross-check: classify a VEX op
+/// integer via the Rust port. Returns `None` for unsupported ops (the
+/// converter would emit a `DirtyExpression`), else a dict of the attributes
+/// the converter relies on. Not part of the public API.
+#[pyfunction]
+fn _vexop_debug(py: Python<'_>, op_int: u32) -> PyResult<Option<Py<PyDict>>> {
+    vex_ffi::init_symbols(py);
+    match vexop::vexop_to_simop(op_int) {
+        Err(()) => Ok(None),
+        Ok(info) => {
+            let is_signed = info.is_signed();
+            let is_conversion = info.is_conversion();
+            let d = PyDict::new(py);
+            d.set_item("generic_name", info.generic_name)?;
+            d.set_item("output_size_bits", info.output_size_bits)?;
+            d.set_item("is_signed", is_signed)?;
+            d.set_item("is_conversion", is_conversion)?;
+            d.set_item("float", info.float)?;
+            d.set_item("from_size", info.from_size)?;
+            d.set_item("to_size", info.to_size)?;
+            d.set_item("vector_count", info.vector_count)?;
+            d.set_item("vector_size", info.vector_size)?;
+            Ok(Some(d.unbind()))
+        }
+    }
+}
 
 pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Tags
@@ -44,6 +77,15 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Block.
     m.add_class::<block::Block>()?;
+
+    // Manager.
+    m.add_class::<manager::Manager>()?;
+
+    // VEX -> AIL converter.
+    m.add_class::<convert_vex::VEXIRSBConverter>()?;
+
+    // Debug helper (vexop classifier parity testing).
+    m.add_function(wrap_pyfunction!(_vexop_debug, m)?)?;
 
     Ok(())
 }
