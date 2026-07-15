@@ -512,5 +512,153 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert d2.codegen.text == self.decompiler.codegen.text
 
 
+class TestSpillingDecompilationDict(unittest.TestCase):
+    """Tests for the LRU + RtDb-spilling backing store of StructuredCodeManager."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.auth_func = cls.proj.kb.functions.function(name="authenticate")
+        cls.main_func = cls.proj.kb.functions.function(name="main")
+        cls.auth_dec = cls.proj.analyses.Decompiler(cls.auth_func, cfg=cls.cfg.model, generate_code=True)
+        cls.main_dec = cls.proj.analyses.Decompiler(cls.main_func, cfg=cls.cfg.model, generate_code=True)
+
+    def test_default_backing_store_is_spilling(self):
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        assert isinstance(self.proj.kb.decompilations.cached, SpillingDecompilationDict)
+
+    def test_eviction_and_reload(self):
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        auth_key = (self.auth_func.addr, "pseudocode")
+        main_key = (self.main_func.addr, "pseudocode")
+        d[auth_key] = self.auth_dec.cache
+        d[main_key] = self.main_dec.cache
+
+        # the LRU (authenticate) entry must have been spilled
+        assert auth_key in d._spilled
+        assert len(d) == 2
+        assert auth_key in d
+        assert main_key in d
+        assert set(d) == {auth_key, main_key}
+
+        # reloading the spilled entry deserializes it with full codegen and provenance stamps
+        back = d[auth_key]
+        assert back is not self.auth_dec.cache
+        assert back.codegen.text == self.auth_dec.cache.codegen.text
+        assert back.version == self.auth_dec.cache.version
+        assert back.timestamp == self.auth_dec.cache.timestamp
+        # ... and the reload evicted the other entry in turn
+        assert main_key in d._spilled
+
+    def test_mutations_survive_respill(self):
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        auth_key = (self.auth_func.addr, "pseudocode")
+        main_key = (self.main_func.addr, "pseudocode")
+        d[auth_key] = self.auth_dec.cache
+        d[main_key] = self.main_dec.cache
+
+        # reload authenticate (spills main), mutate it in place, then spill it again by touching main
+        d[auth_key].errors.append("synthetic error")
+        _ = d[main_key]
+        assert auth_key in d._spilled
+        assert "synthetic error" in d[auth_key].errors
+
+    def test_unserializable_cache_is_kept_in_memory(self):
+        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+        from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        dummy_key = (0xDEAD, "pseudocode")
+        dummy_cache = DecompilationCache(0xDEAD)
+        dummy_cache.codegen = DummyStructuredCodeGenerator("pseudocode")
+        d[dummy_key] = dummy_cache
+
+        # inserting another entry evicts the dummy cache, which cannot be serialized and must be parked in memory
+        main_key = (self.main_func.addr, "pseudocode")
+        d[main_key] = self.main_dec.cache
+        assert dummy_key in d._unspillable
+        assert d[dummy_key] is dummy_cache
+        assert len(d) == 2
+
+    def test_delete_and_discard(self):
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        auth_key = (self.auth_func.addr, "pseudocode")
+        main_key = (self.main_func.addr, "pseudocode")
+        d[auth_key] = self.auth_dec.cache
+        d[main_key] = self.main_dec.cache
+
+        del d[auth_key]  # spilled entry
+        del d[main_key]  # in-memory entry
+        assert len(d) == 0
+        assert auth_key not in d
+        with self.assertRaises(KeyError):
+            _ = d[auth_key]
+
+    def test_export_and_bulk_import_serialized(self):
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        auth_key = (self.auth_func.addr, "pseudocode")
+        main_key = (self.main_func.addr, "pseudocode")
+        d[auth_key] = self.auth_dec.cache
+        d[main_key] = self.main_dec.cache
+
+        serialized, unserializable = d.export_serialized()
+        assert not unserializable
+        assert {key for key, _ in serialized} == {auth_key, main_key}
+
+        d2 = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        d2.bulk_import_serialized(serialized)
+        assert set(d2) == {auth_key, main_key}
+        assert d2._spilled == {auth_key, main_key}
+        assert d2[auth_key].codegen.text == self.auth_dec.cache.codegen.text
+
+    def test_pickle_roundtrip(self):
+        import pickle
+
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        auth_key = (self.auth_func.addr, "pseudocode")
+        main_key = (self.main_func.addr, "pseudocode")
+        d[auth_key] = self.auth_dec.cache
+        d[main_key] = self.main_dec.cache
+        assert auth_key in d._spilled
+
+        # serializable entries pickle as protobuf bytes: live caches hold unpicklable analysis internals
+        back = pickle.loads(pickle.dumps(d, -1))
+        assert set(back) == {auth_key, main_key}
+        assert back._spilled == {auth_key, main_key}
+        assert back[auth_key].codegen.text == self.auth_dec.cache.codegen.text
+
+    def test_cache_hit_after_spill(self):
+        """The decisive test: force the freshly decompiled cache out to LMDB, then re-run the decompiler. The
+        second run must transparently reload the spilled cache and produce identical output."""
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        manager = self.proj.kb.decompilations
+        old_cached = manager.cached
+        try:
+            d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+            manager.cached = d
+            manager[(self.auth_func.addr, "pseudocode")] = self.auth_dec.cache
+            manager[(self.main_func.addr, "pseudocode")] = self.main_dec.cache
+            assert (self.auth_func.addr, "pseudocode") in d._spilled
+
+            d2 = self.proj.analyses.Decompiler(self.auth_func, cfg=self.cfg.model, generate_code=True)
+            assert d2.codegen.text == self.auth_dec.codegen.text
+        finally:
+            manager.cached = old_cached
+
+
 if __name__ == "__main__":
     unittest.main()
