@@ -36,6 +36,7 @@ from angr.sim_type import (
     SimTypeFunction,
     SimTypeInt,
     SimTypePointer,
+    TypeRef,
 )
 from tests.common import bin_location, print_decompilation_result
 
@@ -432,6 +433,35 @@ class TestTypehoon(unittest.TestCase):
         )
         return ext_ty
 
+    def test_fnptr_global_guarded_call(self):
+        # a global holding a function pointer that is null-checked before the indirect call
+        # (`if (g) g();`). the whole-cell load from the null check must not stop the solver
+        # from typing the global as a function pointer.
+        bin_path = os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        self._assert_extern_is_function_pointer(proj, "_dl_scope_free", "_dl_wait_lookup_done")
+        self._assert_extern_is_function_pointer(proj, "add_to_global_resize", "_dl_wait_lookup_done")
+
+    def test_fnptr_global_guarded_call_large_function(self):
+        # same guarded pattern, but inside a large function with a complex CFG
+        bin_path = os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        self._assert_extern_is_function_pointer(proj, "_dl_close_worker.part.0", "_dl_wait_lookup_done")
+
+    def test_fnptr_global_guarded_call_static_binary(self):
+        bin_path = os.path.join(test_location, "x86_64", "static")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        self._assert_extern_is_function_pointer(proj, "_dl_scope_free", "_dl_wait_lookup_done")
+
+    def test_fnptr_global_with_used_return_value(self):
+        # the result of the indirect call is used, so the recovered function type must carry
+        # a non-void return type (`ptr = (*_dl_error_catch_tsd)();`)
+        bin_path = os.path.join(test_location, "x86_64", "static")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        ext_ty = self._assert_extern_is_function_pointer(proj, "_dl_signal_error", "_dl_error_catch_tsd")
+        returnty = ext_ty.pts_to.returnty
+        assert returnty is not None and not isinstance(returnty, SimTypeBottom)
+
     def test_fnptr_global_guarded_hook_call(self):
         # glibc's __after_morecore_hook: `if (__after_morecore_hook) (*__after_morecore_hook)();`
         # exercised from two different functions, one of them a gcc isra clone
@@ -439,6 +469,43 @@ class TestTypehoon(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         self._assert_extern_is_function_pointer(proj, "top_check", "__after_morecore_hook")
         self._assert_extern_is_function_pointer(proj, "systrim.isra.1", "__after_morecore_hook")
+
+    def test_fnptr_parameter_recovered(self):
+        # a function pointer passed as a parameter and called indirectly must be recovered as a
+        # function-pointer parameter (glibc _dl_catch_error's `operate` callback)
+        bin_path = os.path.join(test_location, "x86_64", "static")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("_dl_catch_error")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        proto = dec.clinic.function.prototype
+        fnptr_args = [
+            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
+        ]
+        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
+
+    def test_fnptr_global_guarded_call_with_arguments(self):
+        # guarded indirect call through a memory operand (`call *g(%rip)`) with arguments
+        bin_path = os.path.join(test_location, "x86_64", "ALLSTAR_389-dsgw_csearch")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        self._assert_extern_is_function_pointer(proj, "et_cmp", "et_cmp_fn")
+
+    def test_struct_pointer_with_called_field_stays_struct(self):
+        # negative case: a pointer to a structure with several accessed fields must remain a
+        # struct pointer even when one of its fields holds a called function pointer; the
+        # whole-cell-access exemption only applies when nothing but the cell itself is accessed.
+        bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("_obstack_begin_worker")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        func = dec.clinic.function
+        arg0 = func.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        assert not isinstance(arg0.pts_to, SimTypeFunction)
+        struct_ty = arg0.pts_to
+        if isinstance(struct_ty, TypeRef):
+            struct_ty = struct_ty.type
+        assert isinstance(struct_ty, SimStruct)
+        assert len(struct_ty.fields) >= 3
 
     def test_type_inference_with_custom_label(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
