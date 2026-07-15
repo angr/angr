@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any
 
 from angr.protos import decompilation_cache_pb2
@@ -43,14 +44,21 @@ class DecompilationCache(Serializable):
         "parameters",
         "stack_offset_typevars",
         "stackvar_max_sizes",
+        "timestamp",
         "type_constraints",
         "var_to_typevar",
         "variable_kb",
         "variable_map",
+        "version",
     )
 
     def __init__(self, addr):
+        import angr  # pylint:disable=import-outside-toplevel,cyclic-import
+
         self.parameters: dict[str, Any] = {}
+        # provenance stamps; the cache is created when decompilation happens
+        self.version: str = angr.__version__
+        self.timestamp: int = int(time.time())
         self.addr = addr
         self.cfg: CFGModel | None = None
         self.variable_kb: KnowledgeBase | None = None

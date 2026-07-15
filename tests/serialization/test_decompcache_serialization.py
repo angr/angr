@@ -478,6 +478,11 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.errors == cache.errors
         assert back.function_summary == cache.function_summary
         assert back.codegen.text == cache.codegen.text
+        # provenance stamps are set at decompile time and round-trip verbatim
+        assert cache.version == angr.__version__
+        assert cache.timestamp > 0
+        assert back.version == cache.version
+        assert back.timestamp == cache.timestamp
         # parameters preserves the 14 keys
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
         assert len(back.parameters) == 14

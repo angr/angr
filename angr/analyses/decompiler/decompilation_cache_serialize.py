@@ -182,6 +182,9 @@ def serialize_cache(cache: DecompilationCache) -> decompilation_cache_pb2.Decomp
             entry.simvar = _simvar_to_bytes(simvar)
             entry.max_size = size
 
+    msg.version = cache.version
+    msg.timestamp = cache.timestamp
+
     if cache.parameters:
         msg.parameters_set = True
         _serialize_parameters(cache.parameters, msg.parameters)
@@ -236,6 +239,10 @@ def parse_cache(
         cache.stackvar_max_sizes = {_simvar_from_bytes(e.simvar): e.max_size for e in cmsg.stackvar_max_sizes}
     else:
         cache.stackvar_max_sizes = None
+
+    # legacy blobs carry the proto3 defaults ""/0, meaning "unknown"; do not re-stamp them with current values
+    cache.version = cmsg.version
+    cache.timestamp = cmsg.timestamp
 
     if cmsg.parameters_set:
         cache.parameters = _parse_parameters(cmsg.parameters)

@@ -107,6 +107,11 @@ message DecompilationCache {
     repeated StackvarMaxSizeEntry stackvar_max_sizes = 10;
     bool _stackvar_max_sizes_set = 11;
 
+    // Provenance stamps: the angr version that produced this decompilation and the time (seconds since the epoch)
+    // when it happened. Legacy blobs carry the proto3 defaults ""/0, meaning "unknown".
+    string version = 12;
+    int64 timestamp = 13;
+
     DecompilationParameters parameters = 20;
     bool parameters_set = 21;                 // distinguish empty parameters dict from None
 
