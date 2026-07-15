@@ -1,3 +1,4 @@
+# pylint:disable=protected-access
 """
 Spilling CFG Graph implementation with LRU caching and LMDB persistence.
 
@@ -354,11 +355,11 @@ class SpillingCFGNodeDict:
                 payload = value[1:]
 
                 if type_byte == 0x00:
-                    cmsg = cfg_pb2.CFGNode()  # type:ignore
+                    cmsg = cfg_pb2.CFGNode()  # type:ignore, pylint:disable=no-member
                     cmsg.ParseFromString(payload)
                     node = CFGNode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
                 elif type_byte == 0x01:
-                    cmsg = cfg_pb2.CFGENode()  # type:ignore
+                    cmsg = cfg_pb2.CFGENode()  # type:ignore, pylint:disable=no-member
                     cmsg.ParseFromString(payload)
                     node = CFGENode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
                 else:

@@ -1,3 +1,4 @@
+# pylint:disable=protected-access
 """
 SpillingDiGraph - a networkx.DiGraph subclass with LMDB-backed edge spilling.
 

@@ -1,4 +1,4 @@
-# pylint:disable=no-member
+# pylint:disable=no-member,protected-access
 from __future__ import annotations
 
 import logging
