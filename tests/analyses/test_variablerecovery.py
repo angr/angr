@@ -7,8 +7,16 @@ import logging
 import os
 import unittest
 
+import archinfo
+
 import angr
+from angr.analyses.typehoon import typeconsts
+from angr.analyses.typehoon.translator import TypeTranslator
+from angr.analyses.typehoon.typevars import Subtype, TypeVariable
+from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
+from angr.analyses.variable_recovery.engine_base import RichR
 from angr.knowledge_plugins.variables import VariableType
+from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypePointer
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, print_decompilation_result
 
@@ -447,6 +455,52 @@ class TestVariableRecovery(unittest.TestCase):
             },
             False,
         )
+
+    def test_guessed_prototype_int_args_do_not_constrain_caller_types(self):
+        """
+        Plain integer parameter types in guessed callee prototypes are size-based defaults and must not
+        generate type constraints for the caller's argument expressions: a spurious int64 upper bound
+        conflicts with precise pointer constraints from other call sites (SInt64 and Pointer64 are
+        siblings in the base type lattice), collapsing the solution to the bottom type and degrading
+        recovered pointer arguments (e.g., a char* format string) to plain integers.
+
+        Informative parameter types (pointers, structs) from guessed prototypes must still be used, and
+        non-guessed prototypes (e.g., libc SimProcedures) must constrain all arguments as before.
+        """
+        arch = archinfo.arch_from_id("AMD64")
+        engine = object.__new__(SimEngineVRAIL)
+        engine.type_lifter = TypeTranslator(arch)
+        constraints = []
+
+        class FakeState:
+            @staticmethod
+            def get_stack_offset(_data):
+                return None
+
+            @staticmethod
+            def add_type_constraint(con):
+                constraints.append(con)
+
+        engine.state = FakeState()
+
+        tv_int = TypeVariable(name="arg_int")
+        tv_ptr = TypeVariable(name="arg_ptr")
+        args = [RichR(None, typevar=tv_int), RichR(None, typevar=tv_ptr)]
+        prototype = SimTypeFunction([SimTypeLongLong(), SimTypePointer(SimTypeChar())], SimTypeInt()).with_arch(arch)
+
+        # guessed prototype: the plain-int parameter adds no constraint; the pointer parameter still does
+        engine._call_add_arg_based_type_constraints(prototype, None, args, [None, None], prototype_guessed=True)
+        assert len(constraints) == 1
+        (con,) = constraints
+        assert isinstance(con, Subtype)
+        assert con.sub_type is tv_ptr
+        assert isinstance(con.super_type, typeconsts.Pointer)
+
+        # non-guessed prototype: both parameters constrain the arguments, as before
+        constraints.clear()
+        engine._call_add_arg_based_type_constraints(prototype, None, args, [None, None], prototype_guessed=False)
+        assert len(constraints) == 2
+        assert {con.sub_type for con in constraints if isinstance(con, Subtype)} == {tv_int, tv_ptr}
 
     def test_format_string_type_hints_sscanf(self):
         """
