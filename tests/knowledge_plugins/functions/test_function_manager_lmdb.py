@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring
+# pylint:disable=missing-class-docstring,protected-access
 """Test cases for FunctionManager LMDB save/load and LRU cache functionality."""
 
 from __future__ import annotations
@@ -174,6 +174,28 @@ class TestFunctionManagerLMDB(unittest.TestCase):
 
         # Length should still return total count
         assert len(fm) == total_before, "len() should return total count"
+
+    def test_spilled_function_call_sites(self):
+        """Test that call sites survive spilling to LMDB and reloading."""
+        proj = angr.Project(self.bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast()
+
+        fm = proj.kb.functions
+        main_func = fm.function(name="main")
+        assert main_func is not None
+        main_addr = main_func.addr
+        fm[main_addr]._add_call_site(0x4007D3, None, None)
+        call_sites_before = dict(fm[main_addr]._call_sites)
+        assert len(call_sites_before) > 1
+
+        # Evict main from the cache
+        fm.cache_limit = 1
+        other_addr = next(addr for addr in fm if addr != main_addr)
+        _ = fm[other_addr]
+        assert main_addr in fm._spilled_addrs
+
+        loaded = fm[main_addr]
+        assert dict(loaded._call_sites) == call_sites_before
 
     def test_delete_spilled_function(self):
         """Test deleting a spilled function."""
