@@ -820,60 +820,35 @@ pub(crate) fn simplify_bv<'c>(
                 (_, AstOp::BVV(v)) if v.is_zero() => Ok(arc.clone()),
 
                 // Detect bit extraction pattern: (lshr (shl x n) m)
-                // This extracts bits from position (m) to position (size - 1 - n) of x
+                // shl by n keeps bits x[size-1-n : 0] at positions [size-1 : n];
+                // lshr by m then moves them down to positions [size-1-m : n-m].
                 (AstOp::ShL(inner, shl_amt), AstOp::BVV(shr_amt)) => {
                     if let AstOp::BVV(shl_val) = shl_amt.op() {
                         let shl_u32 = shl_val.to_u64().unwrap_or(0) as u32;
                         let shr_u32 = shr_amt.to_u64().unwrap_or(0) as u32;
                         let size = arc.size();
 
-                        if shl_u32 + shr_u32 >= size {
-                            // All bits get shifted out, result is zero
+                        if shl_u32 >= size || shr_u32 >= size {
+                            // Either shift on its own moves every bit out
                             Ok(ctx.bvv(BitVec::zeros(size))?)
-                        } else {
-                            // This extracts bits from the original value
-                            // After left shift by n, then right shift by m:
-                            // - The highest bit that remains is at position (size - 1 - shl_u32)
-                            // - The lowest bit that remains is at position shr_u32
-                            // - The result width is (size - shl_u32 - shr_u32)
-                            let high = size - 1 - shl_u32;
-                            let low = shr_u32;
-
-                            // Special handling for zero-extended values
-                            if let AstOp::ZeroExt(inner_val, _) = inner.op() {
-                                let inner_size = inner_val.size();
-
-                                if low >= inner_size {
-                                    // All extracted bits are from the zero-extended part
-                                    Ok(ctx.bvv(BitVec::zeros(size))?)
-                                } else if high < inner_size {
-                                    // All extracted bits are from the original value
-                                    let extracted = ctx.extract(inner_val, high, low)?;
-                                    // Need to zero-pad to get back to the expected size
-                                    if extracted.size() < size {
-                                        state.rerun(
-                                            ctx.zero_ext(&extracted, size - extracted.size())?,
-                                        )
-                                    } else {
-                                        Ok(extracted)
-                                    }
-                                } else {
-                                    // Extraction spans both original and zero-extended parts
-                                    // Extract what we can from the original value
-                                    let extracted = ctx.extract(inner_val, inner_size - 1, low)?;
-                                    // Zero-extend to the final size
-                                    state.rerun(ctx.zero_ext(&extracted, size - extracted.size())?)
-                                }
+                        } else if shr_u32 >= shl_u32 {
+                            // The surviving bits are x[size-1-shl : shr-shl],
+                            // zero-extended back to the full width
+                            let extracted =
+                                ctx.extract(inner, size - 1 - shl_u32, shr_u32 - shl_u32)?;
+                            if extracted.size() < size {
+                                state.rerun(ctx.zero_ext(&extracted, size - extracted.size())?)
                             } else {
-                                // Regular extraction from non-zero-extended value
-                                let extracted = ctx.extract(inner, high, low)?;
-                                // Need to zero-pad to get back to the expected size
-                                if extracted.size() < size {
-                                    state.rerun(ctx.zero_ext(&extracted, size - extracted.size())?)
-                                } else {
-                                    Ok(extracted)
-                                }
+                                Ok(extracted)
                             }
+                        } else {
+                            // shr < shl: bits x[size-1-shl : 0] land at positions
+                            // [size-1-shr : shl-shr], i.e.
+                            // concat(0[shr], x[size-1-shl : 0], 0[shl-shr])
+                            let extracted = ctx.extract(inner, size - 1 - shl_u32, 0)?;
+                            let low_zeros = ctx.bvv(BitVec::zeros(shl_u32 - shr_u32))?;
+                            let shifted = ctx.concat(vec![extracted, low_zeros])?;
+                            state.rerun(ctx.zero_ext(&shifted, shr_u32)?)
                         }
                     } else {
                         Ok(ctx.lshr(arc, arc1)?)
