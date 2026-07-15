@@ -1,4 +1,4 @@
-# pylint:disable=too-many-boolean-expressions
+# pylint:disable=too-many-boolean-expressions,protected-access
 from __future__ import annotations
 
 import copy
@@ -1446,16 +1446,15 @@ class Clinic(Analysis):
         return ailment.IRSBConverter.convert(block.vex, self._ail_manager)
 
     def _convert_vex_fast(self, block):
-        """Convert ``block`` to AIL via the Rust libVEX-lift fast path, which
-        skips materializing a pyvex Python IRSB. Returns ``None`` (so the caller
-        falls back to the Python-IRSB path) when the block was produced in a way
-        the direct re-lift can't faithfully reproduce (patched/self-modifying
-        memory, the P-code engine, or a non-VEX/ARM-thumb edge case)."""
+        """
+        Convert ``block`` to AIL via the Rust libVEX-lift fast path, which directly lifts a C IRSB from libVEX.
+        Returns ``None`` when the block was produced in a way the direct re-lift can't faithfully reproduce, e.g.,
+        patched/self-modifying memory, the P-code engine, or a non-VEX/ARM-thumb edge case.
+        """
         if "vex" not in ailment.available_converters:
             return None
         engine = self.project.factory.default_engine
-        # The direct re-lift reads from the loader; bail if the engine would
-        # instead read from patched/self-modifying state, or isn't VEX.
+        # Bail if the engine would instead read from patched/self-modifying state, or isn't VEX.
         if getattr(engine, "selfmodifying_code", False):
             return None
         if self.project.kb.patches.values():
@@ -1464,7 +1463,7 @@ class Clinic(Analysis):
             return None  # not a VEX engine (e.g. P-code)
 
         arch = self.project.arch
-        thumb = 1 if bool(getattr(block, "thumb", False)) else 0
+        thumb = 1 if block.thumb is True else 0
         opt_level = block._opt_level
         if opt_level is None:
             opt_level = engine._default_opt_level
@@ -1474,20 +1473,15 @@ class Clinic(Analysis):
 
         size = block.size
 
-        # Reproduce VEXLifter._load_bytes exactly: hand libVEX the whole memory
-        # backer, with ``bytes_offset`` = (addr - backer_start) + thumb. That
-        # offset doubles as libVEX's lookback window, which ARM/THUMB decoding
-        # needs for IT-state; ``max_bytes`` caps the decode to the block. The
-        # backer is passed zero-copy via the buffer protocol.
-        # ``block.addr`` carries the THUMB bit; the engine normalizes it away
-        # before computing the backer offset and re-adds it as bytes_offset.
+        # Pass to libVEX the whole memory backer, with ``bytes_offset`` = (addr - backer_start) + thumb. The offset
+        # doubles as libVEX's lookback window, which ARM/THUMB decoding needs for IT-state.
         base_addr = (block.addr & ~1) if thumb else block.addr
         clemory = self.project.loader.memory_ro_view
         if clemory is None:
             clemory = self.project.loader.memory
         try:
             start, backer = next(clemory.backers(base_addr))
-        except (StopIteration, Exception):
+        except (StopIteration, KeyError):
             return None
         if start > base_addr or not isinstance(backer, (bytes, bytearray, memoryview)):
             return None
@@ -1508,7 +1502,7 @@ class Clinic(Analysis):
                 max_bytes=size,
                 bytes_offset=offset + thumb,
             )
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             l.debug("convert_from_lift fast path failed at %#x; falling back", block.addr, exc_info=True)
             return None
 

@@ -1,13 +1,18 @@
+# pylint:disable=broad-exception-caught,missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
+import os
+import pickle
 import unittest
 
 import archinfo
 import pyvex
+from pyvex.enums import irop_enums_to_ints
 
 import angr
 from angr import ailment
-from angr.rustylib.ailment import VEXIRSBConverter
+from angr.engines.vex.claripy import irop
+from angr.rustylib.ailment import RoundingMode, VEXIRSBConverter, _vexop_debug
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=line-too-long
@@ -71,8 +76,6 @@ class TestNonConstRoundingMode(unittest.TestCase):
         return None
 
     def test_tmp_rounding_mode_is_expression(self):
-        import pickle
-
         arch = archinfo.arch_from_id("armel")
         irsb = pyvex.IRSB(self.block_bytes, 0x1000, arch, opt_level=1)
         from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
@@ -102,8 +105,6 @@ class TestNonConstRoundingMode(unittest.TestCase):
         assert pickle.loads(pickle.dumps(from_py)) == from_py
 
     def test_const_rounding_mode_still_enum(self):
-        from angr.rustylib.ailment import RoundingMode
-
         arch = archinfo.arch_from_id("i386")
         irsb = pyvex.IRSB(bytes.fromhex("d8c1c3"), 0x1000, arch, opt_level=1)  # fadd st0, st1 ; ret
         blk = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
@@ -129,8 +130,6 @@ class TestVexConverterAcrossArches(unittest.TestCase):
     ]
 
     def _check_binary(self, path):
-        import os
-
         if not os.path.exists(path):
             self.skipTest(f"missing binary {path}")
         p = angr.Project(path, auto_load_libs=False)
@@ -175,8 +174,6 @@ class TestVexConverterAcrossArches(unittest.TestCase):
         assert checked > 0, f"no blocks checked in {path}"
 
     def test_arches(self):
-        import os
-
         base = os.path.join(os.path.dirname(__file__), "..", "..", "..", "binaries", "tests")
         for _name, rel in self.BINARIES:
             with self.subTest(binary=rel):
@@ -188,11 +185,6 @@ class TestVexOpParity(unittest.TestCase):
     VEX op (guards against drift in the hand-ported claripy/irop name-sets)."""
 
     def test_vexop_parity(self):
-        from pyvex.enums import irop_enums_to_ints
-
-        from angr.engines.vex.claripy import irop
-        from angr.rustylib.ailment import _vexop_debug
-
         mismatches = []
         for name, op_int in irop_enums_to_ints.items():
             if name in ("Iop_INVALID", "Iop_LAST"):
