@@ -27,7 +27,7 @@ pub fn reduce<'py>(
             ComparisonResult::False => Bool::new(py, &GLOBAL_CONTEXT.false_()?)?,
             ComparisonResult::Maybe => {
                 use crate::claripy::ast::bool::BoolS;
-                BoolS(py, "maybe", false)?
+                BoolS(py, "maybe".into(), false)?
             }
         };
         return Ok(result.into_any().cast_into::<Base>()?);

@@ -1150,16 +1150,15 @@ impl BV {
 #[pyfunction(signature = (name, size, explicit_name = false))]
 pub fn BVS(
     py: Python<'_>,
-    name: String,
+    name: NameString,
     size: u32,
     explicit_name: bool,
 ) -> Result<Bound<'_, BV>, ClaripyError> {
-    let name: String = if explicit_name {
-        name
-    } else {
+    let mut name: String = name.into();
+    if !explicit_name {
         let counter = BVS_COUNTER.fetch_add(1, Ordering::Relaxed);
-        format!("{name}_{counter}_{size}")
-    };
+        name = format!("{name}_{counter}_{size}");
+    }
     BV::new_with_name(py, &GLOBAL_CONTEXT.bvs(&name, size)?, Some(name))
 }
 
