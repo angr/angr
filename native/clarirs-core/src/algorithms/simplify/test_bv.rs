@@ -586,6 +586,41 @@ fn test_lshr() -> Result<()> {
 }
 
 #[test]
+fn test_lshr_of_shl() -> Result<()> {
+    // (lshr (shl x n) m) folds to an extract of x; check the rewrite against
+    // concrete evaluation for every (n, m) pair, including n > m, n == m,
+    // n < m, and shift amounts that clear the value entirely.
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 8)?;
+
+    for n in 0..=8u64 {
+        for m in 0..=8u64 {
+            let shifted = ctx.lshr(
+                &ctx.shl(&x, &ctx.bvv(BitVec::from((n, 8)))?)?,
+                &ctx.bvv(BitVec::from((m, 8)))?,
+            )?;
+            let simplified = shifted.simplify()?;
+            for val in [0x01u64, 0x5a, 0x80, 0xff] {
+                let expected = ((val << n) as u8 as u64) >> m;
+                let concrete = simplified
+                    .replace(&x, &ctx.bvv(BitVec::from((val, 8)))?)?
+                    .simplify()?;
+                let AstOp::BVV(result) = concrete.op() else {
+                    panic!("expected concrete result for n={n} m={m}");
+                };
+                assert_eq!(
+                    result.to_u64().unwrap(),
+                    expected,
+                    "lshr(shl(x={val:#x}, {n}), {m})"
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_ashr() -> Result<()> {
     let ctx = Context::new();
 
