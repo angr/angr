@@ -503,9 +503,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         evicted = 0
         funcs_to_evict = []
-        # Iterate the live LRU order directly (least-recently-used first) and collect the keys to remove; do NOT copy
-        # the whole order, otherwise batched eviction becomes O(total * cache_size). Deletions from _lru_order are
-        # deferred until after the loop so we never mutate it while iterating.
         addrs_to_remove = []
         for lru_addr in self._lru_order:
             if evicted >= n:

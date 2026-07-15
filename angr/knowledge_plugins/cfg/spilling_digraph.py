@@ -180,9 +180,6 @@ class SpillingAdjDict(MutableMapping):
         evicted = 0
         entries_to_save: list[tuple[K, DirtyDict[K, dict]]] = []
 
-        # Iterate the live LRU order directly (least-recently-used first) and collect the keys to remove; do NOT copy
-        # the whole order, otherwise batched eviction becomes O(total * cache_size). Deletions from _lru_order are
-        # deferred until after the loop so we never mutate it while iterating.
         keys_to_remove = []
         for lru_key in self._lru_order:
             if evicted >= n:
@@ -229,9 +226,8 @@ class SpillingAdjDict(MutableMapping):
 
     # Edge attribute dicts hold exactly three fields (jumpkind, ins_addr, stmt_idx). They are packed with struct
     # instead of protobuf for speed: the jumpkind as its protobuf enum value, and ins_addr/stmt_idx with the same
-    # None-sentinels that the previous CFGEdgeData protobuf encoding used. This encoding only ever lives in the
-    # process-private RuntimeDb LMDB (created per process and removed at exit, never shared across angr versions or
-    # persisted), so there is no format-versioning concern.
+    # None-sentinels that the previous CFGEdgeData protobuf encoding used.
+    # Note that this encoding only ever lives in the RuntimeDb, so there is no format-versioning concern.
     _EDGE_DATA_STRUCT = struct.Struct("<BQi")
 
     @staticmethod

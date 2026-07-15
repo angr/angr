@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import insert
+try:
+    import sqlalchemy
+except ImportError:
+    sqlalchemy = None
 
 from angr.angrdb.models import DbVariableCollection
 from angr.knowledge_plugins import VariableManager
@@ -20,6 +23,8 @@ class VariableManagerSerializer:
 
     @staticmethod
     def dump(session, db_kb: DbKnowledgeBase, var_manager: VariableManager):
+        assert sqlalchemy is not None
+
         # Remove all existing variable collections
         session.query(DbVariableCollection).filter_by(kb=db_kb).delete()
 
@@ -38,21 +43,21 @@ class VariableManagerSerializer:
         if global_row is not None:
             rows.append(global_row)
 
-        # bulk-insert the variable collection rows via Core to avoid the per-row ORM unit-of-work overhead
+        # bulk-insert the variable collection rows for speed
         if rows:
-            session.execute(insert(DbVariableCollection), rows)
+            session.execute(sqlalchemy.insert(DbVariableCollection), rows)
 
     @staticmethod
     def _internal_row(
         db_kb: DbKnowledgeBase, internal_manager: VariableManagerInternal, func_addr: int, ident=None
     ) -> dict | None:
+        if not internal_manager._variables:  # pylint:disable=protected-access
+            # Empty variable managers are not stored.
+            return None
         blob = internal_manager.serialize()
         if not blob:
-            # the variable manager is empty: it serializes to a zero-length protobuf message, which by proto3
-            # semantics happens exactly when it holds no variables, no phi variables, no variable accesses, no
-            # unified variables, and no relations. Empty variable managers are not stored.
+            # the variable manager is empty (which serializes to a zero-length protobuf message). not stored.
             return None
-
         return {"kb_id": db_kb.id, "ident": ident or None, "func_addr": func_addr, "blob": blob}
 
     @staticmethod

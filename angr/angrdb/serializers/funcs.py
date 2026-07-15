@@ -43,9 +43,8 @@ class FunctionManagerSerializer:
 
         function_map = func_manager._function_map
         if isinstance(function_map, SpillingFunctionDict):
-            # Fast path: copy the serialized bytes of spilled and clean functions directly out of the LMDB backing
-            # store (they are guaranteed to be current; see SpillingFunctionDict.export_serialized) instead of
-            # deserializing and re-serializing every function. Dirty functions are serialized normally.
+            # Copy the serialized bytes of functions directly out of the LMDB backing store instead of deserializing
+            # and re-serializing every function.
             rows = [
                 {"kb_id": db_kb.id, "addr": addr, "blob": blob}
                 for addr, blob, _copied in function_map.export_serialized()
@@ -85,7 +84,7 @@ class FunctionManagerSerializer:
         # databases that angr dumps), on-demand node deserialization restores it, so there is no need to fill in
         # CFGNode.function_address here; doing so would materialize every CFG node
         fill_cfg_model = cfg_model
-        if cfg_model is not None and getattr(cfg_model, "_node_function_addrs_complete", False):
+        if cfg_model is not None and cfg_model._node_function_addrs_complete is False:
             fill_cfg_model = None
 
         function_map = funcs._function_map
@@ -95,11 +94,8 @@ class FunctionManagerSerializer:
             and function_map.cache_limit is not None
             and db_funcs.count() > function_map.cache_limit
         ):
-            # Fast path: there are more functions than the function manager may keep in memory. Move the serialized
-            # function bytes directly into the LMDB backing store (the serialized bytes in the database are in the
-            # exact format that SpillingFunctionDict spills to LMDB) and register all functions as spilled, instead
-            # of deserializing every function and thrashing the LRU cache. Functions are then deserialized on-demand
-            # upon first access.
+            # Move the serialized function bytes directly into the LMDB backing store and register all functions as
+            # spilled, instead of deserializing every function and thrashing the LRU cache.
             FunctionManagerSerializer._load_spilled(db_funcs, funcs, function_map, kb._project, fill_cfg_model)
         else:
             for db_func in db_funcs:
@@ -137,8 +133,9 @@ class FunctionManagerSerializer:
             cmsg = function_pb2.Function()  # type: ignore  # pylint:disable=no-member
             cmsg.ParseFromString(blob)
 
-            # populate the function manager caches; this mirrors what FunctionManager._function_added() does when a
-            # deserialized function is inserted into the function manager
+            # populate the function manager caches.
+            # This mirrors FunctionManager._function_added() when a serialized function is inserted into the function
+            # manager.
             funcs.function_addrs_set.add(addr)
             funcs.callgraph.add_node(addr)
 

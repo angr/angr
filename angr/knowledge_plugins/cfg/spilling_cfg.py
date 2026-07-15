@@ -386,10 +386,8 @@ class SpillingCFGNodeDict:
     def bulk_import_serialized(self, items: list[tuple[K, bytes]]) -> None:
         """
         Bulk-import already-serialized CFG nodes directly into the LMDB backing store and register them as spilled,
-        without deserializing them. Each payload must be in the exact format that _save_to_lmdb() writes: a type
-        byte (0x00 for CFGNode, 0x01 for CFGENode) followed by the serialized protobuf message.
-
-        Imported nodes are deserialized lazily upon first access, through the regular _load_from_lmdb() path.
+        without deserializing them. Each payload must be in the format that _save_to_lmdb() writes: a type byte (0x00
+        for CFGNode, 0x01 for CFGENode) followed by the serialized protobuf message.
 
         :param items:   A list of (block key, serialized node payload) tuples.
         """
@@ -862,13 +860,7 @@ class SpillingCFG:
         Export every node as the serialized bytes of its CFGNode/CFGENode protobuf message (without the LMDB type
         byte), e.g. for dumping into an angr database.
 
-        Nodes whose LMDB record is guaranteed to be current are byte-copied directly out of the LMDB backing store
-        (in a single read transaction) without being deserialized and re-serialized. This applies to all spilled
-        nodes and to cached nodes that are clean: a CFGNode instance is only ever clean if it was deserialized from
-        serialized bytes and has not been modified since (``dirty`` is cleared only in ``_load_from_lmdb_core``), the
-        same invariant used for functions. Dirty cached nodes, and any node whose LMDB record is missing or is a
-        CFGENode (type byte 0x01, which the byte-copy consumer does not handle), are serialized from their in-memory
-        objects through the regular path.
+        Nodes are byte-copied directly out of the LMDB backing store without being deserialized and re-serialized.
 
         :return: A list of (block key, serialized CFGNode message bytes, copied_from_lmdb) tuples.
         """
@@ -916,8 +908,7 @@ class SpillingCFG:
     def bulk_import_serialized_nodes(self, items: list[tuple[K, int | SootAddressDescriptor, bytes]]) -> None:
         """
         Bulk-import already-serialized nodes directly into the LMDB backing store as spilled entries, without
-        constructing any CFGNode objects, and register each node in the underlying graph structure and the
-        address index. Nodes are deserialized lazily upon first access.
+        constructing any CFGNode objects.
 
         :param items:   A list of (block key, node address, serialized node payload) tuples. See
                         SpillingCFGNodeDict.bulk_import_serialized() for the payload format.

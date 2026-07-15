@@ -214,11 +214,9 @@ class CFGModel(Serializable):
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
 
-        # nodes. When the graph supports spilling, byte-copy the serialized message of every clean/spilled node
-        # straight out of the LMDB backing store instead of materializing a CFGNode and re-serializing it (dirty
-        # cached nodes are still serialized normally). The endpoint-address map consumed by the key-level edge
-        # serialization below is re-sourced from the node messages themselves (their ``ea`` field), so no endpoint
-        # node has to be materialized for the edges either.
+        # nodes
+        # When the graph supports spilling, byte-copy the serialized message of every clean/spilled node
+        # straight out of the LMDB backing store instead of creating a CFGNode and re-serializing it.
         key_to_addr: dict = {}
         spilling = isinstance(self.graph, SpillingCFG)
         if spilling:
@@ -230,10 +228,9 @@ class CFGModel(Serializable):
             nodes = [n.serialize_to_cmessage() for n in self.graph.nodes()]
             cmsg.nodes.extend(nodes)
 
-        # edges. When the graph supports spilling, iterate the underlying adjacency at the key level so that no
-        # endpoint node is materialized; the endpoint addresses come from the key_to_addr map built above. This
-        # yields the exact same edge order and edge data as iterating self.graph.edges(data=True) (that view is a
-        # thin wrapper around the same underlying graph), only without the on-demand node loads.
+        # edges
+        # When the graph supports spilling, iterate the underlying adjacency at the key level so that no
+        # endpoint node is created.
         edge_iter = (
             ((key_to_addr[s], key_to_addr[d], data) for s, d, data in self.graph._graph.edges(data=True))
             if spilling
@@ -286,12 +283,8 @@ class CFGModel(Serializable):
             and model.addr_type == "int"
             and len(cmsg.nodes) > model.graph._nodes.cache_limit
         ):
-            # Fast path: there are more nodes than the node cache may keep in memory. Adding all nodes and edges
-            # through the regular code path would thrash the LRU caches (nodes and adjacency entries would be
-            # repeatedly serialized, evicted, and reloaded). Instead, the serialized node bytes are moved directly
-            # into the LMDB backing store (they are in the exact format that SpillingCFGNodeDict spills to LMDB)
-            # and the adjacency structure is built without materializing any CFGNode object. Nodes are then
-            # deserialized on-demand upon first access.
+            # Move the serialized node bytes directly into the LMDB backing store and the adjacency structure is built
+            # without creating any CFGNode object. Nodes are then deserialized on-demand upon first access.
             cls._parse_graph_spilled(cmsg, model)
         else:
             # nodes
@@ -343,13 +336,12 @@ class CFGModel(Serializable):
 
         graph = model.graph
 
-        # nodes: LMDB records of SpillingCFGNodeDict are a type byte (0x00 for CFGNode) followed by the serialized
-        # CFGNode message, which is the exact message stored in the database. Copy the bytes directly.
+        # nodes
         items = []
         function_addrs_complete = True
         for node_pb2 in cmsg.nodes:
             # this mirrors what get_block_key() returns for the node that CFGNode.parse_from_cmessage() would build:
-            # the block ID (which defaults to the node address) and the node size
+            # the block ID (which defaults to the node address) and the node size.
             block_id = node_pb2.block_id[0] if node_pb2.block_id else node_pb2.ea
             block_key = (block_id, node_pb2.size)
             items.append((block_key, node_pb2.ea, b"\x00" + node_pb2.SerializeToString()))
