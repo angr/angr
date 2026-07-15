@@ -51,6 +51,7 @@ class DbKnowledgeBase(Base):
     labels = relationship("DbLabel", back_populates="kb")
     var_collections = relationship("DbVariableCollection", back_populates="kb")
     structured_code = relationship("DbStructuredCode", back_populates="kb")
+    decompilation_caches = relationship("DbDecompilationCache", back_populates="kb")
 
 
 class DbCFGModel(Base):
@@ -147,6 +148,30 @@ class DbStructuredCode(Base):
     const_formats = Column(BLOB, nullable=True)
     ite_exprs = Column(BLOB, nullable=True)
     errors = Column(TEXT, nullable=True)
+
+
+class DbDecompilationCache(Base):
+    """
+    Models a fully serialized DecompilationCache instance (a protobuf DecompilationCache message).
+
+    This is a separate table from ``structured_code`` (which stores only codegen metadata such as comments and
+    constant formats) so that databases created before full decompilation-cache serialization remain loadable:
+    ``create_all`` adds missing tables to old databases, while adding a column to an existing table would not be
+    reflected in old database files.
+    """
+
+    __tablename__ = "decompilation_caches"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="decompilation_caches")
+    func_addr = Column(Integer)
+    flavor = Column(String)
+    blob = Column(BLOB, nullable=True)
 
 
 class DbXRefs(Base):

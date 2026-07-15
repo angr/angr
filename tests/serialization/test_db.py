@@ -645,6 +645,76 @@ class TestDb(unittest.TestCase):
             print_decompilation_result(dec_2)
             assert dec_2.codegen.text.count("0x8") == 1
 
+    def test_angrdb_full_decompilation_cache_roundtrip(self):
+        # DecompilationCache objects in the structured code manager are fully serialized into the database and come
+        # back with real codegen (not DummyStructuredCodeGenerator) and their provenance stamps intact.
+        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+        from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            proj.analyses.CFGFast(normalize=True)
+            func = proj.kb.functions.function(name="authenticate")
+            dec = proj.analyses.Decompiler(func)
+            assert dec.codegen is not None and dec.codegen.text is not None
+
+            cache = proj.kb.decompilations[(func.addr, "pseudocode")]
+            assert cache.version == angr.__version__
+            assert cache.timestamp > 0
+
+            # add an unserializable cache; it must round-trip through the legacy structured_code table
+            dummy_cache = DecompilationCache(0xDEAD)
+            dummy_cache.codegen = DummyStructuredCodeGenerator("pseudocode", stmt_comments={0x1000: "hi"})
+            proj.kb.decompilations[(0xDEAD, "pseudocode")] = dummy_cache
+
+            new_proj = self._roundtrip_angrdb(proj, db_file)
+
+            new_cache = new_proj.kb.decompilations[(func.addr, "pseudocode")]
+            assert not isinstance(new_cache.codegen, DummyStructuredCodeGenerator)
+            assert new_cache.codegen.text == dec.codegen.text
+            assert new_cache.version == cache.version
+            assert new_cache.timestamp == cache.timestamp
+
+            new_dummy = new_proj.kb.decompilations[(0xDEAD, "pseudocode")]
+            assert isinstance(new_dummy.codegen, DummyStructuredCodeGenerator)
+            assert new_dummy.codegen.stmt_comments == {0x1000: "hi"}
+
+    def test_angrdb_fast_load_spilled_decompilation_caches(self):
+        # When the database contains more decompilation caches than the manager may keep in memory, the serialized
+        # bytes are moved directly into the LMDB backing store on load without being deserialized.
+        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            proj.analyses.CFGFast(normalize=True)
+            auth_func = proj.kb.functions.function(name="authenticate")
+            main_func = proj.kb.functions.function(name="main")
+            auth_dec = proj.analyses.Decompiler(auth_func)
+            main_dec = proj.analyses.Decompiler(main_func)
+            assert auth_dec.codegen is not None and main_dec.codegen is not None
+
+            AngrDB(proj, nullpool=True).dump(db_file)
+
+            with mock.patch("angr.knowledge_plugins.structured_code.DECOMPILATION_CACHE_LIMIT", 1):
+                new_proj = AngrDB(nullpool=True).load(db_file)
+                backing = new_proj.kb.decompilations.cached
+                assert isinstance(backing, SpillingDecompilationDict)
+                # both caches were imported as bytes and registered as spilled, not materialized
+                assert backing._spilled == {(auth_func.addr, "pseudocode"), (main_func.addr, "pseudocode")}
+                assert len(backing._cache) == 0
+
+                # accessing a spilled cache deserializes it lazily
+                new_cache = new_proj.kb.decompilations[(auth_func.addr, "pseudocode")]
+                assert new_cache.codegen.text == auth_dec.codegen.text
+
     def test_angrdb_decompilation_load_variables(self):
         # https://github.com/angr/angr/issues/5990
 

@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from sqlalchemy import insert
+
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.base import CConstantType
-from angr.angrdb.models import DbStructuredCode
+from angr.angrdb.models import DbDecompilationCache, DbStructuredCode
 from angr.knowledge_plugins import StructuredCodeManager
+from angr.knowledge_plugins.structured_code import CacheKey, SpillingDecompilationDict
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen.base import IdentType
@@ -64,6 +67,9 @@ class StructuredCodeManagerSerializer:
     @staticmethod
     def dump(session, db_kb: DbKnowledgeBase, code_manager: StructuredCodeManager):
         """
+        Store every decompilation cache as its fully serialized protobuf bytes (the ``decompilation_caches`` table).
+        Caches that cannot be serialized (e.g. dummy or rust-flavor codegens) fall back to the legacy
+        ``structured_code`` rows storing codegen metadata only.
 
         :param session:
         :param db_kb:
@@ -73,38 +79,67 @@ class StructuredCodeManagerSerializer:
 
         # remove all existing stored structured code
         session.query(DbStructuredCode).filter_by(kb=db_kb).delete()
+        session.query(DbDecompilationCache).filter_by(kb=db_kb).delete()
 
-        for key, cache in code_manager.cached.items():
-            func_addr, flavor = key
+        # make sure db_kb has a primary key so it can be used as a foreign key in the Core bulk insert below
+        session.flush()
+        assert db_kb.id is not None
 
-            # TODO: Cache types
+        backing = code_manager.cached
+        serialized: list[tuple[CacheKey, bytes]]
+        unserializable: dict[CacheKey, DecompilationCache]
+        if isinstance(backing, SpillingDecompilationDict):
+            # copy the serialized bytes of spilled caches directly out of the LMDB backing store instead of
+            # deserializing and re-serializing them
+            serialized, unserializable = backing.export_serialized()
+        else:
+            serialized = []
+            unserializable = {}
+            for key, cache in backing.items():
+                try:
+                    serialized.append((key, cache.serialize()))
+                except Exception:  # pylint:disable=broad-exception-caught
+                    unserializable[key] = cache
 
-            expr_comments = None
-            if cache.codegen is not None and cache.codegen.expr_comments:
-                expr_comments = json.dumps(cache.codegen.expr_comments).encode("utf-8")
+        rows = [
+            {"kb_id": db_kb.id, "func_addr": func_addr, "flavor": flavor, "blob": blob}
+            for (func_addr, flavor), blob in serialized
+        ]
+        # bulk-insert via Core to avoid the per-row ORM unit-of-work overhead
+        if rows:
+            session.execute(insert(DbDecompilationCache), rows)
 
-            stmt_comments = None
-            if cache.codegen is not None and cache.codegen.stmt_comments:
-                stmt_comments = json.dumps(cache.codegen.stmt_comments).encode("utf-8")
+        for key, cache in unserializable.items():
+            StructuredCodeManagerSerializer._dump_legacy(session, db_kb, key, cache)
 
-            const_formats = None
-            if cache.codegen is not None and cache.codegen.const_formats:
-                const_formats = json.dumps(ConstFormatsSerializer.to_json(cache.codegen.const_formats)).encode("utf-8")
+    @staticmethod
+    def _dump_legacy(session, db_kb: DbKnowledgeBase, key: CacheKey, cache: DecompilationCache) -> None:
+        """Store codegen metadata (comments, constant formats, errors) of an unserializable cache."""
+        func_addr, flavor = key
 
-            ite_exprs = None
+        expr_comments = None
+        if cache.codegen is not None and cache.codegen.expr_comments:
+            expr_comments = json.dumps(cache.codegen.expr_comments).encode("utf-8")
 
-            db_code = DbStructuredCode(
-                kb=db_kb,
-                func_addr=func_addr,
-                flavor=flavor,
-                expr_comments=expr_comments,
-                stmt_comments=stmt_comments,
-                const_formats=const_formats,
-                ite_exprs=ite_exprs,
-                errors="\n\n\n".join(cache.errors),
-                # configuration=configuration,
-            )
-            session.add(db_code)
+        stmt_comments = None
+        if cache.codegen is not None and cache.codegen.stmt_comments:
+            stmt_comments = json.dumps(cache.codegen.stmt_comments).encode("utf-8")
+
+        const_formats = None
+        if cache.codegen is not None and cache.codegen.const_formats:
+            const_formats = json.dumps(ConstFormatsSerializer.to_json(cache.codegen.const_formats)).encode("utf-8")
+
+        db_code = DbStructuredCode(
+            kb=db_kb,
+            func_addr=func_addr,
+            flavor=flavor,
+            expr_comments=expr_comments,
+            stmt_comments=stmt_comments,
+            const_formats=const_formats,
+            ite_exprs=None,
+            errors="\n\n\n".join(cache.errors),
+        )
+        session.add(db_code)
 
     @staticmethod
     def dict_strkey_to_intkey(d: dict[str, Any]) -> dict[int, Any]:
@@ -121,6 +156,8 @@ class StructuredCodeManagerSerializer:
     @staticmethod
     def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase) -> StructuredCodeManager:
         """
+        Load decompilation caches: fully serialized caches from the ``decompilation_caches`` table first, then legacy
+        ``structured_code`` rows (from this database or from old databases) for any key not already loaded.
 
         :param session:
         :param db_kb:
@@ -129,10 +166,30 @@ class StructuredCodeManagerSerializer:
         """
 
         manager = StructuredCodeManager(kb)
+        backing = manager.cached
+
+        db_caches = session.query(DbDecompilationCache).filter_by(kb=db_kb)
+        if isinstance(backing, SpillingDecompilationDict) and db_caches.count() > backing.cache_limit:
+            # move the serialized bytes directly into the LMDB backing store and register every cache as spilled,
+            # instead of deserializing every cache and thrashing the LRU cache
+            backing.bulk_import_serialized(
+                [((db_cache.func_addr, db_cache.flavor), db_cache.blob) for db_cache in db_caches]
+            )
+        else:
+            for db_cache in db_caches:
+                cache = DecompilationCache.parse(
+                    db_cache.blob,
+                    project=kb._project,
+                    kb=kb,
+                    function=kb.functions.get(db_cache.func_addr),
+                )
+                backing[(db_cache.func_addr, db_cache.flavor)] = cache
 
         db_code_collection = session.query(DbStructuredCode).filter_by(kb=db_kb)
 
         for db_code in db_code_collection:
+            if (db_code.func_addr, db_code.flavor) in backing:
+                continue
             if not db_code.expr_comments:
                 expr_comments = None
             else:
