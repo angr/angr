@@ -7,6 +7,7 @@ pub mod coerce;
 pub mod fp;
 pub mod opstring;
 pub mod string;
+pub mod util;
 
 use std::sync::LazyLock;
 

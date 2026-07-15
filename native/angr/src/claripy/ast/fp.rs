@@ -636,16 +636,16 @@ impl FP {
 #[pyfunction(signature = (name, sort, explicit_name = false))]
 pub fn FPS<'py>(
     py: Python<'py>,
-    name: &str,
+    name: NameString,
     sort: PyFSort,
     explicit_name: bool,
 ) -> Result<Bound<'py, FP>, ClaripyError> {
-    let name: String = if explicit_name {
-        name.to_string()
+    let mut name: String = name.into();
+    if !explicit_name {
     } else {
         let counter = FPS_COUNTER.fetch_add(1, Ordering::Relaxed);
-        format!("{name}_{counter}")
-    };
+        name = format!("{name}_{counter}");
+    }
     FP::new_with_name(py, &GLOBAL_CONTEXT.fps(&name, sort)?, Some(name))
 }
 
