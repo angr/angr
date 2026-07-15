@@ -503,13 +503,14 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         evicted = 0
         funcs_to_evict = []
-        for lru_addr in list(self._lru_order):
+        addrs_to_remove = []
+        for lru_addr in self._lru_order:
             if evicted >= n:
                 break
 
-            # Don't evict if it's not in memory
+            # Don't evict if it's not in memory; still schedule its stale LRU entry for removal
             if not self.is_cached(lru_addr):
-                self._lru_order.pop(lru_addr)
+                addrs_to_remove.append(lru_addr)
                 continue
 
             # Get the function
@@ -521,14 +522,17 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             # Remove from in-memory map
             super().__delitem__(lru_addr)
 
-            # Remove from LRU order
-            del self._lru_order[lru_addr]
+            # Schedule removal from LRU order
+            addrs_to_remove.append(lru_addr)
 
             # Add to spilled set
             self._spilled_keys.add(lru_addr)
             evicted += 1
 
             # l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
+
+        for lru_addr in addrs_to_remove:
+            del self._lru_order[lru_addr]
 
         if funcs_to_evict:
             self._save_to_lmdb(funcs_to_evict)
@@ -638,6 +642,87 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             # After loading is complete (and we're back to not loading), evict if needed
             if self._eviction_enabled and self._cache_limit is not None and self.cached_count > self._cache_limit:
                 self._evict_lru()
+
+    def bulk_import_serialized(self, items: list[tuple[K, bytes]]) -> None:
+        """
+        Bulk-import already-serialized functions directly into the LMDB backing store and register them as spilled,
+        without deserializing them. The serialized bytes must be serialized function_pb2.Function messages, i.e., the
+        exact format that _save_to_lmdb() writes.
+
+        Imported functions are deserialized lazily upon first access, through the regular _load_from_lmdb() path.
+
+        :param items:   A list of (address, serialized function bytes) tuples.
+        """
+
+        if not items:
+            return
+
+        self._init_lmdb()
+        assert self._funcsdb is not None
+
+        with self._db_store_lock:
+            while True:
+                try:
+                    with self.rtdb.begin_txn(self._funcsdb, write=True) as txn:
+                        for addr, blob in items:
+                            txn.put(str(addr).encode("utf-8"), blob)
+                    break
+                except lmdb.MapFullError:
+                    # Increase map size and retry
+                    self.rtdb.increase_lmdb_map_size()
+
+            for addr, _ in items:
+                if self.is_cached(addr):
+                    # drop the stale in-memory copy; LMDB now holds the authoritative data
+                    super().__delitem__(addr)
+                    self._lru_order.pop(addr, None)
+                elif addr not in self._spilled_keys:
+                    self._list.add(addr)
+                self._spilled_keys.add(addr)
+                if addr in self._meta_func_cache:
+                    del self._meta_func_cache[addr]
+
+    def export_serialized(self) -> list[tuple[K, bytes, bool]]:
+        """
+        Export all functions as serialized bytes, e.g., for dumping into an angr database.
+
+        Functions whose LMDB records are guaranteed to be current are copied directly from the LMDB backing store
+        (in a single read transaction) without being deserialized and re-serialized. This applies to all spilled
+        functions and to cached functions that are clean: a Function instance is only ever clean if it was
+        deserialized from serialized bytes and has not been modified since (eviction relies on the same invariant
+        to skip writing clean functions back to LMDB). Dirty functions, and functions whose LMDB record is missing,
+        are serialized from their in-memory objects through the regular path.
+
+        :return: A list of (address, serialized function bytes, copied_from_lmdb) tuples, ordered by address.
+        """
+
+        # determine which functions may be copied directly from LMDB
+        copy_addrs = []
+        for addr in self._list:
+            func = self.data.get(addr)
+            if func is None or not func.dirty:
+                copy_addrs.append(addr)
+
+        copied: dict[K, bytes] = {}
+        if copy_addrs and self.rtdb is not None and self._funcsdb is not None:
+            with self._db_load_lock, self.rtdb.begin_txn(self._funcsdb) as txn:
+                for addr in copy_addrs:
+                    value = txn.get(str(addr).encode("utf-8"))
+                    if value is not None:
+                        copied[addr] = value
+
+        result: list[tuple[K, bytes, bool]] = []
+        for addr in self._list:
+            blob = copied.get(addr)
+            if blob is not None:
+                result.append((addr, blob, True))
+            else:
+                func = self.data.get(addr)
+                if func is None:
+                    # the function is spilled but its LMDB record is missing; fall back to the regular access path
+                    func = self.get(addr)
+                result.append((addr, func.serialize(), False))
+        return result
 
     def load_all_spilled(self) -> None:
         """

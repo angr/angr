@@ -1,4 +1,4 @@
-# pylint:disable=no-member
+# pylint:disable=no-member,protected-access
 from __future__ import annotations
 
 import logging
@@ -53,6 +53,7 @@ class CFGModel(Serializable):
         "_edge_db_batch_size",
         "_iropt_level",
         "_node_addrs",
+        "_node_function_addrs_complete",
         "edges_to_repair",
         "graph",
         "ident",
@@ -124,6 +125,11 @@ class CFGModel(Serializable):
 
         self.edges_to_repair = []
 
+        # True if this model was deserialized through the spilled fast path and every serialized node record
+        # carried a function_address; in that case, filling in CFGNode.function_address after loading functions is
+        # unnecessary (on-demand node deserialization restores it), and FunctionManagerSerializer skips it
+        self._node_function_addrs_complete: bool = False
+
     #
     # Properties
     #
@@ -181,6 +187,9 @@ class CFGModel(Serializable):
         return {x: self.__getattribute__(x) for x in self.__slots__ if x not in {"__weakref__", "_cfg_manager"}}
 
     def __setstate__(self, state):
+        # defaults for attributes that may be missing from states pickled by older versions of angr
+        self._node_function_addrs_complete = False
+
         for attribute, value in state.items():
             self.__setattr__(attribute, value)
 
@@ -206,17 +215,32 @@ class CFGModel(Serializable):
         cmsg.ident = self.ident
 
         # nodes
-        nodes = []
-        for n in self.graph.nodes():
-            nodes.append(n.serialize_to_cmessage())
-        cmsg.nodes.extend(nodes)
+        # When the graph supports spilling, byte-copy the serialized message of every clean/spilled node
+        # straight out of the LMDB backing store instead of creating a CFGNode and re-serializing it.
+        key_to_addr: dict = {}
+        spilling = isinstance(self.graph, SpillingCFG)
+        if spilling:
+            for block_key, msg_bytes, _copied in self.graph.export_serialized_nodes():
+                node_pb = cmsg.nodes.add()
+                node_pb.ParseFromString(msg_bytes)
+                key_to_addr[block_key] = node_pb.ea
+        else:
+            nodes = [n.serialize_to_cmessage() for n in self.graph.nodes()]
+            cmsg.nodes.extend(nodes)
 
         # edges
+        # When the graph supports spilling, iterate the underlying adjacency at the key level so that no
+        # endpoint node is created.
+        edge_iter = (
+            ((key_to_addr[s], key_to_addr[d], data) for s, d, data in self.graph._graph.edges(data=True))
+            if spilling
+            else ((src.addr, dst.addr, data) for src, dst, data in self.graph.edges(data=True))
+        )
         edges = []
-        for src, dst, data in self.graph.edges(data=True):
+        for src_ea, dst_ea, data in edge_iter:
             edge = primitives_pb2.Edge()  # type:ignore
-            edge.src_ea = src.addr
-            edge.dst_ea = dst.addr
+            edge.src_ea = src_ea
+            edge.dst_ea = dst_ea
             for k, v in data.items():
                 if k == "jumpkind":
                     jk = cfg_jumpkind_to_pb(v)
@@ -253,25 +277,35 @@ class CFGModel(Serializable):
         # create a new model unassociated from any project
         model = cls(cmsg.ident) if cfg_manager is None else cfg_manager.new_model(cmsg.ident)
 
-        # nodes
-        for node_pb2 in cmsg.nodes:
-            node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
-            node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
-            model.graph.add_node(node)
+        if (
+            model.graph._spilling_enabled
+            and model.graph._nodes.rtdb is not None
+            and model.addr_type == "int"
+            and len(cmsg.nodes) > model.graph._nodes.cache_limit
+        ):
+            # Move the serialized node bytes directly into the LMDB backing store and the adjacency structure is built
+            # without creating any CFGNode object. Nodes are then deserialized on-demand upon first access.
+            cls._parse_graph_spilled(cmsg, model)
+        else:
+            # nodes
+            for node_pb2 in cmsg.nodes:
+                node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
+                node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
+                model.graph.add_node(node)
 
-        model._node_addrs = None
+            model._node_addrs = None
 
-        # edges
-        for edge_pb2 in cmsg.edges:
-            # more than one node at a given address is unsupported, grab the first one
-            src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
-            dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
-            data = {
-                "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-                "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
-            }
-            model.graph.add_edge(src, dst, **data)
+            # edges
+            for edge_pb2 in cmsg.edges:
+                # more than one node at a given address is unsupported, grab the first one
+                src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
+                dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
+                data = {
+                    "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
+                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+                    "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
+                }
+                model.graph.add_edge(src, dst, **data)
 
         # memory data
         for data_pb2 in cmsg.memory_data:
@@ -292,6 +326,50 @@ class CFGModel(Serializable):
         model._block_addrs_with_return = set(cmsg.block_addrs_with_return)
 
         return model
+
+    @staticmethod
+    def _parse_graph_spilled(cmsg, model: CFGModel) -> None:
+        """
+        Parse the nodes and edges of a serialized CFG directly into the spilling backing stores of the graph of the
+        given model, without materializing CFGNode objects.
+        """
+
+        graph = model.graph
+
+        # nodes
+        items = []
+        function_addrs_complete = True
+        for node_pb2 in cmsg.nodes:
+            # this mirrors what get_block_key() returns for the node that CFGNode.parse_from_cmessage() would build:
+            # the block ID (which defaults to the node address) and the node size.
+            block_id = node_pb2.block_id[0] if node_pb2.block_id else node_pb2.ea
+            block_key = (block_id, node_pb2.size)
+            items.append((block_key, node_pb2.ea, b"\x00" + node_pb2.SerializeToString()))
+            if function_addrs_complete and not node_pb2.HasField("function_address"):
+                function_addrs_complete = False
+        model._node_function_addrs_complete = function_addrs_complete
+
+        # disable adjacency eviction while nodes and edges are inserted; spill down once at the end
+        graph._graph.set_edge_eviction_enabled(False)
+        try:
+            graph.bulk_import_serialized_nodes(items)
+            model._node_addrs = None
+
+            # edges
+            keys_by_addr = graph._keys_by_addr
+            for edge_pb2 in cmsg.edges:
+                # more than one node at a given address is unsupported, grab the first one
+                src_key = next(iter(keys_by_addr.get(edge_pb2.src_ea, ())))
+                dst_key = next(iter(keys_by_addr.get(edge_pb2.dst_ea, ())))
+                data = {
+                    "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
+                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+                    "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
+                }
+                graph.add_edge_by_key(src_key, dst_key, **data)
+        finally:
+            graph._graph.set_edge_eviction_enabled(True)
+        graph._graph.spill_down_edges()
 
     #
     # Other methods
@@ -314,6 +392,7 @@ class CFGModel(Serializable):
         model.memory_data = self.memory_data.copy()
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
         model.edges_to_repair = self.edges_to_repair.copy()
+        model._node_function_addrs_complete = self._node_function_addrs_complete
 
         return model
 

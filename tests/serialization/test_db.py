@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
 import os
 import shutil
+import sqlite3
 import tempfile
 import unittest
+from collections import Counter
+from unittest import mock
 
 import archinfo
 import cle
@@ -101,6 +104,325 @@ class TestDb(unittest.TestCase):
             new_comment = new_proj.kb.comments.get(addr, None)
 
             assert comment == new_comment
+
+    def test_angrdb_fast_load_spilled_functions(self):
+        # When the database contains more functions than the function manager may keep in memory, the serialized
+        # function bytes are moved directly into the LMDB backing store on load without being deserialized, and the
+        # serialized callgraph is loaded directly instead of being rebuilt.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        def _edge_multiset(callgraph):
+            return Counter(
+                (src, dst, key, tuple(sorted(data.items())))
+                for src, dst, key, data in callgraph.edges(keys=True, data=True)
+            )
+
+        # force the fast path by using a tiny function cache limit
+        with mock.patch.object(
+            angr.knowledge_plugins.functions.function_manager.FunctionManager,
+            "get_default_cache_limit",
+            return_value=3,
+        ):
+            new_proj = AngrDB(nullpool=True).load(db_file)
+
+        funcs = new_proj.kb.functions
+        assert len(funcs) == len(proj.kb.functions)
+        # functions were spilled rather than deserialized into memory
+        assert funcs.spilled_function_count > 0
+
+        # the callgraph must round-trip exactly, including edge multiplicity and edge data
+        assert set(proj.kb.functions.callgraph.nodes) == set(funcs.callgraph.nodes)
+        assert _edge_multiset(proj.kb.functions.callgraph) == _edge_multiset(funcs.callgraph)
+
+        # on-demand access must fully deserialize each function
+        for func in proj.kb.functions.values():
+            new_func = funcs[func.addr]
+            assert new_func.addr == func.addr
+            assert new_func.name == func.name
+            assert new_func.is_default_name == func.is_default_name
+            assert new_func.returning == func.returning
+            assert new_func.block_addrs_set == func.block_addrs_set
+            assert len(new_func.transition_graph.edges()) == len(func.transition_graph.edges())
+
+        # manager caches must be populated without deserializing functions
+        assert funcs.function_addrs_set == proj.kb.functions.function_addrs_set
+        assert dict(funcs._func_block_counts) == dict(proj.kb.functions._func_block_counts)
+
+        # backward compatibility: a database without a stored callgraph (i.e., produced by an older version of angr)
+        # must fall back to rebuilding the callgraph from function transition graphs
+        conn = sqlite3.connect(db_file)
+        conn.execute("DELETE FROM callgraphs")
+        conn.commit()
+        conn.close()
+
+        old_format_proj = AngrDB(nullpool=True).load(db_file)
+        assert set(old_format_proj.kb.functions.callgraph.nodes) == set(proj.kb.functions.callgraph.nodes)
+        assert set(old_format_proj.kb.functions.callgraph.edges()) == set(proj.kb.functions.callgraph.edges())
+
+    def test_angrdb_dump_byte_copies_clean_spilled_functions(self):
+        # When dumping a function manager whose functions are spilled to LMDB and clean, the serialized bytes are
+        # copied directly out of the LMDB backing store; only dirty functions are re-serialized.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        db_file2 = os.path.join(dtemp, "fauxware2.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # force the load fast path so that all functions end up spilled and clean
+        with mock.patch.object(
+            angr.knowledge_plugins.functions.function_manager.FunctionManager,
+            "get_default_cache_limit",
+            return_value=3,
+        ):
+            loaded_proj = AngrDB(nullpool=True).load(db_file)
+
+        funcs = loaded_proj.kb.functions
+        num_funcs = len(funcs)
+
+        # mixed state: mutate two functions so they become dirty and cached
+        addrs = sorted(funcs)
+        rename_addr = addrs[0]
+        returning_addr = addrs[1]
+        funcs[rename_addr].name = "renamed_for_dump_test"
+        funcs[returning_addr].returning = funcs[returning_addr].returning is False
+
+        # count byte-copied vs re-serialized functions during the dump
+        spilling_dict_cls = angr.knowledge_plugins.functions.function_manager.SpillingFunctionDict
+        orig_export = spilling_dict_cls.export_serialized
+        stats = {}
+
+        def counting_export(self):
+            result = orig_export(self)
+            stats["copied"] = sum(1 for _, _, copied in result if copied)
+            stats["serialized"] = sum(1 for _, _, copied in result if not copied)
+            return result
+
+        with mock.patch.object(spilling_dict_cls, "export_serialized", counting_export):
+            AngrDB(loaded_proj, nullpool=True).dump(db_file2)
+
+        assert stats["copied"] + stats["serialized"] == num_funcs
+        # the two mutated functions are re-serialized; everything else must have been byte-copied
+        assert stats["serialized"] >= 2
+        assert stats["copied"] >= num_funcs - 5
+
+        # the dumped database must round-trip both the mutations and the byte-copied functions
+        reloaded_proj = AngrDB(nullpool=True).load(db_file2)
+        new_funcs = reloaded_proj.kb.functions
+        assert len(new_funcs) == num_funcs
+        assert new_funcs[rename_addr].name == "renamed_for_dump_test"
+        assert new_funcs[returning_addr].returning == funcs[returning_addr].returning
+        for func in proj.kb.functions.values():
+            new_func = new_funcs[func.addr]
+            if func.addr not in (rename_addr, returning_addr):
+                assert new_func.name == func.name
+                assert new_func.returning == func.returning
+            assert new_func.block_addrs_set == func.block_addrs_set
+            assert len(new_func.transition_graph.edges()) == len(func.transition_graph.edges())
+
+    def test_angrdb_fast_load_spilled_cfg_nodes(self):
+        # When the database contains more CFG nodes than the CFG node cache may keep in memory, the serialized node
+        # bytes are moved directly into the LMDB backing store on load without being deserialized, and the graph
+        # structure is built without materializing CFGNode objects.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # force the fast path by using tiny CFG node/edge cache limits
+        with (
+            mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
+            mock.patch.object(angr.Project, "get_cfg_edge_cache_limit", return_value=5),
+        ):
+            new_proj = AngrDB(nullpool=True).load(db_file)
+
+        new_cfg = new_proj.kb.cfgs["CFGFast"]
+        assert new_cfg.graph.spilled_count > 0
+
+        assert new_cfg.graph.number_of_nodes() == cfg.model.graph.number_of_nodes()
+        assert new_cfg.graph.number_of_edges() == cfg.model.graph.number_of_edges()
+
+        # on-demand access must fully deserialize each node, and node content must round-trip
+        def _node_rec(n):
+            return (
+                n.addr,
+                n.size,
+                n.block_id,
+                n.name,
+                n.function_address,
+                n.no_ret,
+                n.thumb,
+                n.is_syscall,
+                n.simprocedure_name,
+                n.byte_string,
+                tuple(n.instruction_addrs),
+            )
+
+        assert sorted(_node_rec(n) for n in new_cfg.graph.nodes()) == sorted(
+            _node_rec(n) for n in cfg.model.graph.nodes()
+        )
+
+        # edge content (including edge data) must round-trip
+        def _edge_recs(model):
+            return sorted(
+                (src.addr, src.size, dst.addr, dst.size, data.get("jumpkind"), data.get("ins_addr"))
+                for src, dst, data in model.graph.edges(data=True)
+            )
+
+        assert _edge_recs(new_cfg) == _edge_recs(cfg.model)
+
+        # get_any_node must work and return nodes with the correct function addresses
+        for func in proj.kb.functions.values():
+            for block_addr in func.block_addrs_set:
+                node = new_cfg.get_any_node(block_addr)
+                old_node = cfg.model.get_any_node(block_addr)
+                if old_node is not None:
+                    assert node is not None
+                    assert node.function_address == old_node.function_address
+
+    def test_angrdb_dump_byte_copies_clean_spilled_cfg_nodes(self):
+        # When dumping a spilling CFG whose nodes are spilled to LMDB and clean, the serialized node bytes are
+        # copied directly out of the LMDB backing store; only dirty cached nodes are re-serialized.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        db_file2 = os.path.join(dtemp, "fauxware2.adb")
+
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # force the load fast path so that all nodes end up spilled and clean
+        with (
+            mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
+            mock.patch.object(angr.Project, "get_cfg_edge_cache_limit", return_value=5),
+        ):
+            loaded_proj = AngrDB(nullpool=True).load(db_file)
+
+        loaded_cfg = loaded_proj.kb.cfgs["CFGFast"]
+        num_nodes = loaded_cfg.graph.number_of_nodes()
+
+        # mutate a handful of nodes so they become cached and dirty. We toggle ``no_ret`` (rather than e.g.
+        # ``function_address``, which the load-time CFGNode.function_address fill legitimately restores on the
+        # non-fast load path this tiny binary takes).
+        addrs = sorted(n.addr for n in loaded_cfg.graph.nodes())
+        mutated = {}
+        for addr in addrs[:4]:
+            node = loaded_cfg.get_any_node(addr)
+            node.no_ret = not bool(node.no_ret)
+            node.dirty = True
+            mutated[addr] = node.no_ret
+
+        # count byte-copied vs re-serialized nodes during the dump
+        spilling_cfg_cls = angr.knowledge_plugins.cfg.spilling_cfg.SpillingCFG
+        orig_export = spilling_cfg_cls.export_serialized_nodes
+        stats = {}
+
+        def counting_export(self):
+            result = orig_export(self)
+            stats["copied"] = sum(1 for _, _, copied in result if copied)
+            stats["serialized"] = sum(1 for _, _, copied in result if not copied)
+            return result
+
+        with mock.patch.object(spilling_cfg_cls, "export_serialized_nodes", counting_export):
+            AngrDB(loaded_proj, nullpool=True).dump(db_file2)
+
+        assert stats["copied"] + stats["serialized"] == num_nodes
+        # the mutated nodes are re-serialized; everything else must have been byte-copied
+        assert stats["serialized"] >= len(mutated)
+        assert stats["copied"] >= num_nodes - len(mutated) - 2
+
+        # the dumped database must round-trip both the mutations and the byte-copied nodes
+        reloaded_proj = AngrDB(nullpool=True).load(db_file2)
+        reloaded_cfg = reloaded_proj.kb.cfgs["CFGFast"]
+        assert reloaded_cfg.graph.number_of_nodes() == num_nodes
+        assert reloaded_cfg.graph.number_of_edges() == loaded_cfg.graph.number_of_edges()
+        for addr, no_ret in mutated.items():
+            assert bool(reloaded_cfg.get_any_node(addr).no_ret) == bool(no_ret)
+
+        def _node_rec(n):
+            return (n.addr, n.size, n.block_id, n.name, n.function_address, n.thumb, n.is_syscall, n.byte_string)
+
+        for node in cfg.model.graph.nodes():
+            if node.addr not in mutated:
+                new_node = reloaded_cfg.get_any_node(node.addr)
+                assert new_node is not None
+                assert _node_rec(new_node) == _node_rec(node)
+
+    def test_angrdb_variables_empty_managers_not_serialized(self):
+        # Empty variable managers are not serialized into the database, and empty rows in databases created by
+        # older versions of angr are ignored on load. Non-empty variable managers round-trip with their content.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        vm = proj.kb.variables
+        # force-create empty variable managers for two functions that have none
+        empty_addrs = [addr for addr in sorted(proj.kb.functions) if addr not in vm.function_managers][:2]
+        assert len(empty_addrs) == 2
+        for addr in empty_addrs:
+            vm.get_function_manager(addr)
+            assert not vm.function_managers[addr].serialize()
+
+        nonempty_addrs = {addr for addr, internal in vm.function_managers.items() if internal.serialize()}
+        assert nonempty_addrs, "decompilation should have produced at least one non-empty variable manager"
+
+        def content(internal):
+            return (
+                sorted(v.ident for v in internal._variables),
+                sorted(v.ident for v in internal._unified_variables),
+                sorted(v.ident for v in internal._phi_variables),
+            )
+
+        pre_content = {addr: content(vm.function_managers[addr]) for addr in nonempty_addrs}
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # no empty rows are written
+        conn = sqlite3.connect(db_file)
+        rows = conn.execute("SELECT func_addr, length(blob) FROM variables").fetchall()
+        conn.close()
+        assert all(blob_len > 0 for _, blob_len in rows)
+        assert {func_addr for func_addr, _ in rows if func_addr != -1} == nonempty_addrs
+
+        # only non-empty managers are present after loading, with identical content
+        new_proj = AngrDB(nullpool=True).load(db_file)
+        new_vm = new_proj.kb.variables
+        assert set(new_vm.function_managers) == nonempty_addrs
+        for addr in nonempty_addrs:
+            assert content(new_vm.function_managers[addr]) == pre_content[addr]
+
+        # empty rows in old-format databases are ignored on load
+        conn = sqlite3.connect(db_file)
+        conn.execute("INSERT INTO variables (kb_id, func_addr, blob) VALUES (1, ?, ?)", (empty_addrs[0], b""))
+        conn.commit()
+        conn.close()
+        old_format_proj = AngrDB(nullpool=True).load(db_file)
+        assert set(old_format_proj.kb.variables.function_managers) == nonempty_addrs
 
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")

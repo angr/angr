@@ -1,3 +1,4 @@
+# pylint:disable=protected-access
 """
 SpillingDiGraph - a networkx.DiGraph subclass with LMDB-backed edge spilling.
 
@@ -21,7 +22,7 @@ import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
-from angr.protos import cfg_pb2
+from angr.protos import cfg_pb2, primitives_pb2
 from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 from angr.utils.json_utils import json_decode, json_encode
 
@@ -179,12 +180,13 @@ class SpillingAdjDict(MutableMapping):
         evicted = 0
         entries_to_save: list[tuple[K, DirtyDict[K, dict]]] = []
 
-        for lru_key in list(self._lru_order):
+        keys_to_remove = []
+        for lru_key in self._lru_order:
             if evicted >= n:
                 break
 
             if lru_key not in self._data:
-                self._lru_order.pop(lru_key)
+                keys_to_remove.append(lru_key)
                 continue
 
             inner_dict = self._data[lru_key]
@@ -192,9 +194,12 @@ class SpillingAdjDict(MutableMapping):
                 entries_to_save.append((lru_key, inner_dict))
 
             del self._data[lru_key]
-            del self._lru_order[lru_key]
+            keys_to_remove.append(lru_key)
             self._spilled_keys.add(lru_key)
             evicted += 1
+
+        for lru_key in keys_to_remove:
+            del self._lru_order[lru_key]
 
         if entries_to_save:
             self._save_to_lmdb(entries_to_save)
@@ -216,30 +221,35 @@ class SpillingAdjDict(MutableMapping):
             self._edgesdb = None
 
     #
-    #  Serialization helpers  (Edge protobuf)
+    #  Serialization helpers  (edge data)
     #
+
+    # Edge attribute dicts hold exactly three fields (jumpkind, ins_addr, stmt_idx). They are packed with struct
+    # instead of protobuf for speed: the jumpkind as its protobuf enum value, and ins_addr/stmt_idx with the same
+    # None-sentinels that the previous CFGEdgeData protobuf encoding used.
+    # Note that this encoding only ever lives in the RuntimeDb, so there is no format-versioning concern.
+    _EDGE_DATA_STRUCT = struct.Struct("<BQi")
 
     @staticmethod
     def _serialize_edge_data(edge_data: dict) -> bytes:
-        """Serialize an edge attribute dict to CFGEdgeData protobuf bytes."""
-        edge = cfg_pb2.CFGEdgeData()  # type:ignore
+        """Serialize an edge attribute dict to packed bytes."""
         jk = cfg_jumpkind_to_pb(edge_data.get("jumpkind"))
-        edge.jumpkind = cfg_pb2.CFGEdgeData.UnknownJumpkind if jk is None else jk  # type:ignore
-        v = edge_data.get("ins_addr")
-        edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
-        v = edge_data.get("stmt_idx")
-        edge.stmt_idx = v if v is not None else -1
-        return edge.SerializeToString()
+        ins_addr = edge_data.get("ins_addr")
+        stmt_idx = edge_data.get("stmt_idx")
+        return SpillingAdjDict._EDGE_DATA_STRUCT.pack(
+            primitives_pb2.Edge.UnknownJumpkind if jk is None else jk,  # type:ignore
+            ins_addr if ins_addr is not None else 0xFFFF_FFFF_FFFF_FFFF,
+            stmt_idx if stmt_idx is not None else -1,
+        )
 
     @staticmethod
     def _deserialize_edge_data(data: bytes) -> dict:
-        """Deserialize CFGEdgeData protobuf bytes to an edge attribute dict."""
-        edge = cfg_pb2.CFGEdgeData()  # type:ignore
-        edge.ParseFromString(data)
+        """Deserialize packed bytes to an edge attribute dict."""
+        jk, ins_addr, stmt_idx = SpillingAdjDict._EDGE_DATA_STRUCT.unpack(data)
         return {
-            "jumpkind": cfg_jumpkind_from_pb(edge.jumpkind),
-            "ins_addr": edge.ins_addr if edge.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-            "stmt_idx": edge.stmt_idx if edge.stmt_idx != -1 else None,
+            "jumpkind": cfg_jumpkind_from_pb(jk),
+            "ins_addr": ins_addr if ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+            "stmt_idx": stmt_idx if stmt_idx != -1 else None,
         }
 
     def _serialize_inner_dict(self, inner_dict: DirtyDict[K, dict]) -> bytes:
@@ -582,6 +592,19 @@ class SpillingDiGraph(networkx.DiGraph):
         """Evict all cached adjacency entries to LMDB."""
         self._adj.evict_all_cached()
         self._pred.evict_all_cached()
+
+    def set_edge_eviction_enabled(self, enabled: bool) -> None:
+        """
+        Enable or disable eviction of adjacency entries. Disabling eviction is useful during bulk edge insertion;
+        call spill_down_edges() afterwards to bring the caches back within their limits.
+        """
+        self._adj._eviction_enabled = enabled
+        self._pred._eviction_enabled = enabled
+
+    def spill_down_edges(self) -> None:
+        """Evict least-recently-used adjacency entries until the caches are back within their limits."""
+        self._adj._evict_lru()
+        self._pred._evict_lru()
 
     #
     #  Pickling
