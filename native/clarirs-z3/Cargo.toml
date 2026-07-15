@@ -11,7 +11,7 @@ repository = { workspace = true }
 
 [dependencies]
 clarirs-core = { path = "../clarirs-core" }
-z3-sys = { version = "0.11", features = ["gh-release"] }
+z3-sys = { version = "0.11", features = ["vendored"] }
 regex = "1.12"
 
 [lints]
