@@ -45,3 +45,10 @@ target-lexicon = "0.13.5"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+# Not used from Rust: this is how the extension configures the Z3 that clarirs-z3 links against.
+# Windows links against an import library — only a name-to-DLL mapping — and the z3-solver wheel
+# ships none, so take the one from Z3's own release of the same version. setup.py points the other
+# platforms at the wheel, and angr/_z3.py loads the wheel's libz3 at runtime everywhere.
+[target.'cfg(windows)'.dependencies]
+z3-sys = { version = "0.12", features = ["gh-release"] }

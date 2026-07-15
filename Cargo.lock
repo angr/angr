@@ -100,6 +100,7 @@ dependencies = [
  "target-lexicon",
  "tempfile",
  "thiserror",
+ "z3-sys",
 ]
 
 [[package]]
@@ -3503,9 +3504,9 @@ dependencies = [
 
 [[package]]
 name = "z3-sys"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c18b0a91a13522d21b3414847667de2b2056a721a3edcb5b6ee6858352d58db4"
+checksum = "8ee055ba9ea6fdb01bb4e6c3bbb493cdd89b5a90976b2e5b8a6bd0f033c3c502"
 dependencies = [
  "pkg-config",
  "reqwest",

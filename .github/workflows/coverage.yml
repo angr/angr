@@ -113,9 +113,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run tests
+        env:
+          READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
         run: |
-          cargo test --release
-          cargo llvm-cov --lcov --output-path lcov.info
+          cargo test --release --features z3-sys/gh-release
+          cargo llvm-cov --lcov --output-path lcov.info --features z3-sys/gh-release
       - name: Upload results artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
