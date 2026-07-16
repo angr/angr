@@ -2755,6 +2755,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         notes=None,
         display_notes: bool = True,
         variable_map: VariableMap | None = None,
+        indent_size: int = 4,
     ):
         super().__init__(flavor=flavor, notes=notes)
 
