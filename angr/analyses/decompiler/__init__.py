@@ -8,6 +8,7 @@ from .clinic import Clinic, ClinicMode
 from .decompilation_cache import DecompilationCache
 from .decompilation_options import options, options_by_category
 from .decompiler import Decompiler
+from .decompiler_observer import DecompilerObserver, ObserverFormat
 from .dephication import GraphDephication, SeqNodeDephication
 from .presets import DECOMPILATION_PRESETS
 from .region_identifier import RegionIdentifier
@@ -31,8 +32,10 @@ __all__ = (
     "ClinicMode",
     "DecompilationCache",
     "Decompiler",
+    "DecompilerObserver",
     "GraphDephication",
     "ImportSourceCode",
+    "ObserverFormat",
     "RegionIdentifier",
     "RegionOverlay",
     "RegionSimplifier",

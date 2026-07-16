@@ -92,6 +92,7 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
 
     from .decompilation_cache import DecompilationCache
+    from .decompiler_observer import DecompilerObserver
     from .notes import DecompilationNote
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
@@ -246,6 +247,7 @@ class Clinic(Analysis):
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
+        observer: DecompilerObserver | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -305,6 +307,7 @@ class Clinic(Analysis):
         self.secondary_stackvars: set[int] = set()
         self._typehoon_cls = typehoon_cls
 
+        self._observer = observer
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
         self.static_buffers = static_buffers if static_buffers is not None else {}
@@ -410,6 +413,14 @@ class Clinic(Analysis):
     # Private methods
     #
 
+    def _notify_observer(self, stage_name: str, graph: networkx.DiGraph | None) -> None:
+        if self._observer is None or graph is None:
+            return
+        try:
+            self._observer.on_clinic_stage(self.function.addr, stage_name, graph)
+        except Exception:  # pylint:disable=broad-exception-caught
+            l.warning("DecompilerObserver failed at clinic stage %s", stage_name, exc_info=True)
+
     def _analyze_for_decompiling(self):
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
@@ -419,8 +430,10 @@ class Clinic(Analysis):
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
             return
+        self._notify_observer(ClinicStage.AIL_GRAPH_CONVERSION.name, ail_graph)
         if self._start_stage <= ClinicStage.INITIALIZATION:
             ail_graph = self._decompilation_fixups(ail_graph)
+            self._notify_observer(ClinicStage.INITIALIZATION.name, ail_graph)
 
         if self._inline_functions:
             self._max_stack_depth += self.calculate_stack_depth()
@@ -744,9 +757,11 @@ class Clinic(Analysis):
             if stage < self._start_stage or stage > self._end_stage or stage in self._skip_stages:
                 continue
             stages[stage]()
+            self._notify_observer(stage.name, self._ail_graph)
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
+        self._notify_observer("REMOVE_EMPTY_NODES", self._ail_graph)
         # note that there are still edges to remove before we can structure this graph!
 
         self.cc_graph = self.copy_graph(self._ail_graph)
