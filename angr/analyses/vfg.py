@@ -1123,7 +1123,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
 
         l.debug("Widening %s", job_1)
 
-        new_state =job_0.state.copy()
+        new_state = job_0.state.copy()
         new_state.memory.merge([job_1.state.memory], None)
 
         new_job = VFGJob(
