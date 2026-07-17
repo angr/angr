@@ -30,8 +30,6 @@ class SimStatePlugin:
     storage and persistence for SimProcedures.
     """
 
-    STRONGREF_STATE = False
-
     def __init__(self) -> None:
         self.state: SimState[Any, Any] = cast("SimState[Any, Any]", None)
 
@@ -40,9 +38,6 @@ class SimStatePlugin:
         Sets a new state (for example, if the state has been branched)
         """
         self.state = state._get_weakref()
-
-    def set_strongref_state(self, state) -> None:
-        pass
 
     def __getstate__(self) -> dict[str, Any]:
         d = dict(self.__dict__)

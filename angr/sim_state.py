@@ -288,8 +288,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         self.__dict__.update(s)
         for p in self.plugins.values():
             p.set_state(self)
-            if p.STRONGREF_STATE:
-                p.set_strongref_state(self)
 
     def _get_weakref(self):
         return weakref.proxy(self)
@@ -459,8 +457,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
     def _set_plugin_state(self, plugin: SimStatePlugin, inhibit_init: bool = False):
         plugin.set_state(self)
-        if plugin.STRONGREF_STATE:
-            plugin.set_strongref_state(self)
         if not inhibit_init:
             plugin.init_state()
 
