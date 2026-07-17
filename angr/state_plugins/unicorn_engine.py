@@ -800,9 +800,6 @@ class Unicorn(SimStatePlugin):
         # I guess always lie to the static analysis?
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("Can't widen the unicorn plugin!")
-
     def __getstate__(self):
         d = dict(self.__dict__)
         del d["_bullshit_cb"]

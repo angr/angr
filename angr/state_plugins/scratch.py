@@ -180,9 +180,6 @@ class SimStateScratch(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        return False
-
     def clear(self):
         s = self.state
         j = self.jumpkind

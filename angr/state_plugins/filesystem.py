@@ -5,7 +5,6 @@ import os
 from collections import namedtuple
 
 from angr.errors import SimMergeError
-from angr.misc.ux import once
 from angr.storage.file import SimFile
 
 from .plugin import SimStatePlugin
@@ -141,10 +140,6 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
             subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
 
         return True
-
-    def widen(self, others):  # pylint: disable=unused-argument
-        if once("fs_widen_warning"):
-            l.warning("Filesystems can't be widened yet - beware unsoundness")
 
     def _normalize_path(self, path):
         """
@@ -395,10 +390,6 @@ class SimConcreteFilesystem(SimMount):
 
             merging_occurred |= subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
         return merging_occurred
-
-    def widen(self, others):  # pylint: disable=unused-argument
-        if once("host_fs_widen_warning"):
-            l.warning("The host filesystem mount can't be widened yet - beware unsoundness")
 
     def _join_chunks(self, keys):
         """

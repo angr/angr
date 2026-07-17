@@ -39,9 +39,6 @@ class PosixDevFS(SimMount):  # this'll be mounted at /dev
     def merge(self, others, conditions, common_ancestor=None):  # pylint: disable=unused-argument, arguments-differ
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        return False
-
     def copy(self, _):
         return self  # this holds no state!
 
@@ -66,9 +63,6 @@ class PosixProcFS(SimMount):
         return False
 
     def merge(self, others, conditions, common_ancestor=None):  # pylint: disable=unused-argument, arguments-differ
-        return False
-
-    def widen(self, others):  # pylint: disable=unused-argument
         return False
 
     def copy(self, _):
@@ -664,9 +658,6 @@ class SimSystemPosix(SimStatePlugin):
         )
 
         return merging_occurred
-
-    def widen(self, _):
-        raise SimMergeError("Widening the system state is unsupported")
 
     def dump_file_by_path(self, path, **kwargs):
         """

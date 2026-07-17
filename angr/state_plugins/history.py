@@ -175,10 +175,6 @@ class SimStateHistory(SimStatePlugin):
 
         return True
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("history widening is not implemented!")
-        return  # TODO
-
     @SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument
         return SimStateHistory(clone=self)

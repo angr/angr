@@ -109,9 +109,6 @@ class SimRegNameView(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        return False
-
     def get(self, reg_name):
         return self.__getattr__(reg_name)
 
@@ -259,9 +256,6 @@ class SimMemView(SimStatePlugin):
         return SimMemView()
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-        return False
-
-    def widen(self, others):  # pylint: disable=unused-argument
         return False
 
     @property

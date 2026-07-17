@@ -1123,7 +1123,8 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
 
         l.debug("Widening %s", job_1)
 
-        new_state, _ = self._widen_states(job_0.state, job_1.state)
+        new_state = job_0.state.copy()
+        new_state.memory.merge([job_1.state.memory], None)
 
         new_job = VFGJob(
             jobs[0].addr,
@@ -1199,28 +1200,6 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         # print merged_state.dbg_print_stack()
 
         return merged, merging_occurred
-
-    @staticmethod
-    def _widen_states(old_state, new_state):
-        """
-        Perform widen operation on the given states, and return a new one.
-
-        :param old_state:
-        :param new_state:
-        :returns: The widened state, and whether widening has occurred
-        """
-
-        # print old_state.dbg_print_stack()
-        # print new_state.dbg_print_stack()
-
-        l.debug("Widening state at IP %s", old_state.ip)
-
-        widened_state, widening_occurred = old_state.widen(new_state)
-
-        # print "Widened: "
-        # print widened_state.dbg_print_stack()
-
-        return widened_state, widening_occurred
 
     @staticmethod
     def _narrow_states(node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use

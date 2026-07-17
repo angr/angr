@@ -382,9 +382,6 @@ class JavaVmMemoryMixin(MemoryMixin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         l.warning("Merging is not implemented for JavaVM memory!")
 
-    def widen(self, others):  # pylint: disable=no-self-use,unused-argument
-        l.warning("Widening is not implemented for JavaVM memory!")
-
     # pylint: disable=no-self-use,unused-argument
     def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         l.warning("Find is not implemented for JavaVM memory!")

@@ -68,9 +68,6 @@ class SimStateLog(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return self._combine(others)
 
-    def widen(self, others):
-        return self._combine(others)
-
     def clear(self):
         s = self.state
         self.__init__()

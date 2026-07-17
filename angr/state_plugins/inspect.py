@@ -41,7 +41,6 @@ class EventType(enum.StrEnum):
     SYSCALL = "syscall"
     CFG_HANDLE_JOB = "cfg_handle_job"
     VFG_HANDLE_SUCCESSOR = "vfg_handle_successor"
-    VFG_WIDEN_STATE = "vfg_widen_state"
     ENGINE_PROCESS = "engine_process"
     MEMORY_PAGE_MAP = "memory_page_map"
 
@@ -414,9 +413,6 @@ class SimInspector(SimStatePlugin):
         return False
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-        return self._combine(others)
-
-    def widen(self, others):
         return self._combine(others)
 
     def set_state(self, state):

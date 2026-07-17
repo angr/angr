@@ -358,9 +358,6 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         raise angr.errors.SimMergeError("Can't merge ChallRespInfo - what on earth are you doing?")
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        raise angr.errors.SimMergeError("Can't widen ChallRespInfo - what on earth are you doing?")
-
     @staticmethod
     def get_byte(var_name):
         ## XXX TODO FIXME DO NOT DO THIS HOLY SHIT WHAT THE FUCK
@@ -686,9 +683,6 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         raise angr.errors.SimMergeError("Can't merge ZenPlugin - what on earth are you doing?")
-
-    def widen(self, others):  # pylint: disable=unused-argument
-        raise angr.errors.SimMergeError("Can't widen ZenPlugin - what on earth are you doing?")
 
     def get_flag_bytes(self, ast):
         flag_args = self.get_flag_rand_args(ast)

@@ -988,14 +988,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         return curr_stmt_start_addr
 
-    def _widen_states(self, *states: FrozenStackPointerTrackerState):
-        assert len(states) == 2
-        merged, _ = self._merge_states(None, *states)
-        if len(merged.memory) > 5:
-            _l.info("Encountered too many memory writes in stack pointer tracking. Abandoning memory tracking.")
-            merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
-        return merged
-
     def _merge_states(self, node, *states: FrozenStackPointerTrackerState):
         merged_state = states[0]
         for other in states[1:]:

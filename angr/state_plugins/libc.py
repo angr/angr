@@ -1240,9 +1240,6 @@ class SimStateLibc(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
-    def widen(self, others):
-        return False
-
     @property
     def errno(self):
         return self.state.mem[self.errno_location].int.resolved

@@ -587,9 +587,6 @@ class SimHeapPTMalloc(SimHeapFreelist):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         return self._combine(others)
 
-    def widen(self, others):
-        return self._combine(others)
-
     def init_state(self):
         super().init_state()
 
