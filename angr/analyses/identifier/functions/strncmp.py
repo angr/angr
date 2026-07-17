@@ -1,14 +1,6 @@
 from __future__ import annotations
 
-import random
-
-from angr.analyses.identifier.func import Func, TestData
-
-
-def rand_str(length, byte_list=None):
-    if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in range(length))
-    return "".join(random.choice(byte_list) for _ in range(length))
+from angr.analyses.identifier.func import Func, TestData, rand_str
 
 
 class strncmp(Func):

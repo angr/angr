@@ -2,13 +2,7 @@ from __future__ import annotations
 
 import random
 
-from angr.analyses.identifier.func import Func, TestData
-
-
-def rand_str(length, byte_list=None):
-    if byte_list is None:
-        return bytes(random.randint(0, 255) for _ in range(length))
-    return bytes(random.choice(byte_list) for _ in range(length))
+from angr.analyses.identifier.func import Func, TestData, rand_bytes
 
 
 class strncpy(Func):
@@ -36,8 +30,8 @@ class strncpy(Func):
         # TODO we don't check the return val, some cases I saw char * strcpy, some size_t strcpy
         strlen = random.randint(1, 20)
         max_len = random.randint(1, 10)
-        buf = rand_str(strlen, byte_list=strncpy.non_null) + b"\x00"
-        result_buf = rand_str(strlen + 1)
+        buf = rand_bytes(strlen, byte_list=strncpy.non_null) + b"\x00"
+        result_buf = rand_bytes(strlen + 1)
         test_input = [result_buf, buf, max_len]
         outlen = min(max_len, strlen + 1)
         test_output = [buf[:outlen], buf, None]

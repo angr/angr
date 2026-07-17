@@ -1,14 +1,6 @@
 from __future__ import annotations
 
-import random
-
 from .strcmp import strcmp
-
-
-def rand_str(length, byte_list=None):
-    if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in range(length))
-    return "".join(random.choice(byte_list) for _ in range(length))
 
 
 class strcasecmp(strcmp):

@@ -3,14 +3,8 @@ from __future__ import annotations
 import random
 
 from angr.analyses.identifier.custom_callable import IdentifierCallable
-from angr.analyses.identifier.func import Func, TestData
+from angr.analyses.identifier.func import Func, TestData, rand_str
 from angr.sim_type import SimTypeFunction, SimTypeInt
-
-
-def rand_str(length, byte_list=None):
-    if byte_list is None:
-        return "".join(chr(random.randint(0, 255)) for _ in range(length))
-    return "".join(random.choice(byte_list) for _ in range(length))
 
 
 class memcpy(Func):

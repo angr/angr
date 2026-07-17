@@ -1,5 +1,25 @@
 from __future__ import annotations
 
+import random
+
+
+def rand_str(length, byte_list=None) -> str:
+    """
+    Generate a random string of `length` characters, drawn from `byte_list` (or all 256 characters if not provided).
+    """
+    if byte_list is None:
+        return "".join(chr(random.randint(0, 255)) for _ in range(length))
+    return "".join(random.choice(byte_list) for _ in range(length))
+
+
+def rand_bytes(length, byte_list=None) -> bytes:
+    """
+    Generate `length` random bytes, drawn from `byte_list` (or all 256 byte values if not provided).
+    """
+    if byte_list is None:
+        return bytes(random.randint(0, 255) for _ in range(length))
+    return bytes(random.choice(byte_list) for _ in range(length))
+
 
 class TestData:
     def __init__(
