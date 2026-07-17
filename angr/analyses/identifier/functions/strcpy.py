@@ -2,13 +2,7 @@ from __future__ import annotations
 
 import random
 
-from angr.analyses.identifier.func import Func, TestData
-
-
-def rand_str(length, byte_list=None):
-    if byte_list is None:
-        return bytes(random.randint(0, 255) for _ in range(length))
-    return bytes(random.choice(byte_list) for _ in range(length))
+from angr.analyses.identifier.func import Func, TestData, rand_bytes
 
 
 class strcpy(Func):
@@ -32,8 +26,8 @@ class strcpy(Func):
     def gen_input_output_pair(self):
         # TODO we don't check the return val, some cases I saw char * strcpy, some size_t strcpy
         strlen = random.randint(1, 80)
-        buf = rand_str(strlen, byte_list=strcpy.non_null) + b"\x00"
-        result_buf = rand_str(strlen + 1)
+        buf = rand_bytes(strlen, byte_list=strcpy.non_null) + b"\x00"
+        result_buf = rand_bytes(strlen + 1)
         test_input = [result_buf, buf]
         test_output = [buf, buf]
         max_steps = 20

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import random
 import string
 
 import claripy
 
-from angr.analyses.identifier.func import Func, TestData
+from angr.analyses.identifier.func import Func, TestData, rand_str
 
 
 class sprintf(Func):
@@ -16,11 +15,6 @@ class sprintf(Func):
         self.format_spec_char = None
         self.string_spec_char = None
         self.allows_n = False
-
-    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
-        if byte_list is None:
-            return "".join(chr(random.randint(0, 255)) for _ in range(length))
-        return "".join(random.choice(byte_list) for _ in range(length))
 
     def num_args(self):
         return 2
@@ -42,8 +36,8 @@ class sprintf(Func):
     def pre_test(self, func, runner):
         # make sure it prints alphanumeric stuff
         length = 10
-        test_str = self.rand_str(length, string.ascii_letters + string.digits)
-        outbuf = self.rand_str(length + 2)
+        test_str = rand_str(length, string.ascii_letters + string.digits)
+        outbuf = rand_str(length + 2)
         test_input = [outbuf, test_str]
         test_output = [test_str + "\x00", test_str]
         max_steps = 20
