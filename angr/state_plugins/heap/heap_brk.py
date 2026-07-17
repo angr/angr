@@ -131,8 +131,5 @@ class SimHeapBrk(SimHeapBase):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         return self._combine(others)
 
-    def widen(self, others):
-        return self._combine(others)
-
 
 SimState.register_default("heap", SimHeapBrk)

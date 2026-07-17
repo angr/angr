@@ -150,14 +150,6 @@ which case it will be None. There are no rules for how exactly you should use
 this to improve the quality of your merges, but you may find it useful in more
 complex setups.
 
-Widening
---------
-
-There is another kind of merging called *widening* which takes several states
-and produces a more general state. It is used during static analysis.
-
-.. todo:: Explain what this means
-
 Serialization
 -------------
 

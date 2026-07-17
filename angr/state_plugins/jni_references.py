@@ -87,10 +87,6 @@ class SimStateJNIReferences(SimStatePlugin):
         l.warning("Merging is not implemented for JNI references!")
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("Widening is not implemented for JNI references!")
-        return False
-
 
 # TODO use a default JavaVM preset
 #      see for reference: angr/engines/__init__.py

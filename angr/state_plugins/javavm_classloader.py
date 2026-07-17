@@ -126,10 +126,6 @@ class SimJavaVmClassloader(SimStatePlugin):
         l.warning("Merging is not implemented for JavaVM classloader!")
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("Widening is not implemented for JavaVM classloader!")
-        return False
-
 
 # TODO use a default JavaVM preset
 #      see for reference: angr/engines/__init__.py

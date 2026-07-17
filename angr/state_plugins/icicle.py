@@ -84,8 +84,5 @@ class SimStateIcicle(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):
         return False
 
-    def widen(self, others):
-        return False
-
 
 SimState.register_default("icicle", SimStateIcicle)

@@ -97,9 +97,6 @@ class CallStack(SimStatePlugin):
             if o != self:
                 l.error("Trying to merge states with disparate callstacks!")
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("Widening not implemented for callstacks")
-
     def __iter__(self) -> Iterator[CallStack]:
         """
         Iterate through the callstack, from top to bottom

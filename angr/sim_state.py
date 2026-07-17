@@ -674,32 +674,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         merged.add_constraints(claripy.Or(*merge_conditions))
         return merged, merge_conditions, merging_occurred
 
-    def widen(self, *others):
-        """
-        Perform a widening between self and other states
-        :param others:
-        :return:
-        """
-
-        if len({frozenset(o.plugins.keys()) for o in others}) != 1:
-            raise SimMergeError("Unable to widen due to different sets of plugins.")
-        if len({o.arch.name for o in others}) != 1:
-            raise SimMergeError("Unable to widen due to different architectures.")
-
-        widened = self.copy()
-        widening_occurred = False
-
-        # plugins
-        for p in self.plugins:
-            if p in ("solver", "unicorn"):
-                continue
-            plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
-            if plugin_state_widened:
-                l.debug("Widening occurred in %s", p)
-                widening_occurred = True
-
-        return widened, widening_occurred
-
     #############################################
     ### Accessors for tmps, registers, memory ###
     #############################################

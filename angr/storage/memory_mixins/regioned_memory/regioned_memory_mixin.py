@@ -156,6 +156,17 @@ class RegionedMemoryMixin(MemoryMixin):
                     r = True
         return r
 
+    def widen(self, others) -> bool:
+        r = False
+        for o in others:
+            for region_id, region in o._regions.items():
+                if region_id in self._regions:
+                    r |= self._regions[region_id].widen([region])
+                else:
+                    self._regions[region_id] = region
+                    r = True
+        return r
+
     def find(self, addr: int | Bits, data, max_search, **kwargs):
         # FIXME: Attempt find() on more than one region
 

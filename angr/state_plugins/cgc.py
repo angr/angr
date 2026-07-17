@@ -106,9 +106,6 @@ class SimStateCGC(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return self._combine(others)
 
-    def widen(self, others):
-        return self._combine(others)
-
     ### HEAP MANAGEMENT
 
     def get_max_sinkhole(self, length):

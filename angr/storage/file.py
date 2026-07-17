@@ -355,9 +355,6 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
 
         return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
-    def widen(self, _):
-        raise SimMergeError("Widening the filesystem is unsupported")
-
 
 class SimFileStream(SimFile):
     """
@@ -656,9 +653,6 @@ class SimPackets(SimFileBase):
             self.content[i] = (merged_data, merged_size)
 
         return True
-
-    def widen(self, _):
-        raise SimMergeError("Widening the filesystem is unsupported")
 
 
 class SimPacketsStream(SimPackets):
@@ -1010,9 +1004,6 @@ class SimFileDescriptor(SimFileDescriptorBase):
 
         return True
 
-    def widen(self, _):
-        raise SimMergeError("Widening the filesystem is unsupported")
-
 
 class SimFileDescriptorDuplex(SimFileDescriptorBase):
     """
@@ -1129,9 +1120,6 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
 
         return True
 
-    def widen(self, _):
-        raise SimMergeError("Widening the filesystem is unsupported")
-
 
 class SimPacketsSlots(SimFileBase):
     """
@@ -1209,6 +1197,3 @@ class SimPacketsSlots(SimFileBase):
             )
 
         return True
-
-    def widen(self, _):
-        raise SimMergeError("Widening the filesystem is unsupported")

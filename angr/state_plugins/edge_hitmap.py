@@ -66,13 +66,3 @@ class SimStateEdgeHitmap(SimStatePlugin):
             else:
                 log.warning("Cannot merge edge hitmaps of different sizes")
         return True
-
-    def widen(self, others):  # pylint: disable=unused-argument
-        """
-        Widening operation for static analysis.
-
-        :param others: Other plugin instances.
-        :return: False, widening is not meaningful for hitmaps.
-        """
-        log.warning("Widening is not implemented for edge hitmap")
-        return False

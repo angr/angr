@@ -228,7 +228,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
         result = False
         for other_region in others:
             self._merge_alocs(other_region)
-            result |= super().widen([other_region.memory])
+            result |= super().widen([other_region])
         return result
 
     def dbg_print(self, indent=0):

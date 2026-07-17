@@ -309,6 +309,11 @@ class PagedMemoryMixin[PageType: PageBase](
 
         return bool(merged_bytes)
 
+    def widen(self, others) -> bool:
+        # Widening is a merge without merge conditions: differing values are joined directly in the abstract domain
+        # (e.g. a strided-interval union under VSA, via AbstractMergerMixin._merge_values).
+        return self.merge(others, None)
+
     def compare(self, other: PagedMemoryMixin) -> bool:
         changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
 

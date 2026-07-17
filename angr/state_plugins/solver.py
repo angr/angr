@@ -474,12 +474,6 @@ class SimSolver(SimStatePlugin):
         )
         return merging_occurred
 
-    @error_converter
-    def widen(self, others):
-        c = claripy.BVS("random_widen_condition", 32)
-        merge_conditions = [[c == i] for i in range(len(others) + 1)]
-        return self.merge(others, merge_conditions)
-
     #
     # Frontend passthroughs
     #

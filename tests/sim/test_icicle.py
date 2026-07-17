@@ -929,8 +929,8 @@ class TestSimStateIciclePlugin(TestCase):
         copied.dirty_pages.add(6)
         assert 6 not in plugin.dirty_pages
 
-    def test_plugin_merge_and_widen(self):
-        """Test that merge and widen return False (not mergeable)."""
+    def test_plugin_merge(self):
+        """Test that merge returns False (not mergeable)."""
         dummy_td = cast(IcicleStateTranslationData, None)
         plugin = SimStateIcicle(
             generation=1,
@@ -938,7 +938,6 @@ class TestSimStateIciclePlugin(TestCase):
             dirty_pages=set(),
         )
         assert plugin.merge([], [], None) is False
-        assert plugin.widen([]) is False
 
 
 class TestContinuation(TestCase):

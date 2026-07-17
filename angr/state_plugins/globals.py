@@ -25,10 +25,6 @@ class SimStateGlobals(SimStatePlugin):
 
         return True
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("Widening is unimplemented for globals")
-        return False
-
     def __iter__(self):
         return iter(self._backer)
 

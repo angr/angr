@@ -34,10 +34,6 @@ class SimStatePreconstrainer(SimStatePlugin):
         l.warning("Merging is not implemented for preconstrainer!")
         return False
 
-    def widen(self, others):  # pylint: disable=unused-argument
-        l.warning("Widening is not implemented for preconstrainer!")
-        return False
-
     @SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument
         c = SimStatePreconstrainer(constrained_addrs=self._constrained_addrs)
