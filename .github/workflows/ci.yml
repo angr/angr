@@ -16,20 +16,26 @@ jobs:
   ci:
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
 
-  smoketest:
-    name: Test installation
+  installation:
+    name: Test installation (${{ matrix.environment.os }}, py${{ matrix.environment.python-version }})
     strategy:
       matrix:
-        os: [windows-2022, macos-15-intel]
+        environment:
+          - os: windows-2025
+            python-version: 3.12
+          - os: macos-26
+            python-version: 3.12
+          - os: ubuntu-24.04
+            python-version: 3.14
       fail-fast: false
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.environment.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         if: startsWith(runner.os, 'windows')
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v6
       - name: Sync dependencies
-        run: uv sync -p 3.12
+        run: uv sync -p ${{ matrix.environment.python-version }}
       - name: Collect tests
         run: uv run pytest --collect-only tests
 
