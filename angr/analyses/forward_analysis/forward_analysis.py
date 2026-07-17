@@ -235,9 +235,6 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
         _, has_no_changes = self._merge_states(node, old_state, new_state)
         return has_no_changes
 
-    def _widen_states(self, *states: AnalysisState) -> AnalysisState:
-        raise NotImplementedError("_widen_states() is not implemented.")
-
     # Special interfaces for non-graph-traversal mode
 
     def _merge_jobs(self, *jobs: JobType):
