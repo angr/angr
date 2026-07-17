@@ -1205,9 +1205,10 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         """
         Perform widen operation on the given states, and return a new one.
 
-        Widening only involves the memory model: values stored in the abstract memory are joined in the abstract
-        domain (a strided-interval union under VSA) so that the analysis converges at widening points. All other
-        state components (registers, callstack, history, ...) are carried over from the old state unchanged.
+        Widening only involves the memory model, and is implemented as a merge without merge conditions: differing
+        values are joined directly in the abstract domain (a strided-interval union under VSA) so that the analysis
+        converges at widening points. All other state components (registers, callstack, history, ...) are carried
+        over from the old state unchanged.
 
         :param old_state: The state from the previous visit of this program point.
         :param new_state: The state from the current visit of this program point.
@@ -1217,7 +1218,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         l.debug("Widening state at IP %s", old_state.ip)
 
         widened_state = old_state.copy()
-        widening_occurred = bool(widened_state.memory.widen([new_state.memory]))
+        widening_occurred = bool(widened_state.memory.merge([new_state.memory], None))
 
         return widened_state, widening_occurred
 

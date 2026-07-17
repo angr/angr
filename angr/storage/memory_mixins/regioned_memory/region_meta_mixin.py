@@ -224,13 +224,6 @@ class MemoryRegionMetaMixin(MemoryMixin):
             r |= super().merge([other_region], merge_conditions, common_ancestor=common_ancestor)
         return r
 
-    def widen(self, others):
-        result = False
-        for other_region in others:
-            self._merge_alocs(other_region)
-            result |= super().widen([other_region])
-        return result
-
     def dbg_print(self, indent=0):
         """
         Print out debugging information

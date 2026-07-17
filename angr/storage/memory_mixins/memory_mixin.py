@@ -80,16 +80,6 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
 
     def compare(self, other: Self) -> bool: ...
 
-    def widen(self, others: list[Self]) -> bool:
-        """
-        The widening operation for memory models. Widening produces a memory that over-approximates all the given
-        memories, and is used by fixed-point static analyses (currently the VFG) at loop heads to guarantee
-        convergence. Unlike ``merge``, no merge conditions are involved: values are joined in the abstract domain.
-
-        :param others: The other memories to widen with.
-        :returns:      True if this memory was actually widened.
-        """
-
     def permissions(self, addr: Addr, permissions: int | claripy.ast.BV | None = None, **kwargs) -> claripy.ast.BV: ...
 
     def map_region(
