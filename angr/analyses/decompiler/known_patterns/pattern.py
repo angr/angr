@@ -62,6 +62,24 @@ def is_cpp_binary(project: Project) -> bool:
     return any(sym.name and sym.name.startswith(("_Z", "?")) for sym in symbols)
 
 
+def is_msvc_cpp_binary(project: Project) -> bool:
+    """Heuristic MSVC-STL evidence: the main object depends on an MSVC C++
+    runtime (msvcp*.dll), or carries MSVC-mangled (``?...``) symbols while not
+    depending on libstdc++ (mingw binaries link libstdc++ and use its layouts
+    even though they are PEs)."""
+    main_object = project.loader.main_object
+    deps = [dep.lower() for dep in getattr(main_object, "deps", None) or []]
+    if any("msvcp" in dep for dep in deps):
+        return True
+    if any("libstdc++" in dep for dep in deps):
+        return False
+    try:
+        symbols = main_object.symbols
+    except (AttributeError, TypeError):
+        return False
+    return any(sym.name and sym.name.startswith("?") for sym in symbols)
+
+
 def resolve_typeref(ref: TypeRef | None, arch: archinfo.Arch) -> SimType | None:
     """Resolve a TypeRef into a SimType: a C declaration string is parsed with
     ``parse_type``; a CppRef is looked up in the cpp::std collection."""
