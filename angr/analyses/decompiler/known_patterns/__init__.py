@@ -39,6 +39,7 @@ from .std_vector_size import (
     STD_VECTOR_SHORT_SIZE,
     make_std_vector_size_pattern,
 )
+from .stl_containers import ALL_STL_CONTAINER_PATTERNS
 
 ALL_KNOWN_PATTERNS: list[KnownPattern] = []
 KNOWN_PATTERNS_BY_CALL_NAME: dict[str, KnownPattern] = {}
@@ -80,11 +81,14 @@ register_known_pattern(STD_SWAP_8)
 register_known_pattern(CONTAINING_RECORD_PATTERN)
 for _p in ALL_LINKED_LIST_PATTERNS:
     register_known_pattern(_p)
+for _p in ALL_STL_CONTAINER_PATTERNS:
+    register_known_pattern(_p)
 
 
 __all__ = [
     "ALL_KNOWN_PATTERNS",
     "ALL_LINKED_LIST_PATTERNS",
+    "ALL_STL_CONTAINER_PATTERNS",
     "CONTAINING_RECORD_PATTERN",
     "INITIALIZE_LIST_HEAD",
     "IS_LIST_EMPTY",

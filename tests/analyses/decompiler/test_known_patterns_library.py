@@ -8,12 +8,17 @@ from unittest import TestCase
 import angr
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
-from angr.analyses.decompiler.known_patterns import ALL_LINKED_LIST_PATTERNS, KnownPatternFinder
+from angr.analyses.decompiler.known_patterns import (
+    ALL_LINKED_LIST_PATTERNS,
+    ALL_STL_CONTAINER_PATTERNS,
+    KnownPatternFinder,
+)
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from tests.common import bin_location
 
 WDK_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_list.exe")
 LINUX_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_linux_list")
+STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 
 
 def _decompile(bin_path: str, func_name: str):
@@ -81,6 +86,40 @@ class TestLinkedListPatterns(TestCase):
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert not any(m.pattern in ALL_LINKED_LIST_PATTERNS for m in finder.matches)
 
+
+class TestStlContainerPatterns(TestCase):
+    def _check(self, func_name, pattern_name, call_fragment):
+        proj, cfg, func, dec = _decompile(STL_BIN, func_name)
+        finder = _find(proj, func, dec, ALL_STL_CONTAINER_PATTERNS)
+        assert len(finder.matches) == 1, f"{func_name}: {[m.pattern.name for m in finder.matches]}"
+        assert finder.matches[0].pattern.name == pattern_name
+        text = _outline_text(proj, cfg, func, dec, finder)
+        assert call_fragment in text
+
+    def test_vector_empty(self):
+        self._check("vec_empty", "std_vector_int_empty", "std::vector<int>::empty(")
+
+    def test_vector_capacity(self):
+        self._check("vec_capacity", "std_vector_int_capacity", "std::vector<int>::capacity(")
+
+    def test_vector_index(self):
+        self._check("vec_index", "std_vector_int_index", "std::vector<int>::operator[](")
+
+    def test_string_empty(self):
+        self._check("str_empty", "std_string_empty", "std::string::empty(")
+
+    def test_string_index(self):
+        self._check("str_index", "std_string_index", "std::string::operator[](")
+
+    def test_empty_capacity_enabled_by_default(self):
+        # empty/capacity are default-on (guarded by C++ evidence); index/string
+        # accessors are opt-in
+        proj, _, func, dec = _decompile(STL_BIN, "vec_empty")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert any(m.pattern.name == "std_vector_int_empty" for m in finder.matches)
+
+
+class TestUnorderedStmtSeqDecl(TestCase):
     def test_unordered_matching_is_order_insensitive(self):
         # the WDK and Linux builds emit the init/remove stores in different
         # orders; a single ordered=False pattern matches both. Confirm the
