@@ -17,6 +17,7 @@ from angr.ailment.expression import (
     Convert,
     Expression,
     Extract,
+    Insert,
     Load,
     Reinterpret,
     UnaryOp,
@@ -111,6 +112,9 @@ def _iter_expr_children(expr: Expression) -> Iterator[tuple[tuple[str, int | Non
         yield ("operand", None), expr.operand
     elif isinstance(expr, Extract):
         yield ("base", None), expr.base
+    elif isinstance(expr, Insert):
+        yield ("base", None), expr.base
+        yield ("value", None), expr.value
     elif isinstance(expr, Load):
         yield ("addr", None), expr.addr
     elif isinstance(expr, ITE):
