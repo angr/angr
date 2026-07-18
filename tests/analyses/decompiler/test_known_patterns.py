@@ -15,6 +15,8 @@ from angr.analyses.decompiler.known_patterns import (
     CONTAINING_RECORD_PATTERN,
     STD_STRING_LENGTH,
     STD_VECTOR_INT_SIZE,
+    STD_VECTOR_LONG_LONG_SIZE,
+    STD_VECTOR_SHORT_SIZE,
     KnownPatternFinder,
 )
 from angr.analyses.decompiler.known_patterns.dsl import MatchCtx, MatchState
@@ -119,6 +121,17 @@ class TestKnownPatternFinder(TestCase):
         assert m.pattern is STD_VECTOR_INT_SIZE
         assert isinstance(m.captures["v"], VirtualVariable)
 
+    def test_find_std_vector_size_variants(self):
+        for func_name, expected_pattern in (
+            ("get_size_s", STD_VECTOR_SHORT_SIZE),
+            ("get_size_ll", STD_VECTOR_LONG_LONG_SIZE),
+        ):
+            with self.subTest(func=func_name):
+                proj, _, func, dec = _decompile(STL_BIN, func_name)
+                finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+                assert len(finder.matches) == 1
+                assert finder.matches[0].pattern is expected_pattern
+
     def test_find_containing_record(self):
         proj, _, func, dec = _decompile(CR_BIN, "sum_list")
         # CONTAINING_RECORD is not enabled by default
@@ -218,6 +231,11 @@ class TestKnownPatternPipeline(TestCase):
         text = dec.codegen.text
         assert "std::vector<int>::size(" in text
         assert "std::vector<int> *" in text
+
+        _, _, _, dec = _decompile(STL_BIN, "get_size_ll", preset="full")
+        text = dec.codegen.text
+        assert "std::vector<long long>::size(" in text
+        assert "std::vector<long long> *" in text
 
     def test_automatic_pipeline_no_false_positives(self):
         # a plain C binary decompiled with the full preset must not grow any

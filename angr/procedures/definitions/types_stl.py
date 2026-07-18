@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from angr.procedures.definitions import SimTypeCollection
-from angr.sim_type import SimCppClass, SimTypeChar, SimTypeInt, SimTypePointer
+from angr.sim_type import SimCppClass, SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypePointer, SimTypeShort
 
 typelib = SimTypeCollection()
 typelib.set_names("cpp::std")
@@ -28,6 +28,28 @@ typelib.types = {
                 ("m_start", SimTypePointer(SimTypeInt())),
                 ("m_finish", SimTypePointer(SimTypeInt())),
                 ("m_end_of_storage", SimTypePointer(SimTypeInt())),
+            ]
+        ),
+    ),
+    "class std::vector<short, class std::allocator<short>>": SimCppClass(
+        unique_name="class std::vector<short, class std::allocator<short>>",
+        name="std::vector<short>",
+        members=OrderedDict(
+            [
+                ("m_start", SimTypePointer(SimTypeShort())),
+                ("m_finish", SimTypePointer(SimTypeShort())),
+                ("m_end_of_storage", SimTypePointer(SimTypeShort())),
+            ]
+        ),
+    ),
+    "class std::vector<long long, class std::allocator<long long>>": SimCppClass(
+        unique_name="class std::vector<long long, class std::allocator<long long>>",
+        name="std::vector<long long>",
+        members=OrderedDict(
+            [
+                ("m_start", SimTypePointer(SimTypeLongLong())),
+                ("m_finish", SimTypePointer(SimTypeLongLong())),
+                ("m_end_of_storage", SimTypePointer(SimTypeLongLong())),
             ]
         ),
     ),
