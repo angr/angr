@@ -202,6 +202,15 @@ class PendingJobs:
         self._jobs[func_addr].append(job)
         self._job_count += 1
 
+    def all_jobs(self):
+        """
+        Iterate over all pending jobs.
+
+        :return: An iterator over all pending CFGJob instances.
+        """
+        for jobs in self._jobs.values():
+            yield from jobs
+
     def pop_job(self, returning=True):
         """
         Pop a job from the pending jobs list.
@@ -882,6 +891,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
+
+        # addresses of jobs that were still unprocessed when the analysis was aborted; a caller may pass these
+        # addresses as function_starts to a new CFGFast instance (together with model=self.model) to resume the
+        # aborted analysis
+        self.unprocessed_job_addrs: set[int] = set()
 
         self._remaining_eh_frame_addrs: list[int] | None = None
         self._remaining_function_prologue_addrs: list[int] | None = None
@@ -2484,6 +2498,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _post_analysis(self):
         self.stage = "Analysis (Stage 2)"
+
+        if self.should_abort:
+            # the analysis was aborted before completion; capture the addresses of unprocessed jobs so that the
+            # caller may resume the analysis later by passing them as function_starts to a new CFGFast instance
+            self.unprocessed_job_addrs = {job_info.job.addr for job_info in self._job_info_queue} | {
+                job.addr for job in self._pending_jobs.all_jobs()
+            }
 
         self._calculate_progress_and_notify(skip_percentage=True)
         if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs and not self.should_abort:
