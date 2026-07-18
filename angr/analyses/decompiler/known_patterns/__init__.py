@@ -41,6 +41,7 @@ from .std_vector_size import (
     make_std_vector_size_pattern,
 )
 from .stl_containers import ALL_STL_CONTAINER_PATTERNS
+from .vector_math import ALL_VECTOR_MATH_PATTERNS
 
 ALL_KNOWN_PATTERNS: list[KnownPattern] = []
 KNOWN_PATTERNS_BY_CALL_NAME: dict[str, KnownPattern] = {}
@@ -86,6 +87,8 @@ for _p in ALL_STL_CONTAINER_PATTERNS:
     register_known_pattern(_p)
 for _p in ALL_PROTOBUF_PATTERNS:
     register_known_pattern(_p)
+for _p in ALL_VECTOR_MATH_PATTERNS:
+    register_known_pattern(_p)
 
 
 __all__ = [
@@ -93,6 +96,7 @@ __all__ = [
     "ALL_LINKED_LIST_PATTERNS",
     "ALL_PROTOBUF_PATTERNS",
     "ALL_STL_CONTAINER_PATTERNS",
+    "ALL_VECTOR_MATH_PATTERNS",
     "CONTAINING_RECORD_PATTERN",
     "INITIALIZE_LIST_HEAD",
     "IS_LIST_EMPTY",
