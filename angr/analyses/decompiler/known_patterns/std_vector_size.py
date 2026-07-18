@@ -1,7 +1,8 @@
 """Inlined std::vector<T>::size().
 
 libstdc++ lays out std::vector as ``{_M_start at +0, _M_finish at +8,
-_M_end_of_storage at +16}``; the inlined size() is
+_M_end_of_storage at +16}``, and the MSVC STL uses the same three-pointer
+layout (``_Myfirst``/``_Mylast``/``_Myend``); the inlined size() is
 ``(_M_finish - _M_start) / sizeof(T)``:
 
     ((Load(addr=(v Add 8<64>), size=8) Sub Load(addr=v, size=8)) Sar log2(sizeof(T)))
@@ -48,7 +49,9 @@ def make_std_vector_size_pattern(elt_name: str, log2_elt_size: int) -> KnownPatt
         params=(PatternParam("v", type=CppRef(STD_VECTOR_UNIQUE_NAME_TMPL.format(elt=elt_name))),),
         returnty="unsigned long long",
         arches=("AMD64",),
-        platforms=("linux",),
+        # the MSVC STL uses the same three-pointer layout (_Myfirst/_Mylast/_Myend),
+        # so the pattern applies to Windows binaries as-is
+        platforms=("linux", "win32", "windows"),
         # pointer-difference-and-shift also appears in plain C code; require C++ evidence
         binary_guard=is_cpp_binary,
     )
