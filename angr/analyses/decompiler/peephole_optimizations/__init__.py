@@ -32,6 +32,7 @@ from .eager_eval import EagerEvaluation
 from .evaluate_const_conversions import EvaluateConstConversions
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .known_pattern_call_info import KnownPatternCallInfo
 from .modulo_simplifier import ModuloSimplifier
 from .one_sub_bool import OneSubBool
 from .optimized_div_simplifier import OptimizedDivisionSimplifier
@@ -118,6 +119,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     ShlToMul,
     RewriteCxxOperatorCalls,
     RemoveCxxDestructorCalls,
+    KnownPatternCallInfo,
     RewriteConvMul,
     EvaluateConstConversions,
     RemoveRedundantInsert,

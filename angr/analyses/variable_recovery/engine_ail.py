@@ -425,7 +425,17 @@ class SimEngineVRAIL(
                         if self.state.typevars.has_type_variable_for(stack_var):
                             tv = self.state.typevars.get_type_variable(stack_var)
                             self.state.add_type_constraint(typevars.Subtype(tv, arg_ty.basetype))
-                self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
+                if (
+                    isinstance(arg_ty, typeconsts.Pointer)
+                    and isinstance(arg_ty.basetype, typeconsts.Struct)
+                    and arg_ty.basetype.is_cppclass
+                ):
+                    # a pointer to a known C++ class: the class layout is ground truth, not an upper
+                    # bound; a Subtype constraint would let the solver rebuild an anonymous struct
+                    # from field accesses and lose the class identity
+                    self.state.add_type_constraint(typevars.Equivalence(arg.typevar, arg_ty))
+                else:
+                    self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
 
     def _get_format_string_arg_types(self, func_name: str, call_args) -> list | None:
         """

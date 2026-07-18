@@ -20,4 +20,15 @@ typelib.types = {
             ]
         ),
     ),
+    "class std::vector<int, class std::allocator<int>>": SimCppClass(
+        unique_name="class std::vector<int, class std::allocator<int>>",
+        name="std::vector<int>",
+        members=OrderedDict(
+            [
+                ("m_start", SimTypePointer(SimTypeInt())),
+                ("m_finish", SimTypePointer(SimTypeInt())),
+                ("m_end_of_storage", SimTypePointer(SimTypeInt())),
+            ]
+        ),
+    ),
 }
