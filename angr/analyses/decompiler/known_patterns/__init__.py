@@ -23,6 +23,7 @@ from .dsl import (
     PVVar,
 )
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
+from .generator import PatternGenerationError, PatternGenerator
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
 from .std_string_length import STD_STRING_LENGTH, STD_STRING_LENGTH_MSVC
 from .std_swap import STD_SWAP_8
@@ -103,6 +104,8 @@ __all__ = [
     "PStore",
     "PUnaryOp",
     "PVVar",
+    "PatternGenerationError",
+    "PatternGenerator",
     "PatternParam",
     "TypeRef",
     "UnsupportedOutlineError",
