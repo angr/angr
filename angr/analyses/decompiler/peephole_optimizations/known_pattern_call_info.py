@@ -57,7 +57,7 @@ class KnownPatternCallInfo(PeepholeOptimizationExprBase):
         else:
             return None
 
-        prototype = pattern.prototype(self.project.arch)
+        prototype = pattern.prototype(self.project.arch, const_args=pattern.const_args_of_call(expr))
         if prototype is not None:
             variable_map.set_prototype(key_expr, prototype)
 

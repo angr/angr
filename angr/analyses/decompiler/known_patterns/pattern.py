@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from angr.ailment.expression import Call, Const
 from angr.errors import AngrMissingTypeError
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS
 from angr.sim_type import SimType, SimTypeFunction, SimTypePointer, parse_type
@@ -99,6 +100,13 @@ class KnownPattern:
     :ivar params:             Ordered parameters; their captures become the call
                               arguments, in order.
     :ivar returnty:           Return type of the synthesized call.
+    :ivar returnty_factory:   Optional callable building a call-site-specific
+                              return type from the values of the constant
+                              ``extra_args`` captures (e.g. CONTAINING_RECORD
+                              returns a pointer to a record whose layout
+                              depends on the matched field offset). Falls back
+                              to ``returnty`` when it returns None or when the
+                              constant values are unavailable.
     :ivar extra_args:         Names of (typically constant) captures appended to
                               the call arguments after ``params``.
     :ivar arches:             Allowed ``archinfo.Arch.name`` values; None = any.
@@ -121,6 +129,7 @@ class KnownPattern:
     pattern: PatternExpr | PatternStmt | PGraphPat
     params: tuple[PatternParam, ...]
     returnty: TypeRef | None = None
+    returnty_factory: Callable[[archinfo.Arch, dict[str, int]], SimType | None] | None = None
     extra_args: tuple[str, ...] = ()
     arches: tuple[str, ...] | None = None
     platforms: tuple[str, ...] | None = None
@@ -133,9 +142,26 @@ class KnownPattern:
             return False
         return not (self.platforms is not None and (platform is None or platform.lower() not in self.platforms))
 
-    def prototype(self, arch: archinfo.Arch) -> SimTypeFunction | None:
-        """Build the synthesized call's prototype. Returns None if any declared
-        type fails to resolve."""
+    def const_args_of_call(self, call: Call) -> dict[str, int] | None:
+        """Recover the ``extra_args`` constant values from a synthesized call's
+        trailing arguments. Returns None when the call does not carry them."""
+        if not self.extra_args:
+            return {}
+        args = call.args
+        if args is None or len(args) != len(self.params) + len(self.extra_args):
+            return None
+        const_args: dict[str, int] = {}
+        for name, arg in zip(self.extra_args, args[len(self.params) :]):
+            if not isinstance(arg, Const) or not isinstance(arg.value, int):
+                return None
+            const_args[name] = arg.value
+        return const_args
+
+    def prototype(self, arch: archinfo.Arch, const_args: dict[str, int] | None = None) -> SimTypeFunction | None:
+        """Build the synthesized call's prototype. ``const_args`` (the values of
+        the constant ``extra_args`` captures, see :meth:`const_args_of_call`)
+        enables call-site-specific return types via ``returnty_factory``.
+        Returns None if any declared type fails to resolve."""
         args = []
         for param in self.params:
             ty = resolve_typeref(param.type, arch)
@@ -146,7 +172,11 @@ class KnownPattern:
             args.append(ty)
         for _ in self.extra_args:
             args.append(parse_type("unsigned long long").with_arch(arch))
-        returnty = resolve_typeref(self.returnty, arch)
-        if returnty is None and self.returnty is not None:
-            return None
+        returnty: SimType | None = None
+        if self.returnty_factory is not None and const_args is not None:
+            returnty = self.returnty_factory(arch, const_args)
+        if returnty is None:
+            returnty = resolve_typeref(self.returnty, arch)
+            if returnty is None and self.returnty is not None:
+                return None
         return SimTypeFunction(args, returnty).with_arch(arch)

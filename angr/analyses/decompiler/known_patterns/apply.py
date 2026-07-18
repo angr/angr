@@ -40,7 +40,7 @@ def apply_call_info_to_graph(graph: networkx.DiGraph, manager: Manager, arch: ar
                 pattern = KNOWN_PATTERNS_BY_CALL_NAME.get(expr.target)
                 if pattern is None:
                     continue
-                prototype = pattern.prototype(arch)
+                prototype = pattern.prototype(arch, const_args=pattern.const_args_of_call(expr))
                 if prototype is not None:
                     variable_map.set_prototype(expr, prototype)
                     count += 1

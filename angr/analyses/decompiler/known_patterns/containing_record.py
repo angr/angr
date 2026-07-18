@@ -18,8 +18,33 @@ Calibrated against tests/x86_64/windows/known_patterns_containing_record.exe
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from typing import TYPE_CHECKING
+
+from angr.sim_type import SimStruct, SimType, SimTypeArray, SimTypeChar, SimTypePointer
+
 from .dsl import PBinOp, PConst, PVVar
 from .pattern import KnownPattern, PatternParam
+
+if TYPE_CHECKING:
+    import archinfo
+
+
+def _record_returnty(arch: archinfo.Arch, const_args: dict[str, int]) -> SimType | None:
+    """CONTAINING_RECORD(p, T, field) returns a pointer to a record T whose
+    ``field`` member sits at the matched offset. T itself is unknown at pattern
+    time, so hint a struct that reserves the leading ``off`` bytes; Typehoon
+    merges it with the record's observed field accesses (the constraint is a
+    Subtype, not an Equivalence, precisely so the struct can grow)."""
+    off = const_args.get("off")
+    if not isinstance(off, int) or off <= 0:
+        return None
+    record = SimStruct(
+        OrderedDict([("gap0", SimTypeArray(SimTypeChar(), length=off))]),
+        name=f"record_{off:x}",
+    )
+    return SimTypePointer(record).with_arch(arch)
+
 
 CONTAINING_RECORD_PATTERN = KnownPattern(
     name="containing_record",
@@ -35,5 +60,6 @@ CONTAINING_RECORD_PATTERN = KnownPattern(
     params=(PatternParam("p"),),
     extra_args=("off",),
     returnty="void *",
+    returnty_factory=_record_returnty,
     enabled_by_default=False,
 )
