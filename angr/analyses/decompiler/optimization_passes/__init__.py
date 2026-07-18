@@ -30,6 +30,7 @@ from .inlined_strlen_simplifier import InlinedStrlenSimplifier
 from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
 from .ite_expr_converter import ITEExprConverter
 from .ite_region_converter import ITERegionConverter
+from .known_pattern_outliner import KnownPatternOutliner
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .mod_simplifier import ModSimplifier
@@ -97,6 +98,7 @@ ALL_OPTIMIZATION_PASSES = [
     PostStructuringPeepholeOptimizationPass,
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
+    KnownPatternOutliner,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
 ]
@@ -168,6 +170,7 @@ __all__ = (
     "InlinedStrlenSimplifier",
     "InlinedWcscpySimplifier",
     "InlinedWcscpySimplifierLate",
+    "KnownPatternOutliner",
     "LoweredSwitchSimplifier",
     "MipsGpSettingSimplifier",
     "ModSimplifier",
