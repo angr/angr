@@ -23,7 +23,12 @@ from .dsl import (
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
 from .std_string_length import STD_STRING_LENGTH
-from .std_vector_size import STD_VECTOR_INT_SIZE
+from .std_vector_size import (
+    STD_VECTOR_INT_SIZE,
+    STD_VECTOR_LONG_LONG_SIZE,
+    STD_VECTOR_SHORT_SIZE,
+    make_std_vector_size_pattern,
+)
 
 ALL_KNOWN_PATTERNS: list[KnownPattern] = []
 KNOWN_PATTERNS_BY_CALL_NAME: dict[str, KnownPattern] = {}
@@ -40,7 +45,9 @@ def register_known_pattern(pattern: KnownPattern) -> None:
 
 
 register_known_pattern(STD_STRING_LENGTH)
+register_known_pattern(STD_VECTOR_SHORT_SIZE)
 register_known_pattern(STD_VECTOR_INT_SIZE)
+register_known_pattern(STD_VECTOR_LONG_LONG_SIZE)
 register_known_pattern(CONTAINING_RECORD_PATTERN)
 
 
@@ -50,6 +57,8 @@ __all__ = [
     "KNOWN_PATTERNS_BY_CALL_NAME",
     "STD_STRING_LENGTH",
     "STD_VECTOR_INT_SIZE",
+    "STD_VECTOR_LONG_LONG_SIZE",
+    "STD_VECTOR_SHORT_SIZE",
     "CppRef",
     "KnownPattern",
     "KnownPatternFinder",
@@ -71,5 +80,6 @@ __all__ = [
     "PatternParam",
     "TypeRef",
     "UnsupportedOutlineError",
+    "make_std_vector_size_pattern",
     "register_known_pattern",
 ]
