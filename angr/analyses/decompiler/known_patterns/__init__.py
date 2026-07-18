@@ -23,6 +23,7 @@ from .dsl import (
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
 from .std_string_length import STD_STRING_LENGTH, STD_STRING_LENGTH_MSVC
+from .std_swap import STD_SWAP_8
 from .std_vector_size import (
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
@@ -66,6 +67,7 @@ register_known_pattern(STD_STRING_LENGTH_MSVC)
 register_known_pattern(STD_VECTOR_SHORT_SIZE)
 register_known_pattern(STD_VECTOR_INT_SIZE)
 register_known_pattern(STD_VECTOR_LONG_LONG_SIZE)
+register_known_pattern(STD_SWAP_8)
 register_known_pattern(CONTAINING_RECORD_PATTERN)
 
 
@@ -75,6 +77,7 @@ __all__ = [
     "KNOWN_PATTERNS_BY_CALL_NAME",
     "STD_STRING_LENGTH",
     "STD_STRING_LENGTH_MSVC",
+    "STD_SWAP_8",
     "STD_VECTOR_INT_SIZE",
     "STD_VECTOR_LONG_LONG_SIZE",
     "STD_VECTOR_SHORT_SIZE",
