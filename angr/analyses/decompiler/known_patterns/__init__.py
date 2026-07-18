@@ -31,6 +31,7 @@ from .linked_list import (
     REMOVE_ENTRY_LIST,
 )
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
+from .protobuf_hasbits import ALL_PROTOBUF_PATTERNS
 from .std_string_length import STD_STRING_LENGTH, STD_STRING_LENGTH_MSVC
 from .std_swap import STD_SWAP_8
 from .std_vector_size import (
@@ -83,11 +84,14 @@ for _p in ALL_LINKED_LIST_PATTERNS:
     register_known_pattern(_p)
 for _p in ALL_STL_CONTAINER_PATTERNS:
     register_known_pattern(_p)
+for _p in ALL_PROTOBUF_PATTERNS:
+    register_known_pattern(_p)
 
 
 __all__ = [
     "ALL_KNOWN_PATTERNS",
     "ALL_LINKED_LIST_PATTERNS",
+    "ALL_PROTOBUF_PATTERNS",
     "ALL_STL_CONTAINER_PATTERNS",
     "CONTAINING_RECORD_PATTERN",
     "INITIALIZE_LIST_HEAD",

@@ -10,6 +10,7 @@ from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_LINKED_LIST_PATTERNS,
+    ALL_PROTOBUF_PATTERNS,
     ALL_STL_CONTAINER_PATTERNS,
     KnownPatternFinder,
 )
@@ -19,6 +20,7 @@ from tests.common import bin_location
 WDK_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_list.exe")
 LINUX_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_linux_list")
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
+PB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_protobuf")
 
 
 def _decompile(bin_path: str, func_name: str):
@@ -117,6 +119,31 @@ class TestStlContainerPatterns(TestCase):
         proj, _, func, dec = _decompile(STL_BIN, "vec_empty")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert any(m.pattern.name == "std_vector_int_empty" for m in finder.matches)
+
+
+class TestProtobufHasBitsPatterns(TestCase):
+    def _check(self, func_name, pattern_name, call_name):
+        proj, cfg, func, dec = _decompile(PB_BIN, func_name)
+        finder = _find(proj, func, dec, ALL_PROTOBUF_PATTERNS)
+        assert len(finder.matches) == 1, f"{func_name}: {[m.pattern.name for m in finder.matches]}"
+        assert finder.matches[0].pattern.name == pattern_name
+        text = _outline_text(proj, cfg, func, dec, finder)
+        assert call_name + "(" in text
+
+    def test_has_field(self):
+        self._check("has_field", "protobuf_has_field", "_pb_has_field")
+
+    def test_set_has_field(self):
+        self._check("set_has_field", "protobuf_set_has_field", "_pb_set_has_field")
+
+    def test_clear_has_field(self):
+        self._check("clear_has_field", "protobuf_clear_has_field", "_pb_clear_has_field")
+
+    def test_opt_in(self):
+        # the has-bits patterns are opt-in (generic bitfield ops)
+        proj, _, func, dec = _decompile(PB_BIN, "set_has_field")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert not any(m.pattern in ALL_PROTOBUF_PATTERNS for m in finder.matches)
 
 
 class TestUnorderedStmtSeqDecl(TestCase):
