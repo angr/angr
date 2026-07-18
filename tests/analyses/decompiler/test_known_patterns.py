@@ -74,6 +74,9 @@ class TestKnownPatternsDsl(TestCase):
         load_bad = Load(None, BinaryOp(None, "Add", [s, Const(None, 16, 64)]), 8, "Iend_LE")
         assert STD_STRING_LENGTH.pattern.match(load_bad, MatchState(), MatchCtx()) is None
 
+    # TODO: (fish) once an MSVC-built binary is available in the binaries repo, add
+    # end-to-end find/outline tests for STD_STRING_LENGTH_MSVC and the vector patterns
+    # on Windows; the tests below only cover the DSL shapes, guards, and platform gating.
     def test_msvc_string_length_layout(self):
         from angr.ailment.expression import BinaryOp, Const
 
