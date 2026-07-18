@@ -26,6 +26,7 @@ from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
     DirtyStatement,
+    Label,
     Return,
     SideEffectStatement,
     Statement,
@@ -57,9 +58,12 @@ class UnsupportedOutlineError(Exception):
 class KnownPatternMatch:
     """One occurrence of a KnownPattern in an AIL graph.
 
-    The boundary of the match is ``consumed_stmt_idxs`` (statements wholly
-    owned by the match, e.g. chased definitions) plus ``expr_path`` (the
-    location of the matched sub-expression inside the anchor statement).
+    For expression-level matches, the boundary is ``consumed_stmt_idxs``
+    (statements wholly owned by the match, e.g. chased definitions) plus
+    ``expr_path`` (the location of the matched sub-expression inside the
+    anchor statement). For statement-sequence matches, ``stmt_span`` holds the
+    ordered matched statement indices (the anchor is the first) and
+    ``matched_expr`` is None.
     """
 
     pattern: KnownPattern
@@ -68,7 +72,9 @@ class KnownPatternMatch:
     expr_path: ExprPath
     consumed_stmt_idxs: frozenset[int]
     captures: dict[str, Expression]
-    matched_expr: Expression
+    matched_expr: Expression | None
+    # statement-sequence matches only
+    stmt_span: tuple[int, ...] | None = None
 
     def __repr__(self):
         return (
@@ -138,6 +144,24 @@ def _stmt_has_side_effects(stmt: Statement) -> bool:
     return any(isinstance(expr, Call) for _, expr in _iter_stmt_subexprs(stmt))
 
 
+def _stmt_touches_memory(stmt: Statement) -> bool:
+    if isinstance(stmt, (Store, DirtyStatement, SideEffectStatement)):
+        return True
+    return any(isinstance(expr, (Load, Call)) for _, expr in _iter_stmt_subexprs(stmt))
+
+
+def _stmt_defs(stmt: Statement) -> frozenset[int]:
+    if isinstance(stmt, (Assignment, WeakAssignment)) and isinstance(stmt.dst, VirtualVariable):
+        return frozenset((stmt.dst.varid,))
+    return frozenset()
+
+
+def _stmt_uses(stmt: Statement) -> frozenset[int]:
+    return frozenset(
+        expr.varid for _, expr in _iter_stmt_subexprs(stmt) if isinstance(expr, VirtualVariable)
+    ) - _stmt_defs(stmt)
+
+
 class KnownPatternFinder(Analysis):
     """Finds occurrences of KnownPatterns in a Clinic AIL graph.
 
@@ -178,10 +202,8 @@ class KnownPatternFinder(Analysis):
             if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
         ]
         for pattern in self._patterns:
-            if isinstance(pattern.pattern, (PGraphPat, PStmtSeq)):
-                raise NotImplementedError(
-                    f"pattern {pattern.name}: multi-block and statement-sequence matching is not implemented yet"
-                )
+            if isinstance(pattern.pattern, PGraphPat):
+                raise NotImplementedError(f"pattern {pattern.name}: multi-block matching is not implemented yet")
 
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
@@ -224,9 +246,17 @@ class KnownPatternFinder(Analysis):
         self.matches = selected
 
     @staticmethod
-    def _conflicts(m1: KnownPatternMatch, m2: KnownPatternMatch) -> bool:
+    def _stmt_footprint(m: KnownPatternMatch) -> frozenset[int]:
+        return m.consumed_stmt_idxs | {m.anchor_stmt_idx} | (frozenset(m.stmt_span) if m.stmt_span else frozenset())
+
+    @classmethod
+    def _conflicts(cls, m1: KnownPatternMatch, m2: KnownPatternMatch) -> bool:
         if m1.block_loc != m2.block_loc:
             return False
+        footprints_overlap = bool(cls._stmt_footprint(m1) & cls._stmt_footprint(m2))
+        if m1.stmt_span is not None or m2.stmt_span is not None:
+            # statement-level matches own their whole statements
+            return footprints_overlap
         if m1.consumed_stmt_idxs & m2.consumed_stmt_idxs:
             return True
         if m1.anchor_stmt_idx in m2.consumed_stmt_idxs or m2.anchor_stmt_idx in m1.consumed_stmt_idxs:
@@ -241,12 +271,13 @@ class KnownPatternFinder(Analysis):
         for stmt_idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
                 continue
-            # statement-level patterns
-            for pattern in self._patterns:
-                if isinstance(pattern.pattern, PatternStmt):
-                    m = self._try_match(pattern, block, stmt_idx, stmt, (), stmt)
-                    if m is not None:
-                        yield m
+            # statement-level patterns (single statements and sequences)
+            if not isinstance(stmt, Label):
+                for pattern in self._patterns:
+                    if isinstance(pattern.pattern, PatternStmt):
+                        m = self._try_match_stmt_seq(pattern, block, stmt_idx)
+                        if m is not None:
+                            yield m
             # expression-level patterns
             for path, expr in _iter_stmt_subexprs(stmt):
                 key = expr_anchor_key(expr)
@@ -258,6 +289,73 @@ class KnownPatternFinder(Analysis):
                     m = self._try_match(pattern, block, stmt_idx, expr, path, stmt)
                     if m is not None:
                         yield m
+
+    def _try_match_stmt_seq(self, pattern: KnownPattern, block: Block, start_idx: int) -> KnownPatternMatch | None:
+        """Match a statement-level pattern (a single statement pattern or a
+        PStmtSeq) anchored at ``start_idx``. Statement patterns match in order;
+        Label statements and phi assignments are skippable; with ``allow_gaps``
+        (the PStmtSeq default), unrelated statements may sit between matched
+        ones."""
+        seq = pattern.pattern
+        if isinstance(seq, PStmtSeq):
+            stmt_pats: tuple[PatternStmt, ...] = seq.stmts
+            allow_gaps = seq.allow_gaps
+        else:
+            assert isinstance(seq, PatternStmt)
+            stmt_pats = (seq,)
+            allow_gaps = False
+        if not stmt_pats:
+            return None
+
+        ctx = MatchCtx(
+            skip_conversions=self._skip_conversions,
+            chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
+        )
+        stmts = block.statements
+        state: MatchState | None = MatchState()
+        matched: list[int] = []
+        scan = start_idx
+        for pat_i, stmt_pat in enumerate(stmt_pats):
+            found = False
+            while scan < len(stmts):
+                stmt = stmts[scan]
+                skippable_gap = isinstance(stmt, Label) or is_phi_assignment(stmt)
+                if not skippable_gap:
+                    new_state = stmt_pat.match(stmt, state, ctx)
+                    if new_state is not None:
+                        state = new_state
+                        matched.append(scan)
+                        scan += 1
+                        found = True
+                        break
+                if pat_i == 0:
+                    # the first statement pattern anchors exactly at start_idx
+                    return None
+                if not (skippable_gap or allow_gaps):
+                    return None
+                scan += 1
+            if not found:
+                return None
+
+        assert state is not None
+        if pattern.where is not None and not pattern.where(state.bindings):
+            return None
+
+        matched_stmt_idxs = state.consumed_stmt_idxs | frozenset(matched)
+        for varid, _def_stmt_idx in state.chased_defs:
+            if not self._all_uses_within(varid, block, matched_stmt_idxs):
+                return None
+
+        return KnownPatternMatch(
+            pattern=pattern,
+            block_loc=(block.addr, block.idx),
+            anchor_stmt_idx=matched[0],
+            expr_path=(),
+            consumed_stmt_idxs=state.consumed_stmt_idxs,
+            captures=dict(state.bindings),
+            matched_expr=None,
+            stmt_span=tuple(matched),
+        )
 
     @staticmethod
     def _anchor_compatible(root: PatternExpr, key: tuple[str, str | None]) -> bool:
@@ -354,6 +452,9 @@ class KnownPatternFinder(Analysis):
         except KeyError as e:
             raise UnsupportedOutlineError(f"block {match.block_loc} is not in the given graph") from e
 
+        if match.stmt_span is not None:
+            return self._outline_stmt_span(match, g, block)
+
         stmts = list(block.statements)
         anchor_idx = match.anchor_stmt_idx
         if anchor_idx >= len(stmts):
@@ -423,10 +524,78 @@ class KnownPatternFinder(Analysis):
                 )
             frontier_loc = (succs[0].addr, succs[0].idx)
 
+        return self._run_outliner_and_rewrite(g, match, (b_mid.addr, b_mid.idx), frontier_loc, ins_addr)
+
+    def _outline_stmt_span(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
+        """Outline a statement-sequence match: the matched statements (plus any
+        chased definitions) move wholesale into the callee; no expression
+        lifting is involved."""
+        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
+
+        assert match.stmt_span is not None
+        # re-validate the match on the (copied) block; this both catches stale
+        # matches and rebinds the captures to the copy's expressions
+        revalidated = self._try_match_stmt_seq(match.pattern, block, match.stmt_span[0])
+        if revalidated is None or revalidated.stmt_span != match.stmt_span:
+            raise UnsupportedOutlineError("stale match: the statement span no longer matches the pattern")
+        match = revalidated
+
+        stmts = list(block.statements)
+        span = list(match.stmt_span)
+        consumed = sorted(match.consumed_stmt_idxs)
+        if any(i >= span[0] for i in consumed):
+            raise UnsupportedOutlineError("chased definitions must precede the matched span")
+        if consumed:
+            for i in range(consumed[0], span[0]):
+                if i not in match.consumed_stmt_idxs and _stmt_has_side_effects(stmts[i]):
+                    raise UnsupportedOutlineError("side-effecting statements interleave with the chased definitions")
+
+        # gap statements inside the span are hoisted before the outlined
+        # region; that is only sound if they neither touch memory around the
+        # region's stores/calls nor use values the region defines
+        matched_set = set(span) | set(consumed)
+        matched_defs = frozenset().union(*(_stmt_defs(stmts[i]) for i in matched_set))
+        region_has_side_effects = any(_stmt_has_side_effects(stmts[i]) for i in matched_set)
+        gap_idxs = [i for i in range(span[0], span[-1]) if i not in matched_set]
+        for i in gap_idxs:
+            if region_has_side_effects and _stmt_touches_memory(stmts[i]):
+                raise UnsupportedOutlineError("memory-touching statements interleave with the matched span")
+            if _stmt_uses(stmts[i]) & matched_defs:
+                raise UnsupportedOutlineError("interleaved statements use values defined by the matched span")
+
+        pre_stmts = [s for i, s in enumerate(stmts[: span[0]]) if i not in match.consumed_stmt_idxs] + [
+            stmts[i] for i in gap_idxs
+        ]
+        mid_stmts = [stmts[i] for i in consumed] + [stmts[i] for i in span]
+        post_stmts = stmts[span[-1] + 1 :]
+
+        ins_addr = stmts[span[0]].tags.get("ins_addr")
+        _, b_mid, b_post = split_ail_block(g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr)
+
+        if b_post is not None:
+            frontier_loc = (b_post.addr, b_post.idx)
+        else:
+            succs = [s for s in g.successors(b_mid) if s is not b_mid]
+            if len(succs) != 1:
+                raise UnsupportedOutlineError(
+                    "the matched span ends its block and the block does not have exactly one successor"
+                )
+            frontier_loc = (succs[0].addr, succs[0].idx)
+
+        return self._run_outliner_and_rewrite(g, match, (b_mid.addr, b_mid.idx), frontier_loc, ins_addr)
+
+    def _run_outliner_and_rewrite(
+        self,
+        g: networkx.DiGraph,
+        match: KnownPatternMatch,
+        src_loc: tuple[int, int | None],
+        frontier_loc: tuple[int, int | None],
+        ins_addr: int | None,
+    ) -> OutlineResult:
         outliner = self.project.analyses[Outliner].prep(kb=self.kb)(
             self._func,
             g,
-            src_loc=(b_mid.addr, b_mid.idx),
+            src_loc=src_loc,
             frontier={frontier_loc},
             vvar_id_start=self.vvar_id_start,
             block_addr_start=self.block_addr_start,
@@ -434,7 +603,17 @@ class KnownPatternFinder(Analysis):
         self.vvar_id_start = outliner.vvar_id_start
         self.block_addr_start = outliner.block_addr_start
 
-        call_stmt = self._rewrite_callsite(g, match, (b_mid.addr, b_mid.idx), outliner.child_funcargs, ins_addr)
+        void_call = match.pattern.returnty is None and match.pattern.returnty_factory is None
+        if void_call and outliner.frontier_vars:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name} is declared void but the outlined region has live-out values"
+            )
+        if not void_call and match.stmt_span is not None and not outliner.frontier_vars:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name} declares a return type but the outlined region has no live-out value"
+            )
+
+        call_stmt = self._rewrite_callsite(g, match, src_loc, outliner.child_funcargs, ins_addr, void_call)
 
         return OutlineResult(
             graph=g,
@@ -478,6 +657,7 @@ class KnownPatternFinder(Analysis):
         call_block_loc: tuple[int, int | None],
         child_funcargs: list[VirtualVariable],
         ins_addr: int | None,
+        void_call: bool = False,
     ) -> Statement:
         nodes_dict = {(node.addr, node.idx): node for node in g}
         call_block = nodes_dict.get(call_block_loc)
@@ -524,7 +704,13 @@ class KnownPatternFinder(Analysis):
             known_pattern=pattern.name,
             is_prototype_guessed=False,
         )
-        new_stmt = Assignment(None, old_stmt.dst, new_call, **old_stmt.tags)
+        new_stmt: Statement
+        if void_call:
+            # the Outliner's synthesized destination is a dead return-register
+            # vvar; drop it so the call renders as a bare statement
+            new_stmt = SideEffectStatement(None, new_call, ret_expr=None, fp_ret_expr=None, **old_stmt.tags)
+        else:
+            new_stmt = Assignment(None, old_stmt.dst, new_call, **old_stmt.tags)
         call_block.statements[call_stmt_idx] = new_stmt
         return new_stmt
 

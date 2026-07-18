@@ -9,12 +9,14 @@ import archinfo
 
 import angr
 from angr.ailment.expression import Load, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import SideEffectStatement
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     CONTAINING_RECORD_PATTERN,
     STD_STRING_LENGTH,
     STD_STRING_LENGTH_MSVC,
+    STD_SWAP_8,
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_SHORT_SIZE,
@@ -27,6 +29,7 @@ from tests.common import bin_location
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
+MB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_multiblock")
 
 
 def _decompile(bin_path: str, func_name: str, preset: str = "fast"):
@@ -273,6 +276,44 @@ class TestKnownPatternOutlining(TestCase):
             for b in result.graph
             for s in b.statements
         )
+
+
+class TestKnownPatternStmtSeq(TestCase):
+    def test_find_std_swap(self):
+        proj, _, func, dec = _decompile(MB_BIN, "do_swap")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert len(finder.matches) == 1
+        m = finder.matches[0]
+        assert m.pattern is STD_SWAP_8
+        assert m.stmt_span is not None and len(m.stmt_span) == 3
+        assert m.matched_expr is None and m.expr_path == ()
+        assert isinstance(m.captures["a"], VirtualVariable)
+        assert isinstance(m.captures["b"], VirtualVariable)
+        assert m.captures["a"].varid != m.captures["b"].varid
+
+    def test_outline_std_swap(self):
+        proj, cfg, func, dec = _decompile(MB_BIN, "do_swap")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        result = finder.outline(finder.matches[0])
+
+        # a void call: rendered as a bare statement, not an assignment
+        assert isinstance(result.call_stmt, SideEffectStatement)
+        assert len(result.child_funcargs) == 2
+        # the child contains the two stores
+        from angr.ailment.statement import Store
+
+        child_stmts = [s for b in result.child_graph for s in b.statements]
+        assert sum(1 for s in child_stmts if isinstance(s, Store)) == 2
+
+        dec_outer = _redecompile(proj, cfg, func, dec, result.graph)
+        text = dec_outer.codegen.text
+        assert "std::swap(" in text
+        assert "*(" not in text  # the loads/stores moved into the callee
+
+    def test_automatic_pipeline_std_swap(self):
+        _, _, _, dec = _decompile(MB_BIN, "do_swap", preset="full")
+        text = dec.codegen.text
+        assert "std::swap(" in text
 
 
 class TestKnownPatternPipeline(TestCase):
