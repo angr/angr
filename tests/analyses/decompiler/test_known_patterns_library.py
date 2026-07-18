@@ -12,6 +12,7 @@ from angr.analyses.decompiler.known_patterns import (
     ALL_LINKED_LIST_PATTERNS,
     ALL_PROTOBUF_PATTERNS,
     ALL_STL_CONTAINER_PATTERNS,
+    ALL_VECTOR_MATH_PATTERNS,
     KnownPatternFinder,
 )
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -21,6 +22,7 @@ WDK_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patter
 LINUX_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_linux_list")
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 PB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_protobuf")
+VM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_vecmath")
 
 
 def _decompile(bin_path: str, func_name: str):
@@ -144,6 +146,28 @@ class TestProtobufHasBitsPatterns(TestCase):
         proj, _, func, dec = _decompile(PB_BIN, "set_has_field")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert not any(m.pattern in ALL_PROTOBUF_PATTERNS for m in finder.matches)
+
+
+class TestVectorMathPatterns(TestCase):
+    def _check(self, func_name, pattern_name, call_name):
+        proj, cfg, func, dec = _decompile(VM_BIN, func_name)
+        finder = _find(proj, func, dec, ALL_VECTOR_MATH_PATTERNS)
+        assert len(finder.matches) == 1, f"{func_name}: {[m.pattern.name for m in finder.matches]}"
+        assert finder.matches[0].pattern.name == pattern_name
+        text = _outline_text(proj, cfg, func, dec, finder)
+        assert call_name + "(" in text
+
+    def test_dot3(self):
+        self._check("vec_dot3", "vec_dot3", "dot3")
+
+    def test_length_sq(self):
+        # length_sq must win over dot3 on a dot-with-itself
+        self._check("vec_length_sq", "vec_length_sq", "length_sq")
+
+    def test_opt_in(self):
+        proj, _, func, dec = _decompile(VM_BIN, "vec_dot3")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert not any(m.pattern in ALL_VECTOR_MATH_PATTERNS for m in finder.matches)
 
 
 class TestUnorderedStmtSeqDecl(TestCase):
