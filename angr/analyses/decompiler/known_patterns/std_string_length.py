@@ -36,6 +36,9 @@ STD_STRING_LENGTH = KnownPattern(
     binary_guard=is_cpp_binary,
 )
 
+# TODO: (fish) build an MSVC-compiled calibration binary (cl.exe /O2, std::string::length
+# behind a noinline extern "C" accessor), commit it to the binaries repo, calibrate the
+# +16 load shape against it, and add find/outline tests like the libstdc++ ones.
 STD_STRING_LENGTH_MSVC = KnownPattern(
     name="std_string_length_msvc",
     display_name="std::string::length",
