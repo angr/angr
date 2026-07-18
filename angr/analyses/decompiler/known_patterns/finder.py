@@ -16,6 +16,7 @@ from angr.ailment.expression import (
     Call,
     Convert,
     Expression,
+    Extract,
     Load,
     Reinterpret,
     UnaryOp,
@@ -108,6 +109,8 @@ def _iter_expr_children(expr: Expression) -> Iterator[tuple[tuple[str, int | Non
         yield ("operands", 1), expr.operands[1]
     elif isinstance(expr, (UnaryOp, Convert, Reinterpret)):
         yield ("operand", None), expr.operand
+    elif isinstance(expr, Extract):
+        yield ("base", None), expr.base
     elif isinstance(expr, Load):
         yield ("addr", None), expr.addr
     elif isinstance(expr, ITE):
@@ -288,12 +291,20 @@ class KnownPatternFinder(Analysis):
                 m = self._try_match_graph(pattern, block)
                 if m is not None:
                     yield m
+        # unordered statement-set patterns are matched once per block
+        for pattern in self._patterns:
+            if isinstance(pattern.pattern, PStmtSeq) and not pattern.pattern.ordered:
+                m = self._try_match_stmt_bag(pattern, block)
+                if m is not None:
+                    yield m
         for stmt_idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
                 continue
-            # statement-level patterns (single statements and sequences)
+            # statement-level patterns (single statements and ordered sequences)
             if not isinstance(stmt, Label):
                 for pattern in self._patterns:
+                    if isinstance(pattern.pattern, PStmtSeq) and not pattern.pattern.ordered:
+                        continue
                     if isinstance(pattern.pattern, PatternStmt):
                         m = self._try_match_stmt_seq(pattern, block, stmt_idx)
                         if m is not None:
@@ -385,6 +396,53 @@ class KnownPatternFinder(Analysis):
             anchor_stmt_idx=matched[0],
             expr_path=(),
             consumed_stmt_idxs=state.consumed_stmt_idxs,
+            captures=dict(state.bindings),
+            matched_expr=None,
+            stmt_span=tuple(matched),
+        )
+
+    def _try_match_stmt_bag(self, pattern: KnownPattern, block: Block) -> KnownPatternMatch | None:
+        """Match an unordered PStmtSeq: assign each statement pattern to a
+        distinct non-Label/non-phi statement of the block, in any order, under
+        one unifying MatchState. Statement patterns are tried in declaration
+        order so that def-before-use captures bind correctly."""
+        seq = pattern.pattern
+        assert isinstance(seq, PStmtSeq)
+        stmt_pats = seq.stmts
+        if not stmt_pats:
+            return None
+        candidates = [
+            i for i, s in enumerate(block.statements) if not isinstance(s, Label) and not is_phi_assignment(s)
+        ]
+        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None)
+
+        def assign(pat_i: int, used: frozenset[int], state: MatchState) -> tuple[MatchState, list[int]] | None:
+            if pat_i == len(stmt_pats):
+                return state, sorted(used)
+            for idx in candidates:
+                if idx in used:
+                    continue
+                new_state = stmt_pats[pat_i].match(block.statements[idx], state, ctx)
+                if new_state is None:
+                    continue
+                out = assign(pat_i + 1, used | {idx}, new_state)
+                if out is not None:
+                    return out
+            return None
+
+        result = assign(0, frozenset(), MatchState())
+        if result is None:
+            return None
+        state, matched = result
+        if pattern.where is not None and not pattern.where(state.bindings):
+            return None
+
+        return KnownPatternMatch(
+            pattern=pattern,
+            block_loc=(block.addr, block.idx),
+            anchor_stmt_idx=matched[0],
+            expr_path=(),
+            consumed_stmt_idxs=frozenset(),
             captures=dict(state.bindings),
             matched_expr=None,
             stmt_span=tuple(matched),
@@ -689,8 +747,12 @@ class KnownPatternFinder(Analysis):
         assert match.stmt_span is not None
         # re-validate the match on the (copied) block; this both catches stale
         # matches and rebinds the captures to the copy's expressions
-        revalidated = self._try_match_stmt_seq(match.pattern, block, match.stmt_span[0])
-        if revalidated is None or revalidated.stmt_span != match.stmt_span:
+        seq = match.pattern.pattern
+        if isinstance(seq, PStmtSeq) and not seq.ordered:
+            revalidated = self._try_match_stmt_bag(match.pattern, block)
+        else:
+            revalidated = self._try_match_stmt_seq(match.pattern, block, match.stmt_span[0])
+        if revalidated is None or set(revalidated.stmt_span or ()) != set(match.stmt_span):
             raise UnsupportedOutlineError("stale match: the statement span no longer matches the pattern")
         match = revalidated
 
