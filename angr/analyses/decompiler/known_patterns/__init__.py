@@ -24,6 +24,12 @@ from .dsl import (
 )
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .generator import PatternGenerationError, PatternGenerator
+from .linked_list import (
+    ALL_LINKED_LIST_PATTERNS,
+    INITIALIZE_LIST_HEAD,
+    IS_LIST_EMPTY,
+    REMOVE_ENTRY_LIST,
+)
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
 from .std_string_length import STD_STRING_LENGTH, STD_STRING_LENGTH_MSVC
 from .std_swap import STD_SWAP_8
@@ -72,12 +78,18 @@ register_known_pattern(STD_VECTOR_INT_SIZE)
 register_known_pattern(STD_VECTOR_LONG_LONG_SIZE)
 register_known_pattern(STD_SWAP_8)
 register_known_pattern(CONTAINING_RECORD_PATTERN)
+for _p in ALL_LINKED_LIST_PATTERNS:
+    register_known_pattern(_p)
 
 
 __all__ = [
     "ALL_KNOWN_PATTERNS",
+    "ALL_LINKED_LIST_PATTERNS",
     "CONTAINING_RECORD_PATTERN",
+    "INITIALIZE_LIST_HEAD",
+    "IS_LIST_EMPTY",
     "KNOWN_PATTERNS_BY_CALL_NAME",
+    "REMOVE_ENTRY_LIST",
     "STD_STRING_LENGTH",
     "STD_STRING_LENGTH_MSVC",
     "STD_SWAP_8",

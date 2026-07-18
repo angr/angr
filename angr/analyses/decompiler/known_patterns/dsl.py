@@ -367,12 +367,16 @@ class PCondJump(PatternStmt):
 
 @dataclass(frozen=True)
 class PStmtSeq(PatternStmt):
-    """Matches an in-order sequence of statements within one block. When
-    ``allow_gaps`` is True, unrelated statements may sit between the matched
-    ones."""
+    """Matches a group of statements within one block. When ``ordered`` (the
+    default), the statement patterns must match in order; with ``allow_gaps``,
+    unrelated statements may sit between the matched ones. When ``ordered`` is
+    False, the statement patterns match statements of the block in any order
+    (each pattern to a distinct statement) — useful for idioms whose statement
+    order the compiler chooses freely (e.g. list-link stores)."""
 
     stmts: tuple[PatternStmt, ...]
     allow_gaps: bool = True
+    ordered: bool = True
 
 
 @dataclass(frozen=True)
