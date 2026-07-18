@@ -2667,7 +2667,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.stage = "Analysis (Stage 2)"
 
         self._calculate_progress_and_notify(skip_percentage=True)
-        if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs:
+        if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs and not self.should_abort:
+            # note: when the analysis is aborted, functions may be truncated (their outgoing edges were never
+            # processed), which makes them look like bad functions; do not drop them
             self.drop_bad_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
 
@@ -2699,7 +2701,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # before the returning fixpoint runs over it.
         self._apply_go_noreturn_funcs()
 
-        self._analyze_all_function_features(all_funcs_completed=True)
+        # when the analysis is aborted, functions may be truncated; treating them as completed would incorrectly
+        # conclude returning=False for functions whose return sites were simply never processed, and a future resumed
+        # analysis would then permanently drop their fake-return edges in make_functions()
+        self._analyze_all_function_features(all_funcs_completed=not self.should_abort)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
         for nonreturning_func_addr in sorted(self.functions.nonreturning_func_addrs()):
@@ -2745,14 +2750,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # Finally, mark endpoints of every single function
                 f.mark_nonreturning_calls_endpoints()
 
-        for func_addr in sorted(self.functions.unknown_returning_func_addrs()):
-            f = self.functions.get_by_addr(func_addr)
-            # Scan all functions, and make sure .returning for all functions are either True or False
-            if f.returning is None:
-                f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
+        if not self.should_abort:
+            # keep returning=None (undetermined) for truncated functions when the analysis is aborted
+            for func_addr in sorted(self.functions.unknown_returning_func_addrs()):
+                f = self.functions.get_by_addr(func_addr)
+                # Scan all functions, and make sure .returning for all functions are either True or False
+                if f.returning is None:
+                    f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
 
-        # optional: find and mark functions that must be alignments
-        self.mark_function_alignments()
+            # optional: find and mark functions that must be alignments
+            self.mark_function_alignments()
 
         if self._retedges:
             # make return edges
