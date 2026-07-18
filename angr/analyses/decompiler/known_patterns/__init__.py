@@ -22,7 +22,7 @@ from .dsl import (
 )
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
-from .std_string_length import STD_STRING_LENGTH
+from .std_string_length import STD_STRING_LENGTH, STD_STRING_LENGTH_MSVC
 from .std_vector_size import (
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
@@ -37,14 +37,32 @@ KNOWN_PATTERNS_BY_CALL_NAME: dict[str, KnownPattern] = {}
 def register_known_pattern(pattern: KnownPattern) -> None:
     """Register a KnownPattern so that finders and the decompiler pipeline can
     use it, and so that its call prototype is applied wherever its synthesized
-    call appears."""
-    if pattern.call_name in KNOWN_PATTERNS_BY_CALL_NAME:
-        raise ValueError(f"a known pattern with call name {pattern.call_name!r} is already registered")
+    call appears.
+
+    Several patterns may share a call name (e.g. libstdc++ and MSVC layout
+    variants of the same accessor) as long as their call signatures agree,
+    since prototypes are applied by call name; the first registered pattern
+    provides the prototype."""
+    existing = KNOWN_PATTERNS_BY_CALL_NAME.get(pattern.call_name)
+    if existing is not None:
+        same_signature = (
+            existing.params == pattern.params
+            and existing.returnty == pattern.returnty
+            and existing.returnty_factory is pattern.returnty_factory
+            and existing.extra_args == pattern.extra_args
+        )
+        if not same_signature:
+            raise ValueError(
+                f"a known pattern with call name {pattern.call_name!r} and a different call signature "
+                f"is already registered"
+            )
     ALL_KNOWN_PATTERNS.append(pattern)
-    KNOWN_PATTERNS_BY_CALL_NAME[pattern.call_name] = pattern
+    if existing is None:
+        KNOWN_PATTERNS_BY_CALL_NAME[pattern.call_name] = pattern
 
 
 register_known_pattern(STD_STRING_LENGTH)
+register_known_pattern(STD_STRING_LENGTH_MSVC)
 register_known_pattern(STD_VECTOR_SHORT_SIZE)
 register_known_pattern(STD_VECTOR_INT_SIZE)
 register_known_pattern(STD_VECTOR_LONG_LONG_SIZE)
@@ -56,6 +74,7 @@ __all__ = [
     "CONTAINING_RECORD_PATTERN",
     "KNOWN_PATTERNS_BY_CALL_NAME",
     "STD_STRING_LENGTH",
+    "STD_STRING_LENGTH_MSVC",
     "STD_VECTOR_INT_SIZE",
     "STD_VECTOR_LONG_LONG_SIZE",
     "STD_VECTOR_SHORT_SIZE",

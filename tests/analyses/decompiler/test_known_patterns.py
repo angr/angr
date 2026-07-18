@@ -14,6 +14,7 @@ from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     CONTAINING_RECORD_PATTERN,
     STD_STRING_LENGTH,
+    STD_STRING_LENGTH_MSVC,
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_SHORT_SIZE,
@@ -72,6 +73,59 @@ class TestKnownPatternsDsl(TestCase):
         # wrong offset does not match
         load_bad = Load(None, BinaryOp(None, "Add", [s, Const(None, 16, 64)]), 8, "Iend_LE")
         assert STD_STRING_LENGTH.pattern.match(load_bad, MatchState(), MatchCtx()) is None
+
+    def test_msvc_string_length_layout(self):
+        from angr.ailment.expression import BinaryOp, Const
+
+        s = VirtualVariable(None, 7, 64, VirtualVariableCategory.PARAMETER)
+        load_msvc = Load(None, BinaryOp(None, "Add", [s, Const(None, 16, 64)]), 8, "Iend_LE")
+        load_gcc = Load(None, BinaryOp(None, "Add", [s, Const(None, 8, 64)]), 8, "Iend_LE")
+
+        # the MSVC variant matches _Mysize at +16 and only that
+        assert STD_STRING_LENGTH_MSVC.pattern.match(load_msvc, MatchState(), MatchCtx()) is not None
+        assert STD_STRING_LENGTH_MSVC.pattern.match(load_gcc, MatchState(), MatchCtx()) is None
+        assert STD_STRING_LENGTH.pattern.match(load_msvc, MatchState(), MatchCtx()) is None
+
+        # platform gating: the MSVC variant applies on Windows, not Linux
+        assert STD_STRING_LENGTH_MSVC.applicable("AMD64", "Win32")
+        assert not STD_STRING_LENGTH_MSVC.applicable("AMD64", "Linux")
+        assert not STD_STRING_LENGTH.applicable("AMD64", "Win32")
+        # the vector patterns apply on both (same three-pointer layout)
+        assert STD_VECTOR_INT_SIZE.applicable("AMD64", "Win32")
+        assert STD_VECTOR_INT_SIZE.applicable("AMD64", "Linux")
+
+        # both string variants share a call name and thus one prototype
+        from angr.analyses.decompiler.known_patterns import KNOWN_PATTERNS_BY_CALL_NAME
+
+        assert KNOWN_PATTERNS_BY_CALL_NAME["std::string::length"] is STD_STRING_LENGTH
+        assert STD_STRING_LENGTH_MSVC.call_name == STD_STRING_LENGTH.call_name
+
+    def test_msvc_binary_guard(self):
+        from angr.analyses.decompiler.known_patterns.pattern import is_cpp_binary, is_msvc_cpp_binary
+
+        # the mingw PE is a C binary: neither guard passes
+        proj = angr.Project(CR_BIN, auto_load_libs=False)
+        assert not is_msvc_cpp_binary(proj)
+        assert not is_cpp_binary(proj)
+        # the g++ ELF has C++ evidence but is not MSVC
+        proj = angr.Project(STL_BIN, auto_load_libs=False)
+        assert is_cpp_binary(proj)
+        assert not is_msvc_cpp_binary(proj)
+
+    def test_register_rejects_incompatible_duplicate(self):
+        from angr.analyses.decompiler.known_patterns import register_known_pattern
+        from angr.analyses.decompiler.known_patterns.pattern import KnownPattern, PatternParam
+
+        clashing = KnownPattern(
+            name="bogus_string_length",
+            display_name="std::string::length",
+            call_name="std::string::length",
+            pattern=STD_STRING_LENGTH.pattern,
+            params=(PatternParam("s"),),  # different signature: untyped param
+            returnty="int",
+        )
+        with self.assertRaises(ValueError):
+            register_known_pattern(clashing)
 
     def test_vector_size_requires_same_base(self):
         from angr.ailment.expression import BinaryOp, Const
