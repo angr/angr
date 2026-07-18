@@ -26,10 +26,11 @@ from angr.ailment.expression import (
     Convert,
     Expression,
     Load,
+    Phi,
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import Assignment, Statement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Statement, Store
 
 if TYPE_CHECKING:
     from angr.ailment.expression import VirtualVariableCategory
@@ -275,6 +276,23 @@ class PLoad(PatternExpr):
 
 
 @dataclass(frozen=True)
+class PPhi(PatternExpr):
+    """Matches a Phi expression, capturing it whole (its individual sources are
+    not matched). Useful for loop-header blocks, whose statements are phi
+    assignments."""
+
+    name: str | None = None
+    bits: int | None = None
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        if not isinstance(expr, Phi):
+            return None
+        if self.bits is not None and expr.bits != self.bits:
+            return None
+        return self._bind_if_named(self.name, expr, state)
+
+
+@dataclass(frozen=True)
 class PChoice(PatternExpr):
     """Ordered alternation: matches the first alternative that succeeds."""
 
@@ -336,6 +354,18 @@ class PStore(PatternStmt):
 
 
 @dataclass(frozen=True)
+class PCondJump(PatternStmt):
+    """Matches a ConditionalJump, matching its condition expression."""
+
+    condition: PatternExpr
+
+    def match(self, stmt: Statement, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        if not isinstance(stmt, ConditionalJump):
+            return None
+        return self.condition.match(stmt.condition, state, ctx)
+
+
+@dataclass(frozen=True)
 class PStmtSeq(PatternStmt):
     """Matches an in-order sequence of statements within one block. When
     ``allow_gaps`` is True, unrelated statements may sit between the matched
@@ -347,7 +377,8 @@ class PStmtSeq(PatternStmt):
 
 @dataclass(frozen=True)
 class PBlockPat(PatternNode):
-    """A labeled block of statements in a multi-block pattern graph."""
+    """A labeled block of statements in a multi-block pattern graph. An empty
+    ``stmts`` sequence matches any block (structure alone identifies it)."""
 
     label: str
     stmts: PStmtSeq
@@ -357,13 +388,42 @@ class PBlockPat(PatternNode):
 class PGraphPat(PatternNode):
     """A multi-block pattern: labeled blocks connected by edges.
 
-    Spec'd for forward compatibility; the v1 matcher does not implement
-    multi-block matching and raises ``NotImplementedError`` when given one.
+    ``blocks`` maps a label to its :class:`PBlockPat`. ``edges`` are
+    ``(src_label, dst_label)`` pairs; a destination label that does not appear
+    in ``blocks`` denotes an **external successor** — a region exit that
+    becomes the Outliner frontier. ``entry`` is the label of the single entry
+    block. Captures unify across all blocks (one bindings environment).
     """
 
     blocks: dict[str, PBlockPat]
     edges: Sequence[tuple[str, str]]
     entry: str
+
+    def __post_init__(self):
+        if self.entry not in self.blocks:
+            raise ValueError(f"PGraphPat entry {self.entry!r} is not among its blocks")
+        labels = set(self.blocks)
+        for src, _dst in self.edges:
+            # the destination may be internal or an external-successor label
+            if src not in labels:
+                raise ValueError(f"PGraphPat edge source {src!r} is not an internal block")
+        # every internal non-entry block must be reachable via internal edges
+        reachable = {self.entry}
+        changed = True
+        internal_edges = [(s, d) for s, d in self.edges if d in labels]
+        while changed:
+            changed = False
+            for src, dst in internal_edges:
+                if src in reachable and dst not in reachable:
+                    reachable.add(dst)
+                    changed = True
+        unreachable = labels - reachable
+        if unreachable:
+            raise ValueError(f"PGraphPat blocks {sorted(unreachable)} are not reachable from the entry")
+
+    @property
+    def external_labels(self) -> set[str]:
+        return {dst for _, dst in self.edges if dst not in self.blocks}
 
 
 def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
@@ -389,8 +449,12 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("Assignment", None)
     if isinstance(node, PStore):
         return ("Store", None)
+    if isinstance(node, PCondJump):
+        return ("ConditionalJump", None)
     if isinstance(node, PStmtSeq):
         return pattern_anchor_key(node.stmts[0]) if node.stmts else None
+    if isinstance(node, PGraphPat):
+        return pattern_anchor_key(node.blocks[node.entry].stmts)
     return None
 
 

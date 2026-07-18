@@ -133,6 +133,26 @@ class TestKnownPatternsDsl(TestCase):
         with self.assertRaises(ValueError):
             register_known_pattern(clashing)
 
+    def test_pphi_and_pcondjump(self):
+        from angr.ailment.expression import BinaryOp, Const, Phi
+        from angr.ailment.statement import ConditionalJump, Store
+        from angr.analyses.decompiler.known_patterns import PBinOp, PCondJump, PConst, PPhi, PVVar
+
+        v = VirtualVariable(None, 7, 64, VirtualVariableCategory.PARAMETER)
+        phi = Phi(None, 64, [((0x400000, None), v), ((0x400010, None), None)])
+        assert PPhi("p").match(phi, MatchState(), MatchCtx()) is not None
+        # a non-phi expression does not match
+        assert PPhi().match(v, MatchState(), MatchCtx()) is None
+
+        cj = ConditionalJump(
+            None, BinaryOp(None, "CmpEQ", [v, Const(None, 0, 64)]), Const(None, 1, 64), Const(None, 2, 64)
+        )
+        pat = PCondJump(PBinOp("CmpEQ", (PVVar("c"), PConst(0))))
+        st = pat.match(cj, MatchState(), MatchCtx())
+        assert st is not None and st.bindings["c"].likes(v)
+        # a non-conditional-jump statement does not match
+        assert pat.match(Store(None, v, v, 8, "Iend_LE"), MatchState(), MatchCtx()) is None
+
     def test_vector_size_requires_same_base(self):
         from angr.ailment.expression import BinaryOp, Const
 
@@ -314,6 +334,100 @@ class TestKnownPatternStmtSeq(TestCase):
         _, _, _, dec = _decompile(MB_BIN, "do_swap", preset="full")
         text = dec.codegen.text
         assert "std::swap(" in text
+
+
+def _route_graph_pattern():
+    from angr.analyses.decompiler.known_patterns import (
+        KnownPattern,
+        PatternParam,
+        PBinOp,
+        PBlockPat,
+        PCondJump,
+        PConst,
+        PGraphPat,
+        PStmtSeq,
+        PStore,
+        PVVar,
+    )
+
+    return KnownPattern(
+        name="route_demo",
+        display_name="route",
+        call_name="route",
+        pattern=PGraphPat(
+            blocks={
+                "head": PBlockPat("head", PStmtSeq((PCondJump(PBinOp("CmpEQ", (PVVar("cond"), PConst(0)))),))),
+                "then": PBlockPat("then", PStmtSeq((PStore(PVVar("a"), PVVar("v")), PStore(PVVar("c"), PVVar("v"))))),
+                "else": PBlockPat("else", PStmtSeq((PStore(PVVar("b"), PVVar("v")), PStore(PVVar("c"), PVVar("v"))))),
+            },
+            edges=[("head", "then"), ("head", "else"), ("then", "OUT"), ("else", "OUT")],
+            entry="head",
+        ),
+        params=(
+            PatternParam("cond"),
+            PatternParam("a"),
+            PatternParam("b"),
+            PatternParam("c"),
+            PatternParam("v"),
+        ),
+        returnty=None,
+    )
+
+
+class TestKnownPatternGraph(TestCase):
+    def test_pgraphpat_validation(self):
+        from angr.analyses.decompiler.known_patterns import PBlockPat, PGraphPat, PStmtSeq
+
+        empty = PBlockPat("x", PStmtSeq(()))
+        # entry not among blocks
+        with self.assertRaises(ValueError):
+            PGraphPat(blocks={"a": empty}, edges=[], entry="missing")
+        # edge source is not an internal block
+        with self.assertRaises(ValueError):
+            PGraphPat(blocks={"a": empty}, edges=[("bogus", "a")], entry="a")
+        # unreachable block
+        with self.assertRaises(ValueError):
+            PGraphPat(
+                blocks={"a": empty, "b": PBlockPat("b", PStmtSeq(()))},
+                edges=[("a", "OUT")],
+                entry="a",
+            )
+        # external labels are reported
+        gp = PGraphPat(blocks={"a": empty}, edges=[("a", "OUT")], entry="a")
+        assert gp.external_labels == {"OUT"}
+
+    def test_find_route_diamond(self):
+        proj, _, func, dec = _decompile(MB_BIN, "route")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[_route_graph_pattern()]
+        )
+        assert len(finder.matches) == 1
+        m = finder.matches[0]
+        assert m.block_map is not None and set(m.block_map) == {"head", "then", "else"}
+        assert m.frontier_locs is not None and len(m.frontier_locs) == 1
+        # v (the stored value) unifies across both branches
+        assert m.captures["a"].varid != m.captures["b"].varid
+        assert isinstance(m.captures["v"], VirtualVariable)
+
+    def test_outline_route_diamond(self):
+        proj, cfg, func, dec = _decompile(MB_BIN, "route")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[_route_graph_pattern()]
+        )
+        result = finder.outline(finder.matches[0])
+
+        # void call rendered as a bare statement
+        assert isinstance(result.call_stmt, SideEffectStatement)
+        # the region's three blocks moved into the callee
+        assert len(list(result.child_graph.nodes)) == 3
+        # all five inputs became call arguments
+        assert len(result.child_funcargs) == 5
+
+        dec_outer = _redecompile(proj, cfg, func, dec, result.graph)
+        text = dec_outer.codegen.text
+        assert "route(" in text
+        # the if/else diamond is gone from the caller
+        assert "else" not in text
 
 
 class TestKnownPatternPipeline(TestCase):

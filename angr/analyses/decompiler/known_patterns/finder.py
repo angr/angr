@@ -42,6 +42,8 @@ from angr.utils.ssa import is_phi_assignment
 from .dsl import MatchCtx, MatchState, PatternExpr, PatternStmt, PGraphPat, PStmtSeq, expr_anchor_key
 from .pattern import KnownPattern
 
+BlockLoc = tuple[int, "int | None"]
+
 _l = logging.getLogger(__name__)
 
 # (field name, element index or None) steps from a statement root down to an expression
@@ -75,6 +77,10 @@ class KnownPatternMatch:
     matched_expr: Expression | None
     # statement-sequence matches only
     stmt_span: tuple[int, ...] | None = None
+    # multi-block (graph) matches only
+    block_map: dict[str, tuple[int, int | None]] | None = None
+    consumed_by_block: dict[tuple[int, int | None], frozenset[int]] | None = None
+    frontier_locs: frozenset[tuple[int, int | None]] | None = None
 
     def __repr__(self):
         return (
@@ -201,9 +207,6 @@ class KnownPatternFinder(Analysis):
             for p in patterns
             if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
         ]
-        for pattern in self._patterns:
-            if isinstance(pattern.pattern, PGraphPat):
-                raise NotImplementedError(f"pattern {pattern.name}: multi-block matching is not implemented yet")
 
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
@@ -249,8 +252,19 @@ class KnownPatternFinder(Analysis):
     def _stmt_footprint(m: KnownPatternMatch) -> frozenset[int]:
         return m.consumed_stmt_idxs | {m.anchor_stmt_idx} | (frozenset(m.stmt_span) if m.stmt_span else frozenset())
 
+    @staticmethod
+    def _blocks_of(m: KnownPatternMatch) -> set[tuple[int, int | None]]:
+        if m.block_map is not None:
+            return set(m.block_map.values())
+        return {m.block_loc}
+
     @classmethod
     def _conflicts(cls, m1: KnownPatternMatch, m2: KnownPatternMatch) -> bool:
+        # a multi-block match owns whole blocks; conservatively conflict with
+        # any other match sharing one of its blocks
+        if m1.block_map is not None or m2.block_map is not None:
+            return bool(cls._blocks_of(m1) & cls._blocks_of(m2))
+
         if m1.block_loc != m2.block_loc:
             return False
         footprints_overlap = bool(cls._stmt_footprint(m1) & cls._stmt_footprint(m2))
@@ -268,6 +282,12 @@ class KnownPatternFinder(Analysis):
         return longer[: len(shorter)] == shorter
 
     def _match_block(self, block: Block) -> Iterator[KnownPatternMatch]:
+        # graph patterns are anchored at their entry block
+        for pattern in self._patterns:
+            if isinstance(pattern.pattern, PGraphPat):
+                m = self._try_match_graph(pattern, block)
+                if m is not None:
+                    yield m
         for stmt_idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
                 continue
@@ -290,29 +310,23 @@ class KnownPatternFinder(Analysis):
                     if m is not None:
                         yield m
 
-    def _try_match_stmt_seq(self, pattern: KnownPattern, block: Block, start_idx: int) -> KnownPatternMatch | None:
-        """Match a statement-level pattern (a single statement pattern or a
-        PStmtSeq) anchored at ``start_idx``. Statement patterns match in order;
-        Label statements and phi assignments are skippable; with ``allow_gaps``
-        (the PStmtSeq default), unrelated statements may sit between matched
-        ones."""
-        seq = pattern.pattern
-        if isinstance(seq, PStmtSeq):
-            stmt_pats: tuple[PatternStmt, ...] = seq.stmts
-            allow_gaps = seq.allow_gaps
-        else:
-            assert isinstance(seq, PatternStmt)
-            stmt_pats = (seq,)
-            allow_gaps = False
-        if not stmt_pats:
-            return None
-
-        ctx = MatchCtx(
-            skip_conversions=self._skip_conversions,
-            chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
-        )
+    @staticmethod
+    def _scan_stmt_seq(
+        block: Block,
+        stmt_pats: tuple[PatternStmt, ...],
+        allow_gaps: bool,
+        start_idx: int,
+        anchored: bool,
+        state: MatchState,
+        ctx: MatchCtx,
+    ) -> tuple[MatchState, list[int]] | None:
+        """Match ``stmt_pats`` in order against ``block`` starting at
+        ``start_idx``. Label statements and phi assignments are skippable; with
+        ``allow_gaps`` unrelated statements may sit between matched ones. When
+        ``anchored``, the first pattern must match exactly at ``start_idx``.
+        Returns ``(state, matched_idxs)`` or None. An empty ``stmt_pats``
+        trivially matches with no consumed statements."""
         stmts = block.statements
-        state: MatchState | None = MatchState()
         matched: list[int] = []
         scan = start_idx
         for pat_i, stmt_pat in enumerate(stmt_pats):
@@ -328,16 +342,35 @@ class KnownPatternFinder(Analysis):
                         scan += 1
                         found = True
                         break
-                if pat_i == 0:
-                    # the first statement pattern anchors exactly at start_idx
+                if pat_i == 0 and anchored:
                     return None
                 if not (skippable_gap or allow_gaps):
                     return None
                 scan += 1
             if not found:
                 return None
+        return state, matched
 
-        assert state is not None
+    @staticmethod
+    def _stmt_pats_of(pat: PatternStmt) -> tuple[tuple[PatternStmt, ...], bool]:
+        if isinstance(pat, PStmtSeq):
+            return pat.stmts, pat.allow_gaps
+        return (pat,), False
+
+    def _try_match_stmt_seq(self, pattern: KnownPattern, block: Block, start_idx: int) -> KnownPatternMatch | None:
+        """Match a statement-level pattern (a single statement pattern or a
+        PStmtSeq) anchored at ``start_idx``."""
+        stmt_pats, allow_gaps = self._stmt_pats_of(pattern.pattern)  # type: ignore[arg-type]
+        if not stmt_pats:
+            return None
+        ctx = MatchCtx(
+            skip_conversions=self._skip_conversions,
+            chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
+        )
+        result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, start_idx, True, MatchState(), ctx)
+        if result is None:
+            return None
+        state, matched = result
         if pattern.where is not None and not pattern.where(state.bindings):
             return None
 
@@ -355,6 +388,125 @@ class KnownPatternFinder(Analysis):
             captures=dict(state.bindings),
             matched_expr=None,
             stmt_span=tuple(matched),
+        )
+
+    def _match_block_seq(
+        self, block: Block, block_pat, state: MatchState, ctx: MatchCtx
+    ) -> tuple[MatchState, frozenset[int]] | None:
+        """Match a PBlockPat's statement sequence anywhere within ``block``
+        (not anchored). Returns ``(state, consumed_idxs)`` or None."""
+        stmt_pats, allow_gaps = self._stmt_pats_of(block_pat.stmts)
+        result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, 0, False, state, ctx)
+        if result is None:
+            return None
+        new_state, matched = result
+        return new_state, frozenset(matched)
+
+    def _try_match_graph(self, pattern: KnownPattern, entry_block: Block) -> KnownPatternMatch | None:
+        gpat = pattern.pattern
+        assert isinstance(gpat, PGraphPat)
+        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None)
+
+        # order internal blocks by BFS from the entry over internal edges, so
+        # each block (after entry) is reached from an already-mapped block
+        internal = set(gpat.blocks)
+        adj: dict[str, list[str]] = {lbl: [] for lbl in internal}
+        for src, dst in gpat.edges:
+            if dst in internal:
+                adj[src].append(dst)
+        order = [gpat.entry]
+        seen = {gpat.entry}
+        i = 0
+        while i < len(order):
+            for nb in adj[order[i]]:
+                if nb not in seen:
+                    seen.add(nb)
+                    order.append(nb)
+            i += 1
+
+        pat_edges = [(s, d) for s, d in gpat.edges]
+
+        # recursive injective assignment of pattern labels to graph blocks
+        def assign(
+            idx: int, mapping: dict[str, Block], state: MatchState, consumed: dict[str, frozenset[int]]
+        ) -> KnownPatternMatch | None:
+            if idx == len(order):
+                return self._finalize_graph_match(pattern, gpat, pat_edges, mapping, state, consumed)
+            label = order[idx]
+            if label == gpat.entry:
+                candidates = [entry_block]
+            else:
+                pred_label = next(s for s, d in pat_edges if d == label and s in mapping)
+                candidates = [s for s in self._graph.successors(mapping[pred_label]) if s not in mapping.values()]
+            for cand in candidates:
+                res = self._match_block_seq(cand, gpat.blocks[label], state, ctx)
+                if res is None:
+                    continue
+                new_state, cons = res
+                out = assign(
+                    idx + 1,
+                    {**mapping, label: cand},
+                    new_state,
+                    {**consumed, label: cons},
+                )
+                if out is not None:
+                    return out
+            return None
+
+        return assign(0, {}, MatchState(), {})
+
+    def _finalize_graph_match(
+        self,
+        pattern: KnownPattern,
+        gpat: PGraphPat,
+        pat_edges: list[tuple[str, str]],
+        mapping: dict[str, Block],
+        state: MatchState,
+        consumed: dict[str, frozenset[int]],
+    ) -> KnownPatternMatch | None:
+        internal = set(gpat.blocks)
+        loc = {lbl: (b.addr, b.idx) for lbl, b in mapping.items()}
+        mapped_locs = set(loc.values())
+
+        # every internal pattern edge must exist in the graph
+        for src, dst in pat_edges:
+            if dst in internal and mapping[dst] not in self._graph.successors(mapping[src]):
+                return None
+
+        # collect frontier locs (successors of mapped blocks that are not mapped)
+        # and enforce the escape rule: every out-edge of a mapped block goes to
+        # a mapped block along a pattern edge, or to a frontier loc
+        internal_edge_pairs = {(loc[s], loc[d]) for s, d in pat_edges if d in internal}
+        frontier: set[tuple[int, int | None]] = set()
+        for lbl, b in mapping.items():
+            for succ in self._graph.successors(b):
+                sloc = (succ.addr, succ.idx)
+                if sloc in mapped_locs:
+                    if (loc[lbl], sloc) not in internal_edge_pairs:
+                        return None  # an edge between matched blocks the pattern does not describe
+                else:
+                    frontier.add(sloc)
+        if not gpat.external_labels and frontier:
+            return None
+        if gpat.external_labels and not frontier:
+            return None
+
+        if pattern.where is not None and not pattern.where(state.bindings):
+            return None
+
+        consumed_by_block = {loc[lbl]: consumed[lbl] for lbl in mapping}
+        entry_loc = loc[gpat.entry]
+        return KnownPatternMatch(
+            pattern=pattern,
+            block_loc=entry_loc,
+            anchor_stmt_idx=min(consumed[gpat.entry], default=0),
+            expr_path=(),
+            consumed_stmt_idxs=consumed[gpat.entry],
+            captures=dict(state.bindings),
+            matched_expr=None,
+            block_map=loc,
+            consumed_by_block=consumed_by_block,
+            frontier_locs=frozenset(frontier),
         )
 
     @staticmethod
@@ -452,6 +604,8 @@ class KnownPatternFinder(Analysis):
         except KeyError as e:
             raise UnsupportedOutlineError(f"block {match.block_loc} is not in the given graph") from e
 
+        if match.block_map is not None:
+            return self._outline_graph(match, g)
         if match.stmt_span is not None:
             return self._outline_stmt_span(match, g, block)
 
@@ -583,6 +737,71 @@ class KnownPatternFinder(Analysis):
             frontier_loc = (succs[0].addr, succs[0].idx)
 
         return self._run_outliner_and_rewrite(g, match, (b_mid.addr, b_mid.idx), frontier_loc, ins_addr)
+
+    def _outline_graph(self, match: KnownPatternMatch, g: networkx.DiGraph) -> OutlineResult:
+        """Outline a multi-block (graph) match: the matched region (entry block
+        plus fully-consumed interior blocks) is handed to the Outliner as a
+        single-entry region with the matched external successor as frontier."""
+        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
+
+        assert match.block_map is not None and match.frontier_locs is not None
+        assert match.consumed_by_block is not None
+
+        if len(match.frontier_locs) != 1:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: region has {len(match.frontier_locs)} exits; v1 outlining "
+                f"supports exactly one"
+            )
+        (frontier_loc,) = match.frontier_locs
+
+        nodes_dict = {(node.addr, node.idx): node for node in g}
+        entry_loc = match.block_map[match.pattern.pattern.entry]
+        interior_locs = [loc for lbl, loc in match.block_map.items() if loc != entry_loc]
+
+        # every interior (non-entry) block must be fully consumed apart from
+        # Label statements — otherwise the region has residue we cannot cut
+        for loc in interior_locs:
+            block = nodes_dict.get(loc)
+            if block is None:
+                raise UnsupportedOutlineError("stale match: a matched block is gone from the graph")
+            consumed = match.consumed_by_block[loc]
+            for i, stmt in enumerate(block.statements):
+                if i not in consumed and not isinstance(stmt, Label):
+                    raise UnsupportedOutlineError(
+                        f"pattern {match.pattern.name}: interior block {loc} has unmatched statements"
+                    )
+
+        entry_block = nodes_dict.get(entry_loc)
+        if entry_block is None:
+            raise UnsupportedOutlineError("stale match: the entry block is gone from the graph")
+        entry_consumed = match.consumed_by_block[entry_loc]
+        entry_residue = [
+            i for i, s in enumerate(entry_block.statements) if i not in entry_consumed and not isinstance(s, Label)
+        ]
+
+        src_loc = entry_loc
+        if entry_residue:
+            # the entry has leading residue; it must all precede the consumed
+            # part, and the entry must not be re-entered from inside the region
+            # (a back-edge into a split entry would corrupt the region)
+            if any(i > min(entry_consumed, default=len(entry_block.statements)) for i in entry_residue):
+                raise UnsupportedOutlineError(
+                    f"pattern {match.pattern.name}: the entry block interleaves matched and unmatched statements"
+                )
+            if any(
+                pred in nodes_dict.values() and (pred.addr, pred.idx) in set(match.block_map.values())
+                for pred in g.predecessors(entry_block)
+            ):
+                raise UnsupportedOutlineError(
+                    f"pattern {match.pattern.name}: the entry block is re-entered from within the region"
+                )
+            pre_stmts = [entry_block.statements[i] for i in entry_residue]
+            mid_stmts = [s for i, s in enumerate(entry_block.statements) if i not in entry_residue]
+            _, b_mid, _ = split_ail_block(g, entry_block, pre_stmts, mid_stmts, [], self._next_block_addr)
+            src_loc = (b_mid.addr, b_mid.idx)
+
+        ins_addr = entry_block.statements[min(entry_consumed)].tags.get("ins_addr") if entry_consumed else None
+        return self._run_outliner_and_rewrite(g, match, src_loc, frontier_loc, ins_addr)
 
     def _run_outliner_and_rewrite(
         self,
