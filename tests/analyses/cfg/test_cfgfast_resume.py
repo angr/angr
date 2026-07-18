@@ -8,6 +8,7 @@ import os
 import unittest
 
 import angr
+from angr.analyses.cfg import cfg_fast as cfg_fast_mod
 from angr.analyses.cfg.cfg_base import CFGBase
 from tests.common import bin_location
 
@@ -121,6 +122,75 @@ class TestCfgfastAbortResume(unittest.TestCase):
 
         for name in ("main", "authenticate", "accepted", "rejected"):
             assert proj.kb.functions.function(name=name) is not None, f"function {name} missing after global resume"
+
+    def _assert_resume_state_exact(
+        self, binary: str, abort_points: tuple[int, ...], allow_unreachable_orphan_extras: bool = False
+    ) -> None:
+        """
+        Abort at the given progress-callback counts and resume with resume_state; the resulting function set must be
+        identical to that of an uninterrupted run. When allow_unreachable_orphan_extras is set, extra functions are
+        tolerated if they are unreachable scaffolding (no incoming edges to their heads, e.g. PLT-header tails whose
+        removal heuristics depend on per-analysis state that does not survive an abort).
+        """
+        path = os.path.join(test_location, "x86_64", binary)
+        ref = angr.Project(path, auto_load_libs=False)
+        ref.analyses.CFGFast(normalize=True)
+        ref_funcs = set(ref.kb.functions)
+
+        # remove the wall-clock throttling of progress notifications so that abort points are deterministic
+        orig_interval = cfg_fast_mod.PROGRESS_NOTIFY_INTERVAL
+        cfg_fast_mod.PROGRESS_NOTIFY_INTERVAL = 0
+        try:
+
+            def make_cb(abort_after: int):
+                count = [0]
+
+                def cb(percentage, text=None, cfg=None, **kwargs):  # pylint:disable=unused-argument
+                    if cfg is not None:
+                        count[0] += 1
+                        if count[0] >= abort_after:
+                            cfg.abort()
+
+                return cb
+
+            for abort_after in abort_points:
+                proj = angr.Project(path, auto_load_libs=False)
+                partial = proj.analyses.CFGFast(normalize=True, progress_callback=make_cb(abort_after))
+                if not partial.should_abort:
+                    # the analysis finished before reaching the abort point; nothing to resume
+                    continue
+                resumed = proj.analyses.CFGFast(
+                    model=partial.model,
+                    start_at_entry=False,
+                    resume_state=partial.resume_state,
+                    normalize=True,
+                )
+                got = set(proj.kb.functions)
+                extra = got - ref_funcs
+                missing = ref_funcs - got
+                if allow_unreachable_orphan_extras:
+                    extra = {
+                        addr
+                        for addr in extra
+                        if (node := resumed.model.get_any_node(addr)) is None
+                        or next(iter(resumed.model.get_predecessors(node)), None) is not None
+                    }
+                assert not extra and not missing, (
+                    f"{binary} abort@{abort_after}: {len(got)} funcs vs reference {len(ref_funcs)}; "
+                    f"extra={sorted(hex(a) for a in extra)[:10]}, "
+                    f"missing={sorted(hex(a) for a in missing)[:10]}"
+                )
+        finally:
+            cfg_fast_mod.PROGRESS_NOTIFY_INTERVAL = orig_interval
+
+    def test_full_resume_with_resume_state_is_exact(self):
+        # resuming with resume_state must reproduce the exact function set of an uninterrupted run: frontier
+        # addresses (call return sites, intra-function jump targets) must not be promoted to function heads
+        self._assert_resume_state_exact("fauxware", (1, 3, 8))
+
+    def test_full_resume_with_resume_state_is_exact_jumptables(self):
+        # unresolved indirect jumps captured at abort time must be re-processed on resume
+        self._assert_resume_state_exact("cfg_switches", (5, 50), allow_unreachable_orphan_extras=True)
 
     def test_second_pass_idempotent(self):
         path = os.path.join(test_location, "x86_64", "fauxware")

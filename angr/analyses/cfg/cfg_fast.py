@@ -9,7 +9,7 @@ import string
 import time
 from collections import OrderedDict, defaultdict
 from enum import Enum, unique
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import capstone
 import claripy
@@ -322,6 +322,43 @@ class PendingJobs:
 #
 # Descriptors of edges in individual function graphs
 #
+
+
+class ResumeJob(NamedTuple):
+    """
+    Describes an unprocessed CFGJob captured when a CFG recovery is aborted, with enough context to faithfully
+    re-create the job when the recovery is resumed: func_addr preserves the function that the job belongs to (so
+    that resuming does not promote mid-function block addresses, e.g. call return sites, to function heads), and the
+    source block and function edges are stored as addresses (so that no CFGNode references survive across analyses)
+    and are re-resolved against the model when the job is re-created.
+    """
+
+    addr: int
+    func_addr: int
+    jumpkind: str
+    returning_source: int | None = None
+    syscall: bool = False
+    gp: int | None = None
+    last_addr: int | None = None
+    src_node_addr: int | None = None
+    src_ins_addr: int | None = None
+    src_stmt_idx: int | None = None
+    # function-edge descriptors: tagged tuples mirroring the FunctionEdge subclasses, with the source node stored
+    # implicitly (it is the job's source block)
+    func_edges: tuple[tuple, ...] = ()
+
+
+class CFGResumeState:
+    """
+    Captured state of an aborted CFG recovery. Pass it to a new CFGFast instance (via the resume_state parameter,
+    together with model=) to resume the recovery where it left off.
+    """
+
+    __slots__ = ("indirect_jumps", "jobs")
+
+    def __init__(self, jobs: list[ResumeJob] | None = None, indirect_jumps: list[IndirectJump] | None = None):
+        self.jobs: list[ResumeJob] = jobs if jobs is not None else []
+        self.indirect_jumps: list[IndirectJump] = indirect_jumps if indirect_jumps is not None else []
 
 
 class FunctionEdge:
@@ -651,6 +688,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         low_priority=False,
         cfb=None,
         model=None,
+        resume_state: CFGResumeState | None = None,
         eh_frame=True,
         exceptions=True,
         skip_unmapped_addrs=True,
@@ -740,6 +778,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         aborted CFG recovery is passed in, recovery resumes on top of it: bytes covered
                                         by existing nodes and memory data are treated as already scanned and will not
                                         be re-lifted.
+        :param resume_state:            The resume_state captured by a previously aborted CFGFast instance. Its
+                                        unprocessed jobs and unresolved indirect jumps are re-created (with their
+                                        original function context) so that the recovery continues where it left off.
+                                        Pass it together with model=.
         :param progress_callback:       (Inherited from angr.Analysis.) Callback for CFG recovery progress. The
                                         callback receives (percentage, text=..., cfg=...) where cfg is this CFGFast
                                         instance; calling cfg.abort() from the callback gracefully aborts the analysis:
@@ -750,21 +792,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         Aborting and resuming CFG recovery:
 
-        After a graceful abort (see progress_callback above), self.unprocessed_job_addrs holds the addresses of all
-        jobs that were still unprocessed. To resume recovery, create a new CFGFast instance reusing the partial model.
+        After a graceful abort (see progress_callback above), self.resume_state captures the jobs that were still
+        unprocessed (with their function context) and the unresolved indirect jumps; self.unprocessed_job_addrs holds
+        the corresponding addresses for informational purposes. To resume recovery, create a new CFGFast instance
+        reusing the partial model. To resume global scanning and finish the entire binary, re-inject the captured
+        state while keeping the seeding options (symbols, function_prologues, eh_frame, force_smart_scan) at their
+        original values::
+
+            proj.analyses.CFGFast(model=partial_cfg.model, start_at_entry=False,
+                                  resume_state=partial_cfg.resume_state)
+
+        Do not pass unprocessed_job_addrs as function_starts instead: function_starts seeds are treated as function
+        heads, which would promote unprocessed call return sites and intra-function jump targets to functions.
+
         To only resume from specific addresses (they must not be part of the partial model already; seeding an
         already-scanned address is a no-op)::
 
             proj.analyses.CFGFast(model=partial_cfg.model, function_starts=[addr], start_at_entry=False,
                                   symbols=False, function_prologues=False, eh_frame=False,
                                   force_smart_scan=False, force_complete_scan=False)
-
-        To resume global scanning and finish the entire binary, reuse the model and re-seed the aborted frontier while
-        keeping the seeding options (symbols, function_prologues, eh_frame, force_smart_scan) at their original
-        values::
-
-            proj.analyses.CFGFast(model=partial_cfg.model, start_at_entry=False,
-                                  function_starts=sorted(partial_cfg.unprocessed_job_addrs))
 
         :return: None
         """
@@ -920,10 +966,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        # addresses of jobs that were still unprocessed when the analysis was aborted; a caller may pass these
-        # addresses as function_starts to a new CFGFast instance (together with model=self.model) to resume the
-        # aborted analysis
+        # addresses of jobs that were still unprocessed when the analysis was aborted (informational; derived from
+        # resume_state)
         self.unprocessed_job_addrs: set[int] = set()
+        # the captured state of this analysis if it gets aborted; pass it to a new CFGFast instance (together with
+        # model=self.model) to resume the aborted analysis
+        self.resume_state: CFGResumeState | None = None
+        # the resume state of a previously aborted analysis that this analysis should continue from
+        self._input_resume_state = resume_state
 
         self._remaining_eh_frame_addrs: list[int] | None = None
         self._remaining_function_prologue_addrs: list[int] | None = None
@@ -1580,6 +1630,151 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def _job_key(self, job: CFGJob):
         return job.addr
 
+    @staticmethod
+    def _capture_resume_job(job: CFGJob) -> ResumeJob:
+        """
+        Convert an unprocessed CFGJob into a ResumeJob descriptor that carries no CFGNode references.
+        """
+        func_edges = []
+        for edge in job._func_edges or ():
+            if isinstance(edge, FunctionTransitionEdge):
+                func_edges.append(
+                    (
+                        "transition",
+                        edge.dst_addr,
+                        edge.src_func_addr,
+                        edge.to_outside,
+                        edge.dst_func_addr,
+                        edge.stmt_idx,
+                        edge.ins_addr,
+                        edge.is_exception,
+                    )
+                )
+            elif isinstance(edge, FunctionCallEdge):
+                func_edges.append(
+                    (
+                        "call",
+                        edge.dst_addr,
+                        edge.ret_addr,
+                        edge.src_func_addr,
+                        edge.syscall,
+                        edge.stmt_idx,
+                        edge.ins_addr,
+                    )
+                )
+            elif isinstance(edge, FunctionFakeRetEdge):
+                func_edges.append(("fakeret", edge.dst_addr, edge.src_func_addr, edge.confirmed))
+            elif isinstance(edge, FunctionReturnEdge):
+                func_edges.append(("return", edge.ret_from_addr, edge.ret_to_addr, edge.dst_func_addr))
+        return ResumeJob(
+            addr=job.addr,
+            func_addr=job.func_addr,
+            jumpkind=job.jumpkind,
+            returning_source=job.returning_source,
+            syscall=job.syscall,
+            gp=job.gp,
+            last_addr=job.last_addr,
+            src_node_addr=job.src_node.addr if job.src_node is not None else None,
+            src_ins_addr=job.src_ins_addr,
+            src_stmt_idx=job.src_stmt_idx,
+            func_edges=tuple(func_edges),
+        )
+
+    def _rebuild_resume_job(self, rj: ResumeJob) -> CFGJob:
+        """
+        Re-create a CFGJob from a ResumeJob descriptor, re-resolving the source block against the current model (the
+        original node may have been replaced during normalization).
+        """
+        src_node = None
+        if rj.src_node_addr is not None:
+            src_node = self._model.get_any_node(rj.src_node_addr, force_fastpath=True)
+            if rj.src_ins_addr is not None and (
+                src_node is None
+                or src_node.size is None
+                or not src_node.addr <= rj.src_ins_addr < src_node.addr + src_node.size
+            ):
+                # the source block was split (normalization); find the node that contains the source instruction
+                node = self._model.get_any_node(rj.src_ins_addr, anyaddr=True)
+                if node is not None:
+                    src_node = node
+
+        func_edges = []
+        for desc in rj.func_edges:
+            tag = desc[0]
+            if tag == "return":
+                func_edges.append(FunctionReturnEdge(desc[1], desc[2], desc[3]))
+            elif src_node is None:
+                continue
+            elif tag == "transition":
+                func_edges.append(
+                    FunctionTransitionEdge(
+                        src_node,
+                        desc[1],
+                        desc[2],
+                        to_outside=desc[3],
+                        dst_func_addr=desc[4],
+                        stmt_idx=desc[5],
+                        ins_addr=desc[6],
+                        is_exception=desc[7],
+                    )
+                )
+            elif tag == "call":
+                func_edges.append(
+                    FunctionCallEdge(
+                        src_node, desc[1], desc[2], desc[3], syscall=desc[4], stmt_idx=desc[5], ins_addr=desc[6]
+                    )
+                )
+            elif tag == "fakeret":
+                func_edges.append(FunctionFakeRetEdge(src_node, desc[1], desc[2], confirmed=desc[3]))
+
+        return CFGJob(
+            rj.addr,
+            rj.func_addr,
+            rj.jumpkind,
+            last_addr=rj.last_addr,
+            src_node=src_node,
+            src_ins_addr=rj.src_ins_addr,
+            src_stmt_idx=rj.src_stmt_idx,
+            returning_source=rj.returning_source,
+            syscall=rj.syscall,
+            func_edges=func_edges or None,
+            job_type=CFGJobType.NORMAL,
+            gp=rj.gp,
+        )
+
+    def _seed_resume_state(self, resume_state: CFGResumeState) -> None:
+        """
+        Re-create the unprocessed jobs and unresolved indirect jumps of a previously aborted CFG recovery. Jobs are
+        re-created with their original function context (func_addr) and source block/function edges, so mid-function
+        block addresses (e.g., call return sites and intra-function jump targets) are neither promoted to function
+        heads the way function_starts seeds would be, nor left without incoming edges (which would make
+        make_functions treat them as unreachable function chunks).
+        """
+        for rj in resume_state.jobs:
+            if rj.jumpkind == "Ijk_FakeRet" and rj.returning_source is not None:
+                if (
+                    self.functions.contains_addr(rj.returning_source)
+                    and self.functions.get_by_addr(rj.returning_source, meta_only=True).returning is False
+                ):
+                    # the callee is already known to never return; do not re-create the return-site job
+                    continue
+                if (
+                    self.functions.contains_addr(rj.returning_source)
+                    and self.functions.get_by_addr(rj.returning_source, meta_only=True).returning is True
+                ):
+                    self._pending_jobs.add_returning_function(rj.returning_source)
+            job = self._rebuild_resume_job(rj)
+            if rj.jumpkind == "Ijk_FakeRet":
+                self._pending_jobs.add_job(job)
+            else:
+                self._insert_job(job)
+            self._register_analysis_job(rj.func_addr, job)
+
+        for ij in resume_state.indirect_jumps:
+            self.indirect_jumps[ij.addr] = ij
+            self._indirect_jumps_to_resolve.add(ij)
+            self._register_analysis_job(ij.func_addr, ij)
+
     def _pre_analysis(self):
         self.stage = "Pre-analysis"
 
@@ -1664,6 +1859,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._insert_job(job)
             # register the job to function `sp`
             self._register_analysis_job(sp, job)
+
+        if self._input_resume_state is not None:
+            self._seed_resume_state(self._input_resume_state)
 
         self._updated_nonreturning_functions = set()
 
@@ -2528,11 +2726,29 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.stage = "Analysis (Stage 2)"
 
         if self.should_abort:
-            # the analysis was aborted before completion; capture the addresses of unprocessed jobs so that the
-            # caller may resume the analysis later by passing them as function_starts to a new CFGFast instance
-            self.unprocessed_job_addrs = {job_info.job.addr for job_info in self._job_info_queue} | {
-                job.addr for job in self._pending_jobs.all_jobs()
-            }
+            # the analysis was aborted before completion; capture the unprocessed jobs (preserving their function
+            # context) and the unresolved indirect jumps so that the caller may resume the analysis later by passing
+            # resume_state (and model) to a new CFGFast instance
+            unprocessed_jobs = [job_info.job for job_info in self._job_info_queue] + list(self._pending_jobs.all_jobs())
+            self.resume_state = CFGResumeState(
+                jobs=[self._capture_resume_job(j) for j in unprocessed_jobs],
+                indirect_jumps=sorted(self._indirect_jumps_to_resolve, key=lambda ij: ij.addr),
+            )
+            self.unprocessed_job_addrs = {j.addr for j in unprocessed_jobs}
+
+            # returning=False conclusions reached mid-analysis may be transient: e.g., a PLT stub is concluded as
+            # non-returning while the job that would process its jump target (an always-returning extern function)
+            # is still sitting in the queue. An uninterrupted analysis corrects such conclusions once the callee is
+            # processed; since the correction will never come, reset them to undetermined so that neither this run's
+            # make_functions() nor a resumed analysis (which would suppress all return sites of calls to these
+            # functions) treats them as ground truth. Provably non-returning SimProcedures and syscalls keep their
+            # status.
+            for func_addr in list(self.functions.nonreturning_func_addrs()):
+                if not self.functions.contains_addr(func_addr):
+                    continue
+                func = self.functions.get_by_addr(func_addr)
+                if not func.is_simprocedure and not func.is_syscall:
+                    func.returning = None
 
         self._calculate_progress_and_notify(skip_percentage=True)
         if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs and not self.should_abort:
@@ -2565,10 +2781,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.make_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
 
-        # when the analysis is aborted, functions may be truncated; treating them as completed would incorrectly
-        # conclude returning=False for functions whose return sites were simply never processed, and a future resumed
-        # analysis would then permanently drop their fake-return edges in make_functions()
-        self._analyze_all_function_features(all_funcs_completed=not self.should_abort)
+        # when the analysis is aborted, functions may be truncated and callees may be missing; the batch function-
+        # feature analysis would incorrectly conclude returning=False for functions whose return sites or callees
+        # were simply never processed, and a future resumed analysis would then suppress their fall-through edges.
+        # skip it entirely on abort - the incrementally determined features stay in place, and a resumed analysis
+        # re-runs this pass with complete knowledge.
+        if not self.should_abort:
+            self._analyze_all_function_features(all_funcs_completed=True)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
         for nonreturning_func_addr in sorted(self.functions.nonreturning_func_addrs()):
