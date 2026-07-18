@@ -5,6 +5,8 @@ import os.path
 import unittest
 from unittest import TestCase
 
+import archinfo
+
 import angr
 from angr.ailment.expression import Load, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.clinic import ClinicStage
@@ -17,6 +19,7 @@ from angr.analyses.decompiler.known_patterns import (
 )
 from angr.analyses.decompiler.known_patterns.dsl import MatchCtx, MatchState
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
 from tests.common import bin_location
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
@@ -127,6 +130,24 @@ class TestKnownPatternFinder(TestCase):
         assert len(finder.matches) == 1
         m = finder.matches[0]
         assert m.captures["off"].value == 8
+
+    def test_containing_record_record_returnty(self):
+        # the return type is specialized per call site from the matched offset:
+        # a pointer to a record struct reserving the leading `off` bytes
+        arch = archinfo.arch_from_id("AMD64")
+        proto = CONTAINING_RECORD_PATTERN.prototype(arch, const_args={"off": 8})
+        assert proto is not None
+        assert isinstance(proto.returnty, SimTypePointer)
+        record = proto.returnty.pts_to
+        assert isinstance(record, SimStruct)
+        assert record.name == "record_8"
+        gap = record.fields["gap0"]
+        assert isinstance(gap, SimTypeArray) and gap.length == 8
+
+        # without the constant values, the declared void* fallback is used
+        proto = CONTAINING_RECORD_PATTERN.prototype(arch)
+        assert proto is not None
+        assert isinstance(proto.returnty, SimTypePointer) and not isinstance(proto.returnty.pts_to, SimStruct)
 
 
 class TestKnownPatternOutlining(TestCase):
