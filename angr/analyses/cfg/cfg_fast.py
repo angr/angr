@@ -736,8 +736,36 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         useful during analysis; You can set retedges to True or call
                                         make_return_edges() after CFG recovery to create return edges. Note that this
                                         option does not impact function graphs.
-        :param progress_callback:       (Inherited from angr.Analysis.) Callback for CFG recovery progress.
+        :param model:                   An existing CFGModel to write into. When a partial model from a previously
+                                        aborted CFG recovery is passed in, recovery resumes on top of it: bytes covered
+                                        by existing nodes and memory data are treated as already scanned and will not
+                                        be re-lifted.
+        :param progress_callback:       (Inherited from angr.Analysis.) Callback for CFG recovery progress. The
+                                        callback receives (percentage, text=..., cfg=...) where cfg is this CFGFast
+                                        instance; calling cfg.abort() from the callback gracefully aborts the analysis:
+                                        the core recovery loop stops at the next job boundary, post-analysis still runs
+                                        and finalizes the partially recovered model, and cfg.should_abort remains True
+                                        so callers can tell the model is partial.
         :param bool show_progressbar:   (Inherited from angr.Analysis.) Show a progressbar during CFG recovery.
+
+        Aborting and resuming CFG recovery:
+
+        After a graceful abort (see progress_callback above), self.unprocessed_job_addrs holds the addresses of all
+        jobs that were still unprocessed. To resume recovery, create a new CFGFast instance reusing the partial model.
+        To only resume from specific addresses (they must not be part of the partial model already; seeding an
+        already-scanned address is a no-op)::
+
+            proj.analyses.CFGFast(model=partial_cfg.model, function_starts=[addr], start_at_entry=False,
+                                  symbols=False, function_prologues=False, eh_frame=False,
+                                  force_smart_scan=False, force_complete_scan=False)
+
+        To resume global scanning and finish the entire binary, reuse the model and re-seed the aborted frontier while
+        keeping the seeding options (symbols, function_prologues, eh_frame, force_smart_scan) at their original
+        values::
+
+            proj.analyses.CFGFast(model=partial_cfg.model, start_at_entry=False,
+                                  function_starts=sorted(partial_cfg.unprocessed_job_addrs))
+
         :return: None
         """
 
