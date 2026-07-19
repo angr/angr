@@ -266,11 +266,11 @@ class SimEngineVRAIL(
             ret_ty = self.tv_manager.new_tv()
 
         if computed_funcaddr_typevar is not None:
-            self._add_computed_call_target_constraints(computed_funcaddr_typevar, args, ret_ty)
+            self._add_computed_call_target_constraints(computed_funcaddr_typevar, args, ret_ty, target=target)
 
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
-    def _add_computed_call_target_constraints(self, funcaddr_typevar, args, ret_ty) -> None:
+    def _add_computed_call_target_constraints(self, funcaddr_typevar, args, ret_ty, target=None) -> None:
         """
         For a computed (indirect) call target, link the call target's type variable to the function's
         arguments and return value via FuncIn/FuncOut labels. The simple solver turns a type variable
@@ -285,11 +285,18 @@ class SimEngineVRAIL(
         the global renders as a function pointer (e.g. ``ret (*g)(...)``), instead of the loaded field
         merely being a function pointer (a struct-with-fnptr-field).
         """
-        # if the call target is loaded from a cell (<cell>.[Load, HasField@0]), use the cell as the
-        # function type variable so the cell -- and hence the global -- becomes the function pointer.
+        # if the call target is loaded from a *global* cell (<cell>.[Load, HasField@0] where the load
+        # address is a constant), use the cell as the function type variable so the cell -- and hence
+        # the global -- becomes the function pointer. a pointer-valued base (e.g. a struct-pointer
+        # parameter whose field at offset 0 is called) produces the same 2-label shape, but there the
+        # base is the *pointer value*, not the cell: redirecting would type the pointer one
+        # indirection too shallow, and discarding the load-access marker would erase the called
+        # field. keep the generic access constraint in that case.
         base_tv = funcaddr_typevar
+        target_is_global_cell = isinstance(target, ailment.Expr.Load) and isinstance(target.addr, ailment.Expr.Const)
         if (
-            isinstance(funcaddr_typevar, typevars.DerivedTypeVariable)
+            target_is_global_cell
+            and isinstance(funcaddr_typevar, typevars.DerivedTypeVariable)
             and len(funcaddr_typevar.labels) == 2
             and isinstance(funcaddr_typevar.labels[0], typevars.Load)
             and isinstance(funcaddr_typevar.labels[1], typevars.HasField)
@@ -401,12 +408,18 @@ class SimEngineVRAIL(
 
         if computed_funcaddr_typevar is not None:
             # when the call's return value is unused, do not emit a FuncOut edge so the recovered
-            # function type has no output slot and renders as returning void. only do this when at
-            # least one argument contributes a FuncIn edge; otherwise the FuncOut edge is the sole
-            # evidence that the callee cell holds a function pointer and must be kept.
+            # function type has no output slot and renders as returning void. the result may land in
+            # either the integer return register (ret_expr) or the floating-point return register
+            # (fp_ret_expr); it is used when either is present. only drop the edge when at least one
+            # argument contributes a FuncIn edge; otherwise the FuncOut edge is the sole evidence
+            # that the callee cell holds a function pointer and must be kept.
             has_arg_evidence = any(arg is not None and arg.typevar is not None for arg in args)
+            result_used = ret_expr is not None or stmt.fp_ret_expr is not None
             self._add_computed_call_target_constraints(
-                computed_funcaddr_typevar, args, ret_ty if ret_expr is not None or not has_arg_evidence else None
+                computed_funcaddr_typevar,
+                args,
+                ret_ty if result_used or not has_arg_evidence else None,
+                target=target,
             )
 
         # TODO: Expose it as an option

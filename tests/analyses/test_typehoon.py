@@ -694,6 +694,52 @@ class TestTypehoon(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         self._assert_extern_is_function_pointer(proj, "et_cmp", "et_cmp_fn")
 
+    def test_fnptr_struct_param_field0_call_keeps_indirection(self):
+        # a struct-pointer PARAMETER whose function-pointer field at offset 0 is called
+        # (`p->f(x)`) with no other access through the pointer. the parameter holds a pointer
+        # VALUE, not a constant global cell, so the global-cell base-typevar redirect must not
+        # apply: the parameter keeps both levels of indirection (a pointer to the cell that
+        # holds the function pointer) instead of collapsing into the function pointer itself,
+        # which would render the non-compilable `(*(long long *)a0)(a1)`.
+        bin_path = os.path.join(test_location, "x86_64", "fnptr_struct_param_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("case_field0")
+        assert func_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        arg0 = dec.clinic.function.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        pointee = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
+        assert not isinstance(pointee, SimTypeFunction), f"parameter lost an indirection level: {arg0!r}"
+        is_fnptr_cell = isinstance(pointee, SimTypePointer) and isinstance(pointee.pts_to, SimTypeFunction)
+        is_struct_with_fnptr_field = isinstance(pointee, SimStruct) and any(
+            isinstance(f, SimTypePointer) and isinstance(f.pts_to, SimTypeFunction) for f in pointee.fields.values()
+        )
+        assert is_fnptr_cell or is_struct_with_fnptr_field, (
+            f"expected a pointer to a function-pointer cell, got {arg0!r}"
+        )
+
+    def test_fnptr_struct_param_called_field_survives(self):
+        # a multi-field struct-pointer parameter: another field is also accessed, so the
+        # solver keeps the parameter a struct pointer -- and the CALLED field at offset 0
+        # must still be typed as a function pointer instead of vanishing into padding
+        # (`idx->padding_0(a1)`), which happens when the load-access marker of the call
+        # target is discarded even though the base is a pointer value and not a global cell.
+        bin_path = os.path.join(test_location, "x86_64", "fnptr_struct_param_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("case_multifield")
+        assert func_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        arg0 = dec.clinic.function.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
+        assert isinstance(struct_ty, SimStruct), f"expected a struct pointer, got {arg0!r}"
+        fnptr_fields = [
+            f
+            for f in struct_ty.fields.values()
+            if isinstance(f, SimTypePointer) and isinstance(f.pts_to, SimTypeFunction)
+        ]
+        assert fnptr_fields, f"called function-pointer field vanished: {struct_ty.fields}"
+
     def test_struct_pointer_with_called_field_stays_struct(self):
         # negative case: a pointer to a structure with several accessed fields must remain a
         # struct pointer even when one of its fields holds a called function pointer; the
@@ -762,6 +808,40 @@ class TestTypeTranslator(unittest.TestCase):
         assert isinstance(tc.fields[0], Pointer64)
         assert 0 in tc.field_names
         assert tc.field_names[0] == "ptr"
+
+    def test_fn_inprogress_cleared_when_subtranslation_raises(self):
+        # If translating a Function's param/return types raises, the Function must still be
+        # removed from the _fn_inprogress cycle-guard set. Otherwise a later translation of a
+        # structurally-equal Function is misdetected as a cycle and collapses to void.
+        from angr.analyses.typehoon import translator as translator_module
+        from angr.analyses.typehoon import typeconsts
+
+        class PoisonTC(typeconsts.TypeConstant):
+            def __repr__(self, memo=None):
+                return "POISON"
+
+        calls = []
+
+        def poison_handler(translator_self, tc):
+            calls.append(tc)
+            if len(calls) == 1:
+                raise ValueError("simulated sub-translation failure")
+            return SimTypeInt(signed=True).with_arch(translator_self.arch)
+
+        translator_module.TypeConstHandlers[PoisonTC] = poison_handler
+        try:
+            tx = TypeTranslator(archinfo.arch_from_id("amd64"))
+            fn1 = typeconsts.Function([PoisonTC()], [Int32()])
+            fn2 = typeconsts.Function([PoisonTC()], [Int32()])
+            assert fn1 == fn2 and hash(fn1) == hash(fn2)
+
+            with self.assertRaises(ValueError):
+                tx.tc2simtype(fn1)
+
+            st, _ = tx.tc2simtype(fn2)
+            assert isinstance(st, SimTypeFunction), f"expected SimTypeFunction, got {st!r}"
+        finally:
+            del translator_module.TypeConstHandlers[PoisonTC]
 
 
 class TestSimpleSolverLatticeOps(unittest.TestCase):
