@@ -32,18 +32,12 @@ class KnownPatternOutliner(OptimizationPass):
 
     def _check(self):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
-            ALL_KNOWN_PATTERNS,
+            PatternContext,
+            patterns_for,
         )
 
-        arch_name = self.project.arch.name
-        platform = self.project.simos.name if self.project.simos is not None else None
-        applicable = any(
-            p.enabled_by_default
-            and p.applicable(arch_name, platform)
-            and (p.binary_guard is None or p.binary_guard(self.project))
-            for p in ALL_KNOWN_PATTERNS
-        )
-        return applicable, None
+        ctx = PatternContext.from_project(self.project)
+        return bool(patterns_for(ctx, enabled_only=True)), None
 
     def _analyze(self, cache=None):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
@@ -87,5 +81,5 @@ class KnownPatternOutliner(OptimizationPass):
         if changed:
             # peepholes have already run by this stage, so the prototypes of the
             # newly synthesized calls must be applied here for this run
-            apply_call_info_to_graph(graph, self.manager, self.project.arch)
+            apply_call_info_to_graph(graph, self.manager, self.project)
             self.out_graph = graph

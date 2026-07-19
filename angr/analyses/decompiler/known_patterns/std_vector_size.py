@@ -1,64 +1,71 @@
 """Inlined std::vector<T>::size().
 
-libstdc++ lays out std::vector as ``{_M_start at +0, _M_finish at +8,
-_M_end_of_storage at +16}``, and the MSVC STL uses the same three-pointer
-layout (``_Myfirst``/``_Mylast``/``_Myend``); the inlined size() is
-``(_M_finish - _M_start) / sizeof(T)``:
+libstdc++ and the MSVC STL both lay out std::vector as three pointers
+(_M_start/_M_finish/_M_end_of_storage), so ``size() == (_M_finish - _M_start)
+/ sizeof(T)``:
 
-    ((Load(addr=(v Add 8<64>), size=8) Sub Load(addr=v, size=8)) Sar log2(sizeof(T)))
+    (Load(v + word(1)) - Load(v)) >> log2(sizeof(T))
 
-Note the shift amount is an 8-bit constant. One pattern is registered per
-common element size (short/int/long long); ``sizeof(T) == 1`` (vector<char>)
-is deliberately not covered — without the shift, the shape degenerates to a
-bare pointer difference, which is far too generic.
+One template per common element size (short/int/long long); the field offsets
+and load width come from the :class:`PatternContext` (word-scaled), so a single
+definition covers 32- and 64-bit. ``sizeof(T) == 1`` is not covered (no shift →
+a bare pointer difference, too generic).
 
-Calibrated against tests/x86_64/decompiler/known_patterns_stl (g++ 12.2.0 -O2).
+Calibrated against the known_patterns_stl binaries (libstdc++ ELF, MSVC x64/x86).
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from .context import CPP, INTEL, size_t_typename
 from .dsl import PBinOp, PConst, PLoad, PVVar
-from .pattern import CppRef, KnownPattern, PatternParam, is_cpp_binary
+from .layouts import vector_begin_offset, vector_end_offset
+from .pattern import CppRef, KnownPattern, PatternParam
+from .templates import make_template
+
+if TYPE_CHECKING:
+    from .context import PatternContext
 
 STD_VECTOR_UNIQUE_NAME_TMPL = "class std::vector<{elt}, class std::allocator<{elt}>>"
+STD_VECTOR_INT = STD_VECTOR_UNIQUE_NAME_TMPL.format(elt="int")
 
 
-def make_std_vector_size_pattern(elt_name: str, log2_elt_size: int) -> KnownPattern:
-    """Build the inlined-size() pattern for ``std::vector<elt_name>`` with
-    ``sizeof(elt) == 1 << log2_elt_size``. The element type must be registered
-    in the cpp::std type collection under the standard vector unique name."""
+def _vfield(cap: str, off: int, size: int) -> PLoad:
+    addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
+    return PLoad(addr, size=size)
+
+
+def make_std_vector_size_template(elt_name: str, log2_elt_size: int):
+    """A ``std::vector<elt_name>::size`` template (``sizeof(elt) == 1 <<
+    log2_elt_size``)."""
     assert log2_elt_size > 0, "sizeof(T) == 1 has no shift and is too generic to match"
     slug = elt_name.replace(" ", "_")
-    return KnownPattern(
-        name=f"std_vector_{slug}_size",
-        display_name=f"std::vector<{elt_name}>::size",
-        call_name=f"std::vector<{elt_name}>::size",
-        pattern=PBinOp(
-            frozenset({"Sar", "Shr"}),
-            (
-                PBinOp(
-                    "Sub",
-                    (
-                        PLoad(addr=PBinOp("Add", (PVVar("v"), PConst(8))), size=8),  # _M_finish
-                        PLoad(addr=PVVar("v"), size=8),  # _M_start
+    unique_name = STD_VECTOR_UNIQUE_NAME_TMPL.format(elt=elt_name)
+    call_name = f"std::vector<{elt_name}>::size"
+
+    def build(ctx: PatternContext) -> KnownPattern:
+        ws = ctx.word_size
+        return KnownPattern(
+            name=f"std_vector_{slug}_size",
+            display_name=call_name,
+            call_name=call_name,
+            pattern=PBinOp(
+                frozenset({"Sar", "Shr"}),
+                (
+                    PBinOp(
+                        "Sub", (_vfield("v", vector_end_offset(ctx), ws), _vfield("v", vector_begin_offset(ctx), ws))
                     ),
+                    PConst(log2_elt_size),
                 ),
-                PConst(log2_elt_size),
             ),
-        ),
-        params=(PatternParam("v", type=CppRef(STD_VECTOR_UNIQUE_NAME_TMPL.format(elt=elt_name))),),
-        returnty="unsigned long long",
-        arches=("AMD64",),
-        # the MSVC STL uses the same three-pointer layout (_Myfirst/_Mylast/_Myend),
-        # so the pattern applies to Windows binaries as-is
-        platforms=("linux", "win32", "windows"),
-        # pointer-difference-and-shift also appears in plain C code; require C++ evidence
-        binary_guard=is_cpp_binary,
-    )
+            params=(PatternParam("v", type=CppRef(unique_name)),),
+            returnty=size_t_typename(ctx.bits),
+        )
+
+    return make_template(call_name, build, arches=INTEL, languages=(CPP,), name=f"std_vector_{slug}_size")
 
 
-STD_VECTOR_SHORT_SIZE = make_std_vector_size_pattern("short", 1)
-STD_VECTOR_INT_SIZE = make_std_vector_size_pattern("int", 2)
-STD_VECTOR_LONG_LONG_SIZE = make_std_vector_size_pattern("long long", 3)
-
-STD_VECTOR_INT = STD_VECTOR_UNIQUE_NAME_TMPL.format(elt="int")
+STD_VECTOR_SHORT_SIZE = make_std_vector_size_template("short", 1)
+STD_VECTOR_INT_SIZE = make_std_vector_size_template("int", 2)
+STD_VECTOR_LONG_LONG_SIZE = make_std_vector_size_template("long long", 3)

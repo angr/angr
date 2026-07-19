@@ -9,10 +9,10 @@ import angr
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
-    ALL_LINKED_LIST_PATTERNS,
-    ALL_PROTOBUF_PATTERNS,
-    ALL_STL_CONTAINER_PATTERNS,
-    ALL_VECTOR_MATH_PATTERNS,
+    ALL_LINKED_LIST_TEMPLATES,
+    ALL_PROTOBUF_TEMPLATES,
+    ALL_STL_TEMPLATES,
+    ALL_VECTOR_MATH_TEMPLATES,
     KnownPatternFinder,
 )
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -26,6 +26,10 @@ VM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patt
 MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_stl_msvc_17_x64.exe")
 MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
 
+_LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
+_PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
+_VECMATH_NAMES = {"vec_dot3", "vec_length_sq"}
+
 
 def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = None):
     proj = angr.Project(bin_path, auto_load_libs=False)
@@ -38,8 +42,8 @@ def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = N
     return proj, cfg, func, dec
 
 
-def _find(proj, func, dec, patterns=ALL_LINKED_LIST_PATTERNS):
-    return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=patterns)
+def _find(proj, func, dec, templates=ALL_LINKED_LIST_TEMPLATES):
+    return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=templates)
 
 
 def _outline_text(proj, cfg, func, dec, finder):
@@ -58,7 +62,7 @@ def _outline_text(proj, cfg, func, dec, finder):
 
 class TestLinkedListPatterns(TestCase):
     # each idiom is exercised on BOTH the WDK PE and the Linux ELF, proving one
-    # pattern set matches LIST_ENTRY (Flink/Blink) and list_head (next/prev).
+    # template set matches LIST_ENTRY (Flink/Blink) and list_head (next/prev).
 
     def _check(self, bin_path, func_name, pattern_name, call_name):
         proj, cfg, func, dec = _decompile(bin_path, func_name)
@@ -87,16 +91,15 @@ class TestLinkedListPatterns(TestCase):
         self._check(LINUX_BIN, "lx_del", "remove_entry_list", "RemoveEntryList")
 
     def test_not_enabled_by_default(self):
-        # the list patterns are opt-in; the default finder must not match them
         proj, _, func, dec = _decompile(LINUX_BIN, "lx_del")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
-        assert not any(m.pattern in ALL_LINKED_LIST_PATTERNS for m in finder.matches)
+        assert not any(m.pattern.name in _LINKED_LIST_NAMES for m in finder.matches)
 
 
 class TestStlContainerPatterns(TestCase):
     def _check(self, func_name, pattern_name, call_fragment):
         proj, cfg, func, dec = _decompile(STL_BIN, func_name)
-        finder = _find(proj, func, dec, ALL_STL_CONTAINER_PATTERNS)
+        finder = _find(proj, func, dec, ALL_STL_TEMPLATES)
         assert len(finder.matches) == 1, f"{func_name}: {[m.pattern.name for m in finder.matches]}"
         assert finder.matches[0].pattern.name == pattern_name
         text = _outline_text(proj, cfg, func, dec, finder)
@@ -118,8 +121,6 @@ class TestStlContainerPatterns(TestCase):
         self._check("str_index", "std_string_index", "std::string::operator[](")
 
     def test_empty_capacity_enabled_by_default(self):
-        # empty/capacity are default-on (guarded by C++ evidence); index/string
-        # accessors are opt-in
         proj, _, func, dec = _decompile(STL_BIN, "vec_empty")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert any(m.pattern.name == "std_vector_int_empty" for m in finder.matches)
@@ -128,7 +129,7 @@ class TestStlContainerPatterns(TestCase):
 class TestProtobufHasBitsPatterns(TestCase):
     def _check(self, func_name, pattern_name, call_name):
         proj, cfg, func, dec = _decompile(PB_BIN, func_name)
-        finder = _find(proj, func, dec, ALL_PROTOBUF_PATTERNS)
+        finder = _find(proj, func, dec, ALL_PROTOBUF_TEMPLATES)
         assert len(finder.matches) == 1, f"{func_name}: {[m.pattern.name for m in finder.matches]}"
         assert finder.matches[0].pattern.name == pattern_name
         text = _outline_text(proj, cfg, func, dec, finder)
@@ -144,16 +145,15 @@ class TestProtobufHasBitsPatterns(TestCase):
         self._check("clear_has_field", "protobuf_clear_has_field", "_pb_clear_has_field")
 
     def test_opt_in(self):
-        # the has-bits patterns are opt-in (generic bitfield ops)
         proj, _, func, dec = _decompile(PB_BIN, "set_has_field")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
-        assert not any(m.pattern in ALL_PROTOBUF_PATTERNS for m in finder.matches)
+        assert not any(m.pattern.name in _PROTOBUF_NAMES for m in finder.matches)
 
 
 class TestVectorMathPatterns(TestCase):
     def _check(self, func_name, pattern_name, call_name):
         proj, cfg, func, dec = _decompile(VM_BIN, func_name)
-        finder = _find(proj, func, dec, ALL_VECTOR_MATH_PATTERNS)
+        finder = _find(proj, func, dec, ALL_VECTOR_MATH_TEMPLATES)
         assert len(finder.matches) == 1, f"{func_name}: {[m.pattern.name for m in finder.matches]}"
         assert finder.matches[0].pattern.name == pattern_name
         text = _outline_text(proj, cfg, func, dec, finder)
@@ -163,89 +163,72 @@ class TestVectorMathPatterns(TestCase):
         self._check("vec_dot3", "vec_dot3", "dot3")
 
     def test_length_sq(self):
-        # length_sq must win over dot3 on a dot-with-itself
         self._check("vec_length_sq", "vec_length_sq", "length_sq")
 
     def test_opt_in(self):
         proj, _, func, dec = _decompile(VM_BIN, "vec_dot3")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
-        assert not any(m.pattern in ALL_VECTOR_MATH_PATTERNS for m in finder.matches)
+        assert not any(m.pattern.name in _VECMATH_NAMES for m in finder.matches)
 
 
 class TestMsvcStlPatterns(TestCase):
-    # the MSVC STL binary has no symbols (no PDB), so the extern "C" accessors
-    # are matched by address. The MSVC std::string layout puts _Mysize at +16
-    # (length/empty variants); std::vector shares the libstdc++ three-pointer
-    # layout, so the vector patterns match unchanged on Windows.
+    # The one STL template set covers the MSVC binaries too: string length/empty
+    # instantiate the +16 MSVC layout, vector accessors the shared three-pointer
+    # layout. Matched by address (the binaries have no symbols).
+    # unified pattern names (no per-arch/runtime suffix).
     ACCESSORS = {
-        0x1400013A0: ("std_string_length_msvc", "std::string::length"),
-        0x140001690: ("std_string_empty_msvc", "std::string::empty"),
+        0x1400013A0: ("std_string_length", "std::string::length"),
+        0x140001690: ("std_string_empty", "std::string::empty"),
         0x1400013B0: ("std_vector_int_size", "std::vector<int>::size"),
         0x1400016A0: ("std_vector_int_capacity", "std::vector<int>::capacity"),
         0x1400016B0: ("std_vector_int_empty", "std::vector<int>::empty"),
         0x1400016C0: ("std_vector_int_index", "std::vector<int>::operator[]"),
     }
+    BIN = MSVC_BIN
+    EXPECT_ARCH = "AMD64"
 
     def test_msvc_accessors(self):
-        from angr.analyses.decompiler.known_patterns import (
-            ALL_STL_CONTAINER_PATTERNS,
-            STD_STRING_LENGTH_MSVC,
-            STD_VECTOR_INT_SIZE,
-        )
-
-        patterns = [STD_STRING_LENGTH_MSVC, STD_VECTOR_INT_SIZE, *ALL_STL_CONTAINER_PATTERNS]
         for addr, (pattern_name, call_name) in self.ACCESSORS.items():
             with self.subTest(addr=hex(addr)):
-                proj, cfg, func, dec = _decompile(MSVC_BIN, addr=addr)
-                finder = _find(proj, func, dec, patterns)
+                proj, cfg, func, dec = _decompile(self.BIN, addr=addr)
+                assert proj.arch.name == self.EXPECT_ARCH
+                finder = _find(proj, func, dec, ALL_STL_TEMPLATES)
                 assert len(finder.matches) == 1, f"{addr:#x}: {[m.pattern.name for m in finder.matches]}"
                 assert finder.matches[0].pattern.name == pattern_name
                 text = _outline_text(proj, cfg, func, dec, finder)
                 assert call_name + "(" in text
 
-    def test_is_msvc_guard(self):
-        from angr.analyses.decompiler.known_patterns.pattern import is_cpp_binary, is_msvc_cpp_binary
+    def test_is_msvc_runtime(self):
+        from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
 
-        proj = angr.Project(MSVC_BIN, auto_load_libs=False)
-        assert is_cpp_binary(proj)
-        assert is_msvc_cpp_binary(proj)
+        assert detect_cxx_runtime(angr.Project(self.BIN, auto_load_libs=False)) == MSVC
 
 
-class TestMsvcStlPatternsX86(TestCase):
-    # 32-bit MSVC STL: 4-byte loads, vector offsets 4/8, string _Mysize at +16.
-    # matched by address (no symbols).
+class TestMsvcStlPatternsX86(TestMsvcStlPatterns):
+    # 32-bit MSVC: the SAME templates produce 4-byte loads and vector offsets 4/8.
     ACCESSORS = {
-        0x4012B0: ("std_string_length_x86_msvc", "std::string::length"),
-        0x401520: ("std_string_empty_x86_msvc", "std::string::empty"),
-        0x4012C0: ("std_vector_int_size_x86", "std::vector<int>::size"),
-        0x401530: ("std_vector_int_capacity_x86", "std::vector<int>::capacity"),
-        0x401540: ("std_vector_int_empty_x86", "std::vector<int>::empty"),
-        0x401550: ("std_vector_int_index_x86", "std::vector<int>::operator[]"),
+        0x4012B0: ("std_string_length", "std::string::length"),
+        0x401520: ("std_string_empty", "std::string::empty"),
+        0x4012C0: ("std_vector_int_size", "std::vector<int>::size"),
+        0x401530: ("std_vector_int_capacity", "std::vector<int>::capacity"),
+        0x401540: ("std_vector_int_empty", "std::vector<int>::empty"),
+        0x401550: ("std_vector_int_index", "std::vector<int>::operator[]"),
     }
-
-    def test_msvc_x86_accessors(self):
-        from angr.analyses.decompiler.known_patterns import ALL_STL_X86_PATTERNS
-
-        for addr, (pattern_name, call_name) in self.ACCESSORS.items():
-            with self.subTest(addr=hex(addr)):
-                proj, cfg, func, dec = _decompile(MSVC_X86_BIN, addr=addr)
-                assert proj.arch.name == "X86"
-                finder = _find(proj, func, dec, ALL_STL_X86_PATTERNS)
-                assert len(finder.matches) == 1, f"{addr:#x}: {[m.pattern.name for m in finder.matches]}"
-                assert finder.matches[0].pattern.name == pattern_name
-                text = _outline_text(proj, cfg, func, dec, finder)
-                assert call_name + "(" in text
+    BIN = MSVC_X86_BIN
+    EXPECT_ARCH = "X86"
 
 
 class TestUnorderedStmtSeqDecl(TestCase):
     def test_unordered_matching_is_order_insensitive(self):
         # the WDK and Linux builds emit the init/remove stores in different
-        # orders; a single ordered=False pattern matches both. Confirm the
-        # patterns are declared unordered.
+        # orders; a single ordered=False pattern matches both.
         from angr.analyses.decompiler.known_patterns import INITIALIZE_LIST_HEAD, REMOVE_ENTRY_LIST
+        from angr.analyses.decompiler.known_patterns.context import PatternContext
         from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq
 
-        for p in (INITIALIZE_LIST_HEAD, REMOVE_ENTRY_LIST):
+        ctx = PatternContext("AMD64", 64, 8, "linux", None, False)
+        for t in (INITIALIZE_LIST_HEAD, REMOVE_ENTRY_LIST):
+            p = t.instantiate(ctx)
             assert isinstance(p.pattern, PStmtSeq) and p.pattern.ordered is False
 
 
