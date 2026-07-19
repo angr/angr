@@ -24,6 +24,7 @@ STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_pat
 PB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_protobuf")
 VM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_vecmath")
 MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_stl_msvc_17_x64.exe")
+MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
 
 
 def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = None):
@@ -208,6 +209,32 @@ class TestMsvcStlPatterns(TestCase):
         proj = angr.Project(MSVC_BIN, auto_load_libs=False)
         assert is_cpp_binary(proj)
         assert is_msvc_cpp_binary(proj)
+
+
+class TestMsvcStlPatternsX86(TestCase):
+    # 32-bit MSVC STL: 4-byte loads, vector offsets 4/8, string _Mysize at +16.
+    # matched by address (no symbols).
+    ACCESSORS = {
+        0x4012B0: ("std_string_length_x86_msvc", "std::string::length"),
+        0x401520: ("std_string_empty_x86_msvc", "std::string::empty"),
+        0x4012C0: ("std_vector_int_size_x86", "std::vector<int>::size"),
+        0x401530: ("std_vector_int_capacity_x86", "std::vector<int>::capacity"),
+        0x401540: ("std_vector_int_empty_x86", "std::vector<int>::empty"),
+        0x401550: ("std_vector_int_index_x86", "std::vector<int>::operator[]"),
+    }
+
+    def test_msvc_x86_accessors(self):
+        from angr.analyses.decompiler.known_patterns import ALL_STL_X86_PATTERNS
+
+        for addr, (pattern_name, call_name) in self.ACCESSORS.items():
+            with self.subTest(addr=hex(addr)):
+                proj, cfg, func, dec = _decompile(MSVC_X86_BIN, addr=addr)
+                assert proj.arch.name == "X86"
+                finder = _find(proj, func, dec, ALL_STL_X86_PATTERNS)
+                assert len(finder.matches) == 1, f"{addr:#x}: {[m.pattern.name for m in finder.matches]}"
+                assert finder.matches[0].pattern.name == pattern_name
+                text = _outline_text(proj, cfg, func, dec, finder)
+                assert call_name + "(" in text
 
 
 class TestUnorderedStmtSeqDecl(TestCase):
