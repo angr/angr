@@ -54,6 +54,7 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
+    SimTypeNum,
     SimTypeLongLong,
     SimTypePointer,
     SimTypeShort,
@@ -191,6 +192,27 @@ class ComboRegReferenceWalker(AILBlockRewriter):
                 self.project.arch.memory_endness,
             )
         return expr
+
+
+class _VLABufferBinder(AILBlockViewer):
+    """Map every virtual-variable use of a recovered VLA buffer to its unified array variable.
+
+    AIL expressions are immutable, so the association is recorded in the clinic's :class:`VariableMap`
+    (keyed by the vvar's stable ``varid``) rather than on the expression itself.
+    """
+
+    def __init__(self, buffer_ids, variable, variable_map):
+        super().__init__()
+        self._buffer_ids = buffer_ids
+        self._variable = variable
+        self._variable_map = variable_map
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        if expr.varid in self._buffer_ids:
+            self._variable_map.set_variable(expr, self._variable)
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class Clinic(Analysis):
@@ -722,6 +744,8 @@ class Clinic(Analysis):
         self.arg_vvars = self._init_arg_vvars if self._init_arg_vvars is not None else {}
         self.func_args = {arg_vvar for arg_vvar, _ in self.arg_vvars.values()}
         self._ail_graph = ail_graph
+        # recovered variable-length arrays: (buffer virtual-variable ids, size/dimension Load) per alloca
+        self._vla_allocas: list[tuple[frozenset[int], ailment.Expr.Load]] = []
 
         stages = {
             ClinicStage.MAKE_RETURN_SITES: self._stage_make_return_sites,
@@ -823,6 +847,8 @@ class Clinic(Analysis):
             type_hints=self._type_hints,
         )
         self._rewrite_alloca(self._ail_graph)
+        # recognize & excise GCC's variable-length-array probe idiom while it is still in its clean form
+        self._excise_vla(self._ail_graph)
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
@@ -982,6 +1008,10 @@ class Clinic(Analysis):
         )
 
         self._ail_graph = self._fix_combo_reg_references(self._ail_graph)
+
+        # Bind the excised variable-length arrays to named array variables before the dead-code passes run,
+        # so the leftover address arithmetic and page anchors get cleaned up.
+        self._bind_vla(self._ail_graph, variable_kb)
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
@@ -1357,6 +1387,7 @@ class Clinic(Analysis):
             )
 
         regs |= self._find_regs_compared_against_sp(self._func_graph)
+        regs |= self._find_regs_saving_sp(self._func_graph)
 
         spt = self.project.analyses.StackPointerTracker(
             self.function,
@@ -3860,6 +3891,37 @@ class Clinic(Analysis):
 
         return extra_regs
 
+    def _find_regs_saving_sp(self, func_graph):
+        # Functions with a dynamic stack allocation (VLA / alloca) save the stack pointer into a
+        # callee-saved register on entry (``mov reg, rsp``) and restore it on exit (``mov rsp, reg``).
+        # Unless that register is tracked, the tracker cannot resolve sp after the restore and reports
+        # the whole function as inconsistent, leaking raw sp virtual variables into the output. Track
+        # any register that both receives a copy of sp and is later used to restore it.
+        # TODO: Implement this function for architectures beyond amd64
+        if self.project.arch.name != "AMD64":
+            return set()
+
+        saved_to = set()
+        restored_from = set()
+        for node in func_graph.nodes:
+            block = self.project.factory.block(node.addr, size=node.size).capstone
+            for insn in block.insns:
+                if insn.mnemonic != "mov" or len(insn.operands) != 2:
+                    continue
+                dst, src = insn.operands
+                if dst.type != capstone.x86.X86_OP_REG or src.type != capstone.x86.X86_OP_REG:
+                    continue
+                if src.reg == capstone.x86.X86_REG_RSP and dst.reg != capstone.x86.X86_REG_RBP:
+                    saved_to.add(insn.reg_name(dst.reg))
+                elif dst.reg == capstone.x86.X86_REG_RSP:
+                    restored_from.add(insn.reg_name(src.reg))
+
+        return {
+            self.project.arch.registers[reg_name][0]
+            for reg_name in saved_to & restored_from
+            if reg_name in self.project.arch.registers
+        }
+
     def _rewrite_rust_probestack_call(self, ail_graph):
         for node in ail_graph:
             if not node.statements or ail_graph.out_degree[node] != 1:
@@ -4014,6 +4076,230 @@ class Clinic(Analysis):
                 ail_graph.add_edge(pred, new_node)
             for succ in succs:
                 ail_graph.add_edge(new_node, succ)
+
+    #
+    # Variable-length array (VLA) recovery
+    #
+
+    @staticmethod
+    def _vla_is_noop_touch(stmt) -> bool:
+        # a stack-probe page touch writes back exactly the byte it read: STORE(a, LOAD(a')) with a ~ a'
+        return (
+            isinstance(stmt, ailment.Stmt.Store)
+            and isinstance(stmt.data, ailment.Expr.Load)
+            and stmt.addr.likes(stmt.data.addr)
+        )
+
+    @staticmethod
+    def _vla_is_stack_ref(expr) -> bool:
+        # ``&stack_slot`` (post variable-recovery) or a raw StackBaseOffset
+        if isinstance(expr, ailment.Expr.StackBaseOffset):
+            return True
+        return (
+            isinstance(expr, ailment.Expr.UnaryOp)
+            and expr.op == "Reference"
+            and isinstance(expr.operand, ailment.Expr.VirtualVariable)
+            and expr.operand.was_stack
+        )
+
+    @staticmethod
+    def _vla_find_size_source(expr, defs):
+        # walk a rounded allocation-size expression back to the innermost memory Load — the source
+        # dimension (e.g. the ``e->bs`` field load feeding ``((bs + 15) >> 4) * 16``). Returns a tuple of
+        # (the id of the virtual variable whose definition yields that Load, the Load itself). AIL
+        # expressions are re-wrapped by intermediate passes, so we track the owning varid during the walk
+        # rather than matching the Load object by identity afterwards.
+        seen = set()
+        stack = [(expr, None)]  # (sub-expression, id of the vvar it was reached through)
+        while stack:
+            e, owner = stack.pop()
+            if isinstance(e, ailment.Expr.Load):
+                return owner, e
+            if isinstance(e, ailment.Expr.VirtualVariable):
+                if e.varid in defs and e.varid not in seen:
+                    seen.add(e.varid)
+                    stack.append((defs[e.varid], e.varid))
+            elif isinstance(e, ailment.Expr.Convert):
+                stack.append((e.operand, owner))
+            elif isinstance(e, ailment.Expr.UnaryOp):
+                stack.append((e.operand, owner))
+            elif isinstance(e, ailment.Expr.BinaryOp):
+                for operand in e.operands:
+                    stack.append((operand, owner))
+        return None, None
+
+    def _is_sp_vvar(self, vv) -> bool:
+        return (
+            isinstance(vv, ailment.Expr.VirtualVariable)
+            and vv.was_reg
+            and vv.reg_offset == self.project.arch.sp_offset
+        )
+
+    def _excise_vla(self, ail_graph) -> None:
+        """
+        Detect GCC's inline stack-probe alloca idiom and excise the probe machinery.
+
+        GCC lowers ``uint8_t blk[e->bs];`` to: align rsp (``and rsp, ~0xfff``), a page-touch probe loop,
+        and a remainder ``sub rsp, round16(bs)`` — the resulting stack-pointer value is the buffer. angr
+        would otherwise leak that value as raw stack-pointer virtual variables (``vvar_*{r48}``) and render
+        the page probe as ``*(p) = *(p)`` no-ops.
+
+        This runs at ``_rewrite_alloca`` time (before SSA-level-1 / variable recovery), while the idiom is
+        still in its clean, un-simplified form: the probe self-loop still carries its page touch and the
+        buffer base is a plain ``StackBaseOffset - <size>`` subtraction. We remove the probe loop and every
+        no-op touch, and record the buffer virtual-variable ids and the size value's id for ``_bind_vla`` to
+        turn into a named variable-length array once variable recovery has run.
+        """
+        if self.project.arch.name != "AMD64":
+            return
+
+        # 1. locate the probe self-loop: a self-edge block whose body contains a no-op page touch
+        probe_node = None
+        for node in ail_graph:
+            if node in ail_graph.successors(node) and any(self._vla_is_noop_touch(s) for s in node.statements):
+                probe_node = node
+                break
+        if probe_node is None:
+            return
+
+        # 2. collect every register-SSA definition, then find the alloca base: an SP-category vvar
+        #    defined as ``<stack ref> - <non-constant>`` (the aligned buffer pointer)
+        defs = {
+            stmt.dst.varid: stmt.src
+            for node in ail_graph
+            for stmt in node.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+        }
+        base_varid = None
+        size_load = None
+        for node in ail_graph:
+            for stmt in node.statements:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and self._is_sp_vvar(stmt.dst)
+                    and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                    and stmt.src.op == "Sub"
+                    and self._vla_is_stack_ref(stmt.src.operands[0])
+                    and not isinstance(stmt.src.operands[1], ailment.Expr.Const)
+                ):
+                    base_varid = stmt.dst.varid
+                    _, size_load = self._vla_find_size_source(stmt.src.operands[1], defs)
+                    break
+            if base_varid is not None:
+                break
+        if base_varid is None or size_load is None:
+            return
+
+        # 3. grow the buffer-pointer set: the base plus any SP vvar defined as ``buffer ± const``
+        buffer_ids = {base_varid}
+        changed = True
+        while changed:
+            changed = False
+            for node in ail_graph:
+                for stmt in node.statements:
+                    if not (
+                        isinstance(stmt, ailment.Stmt.Assignment)
+                        and self._is_sp_vvar(stmt.dst)
+                        and stmt.dst.varid not in buffer_ids
+                    ):
+                        continue
+                    src = stmt.src
+                    ref = None
+                    if isinstance(src, ailment.Expr.VirtualVariable):
+                        ref = src.varid
+                    elif (
+                        isinstance(src, ailment.Expr.BinaryOp)
+                        and src.op in ("Add", "Sub")
+                        and isinstance(src.operands[0], ailment.Expr.VirtualVariable)
+                        and isinstance(src.operands[1], ailment.Expr.Const)
+                    ):
+                        ref = src.operands[0].varid
+                    if ref in buffer_ids:
+                        buffer_ids.add(stmt.dst.varid)
+                        changed = True
+
+        # 4. remove every no-op page touch (the probe loop's and the remainder's)
+        for node in ail_graph:
+            node.statements = [s for s in node.statements if not self._vla_is_noop_touch(s)]
+
+        # 5. remove the (now no-op) probe self-loop: drop its self-edge, empty it, and let
+        #    remove_empty_nodes splice it out and repair the guard's conditional jump
+        probe_node.statements = []
+        if ail_graph.has_edge(probe_node, probe_node):
+            ail_graph.remove_edge(probe_node, probe_node)
+        self.remove_empty_nodes(ail_graph)
+
+        # splicing the loop out collapses the entry guard into ``if (c) goto X else goto X``; turn any such
+        # redundant conditional jump into a plain goto so structuring does not choke on it
+        for node in ail_graph:
+            if node.statements and isinstance(node.statements[-1], ailment.Stmt.ConditionalJump):
+                cj = node.statements[-1]
+                if (
+                    isinstance(cj.true_target, ailment.Expr.Const)
+                    and isinstance(cj.false_target, ailment.Expr.Const)
+                    and cj.true_target.value == cj.false_target.value
+                ):
+                    node.statements[-1] = ailment.Stmt.Jump(
+                        cj.idx, cj.true_target, target_idx=cj.true_target_idx, **cj.tags
+                    )
+
+        # record for _bind_vla (post variable-recovery). The size Load is stored as-is: codegen resolves its
+        # inner pointer through the varid-keyed variable map, so the snapshot renders correctly (e.g. e->bs)
+        # regardless of the intervening simplifications.
+        self._vla_allocas.append((frozenset(buffer_ids), size_load))
+
+    def _bind_vla(self, ail_graph, variable_kb) -> None:
+        """
+        Turn each excised alloca (recorded by :meth:`_excise_vla`) into a named variable-length array.
+
+        Runs after variable recovery. For every recorded buffer, mint one array variable, delete the
+        leftover buffer-pointer address arithmetic, map every surviving use of the buffer virtual variables
+        to it, and attach its runtime dimension (the recorded size ``Load``, e.g. ``e->bs``) so codegen
+        renders ``uint8_t <name>[e->bs]``.
+        """
+        if not self._vla_allocas:
+            return
+
+        varman = variable_kb.variables[self.function.addr]
+        reg_base = 0x100000
+
+        for buffer_ids, size_load in self._vla_allocas:
+            base_varid = min(buffer_ids)
+            # leave the buffer unnamed so it is auto-named like any other local (the binary carries no name
+            # for a stack VLA); the ident stays ``vvar_<int>`` so the naming pass can parse it below
+            buf = SimRegisterVariable(reg_base + base_varid, self.project.arch.bytes, ident=f"vvar_{reg_base + base_varid}")
+            varman.add_variable("register", reg_base + base_varid, buf)
+            varman.set_unified_variable(buf, buf)
+            varman.set_variable_type(
+                buf, SimTypeArray(SimTypeNum(8, signed=False), length=None).with_arch(self.project.arch), mark_manual=True
+            )
+            varman.array_length_exprs[buf] = size_load
+
+            # delete the leftover buffer-pointer address arithmetic (buf = <align>; buf -= 16; ...)
+            for node in ail_graph:
+                node.statements = [
+                    s
+                    for s in node.statements
+                    if not (
+                        isinstance(s, ailment.Stmt.Assignment)
+                        and isinstance(s.dst, ailment.Expr.VirtualVariable)
+                        and s.dst.varid in buffer_ids
+                    )
+                ]
+
+            # map every surviving buffer-vvar use to the array variable so codegen renders it as the array
+            binder = _VLABufferBinder(buffer_ids, buf, self.variable_map)
+            for node in ail_graph:
+                binder.walk(node)
+
+        # the default-naming pass already ran during variable recovery, before these buffers existed; re-run
+        # it (reset=False keeps every existing name) so the new buffers get the next ``v<n>`` default names
+        varman.assign_unified_variable_names(
+            labels=self.kb.labels,
+            arg_names=list(self.function.prototype.arg_names) if self.function.prototype else None,
+            reset=False,
+            func_blocks=list(ail_graph),
+        )
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
         if self.variable_kb is None:

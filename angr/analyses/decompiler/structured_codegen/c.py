@@ -586,11 +586,28 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
             )
 
+            vla_dim = self.codegen._array_length_cexprs.get(variable)
+
             for i, var_type in enumerate(vartypes):
                 if i == 0:
-                    yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
+                    if (
+                        vla_dim is not None
+                        and isinstance(var_type, SimTypeArray)
+                        and var_type.length is None
+                    ):
+                        # variable-length array: render ``elem_type name[dim]`` with the runtime dimension
+                        yield from type_to_c_repr_chunks(var_type.elem_type, name=name, name_type=cvariable)
+                        yield "[", None
+                        yield from vla_dim.c_repr_chunks()
+                        yield "]", None
+                    else:
+                        yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
                     yield ";  // ", None
-                    yield variable.loc_repr(self.codegen.project.arch), None
+                    if vla_dim is not None:
+                        # the buffer lives at a synthesized register slot; show its origin instead
+                        yield "alloca", None
+                    else:
+                        yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
                 else:
                     if i == 1:
@@ -2898,6 +2915,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label: dict[tuple[int, int | None], CLabel] = {}
         self.cfunc: CFunction | None = None
         self.cexterns: set[CVariable] | None = None
+        self._array_length_cexprs: dict[SimVariable, CExpression] = {}
         self.display_notes = display_notes
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
@@ -2944,6 +2962,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self.reset_idx_counters()
         obj = self._handle(self._sequence)
+
+        # render the runtime dimension of every variable-length array (e.g. ``blk[e->bs]``) through the
+        # regular expression handler, so the field name/type match the rest of the output
+        self._array_length_cexprs = {
+            var: self._handle(dim_expr)
+            for var, dim_expr in self._variable_kb.variables[self._func.addr].array_length_exprs.items()
+        }
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
