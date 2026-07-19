@@ -590,11 +590,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
-                    if (
-                        vla_dim is not None
-                        and isinstance(var_type, SimTypeArray)
-                        and var_type.length is None
-                    ):
+                    if vla_dim is not None and isinstance(var_type, SimTypeArray) and var_type.length is None:
                         # variable-length array: render ``elem_type name[dim]`` with the runtime dimension
                         yield from type_to_c_repr_chunks(var_type.elem_type, name=name, name_type=cvariable)
                         yield "[", None

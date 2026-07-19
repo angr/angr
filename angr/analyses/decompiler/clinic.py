@@ -54,8 +54,8 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
-    SimTypeNum,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypePointer,
     SimTypeShort,
 )
@@ -4119,9 +4119,7 @@ class Clinic(Analysis):
                 if e.varid in defs and e.varid not in seen:
                     seen.add(e.varid)
                     stack.append((defs[e.varid], e.varid))
-            elif isinstance(e, ailment.Expr.Convert):
-                stack.append((e.operand, owner))
-            elif isinstance(e, ailment.Expr.UnaryOp):
+            elif isinstance(e, ailment.Expr.Convert) or isinstance(e, ailment.Expr.UnaryOp):
                 stack.append((e.operand, owner))
             elif isinstance(e, ailment.Expr.BinaryOp):
                 for operand in e.operands:
@@ -4130,9 +4128,7 @@ class Clinic(Analysis):
 
     def _is_sp_vvar(self, vv) -> bool:
         return (
-            isinstance(vv, ailment.Expr.VirtualVariable)
-            and vv.was_reg
-            and vv.reg_offset == self.project.arch.sp_offset
+            isinstance(vv, ailment.Expr.VirtualVariable) and vv.was_reg and vv.reg_offset == self.project.arch.sp_offset
         )
 
     def _excise_vla(self, ail_graph) -> None:
@@ -4267,11 +4263,15 @@ class Clinic(Analysis):
             base_varid = min(buffer_ids)
             # leave the buffer unnamed so it is auto-named like any other local (the binary carries no name
             # for a stack VLA); the ident stays ``vvar_<int>`` so the naming pass can parse it below
-            buf = SimRegisterVariable(reg_base + base_varid, self.project.arch.bytes, ident=f"vvar_{reg_base + base_varid}")
+            buf = SimRegisterVariable(
+                reg_base + base_varid, self.project.arch.bytes, ident=f"vvar_{reg_base + base_varid}"
+            )
             varman.add_variable("register", reg_base + base_varid, buf)
             varman.set_unified_variable(buf, buf)
             varman.set_variable_type(
-                buf, SimTypeArray(SimTypeNum(8, signed=False), length=None).with_arch(self.project.arch), mark_manual=True
+                buf,
+                SimTypeArray(SimTypeNum(8, signed=False), length=None).with_arch(self.project.arch),
+                mark_manual=True,
             )
             varman.array_length_exprs[buf] = size_load
 
