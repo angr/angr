@@ -15,7 +15,7 @@ import angr
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.typehoon.translator import TypeTranslator
-from angr.analyses.typehoon.typeconsts import Float32, Float64, Int32, Pointer64, Struct
+from angr.analyses.typehoon.typeconsts import Float32, Float64, Function, Int32, Int64, Pointer64, Struct
 from angr.analyses.typehoon.typevars import (
     DerivedTypeVariable,
     FuncIn,
@@ -461,6 +461,29 @@ class TestTypehoon(unittest.TestCase):
         ext_ty = self._assert_extern_is_function_pointer(proj, "_dl_signal_error", "_dl_error_catch_tsd")
         returnty = ext_ty.pts_to.returnty
         assert returnty is not None and not isinstance(returnty, SimTypeBottom)
+
+    def test_fnptr_cell_funcin_only_returns_void(self):
+        # a called cell whose return value is unused emits only FuncIn edges (plus the whole-cell
+        # null-check load); the solver must still type it as a function pointer, and with no
+        # FuncOut slot the recovered function type renders as returning void
+        func_f = TypeVariable(name="F")
+        cell = TypeVariable(name="cell")
+        arg = TypeVariable(name="arg")
+        constraints = {
+            func_f: {
+                Subtype(arg, DerivedTypeVariable(cell, FuncIn(0))),
+                Subtype(arg, Int32()),
+                Subtype(DerivedTypeVariable(cell, None, labels=[Load(), HasField(64, 0)]), Int64()),
+            },
+        }
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(constraints, func_f)
+        sol = typehoon.solution[cell]
+        assert isinstance(sol, Pointer64) and isinstance(sol.basetype, Function)
+        assert sol.basetype.outputs == []
+        simsol = typehoon.simtypes_solution[cell]
+        assert isinstance(simsol, SimTypePointer) and isinstance(simsol.pts_to, SimTypeFunction)
+        assert simsol.pts_to.returnty is None or isinstance(simsol.pts_to.returnty, SimTypeBottom)
 
     def test_fnptr_global_guarded_hook_call(self):
         # glibc's __after_morecore_hook: `if (__after_morecore_hook) (*__after_morecore_hook)();`
