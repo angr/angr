@@ -11,9 +11,8 @@ The MSVC STL instead stores the string in ``_Mypair._Myval2`` as ``{_Bx
 inlined accessor on x64 Windows is an 8-byte load at offset 16.
 
 The libstdc++ variant is calibrated against
-tests/x86_64/decompiler/known_patterns_stl (g++ 12.2.0 -O2). The MSVC variant
-follows the documented x64 layout; no MSVC toolchain is available to build a
-calibration binary, so it is covered by DSL-level tests only.
+tests/x86_64/decompiler/known_patterns_stl (g++ 12.2.0 -O2); the MSVC variant
+against tests/x86_64/windows/known_patterns_stl_msvc_17_x64.exe (VS 2022 /O2).
 """
 
 from __future__ import annotations
@@ -36,9 +35,6 @@ STD_STRING_LENGTH = KnownPattern(
     binary_guard=is_cpp_binary,
 )
 
-# TODO: (fish) build an MSVC-compiled calibration binary (cl.exe /O2, std::string::length
-# behind a noinline extern "C" accessor), commit it to the binaries repo, calibrate the
-# +16 load shape against it, and add find/outline tests like the libstdc++ ones.
 STD_STRING_LENGTH_MSVC = KnownPattern(
     name="std_string_length_msvc",
     display_name="std::string::length",

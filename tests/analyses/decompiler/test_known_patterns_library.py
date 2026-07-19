@@ -23,13 +23,14 @@ LINUX_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_p
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 PB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_protobuf")
 VM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_vecmath")
+MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_stl_msvc_17_x64.exe")
 
 
-def _decompile(bin_path: str, func_name: str):
+def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = None):
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
     proj.analyses.CompleteCallingConventions(cfg=cfg.model)
-    func = cfg.functions.function(name=func_name)
+    func = cfg.functions.function(name=func_name) if func_name is not None else cfg.functions.function(addr=addr)
     assert func is not None
     dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
     assert dec.codegen is not None and dec.codegen.text is not None
@@ -168,6 +169,45 @@ class TestVectorMathPatterns(TestCase):
         proj, _, func, dec = _decompile(VM_BIN, "vec_dot3")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert not any(m.pattern in ALL_VECTOR_MATH_PATTERNS for m in finder.matches)
+
+
+class TestMsvcStlPatterns(TestCase):
+    # the MSVC STL binary has no symbols (no PDB), so the extern "C" accessors
+    # are matched by address. The MSVC std::string layout puts _Mysize at +16
+    # (length/empty variants); std::vector shares the libstdc++ three-pointer
+    # layout, so the vector patterns match unchanged on Windows.
+    ACCESSORS = {
+        0x1400013A0: ("std_string_length_msvc", "std::string::length"),
+        0x140001690: ("std_string_empty_msvc", "std::string::empty"),
+        0x1400013B0: ("std_vector_int_size", "std::vector<int>::size"),
+        0x1400016A0: ("std_vector_int_capacity", "std::vector<int>::capacity"),
+        0x1400016B0: ("std_vector_int_empty", "std::vector<int>::empty"),
+        0x1400016C0: ("std_vector_int_index", "std::vector<int>::operator[]"),
+    }
+
+    def test_msvc_accessors(self):
+        from angr.analyses.decompiler.known_patterns import (
+            ALL_STL_CONTAINER_PATTERNS,
+            STD_STRING_LENGTH_MSVC,
+            STD_VECTOR_INT_SIZE,
+        )
+
+        patterns = [STD_STRING_LENGTH_MSVC, STD_VECTOR_INT_SIZE, *ALL_STL_CONTAINER_PATTERNS]
+        for addr, (pattern_name, call_name) in self.ACCESSORS.items():
+            with self.subTest(addr=hex(addr)):
+                proj, cfg, func, dec = _decompile(MSVC_BIN, addr=addr)
+                finder = _find(proj, func, dec, patterns)
+                assert len(finder.matches) == 1, f"{addr:#x}: {[m.pattern.name for m in finder.matches]}"
+                assert finder.matches[0].pattern.name == pattern_name
+                text = _outline_text(proj, cfg, func, dec, finder)
+                assert call_name + "(" in text
+
+    def test_is_msvc_guard(self):
+        from angr.analyses.decompiler.known_patterns.pattern import is_cpp_binary, is_msvc_cpp_binary
+
+        proj = angr.Project(MSVC_BIN, auto_load_libs=False)
+        assert is_cpp_binary(proj)
+        assert is_msvc_cpp_binary(proj)
 
 
 class TestUnorderedStmtSeqDecl(TestCase):

@@ -10,12 +10,16 @@ plain pointer/array code).
 from __future__ import annotations
 
 from .dsl import PBinOp, PConst, PLoad, PVVar
-from .pattern import CppRef, KnownPattern, PatternParam, is_cpp_binary
+from .pattern import CppRef, KnownPattern, PatternParam, is_cpp_binary, is_msvc_cpp_binary
 from .std_string_length import STD_BASIC_STRING
 from .std_vector_size import STD_VECTOR_INT
 
 _AMD64 = ("AMD64",)
 _LINUX = ("linux",)
+# std::vector uses the same three-pointer layout in libstdc++ and the MSVC STL,
+# so the vector accessors apply on both platforms.
+_LINUX_WIN = ("linux", "win32", "windows")
+_WIN = ("win32", "windows")
 
 
 def _add(cap: str, off: int) -> PBinOp:
@@ -32,7 +36,7 @@ STD_VECTOR_INT_EMPTY = KnownPattern(
     params=(PatternParam("v", type=CppRef(STD_VECTOR_INT)),),
     returnty="int",
     arches=_AMD64,
-    platforms=_LINUX,
+    platforms=_LINUX_WIN,
     binary_guard=is_cpp_binary,
 )
 
@@ -53,7 +57,7 @@ STD_VECTOR_INT_CAPACITY = KnownPattern(
     params=(PatternParam("v", type=CppRef(STD_VECTOR_INT)),),
     returnty="unsigned long long",
     arches=_AMD64,
-    platforms=_LINUX,
+    platforms=_LINUX_WIN,
     binary_guard=is_cpp_binary,
 )
 
@@ -71,7 +75,7 @@ STD_VECTOR_INT_INDEX = KnownPattern(
     params=(PatternParam("v", type=CppRef(STD_VECTOR_INT)), PatternParam("i")),
     returnty="int",
     arches=_AMD64,
-    platforms=_LINUX,
+    platforms=_LINUX_WIN,
     binary_guard=is_cpp_binary,
     enabled_by_default=False,
 )
@@ -93,8 +97,26 @@ STD_STRING_EMPTY = KnownPattern(
 )
 
 
+# std::string::empty(), MSVC layout: _Mysize at +16  ==  Load(s+16) CmpEQ 0
+# Calibrated against tests/x86_64/windows/known_patterns_stl_msvc_17_x64.exe.
+STD_STRING_EMPTY_MSVC = KnownPattern(
+    name="std_string_empty_msvc",
+    display_name="std::string::empty",
+    call_name="std::string::empty",
+    pattern=PBinOp("CmpEQ", (PLoad(_add("s", 16), size=8), PConst(0))),
+    params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
+    returnty="int",
+    arches=_AMD64,
+    platforms=_WIN,
+    binary_guard=is_msvc_cpp_binary,
+    enabled_by_default=False,
+)
+
+
 # std::string::operator[](i): *(_M_p + i)  =  Load(Load(s) + i, size=1)
 #   (opt-in: overlaps plain char* indexing)
+# Note: the MSVC std::string::operator[] has an SSO branch (inline buffer vs
+# heap pointer), so it does not reduce to a clean load and has no MSVC variant.
 STD_STRING_INDEX = KnownPattern(
     name="std_string_index",
     display_name="std::string::operator[]",
@@ -114,5 +136,6 @@ ALL_STL_CONTAINER_PATTERNS = [
     STD_VECTOR_INT_CAPACITY,
     STD_VECTOR_INT_INDEX,
     STD_STRING_EMPTY,
+    STD_STRING_EMPTY_MSVC,
     STD_STRING_INDEX,
 ]
