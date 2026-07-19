@@ -1,49 +1,85 @@
-"""Inlined std::string::length() / size().
+"""Inlined std::string::length() / size() and empty().
 
-libstdc++ (new ABI) lays out std::basic_string as ``{_M_p at +0,
-_M_string_length at +8, union at +16}``; the inlined accessor is a single
-8-byte load at offset 8 off the string pointer:
+The length field is an 8- or 4-byte load of the string's size member. libstdc++
+keeps ``_M_string_length`` one word past the data pointer; the MSVC STL keeps
+``_Mysize`` behind a fixed 16-byte SSO buffer union (see :mod:`.layouts`). One
+template covers all of {libstdc++, MSVC} x {32, 64}-bit.
 
-    Load(addr=(s Add 8<64>), size=8)
-
-The MSVC STL instead stores the string in ``_Mypair._Myval2`` as ``{_Bx
-(16-byte buf/pointer union) at +0, _Mysize at +16, _Myres at +24}``, so the
-inlined accessor on x64 Windows is an 8-byte load at offset 16.
-
-The libstdc++ variant is calibrated against
-tests/x86_64/decompiler/known_patterns_stl (g++ 12.2.0 -O2); the MSVC variant
-against tests/x86_64/windows/known_patterns_stl_msvc_17_x64.exe (VS 2022 /O2).
+Calibrated against tests/x86_64/decompiler/known_patterns_stl (g++ 12.2.0 -O2),
+tests/x86_64/windows/known_patterns_stl_msvc_17_x64.exe and
+tests/i386/windows/known_patterns_stl_msvc_17_x86.exe (VS 2022 /O2).
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from .context import CPP, INTEL, LIBSTDCXX, size_t_typename
 from .dsl import PBinOp, PConst, PLoad, PVVar
-from .pattern import CppRef, KnownPattern, PatternParam, is_cpp_binary, is_msvc_cpp_binary
+from .layouts import string_data_offset, string_size_offset
+from .pattern import CppRef, KnownPattern, PatternParam
+from .templates import make_template
+
+if TYPE_CHECKING:
+    from .context import PatternContext
 
 STD_BASIC_STRING = "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>"
 
-STD_STRING_LENGTH = KnownPattern(
-    name="std_string_length",
-    display_name="std::string::length",
-    call_name="std::string::length",
-    pattern=PLoad(addr=PBinOp("Add", (PVVar("s"), PConst(8))), size=8),
-    params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
-    returnty="unsigned long long",
-    arches=("AMD64",),
-    platforms=("linux",),
-    # a bare Load(s + 8) is common in plain C code; require C++ evidence
-    binary_guard=is_cpp_binary,
+
+def _string_field(cap: str, off: int, size: int) -> PLoad:
+    addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
+    return PLoad(addr, size=size)
+
+
+def _build_string_length(ctx: PatternContext) -> KnownPattern:
+    return KnownPattern(
+        name="std_string_length",
+        display_name="std::string::length",
+        call_name="std::string::length",
+        pattern=_string_field("s", string_size_offset(ctx), ctx.word_size),
+        params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
+        returnty=size_t_typename(ctx.bits),
+    )
+
+
+def _build_string_empty(ctx: PatternContext) -> KnownPattern:
+    return KnownPattern(
+        name="std_string_empty",
+        display_name="std::string::empty",
+        call_name="std::string::empty",
+        pattern=PBinOp("CmpEQ", (_string_field("s", string_size_offset(ctx), ctx.word_size), PConst(0))),
+        params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
+        returnty="int",
+    )
+
+
+def _build_string_index(ctx: PatternContext) -> KnownPattern:
+    # *(_M_p + i) = Load(Load(s) + i, size=1); MSVC has an SSO branch, hence
+    # libstdc++-only.
+    data = _string_field("s", string_data_offset(ctx), ctx.word_size)
+    return KnownPattern(
+        name="std_string_index",
+        display_name="std::string::operator[]",
+        call_name="std::string::operator[]",
+        pattern=PLoad(PBinOp("Add", (data, PVVar("i"))), size=1),
+        params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)), PatternParam("i")),
+        returnty="char",
+    )
+
+
+STD_STRING_LENGTH = make_template("std::string::length", _build_string_length, arches=INTEL, languages=(CPP,))
+
+# opt-in: "field == 0" is generic
+STD_STRING_EMPTY = make_template(
+    "std::string::empty", _build_string_empty, arches=INTEL, languages=(CPP,), enabled_by_default=False
 )
 
-STD_STRING_LENGTH_MSVC = KnownPattern(
-    name="std_string_length_msvc",
-    display_name="std::string::length",
-    call_name="std::string::length",
-    pattern=PLoad(addr=PBinOp("Add", (PVVar("s"), PConst(16))), size=8),
-    params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
-    returnty="unsigned long long",
-    arches=("AMD64",),
-    platforms=("win32", "windows"),
-    # mingw PEs use libstdc++ layouts; require MSVC-STL evidence specifically
-    binary_guard=is_msvc_cpp_binary,
+# opt-in: overlaps plain char* indexing; libstdc++ only (MSVC has an SSO branch)
+STD_STRING_INDEX = make_template(
+    "std::string::operator[]",
+    _build_string_index,
+    arches=INTEL,
+    languages=(CPP,),
+    runtimes=(LIBSTDCXX,),
+    enabled_by_default=False,
 )

@@ -1,24 +1,23 @@
 """3-component float vector math (glm / DirectXMath / game-graphics code).
 
-Scalar float arithmetic compiles to SSE scalar-in-vector ops, which angr models
-as ``MulV``/``AddV`` on 128-bit registers with ``Conv(32->128, Load(..., 4))``
-operands, the result taken with ``Extract(..., 64@0)``:
-
-    dot3(a,b) = a.x*b.x + a.y*b.y + a.z*b.z
-      = Extract( AddV(AddV(MulV(*a,*b), MulV(*(a+4),*(b+4))), MulV(*(a+8),*(b+8))), 64@0 )
-
-Calibrated against tests/x86_64/decompiler/known_patterns_vecmath
-(g++ 12.2.0 -O2 -fno-tree-vectorize). The Conv wrappers are skipped by the
-matcher; MulV/AddV are marked commutative. These are opt-in
-(``enabled_by_default=False``): FP arithmetic shapes are sensitive to compiler
-and vectorization, and the association captured here is the left-associative
-form gcc emits.
+Scalar float arithmetic compiles to SSE MulV/AddV on 128-bit registers with
+Conv(32->128, Load(..., 4)) operands under Extract(..., 64@0). Intel-SSE
+specific (float width is 4 bytes regardless of pointer size), so these are not
+word-scaled. Opt-in; calibrated against
+tests/x86_64/decompiler/known_patterns_vecmath (g++ -O2 -fno-tree-vectorize).
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from .context import INTEL
 from .dsl import PBinOp, PConst, PLoad, PVVar
 from .pattern import KnownPattern, PatternParam
+from .templates import make_template
+
+if TYPE_CHECKING:
+    from .context import PatternContext
 
 
 def _f(cap: str, off: int) -> PLoad:
@@ -34,40 +33,37 @@ def _add(x: PBinOp, y: PBinOp) -> PBinOp:
     return PBinOp("AddV", (x, y), commutative=True)
 
 
-# dot(a,b) = a.x*b.x + a.y*b.y + a.z*b.z
-VEC_DOT3 = KnownPattern(
-    name="vec_dot3",
-    display_name="dot3",
-    call_name="dot3",
-    pattern=_add(
-        _add(_mul(_f("a", 0), _f("b", 0)), _mul(_f("a", 4), _f("b", 4))),
-        _mul(_f("a", 8), _f("b", 8)),
-    ),
-    params=(PatternParam("a"), PatternParam("b")),
-    returnty="float",
-    arches=("AMD64",),
-    enabled_by_default=False,
-)
+def _build_dot3(ctx: PatternContext) -> KnownPattern:
+    return KnownPattern(
+        name="vec_dot3",
+        display_name="dot3",
+        call_name="dot3",
+        pattern=_add(
+            _add(_mul(_f("a", 0), _f("b", 0)), _mul(_f("a", 4), _f("b", 4))),
+            _mul(_f("a", 8), _f("b", 8)),
+        ),
+        params=(PatternParam("a"), PatternParam("b")),
+        returnty="float",
+    )
 
 
-# length_sq(a) = a.x*a.x + a.y*a.y + a.z*a.z  (dot with itself)
-VEC_LENGTH_SQ = KnownPattern(
-    name="vec_length_sq",
-    display_name="length_sq",
-    call_name="length_sq",
-    pattern=_add(
-        _add(_mul(_f("a", 0), _f("a", 0)), _mul(_f("a", 4), _f("a", 4))),
-        _mul(_f("a", 8), _f("a", 8)),
-    ),
-    params=(PatternParam("a"),),
-    returnty="float",
-    arches=("AMD64",),
-    enabled_by_default=False,
-)
+def _build_length_sq(ctx: PatternContext) -> KnownPattern:
+    return KnownPattern(
+        name="vec_length_sq",
+        display_name="length_sq",
+        call_name="length_sq",
+        pattern=_add(
+            _add(_mul(_f("a", 0), _f("a", 0)), _mul(_f("a", 4), _f("a", 4))),
+            _mul(_f("a", 8), _f("a", 8)),
+        ),
+        params=(PatternParam("a"),),
+        returnty="float",
+    )
 
 
-# length_sq is registered first so it wins over dot3 on a dot-with-itself.
-ALL_VECTOR_MATH_PATTERNS = [
-    VEC_LENGTH_SQ,
-    VEC_DOT3,
-]
+# length_sq registered before dot3 so it wins on a dot-with-itself. Not
+# language-gated: scalar vector math appears in C as well as C++.
+VEC_LENGTH_SQ = make_template("length_sq", _build_length_sq, arches=INTEL, enabled_by_default=False)
+VEC_DOT3 = make_template("dot3", _build_dot3, arches=INTEL, enabled_by_default=False)
+
+ALL_VECTOR_MATH_TEMPLATES = [VEC_LENGTH_SQ, VEC_DOT3]

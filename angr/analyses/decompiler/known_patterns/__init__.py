@@ -1,10 +1,19 @@
-"""Known code patterns: declarative descriptions of library/macro idioms that
-compilers inline, and machinery (KnownPatternFinder) to find them in Clinic AIL
-graphs and outline them back into calls."""
+"""Known code patterns: context-aware, declarative descriptions of library/macro
+idioms that compilers inline, plus machinery (KnownPatternFinder) to find them
+in Clinic AIL graphs and outline them back into calls.
+
+Each idiom is defined once as a :class:`KnownPatternTemplate` that instantiates
+itself into a concrete :class:`KnownPattern` for the target's
+:class:`PatternContext` (architecture / platform / C++ runtime), so a single
+definition covers 32- and 64-bit, libstdc++ and MSVC, etc.
+"""
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .containing_record import CONTAINING_RECORD_PATTERN
+from .context import PatternContext
 from .dsl import (
     PAny,
     PAssign,
@@ -25,97 +34,124 @@ from .dsl import (
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .generator import PatternGenerationError, PatternGenerator
 from .linked_list import (
-    ALL_LINKED_LIST_PATTERNS,
+    ALL_LINKED_LIST_TEMPLATES,
     INITIALIZE_LIST_HEAD,
     IS_LIST_EMPTY,
     REMOVE_ENTRY_LIST,
 )
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
-from .protobuf_hasbits import ALL_PROTOBUF_PATTERNS
-from .std_string_length import STD_STRING_LENGTH, STD_STRING_LENGTH_MSVC
-from .std_swap import STD_SWAP_8
+from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
+from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
+from .std_swap import STD_SWAP
 from .std_vector_size import (
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_SHORT_SIZE,
-    make_std_vector_size_pattern,
+    make_std_vector_size_template,
 )
-from .stl_containers import ALL_STL_CONTAINER_PATTERNS
-from .stl_x86 import ALL_STL_X86_PATTERNS
-from .vector_math import ALL_VECTOR_MATH_PATTERNS
+from .stl_containers import STD_VECTOR_INT_CAPACITY, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
+from .templates import KnownPatternTemplate, make_template
+from .vector_math import ALL_VECTOR_MATH_TEMPLATES
 
-ALL_KNOWN_PATTERNS: list[KnownPattern] = []
-KNOWN_PATTERNS_BY_CALL_NAME: dict[str, KnownPattern] = {}
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
-
-def register_known_pattern(pattern: KnownPattern) -> None:
-    """Register a KnownPattern so that finders and the decompiler pipeline can
-    use it, and so that its call prototype is applied wherever its synthesized
-    call appears.
-
-    Several patterns may share a call name (e.g. libstdc++ and MSVC layout
-    variants of the same accessor) as long as their call signatures agree,
-    since prototypes are applied by call name; the first registered pattern
-    provides the prototype."""
-    existing = KNOWN_PATTERNS_BY_CALL_NAME.get(pattern.call_name)
-    if existing is not None:
-        same_signature = (
-            existing.params == pattern.params
-            and existing.returnty == pattern.returnty
-            and existing.returnty_factory is pattern.returnty_factory
-            and existing.extra_args == pattern.extra_args
-        )
-        if not same_signature:
-            raise ValueError(
-                f"a known pattern with call name {pattern.call_name!r} and a different call signature "
-                f"is already registered"
-            )
-    ALL_KNOWN_PATTERNS.append(pattern)
-    if existing is None:
-        KNOWN_PATTERNS_BY_CALL_NAME[pattern.call_name] = pattern
+ALL_KNOWN_PATTERN_TEMPLATES: list[KnownPatternTemplate] = []
+TEMPLATE_BY_CALL_NAME: dict[str, KnownPatternTemplate] = {}
 
 
-register_known_pattern(STD_STRING_LENGTH)
-register_known_pattern(STD_STRING_LENGTH_MSVC)
-register_known_pattern(STD_VECTOR_SHORT_SIZE)
-register_known_pattern(STD_VECTOR_INT_SIZE)
-register_known_pattern(STD_VECTOR_LONG_LONG_SIZE)
-register_known_pattern(STD_SWAP_8)
-register_known_pattern(CONTAINING_RECORD_PATTERN)
-for _p in ALL_LINKED_LIST_PATTERNS:
-    register_known_pattern(_p)
-for _p in ALL_STL_CONTAINER_PATTERNS:
-    register_known_pattern(_p)
-for _p in ALL_STL_X86_PATTERNS:
-    register_known_pattern(_p)
-for _p in ALL_PROTOBUF_PATTERNS:
-    register_known_pattern(_p)
-for _p in ALL_VECTOR_MATH_PATTERNS:
-    register_known_pattern(_p)
+def register_pattern_template(template: KnownPatternTemplate) -> None:
+    """Register a KnownPatternTemplate. Call names are unique across templates
+    (the architecture / runtime conditionals live inside each template's
+    ``build``)."""
+    if template.call_name in TEMPLATE_BY_CALL_NAME:
+        raise ValueError(f"a pattern template with call name {template.call_name!r} is already registered")
+    ALL_KNOWN_PATTERN_TEMPLATES.append(template)
+    TEMPLATE_BY_CALL_NAME[template.call_name] = template
+
+
+# STL container accessors
+register_pattern_template(STD_STRING_LENGTH)
+register_pattern_template(STD_STRING_EMPTY)
+register_pattern_template(STD_STRING_INDEX)
+register_pattern_template(STD_VECTOR_SHORT_SIZE)
+register_pattern_template(STD_VECTOR_INT_SIZE)
+register_pattern_template(STD_VECTOR_LONG_LONG_SIZE)
+register_pattern_template(STD_VECTOR_INT_EMPTY)
+register_pattern_template(STD_VECTOR_INT_CAPACITY)
+register_pattern_template(STD_VECTOR_INT_INDEX)
+register_pattern_template(STD_SWAP)
+# C macros / kernel / library idioms
+register_pattern_template(CONTAINING_RECORD_PATTERN)
+for _t in ALL_LINKED_LIST_TEMPLATES:
+    register_pattern_template(_t)
+for _t in ALL_PROTOBUF_TEMPLATES:
+    register_pattern_template(_t)
+for _t in ALL_VECTOR_MATH_TEMPLATES:
+    register_pattern_template(_t)
+
+
+def patterns_for(
+    ctx: PatternContext,
+    templates: Iterable[KnownPatternTemplate] | None = None,
+    *,
+    enabled_only: bool = False,
+) -> list[KnownPattern]:
+    """Instantiate the applicable templates for ``ctx`` into concrete
+    KnownPatterns. ``templates`` defaults to the whole registry; with
+    ``enabled_only`` only default-enabled templates are used."""
+    if templates is None:
+        templates = ALL_KNOWN_PATTERN_TEMPLATES
+    out: list[KnownPattern] = []
+    for t in templates:
+        if enabled_only and not t.enabled_by_default:
+            continue
+        p = t.instantiate(ctx)
+        if p is not None:
+            out.append(p)
+    return out
+
+
+# convenience groupings (templates) for tests and callers
+ALL_STL_TEMPLATES = [
+    STD_STRING_LENGTH,
+    STD_STRING_EMPTY,
+    STD_STRING_INDEX,
+    STD_VECTOR_SHORT_SIZE,
+    STD_VECTOR_INT_SIZE,
+    STD_VECTOR_LONG_LONG_SIZE,
+    STD_VECTOR_INT_EMPTY,
+    STD_VECTOR_INT_CAPACITY,
+    STD_VECTOR_INT_INDEX,
+]
 
 
 __all__ = [
-    "ALL_KNOWN_PATTERNS",
-    "ALL_LINKED_LIST_PATTERNS",
-    "ALL_PROTOBUF_PATTERNS",
-    "ALL_STL_CONTAINER_PATTERNS",
-    "ALL_STL_X86_PATTERNS",
-    "ALL_VECTOR_MATH_PATTERNS",
+    "ALL_KNOWN_PATTERN_TEMPLATES",
+    "ALL_LINKED_LIST_TEMPLATES",
+    "ALL_PROTOBUF_TEMPLATES",
+    "ALL_STL_TEMPLATES",
+    "ALL_VECTOR_MATH_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",
     "INITIALIZE_LIST_HEAD",
     "IS_LIST_EMPTY",
-    "KNOWN_PATTERNS_BY_CALL_NAME",
     "REMOVE_ENTRY_LIST",
+    "STD_STRING_EMPTY",
+    "STD_STRING_INDEX",
     "STD_STRING_LENGTH",
-    "STD_STRING_LENGTH_MSVC",
-    "STD_SWAP_8",
+    "STD_SWAP",
+    "STD_VECTOR_INT_CAPACITY",
+    "STD_VECTOR_INT_EMPTY",
+    "STD_VECTOR_INT_INDEX",
     "STD_VECTOR_INT_SIZE",
     "STD_VECTOR_LONG_LONG_SIZE",
     "STD_VECTOR_SHORT_SIZE",
+    "TEMPLATE_BY_CALL_NAME",
     "CppRef",
     "KnownPattern",
     "KnownPatternFinder",
     "KnownPatternMatch",
+    "KnownPatternTemplate",
     "OutlineResult",
     "PAny",
     "PAssign",
@@ -132,11 +168,14 @@ __all__ = [
     "PStore",
     "PUnaryOp",
     "PVVar",
+    "PatternContext",
     "PatternGenerationError",
     "PatternGenerator",
     "PatternParam",
     "TypeRef",
     "UnsupportedOutlineError",
-    "make_std_vector_size_pattern",
-    "register_known_pattern",
+    "make_std_vector_size_template",
+    "make_template",
+    "patterns_for",
+    "register_pattern_template",
 ]

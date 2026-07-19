@@ -188,13 +188,21 @@ class KnownPatternFinder(Analysis):
         self,
         func: Function,
         ail_graph: networkx.DiGraph,
-        patterns: Iterable[KnownPattern] | None = None,
+        patterns: Iterable[object] | None = None,
         chase_defs: bool = True,
         skip_conversions: bool = True,
         vvar_id_start: int = 0xBEEF,
         block_addr_start: int = 0xAABB_0000,
         ail_manager=None,
     ):
+        """``patterns`` may be pattern templates (KnownPatternTemplate) and/or
+        already-concrete KnownPatterns; templates are instantiated for this
+        binary's PatternContext. When None, the enabled-by-default templates are
+        used."""
+        from . import ALL_KNOWN_PATTERN_TEMPLATES, patterns_for  # pylint:disable=import-outside-toplevel
+        from .context import PatternContext  # pylint:disable=import-outside-toplevel
+        from .templates import KnownPatternTemplate  # pylint:disable=import-outside-toplevel
+
         self._func = func
         self._graph = ail_graph
         self._chase_defs = chase_defs
@@ -203,17 +211,21 @@ class KnownPatternFinder(Analysis):
         self.vvar_id_start = vvar_id_start
         self.block_addr_start = block_addr_start
 
+        ctx = PatternContext.from_project(self.project)
         if patterns is None:
-            from . import ALL_KNOWN_PATTERNS  # pylint:disable=import-outside-toplevel
-
-            patterns = [p for p in ALL_KNOWN_PATTERNS if p.enabled_by_default]
-        arch_name = self.project.arch.name
-        platform = self.project.simos.name if self.project.simos is not None else None
-        self._patterns = [
-            p
-            for p in patterns
-            if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
-        ]
+            self._patterns = patterns_for(ctx, ALL_KNOWN_PATTERN_TEMPLATES, enabled_only=True)
+        else:
+            selected = list(patterns)
+            templates = [p for p in selected if isinstance(p, KnownPatternTemplate)]
+            concrete = [p for p in selected if not isinstance(p, KnownPatternTemplate)]
+            self._patterns = patterns_for(ctx, templates)
+            arch_name = ctx.arch_name
+            platform = self.project.simos.name if self.project.simos is not None else None
+            self._patterns += [
+                p
+                for p in concrete
+                if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
+            ]
 
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
