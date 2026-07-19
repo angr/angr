@@ -17,17 +17,35 @@ from angr.ailment.expression import Call
 from angr.analyses.decompiler.variable_map import variable_map_of
 
 if TYPE_CHECKING:
-    import archinfo
     import networkx
 
     from angr.ailment.manager import Manager
+    from angr.project import Project
 
 
-def apply_call_info_to_graph(graph: networkx.DiGraph, manager: Manager, arch: archinfo.Arch) -> int:
+def prototype_for_call(project: Project, call: Call):
+    """The ctx-instantiated prototype for a known-pattern call, or None. The
+    return-type width and argument pointer sizes follow the target's
+    PatternContext."""
+    from . import TEMPLATE_BY_CALL_NAME  # pylint:disable=import-outside-toplevel
+    from .context import PatternContext  # pylint:disable=import-outside-toplevel
+
+    if not isinstance(call.target, str):
+        return None
+    template = TEMPLATE_BY_CALL_NAME.get(call.target)
+    if template is None:
+        return None
+    ctx = PatternContext.from_project(project)
+    pattern = template.instantiate(ctx)
+    if pattern is None:
+        return None
+    return pattern.prototype(project.arch, const_args=pattern.const_args_of_call(call))
+
+
+def apply_call_info_to_graph(graph: networkx.DiGraph, manager: Manager, project: Project) -> int:
     """Set the call-site prototype of every known-pattern call in ``graph`` in
     the VariableMap attached to ``manager``. Returns the number of calls that
     received a prototype."""
-    from . import KNOWN_PATTERNS_BY_CALL_NAME  # pylint:disable=import-outside-toplevel
     from .finder import _iter_stmt_subexprs  # pylint:disable=import-outside-toplevel
 
     variable_map = variable_map_of(manager)
@@ -37,10 +55,7 @@ def apply_call_info_to_graph(graph: networkx.DiGraph, manager: Manager, arch: ar
             for _, expr in _iter_stmt_subexprs(stmt):
                 if not isinstance(expr, Call) or not isinstance(expr.target, str):
                     continue
-                pattern = KNOWN_PATTERNS_BY_CALL_NAME.get(expr.target)
-                if pattern is None:
-                    continue
-                prototype = pattern.prototype(arch, const_args=pattern.const_args_of_call(expr))
+                prototype = prototype_for_call(project, expr)
                 if prototype is not None:
                     variable_map.set_prototype(expr, prototype)
                     count += 1

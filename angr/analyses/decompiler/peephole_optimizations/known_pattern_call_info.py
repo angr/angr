@@ -29,13 +29,17 @@ class KnownPatternCallInfo(PeepholeOptimizationExprBase):
     def optimize(self, expr: Call, **kwargs):
         # import here: peephole modules load before the known_patterns package
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
-            KNOWN_PATTERNS_BY_CALL_NAME,
+            TEMPLATE_BY_CALL_NAME,
+            PatternContext,
         )
 
         assert self.project is not None
         if not isinstance(expr.target, str):
             return None
-        pattern = KNOWN_PATTERNS_BY_CALL_NAME.get(expr.target)
+        template = TEMPLATE_BY_CALL_NAME.get(expr.target)
+        if template is None:
+            return None
+        pattern = template.instantiate(PatternContext.from_project(self.project))
         if pattern is None:
             return None
 
