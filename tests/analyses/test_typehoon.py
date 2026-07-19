@@ -15,7 +15,7 @@ import angr
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.typehoon.translator import TypeTranslator
-from angr.analyses.typehoon.typeconsts import Float32, Float64, Function, Int32, Int64, Pointer64, Struct
+from angr.analyses.typehoon.typeconsts import Float32, Float64, Int32, Pointer64, Struct
 from angr.analyses.typehoon.typevars import (
     DerivedTypeVariable,
     FuncIn,
@@ -38,6 +38,7 @@ from angr.sim_type import (
     SimTypePointer,
     TypeRef,
 )
+from angr.sim_variable import SimStackVariable
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -462,28 +463,209 @@ class TestTypehoon(unittest.TestCase):
         returnty = ext_ty.pts_to.returnty
         assert returnty is not None and not isinstance(returnty, SimTypeBottom)
 
-    def test_fnptr_cell_funcin_only_returns_void(self):
-        # a called cell whose return value is unused emits only FuncIn edges (plus the whole-cell
-        # null-check load); the solver must still type it as a function pointer, and with no
-        # FuncOut slot the recovered function type renders as returning void
-        func_f = TypeVariable(name="F")
-        cell = TypeVariable(name="cell")
-        arg = TypeVariable(name="arg")
-        constraints = {
-            func_f: {
-                Subtype(arg, DerivedTypeVariable(cell, FuncIn(0))),
-                Subtype(arg, Int32()),
-                Subtype(DerivedTypeVariable(cell, None, labels=[Load(), HasField(64, 0)]), Int64()),
-            },
-        }
-        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
-        typehoon = proj.analyses.Typehoon(constraints, func_f)
-        sol = typehoon.solution[cell]
-        assert isinstance(sol, Pointer64) and isinstance(sol.basetype, Function)
-        assert sol.basetype.outputs == []
-        simsol = typehoon.simtypes_solution[cell]
-        assert isinstance(simsol, SimTypePointer) and isinstance(simsol.pts_to, SimTypeFunction)
-        assert simsol.pts_to.returnty is None or isinstance(simsol.pts_to.returnty, SimTypeBottom)
+    def test_fnptr_global_unused_return_is_void(self):
+        # binutils/elfedit update_elf_header: `byte_put(&g, output_elf_machine, 2)` -- a global
+        # function pointer called with arguments whose return value is discarded. With arguments
+        # supplying the FuncIn evidence, the unused result drops the FuncOut edge, so the recovered
+        # function type has no output slot and renders as returning void.
+        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        ext_ty = self._assert_extern_is_function_pointer(proj, "update_elf_header", "byte_put")
+        assert ext_ty.pts_to.args  # called with arguments
+        assert isinstance(ext_ty.pts_to.returnty, SimTypeBottom)  # result discarded -> void
+
+    def test_fnptr_global_with_used_return_value_static_global(self):
+        # binutils/elfedit byte_get_signed: `v = byte_get(...)` -- the indirect call's result is
+        # used, so the recovered function type must carry a concrete (non-void) return type.
+        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        ext_ty = self._assert_extern_is_function_pointer(proj, "byte_get_signed", "byte_get")
+        returnty = ext_ty.pts_to.returnty
+        assert returnty is not None and not isinstance(returnty, SimTypeBottom)
+
+    def test_fnptr_global_argumentless_guarded_call(self):
+        # binutils/elfedit xexit: `if (_xexit_cleanup) _xexit_cleanup();` -- an argument-less
+        # guarded global call. With no arguments the FuncOut edge is the sole evidence that the
+        # cell holds a function pointer, so it is kept and the cell still types as a fnptr.
+        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        ext_ty = self._assert_extern_is_function_pointer(proj, "xexit", "_xexit_cleanup")
+        assert not ext_ty.pts_to.args  # argument-less call
+
+    def test_fnptr_parameter_recovered_iterator(self):
+        # coreutils/sort hash_do_for_each: the second parameter is a callback called indirectly
+        # (`a1(iter->field_0, ...)`), so it must be recovered as a function-pointer parameter
+        # (verified at args[1]).
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("hash_do_for_each")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        proto = dec.clinic.function.prototype
+        fnptr_args = [
+            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
+        ]
+        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
+
+    def test_fnptr_parameter_recovered_comparator(self):
+        # coreutils/sort heapify_down: the comparator parameter is called indirectly
+        # (`a3(...) < 0`), so it must be recovered as a function-pointer parameter (verified at
+        # args[3]).
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("heapify_down")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        proto = dec.clinic.function.prototype
+        fnptr_args = [
+            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
+        ]
+        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
+
+    def test_fnptr_struct_field_call_stays_struct(self):
+        # coreutils/sort hash_lookup: a function pointer stored in a field of the first parameter
+        # is called (`a0->field_38(...)`); the parameter itself must remain a struct pointer, not
+        # collapse to a function pointer.
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("hash_lookup")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        arg0 = dec.clinic.function.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
+        assert isinstance(struct_ty, SimStruct)
+        assert not isinstance(arg0.pts_to, SimTypeFunction)
+
+    # -- optimized (-O2) counterparts --------------------------------------------------
+    # The same function-pointer typing must hold at -O2, where inlining and optimized
+    # register setup change the surrounding code. Not every category survives -O2 (e.g. a
+    # global fnptr call no longer keeps its recovered argument list), but global void/used
+    # returns, parameter callbacks, and struct-field dispatch all still recover correctly.
+
+    def test_fnptr_global_argumentless_guarded_call_o2(self):
+        # binutils/elfedit -O2 xexit: `if (_xexit_cleanup) _xexit_cleanup();` still types the
+        # argument-less guarded global as a function pointer.
+        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        ext_ty = self._assert_extern_is_function_pointer(proj, "xexit", "_xexit_cleanup")
+        assert not ext_ty.pts_to.args
+
+    def test_fnptr_global_with_used_return_value_o2(self):
+        # binutils/elfedit -O2 byte_get_signed: `v = byte_get()` -- return value used, so the
+        # recovered function type carries a concrete (non-void) return type.
+        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        ext_ty = self._assert_extern_is_function_pointer(proj, "byte_get_signed", "byte_get")
+        returnty = ext_ty.pts_to.returnty
+        assert returnty is not None and not isinstance(returnty, SimTypeBottom)
+
+    def test_fnptr_parameter_recovered_iterator_o2(self):
+        # coreutils/sort -O2 hash_do_for_each: the callback parameter called indirectly is still
+        # recovered as a function-pointer parameter (verified at args[1]).
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("hash_do_for_each")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        proto = dec.clinic.function.prototype
+        fnptr_args = [
+            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
+        ]
+        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
+
+    def test_fnptr_parameter_recovered_multiarg_o2(self):
+        # coreutils/sort -O2 __xargmatch_internal: a callback parameter invoked with several
+        # arguments (`a5(v8, ..., v13)`) is recovered as a function-pointer parameter (args[5]).
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("__xargmatch_internal")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        proto = dec.clinic.function.prototype
+        fnptr_args = [
+            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
+        ]
+        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
+
+    def test_fnptr_struct_field_call_stays_struct_o2(self):
+        # coreutils/sort -O2 hash_lookup: a called function-pointer struct field must leave the
+        # enclosing parameter a struct pointer, not collapse it to a function pointer.
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("hash_lookup")
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        arg0 = dec.clinic.function.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
+        assert isinstance(struct_ty, SimStruct)
+        assert not isinstance(arg0.pts_to, SimTypeFunction)
+
+    # -- additional coverage: local, positive struct-field, and negative/boundary cases --
+
+    @staticmethod
+    def _is_fnptr(ty) -> bool:
+        return isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeFunction)
+
+    def test_fnptr_local_variable_recovered(self):
+        # file uncompressbuf: a function pointer held in a STACK LOCAL (not a parameter, not a
+        # global) and called indirectly must be recovered as a function-pointer local.
+        bin_path = os.path.join(test_location, "x86_64", "file_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("uncompressbuf")
+        assert func_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        vm = dec.clinic.variable_kb.variables[func_sym.rebased_addr]
+        fnptr_stack_locals = [
+            v for v in vm.get_variables() if isinstance(v, SimStackVariable) and self._is_fnptr(vm.get_variable_type(v))
+        ]
+        assert fnptr_stack_locals, "expected at least one stack-local function pointer"
+        # and it is genuinely a local: no parameter carries a function-pointer type
+        proto = dec.clinic.function.prototype
+        assert not any(self._is_fnptr(arg) for arg in proto.args), (
+            f"expected no function-pointer parameters, got {proto}"
+        )
+
+    def test_fnptr_struct_field_typed_as_function_pointer(self):
+        # coreutils/sort hash_lookup: positive complement of the stays-struct test -- the struct
+        # FIELD holding the called function pointer must itself be typed as a function pointer.
+        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("hash_lookup")
+        assert func_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        arg0 = dec.clinic.function.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
+        assert isinstance(struct_ty, SimStruct)
+        fnptr_fields = [f for f in struct_ty.fields.values() if self._is_fnptr(f)]
+        assert fnptr_fields, f"expected a function-pointer field, got {struct_ty.fields}"
+
+    def test_fnptr_devirtualized_global_stays_int(self):
+        # libtiff/tiffinfo TIFFError: even though _TIFFerrorHandler is indirectly called here,
+        # angr resolves (devirtualizes) the target to a direct call, so the cell itself carries
+        # no indirect-call evidence and must NOT be promoted to a function pointer -- this pins
+        # the devirtualization boundary of the fix.
+        bin_path = os.path.join(test_location, "x86_64", "tiffinfo_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("TIFFError")
+        global_sym = proj.loader.find_symbol("_TIFFerrorHandler")
+        assert func_sym is not None and global_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        cexterns = {cv.variable.addr: cv.variable_type for cv in dec.codegen.cexterns}
+        ext_ty = cexterns.get(global_sym.rebased_addr)
+        assert ext_ty is not None
+        assert not self._is_fnptr(ext_ty), f"expected an integer, got {ext_ty!r}"
+
+    def test_fnptr_uncalled_global_stays_int(self):
+        # libtiff/tiffinfo TIFFSetErrorHandler: `old = _TIFFerrorHandler; _TIFFerrorHandler = arg;
+        # return old;` -- the fnptr-valued global is only loaded and stored, never called
+        # indirectly, so with no call evidence the cell must stay an integer.
+        bin_path = os.path.join(test_location, "x86_64", "tiffinfo_gcc17_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_sym = proj.loader.find_symbol("TIFFSetErrorHandler")
+        global_sym = proj.loader.find_symbol("_TIFFerrorHandler")
+        assert func_sym is not None and global_sym is not None
+        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        cexterns = {cv.variable.addr: cv.variable_type for cv in dec.codegen.cexterns}
+        ext_ty = cexterns.get(global_sym.rebased_addr)
+        assert ext_ty is not None
+        assert not self._is_fnptr(ext_ty), f"expected an integer, got {ext_ty!r}"
 
     def test_fnptr_global_guarded_hook_call(self):
         # glibc's __after_morecore_hook: `if (__after_morecore_hook) (*__after_morecore_hook)();`
