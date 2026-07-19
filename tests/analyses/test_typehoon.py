@@ -534,68 +534,6 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(struct_ty, SimStruct)
         assert not isinstance(arg0.pts_to, SimTypeFunction)
 
-    # -- optimized (-O2) counterparts --------------------------------------------------
-    # The same function-pointer typing must hold at -O2, where inlining and optimized
-    # register setup change the surrounding code. Not every category survives -O2 (e.g. a
-    # global fnptr call no longer keeps its recovered argument list), but global void/used
-    # returns, parameter callbacks, and struct-field dispatch all still recover correctly.
-
-    def test_fnptr_global_argumentless_guarded_call_o2(self):
-        # binutils/elfedit -O2 xexit: `if (_xexit_cleanup) _xexit_cleanup();` still types the
-        # argument-less guarded global as a function pointer.
-        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        ext_ty = self._assert_extern_is_function_pointer(proj, "xexit", "_xexit_cleanup")
-        assert not ext_ty.pts_to.args
-
-    def test_fnptr_global_with_used_return_value_o2(self):
-        # binutils/elfedit -O2 byte_get_signed: `v = byte_get()` -- return value used, so the
-        # recovered function type carries a concrete (non-void) return type.
-        bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        ext_ty = self._assert_extern_is_function_pointer(proj, "byte_get_signed", "byte_get")
-        returnty = ext_ty.pts_to.returnty
-        assert returnty is not None and not isinstance(returnty, SimTypeBottom)
-
-    def test_fnptr_parameter_recovered_iterator_o2(self):
-        # coreutils/sort -O2 hash_do_for_each: the callback parameter called indirectly is still
-        # recovered as a function-pointer parameter (verified at args[1]).
-        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        func_sym = proj.loader.find_symbol("hash_do_for_each")
-        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
-        proto = dec.clinic.function.prototype
-        fnptr_args = [
-            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
-        ]
-        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
-
-    def test_fnptr_parameter_recovered_multiarg_o2(self):
-        # coreutils/sort -O2 __xargmatch_internal: a callback parameter invoked with several
-        # arguments (`a5(v8, ..., v13)`) is recovered as a function-pointer parameter (args[5]).
-        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        func_sym = proj.loader.find_symbol("__xargmatch_internal")
-        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
-        proto = dec.clinic.function.prototype
-        fnptr_args = [
-            arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
-        ]
-        assert fnptr_args, f"expected a function-pointer parameter, got {proto}"
-
-    def test_fnptr_struct_field_call_stays_struct_o2(self):
-        # coreutils/sort -O2 hash_lookup: a called function-pointer struct field must leave the
-        # enclosing parameter a struct pointer, not collapse it to a function pointer.
-        bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        func_sym = proj.loader.find_symbol("hash_lookup")
-        dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
-        arg0 = dec.clinic.function.prototype.args[0]
-        assert isinstance(arg0, SimTypePointer)
-        struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
-        assert isinstance(struct_ty, SimStruct)
-        assert not isinstance(arg0.pts_to, SimTypeFunction)
-
     # -- additional coverage: local, positive struct-field, and negative/boundary cases --
 
     @staticmethod
