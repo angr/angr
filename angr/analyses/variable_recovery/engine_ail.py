@@ -400,7 +400,14 @@ class SimEngineVRAIL(
             ret_ty = self.tv_manager.new_tv()
 
         if computed_funcaddr_typevar is not None:
-            self._add_computed_call_target_constraints(computed_funcaddr_typevar, args, ret_ty)
+            # when the call's return value is unused, do not emit a FuncOut edge so the recovered
+            # function type has no output slot and renders as returning void. only do this when at
+            # least one argument contributes a FuncIn edge; otherwise the FuncOut edge is the sole
+            # evidence that the callee cell holds a function pointer and must be kept.
+            has_arg_evidence = any(arg is not None and arg.typevar is not None for arg in args)
+            self._add_computed_call_target_constraints(
+                computed_funcaddr_typevar, args, ret_ty if ret_expr is not None or not has_arg_evidence else None
+            )
 
         # TODO: Expose it as an option
         return_value_use_full_width_reg = True
