@@ -57,14 +57,14 @@ def _serialize_binop_operators(binop_operators, out_msg, set_flag=None) -> None:
         setattr(set_flag[0], set_flag[1], True)
     for op_desc, value in binop_operators.items():
         entry = out_msg.add()
-        entry.key.CopyFrom(op_desc.serialize_to_cmessage())
+        entry.key_json = op_desc.to_json()
         entry.value = value
 
 
 def _parse_binop_operators(entries):
     from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 
-    return {OpDescriptor.parse_from_cmessage(e.key): e.value for e in entries}
+    return {OpDescriptor.from_json(e.key_json): e.value for e in entries}
 
 
 # ---------------------------------------------------------------------------------------------------------------------

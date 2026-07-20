@@ -8,15 +8,8 @@ package angr.protos;
 // Small value types
 // =====================================================================================================================
 
-message OpDescriptor {
-    uint64 block_addr = 1;
-    int32 stmt_idx = 2;
-    uint64 ins_addr = 3;
-    string op = 4;
-}
-
 message BinopOperatorEntry {
-    OpDescriptor key = 1;
+    string key_json = 1;                      // OpDescriptor serialized to JSON
     string value = 2;
 }
 

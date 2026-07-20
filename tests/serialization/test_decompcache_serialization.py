@@ -203,8 +203,9 @@ class TestSubObjectSerialization(unittest.TestCase):
         from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 
         op = OpDescriptor(block_addr=0x400500, stmt_idx=3, ins_addr=0x400502, op="Sub")
-        back = OpDescriptor.parse(op.serialize())
+        back = OpDescriptor.from_json(op.to_json())
         assert back == op
+        assert hash(back) == hash(op)
 
 
 def _build_synthetic_srda_model(arch):
