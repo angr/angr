@@ -61,9 +61,9 @@ class RetExprRewriter(OptimizationPass):
                             )
                             regs.append(reg)
                         ret_expr = ComboRegister(self.manager.next_atom(), regs)
-                        new_call = call_stmt.copy()
-                        new_call.ret_expr = ret_expr
-                        return new_call
+                        return SideEffectStatement(
+                            call_stmt.idx, call_stmt.expr, ret_expr, call_stmt.fp_ret_expr, **call_stmt.tags
+                        )
             return call_stmt
 
         rewriter = SideEffectStatementRewriter(callback)
