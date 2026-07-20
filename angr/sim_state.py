@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import functools
 import itertools
 import logging
@@ -165,10 +164,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         self.uninitialized_access_handler = None
         self._special_memory_filler = special_memory_filler
-
-        # this is a global condition, applied to all added constraints, memory reads, etc
-        self._global_condition = None
-        self.ip_constraints = []
 
         # plugins. lord help us
         if plugin_preset is not None:
@@ -562,9 +557,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         Returns a copy of the state.
         """
 
-        if self._global_condition is not None:
-            raise SimStateError("global condition was not cleared before state.copy().")
-
         c_plugins = self._copy_plugins()
         state = SimState(
             project=self.project,
@@ -581,7 +573,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler
-        state.ip_constraints = self.ip_constraints
 
         return state
 
@@ -845,38 +836,6 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         concrete_ip = self.solver.eval(self.regs.ip)
         return concrete_ip % 2 == 1
-
-    #
-    # Some pretty fancy global condition stuff!
-    #
-
-    @property
-    def with_condition(self):
-        @contextlib.contextmanager
-        def ctx(c):
-            old_condition = self._global_condition
-            try:
-                new_condition = c if old_condition is None else claripy.And(old_condition, c)
-                self._global_condition = new_condition
-                yield
-            finally:
-                self._global_condition = old_condition
-
-        return ctx
-
-    def _adjust_condition(self, c):
-        if self._global_condition is None:
-            return c
-        if c is None:
-            return self._global_condition
-        return claripy.And(self._global_condition, c)
-
-    def _adjust_condition_list(self, conditions):
-        if self._global_condition is None:
-            return conditions
-        if len(conditions) == 0:
-            return conditions.__class__((self._global_condition,))
-        return conditions.__class__((self._adjust_condition(claripy.And(*conditions)),))
 
 
 default_state_plugin_preset = PluginPreset()
