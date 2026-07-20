@@ -38,4 +38,5 @@ target/
 .DS_Store
 *_angr_rtdb
 *_angr_rtdb_*
-.claude/
+.claude
+angr/protos/*_pb2.py
