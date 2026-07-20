@@ -533,7 +533,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         self.ail_manager.next_atom(),
                         Expr.BinaryOp(
                             self.ail_manager.next_atom(),
-                            "CmpLE",
+                            "CmpLT",
                             [
                                 Expr.BinaryOp(self.ail_manager.next_atom(), "Add", [dep_1, dep_2], False),
                                 dep_1,
