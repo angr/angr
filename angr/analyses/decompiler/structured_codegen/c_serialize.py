@@ -14,12 +14,17 @@ stay focused on rendering logic and a future audit of the serialization can look
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+import angr.sim_variable as sim_variable
 from angr.protos import codegen_pb2
 from angr.sim_type import SimType
 from angr.sim_variable import SimVariable
+
+from .base import PositionMapping
+from .c import CConstant, CFunctionCall, CStructField, CVariable
 
 if TYPE_CHECKING:
     from .c import CConstruct
@@ -77,12 +82,10 @@ def _simvar_to_bytes(v: SimVariable | None) -> bytes:
 def _simvar_from_bytes(b: bytes) -> SimVariable | None:
     if not b:
         return None
-    import angr.sim_variable as sv_mod
-
     sep = b.index(b"\0")
     cls_name = b[:sep].decode("ascii")
     payload = b[sep + 1 :]
-    cls = getattr(sv_mod, cls_name)
+    cls = getattr(sim_variable, cls_name)
     return cls.parse(payload)
 
 
@@ -93,15 +96,13 @@ def _simvar_from_bytes(b: bytes) -> SimVariable | None:
 
 class SerializeContext:
     """
-    Tracks which nodes have been serialized while walking the C AST. ``CConstruct.idx`` is unique across the owning
-    codegen, so it doubles as the serialization node id; subtree-sharing (rare but possible) is handled by idx
-    memoization. The same instance is threaded through every recursive ``_serialize_node`` call.
+    Tracks which nodes have been serialized while walking the C AST.
     """
 
     __slots__ = ("_seen", "nodes")
 
     def __init__(self) -> None:
-        self._seen: set[int] = set()
+        self._seen: set[int] = set()  # stores CConstruct.idx for serialized nodes
         self.nodes: list[codegen_pb2.CConstructNode] = []
 
     def serialize(self, node: CConstruct | None) -> int:
@@ -132,9 +133,7 @@ class SerializeContext:
 
 class ParseContext:
     """
-    Tracks node-id resolution while materializing the C AST. Built once over the flat ``Codegen.nodes`` table; nodes
-    are instantiated lazily on first reference. After all nodes are materialized, :meth:`set_codegen` walks every
-    parsed node and assigns the ``codegen`` back-reference.
+    Tracks and resolves node.idx to the corresponding C AST.
     """
 
     __slots__ = ("_msg_by_id", "_parsed", "kb", "project")
@@ -171,9 +170,9 @@ class ParseContext:
             node.codegen = codegen
 
 
-# ---------------------------------------------------------------------------------------------------------------------
+#
 # Dispatch tables (populated by register_subclass at the bottom of c.py / by this module)
-# ---------------------------------------------------------------------------------------------------------------------
+#
 
 _SERIALIZE_KIND_BY_CLASS: dict[type, int] = {}
 _CLASS_BY_KIND: dict[int, type] = {}
@@ -188,9 +187,9 @@ def _register(cls: type, kind: int, serializer: Callable, parser: Callable) -> N
     _PARSERS[kind] = parser
 
 
-# ---------------------------------------------------------------------------------------------------------------------
-# Subtree convenience entry points (Codegen wrapper uses the same SerializeContext / ParseContext directly).
-# ---------------------------------------------------------------------------------------------------------------------
+#
+# Subtree parsing/serialization
+#
 
 
 def serialize_subtree(root: CConstruct) -> bytes:
@@ -211,16 +210,12 @@ def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
     return ctx.resolve(msg.root_id)
 
 
-# ---------------------------------------------------------------------------------------------------------------------
+#
 # Position mapping serialization
-# ---------------------------------------------------------------------------------------------------------------------
+#
 
 
 def _serialize_position_mapping(pm, ctx: SerializeContext, out_msg) -> None:
-    """Serialize the PositionMapping. PositionMappingElement.obj can be a CConstruct (the common case) but also a
-    SimType, CClosingObject, CArrayTypeLength, or CStructFieldNameDef from the renderer's chunk yields. We only round-
-    trip the CConstruct entries; the rest are dropped (the post-parse position map has fewer entries but the GUI's
-    highlighting for AST nodes still works)."""
     if pm is None:
         return
     for _, elem in pm.items():
@@ -234,8 +229,6 @@ def _serialize_position_mapping(pm, ctx: SerializeContext, out_msg) -> None:
 
 
 def _parse_position_mapping(pm_msg, ctx: ParseContext):
-    from .base import PositionMapping
-
     pm = PositionMapping()
     for entry in pm_msg.entries:
         obj = ctx.resolve(entry.node_id) if entry.node_id != 0 else None
@@ -261,9 +254,9 @@ def _parse_instruction_mapping(im_msg):
     return im
 
 
-# ---------------------------------------------------------------------------------------------------------------------
-# Top-level codegen serialization
-# ---------------------------------------------------------------------------------------------------------------------
+#
+# Codegen serialization
+#
 
 
 def _serialize_notes(notes: dict | None, out_msg) -> None:
@@ -344,10 +337,8 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     _serialize_position_mapping(codegen.map_pos_to_node, ctx, msg.map_pos_to_node)
     _serialize_position_mapping(codegen.map_pos_to_addr, ctx, msg.map_pos_to_addr)
     _serialize_instruction_mapping(codegen.map_addr_to_pos, msg.map_addr_to_pos)
-    # map_ast_to_pos is intentionally NOT serialized: its declared type is dict[SimVariable, set[PositionMappingElement]]
-    # but in practice the keys are heterogeneous (SimVariable, SimType, Function, tuples, ints, ...) and the values
-    # are sets of int positions, not PositionMappingElements. The map is fully derivable from map_pos_to_node so we
-    # rebuild it after parse rather than wrestling with a schema for the union.
+    # map_ast_to_pos is intentionally not serialized. The map is derivable from map_pos_to_node so we rebuild it after
+    # parse.
     for (addr, idx), label in (codegen.map_addr_to_label or {}).items():
         entry = msg.map_addr_to_label.add()
         entry.addr = addr
@@ -382,11 +373,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
 
 def _rebuild_ast_to_pos(pos_to_node):
     """Mirror of the logic in :meth:`CStructuredCodeGenerator.render_text` that builds ``map_ast_to_pos`` from
-    ``pos_to_node``. Used after parse to restore the cross-reference map without serializing the heterogeneous keys."""
-    from collections import defaultdict
-
-    from .c import CConstant, CFunctionCall, CStructField, CVariable
-
+    ``pos_to_node``. Used after parse to restore the cross-reference map."""
     ast_to_pos = defaultdict(set)
     if pos_to_node is None:
         return ast_to_pos

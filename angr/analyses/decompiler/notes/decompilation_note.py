@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from enum import Enum
 from typing import Any
+
+l = logging.getLogger(name=__name__)
 
 
 class DecompilationNoteLevel(Enum):
@@ -27,9 +30,6 @@ class DecompilationNote:
     so that it can be displayed.
     Level is the level of the note. The following values are available: DecompilationNoteLevel.DEBUG,
     DecompilationNoteLevel.INFO, DecompilationNoteLevel.WARNING, and DecompilationNoteLevel.CRITICAL.
-
-    Notes serialize to JSON. The encoding carries a "class" tag so that subclasses (registered automatically via
-    __init_subclass__) round-trip with their extra state; unknown tags degrade to the base class.
     """
 
     _subclasses: dict[str, type[DecompilationNote]] = {}
@@ -62,10 +62,10 @@ class DecompilationNote:
     #
 
     def to_jsonable(self) -> dict[str, Any]:
-        # content is constrained at serialize time to values that round-trip through json.dumps / json.loads.
         try:
             content = json.loads(json.dumps(self.content))
         except (TypeError, ValueError):
+            l.warning("Failed to serialize content of decompilation note %s to JSON", self.key)
             content = None
         return {
             "class": type(self).__name__,
