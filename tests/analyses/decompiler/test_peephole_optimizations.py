@@ -11,10 +11,11 @@ import archinfo
 
 import angr
 from angr import ailment
-from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert, Register
+from angr.ailment.expression import BinaryOp, Call, Const, Convert, Extract, Insert, Register
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
+    Bswap,
     CmpMaskedShift,
     CmpSubConst,
     ConstantDereferences,
@@ -232,6 +233,110 @@ class TestPeepholeOptimizations(unittest.TestCase):
                 assert isinstance(r.operand, BinaryOp) and r.operand.op == "Div"
                 divisor_operand = r.operand.operands[1]
                 assert isinstance(divisor_operand, Const) and divisor_operand.value == divisor
+
+    def test_bswap32_intrinsic_name(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = Bswap(proj, proj.kb, manager)
+
+        # (Conv(64->32, x) << 0x18) |
+        #   ((Conv(64->32, x) << 8) & 0xff0000) |
+        #   ((Conv(64->32, x) >> 8) & 0xff00) |
+        #   ((Conv(64->32, x) >> 0x18) & 0xff)
+        # => __builtin_bswap32(Conv(64->32, x))
+        conv = Convert(manager.next_atom(), 64, 32, False, Register(manager.next_atom(), 16, 64))
+        p0 = BinaryOp(manager.next_atom(), "Shl", [conv, Const(manager.next_atom(), 0x18, 8)], False, bits=32)
+        p1 = BinaryOp(
+            manager.next_atom(),
+            "And",
+            [
+                BinaryOp(manager.next_atom(), "Shl", [conv, Const(manager.next_atom(), 8, 8)], False, bits=32),
+                Const(manager.next_atom(), 0xFF0000, 32),
+            ],
+            False,
+            bits=32,
+        )
+        p2 = BinaryOp(
+            manager.next_atom(),
+            "And",
+            [
+                BinaryOp(manager.next_atom(), "Shr", [conv, Const(manager.next_atom(), 8, 8)], False, bits=32),
+                Const(manager.next_atom(), 0xFF00, 32),
+            ],
+            False,
+            bits=32,
+        )
+        p3 = BinaryOp(
+            manager.next_atom(),
+            "And",
+            [
+                BinaryOp(manager.next_atom(), "Shr", [conv, Const(manager.next_atom(), 0x18, 8)], False, bits=32),
+                Const(manager.next_atom(), 0xFF, 32),
+            ],
+            False,
+            bits=32,
+        )
+        expr = BinaryOp(
+            manager.next_atom(),
+            "Or",
+            [
+                p0,
+                BinaryOp(
+                    manager.next_atom(),
+                    "Or",
+                    [p1, BinaryOp(manager.next_atom(), "Or", [p2, p3], False, bits=32)],
+                    False,
+                    bits=32,
+                ),
+            ],
+            False,
+            bits=32,
+        )
+
+        out = opt.optimize(expr)
+        assert isinstance(out, Call)
+        assert out.target == "__builtin_bswap32"
+        assert len(out.args) == 1 and out.args[0].likes(conv)
+        assert out.bits == 32
+
+    def test_bswap16_intrinsic_name(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = Bswap(proj, proj.kb, manager)
+
+        # ((((Conv(16->32, a) << 8) & 0xff00ff00) | ((Conv(16->32, a) >> 8) & 0xff00ff)) & 0xffff)
+        # => __builtin_bswap16(a)
+        reg = Register(manager.next_atom(), 16, 16)
+        shl = BinaryOp(
+            manager.next_atom(),
+            "Shl",
+            [Convert(manager.next_atom(), 16, 32, False, reg), Const(manager.next_atom(), 8, 8)],
+            False,
+            bits=32,
+        )
+        shr = BinaryOp(
+            manager.next_atom(),
+            "Shr",
+            [Convert(manager.next_atom(), 16, 32, False, reg), Const(manager.next_atom(), 8, 8)],
+            False,
+            bits=32,
+        )
+        inner = BinaryOp(
+            manager.next_atom(),
+            "Or",
+            [
+                BinaryOp(manager.next_atom(), "And", [shl, Const(manager.next_atom(), 0xFF00FF00, 32)], False, bits=32),
+                BinaryOp(manager.next_atom(), "And", [shr, Const(manager.next_atom(), 0x00FF00FF, 32)], False, bits=32),
+            ],
+            False,
+            bits=32,
+        )
+        expr = BinaryOp(manager.next_atom(), "And", [inner, Const(manager.next_atom(), 0xFFFF, 32)], False, bits=32)
+
+        out = opt.optimize(expr)
+        assert isinstance(out, Call)
+        assert out.target == "__builtin_bswap16"
+        assert len(out.args) == 1 and out.args[0].likes(reg)
 
     def test_bitwise_inserts(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
