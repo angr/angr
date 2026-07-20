@@ -259,9 +259,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         dep_1 = self._fix_size(
                             dep_1,
                             op_v,
-                            AMD64_OpTypes["G_CC_OP_SHRB"],
-                            AMD64_OpTypes["G_CC_OP_SHRW"],
-                            AMD64_OpTypes["G_CC_OP_SHRL"],
+                            AMD64_OpTypes["G_CC_OP_DECB"],
+                            AMD64_OpTypes["G_CC_OP_DECW"],
+                            AMD64_OpTypes["G_CC_OP_DECL"],
                             ccall.tags,
                         )
                         expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
