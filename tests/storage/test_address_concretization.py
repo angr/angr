@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import archinfo
+
 import angr
 
 
@@ -16,12 +18,14 @@ class _StatefulStrategy(angr.concretization_strategies.SimConcretizationStrategy
 
 
 def test_stateful_concretization_strategies_are_copied_with_memory():
-    state = angr.SimState(arch="AMD64")
+    state = angr.SimState(arch=archinfo.ArchAMD64())
     strategy = _StatefulStrategy([1])
     state.memory.read_strategies = [strategy, strategy]
     state.memory.write_strategies = [strategy]
 
     fork = state.copy()
+    assert fork.memory.read_strategies is not None
+    assert fork.memory.write_strategies is not None
     fork_strategy = fork.memory.read_strategies[0]
 
     assert fork_strategy is not strategy
