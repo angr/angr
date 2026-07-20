@@ -4,12 +4,10 @@ import "angr/protos/ail_types.proto";
 
 package angr.protos;
 
-// =====================================================================================================================
+//
 // Mirrored enums
-// =====================================================================================================================
-// ClinicMode and ClinicStage are stored as raw int32 values matching the Python ``.value`` of each enum member, rather
-// than as proto enums, so the schema doesn't have to track the (frequently-evolving) ClinicStage member list. The
-// StackItemType enum is small and stable so we keep it as a proto enum.
+//
+// ClinicMode and ClinicStage are stored as raw int32 values matching the Python ``.value`` of each enum member.
 
 enum StackItemType {
     SI_UNKNOWN = 0;
@@ -81,7 +79,7 @@ message Clinic {
     optional uint64 function_addr = 1;
     optional string flavor = 2;
 
-    // ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
+// ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
     // Two former slots are reconstructed at parse time instead of being serialized:
     //   - _blocks_by_addr_and_size is rebuilt from _init_ail_graph as {(b.addr, b.original_size): b};
     //   - func_args is recomputed from arg_vvars as {vvar for vvar, _ in arg_vvars.values()}.
