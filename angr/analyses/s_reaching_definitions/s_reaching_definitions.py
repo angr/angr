@@ -11,81 +11,9 @@ from angr.calling_conventions import SimRegArg, default_cc
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
-from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, get_vvar_uselocs
 
-from .s_rda_model import SRDAModel
+from .s_rda_model import SRDAModel, populate_model
 from .s_rda_view import SRDAView
-
-
-def populate_model(
-    model: SRDAModel,
-    blocks: dict[tuple[int, int | None], Block],
-    func_args: set[VirtualVariable] | None,
-    *,
-    fix_undefined_vvars: bool = True,
-    track_tmps: bool = False,
-) -> None:
-    """Populate the scan-derived part of an SRDAModel (vvar/tmp definitions and uses, phi bookkeeping) with a linear
-    scan over ``blocks``. This is the shared core of :class:`SReachingDefinitionsAnalysis` and of SRDAModel
-    deserialization, which reconstructs these fields instead of serializing them."""
-
-    phi_vvars: dict[int, set[int | None]] = {}
-    # find all vvar definitions
-    vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
-    # find all explicit vvar uses
-    vvar_uselocs = get_vvar_uselocs(blocks.values())
-
-    # update vvar definitions using function arguments
-    if func_args:
-        for vvar in func_args:
-            if vvar.varid not in vvar_deflocs:
-                vvar_deflocs[vvar.varid] = vvar, AILCodeLocation.make_extern(vvar.varid)
-        model.func_args = func_args
-
-    # update model
-    for vvar_id, (vvar, defloc) in vvar_deflocs.items():
-        model.varid_to_vvar[vvar_id] = vvar
-        model.all_vvar_definitions[vvar_id] = defloc
-        if vvar_id in vvar_uselocs:
-            for useloc in vvar_uselocs[vvar_id]:
-                model.add_vvar_use(vvar_id, *useloc)
-
-    model.phi_vvar_ids = set(phi_vvars)
-    model.phivarid_to_varids = {}
-    for vvar_id, src_vvars in phi_vvars.items():
-        model.phivarid_to_varids_with_unknown[vvar_id] = src_vvars
-        model.phivarid_to_varids[vvar_id] = (  # type: ignore
-            {vvar_id for vvar_id in src_vvars if vvar_id is not None} if None in src_vvars else src_vvars
-        )
-
-    if fix_undefined_vvars:
-        # fix register definitions for arguments
-        defined_vvarids = set(vvar_deflocs)
-        undefined_vvarids = set(vvar_uselocs.keys()).difference(defined_vvarids)
-        for vvar_id in undefined_vvarids:
-            used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
-            model.varid_to_vvar[vvar_id] = used_vvar
-            model.all_vvar_definitions[vvar_id] = AILCodeLocation.make_extern(vvar_id)
-            if vvar_id in vvar_uselocs:
-                for vvar_useloc in vvar_uselocs[vvar_id]:
-                    model.add_vvar_use(vvar_id, *vvar_useloc)
-
-    if track_tmps:
-        # track tmps
-        tmp_deflocs = get_tmp_deflocs(blocks.values())
-        # find all vvar uses
-        tmp_uselocs = get_tmp_uselocs(blocks.values())
-
-        # update model
-        for block_loc, d in tmp_deflocs.items():
-            for tmp_atom, stmt_idx in d.items():
-                model.all_tmp_definitions[block_loc][tmp_atom] = stmt_idx
-
-                if tmp_atom in tmp_uselocs[block_loc]:
-                    for tmp_at_use, use_stmt_idx in tmp_uselocs[block_loc][tmp_atom]:
-                        if tmp_atom not in model.all_tmp_uses[block_loc]:
-                            model.all_tmp_uses[block_loc][tmp_atom] = set()
-                        model.all_tmp_uses[block_loc][tmp_atom].add((tmp_at_use, use_stmt_idx))
 
 
 class SReachingDefinitionsAnalysis(Analysis):
