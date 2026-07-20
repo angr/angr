@@ -13,6 +13,7 @@ import archinfo
 
 import angr
 from angr.analyses.decompiler.clinic import Clinic
+from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.analyses.typehoon.typeconsts import (
@@ -45,6 +46,7 @@ from angr.analyses.typehoon.typevars import (
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import (
     SimStruct,
+    SimType,
     SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
@@ -130,7 +132,10 @@ class TestTypehoon(unittest.TestCase):
         func_read6numbers = cfg.kb.functions["read_six_numbers"]
         assert func_read6numbers.prototype_source == PrototypeSource.CCA_LOW
         dec_phase2 = proj.analyses.Decompiler(
-            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+            func_phase2,
+            # fail_fast is consumed by AnalysisFactory.__call__, not Decompiler.__init__
+            fail_fast=True,  # pyright: ignore[reportCallIssue]
+            options=[("constrain_callee_prototypes", True)],
         )
         print_decompilation_result(dec_phase2)
         assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
@@ -150,7 +155,10 @@ class TestTypehoon(unittest.TestCase):
 
         # decompile read_six_numbers, and its prototype should be updated to (char*, uint32_t*)
         dec_read6numbers = proj.analyses.Decompiler(
-            func_read6numbers, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+            func_read6numbers,
+            # fail_fast is consumed by AnalysisFactory.__call__, not Decompiler.__init__
+            fail_fast=True,  # pyright: ignore[reportCallIssue]
+            options=[("constrain_callee_prototypes", True)],
         )
         assert dec_read6numbers.codegen is not None and dec_read6numbers.codegen.text is not None
         print_decompilation_result(dec_read6numbers)
@@ -169,7 +177,11 @@ class TestTypehoon(unittest.TestCase):
         # decompile phase_2 again, and we should see an unsigned int [6] on the stack. regen_clinic=True forces a
         # fresh run so the newly-inferred read_six_numbers prototype back-propagates instead of reusing the cache.
         dec_phase2 = proj.analyses.Decompiler(
-            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)], regen_clinic=True
+            func_phase2,
+            # fail_fast is consumed by AnalysisFactory.__call__, not Decompiler.__init__
+            fail_fast=True,  # pyright: ignore[reportCallIssue]
+            options=[("constrain_callee_prototypes", True)],
+            regen_clinic=True,
         )
         assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
         print_decompilation_result(dec_phase2)
@@ -298,6 +310,7 @@ class TestTypehoon(unittest.TestCase):
         #     struct struct_0 *field_8;
         # };
         sols = dec.clinic.typehoon.simtypes_solution
+        assert sols is not None
         tvs = [
             tv
             for tv in sols
@@ -360,6 +373,7 @@ class TestTypehoon(unittest.TestCase):
         #     struct struct_3 *field_0;
         # } struct_4;
         sols = dec.clinic.typehoon.simtypes_solution
+        assert sols is not None
         tvs = sorted(
             [
                 tv
@@ -402,24 +416,47 @@ class TestTypehoon(unittest.TestCase):
         # Test bodyqueslot from G_CheckSpot
         func = cfg.kb.functions["G_CheckSpot"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
-        bodyqueslot_addr = proj.loader.find_symbol("bodyqueslot").rebased_addr
-        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        bodyqueslot_sym = proj.loader.find_symbol("bodyqueslot")
+        assert bodyqueslot_sym is not None
+        bodyqueslot_addr = bodyqueslot_sym.rebased_addr
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.cexterns is not None
+        # extern CVariables always wrap SimMemoryVariable, which has .addr
+        cexterns = {
+            cvar.variable.addr: cvar.variable_type  # pyright: ignore[reportAttributeAccessIssue]
+            for cvar in dec.codegen.cexterns
+        }
         assert isinstance(cexterns[bodyqueslot_addr], SimTypeInt)
 
         # Test displayplayer from G_Responder
         func = cfg.kb.functions["G_Responder"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
-        displayplayer_addr = proj.loader.find_symbol("displayplayer").rebased_addr
-        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        displayplayer_sym = proj.loader.find_symbol("displayplayer")
+        assert displayplayer_sym is not None
+        displayplayer_addr = displayplayer_sym.rebased_addr
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.cexterns is not None
+        # extern CVariables always wrap SimMemoryVariable, which has .addr
+        cexterns = {
+            cvar.variable.addr: cvar.variable_type  # pyright: ignore[reportAttributeAccessIssue]
+            for cvar in dec.codegen.cexterns
+        }
         assert isinstance(cexterns[displayplayer_addr], SimTypeInt)
 
         # Test joyxmove, mousex, and gametic from G_DoLoadLevel
         func = cfg.kb.functions["G_DoLoadLevel"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
-        joyxmove_addr = proj.loader.find_symbol("joyxmove").rebased_addr
-        mousex_addr = proj.loader.find_symbol("mousex").rebased_addr
-        gametic_addr = proj.loader.find_symbol("gametic").rebased_addr
-        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        joyxmove_sym = proj.loader.find_symbol("joyxmove")
+        mousex_sym = proj.loader.find_symbol("mousex")
+        gametic_sym = proj.loader.find_symbol("gametic")
+        assert joyxmove_sym is not None and mousex_sym is not None and gametic_sym is not None
+        joyxmove_addr = joyxmove_sym.rebased_addr
+        mousex_addr = mousex_sym.rebased_addr
+        gametic_addr = gametic_sym.rebased_addr
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.cexterns is not None
+        # extern CVariables always wrap SimMemoryVariable, which has .addr
+        cexterns = {
+            cvar.variable.addr: cvar.variable_type  # pyright: ignore[reportAttributeAccessIssue]
+            for cvar in dec.codegen.cexterns
+        }
         assert isinstance(cexterns[joyxmove_addr], SimTypeInt)
         assert isinstance(cexterns[mousex_addr], SimTypeInt)
         assert isinstance(cexterns[gametic_addr], SimTypeInt)
@@ -478,6 +515,7 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "static")
         proj = angr.Project(bin_path, auto_load_libs=False)
         ext_ty = self._assert_extern_is_function_pointer(proj, "_dl_signal_error", "_dl_error_catch_tsd")
+        assert isinstance(ext_ty.pts_to, SimTypeFunction)
         returnty = ext_ty.pts_to.returnty
         assert returnty is not None and not isinstance(returnty, SimTypeBottom)
 
@@ -489,6 +527,7 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         ext_ty = self._assert_extern_is_function_pointer(proj, "update_elf_header", "byte_put")
+        assert isinstance(ext_ty.pts_to, SimTypeFunction)
         assert ext_ty.pts_to.args  # called with arguments
         assert isinstance(ext_ty.pts_to.returnty, SimTypeBottom)  # result discarded -> void
 
@@ -498,6 +537,7 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         ext_ty = self._assert_extern_is_function_pointer(proj, "byte_get_signed", "byte_get")
+        assert isinstance(ext_ty.pts_to, SimTypeFunction)
         returnty = ext_ty.pts_to.returnty
         assert returnty is not None and not isinstance(returnty, SimTypeBottom)
 
@@ -508,6 +548,7 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "elfedit_gcc17_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         ext_ty = self._assert_extern_is_function_pointer(proj, "xexit", "_xexit_cleanup")
+        assert isinstance(ext_ty.pts_to, SimTypeFunction)
         assert not ext_ty.pts_to.args  # argument-less call
 
     def test_fnptr_parameter_recovered_iterator(self):
@@ -517,8 +558,11 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         func_sym = proj.loader.find_symbol("hash_do_for_each")
+        assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None
         proto = dec.clinic.function.prototype
+        assert proto is not None
         fnptr_args = [
             arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
         ]
@@ -531,8 +575,11 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         func_sym = proj.loader.find_symbol("heapify_down")
+        assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None
         proto = dec.clinic.function.prototype
+        assert proto is not None
         fnptr_args = [
             arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
         ]
@@ -545,7 +592,9 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "sort_gcc17_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         func_sym = proj.loader.find_symbol("hash_lookup")
+        assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None and dec.clinic.function.prototype is not None
         arg0 = dec.clinic.function.prototype.args[0]
         assert isinstance(arg0, SimTypePointer)
         struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
@@ -566,6 +615,7 @@ class TestTypehoon(unittest.TestCase):
         func_sym = proj.loader.find_symbol("uncompressbuf")
         assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None and dec.clinic.variable_kb is not None
         vm = dec.clinic.variable_kb.variables[func_sym.rebased_addr]
         fnptr_stack_locals = [
             v for v in vm.get_variables() if isinstance(v, SimStackVariable) and self._is_fnptr(vm.get_variable_type(v))
@@ -573,6 +623,7 @@ class TestTypehoon(unittest.TestCase):
         assert fnptr_stack_locals, "expected at least one stack-local function pointer"
         # and it is genuinely a local: no parameter carries a function-pointer type
         proto = dec.clinic.function.prototype
+        assert proto is not None
         assert not any(self._is_fnptr(arg) for arg in proto.args), (
             f"expected no function-pointer parameters, got {proto}"
         )
@@ -585,6 +636,7 @@ class TestTypehoon(unittest.TestCase):
         func_sym = proj.loader.find_symbol("hash_lookup")
         assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None and dec.clinic.function.prototype is not None
         arg0 = dec.clinic.function.prototype.args[0]
         assert isinstance(arg0, SimTypePointer)
         struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
@@ -603,7 +655,12 @@ class TestTypehoon(unittest.TestCase):
         global_sym = proj.loader.find_symbol("_TIFFerrorHandler")
         assert func_sym is not None and global_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
-        cexterns = {cv.variable.addr: cv.variable_type for cv in dec.codegen.cexterns}
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.cexterns is not None
+        # extern CVariables always wrap SimMemoryVariable, which has .addr
+        cexterns = {
+            cv.variable.addr: cv.variable_type  # pyright: ignore[reportAttributeAccessIssue]
+            for cv in dec.codegen.cexterns
+        }
         ext_ty = cexterns.get(global_sym.rebased_addr)
         assert ext_ty is not None
         assert not self._is_fnptr(ext_ty), f"expected an integer, got {ext_ty!r}"
@@ -618,7 +675,12 @@ class TestTypehoon(unittest.TestCase):
         global_sym = proj.loader.find_symbol("_TIFFerrorHandler")
         assert func_sym is not None and global_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
-        cexterns = {cv.variable.addr: cv.variable_type for cv in dec.codegen.cexterns}
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.cexterns is not None
+        # extern CVariables always wrap SimMemoryVariable, which has .addr
+        cexterns = {
+            cv.variable.addr: cv.variable_type  # pyright: ignore[reportAttributeAccessIssue]
+            for cv in dec.codegen.cexterns
+        }
         ext_ty = cexterns.get(global_sym.rebased_addr)
         assert ext_ty is not None
         assert not self._is_fnptr(ext_ty), f"expected an integer, got {ext_ty!r}"
@@ -637,8 +699,11 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "static")
         proj = angr.Project(bin_path, auto_load_libs=False)
         func_sym = proj.loader.find_symbol("_dl_catch_error")
+        assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None
         proto = dec.clinic.function.prototype
+        assert proto is not None
         fnptr_args = [
             arg for arg in proto.args if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeFunction)
         ]
@@ -662,6 +727,7 @@ class TestTypehoon(unittest.TestCase):
         func_sym = proj.loader.find_symbol("case_field0")
         assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None and dec.clinic.function.prototype is not None
         arg0 = dec.clinic.function.prototype.args[0]
         assert isinstance(arg0, SimTypePointer)
         pointee = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
@@ -685,6 +751,7 @@ class TestTypehoon(unittest.TestCase):
         func_sym = proj.loader.find_symbol("case_multifield")
         assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None and dec.clinic.function.prototype is not None
         arg0 = dec.clinic.function.prototype.args[0]
         assert isinstance(arg0, SimTypePointer)
         struct_ty = arg0.pts_to.type if isinstance(arg0.pts_to, TypeRef) else arg0.pts_to
@@ -703,8 +770,11 @@ class TestTypehoon(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
         func_sym = proj.loader.find_symbol("_obstack_begin_worker")
+        assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
+        assert dec.clinic is not None
         func = dec.clinic.function
+        assert func.prototype is not None
         arg0 = func.prototype.args[0]
         assert isinstance(arg0, SimTypePointer)
         assert not isinstance(arg0.pts_to, SimTypeFunction)
@@ -731,6 +801,7 @@ class TestTypehoon(unittest.TestCase):
         )
         # print(dec.codegen.text)
         sols = dec.clinic.typehoon.simtypes_solution
+        assert sols is not None
         all_sols = {v.label for v in sols.values()}
         assert "HKEY" in all_sols
         assert "PWSTR" in all_sols
@@ -825,7 +896,7 @@ class TestTypeTranslator(unittest.TestCase):
 
     def test_lift_recursive_struct(self):
         arch = archinfo.arch_from_id("amd64")
-        fields = OrderedDict({"ptr": SimTypePointer(SimTypeBottom())})
+        fields: OrderedDict[str, SimType] = OrderedDict({"ptr": SimTypePointer(SimTypeBottom())})
         st = SimStruct(fields, name="test_struct")
         assert isinstance(st.fields["ptr"], SimTypePointer)
         st.fields["ptr"].pts_to = st
@@ -835,6 +906,7 @@ class TestTypeTranslator(unittest.TestCase):
         assert isinstance(tc, Struct)
         assert 0 in tc.fields
         assert isinstance(tc.fields[0], Pointer64)
+        assert tc.field_names is not None
         assert 0 in tc.field_names
         assert tc.field_names[0] == "ptr"
 
