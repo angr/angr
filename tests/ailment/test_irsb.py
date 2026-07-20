@@ -44,10 +44,12 @@ class TestIrsb(unittest.TestCase):
 
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")
-        manager = ailment.Manager(arch=arch)
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
         translation = pypcode.Context(arch.name).translate(bytes.fromhex("ad34128d7856"), base_address=0)
         load_varnode = translation.ops[1].inputs[0]
         store_varnode = translation.ops[5].output
+        assert load_varnode is not None
+        assert store_varnode is not None
         assert load_varnode.space.name == store_varnode.space.name == "RAM"
 
         converter = object.__new__(ailment.PCodeIRSBConverter)
@@ -58,9 +60,11 @@ class TestIrsb(unittest.TestCase):
         store = converter._set_value(store_varnode, ailment.Expr.Const(None, 0xAA, 8))
 
         assert isinstance(load, ailment.Expr.Load)
+        assert isinstance(load.addr, ailment.Expr.Const)
         assert load.addr.value == 0x1234
         assert load.size == 1
         assert isinstance(store, ailment.Stmt.Store)
+        assert isinstance(store.addr, ailment.Expr.Const)
         assert store.addr.value == 0x5678
         assert store.size == 1
 
