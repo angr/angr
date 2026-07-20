@@ -245,7 +245,8 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             self.ail_manager.next_atom(), "And", [dep_1, flag], False, **ccall.tags
                         )
                         zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
-                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
+                        # dep_1 holds the old flags: ZF is *set* iff the masked bit is non-zero
+                        expr_op = "CmpNE" if cond_v == AMD64_CondTypes["CondZ"] else "CmpEQ"
 
                         r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)

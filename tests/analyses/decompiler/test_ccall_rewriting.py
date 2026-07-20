@@ -231,6 +231,26 @@ class TestAMD64CCallRewriterCondBE(unittest.TestCase):
         assert result.bits == ccall.bits
 
 
+class TestAMD64CCallRewriterCondZCopy(unittest.TestCase):
+    """CondZ/CondNZ over G_CC_OP_COPY read ZF straight out of the saved flags."""
+
+    def test_condz_copy_is_true_when_zf_set(self):
+        zf = AMD64_CondBitMasks["G_CC_MASK_Z"]
+        copy = AMD64_OpTypes["G_CC_OP_COPY"]
+        assert _rewritten_value(AMD64_CondTypes["CondZ"], copy, zf, 0) is True
+        assert _rewritten_value(AMD64_CondTypes["CondZ"], copy, 0, 0) is False
+        assert _rewritten_value(AMD64_CondTypes["CondNZ"], copy, zf, 0) is False
+        assert _rewritten_value(AMD64_CondTypes["CondNZ"], copy, 0, 0) is True
+
+    def test_condz_copy_matches_oracle(self):
+        copy = AMD64_OpTypes["G_CC_OP_COPY"]
+        for cond in ("CondZ", "CondNZ"):
+            for flags in range(256):
+                assert _rewritten_value(AMD64_CondTypes[cond], copy, flags, 0) == _oracle(
+                    AMD64_CondTypes[cond], copy, flags, 0
+                ), f"{cond} flags={flags:#x}"
+
+
 #  Boundary sweep: all 256 values of dep_1 against a fixed spread of dep_2 (zero, small values, the
 #  signed/unsigned transitions, the top of the range, and a bit pattern). These are ordering
 #  comparisons, so the boundary values cover every transition of the relation under test.
