@@ -100,7 +100,7 @@ class Bswap(PeepholeOptimizationExprBase):
                     (">>", 8, 0xFF00),
                 }:
                     core_expr = next(iter(cores))
-                    return Call(expr.idx, "__buildin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
+                    return Call(expr.idx, "__builtin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
 
         return None
 
