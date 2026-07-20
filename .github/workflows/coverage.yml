@@ -102,7 +102,7 @@ jobs:
       - uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2
         with:
           tool: cargo-llvm-cov
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v5
         with:
           python-version: "3.12"
       - name: Run tests
