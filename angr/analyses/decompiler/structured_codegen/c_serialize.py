@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import angr.sim_variable as sim_variable
 from angr.protos import codegen_pb2
@@ -26,12 +26,46 @@ from angr.rustylib.ailment import Statement as AilStatement
 from angr.sim_type import SimType
 from angr.sim_variable import SimVariable
 
-from . import c as cmod
 from .base import PositionMapping
-from .c import CConstant, CFunctionCall, CStructField, CVariable
-
-if TYPE_CHECKING:
-    from .c import CConstruct
+from .c import (
+    CITE,
+    CAILBlock,
+    CAssignment,
+    CBinaryOp,
+    CBreak,
+    CConstant,
+    CConstruct,
+    CContinue,
+    CDirtyExpression,
+    CDirtyStatement,
+    CDoWhileLoop,
+    CExpression,
+    CExpressionStatement,
+    CFakeVariable,
+    CForLoop,
+    CFunction,
+    CFunctionCall,
+    CGoto,
+    CIfBreak,
+    CIfElse,
+    CIncompleteSwitchCase,
+    CIndexedVariable,
+    CLabel,
+    CMultiStatementExpression,
+    CRegister,
+    CReturn,
+    CStatements,
+    CStructField,
+    CStructuredCodeGenerator,
+    CSwitchCase,
+    CTypeCast,
+    CUnaryOp,
+    CUnsupportedStatement,
+    CVariable,
+    CVariableField,
+    CVEXCCallExpression,
+    CWhileLoop,
+)
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Tag sanitization
@@ -118,8 +152,6 @@ class SerializeContext:
             return nid
         self._seen.add(nid)
 
-        from .c import CExpression  # avoid circular import at module load
-
         pb = codegen_pb2.CConstructNode()
         pb.node_id = nid
         pb.kind = _SERIALIZE_KIND_BY_CLASS[type(node)]
@@ -161,8 +193,6 @@ class ParseContext:
         obj.ident = pb.ident
         obj.tags = _parse_tags(pb.tags)
         obj.codegen = None  # back-reference re-attached by set_codegen()
-        from .c import CExpression
-
         if isinstance(obj, CExpression):
             obj.collapsed = bool(pb.collapsed) if pb.HasField("collapsed") else False
             obj._type = _simtype_from_json(pb.expr_type_json) if pb.HasField("expr_type_json") else None
@@ -387,8 +417,6 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     the full decompilation pipeline; instead we populate the attributes directly. The parsed instance is suitable for
     display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
     require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
-    from .c import CStructuredCodeGenerator
-
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
     ctx = ParseContext(msg.nodes, project=project, kb=kb)
 
@@ -459,7 +487,7 @@ def _ser_cbreak(node, pb, ctx):
 
 
 def _parse_cbreak(pb, ctx):
-    return cmod.CBreak.__new__(cmod.CBreak)
+    return CBreak.__new__(CBreak)
 
 
 def _ser_ccontinue(node, pb, ctx):
@@ -467,7 +495,7 @@ def _ser_ccontinue(node, pb, ctx):
 
 
 def _parse_ccontinue(pb, ctx):
-    return cmod.CContinue.__new__(cmod.CContinue)
+    return CContinue.__new__(CContinue)
 
 
 # -----------------------------------------------------------------------------------------------------------------
@@ -478,7 +506,7 @@ def _ser_clabel(node, pb, ctx):
 
 
 def _parse_clabel(pb, ctx):
-    obj = cmod.CLabel.__new__(cmod.CLabel)
+    obj = CLabel.__new__(CLabel)
     obj.name = pb.clabel.name
     return obj
 
@@ -488,7 +516,7 @@ def _ser_cregister(node, pb, ctx):
 
 
 def _parse_cregister(pb, ctx):
-    obj = cmod.CRegister.__new__(cmod.CRegister)
+    obj = CRegister.__new__(CRegister)
     obj.reg = pb.creg.reg
     return obj
 
@@ -504,7 +532,7 @@ def _ser_cstatements(node, pb, ctx):
 
 
 def _parse_cstatements(pb, ctx):
-    obj = cmod.CStatements.__new__(cmod.CStatements)
+    obj = CStatements.__new__(CStatements)
     obj.statements = [ctx.resolve(i) for i in pb.cstatements.statements_ids]
     obj.addr = pb.cstatements.addr if pb.cstatements.HasField("addr") else None
     return obj
@@ -516,7 +544,7 @@ def _ser_cassignment(node, pb, ctx):
 
 
 def _parse_cassignment(pb, ctx):
-    obj = cmod.CAssignment.__new__(cmod.CAssignment)
+    obj = CAssignment.__new__(CAssignment)
     obj.lhs = ctx.resolve(pb.cassignment.lhs_id)
     obj.rhs = ctx.resolve(pb.cassignment.rhs_id)
     return obj
@@ -528,7 +556,7 @@ def _ser_cexprstmt(node, pb, ctx):
 
 
 def _parse_cexprstmt(pb, ctx):
-    obj = cmod.CExpressionStatement.__new__(cmod.CExpressionStatement)
+    obj = CExpressionStatement.__new__(CExpressionStatement)
     obj.expr = ctx.resolve(pb.cexpression_stmt.expr_id)
     obj.returning = pb.cexpression_stmt.returning
     return obj
@@ -540,7 +568,7 @@ def _ser_creturn(node, pb, ctx):
 
 
 def _parse_creturn(pb, ctx):
-    obj = cmod.CReturn.__new__(cmod.CReturn)
+    obj = CReturn.__new__(CReturn)
     obj.retval = ctx.resolve(pb.creturn.retval_id) if pb.creturn.HasField("retval_id") else None
     return obj
 
@@ -551,7 +579,7 @@ def _ser_cifbreak(node, pb, ctx):
 
 
 def _parse_cifbreak(pb, ctx):
-    obj = cmod.CIfBreak.__new__(cmod.CIfBreak)
+    obj = CIfBreak.__new__(CIfBreak)
     obj.condition = ctx.resolve(pb.cifbreak.condition_id)
     obj.cstyle_ifs = pb.cifbreak.cstyle_ifs
     return obj
@@ -562,7 +590,7 @@ def _ser_cdirtystmt(node, pb, ctx):
 
 
 def _parse_cdirtystmt(pb, ctx):
-    obj = cmod.CDirtyStatement.__new__(cmod.CDirtyStatement)
+    obj = CDirtyStatement.__new__(CDirtyStatement)
     obj.dirty = ctx.resolve(pb.cdirty_stmt.dirty_id)
     return obj
 
@@ -578,7 +606,7 @@ def _ser_cwhile(node, pb, ctx):
 
 
 def _parse_cwhile(pb, ctx):
-    obj = cmod.CWhileLoop.__new__(cmod.CWhileLoop)
+    obj = CWhileLoop.__new__(CWhileLoop)
     obj.condition = ctx.resolve(pb.cwhile.condition_id) if pb.cwhile.HasField("condition_id") else None
     obj.body = ctx.resolve(pb.cwhile.body_id) if pb.cwhile.HasField("body_id") else None
     return obj
@@ -592,7 +620,7 @@ def _ser_cdowhile(node, pb, ctx):
 
 
 def _parse_cdowhile(pb, ctx):
-    obj = cmod.CDoWhileLoop.__new__(cmod.CDoWhileLoop)
+    obj = CDoWhileLoop.__new__(CDoWhileLoop)
     obj.condition = ctx.resolve(pb.cdowhile.condition_id) if pb.cdowhile.HasField("condition_id") else None
     obj.body = ctx.resolve(pb.cdowhile.body_id) if pb.cdowhile.HasField("body_id") else None
     return obj
@@ -610,7 +638,7 @@ def _ser_cfor(node, pb, ctx):
 
 
 def _parse_cfor(pb, ctx):
-    obj = cmod.CForLoop.__new__(cmod.CForLoop)
+    obj = CForLoop.__new__(CForLoop)
     body = pb.cfor
     obj.initializer = ctx.resolve(body.initializer_id) if body.HasField("initializer_id") else None
     obj.condition = ctx.resolve(body.condition_id) if body.HasField("condition_id") else None
@@ -635,7 +663,7 @@ def _ser_cifelse(node, pb, ctx):
 
 
 def _parse_cifelse(pb, ctx):
-    obj = cmod.CIfElse.__new__(cmod.CIfElse)
+    obj = CIfElse.__new__(CIfElse)
     body = pb.cifelse
     obj.condition_and_nodes = [
         (ctx.resolve(e.condition_id), ctx.resolve(e.statement_id) if e.HasField("statement_id") else None)
@@ -661,7 +689,7 @@ def _ser_cswitch(node, pb, ctx):
 
 
 def _parse_cswitch(pb, ctx):
-    obj = cmod.CSwitchCase.__new__(cmod.CSwitchCase)
+    obj = CSwitchCase.__new__(CSwitchCase)
     body = pb.cswitch
     obj.switch = ctx.resolve(body.switch_id)
     obj.cases = [
@@ -680,7 +708,7 @@ def _ser_cincomplete_switch(node, pb, ctx):
 
 
 def _parse_cincomplete_switch(pb, ctx):
-    obj = cmod.CIncompleteSwitchCase.__new__(cmod.CIncompleteSwitchCase)
+    obj = CIncompleteSwitchCase.__new__(CIncompleteSwitchCase)
     body = pb.cincomplete_switch
     obj.head = ctx.resolve(body.head_id)
     obj.cases = [(e.case_addr, ctx.resolve(e.statements_id)) for e in body.cases]
@@ -697,7 +725,7 @@ def _ser_cgoto(node, pb, ctx):
 
 
 def _parse_cgoto(pb, ctx):
-    obj = cmod.CGoto.__new__(cmod.CGoto)
+    obj = CGoto.__new__(CGoto)
     which = pb.cgoto.WhichOneof("target")
     if which == "target_int":
         obj.target = pb.cgoto.target_int
@@ -718,7 +746,7 @@ def _ser_cunop(node, pb, ctx):
 
 
 def _parse_cunop(pb, ctx):
-    obj = cmod.CUnaryOp.__new__(cmod.CUnaryOp)
+    obj = CUnaryOp.__new__(CUnaryOp)
     obj.op = pb.cunop.op
     obj.operand = ctx.resolve(pb.cunop.operand_id)
     return obj
@@ -732,7 +760,7 @@ def _ser_cbinop(node, pb, ctx):
 
 
 def _parse_cbinop(pb, ctx):
-    obj = cmod.CBinaryOp.__new__(cmod.CBinaryOp)
+    obj = CBinaryOp.__new__(CBinaryOp)
     obj.op = pb.cbinop.op
     obj.lhs = ctx.resolve(pb.cbinop.lhs_id)
     obj.rhs = ctx.resolve(pb.cbinop.rhs_id)
@@ -748,7 +776,7 @@ def _ser_ctypecast(node, pb, ctx):
 
 
 def _parse_ctypecast(pb, ctx):
-    obj = cmod.CTypeCast.__new__(cmod.CTypeCast)
+    obj = CTypeCast.__new__(CTypeCast)
     obj.src_type = _simtype_from_json(pb.ctypecast.src_type_json)
     obj.dst_type = _simtype_from_json(pb.ctypecast.dst_type_json)
     obj.expr = ctx.resolve(pb.ctypecast.expr_id)
@@ -762,7 +790,7 @@ def _ser_cite(node, pb, ctx):
 
 
 def _parse_cite(pb, ctx):
-    obj = cmod.CITE.__new__(cmod.CITE)
+    obj = CITE.__new__(CITE)
     obj.cond = ctx.resolve(pb.cite.cond_id)
     obj.iftrue = ctx.resolve(pb.cite.iftrue_id)
     obj.iffalse = ctx.resolve(pb.cite.iffalse_id)
@@ -775,7 +803,7 @@ def _ser_cmulti(node, pb, ctx):
 
 
 def _parse_cmulti(pb, ctx):
-    obj = cmod.CMultiStatementExpression.__new__(cmod.CMultiStatementExpression)
+    obj = CMultiStatementExpression.__new__(CMultiStatementExpression)
     obj.stmts = ctx.resolve(pb.cmulti_stmt_expr.stmts_id)
     obj.expr = ctx.resolve(pb.cmulti_stmt_expr.expr_id)
     return obj
@@ -788,7 +816,7 @@ def _ser_cvex(node, pb, ctx):
 
 
 def _parse_cvex(pb, ctx):
-    obj = cmod.CVEXCCallExpression.__new__(cmod.CVEXCCallExpression)
+    obj = CVEXCCallExpression.__new__(CVEXCCallExpression)
     obj.callee = pb.cvex_ccall.callee
     obj.operands = [ctx.resolve(i) for i in pb.cvex_ccall.operands_ids]
     return obj
@@ -804,7 +832,7 @@ def _ser_cstructfield(node, pb, ctx):
 
 
 def _parse_cstructfield(pb, ctx):
-    obj = cmod.CStructField.__new__(cmod.CStructField)
+    obj = CStructField.__new__(CStructField)
     obj.struct_type = _simtype_from_json(pb.cstruct_field.struct_type_json)
     obj.offset = pb.cstruct_field.offset
     obj.field = pb.cstruct_field.field
@@ -819,7 +847,7 @@ def _ser_cfakevar(node, pb, ctx):
 
 
 def _parse_cfakevar(pb, ctx):
-    obj = cmod.CFakeVariable.__new__(cmod.CFakeVariable)
+    obj = CFakeVariable.__new__(CFakeVariable)
     obj.name = pb.cfake_var.name
     # _type is restored by ParseContext.resolve via expr_type_json on the wrapper; CFakeVariable also has _type
     # in __slots__, set there too if present in body.
@@ -839,7 +867,7 @@ def _ser_cvar(node, pb, ctx):
 
 
 def _parse_cvar(pb, ctx):
-    obj = cmod.CVariable.__new__(cmod.CVariable)
+    obj = CVariable.__new__(CVariable)
     body = pb.cvar
     obj.variable = _simvar_from_bytes(body.variable)
     obj.unified_variable = _simvar_from_bytes(body.unified_variable) if body.HasField("unified_variable") else None
@@ -857,7 +885,7 @@ def _ser_cidxvar(node, pb, ctx):
 
 
 def _parse_cidxvar(pb, ctx):
-    obj = cmod.CIndexedVariable.__new__(cmod.CIndexedVariable)
+    obj = CIndexedVariable.__new__(CIndexedVariable)
     body = pb.cindexed_var
     obj.variable = ctx.resolve(body.variable_id)
     obj.index = ctx.resolve(body.index_id)
@@ -873,7 +901,7 @@ def _ser_cvarfield(node, pb, ctx):
 
 
 def _parse_cvarfield(pb, ctx):
-    obj = cmod.CVariableField.__new__(cmod.CVariableField)
+    obj = CVariableField.__new__(CVariableField)
     body = pb.cvar_field
     obj.variable = ctx.resolve(body.variable_id)
     obj.field = ctx.resolve(body.field_id)
@@ -917,7 +945,7 @@ def _ser_cconst(node, pb, ctx):
 def _parse_cconst(pb, ctx):
     from angr.knowledge_plugins.cfg.memory_data import MemoryData
 
-    obj = cmod.CConstant.__new__(cmod.CConstant)
+    obj = CConstant.__new__(CConstant)
     body = pb.cconst
     which = body.WhichOneof("value")
     if which == "int_value":
@@ -969,7 +997,7 @@ def _ser_cfuncall(node, pb, ctx):
 
 
 def _parse_cfuncall(pb, ctx):
-    obj = cmod.CFunctionCall.__new__(cmod.CFunctionCall)
+    obj = CFunctionCall.__new__(CFunctionCall)
     body = pb.cfuncall
     which = body.WhichOneof("callee_target")
     if which == "callee_target_int":
@@ -1013,7 +1041,7 @@ def _ser_cfunction(node, pb, ctx):
 
 
 def _parse_cfunction(pb, ctx):
-    obj = cmod.CFunction.__new__(cmod.CFunction)
+    obj = CFunction.__new__(CFunction)
     body = pb.cfunction
     obj.addr = body.addr if body.HasField("addr") else None
     obj.name = body.name
@@ -1041,7 +1069,7 @@ def _ser_cailblock(node, pb, ctx):
 
 
 def _parse_cailblock(pb, ctx):
-    obj = cmod.CAILBlock.__new__(cmod.CAILBlock)
+    obj = CAILBlock.__new__(CAILBlock)
     obj.block = AilBlock.from_bytes(pb.cailblock.block)
     return obj
 
@@ -1051,7 +1079,7 @@ def _ser_cunsupported(node, pb, ctx):
 
 
 def _parse_cunsupported(pb, ctx):
-    obj = cmod.CUnsupportedStatement.__new__(cmod.CUnsupportedStatement)
+    obj = CUnsupportedStatement.__new__(CUnsupportedStatement)
     obj.stmt = AilStatement.from_bytes(pb.cunsupported.stmt)
     return obj
 
@@ -1061,49 +1089,49 @@ def _ser_cdirtyexpr(node, pb, ctx):
 
 
 def _parse_cdirtyexpr(pb, ctx):
-    obj = cmod.CDirtyExpression.__new__(cmod.CDirtyExpression)
+    obj = CDirtyExpression.__new__(CDirtyExpression)
     obj.dirty = AilExpression.from_bytes(pb.cdirty_expr.dirty)
     return obj
 
 
 def register_all() -> None:
     """Registers serializer/parser pairs for every concrete CConstruct subclass. Called from c.py at import time."""
-    _register(cmod.CBreak, codegen_pb2.CCK_BREAK, _ser_cbreak, _parse_cbreak)
-    _register(cmod.CContinue, codegen_pb2.CCK_CONTINUE, _ser_ccontinue, _parse_ccontinue)
-    _register(cmod.CLabel, codegen_pb2.CCK_LABEL, _ser_clabel, _parse_clabel)
-    _register(cmod.CRegister, codegen_pb2.CCK_REGISTER, _ser_cregister, _parse_cregister)
-    _register(cmod.CStatements, codegen_pb2.CCK_STATEMENTS, _ser_cstatements, _parse_cstatements)
-    _register(cmod.CAssignment, codegen_pb2.CCK_ASSIGNMENT, _ser_cassignment, _parse_cassignment)
-    _register(cmod.CExpressionStatement, codegen_pb2.CCK_EXPRESSION_STATEMENT, _ser_cexprstmt, _parse_cexprstmt)
-    _register(cmod.CReturn, codegen_pb2.CCK_RETURN, _ser_creturn, _parse_creturn)
-    _register(cmod.CIfBreak, codegen_pb2.CCK_IF_BREAK, _ser_cifbreak, _parse_cifbreak)
-    _register(cmod.CDirtyStatement, codegen_pb2.CCK_DIRTY_STATEMENT, _ser_cdirtystmt, _parse_cdirtystmt)
-    _register(cmod.CWhileLoop, codegen_pb2.CCK_WHILE_LOOP, _ser_cwhile, _parse_cwhile)
-    _register(cmod.CDoWhileLoop, codegen_pb2.CCK_DO_WHILE_LOOP, _ser_cdowhile, _parse_cdowhile)
-    _register(cmod.CForLoop, codegen_pb2.CCK_FOR_LOOP, _ser_cfor, _parse_cfor)
-    _register(cmod.CIfElse, codegen_pb2.CCK_IF_ELSE, _ser_cifelse, _parse_cifelse)
-    _register(cmod.CSwitchCase, codegen_pb2.CCK_SWITCH_CASE, _ser_cswitch, _parse_cswitch)
+    _register(CBreak, codegen_pb2.CCK_BREAK, _ser_cbreak, _parse_cbreak)
+    _register(CContinue, codegen_pb2.CCK_CONTINUE, _ser_ccontinue, _parse_ccontinue)
+    _register(CLabel, codegen_pb2.CCK_LABEL, _ser_clabel, _parse_clabel)
+    _register(CRegister, codegen_pb2.CCK_REGISTER, _ser_cregister, _parse_cregister)
+    _register(CStatements, codegen_pb2.CCK_STATEMENTS, _ser_cstatements, _parse_cstatements)
+    _register(CAssignment, codegen_pb2.CCK_ASSIGNMENT, _ser_cassignment, _parse_cassignment)
+    _register(CExpressionStatement, codegen_pb2.CCK_EXPRESSION_STATEMENT, _ser_cexprstmt, _parse_cexprstmt)
+    _register(CReturn, codegen_pb2.CCK_RETURN, _ser_creturn, _parse_creturn)
+    _register(CIfBreak, codegen_pb2.CCK_IF_BREAK, _ser_cifbreak, _parse_cifbreak)
+    _register(CDirtyStatement, codegen_pb2.CCK_DIRTY_STATEMENT, _ser_cdirtystmt, _parse_cdirtystmt)
+    _register(CWhileLoop, codegen_pb2.CCK_WHILE_LOOP, _ser_cwhile, _parse_cwhile)
+    _register(CDoWhileLoop, codegen_pb2.CCK_DO_WHILE_LOOP, _ser_cdowhile, _parse_cdowhile)
+    _register(CForLoop, codegen_pb2.CCK_FOR_LOOP, _ser_cfor, _parse_cfor)
+    _register(CIfElse, codegen_pb2.CCK_IF_ELSE, _ser_cifelse, _parse_cifelse)
+    _register(CSwitchCase, codegen_pb2.CCK_SWITCH_CASE, _ser_cswitch, _parse_cswitch)
     _register(
-        cmod.CIncompleteSwitchCase,
+        CIncompleteSwitchCase,
         codegen_pb2.CCK_INCOMPLETE_SWITCH_CASE,
         _ser_cincomplete_switch,
         _parse_cincomplete_switch,
     )
-    _register(cmod.CGoto, codegen_pb2.CCK_GOTO, _ser_cgoto, _parse_cgoto)
-    _register(cmod.CUnaryOp, codegen_pb2.CCK_UNARY_OP, _ser_cunop, _parse_cunop)
-    _register(cmod.CBinaryOp, codegen_pb2.CCK_BINARY_OP, _ser_cbinop, _parse_cbinop)
-    _register(cmod.CTypeCast, codegen_pb2.CCK_TYPE_CAST, _ser_ctypecast, _parse_ctypecast)
-    _register(cmod.CITE, codegen_pb2.CCK_ITE, _ser_cite, _parse_cite)
-    _register(cmod.CMultiStatementExpression, codegen_pb2.CCK_MULTI_STATEMENT_EXPRESSION, _ser_cmulti, _parse_cmulti)
-    _register(cmod.CVEXCCallExpression, codegen_pb2.CCK_VEX_CCALL_EXPRESSION, _ser_cvex, _parse_cvex)
-    _register(cmod.CStructField, codegen_pb2.CCK_STRUCT_FIELD, _ser_cstructfield, _parse_cstructfield)
-    _register(cmod.CFakeVariable, codegen_pb2.CCK_FAKE_VARIABLE, _ser_cfakevar, _parse_cfakevar)
-    _register(cmod.CVariable, codegen_pb2.CCK_VARIABLE, _ser_cvar, _parse_cvar)
-    _register(cmod.CIndexedVariable, codegen_pb2.CCK_INDEXED_VARIABLE, _ser_cidxvar, _parse_cidxvar)
-    _register(cmod.CVariableField, codegen_pb2.CCK_VARIABLE_FIELD, _ser_cvarfield, _parse_cvarfield)
-    _register(cmod.CConstant, codegen_pb2.CCK_CONSTANT, _ser_cconst, _parse_cconst)
-    _register(cmod.CFunctionCall, codegen_pb2.CCK_FUNCTION_CALL, _ser_cfuncall, _parse_cfuncall)
-    _register(cmod.CFunction, codegen_pb2.CCK_FUNCTION, _ser_cfunction, _parse_cfunction)
-    _register(cmod.CAILBlock, codegen_pb2.CCK_AIL_BLOCK, _ser_cailblock, _parse_cailblock)
-    _register(cmod.CUnsupportedStatement, codegen_pb2.CCK_UNSUPPORTED_STATEMENT, _ser_cunsupported, _parse_cunsupported)
-    _register(cmod.CDirtyExpression, codegen_pb2.CCK_DIRTY_EXPRESSION, _ser_cdirtyexpr, _parse_cdirtyexpr)
+    _register(CGoto, codegen_pb2.CCK_GOTO, _ser_cgoto, _parse_cgoto)
+    _register(CUnaryOp, codegen_pb2.CCK_UNARY_OP, _ser_cunop, _parse_cunop)
+    _register(CBinaryOp, codegen_pb2.CCK_BINARY_OP, _ser_cbinop, _parse_cbinop)
+    _register(CTypeCast, codegen_pb2.CCK_TYPE_CAST, _ser_ctypecast, _parse_ctypecast)
+    _register(CITE, codegen_pb2.CCK_ITE, _ser_cite, _parse_cite)
+    _register(CMultiStatementExpression, codegen_pb2.CCK_MULTI_STATEMENT_EXPRESSION, _ser_cmulti, _parse_cmulti)
+    _register(CVEXCCallExpression, codegen_pb2.CCK_VEX_CCALL_EXPRESSION, _ser_cvex, _parse_cvex)
+    _register(CStructField, codegen_pb2.CCK_STRUCT_FIELD, _ser_cstructfield, _parse_cstructfield)
+    _register(CFakeVariable, codegen_pb2.CCK_FAKE_VARIABLE, _ser_cfakevar, _parse_cfakevar)
+    _register(CVariable, codegen_pb2.CCK_VARIABLE, _ser_cvar, _parse_cvar)
+    _register(CIndexedVariable, codegen_pb2.CCK_INDEXED_VARIABLE, _ser_cidxvar, _parse_cidxvar)
+    _register(CVariableField, codegen_pb2.CCK_VARIABLE_FIELD, _ser_cvarfield, _parse_cvarfield)
+    _register(CConstant, codegen_pb2.CCK_CONSTANT, _ser_cconst, _parse_cconst)
+    _register(CFunctionCall, codegen_pb2.CCK_FUNCTION_CALL, _ser_cfuncall, _parse_cfuncall)
+    _register(CFunction, codegen_pb2.CCK_FUNCTION, _ser_cfunction, _parse_cfunction)
+    _register(CAILBlock, codegen_pb2.CCK_AIL_BLOCK, _ser_cailblock, _parse_cailblock)
+    _register(CUnsupportedStatement, codegen_pb2.CCK_UNSUPPORTED_STATEMENT, _ser_cunsupported, _parse_cunsupported)
+    _register(CDirtyExpression, codegen_pb2.CCK_DIRTY_EXPRESSION, _ser_cdirtyexpr, _parse_cdirtyexpr)
