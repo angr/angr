@@ -167,11 +167,37 @@ class TestSubObjectSerialization(unittest.TestCase):
         n = DecompilationNote(
             key="warn1", name="Warning One", content={"foo": [1, 2]}, level=DecompilationNoteLevel.WARNING
         )
-        back = DecompilationNote.parse(n.serialize())
+        back = DecompilationNote.from_json(n.to_json())
+        assert type(back) is DecompilationNote
         assert back.key == n.key
         assert back.name == n.name
         assert back.level == n.level
         assert back.content == n.content
+
+    def test_decompilation_note_non_jsonable_content(self):
+        from angr.analyses.decompiler.notes.decompilation_note import DecompilationNote
+
+        n = DecompilationNote(key="k", name="n", content=object())
+        back = DecompilationNote.from_json(n.to_json())
+        assert back.content is None
+
+    def test_deobfuscated_strings_note_roundtrip(self):
+        from angr.analyses.decompiler.notes.decompilation_note import DecompilationNote
+        from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
+
+        n = DeobfuscatedStringsNote()
+        n.add_string("1", b"\x00binary\xffdata", ref_addr=0x400100)
+        n.add_string("2", b"hello", ref_addr=0x400200)
+
+        back = DecompilationNote.from_json(n.to_json())
+        assert isinstance(back, DeobfuscatedStringsNote)
+        assert back.key == n.key
+        assert back.name == n.name
+        assert set(back.strings) == {0x400100, 0x400200}
+        assert back.strings[0x400100].value == b"\x00binary\xffdata"
+        assert back.strings[0x400100].type == "1"
+        assert back.strings[0x400200].value == b"hello"
+        assert str(back) == str(n)
 
     def test_op_descriptor(self):
         from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor

@@ -4,9 +4,6 @@ import json
 from enum import Enum
 from typing import Any
 
-from angr.protos import decompilation_cache_pb2
-from angr.serializable import Serializable
-
 
 class DecompilationNoteLevel(Enum):
     """
@@ -19,7 +16,7 @@ class DecompilationNoteLevel(Enum):
     CRITICAL = 3
 
 
-class DecompilationNote(Serializable):
+class DecompilationNote:
     """
     Describes a note that is generated during decompilation.
 
@@ -30,7 +27,12 @@ class DecompilationNote(Serializable):
     so that it can be displayed.
     Level is the level of the note. The following values are available: DecompilationNoteLevel.DEBUG,
     DecompilationNoteLevel.INFO, DecompilationNoteLevel.WARNING, and DecompilationNoteLevel.CRITICAL.
+
+    Notes serialize to JSON. The encoding carries a "class" tag so that subclasses (registered automatically via
+    __init_subclass__) round-trip with their extra state; unknown tags degrade to the base class.
     """
+
+    _subclasses: dict[str, type[DecompilationNote]] = {}
 
     __slots__ = (
         "content",
@@ -45,34 +47,51 @@ class DecompilationNote(Serializable):
         self.content = content
         self.level = level
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        DecompilationNote._subclasses[cls.__name__] = cls
+
     def __repr__(self):
         return f"<DecompilationNote: {self.name}>"
 
     def __str__(self):
         return f"{self.name}: {self.content}"
 
-    @classmethod
-    def _get_cmsg(cls):
-        return decompilation_cache_pb2.DecompilationNote()
+    #
+    # JSON serialization
+    #
 
-    def serialize_to_cmessage(self):
+    def to_jsonable(self) -> dict[str, Any]:
         # content is constrained at serialize time to values that round-trip through json.dumps / json.loads.
         try:
-            content_json = json.dumps(self.content)
+            content = json.loads(json.dumps(self.content))
         except (TypeError, ValueError):
-            content_json = json.dumps(None)
-        return decompilation_cache_pb2.DecompilationNote(
-            key=self.key,
-            name=self.name,
-            content_json=content_json,
-            level=int(self.level.value),
+            content = None
+        return {
+            "class": type(self).__name__,
+            "key": self.key,
+            "name": self.name,
+            "content": content,
+            "level": int(self.level.value),
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_jsonable())
+
+    @classmethod
+    def from_jsonable(cls, d: dict[str, Any]) -> DecompilationNote:
+        klass = cls._subclasses.get(d.get("class", ""), DecompilationNote)
+        return klass._from_jsonable_impl(d)
+
+    @classmethod
+    def _from_jsonable_impl(cls, d: dict[str, Any]) -> DecompilationNote:
+        return cls(
+            key=d["key"],
+            name=d["name"],
+            content=d.get("content"),
+            level=DecompilationNoteLevel(d.get("level", DecompilationNoteLevel.INFO.value)),
         )
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, **kwargs):
-        return cls(
-            key=cmsg.key,
-            name=cmsg.name,
-            content=json.loads(cmsg.content_json) if cmsg.content_json else None,
-            level=DecompilationNoteLevel(cmsg.level),
-        )
+    def from_json(cls, s: str) -> DecompilationNote:
+        return cls.from_jsonable(json.loads(s))

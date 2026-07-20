@@ -16,7 +16,6 @@ decompilation pipeline.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING
 
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
@@ -46,34 +45,13 @@ def _serialize_notes(notes, out_msg) -> None:
     if not notes:
         return
     for k, note in notes.items():
-        try:
-            content_json = json.dumps(note.content)
-        except (TypeError, ValueError):
-            content_json = json.dumps(None)
-        out_msg[k] = json.dumps(
-            {
-                "key": note.key,
-                "name": note.name,
-                "content_json": content_json,
-                "level": int(note.level.value),
-            }
-        )
+        out_msg[k] = note.to_json()
 
 
 def _parse_notes(notes_msg) -> dict:
     from angr.analyses.decompiler.notes import DecompilationNote
-    from angr.analyses.decompiler.notes.decompilation_note import DecompilationNoteLevel
 
-    result: dict = {}
-    for k, blob in notes_msg.items():
-        payload = json.loads(blob)
-        result[k] = DecompilationNote(
-            key=payload["key"],
-            name=payload["name"],
-            content=json.loads(payload["content_json"]),
-            level=DecompilationNoteLevel(payload["level"]),
-        )
-    return result
+    return {k: DecompilationNote.from_json(blob) for k, blob in notes_msg.items()}
 
 
 def _serialize_pass_classes(classes, out_repeated) -> None:

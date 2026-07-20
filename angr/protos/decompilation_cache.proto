@@ -20,19 +20,6 @@ message BinopOperatorEntry {
     string value = 2;
 }
 
-message DecompilationNote {
-    string key = 1;
-    string name = 2;
-    // ``content`` is typed Any on the Python side. We constrain it to JSON-serializable values and encode here.
-    string content_json = 3;
-    int32 level = 4;                          // DecompilationNoteLevel value
-}
-
-message DecompilationNoteEntry {
-    string key = 1;
-    DecompilationNote note = 2;
-}
-
 message StackvarMaxSizeEntry {
     // SimStackVariable is polymorphic; we use the same "<ClassName>\0<proto bytes>" wrapping as elsewhere.
     bytes simvar = 1;
@@ -115,5 +102,5 @@ message DecompilationCache {
     DecompilationParameters parameters = 20;
     bool parameters_set = 21;                 // distinguish empty parameters dict from None
 
-    repeated DecompilationNoteEntry notes = 30;
+    map<string, string> notes_json = 30;      // DecompilationNote serialized to JSON; key = note key
 }

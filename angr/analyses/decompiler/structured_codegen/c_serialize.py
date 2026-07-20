@@ -268,39 +268,17 @@ def _parse_instruction_mapping(im_msg):
 
 
 def _serialize_notes(notes: dict | None, out_msg) -> None:
-    """notes: dict[str, DecompilationNote]. Each DecompilationNote is serialized as a small JSON dict."""
+    """notes: dict[str, DecompilationNote]. Each DecompilationNote is serialized to JSON."""
     if not notes:
         return
     for k, note in notes.items():
-        try:
-            content_json = json.dumps(note.content)
-        except (TypeError, ValueError):
-            content_json = json.dumps(None)
-        out_msg[k] = json.dumps(
-            {
-                "key": note.key,
-                "name": note.name,
-                "content_json": content_json,
-                "level": int(note.level.value),
-            }
-        )
+        out_msg[k] = note.to_json()
 
 
 def _parse_notes(notes_msg):
     from angr.analyses.decompiler.notes import DecompilationNote
-    from angr.analyses.decompiler.notes.decompilation_note import DecompilationNoteLevel
 
-    result: dict[str, DecompilationNote] = {}
-    for k, blob in notes_msg.items():
-        payload = json.loads(blob)
-        content = json.loads(payload["content_json"])
-        result[k] = DecompilationNote(
-            key=payload["key"],
-            name=payload["name"],
-            content=content,
-            level=DecompilationNoteLevel(payload["level"]),
-        )
-    return result
+    return {k: DecompilationNote.from_json(blob) for k, blob in notes_msg.items()}
 
 
 def _serialize_const_formats(const_formats: dict | None, out_repeated) -> None:

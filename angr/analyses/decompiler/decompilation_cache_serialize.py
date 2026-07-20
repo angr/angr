@@ -190,9 +190,7 @@ def serialize_cache(cache: DecompilationCache) -> decompilation_cache_pb2.Decomp
         _serialize_parameters(cache.parameters, msg.parameters)
 
     for k, note in cache.notes.items():
-        entry = msg.notes.add()
-        entry.key = k
-        entry.note.CopyFrom(note.serialize_to_cmessage())
+        msg.notes_json[k] = note.to_json()
 
     return msg
 
@@ -247,6 +245,6 @@ def parse_cache(
     if cmsg.parameters_set:
         cache.parameters = _parse_parameters(cmsg.parameters)
 
-    cache.notes = {entry.key: DecompilationNote.parse_from_cmessage(entry.note) for entry in cmsg.notes}
+    cache.notes = {k: DecompilationNote.from_json(v) for k, v in cmsg.notes_json.items()}
 
     return cache
