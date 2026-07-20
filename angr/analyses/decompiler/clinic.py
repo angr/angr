@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import enum
+import importlib
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
@@ -19,8 +20,10 @@ from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Str
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
@@ -44,6 +47,8 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.protos import clinic_pb2
+from angr.serializable import Serializable
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -67,12 +72,23 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils import timethis
+from angr.utils.ail_serialization import (
+    pack_arg_vvars,
+    pack_graph,
+    pack_type_hints,
+    parse_arg_vvars,
+    parse_graph,
+    parse_type_hints,
+    simvar_from_bytes_polymorphic,
+    simvar_to_bytes_polymorphic,
+)
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
     DUPLICATING_OPTS,
@@ -193,7 +209,7 @@ class ComboRegReferenceWalker(AILBlockRewriter):
         return expr
 
 
-class Clinic(Analysis):
+class Clinic(Analysis, Serializable):
     """
     A Clinic deals with AILments.
     """
@@ -4186,44 +4202,334 @@ class Clinic(Analysis):
             .model
         )
 
+    # -----------------------------------------------------------------------------------------------------------------
+    # Protobuf serialization. Conventions:
+    # - Heavy sub-objects manage their own formats; AIL-typed slots use the typed messages from ail_types.proto.
+    # - Runtime back-references (project / kb / function / variable_kb / _cfg / _cache / typehoon / _spt) are not
+    #   serialized; they are reattached at parse time from the caller's kwargs.
+    # - parse_from_cmessage uses __new__ to bypass __init__, which would run the full decompilation pipeline.
+    # -----------------------------------------------------------------------------------------------------------------
+
+    @classmethod
+    def _get_cmsg(cls):
+        return clinic_pb2.Clinic()
+
+    def serialize_to_cmessage(self):
+        msg = clinic_pb2.Clinic()
+
+        # Function and arch hints.
+        if self.function is not None and self.function.addr is not None:
+            msg.function_addr = self.function.addr
+        if self.flavor is not None:
+            msg.flavor = self.flavor
+
+        # AIL-typed slots → typed ail_types messages. _blocks_by_addr_and_size and func_args are reconstructed at parse
+        # time (from _init_ail_graph and arg_vvars respectively) and are not serialized.
+        if self.graph is not None:
+            msg.graph.CopyFrom(pack_graph(self.graph))
+        if self.cc_graph is not None:
+            msg.cc_graph.CopyFrom(pack_graph(self.cc_graph))
+        if self.unoptimized_graph is not None:
+            msg.unoptimized_graph.CopyFrom(pack_graph(self.unoptimized_graph))
+        if self._ail_graph is not None:
+            msg._ail_graph.CopyFrom(pack_graph(self._ail_graph))
+        if self._init_ail_graph is not None:
+            msg._init_ail_graph.CopyFrom(pack_graph(self._init_ail_graph))
+        if self.arg_vvars is not None:
+            msg.arg_vvars.CopyFrom(pack_arg_vvars(self.arg_vvars))
+        if self._init_arg_vvars is not None:
+            msg._init_arg_vvars.CopyFrom(pack_arg_vvars(self._init_arg_vvars))
+        msg._type_hints.CopyFrom(pack_type_hints(self._type_hints))
+
+        # Already-Serializable sub-objects.
+        if self.arg_list is not None:
+            for sv in self.arg_list:
+                msg.arg_list.add().payload = simvar_to_bytes_polymorphic(sv)
+        # ``func_ret_var`` is always the same SimVariable(0, "__retvar", "__retvar") sentinel; not serialized — recreated
+        # at parse time.
+        for sv in self.externs:
+            msg.externs.add().payload = simvar_to_bytes_polymorphic(sv)
+        if self.reaching_definitions is not None:
+            msg.reaching_definitions = self.reaching_definitions.serialize()
+
+        # CLEAN collections.
+        for addr, refs in self.data_refs.items():
+            lst = msg.data_refs[addr]
+            for r in refs:
+                ref = lst.refs.add()
+                ref.data_addr = r.data_addr
+                ref.data_size = r.data_size
+                ref.block_addr = r.block_addr
+                ref.stmt_idx = r.stmt_idx
+                ref.ins_addr = r.ins_addr
+                ref.data_type_str = r.data_type_str
+        if self.vvar_to_vvar is not None:
+            for k, v in self.vvar_to_vvar.items():
+                msg.vvar_to_vvar[k] = v
+        msg.secondary_stackvars.extend(sorted(self.secondary_stackvars))
+        for records in self._stackarg_offset_manager.stack_arg_offsets.values():
+            for (block_addr, block_idx), ins_addr, offset, size in sorted(
+                records, key=lambda r: (r[0][0], -1 if r[0][1] is None else r[0][1], r[1], r[2], r[3])
+            ):
+                rec = msg.stackarg_offset_records.add()
+                rec.block_addr = block_addr
+                if block_idx is not None:
+                    rec.block_idx = block_idx
+                rec.ins_addr = ins_addr
+                rec.offset = offset
+                rec.size = size
+        if self._removed_vvar_ids is not None:
+            msg._removed_vvar_ids_set = True
+            msg.removed_vvar_ids.extend(sorted(self._removed_vvar_ids))
+        msg._preserve_vvar_ids.extend(sorted(self._preserve_vvar_ids))
+        msg._inline_functions.extend(sorted(f.addr for f in self._inline_functions if f.addr is not None))
+        for k, v in self._inlined_counts.items():
+            msg._inlined_counts[k] = v
+        msg._inlining_parents.extend(sorted(self._inlining_parents))
+        if self._must_struct is not None:
+            msg._must_struct_set = True
+            msg._must_struct.extend(sorted(self._must_struct))
+        if self._desired_variables is not None:
+            msg._desired_variables_set = True
+            msg._desired_variables.extend(sorted(self._desired_variables))
+        for off, item in self.stack_items.items():
+            msg.stack_items[off].offset = item.offset
+            msg.stack_items[off].size = item.size
+            msg.stack_items[off].name = item.name
+            msg.stack_items[off].item_type = item.item_type.value
+        for src, dst in self.edges_to_remove:
+            pair = msg.edges_to_remove.add()
+            pair.src.addr = src[0]
+            if src[1] is not None:
+                pair.src.idx = src[1]
+            pair.dst.addr = dst[0]
+            if dst[1] is not None:
+                pair.dst.idx = dst[1]
+        msg.copied_var_ids.extend(sorted(self.copied_var_ids))
+        msg._new_block_addrs.extend(sorted(self._new_block_addrs))
+        if self.entry_node_addr is not None:
+            msg.entry_node_addr.addr = self.entry_node_addr[0]
+            if self.entry_node_addr[1] is not None:
+                msg.entry_node_addr.idx = self.entry_node_addr[1]
+
+        # CLEAN scalars.
+        msg.vvar_id_start = self.vvar_id_start
+        msg._max_stack_depth = self._max_stack_depth
+        msg._sp_shift = self._sp_shift
+        msg._max_type_constraints = self._max_type_constraints
+        msg._type_constraint_set_degradation_threshold = self._type_constraint_set_degradation_threshold
+        msg._fold_callexprs_into_conditions = self._fold_callexprs_into_conditions
+        msg._fold_expressions = self._fold_expressions
+        msg._insert_labels = self._insert_labels
+        msg._remove_dead_memdefs = self._remove_dead_memdefs
+        msg._exception_edges = self._exception_edges
+        msg._sp_tracker_track_memory = self._sp_tracker_track_memory
+        msg._reset_variable_names = self._reset_variable_names
+        msg._rewrite_ites_to_diamonds = self._rewrite_ites_to_diamonds
+        msg._flatten_args = self._flatten_args
+        msg._semvar_naming = self._semvar_naming
+        msg._force_loop_single_exit = self._force_loop_single_exit
+        msg._refine_loops_with_single_successor = self._refine_loops_with_single_successor
+        msg._register_save_areas_removed = self._register_save_areas_removed
+        msg._rewrite_ites_to_diamond_max_cases = self._rewrite_ites_to_diamond_max_cases
+        msg._expose_loop_head_backedges = self._expose_loop_head_backedges
+        msg._constrain_callee_prototypes = self._constrain_callee_prototypes
+
+        msg._mode = self._mode.value
+        msg._start_stage = self._start_stage.value
+        msg._end_stage = self._end_stage.value
+        msg._skip_stages.extend(s.value for s in self._skip_stages)
+
+        # Pass class refs.
+        if self.peephole_optimizations is not None:
+            msg._peephole_optimizations_set = True
+            msg.peephole_optimizations.extend(pass_to_name(cls_) for cls_ in self.peephole_optimizations)
+        if self._typehoon_cls is not None:
+            msg._typehoon_cls = pass_to_name(self._typehoon_cls) if self._typehoon_cls.__module__ != "builtins" else ""
+            # ``_typehoon_cls`` is normally the Typehoon class itself, not a pass; we still encode via FQN for symmetry.
+
+        # Notes.
+        for k, note in self.notes.items():
+            msg.notes_json[k] = note.to_json()
+        return msg
+
+    @classmethod
+    def parse_from_cmessage(
+        cls,
+        cmsg,
+        *,
+        project=None,
+        kb=None,
+        function=None,
+        variable_kb=None,
+        cfg=None,
+        **kwargs,
+    ):
+        msg = cmsg
+        """Bypasses :meth:`Clinic.__init__` (which runs the analysis) and reconstructs the instance directly. Runtime
+        back-references — project / kb / function / variable_kb / _cfg — come from kwargs.
+
+        If ``function`` is None and ``kb`` is provided, the function is resolved by address from the cmessage."""
+        clinic = cls.__new__(cls)
+
+        # Resolve function from address if not provided.
+        if function is None and kb is not None and msg.HasField("function_addr"):
+            function = kb.functions.function(msg.function_addr)
+
+        # Initialize back-references and Analysis-base state. We bypass Analysis.__init__ so set the bare minimum.
+        clinic.project = project
+        clinic.kb = kb
+        clinic.function = function
+        clinic._cache = None
+        clinic._ail_manager = None
+        clinic._spt = None
+        clinic.typehoon = None
+        clinic._optimization_passes = []
+        clinic.optimization_scratch = {}
+
+        # AIL-typed slots.
+        clinic.graph = parse_graph(msg.graph) if msg.HasField("graph") else None
+        clinic.cc_graph = parse_graph(msg.cc_graph) if msg.HasField("cc_graph") else None
+        clinic.unoptimized_graph = parse_graph(msg.unoptimized_graph) if msg.HasField("unoptimized_graph") else None
+        clinic._ail_graph = parse_graph(msg._ail_graph) if msg.HasField("_ail_graph") else None
+        clinic._init_ail_graph = parse_graph(msg._init_ail_graph) if msg.HasField("_init_ail_graph") else None
+        clinic.arg_vvars = parse_arg_vvars(msg.arg_vvars) if msg.HasField("arg_vvars") else None
+        clinic._init_arg_vvars = parse_arg_vvars(msg._init_arg_vvars) if msg.HasField("_init_arg_vvars") else None
+        clinic._type_hints = parse_type_hints(msg._type_hints) if msg.HasField("_type_hints") else []
+
+        # Reconstructed (not serialized) slots: _blocks_by_addr_and_size mirrors the initial machine-block -> AIL-block
+        # conversion keys; func_args is derived from arg_vvars exactly as the decompilation pipeline does.
+        clinic._blocks_by_addr_and_size = (
+            {(b.addr, b.original_size): b for b in clinic._init_ail_graph} if clinic._init_ail_graph is not None else {}
+        )
+        clinic.func_args = (
+            {arg_vvar for arg_vvar, _ in clinic.arg_vvars.values()} if clinic.arg_vvars is not None else None
+        )
+
+        # Already-Serializable sub-objects.
+        clinic.arg_list = [simvar_from_bytes_polymorphic(e.payload) for e in msg.arg_list] if msg.arg_list else None
+        clinic.func_ret_var = SimVariable(0, "__retvar", "__retvar")
+        clinic.externs = {simvar_from_bytes_polymorphic(e.payload) for e in msg.externs}
+        clinic.reaching_definitions = (
+            SRDAModel.parse(msg.reaching_definitions, arch=project.arch if project is not None else None)
+            if msg.reaching_definitions
+            else None
+        )
+
+        # Variable_kb / cfg back-references.
+        clinic.variable_kb = variable_kb
+        clinic._cfg = cfg
+
+        # Flavor.
+        clinic.flavor = msg.flavor if msg.HasField("flavor") else "pseudocode"
+
+        # CLEAN collections.
+        clinic.data_refs = {
+            addr: [
+                DataRefDesc(
+                    data_addr=r.data_addr,
+                    data_size=r.data_size,
+                    block_addr=r.block_addr,
+                    stmt_idx=r.stmt_idx,
+                    ins_addr=r.ins_addr,
+                    data_type_str=r.data_type_str,
+                )
+                for r in lst.refs
+            ]
+            for addr, lst in msg.data_refs.items()
+        }
+        clinic.vvar_to_vvar = dict(msg.vvar_to_vvar) if msg.vvar_to_vvar else None
+        clinic.secondary_stackvars = set(msg.secondary_stackvars)
+        clinic._stackarg_offset_manager = StackArgOffsetManager(project.arch.bits if project is not None else 64)
+        for rec in msg.stackarg_offset_records:
+            block_idx = rec.block_idx if rec.HasField("block_idx") else None
+            clinic._stackarg_offset_manager.stack_arg_offsets.setdefault(rec.offset, set()).add(
+                ((rec.block_addr, block_idx), rec.ins_addr, rec.offset, rec.size)
+            )
+        # stackoff_to_vvars / all_stackarg_vvars are derived from the SRDA model; recompute rather than serialize.
+        if clinic.reaching_definitions is not None:
+            clinic._stackarg_offset_manager.update_stackoff_vvars(clinic.reaching_definitions)
+        clinic._removed_vvar_ids = set(msg.removed_vvar_ids) if msg._removed_vvar_ids_set else None
+        clinic._preserve_vvar_ids = set(msg._preserve_vvar_ids)
+        clinic._inline_functions = (
+            {kb.functions.function(addr) for addr in msg._inline_functions if kb.functions.function(addr) is not None}
+            if kb is not None
+            else set()
+        )
+        clinic._inlined_counts = dict(msg._inlined_counts)
+        clinic._inlining_parents = set(msg._inlining_parents)
+        clinic._must_struct = set(msg._must_struct) if msg._must_struct_set else None
+        clinic._desired_variables = set(msg._desired_variables) if msg._desired_variables_set else None
+        clinic.stack_items = {
+            off: StackItem(item.offset, item.size, item.name, StackItemType(item.item_type))
+            for off, item in msg.stack_items.items()
+        }
+        clinic.edges_to_remove = [
+            (
+                (pair.src.addr, pair.src.idx if pair.src.HasField("idx") else None),
+                (pair.dst.addr, pair.dst.idx if pair.dst.HasField("idx") else None),
+            )
+            for pair in msg.edges_to_remove
+        ]
+        clinic.copied_var_ids = set(msg.copied_var_ids)
+        clinic._new_block_addrs = set(msg._new_block_addrs)
+        clinic.entry_node_addr = (
+            (msg.entry_node_addr.addr, msg.entry_node_addr.idx if msg.entry_node_addr.HasField("idx") else None)
+            if msg.HasField("entry_node_addr")
+            else None
+        )
+
+        # CLEAN scalars.
+        clinic.vvar_id_start = msg.vvar_id_start
+        clinic._max_stack_depth = msg._max_stack_depth
+        clinic._sp_shift = msg._sp_shift
+        clinic._max_type_constraints = msg._max_type_constraints
+        clinic._type_constraint_set_degradation_threshold = msg._type_constraint_set_degradation_threshold
+        clinic._fold_callexprs_into_conditions = msg._fold_callexprs_into_conditions
+        clinic._fold_expressions = msg._fold_expressions
+        clinic._insert_labels = msg._insert_labels
+        clinic._remove_dead_memdefs = msg._remove_dead_memdefs
+        clinic._exception_edges = msg._exception_edges
+        clinic._sp_tracker_track_memory = msg._sp_tracker_track_memory
+        clinic._reset_variable_names = msg._reset_variable_names
+        clinic._rewrite_ites_to_diamonds = msg._rewrite_ites_to_diamonds
+        clinic._flatten_args = msg._flatten_args
+        clinic._semvar_naming = msg._semvar_naming
+        clinic._force_loop_single_exit = msg._force_loop_single_exit
+        clinic._refine_loops_with_single_successor = msg._refine_loops_with_single_successor
+        clinic._register_save_areas_removed = msg._register_save_areas_removed
+        clinic._rewrite_ites_to_diamond_max_cases = msg._rewrite_ites_to_diamond_max_cases
+        clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
+        clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
+
+        clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE
+        clinic._start_stage = ClinicStage(msg._start_stage)
+        clinic._end_stage = ClinicStage(msg._end_stage)
+        clinic._skip_stages = tuple(ClinicStage(s) for s in msg._skip_stages)
+
+        # Pass class refs.
+        if msg._peephole_optimizations_set:
+            clinic.peephole_optimizations = [name_to_pass(n) for n in msg.peephole_optimizations]
+        else:
+            clinic.peephole_optimizations = None
+        if msg._typehoon_cls:
+            # _typehoon_cls is the Typehoon class itself (not a registered pass). Resolve directly by FQN.
+            module_name, _, cls_name = msg._typehoon_cls.rpartition(".")
+            clinic._typehoon_cls = getattr(importlib.import_module(module_name), cls_name)
+        else:
+            clinic._typehoon_cls = Typehoon
+
+        # Notes.
+        clinic.notes = {k: DecompilationNote.from_json(blob) for k, blob in msg.notes_json.items()}
+
+        # The remainder of the public Clinic surface that isn't part of the serialized state — set sensible defaults so
+        # attribute access doesn't crash.
+        clinic.static_vvars = {}
+        clinic.static_buffers = {}
+        clinic._func_graph = None
+        clinic.variable_map = VariableMap()
+
+        return clinic
+
 
 register_analysis(Clinic, "Clinic")
-
-
-# Attach Serializable methods to Clinic. Imported after the class is defined so that ``clinic_serialize`` can reference
-# Clinic without circular-import gymnastics.
-from angr.protos import clinic_pb2 as _clinic_pb2  # noqa: E402
-from angr.serializable import Serializable as _Serializable  # noqa: E402
-
-from . import clinic_serialize as _clinic_serialize  # noqa: E402
-
-
-def _clinic_get_cmsg(cls):
-    return _clinic_pb2.Clinic()
-
-
-def _clinic_serialize_to_cmessage(self):
-    return _clinic_serialize.serialize_clinic(self)
-
-
-def _clinic_parse_from_cmessage(
-    cls,
-    cmsg,
-    *,
-    project=None,
-    kb=None,
-    function=None,
-    variable_kb=None,
-    cfg=None,
-    **kwargs,
-):
-    return _clinic_serialize.parse_clinic(
-        cmsg, project=project, kb=kb, function=function, variable_kb=variable_kb, cfg=cfg
-    )
-
-
-Clinic._get_cmsg = classmethod(_clinic_get_cmsg)
-Clinic.serialize_to_cmessage = _clinic_serialize_to_cmessage
-Clinic.parse_from_cmessage = classmethod(_clinic_parse_from_cmessage)
-Clinic.serialize = _Serializable.serialize
-Clinic.parse = classmethod(_Serializable.parse.__func__)
