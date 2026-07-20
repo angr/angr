@@ -184,7 +184,7 @@ class CallingConventionAnalysis(Analysis):
 
         assert self._function is not None
 
-        cpp_symbol_result = None
+        cpp_symbol_result: tuple[SimCC, SimTypeCppFunction, str | None] | None = None
         demangled_name = self._function.demangled_name
         if demangled_name != self._function.name:
             r_demangled = self._analyze_demangled_name(demangled_name)
@@ -193,10 +193,11 @@ class CallingConventionAnalysis(Analysis):
                 # not distinguish a namespace/static function from a non-static member.
                 # parse_cpp_file() consequently carries a possible-this placeholder.
                 # Do not let that incomplete declaration bypass callee/callsite analysis;
-                # refine it with machine facts below.  Non-C++ symbol declarations remain
-                # authoritative as before.
-                if isinstance(r_demangled[1], SimTypeCppFunction):
-                    cpp_symbol_result = r_demangled
+                # refine it with machine facts below. Declarations that encode an explicit
+                # calling convention (such as Microsoft C++ symbols) remain authoritative.
+                demangled_cc, demangled_proto, demangled_libname = r_demangled
+                if isinstance(demangled_proto, SimTypeCppFunction) and demangled_proto.convention is None:
+                    cpp_symbol_result = demangled_cc, demangled_proto, demangled_libname
                 else:
                     self.cc, self.prototype, self.prototype_libname = r_demangled
                     self.proto_from_symbol = True
