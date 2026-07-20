@@ -440,6 +440,25 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.cfunc.name == codegen.cfunc.name
         assert back.cfunc.addr == codegen.cfunc.addr
         assert back.flavor == codegen.flavor
+        # idx is the per-codegen unique node identity and doubles as the serialization node id
+        assert back.cfunc.idx == codegen.cfunc.idx
+        assert back.cfunc.ident == codegen.cfunc.ident
+        from angr.analyses.decompiler.structured_codegen.c import CConstruct
+
+        live_nodes = {
+            id(elem.obj): elem.obj for _, elem in codegen.map_pos_to_node.items() if isinstance(elem.obj, CConstruct)
+        }
+        assert live_nodes
+        assert len({node.idx for node in live_nodes.values()}) == len(live_nodes)
+        from angr.protos import codegen_pb2
+
+        msg = codegen_pb2.Codegen()
+        msg.ParseFromString(blob)
+        node_ids = [n.node_id for n in msg.nodes]
+        assert len(set(node_ids)) == len(node_ids)
+        assert 0 not in node_ids
+        # nodes created after deserialization must not collide with deserialized ones
+        assert back._next_node_idx > max(node_ids)
 
     def test_clinic_roundtrip(self):
         clinic = self.decompiler.clinic

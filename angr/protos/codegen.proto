@@ -323,10 +323,10 @@ message CDirtyExpressionMsg {
 // =====================================================================================================================
 
 message CConstructNode {
-    uint32 node_id = 1;
+    uint32 node_id = 1;                           // == CConstruct.idx (unique across the owning codegen)
     CConstructKind kind = 2;
     CConstructTags tags = 3;
-    string idx = 4;
+    string ident = 4;                             // CConstruct.ident: per-class-name display label; NOT unique
     // For CExpression subclasses only:
     optional bool collapsed = 5;
     optional string expr_type_json = 6;           // _type as SimType.to_json (cached on CExpression)

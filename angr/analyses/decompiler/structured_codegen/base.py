@@ -143,7 +143,10 @@ class BaseStructuredCodeGenerator:
         self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
         self.const_formats: dict[IdentType, dict[str, bool]] = const_formats if const_formats is not None else {}
-        self.idx_counters: dict[str, count] = {}
+        self.ident_counters: dict[str, count] = {}
+        # node idx allocator; 0 is reserved (serialization uses it as the "absent" sentinel), and the counter is
+        # never reset so idx values are unique across the lifetime of this codegen
+        self._next_node_idx: int = 1
 
     @staticmethod
     def adjust_mapping_positions(
@@ -185,10 +188,15 @@ class BaseStructuredCodeGenerator:
     def reload_variable_types(self) -> None:
         pass
 
-    def next_idx(self, key: str) -> str:
-        if key not in self.idx_counters:
-            self.idx_counters[key] = count()
-        return f"{key}_{next(self.idx_counters[key])}"
+    def next_ident(self, key: str) -> str:
+        if key not in self.ident_counters:
+            self.ident_counters[key] = count()
+        return f"{key}_{next(self.ident_counters[key])}"
 
-    def reset_idx_counters(self) -> None:
-        self.idx_counters = {}
+    def reset_ident_counters(self) -> None:
+        self.ident_counters = {}
+
+    def next_node_idx(self) -> int:
+        v = self._next_node_idx
+        self._next_node_idx += 1
+        return v

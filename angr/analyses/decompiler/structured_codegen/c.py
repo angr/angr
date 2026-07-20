@@ -339,12 +339,16 @@ class CConstruct:
     Acts as the base class for all other representation constructions.
     """
 
-    __slots__ = ("codegen", "idx", "tags")
+    __slots__ = ("codegen", "ident", "idx", "tags")
 
     def __init__(self, codegen, tags=None):
+        # a CConstruct cannot exist without its owning codegen: ``idx`` (the per-codegen unique node identity) and
+        # ``ident`` (a per-class-name display label; NOT unique) are both allocated from it
+        assert codegen is not None
         self.tags = tags or {}
-        self.codegen: CStructuredCodeGenerator = codegen  # type: ignore[assignment]
-        self.idx = codegen.next_idx(self.__class__.__name__)
+        self.codegen: CStructuredCodeGenerator = codegen
+        self.ident: str = codegen.next_ident(self.__class__.__name__)
+        self.idx: int = codegen.next_node_idx()
 
     def c_repr(self, initial_pos=0, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
@@ -853,7 +857,7 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     Represents a statement in C.
     """
 
-    def __init__(self, tags=None, codegen=None):
+    def __init__(self, tags=None, *, codegen):
         super().__init__(codegen=codegen, tags=tags)
 
 
@@ -864,7 +868,7 @@ class CExpression(CConstruct):
 
     __slots__ = ("_type", "collapsed")
 
-    def __init__(self, collapsed=False, tags=None, codegen=None):
+    def __init__(self, collapsed=False, tags=None, *, codegen):
         super().__init__(codegen=codegen, tags=tags)
         self._type = None
         self.collapsed = collapsed
@@ -1511,7 +1515,8 @@ class CFunctionCall(CExpression):
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
         tags=None,
-        codegen=None,
+        *,
+        codegen,
         **kwargs,
     ):
         super().__init__(tags=tags, codegen=codegen, **kwargs)
@@ -2942,7 +2947,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         arg_list = [self._variable(arg, None) for arg in self._func_args] if self._func_args else []
 
-        self.reset_idx_counters()
+        self.reset_ident_counters()
         obj = self._handle(self._sequence)
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}

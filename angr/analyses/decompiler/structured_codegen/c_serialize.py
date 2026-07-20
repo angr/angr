@@ -93,34 +93,32 @@ def _simvar_from_bytes(b: bytes) -> SimVariable | None:
 
 class SerializeContext:
     """
-    Tracks node-id assignment while walking the C AST. The same instance is threaded through every recursive
-    ``_serialize_node`` call so that subtree-sharing (rare but possible) is handled by id memoization.
+    Tracks which nodes have been serialized while walking the C AST. ``CConstruct.idx`` is unique across the owning
+    codegen, so it doubles as the serialization node id; subtree-sharing (rare but possible) is handled by idx
+    memoization. The same instance is threaded through every recursive ``_serialize_node`` call.
     """
 
-    __slots__ = ("_id_by_obj", "_next_id", "nodes")
+    __slots__ = ("_seen", "nodes")
 
     def __init__(self) -> None:
-        self._next_id: int = 1
-        self._id_by_obj: dict[int, int] = {}
+        self._seen: set[int] = set()
         self.nodes: list[codegen_pb2.CConstructNode] = []
 
     def serialize(self, node: CConstruct | None) -> int:
-        """Serialize ``node`` (recursively) and return its node_id. 0 indicates absent."""
+        """Serialize ``node`` (recursively) and return its node_id (== node.idx). 0 indicates absent."""
         if node is None:
             return 0
-        key = id(node)
-        if key in self._id_by_obj:
-            return self._id_by_obj[key]
-        nid = self._next_id
-        self._next_id += 1
-        self._id_by_obj[key] = nid
+        nid = node.idx
+        if nid in self._seen:
+            return nid
+        self._seen.add(nid)
 
         from .c import CExpression  # avoid circular import at module load
 
         pb = codegen_pb2.CConstructNode()
         pb.node_id = nid
         pb.kind = _SERIALIZE_KIND_BY_CLASS[type(node)]
-        pb.idx = str(node.idx)
+        pb.ident = node.ident
         pb.tags.CopyFrom(_sanitize_tags(getattr(node, "tags", None)))
         if isinstance(node, CExpression):
             pb.collapsed = bool(getattr(node, "collapsed", False))
@@ -156,7 +154,8 @@ class ParseContext:
         pb = self._msg_by_id[node_id]
         obj = _PARSERS[pb.kind](pb, self)
         # CConstruct base state
-        obj.idx = pb.idx
+        obj.idx = pb.node_id
+        obj.ident = pb.ident
         obj.tags = _parse_tags(pb.tags)
         obj.codegen = None  # back-reference re-attached by set_codegen()
         from .c import CExpression
@@ -427,7 +426,9 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     cg.expr_comments = dict(msg.expr_comments)
     cg.stmt_comments = dict(msg.stmt_comments)
     cg.const_formats = _parse_const_formats(msg.const_formats)
-    cg.idx_counters = {}
+    cg.ident_counters = {}
+    # resume idx allocation past every deserialized node so nodes created later stay unique
+    cg._next_node_idx = max((n.node_id for n in msg.nodes), default=0) + 1
 
     cg.map_pos_to_node = _parse_position_mapping(msg.map_pos_to_node, ctx)
     cg.map_pos_to_addr = _parse_position_mapping(msg.map_pos_to_addr, ctx)
