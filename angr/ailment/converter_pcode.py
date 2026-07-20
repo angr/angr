@@ -329,7 +329,7 @@ class PCodeIRSBConverter(Converter):
                 return Convert(self._manager.next_atom(), t.bits, size, False, t, ins_addr=self._manager.ins_addr)
 
             return Tmp(self._manager.next_atom(), offset, size)
-        if space_name in ["ram", "mem"]:
+        if space_name.lower() in ["ram", "mem"]:
             assert not is_write
             addr = Const(self._manager.next_atom(), varnode.offset, self._manager.arch.bits)
             # Note: Load takes bytes, not bits, for size
@@ -359,7 +359,7 @@ class PCodeIRSBConverter(Converter):
             return Assignment(
                 self._statement_idx, self._convert_varnode(varnode, True), value, ins_addr=self._manager.ins_addr
             )
-        if space_name in ["ram", "mem"]:
+        if space_name.lower() in ["ram", "mem"]:
             addr = Const(self._manager.next_atom(), varnode.offset, self._manager.arch.bits)
             return Store(
                 self._statement_idx,

@@ -6,6 +6,7 @@ import pickle
 import unittest
 
 import archinfo
+import pypcode
 import pyvex
 from pyvex.enums import irop_enums_to_ints
 
@@ -40,6 +41,28 @@ class TestIrsb(unittest.TestCase):
         irsb = p.factory.block(self.block_addr).vex
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
+
+    def test_convert_pcode_uppercase_memory_space(self):
+        arch = archinfo.ArchPcode("6502:LE:16:default")
+        manager = ailment.Manager(arch=arch)
+        translation = pypcode.Context(arch.name).translate(bytes.fromhex("ad34128d7856"), base_address=0)
+        load_varnode = translation.ops[1].inputs[0]
+        store_varnode = translation.ops[5].output
+        assert load_varnode.space.name == store_varnode.space.name == "RAM"
+
+        converter = object.__new__(ailment.PCodeIRSBConverter)
+        converter._manager = manager
+        converter._statement_idx = 0
+
+        load = converter._get_value(load_varnode)
+        store = converter._set_value(store_varnode, ailment.Expr.Const(None, 0xAA, 8))
+
+        assert isinstance(load, ailment.Expr.Load)
+        assert load.addr.value == 0x1234
+        assert load.size == 1
+        assert isinstance(store, ailment.Stmt.Store)
+        assert store.addr.value == 0x5678
+        assert store.size == 1
 
     def test_lift_path_matches_python_path(self):
         """The direct libVEX-lift fast path must produce the same AIL block as
