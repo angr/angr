@@ -31,6 +31,7 @@ from .eager_eval import EagerEvaluation
 from .evaluate_const_conversions import EvaluateConstConversions
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .lower_insert import LowerInsert
 from .modulo_simplifier import ModuloSimplifier
 from .one_sub_bool import OneSubBool
 from .optimized_div_simplifier import OptimizedDivisionSimplifier
@@ -121,6 +122,10 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedundantInsert,
 ]
 
+# LowerInsert is deliberately absent from ALL_PEEPHOLE_OPTS: it is a lowering rule that must only run once the other
+# optimizers have reached a fixed point, otherwise it pre-empts their prettier rewrites. It is applied by
+# PostStructuringPeepholeOptimizationPass in a dedicated final round.
+
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
     v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationMultiStmtBase)
 ]
@@ -135,4 +140,5 @@ __all__ = (
     "EXPR_OPTS",
     "MULTI_STMT_OPTS",
     "STMT_OPTS",
+    "LowerInsert",
 )

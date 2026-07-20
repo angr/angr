@@ -982,6 +982,12 @@ def peephole_optimize_expr(expr: ailment.Expression, expr_opts: list[PeepholeOpt
     return walker.walk_expression(expr, 0, None, None)
 
 
+def peephole_optimize_stmt_exprs(stmt: ailment.Stmt.Statement, expr_opts: list[PeepholeOptimizationExprBase]):
+    # run expression optimizers on every expression inside a single statement
+    walker = _PeepholeExprWalker(expr_opts=expr_opts)
+    return walker.walk_statement(stmt)
+
+
 def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     """
     Copy AIL Graph.

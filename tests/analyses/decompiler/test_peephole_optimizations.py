@@ -11,7 +11,16 @@ import archinfo
 
 import angr
 from angr import ailment
-from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert, Register
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    Convert,
+    Extract,
+    Insert,
+    Register,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
@@ -19,7 +28,9 @@ from angr.analyses.decompiler.peephole_optimizations import (
     CmpSubConst,
     ConstantDereferences,
     EagerEvaluation,
+    LowerInsert,
     OptimizedDivisionSimplifier,
+    RemoveConstInsert,
     SimplifyBitwiseInserts,
 )
 from angr.analyses.decompiler.utils import peephole_optimize_expr
@@ -288,6 +299,137 @@ class TestPeepholeOptimizations(unittest.TestCase):
             Register(manager.next_atom(), 0, 8)
         )
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
+
+    @staticmethod
+    def _insert(manager, base, offset, value):
+        return Insert(
+            manager.next_atom(),
+            base,
+            Const(manager.next_atom(), offset, 64),
+            value,
+            "Iend_LE",
+        )
+
+    def test_lower_insert_is_not_in_the_regular_rotation(self):
+        # LowerInsert pre-empts the prettier Insert rewrites, so it must only ever run as a final lowering round
+        assert LowerInsert not in EXPR_OPTS
+
+    def test_lower_insert_nonconst_base_offset0(self):
+        # the `sete %al` shape: Insert(a, 0<64>, v<8>) => (a And 0xffffffffffffff00) Or Conv(8->64, v)
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        expr = self._insert(manager, Register(manager.next_atom(), 0, 64), 0, Register(manager.next_atom(), 32, 8))
+        out = opt.optimize(expr)
+
+        assert isinstance(out, BinaryOp) and out.op == "Or" and out.bits == 64
+        masked_base, value = out.operands
+        assert isinstance(masked_base, BinaryOp) and masked_base.op == "And"
+        assert masked_base.operands[0].likes(Register(manager.next_atom(), 0, 64))
+        assert isinstance(masked_base.operands[1], Const) and masked_base.operands[1].value == 0xFFFFFFFFFFFFFF00
+        # no shift for offset 0, and the value is zero-extended rather than sign-extended
+        assert isinstance(value, Convert) and value.to_bits == 64 and value.is_signed is False
+        assert value.operand.likes(Register(manager.next_atom(), 32, 8))
+
+    def test_lower_insert_nonconst_base_nonzero_offset(self):
+        # the `and $0xef,%ah` shape: Insert(a, 1<64>, v<8>) => (a And 0xffffffffffff00ff) Or (Conv(8->64, v) Shl 8)
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        expr = self._insert(manager, Register(manager.next_atom(), 0, 64), 1, Register(manager.next_atom(), 32, 8))
+        out = opt.optimize(expr)
+
+        assert isinstance(out, BinaryOp) and out.op == "Or" and out.bits == 64
+        masked_base, shifted = out.operands
+        assert isinstance(masked_base, BinaryOp) and masked_base.op == "And"
+        # the mask must punch a hole at byte 1 only - the bytes above it stay live
+        assert isinstance(masked_base.operands[1], Const) and masked_base.operands[1].value == 0xFFFFFFFFFFFF00FF
+        assert isinstance(shifted, BinaryOp) and shifted.op == "Shl"
+        assert isinstance(shifted.operands[1], Const) and shifted.operands[1].value == 8
+        assert isinstance(shifted.operands[0], Convert) and shifted.operands[0].to_bits == 64
+
+    def test_lower_insert_const_base_is_folded(self):
+        # a constant base is folded, exactly like RemoveConstInsert already does
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+
+        base = Const(manager.next_atom(), 0xDEADBEEFDEADBEEF, 64)
+        value = Register(manager.next_atom(), 32, 8)
+
+        out = LowerInsert(proj, proj.kb, manager).optimize(self._insert(manager, base, 0, value))
+        assert isinstance(out, BinaryOp) and out.op == "Or"
+        masked_base, _ = out.operands
+        assert isinstance(masked_base, Const) and masked_base.value == 0xDEADBEEFDEADBE00
+
+        # RemoveConstInsert keeps handling this shape on its own, unchanged
+        out = RemoveConstInsert(proj, proj.kb, manager).optimize(self._insert(manager, base, 0, value))
+        assert isinstance(out, BinaryOp) and out.op == "Or"
+        assert any(isinstance(o, Const) and o.value == 0xDEADBEEFDEADBE00 for o in out.operands)
+
+    def test_lower_insert_leaves_stack_variables_alone(self):
+        # partial stores into stack variables are rendered as *((char *)&v + offset) = value by the C backend, which is
+        # much more readable than mask-and-or arithmetic
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        stack_var = VirtualVariable(manager.next_atom(), 1, 64, VirtualVariableCategory.STACK, oident=-0x10)
+        expr = self._insert(manager, stack_var, 1, Register(manager.next_atom(), 32, 8))
+        assert opt.optimize(expr) is None
+
+        # ... but a register variable of the same shape is lowered
+        reg_var = VirtualVariable(manager.next_atom(), 2, 64, VirtualVariableCategory.REGISTER, oident=0)
+        expr = self._insert(manager, reg_var, 1, Register(manager.next_atom(), 32, 8))
+        assert isinstance(opt.optimize(expr), BinaryOp)
+
+    def test_lower_insert_bails_on_narrowed_base(self):
+        # when the base is a widening Convert and the insert reaches beyond the converted operand's width, the
+        # "preserved" bits are extension padding, not data - a telltale of an over-narrowed sub-register write
+        # upstream. Lowering would bake that loss into plausible-looking arithmetic, so the Insert must stay visible.
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        # Insert(Conv(8->64, a), 1<64>, v<8>): the insert targets byte 1, entirely above the 8 carried bits
+        base = Convert(manager.next_atom(), 8, 64, False, Register(manager.next_atom(), 32, 8))
+        expr = self._insert(manager, base, 1, Register(manager.next_atom(), 40, 8))
+        assert opt.optimize(expr) is None
+
+        # Insert(Conv(8->64, a), 0<64>, v<16>): the insert straddles the boundary of the carried bits
+        base = Convert(manager.next_atom(), 8, 64, False, Register(manager.next_atom(), 32, 8))
+        expr = self._insert(manager, base, 0, Register(manager.next_atom(), 40, 16))
+        assert opt.optimize(expr) is None
+
+        # Insert(Conv(32->64, a), 0<64>, v<16>): the insert lands entirely within the 32 carried bits - lowered
+        base = Convert(manager.next_atom(), 32, 64, False, Register(manager.next_atom(), 32, 32))
+        expr = self._insert(manager, base, 0, Register(manager.next_atom(), 40, 16))
+        assert isinstance(opt.optimize(expr), BinaryOp)
+
+    def test_lower_insert_bails_on_wide_and_malformed_inserts(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        # wider than a machine word: a bulk memory operation, not a sub-register write. lowering it would only produce
+        # arithmetic on integer types that do not exist in C.
+        expr = self._insert(manager, Register(manager.next_atom(), 0, 3072), 80, Const(manager.next_atom(), 0, 8))
+        assert opt.optimize(expr) is None
+
+        # the value does not fit into the base at the given offset
+        expr = self._insert(manager, Register(manager.next_atom(), 0, 64), 7, Register(manager.next_atom(), 32, 16))
+        assert opt.optimize(expr) is None
+
+        # a non-constant offset carries no usable shift amount
+        expr = Insert(
+            manager.next_atom(),
+            Register(manager.next_atom(), 0, 64),
+            Register(manager.next_atom(), 40, 64),
+            Register(manager.next_atom(), 32, 8),
+            "Iend_LE",
+        )
+        assert opt.optimize(expr) is None
 
 
 if __name__ == "__main__":
