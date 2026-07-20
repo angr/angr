@@ -7,12 +7,20 @@ from __future__ import annotations
 
 import functools
 import itertools
-import threading
-
-# per-thread guard against infinite recursion in Function.__eq__ on self-referential types
-_function_eq_inprogress = threading.local()
 
 from ._typehash import type_tag
+
+
+def _typeconsts_equal(a, b, visited: set[tuple[int, int]]) -> bool:
+    # Structural equality that threads a per-call `visited` set of compared id-pairs, the same
+    # cycle-breaking technique `_hash`/`__repr__`/`replace` use, so self-referential function types
+    # don't recurse forever. Dispatches to each type's `_eq`.
+    if a is b:
+        return True
+    if a is None or b is None:
+        return False
+    # pylint: disable-next=protected-access  # _eq(other, visited) is the peer TypeConstant equality protocol
+    return a._eq(b, visited)
 
 
 def memoize(f):
@@ -49,6 +57,10 @@ class TypeConstant:
 
     def __eq__(self, other):
         return type(self) is type(other)
+
+    def _eq(self, other, visited: set[tuple[int, int]]) -> bool:  # pylint:disable=unused-argument
+        # default for leaf types and hash-based Struct equality, which are already cycle-safe
+        return self == other
 
     def __hash__(self):
         # the hash of a plain type constant is fully determined by its class, so there is nothing to
@@ -234,6 +246,9 @@ class Pointer(TypeConstant):
     def __eq__(self, other):
         return type(self) is type(other) and self.basetype == other.basetype
 
+    def _eq(self, other, visited):
+        return type(self) is type(other) and _typeconsts_equal(self.basetype, other.basetype, visited)
+
     def _hash(self, visited: set[int]):
         if self.basetype is None:
             return self.TYPE_HASH
@@ -313,6 +328,13 @@ class Array(TypeConstant):
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count
 
+    def _eq(self, other, visited):
+        return (
+            type(other) is type(self)
+            and self.count == other.count
+            and _typeconsts_equal(self.element, other.element, visited)
+        )
+
     def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
@@ -352,6 +374,7 @@ class Struct(TypeConstant):
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
+        # pylint: disable-next=protected-access  # _hash(visited) is the peer TypeConstant hashing protocol
         tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
 
@@ -534,24 +557,29 @@ class Function(TypeConstant):
         return f"func({param_str}) -> {outputs_str}"
 
     def __eq__(self, other):
+        return self._eq(other, set())
+
+    def _eq(self, other, visited):
         if self is other:
             return True
         if not isinstance(other, Function):
             return False
         # self-referential function types (a param/output pointing back at the function) would
-        # recurse forever; guard on the (self, other) pair being compared and assume equal on
-        # re-entry (coinductive equality, matching the cycle handling in _hash).
-        inprogress = getattr(_function_eq_inprogress, "pairs", None)
-        if inprogress is None:
-            inprogress = _function_eq_inprogress.pairs = set()
+        # recurse forever; thread a per-call `visited` set of (self, other) id pairs -- the same
+        # cycle-breaking technique _hash uses -- and assume equal on re-entry (coinductive equality).
         key = (id(self), id(other))
-        if key in inprogress:
+        if key in visited:
             return True
-        inprogress.add(key)
+        visited.add(key)
         try:
-            return self.params == other.params and self.outputs == other.outputs
+            return (
+                len(self.params) == len(other.params)
+                and len(self.outputs) == len(other.outputs)
+                and all(_typeconsts_equal(p, q, visited) for p, q in zip(self.params, other.params))
+                and all(_typeconsts_equal(x, y, visited) for x, y in zip(self.outputs, other.outputs))
+            )
         finally:
-            inprogress.discard(key)
+            visited.discard(key)
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
@@ -559,7 +587,9 @@ class Function(TypeConstant):
         visited.add(id(self))
 
         # params/outputs may contain None for missing argument/return slots
+        # pylint: disable-next=protected-access  # _hash(visited) is the peer TypeConstant hashing protocol
         params_hash = tuple(None if param is None else param._hash(visited) for param in self.params)
+        # pylint: disable-next=protected-access  # _hash(visited) is the peer TypeConstant hashing protocol
         outputs_hash = tuple(None if out is None else out._hash(visited) for out in self.outputs)
         return hash((self.TYPE_HASH, params_hash, outputs_hash))
 
