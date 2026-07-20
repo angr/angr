@@ -530,6 +530,8 @@ class Decompiler(Analysis):
         # save a copy of the AIL graph that is optimized but not modified by region identification
         self.ail_graph = clinic.cc_graph
         self.cache.codegen = codegen
+        # drop always-regenerable analysis state (the SRDA model) before the clinic goes into the cache
+        self.clinic.downsize()
         self.cache.clinic = self.clinic
 
         # LLM refinement pass

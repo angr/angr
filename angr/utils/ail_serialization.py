@@ -150,22 +150,6 @@ def parse_arg_vvars(msg: ail_types_pb2.ArgVVars) -> dict[int, tuple[Any, Any]]:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# set[VirtualVariable]
-# ---------------------------------------------------------------------------------------------------------------------
-
-
-def pack_vvar_set(vvars: set[Any]) -> ail_types_pb2.VVarSet:
-    msg = ail_types_pb2.VVarSet()
-    for vvar in sorted(vvars, key=lambda v: v.varid):
-        msg.vvars.append(vvar.to_bytes())
-    return msg
-
-
-def parse_vvar_set(msg: ail_types_pb2.VVarSet) -> set[Any]:
-    return {Expression.from_bytes(b) for b in msg.vvars}
-
-
-# ---------------------------------------------------------------------------------------------------------------------
 # list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 # ---------------------------------------------------------------------------------------------------------------------
 

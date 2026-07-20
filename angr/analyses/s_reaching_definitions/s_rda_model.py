@@ -9,16 +9,13 @@ from angr.ailment.block import Block
 from angr.ailment.expression import Tmp, VirtualVariable
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import Definition, atoms
-from angr.protos import srda_model_pb2
-from angr.serializable import Serializable
-from angr.utils.ail_serialization import pack_graph, pack_vvar_set, parse_graph, parse_vvar_set
 from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, get_vvar_uselocs
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 
-class SRDAModel(Serializable):
+class SRDAModel:
     """
     The model for SRDA.
     """
@@ -285,40 +282,6 @@ class SRDAModel(Serializable):
             return self.get_vvar_uses(def_.atom)
         return set()
 
-    # Only the scan inputs (func_graph, func_args) are serialized; every derived field (varid_to_vvar,
-    # all_vvar_definitions, all_vvar_uses, all_tmp_definitions, all_tmp_uses, phi bookkeeping, vvar_uses_by_loc) is
-    # reconstructed at parse time by re-running the linear scan (``populate_model``) over the deserialized graph.
-    # arch is reattached from the parent Project at parse time.
-
-    @classmethod
-    def _get_cmsg(cls):
-        return srda_model_pb2.SRDAModel()
-
-    def serialize_to_cmessage(self):
-        msg = srda_model_pb2.SRDAModel()
-        if self.arch is not None:
-            msg.arch_name = self.arch.name
-
-        if self.func_graph is not None:
-            msg.func_graph.CopyFrom(pack_graph(self.func_graph))
-        if self.func_args is not None:
-            msg.func_args.CopyFrom(pack_vvar_set(self.func_args))
-        msg.track_tmps = bool(self.all_tmp_definitions) or bool(self.all_tmp_uses)
-
-        return msg
-
-    @classmethod
-    def parse_from_cmessage(cls, cmsg, *, arch=None, **kwargs):  # pylint:disable=arguments-differ
-        func_graph = parse_graph(cmsg.func_graph) if cmsg.HasField("func_graph") else None
-        func_args = parse_vvar_set(cmsg.func_args) if cmsg.HasField("func_args") else None
-        model = cls(func_graph, func_args, arch)
-
-        if func_graph is not None:
-            blocks = {(block.addr, block.idx): block for block in func_graph}
-            populate_model(model, blocks, func_args, fix_undefined_vvars=True, track_tmps=cmsg.track_tmps)
-
-        return model
-
 
 def populate_model(
     model: SRDAModel,
@@ -329,8 +292,8 @@ def populate_model(
     track_tmps: bool = False,
 ) -> None:
     """Populate the scan-derived part of an SRDAModel (vvar/tmp definitions and uses, phi bookkeeping) with a linear
-    scan over ``blocks``. This is the shared core of :class:`SReachingDefinitionsAnalysis` and of SRDAModel
-    deserialization, which reconstructs these fields instead of serializing them."""
+    scan over ``blocks``. An SRDAModel is never serialized; it is always rebuilt from an AIL graph through this
+    function (via :class:`SReachingDefinitionsAnalysis` or directly)."""
 
     phi_vvars: dict[int, set[int | None]] = {}
     # find all vvar definitions

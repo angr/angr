@@ -8,7 +8,6 @@ import os
 import pickle
 import unittest
 
-import archinfo
 import networkx
 from archinfo import Endness
 from google.protobuf.descriptor import FieldDescriptor
@@ -19,7 +18,7 @@ from angr.ailment import Expr
 from angr.ailment.expression import Const
 from angr.ailment.expression import Tmp as AilTmp
 from angr.ailment.expression import VirtualVariable as AilVirtualVariable
-from angr.ailment.statement import Assignment, Jump, Return
+from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.notes.decompilation_note import (
     DecompilationNote,
@@ -35,8 +34,6 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_FIELD_FIRST,
     _DISPLAY_OPTION_FIELD_LAST,
 )
-from angr.analyses.s_reaching_definitions import SRDAModel, populate_model
-from angr.code_location import AILCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions.atoms import (
     Atom,
@@ -47,18 +44,7 @@ from angr.knowledge_plugins.key_definitions.atoms import (
     Tmp,
     VirtualVariable,
 )
-from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.knowledge_plugins.key_definitions.tag import (
-    FunctionTag,
-    InitialValueTag,
-    LocalVariableTag,
-    ParameterTag,
-    ReturnValueTag,
-    SideEffectTag,
-    Tag,
-    UnknownSizeTag,
-)
 from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
@@ -70,14 +56,12 @@ from angr.utils.ail_serialization import (
     pack_static_buffers,
     pack_static_vvars,
     pack_type_hints,
-    pack_vvar_set,
     parse_arg_vvars,
     parse_graph,
     parse_ite_exprs,
     parse_static_buffers,
     parse_static_vvars,
     parse_type_hints,
-    parse_vvar_set,
 )
 from tests.common import bin_location
 
@@ -148,46 +132,6 @@ class TestKeyDefSerialization(unittest.TestCase):
             assert type(b) is type(a)
             assert b == a
 
-    def test_ail_codeloc(self):
-        for loc in [
-            AILCodeLocation(0x400500, 0, 3, 0x400502),
-            AILCodeLocation(0x400500, None, 3),
-            AILCodeLocation.make_extern(7),
-        ]:
-            assert self._roundtrip(loc) == loc
-
-    def test_tags(self):
-        for tag in [
-            Tag(metadata={"x": 1, "y": [1, 2, 3]}),
-            Tag(),
-            FunctionTag(function=0x400600),
-            SideEffectTag(function=0x400700, metadata="side"),
-            ParameterTag(function=None, metadata=None),
-            LocalVariableTag(function=0x400800),
-            ReturnValueTag(function=0x400900, metadata=[1, 2]),
-            InitialValueTag(metadata="init"),
-            UnknownSizeTag(),
-        ]:
-            back = self._roundtrip(tag)
-            assert type(back) is type(tag)
-            assert back.metadata == tag.metadata
-            if isinstance(tag, FunctionTag):
-                assert back.function == tag.function
-
-    def test_definition_with_tags(self):
-        d = Definition(
-            Tmp(7, 4),
-            AILCodeLocation(0x400500, 0, 3, 0x400502),
-            dummy=True,
-            tags={ParameterTag(function=0x400600), InitialValueTag(metadata="x")},
-        )
-        back = self._roundtrip(d)
-        assert back.atom == d.atom
-        assert back.codeloc == d.codeloc
-        assert back.dummy is True
-        assert len(back.tags) == 2
-        assert any(isinstance(t, ParameterTag) and t.function == 0x400600 for t in back.tags)
-
 
 class TestSubObjectSerialization(unittest.TestCase):
     def test_decompilation_note(self):
@@ -226,75 +170,6 @@ class TestSubObjectSerialization(unittest.TestCase):
         back = OpDescriptor.from_json(op.to_json())
         assert back == op
         assert hash(back) == hash(op)
-
-
-def _build_synthetic_srda_model(arch):
-    vvc = Expr.VirtualVariableCategory
-
-    b0 = AilBlock(
-        0x400000,
-        8,
-        statements=[
-            Assignment(0, AilVirtualVariable(0, 1, 64, vvc.REGISTER), Const(1, 42, 64), ins_addr=0x400000),
-            Jump(5, Const(6, 0x400010, 64), ins_addr=0x400008),
-        ],
-    )
-    b1 = AilBlock(
-        0x400010,
-        8,
-        statements=[
-            # tmps are block-local: def tmp5 (using vvar1), then use it in the same block
-            Assignment(
-                2, AilTmp(3, 5, 64), AilVirtualVariable(4, 1, 64, vvc.REGISTER), ins_addr=0x400010
-            ),  # def tmp5, use vvar1
-            Assignment(
-                7, AilVirtualVariable(8, 2, 64, vvc.REGISTER), AilTmp(9, 5, 64), ins_addr=0x400014
-            ),  # def vvar2, use tmp5
-            Assignment(
-                10,
-                AilVirtualVariable(11, 3, 64, vvc.REGISTER),
-                AilVirtualVariable(12, 9, 64, vvc.REGISTER),  # vvar9 is never defined -> extern-def fixup
-                ins_addr=0x400018,
-            ),
-        ],
-    )
-    graph = networkx.DiGraph()
-    graph.add_edge(b0, b1, type="transition", outside=False, ins_addr=0x400008, stmt_idx=-2)
-
-    func_args = {AilVirtualVariable(20, 7, 64, vvc.PARAMETER)}  # no in-graph definition -> extern def
-    model = SRDAModel(graph, None, arch)
-    populate_model(model, {(b.addr, b.idx): b for b in graph}, func_args, track_tmps=True)
-    return model
-
-
-class TestSRDAModelSerialization(unittest.TestCase):
-    def test_synthetic_srda_model(self):
-        arch = archinfo.ArchAMD64()
-        model = _build_synthetic_srda_model(arch)
-        # sanity: the synthetic graph really exercises every derived dict
-        assert model.varid_to_vvar and model.all_vvar_uses and model.all_tmp_definitions and model.all_tmp_uses
-
-        back = SRDAModel.parse(model.serialize(), arch=arch)
-
-        assert back.arch is arch
-        # graph round-trip (nodes compare by content, edges carry their data dicts)
-        assert set(back.func_graph.nodes) == set(model.func_graph.nodes)
-        assert {(u, v, tuple(sorted(d.items()))) for u, v, d in back.func_graph.edges(data=True)} == {
-            (u, v, tuple(sorted(d.items()))) for u, v, d in model.func_graph.edges(data=True)
-        }
-        assert back.func_args == model.func_args
-        # every derived dict is reconstructed equal to the original
-        assert back.varid_to_vvar == model.varid_to_vvar
-        assert back.all_vvar_definitions == model.all_vvar_definitions
-        assert dict(back.all_vvar_uses) == dict(model.all_vvar_uses)
-        assert dict(back.all_tmp_definitions) == dict(model.all_tmp_definitions)
-        assert dict(back.all_tmp_uses) == dict(model.all_tmp_uses)
-        assert back.phi_vvar_ids == model.phi_vvar_ids
-        assert back.phivarid_to_varids == model.phivarid_to_varids
-        assert back.phivarid_to_varids_with_unknown == model.phivarid_to_varids_with_unknown
-        assert back.vvar_uses_by_loc == model.vvar_uses_by_loc
-        # defaultdict semantics restored
-        back.all_vvar_uses[99].append(("x",))
 
 
 class TestAilSerializationHelpers(unittest.TestCase):
@@ -357,11 +232,6 @@ class TestAilSerializationHelpers(unittest.TestCase):
         }
         back = parse_arg_vvars(pack_arg_vvars(d))
         assert back == d
-
-    def test_vvar_set_roundtrip(self):
-        vvc = Expr.VirtualVariableCategory
-        s = {AilVirtualVariable(0, 1, 64, vvc.REGISTER), AilVirtualVariable(1, 2, 32, vvc.PARAMETER)}
-        assert parse_vvar_set(pack_vvar_set(s)) == s
 
     def test_type_hints_roundtrip(self):
         vvc = Expr.VirtualVariableCategory
@@ -448,22 +318,10 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back._skip_stages == clinic._skip_stages
         assert back.flavor == clinic.flavor
         assert len(back.externs) == len(clinic.externs)
-        # SRDA derived fields are reconstructed by re-scanning the deserialized graph rather than serialized, so
-        # they must match a fresh scan of the original stored graph (NOT the stored model, which may be stale
-        # relative to its own graph after later in-place simplifications).
-
-        rd = clinic.reaching_definitions
-        fresh = SRDAModel(rd.func_graph, None, self.proj.arch)
-        populate_model(
-            fresh,
-            {(b.addr, b.idx): b for b in rd.func_graph},
-            rd.func_args,
-            track_tmps=bool(rd.all_tmp_definitions) or bool(rd.all_tmp_uses),
-        )
-        assert back.reaching_definitions.varid_to_vvar == fresh.varid_to_vvar
-        assert back.reaching_definitions.all_vvar_definitions == fresh.all_vvar_definitions
-        assert dict(back.reaching_definitions.all_vvar_uses) == dict(fresh.all_vvar_uses)
-        assert back.reaching_definitions.phi_vvar_ids == fresh.phi_vvar_ids
+        # the SRDA model is never serialized (and the live clinic is downsized before it enters the cache); it is
+        # regenerated fresh from an AIL graph whenever needed
+        assert clinic.reaching_definitions is None
+        assert back.reaching_definitions is None
         # func_args is recomputed from arg_vvars rather than serialized
         assert back.func_args == clinic.func_args
         # _blocks_by_addr_and_size is rebuilt from _init_ail_graph: every original entry whose block is part of the

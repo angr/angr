@@ -99,7 +99,9 @@ message Clinic {
     repeated ExternBytes arg_list = 20;
     optional ExternBytes func_ret_var = 21;           // SimVariable
     repeated ExternBytes externs = 22;                // set[SimMemoryVariable]
-    optional bytes reaching_definitions = 23;         // SRDAModel.serialize()
+    // field 23 (reaching_definitions) removed: the SRDA model is never serialized; it is regenerated fresh from an
+    // AIL graph whenever needed
+    reserved 23;
 
     // ---- CLEAN primitive collections --------------------------------------------------------------------------------
     map<uint64, DataRefList> data_refs = 30;          // dict[int, list[DataRefDesc]]

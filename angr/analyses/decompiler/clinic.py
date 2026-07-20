@@ -4188,6 +4188,14 @@ class Clinic(Analysis, Serializable):
                 func.prototype = new_type
                 func.prototype_source = PrototypeSource.CALLSITE_DECOMPILER
 
+    def downsize(self) -> None:
+        """
+        Drop analysis state that is always regenerated fresh from the AIL graph and does not need to be retained
+        (or serialized) with the Clinic: currently the SRDA model. ``populate_model`` rebuilds it from a graph
+        whenever it is needed again.
+        """
+        self.reaching_definitions = None
+
     def _compute_reaching_definitions(self, func_args=None) -> SRDAModel:
         # Computing reaching definitions
         # TODO: Refactor this into a method of the upcoming AILFunctionGraph class.
@@ -4249,8 +4257,6 @@ class Clinic(Analysis, Serializable):
         # at parse time.
         for sv in self.externs:
             msg.externs.add().payload = simvar_to_bytes_polymorphic(sv)
-        if self.reaching_definitions is not None:
-            msg.reaching_definitions = self.reaching_definitions.serialize()
 
         # CLEAN collections.
         for addr, refs in self.data_refs.items():
@@ -4410,11 +4416,8 @@ class Clinic(Analysis, Serializable):
         clinic.arg_list = [simvar_from_bytes_polymorphic(e.payload) for e in msg.arg_list] if msg.arg_list else None
         clinic.func_ret_var = SimVariable(0, "__retvar", "__retvar")
         clinic.externs = {simvar_from_bytes_polymorphic(e.payload) for e in msg.externs}
-        clinic.reaching_definitions = (
-            SRDAModel.parse(msg.reaching_definitions, arch=project.arch if project is not None else None)
-            if msg.reaching_definitions
-            else None
-        )
+        # the SRDA model is never serialized; it is regenerated fresh from an AIL graph whenever needed
+        clinic.reaching_definitions = None
 
         # Variable_kb / cfg back-references.
         clinic.variable_kb = variable_kb
@@ -4446,9 +4449,8 @@ class Clinic(Analysis, Serializable):
             clinic._stackarg_offset_manager.stack_arg_offsets.setdefault(rec.offset, set()).add(
                 ((rec.block_addr, block_idx), rec.ins_addr, rec.offset, rec.size)
             )
-        # stackoff_to_vvars / all_stackarg_vvars are derived from the SRDA model; recompute rather than serialize.
-        if clinic.reaching_definitions is not None:
-            clinic._stackarg_offset_manager.update_stackoff_vvars(clinic.reaching_definitions)
+        # stackoff_to_vvars / all_stackarg_vvars are derived from the SRDA model, which is regenerated fresh when an
+        # SRDA run happens; they stay empty on deserialized clinics.
         clinic._removed_vvar_ids = set(msg.removed_vvar_ids) if msg._removed_vvar_ids_set else None
         clinic._preserve_vvar_ids = set(msg._preserve_vvar_ids)
         clinic._inline_functions = (
