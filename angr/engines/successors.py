@@ -294,7 +294,7 @@ class SimSuccessors:
                     skip_max_targets_warning = True  # don't warn
                 elif o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
-                    addrs = s.eval(target, _max_targets + 1, extra_constraints=tuple(state.ip_constraints))
+                    addrs = s.eval(target, _max_targets + 1)
                     if len(addrs) > _max_targets:
                         # It is not a library
                         l.debug("It is not a Library")
