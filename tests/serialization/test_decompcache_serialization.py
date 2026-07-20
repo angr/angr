@@ -1,24 +1,41 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
-"""Tests for the protobuf serialization of the DecompilationCache and its sub-objects.
-
-These tests cover the work landed in commits 839fde31c..8780e1641 on the
-feat/decompcache-serialization branch. The class-level round-trip tests guard against single-subclass regressions;
-the end-to-end test asserts that a real fauxware decompilation round-trips with byte-identical rendered text; the
-cache-hit test asserts that a deserialized cache can power a cache-hit in :class:`Decompiler` and produce the same
-output as the original run."""
-
 from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
 import os
+import pickle
 import unittest
 
+import archinfo
+import networkx
 from archinfo import Endness
+from google.protobuf.descriptor import FieldDescriptor
 
 import angr
-import angr.ailment as ailment
+from angr.ailment import Block as AilBlock
+from angr.ailment import Expr
+from angr.ailment.expression import Const
+from angr.ailment.expression import Tmp as AilTmp
+from angr.ailment.expression import VirtualVariable as AilVirtualVariable
+from angr.ailment.statement import Assignment, Jump, Return
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+from angr.analyses.decompiler.notes.decompilation_note import (
+    DecompilationNote,
+    DecompilationNoteLevel,
+)
+from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
+from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
+from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen.c import CConstruct
+from angr.analyses.decompiler.structured_codegen.c_serialize import (
+    _DISPLAY_OPTION_ATTRS,
+    _DISPLAY_OPTION_FIELD_FIRST,
+    _DISPLAY_OPTION_FIELD_LAST,
+)
+from angr.analyses.s_reaching_definitions import SRDAModel, populate_model
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions.atoms import (
@@ -43,14 +60,31 @@ from angr.knowledge_plugins.key_definitions.tag import (
     UnknownSizeTag,
 )
 from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
+from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+from angr.protos import codegen_pb2
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from angr.utils.ail_serialization import (
+    pack_arg_vvars,
+    pack_graph,
+    pack_ite_exprs,
+    pack_static_buffers,
+    pack_static_vvars,
+    pack_type_hints,
+    pack_vvar_set,
+    parse_arg_vvars,
+    parse_graph,
+    parse_ite_exprs,
+    parse_static_buffers,
+    parse_static_vvars,
+    parse_type_hints,
+    parse_vvar_set,
+)
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestKeyDefSerialization(unittest.TestCase):
-    """Round-trip tests for the atoms / codeloc / tag / Definition classes added in step 2."""
-
     def _roundtrip(self, obj):
         return type(obj).parse(obj.serialize())
 
@@ -75,14 +109,14 @@ class TestKeyDefSerialization(unittest.TestCase):
         assert b == a
 
     def test_atom_virtualvariable_int_oident(self):
-        a = VirtualVariable(42, 4, ailment.Expr.VirtualVariableCategory.REGISTER, oident=16)
+        a = VirtualVariable(42, 4, Expr.VirtualVariableCategory.REGISTER, oident=16)
         b = self._roundtrip(a)
         assert b == a
         assert b.oident == 16
 
     def test_atom_virtualvariable_tuple_oident(self):
         # COMBO_REGISTER uses a tuple oident; JSON encoding turns it into a list, _tuplify restores it.
-        a = VirtualVariable(43, 8, ailment.Expr.VirtualVariableCategory.COMBO_REGISTER, oident=(16, 24))
+        a = VirtualVariable(43, 8, Expr.VirtualVariableCategory.COMBO_REGISTER, oident=(16, 24))
         b = self._roundtrip(a)
         assert b == a
         assert b.oident == (16, 24)
@@ -106,7 +140,7 @@ class TestKeyDefSerialization(unittest.TestCase):
             Register(8, 4),
             GuardUse(0x401000),
             ConstantSrc(0xDEADBEEF, 4),
-            VirtualVariable(42, 4, ailment.Expr.VirtualVariableCategory.REGISTER, oident=16),
+            VirtualVariable(42, 4, Expr.VirtualVariableCategory.REGISTER, oident=16),
             MemoryLocation(0x1000, 4, endness=Endness.LE),
         ]
         for a in atoms_to_test:
@@ -156,14 +190,7 @@ class TestKeyDefSerialization(unittest.TestCase):
 
 
 class TestSubObjectSerialization(unittest.TestCase):
-    """Round-trip tests for DecompilationNote and OpDescriptor (added in step 6)."""
-
     def test_decompilation_note(self):
-        from angr.analyses.decompiler.notes.decompilation_note import (
-            DecompilationNote,
-            DecompilationNoteLevel,
-        )
-
         n = DecompilationNote(
             key="warn1", name="Warning One", content={"foo": [1, 2]}, level=DecompilationNoteLevel.WARNING
         )
@@ -175,16 +202,11 @@ class TestSubObjectSerialization(unittest.TestCase):
         assert back.content == n.content
 
     def test_decompilation_note_non_jsonable_content(self):
-        from angr.analyses.decompiler.notes.decompilation_note import DecompilationNote
-
         n = DecompilationNote(key="k", name="n", content=object())
         back = DecompilationNote.from_json(n.to_json())
         assert back.content is None
 
     def test_deobfuscated_strings_note_roundtrip(self):
-        from angr.analyses.decompiler.notes.decompilation_note import DecompilationNote
-        from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-
         n = DeobfuscatedStringsNote()
         n.add_string("1", b"\x00binary\xffdata", ref_addr=0x400100)
         n.add_string("2", b"hello", ref_addr=0x400200)
@@ -200,8 +222,6 @@ class TestSubObjectSerialization(unittest.TestCase):
         assert str(back) == str(n)
 
     def test_op_descriptor(self):
-        from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
-
         op = OpDescriptor(block_addr=0x400500, stmt_idx=3, ins_addr=0x400502, op="Sub")
         back = OpDescriptor.from_json(op.to_json())
         assert back == op
@@ -209,18 +229,7 @@ class TestSubObjectSerialization(unittest.TestCase):
 
 
 def _build_synthetic_srda_model(arch):
-    """A small two-block SSA AIL graph exercising vvar defs/uses, tmp defs/uses, a function argument with no
-    in-graph definition (extern def) and a use of an undefined vvar (extern-def fixup)."""
-    import networkx
-
-    from angr.ailment import Block as AilBlock
-    from angr.ailment.expression import Const
-    from angr.ailment.expression import Tmp as AilTmp
-    from angr.ailment.expression import VirtualVariable as AilVirtualVariable
-    from angr.ailment.statement import Assignment, Jump
-    from angr.analyses.s_reaching_definitions import SRDAModel, populate_model
-
-    vvc = ailment.Expr.VirtualVariableCategory
+    vvc = Expr.VirtualVariableCategory
 
     b0 = AilBlock(
         0x400000,
@@ -259,14 +268,7 @@ def _build_synthetic_srda_model(arch):
 
 
 class TestSRDAModelSerialization(unittest.TestCase):
-    """Round-trip test for SRDAModel: only func_graph / func_args / track_tmps are serialized; every derived dict
-    must come back reconstructed (by re-scanning the deserialized graph) equal to the original."""
-
     def test_synthetic_srda_model(self):
-        import archinfo
-
-        from angr.analyses.s_reaching_definitions import SRDAModel
-
         arch = archinfo.ArchAMD64()
         model = _build_synthetic_srda_model(arch)
         # sanity: the synthetic graph really exercises every derived dict
@@ -296,20 +298,9 @@ class TestSRDAModelSerialization(unittest.TestCase):
 
 
 class TestAilSerializationHelpers(unittest.TestCase):
-    """Unit round-trips for the typed pack/parse helpers in angr.utils.ail_serialization."""
-
     def test_display_option_attrs_derived_from_proto(self):
         # _DISPLAY_OPTION_ATTRS is generated from the Codegen descriptor's reserved field-number band; every entry
         # must be an optional scalar (the serialize loop uses plain setattr, which cannot handle message fields).
-        from google.protobuf.descriptor import FieldDescriptor
-
-        from angr.analyses.decompiler.structured_codegen.c_serialize import (
-            _DISPLAY_OPTION_ATTRS,
-            _DISPLAY_OPTION_FIELD_FIRST,
-            _DISPLAY_OPTION_FIELD_LAST,
-        )
-        from angr.protos import codegen_pb2
-
         assert {"indent", "show_casts", "max_str_len"} <= set(_DISPLAY_OPTION_ATTRS)
         assert len(set(_DISPLAY_OPTION_ATTRS)) == len(_DISPLAY_OPTION_ATTRS)
         for name in _DISPLAY_OPTION_ATTRS:
@@ -319,21 +310,12 @@ class TestAilSerializationHelpers(unittest.TestCase):
             assert field.label != FieldDescriptor.LABEL_REPEATED
 
     def _blocks(self):
-        from angr.ailment import Block as AilBlock
-        from angr.ailment.expression import Const
-        from angr.ailment.expression import Tmp as AilTmp
-        from angr.ailment.statement import Assignment, Return
-
         b0 = AilBlock(0x1000, 4, statements=[Assignment(0, AilTmp(1, 2, 64), Const(2, 1, 64), ins_addr=0x1000)])
         b1 = AilBlock(0x1004, 4, statements=[Return(3, [], ins_addr=0x1004)])
         b2 = AilBlock(0x1008, 4, statements=[], idx=1)
         return b0, b1, b2
 
     def test_graph_roundtrip_with_edge_data(self):
-        import networkx
-
-        from angr.utils.ail_serialization import pack_graph, parse_graph
-
         b0, b1, b2 = self._blocks()
         g = networkx.DiGraph()
         g.add_edge(b0, b1, type="fake_return", outside=False, confirmed=True)
@@ -348,10 +330,6 @@ class TestAilSerializationHelpers(unittest.TestCase):
         assert back[b1][b2] == {}
 
     def test_graph_rejects_unknown_edge_attr(self):
-        import networkx
-
-        from angr.utils.ail_serialization import pack_graph
-
         b0, b1, _ = self._blocks()
         g = networkx.DiGraph()
         g.add_edge(b0, b1, color="red")
@@ -359,10 +337,6 @@ class TestAilSerializationHelpers(unittest.TestCase):
             pack_graph(g)
 
     def test_graph_rejects_unknown_edge_type_string(self):
-        import networkx
-
-        from angr.utils.ail_serialization import pack_graph
-
         b0, b1, _ = self._blocks()
         g = networkx.DiGraph()
         g.add_edge(b0, b1, type="teleport")
@@ -370,21 +344,13 @@ class TestAilSerializationHelpers(unittest.TestCase):
             pack_graph(g)
 
     def test_graph_rejects_non_block_node(self):
-        import networkx
-
-        from angr.utils.ail_serialization import pack_graph
-
         g = networkx.DiGraph()
         g.add_node("not a block")
         with self.assertRaises(TypeError):
             pack_graph(g)
 
     def test_arg_vvars_roundtrip(self):
-        from angr.ailment.expression import VirtualVariable as AilVirtualVariable
-        from angr.sim_variable import SimRegisterVariable, SimStackVariable
-        from angr.utils.ail_serialization import pack_arg_vvars, parse_arg_vvars
-
-        vvc = ailment.Expr.VirtualVariableCategory
+        vvc = Expr.VirtualVariableCategory
         d = {
             0: (AilVirtualVariable(0, 1, 64, vvc.REGISTER), SimRegisterVariable(16, 8, ident="arg_0")),
             1: (AilVirtualVariable(1, 2, 64, vvc.STACK), SimStackVariable(-8, 8, ident="arg_1")),
@@ -393,18 +359,12 @@ class TestAilSerializationHelpers(unittest.TestCase):
         assert back == d
 
     def test_vvar_set_roundtrip(self):
-        from angr.ailment.expression import VirtualVariable as AilVirtualVariable
-        from angr.utils.ail_serialization import pack_vvar_set, parse_vvar_set
-
-        vvc = ailment.Expr.VirtualVariableCategory
+        vvc = Expr.VirtualVariableCategory
         s = {AilVirtualVariable(0, 1, 64, vvc.REGISTER), AilVirtualVariable(1, 2, 32, vvc.PARAMETER)}
         assert parse_vvar_set(pack_vvar_set(s)) == s
 
     def test_type_hints_roundtrip(self):
-        from angr.engines.light import SpOffset
-        from angr.utils.ail_serialization import pack_type_hints, parse_type_hints
-
-        vvc = ailment.Expr.VirtualVariableCategory
+        vvc = Expr.VirtualVariableCategory
         hints = [
             (VirtualVariable(42, 8, vvc.REGISTER, oident=16), "char*"),
             (MemoryLocation(SpOffset(64, -0x20), 8), "struct sockaddr"),
@@ -412,17 +372,10 @@ class TestAilSerializationHelpers(unittest.TestCase):
         assert parse_type_hints(pack_type_hints(hints)) == hints
 
     def test_ite_exprs_roundtrip(self):
-        from angr.ailment.expression import Const
-        from angr.utils.ail_serialization import pack_ite_exprs, parse_ite_exprs
-
         s = {(0x400123, Const(0, 5, 64)), (0x400456, Const(1, 7, 32))}
         assert parse_ite_exprs(pack_ite_exprs(s)) == s
 
     def test_static_vvars_roundtrip_both_arms(self):
-        from angr.ailment.expression import Const
-        from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBufferPtr
-        from angr.utils.ail_serialization import pack_static_vvars, parse_static_vvars
-
         d = {3: FixedBufferPtr("buf0", offset=8), 4: Const(0, 0xDEAD, 64)}
         back = parse_static_vvars(pack_static_vvars(d))
         assert set(back) == {3, 4}
@@ -431,9 +384,6 @@ class TestAilSerializationHelpers(unittest.TestCase):
         assert back[4] == d[4]
 
     def test_static_buffers_roundtrip(self):
-        from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer
-        from angr.utils.ail_serialization import pack_static_buffers, parse_static_buffers
-
         d = {"buf0": FixedBuffer("buf0", 16, b"\x00" * 16), "anon": FixedBuffer(None, 4, b"abcd")}
         back = parse_static_buffers(pack_static_buffers(d))
         assert set(back) == {"buf0", "anon"}
@@ -463,14 +413,12 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         # idx is the per-codegen unique node identity and doubles as the serialization node id
         assert back.cfunc.idx == codegen.cfunc.idx
         assert back.cfunc.ident == codegen.cfunc.ident
-        from angr.analyses.decompiler.structured_codegen.c import CConstruct
 
         live_nodes = {
             id(elem.obj): elem.obj for _, elem in codegen.map_pos_to_node.items() if isinstance(elem.obj, CConstruct)
         }
         assert live_nodes
         assert len({node.idx for node in live_nodes.values()}) == len(live_nodes)
-        from angr.protos import codegen_pb2
 
         msg = codegen_pb2.Codegen()
         msg.ParseFromString(blob)
@@ -503,7 +451,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         # SRDA derived fields are reconstructed by re-scanning the deserialized graph rather than serialized, so
         # they must match a fresh scan of the original stored graph (NOT the stored model, which may be stale
         # relative to its own graph after later in-place simplifications).
-        from angr.analyses.s_reaching_definitions import SRDAModel, populate_model
 
         rd = clinic.reaching_definitions
         fresh = SRDAModel(rd.func_graph, None, self.proj.arch)
@@ -528,8 +475,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
                     assert back._blocks_by_addr_and_size.get(key) == blk
 
     def test_decompilation_cache_roundtrip(self):
-        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-
         cache = self.decompiler.cache
         blob = cache.serialize()
         back = DecompilationCache.parse(
@@ -554,10 +499,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert len(back.parameters) == 14
 
     def test_cache_hit_on_deserialized_cache(self):
-        """The decisive end-to-end test: serialize the cache, parse it back, install it in the KB, and re-run the
-        decompiler. The second run must hit the cache and produce identical output."""
-        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-
         cache = self.decompiler.cache
         blob = cache.serialize()
         parsed_cache = DecompilationCache.parse(
@@ -591,13 +532,9 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         cls.main_dec = cls.proj.analyses.Decompiler(cls.main_func, cfg=cls.cfg.model, generate_code=True)
 
     def test_default_backing_store_is_spilling(self):
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         assert isinstance(self.proj.kb.decompilations.cached, SpillingDecompilationDict)
 
     def test_eviction_and_reload(self):
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         auth_key = (self.auth_func.addr, "pseudocode")
         main_key = (self.main_func.addr, "pseudocode")
@@ -621,8 +558,6 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert main_key in d._spilled
 
     def test_mutations_survive_respill(self):
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         auth_key = (self.auth_func.addr, "pseudocode")
         main_key = (self.main_func.addr, "pseudocode")
@@ -636,10 +571,6 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert "synthetic error" in d[auth_key].errors
 
     def test_unserializable_cache_is_kept_in_memory(self):
-        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-        from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         dummy_key = (0xDEAD, "pseudocode")
         dummy_cache = DecompilationCache(0xDEAD)
@@ -654,8 +585,6 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert len(d) == 2
 
     def test_delete_and_discard(self):
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         auth_key = (self.auth_func.addr, "pseudocode")
         main_key = (self.main_func.addr, "pseudocode")
@@ -670,8 +599,6 @@ class TestSpillingDecompilationDict(unittest.TestCase):
             _ = d[auth_key]
 
     def test_export_and_bulk_import_serialized(self):
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         auth_key = (self.auth_func.addr, "pseudocode")
         main_key = (self.main_func.addr, "pseudocode")
@@ -689,10 +616,6 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert d2[auth_key].codegen.text == self.auth_dec.cache.codegen.text
 
     def test_pickle_roundtrip(self):
-        import pickle
-
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         auth_key = (self.auth_func.addr, "pseudocode")
         main_key = (self.main_func.addr, "pseudocode")
@@ -707,10 +630,6 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert back[auth_key].codegen.text == self.auth_dec.cache.codegen.text
 
     def test_cache_hit_after_spill(self):
-        """The decisive test: force the freshly decompiled cache out to LMDB, then re-run the decompiler. The
-        second run must transparently reload the spilled cache and produce identical output."""
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         manager = self.proj.kb.decompilations
         old_cached = manager.cached
         try:
