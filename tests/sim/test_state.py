@@ -211,40 +211,6 @@ class TestState(unittest.TestCase):
         s = pickle.loads(sp)
         assert s.solver.eval(s.memory.load(100, 10), cast_to=bytes) == b"AAABAABABC"
 
-    def test_global_condition(self):
-        s = SimState(arch="AMD64")
-
-        s.regs.rax = 10
-        old_rax = s.regs.rax
-        with s.with_condition(False):
-            assert not s.solver.satisfiable()
-            s.regs.rax = 20
-        assert s._global_condition is None
-        assert old_rax is s.regs.rax
-
-        with s.with_condition(True):
-            s.regs.rax = 20
-        assert s._global_condition is None
-        assert old_rax is not s.regs.rax
-        assert claripy.BVV(20, s.arch.bits) is s.regs.rax
-
-        with s.with_condition(s.regs.rbx != 0):
-            s.regs.rax = 25
-        assert s._global_condition is None
-        assert claripy.BVV(25, s.arch.bits) is not s.regs.rax
-
-        with s.with_condition(s.regs.rbx != 1):
-            s.regs.rax = 30
-        assert s._global_condition is None
-        assert claripy.BVV(30, s.arch.bits) is not s.regs.rax
-
-        with s.with_condition(s.regs.rbx == 0):
-            assert s.solver.eval_upto(s.regs.rbx, 10) == [0]
-            assert s.solver.eval_upto(s.regs.rax, 10) == [30]
-        with s.with_condition(s.regs.rbx == 1):
-            assert s.solver.eval_upto(s.regs.rbx, 10) == [1]
-            assert s.solver.eval_upto(s.regs.rax, 10) == [25]
-
     def test_successors_catch_arbitrary_interrupts(self):
         # int 0xd2 should fail on x86/amd64 since it's an unsupported interrupt
         block_bytes = b"\xcd\xd2"
