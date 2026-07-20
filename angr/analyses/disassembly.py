@@ -7,13 +7,19 @@ from collections.abc import Sequence
 from typing import Any
 
 import archinfo
-import pypcode
 import pyvex
+
+try:
+    import pypcode
+
+    from angr.engines import pcode
+except ImportError:
+    pypcode = None
+    pcode = None
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
 from angr.codenode import BlockNode, SyscallNode
-from angr.engines import pcode
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins import Function
 from angr.utils.formatting import add_edge_to_buffer, ansi_color, ansi_color_enabled
@@ -21,8 +27,8 @@ from angr.utils.library import get_cpp_function_name
 
 from .disassembly_utils import decode_instruction
 
-IRSBType = pyvex.IRSB | pcode.lifter.IRSB
-IROpObjType = pyvex.stmt.IRStmt | pypcode.PcodeOp
+IRSBType = pyvex.IRSB if pcode is None else pyvex.IRSB | pcode.lifter.IRSB
+IROpObjType = pyvex.stmt.IRStmt if pypcode is None else pyvex.stmt.IRStmt | pypcode.PcodeOp
 
 l = logging.getLogger(name=__name__)
 

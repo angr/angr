@@ -13,7 +13,6 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING, TypeVar, cast, overload
 
 import cle
-import lmdb
 import networkx
 from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
@@ -23,6 +22,7 @@ from angr.codenode import FuncNode, HookNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
+from angr.utils.lmdb import lmdb, lmdb_available
 from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function
@@ -41,7 +41,11 @@ l = logging.getLogger(name=__name__)
 _missing = object()
 
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
-USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
+USE_SPILLING_FUNCTION_DICT = lmdb_available and os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in (
+    "0",
+    "false",
+    "no",
+)
 
 
 class FunctionDictBase[K: (int, SootMethodDescriptor)]:

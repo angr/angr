@@ -14,10 +14,9 @@ import weakref
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-import lmdb
-
 from angr.errors import AngrRuntimeDbError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.utils.lmdb import lmdb, lmdb_available
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -174,6 +173,9 @@ class RuntimeDb(KnowledgeBasePlugin):
         _live_rtdbs[next(_rtdb_counter)] = self
 
     def _init_lmdb(self):
+        if not lmdb_available:
+            raise AngrRuntimeDbError("LMDB is not available on this platform.")
+
         if self._lmdb_env is not None:
             return
 

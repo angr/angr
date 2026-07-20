@@ -18,11 +18,11 @@ from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
 from typing import TYPE_CHECKING, Any
 
-import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
 from angr.protos import cfg_pb2, primitives_pb2
+from angr.utils.lmdb import lmdb
 from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 from angr.utils.json_utils import json_decode, json_encode
 

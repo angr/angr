@@ -58,6 +58,7 @@ from . import (
 )
 from . import sim_manager as manager
 from . import sim_type as types
+from .platforms import capabilities
 from .analyses import Analysis, register_analysis
 from .blade import Blade
 from .block import Block

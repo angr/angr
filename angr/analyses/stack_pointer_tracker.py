@@ -8,16 +8,22 @@ import re
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-import pypcode
 import pyvex
 from archinfo.arch_arm import is_arm_arch
+
+try:
+    import pypcode
+
+    from angr.engines import pcode
+except ImportError:
+    pypcode = None
+    pcode = None
 
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.block import BlockNode
 from angr.calling_conventions import SimStackArg
 from angr.codenode import FuncNode
-from angr.engines import pcode
 from angr.errors import SimTranslationError
 from angr.knowledge_plugins import Function
 from angr.utils.constants import is_alignment_mask
