@@ -768,7 +768,9 @@ rotated_loop:
 
             proj = angr.Project(binary_path, auto_load_libs=False)
             cfg = proj.analyses.CFGFast(normalize=True)
-            function_addr = proj.loader.find_symbol("rotated_loop").rebased_addr
+            function_symbol = proj.loader.find_symbol("rotated_loop")
+            assert function_symbol is not None
+            function_addr = function_symbol.rebased_addr
             entry = cfg.model.get_any_node(function_addr)
 
             assert entry is not None
