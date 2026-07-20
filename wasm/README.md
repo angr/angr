@@ -9,8 +9,8 @@ uploaded bytes to the worker rather than a host path.
 
 ## Build and test
 
-Check out `angr`, `archinfo`, `claripy`, `cle`, `pyvex`, and `z3` as siblings in one directory, initialize PyVEX's VEX
-submodule, and run:
+Check out `angr`, `archinfo`, `claripy`, `cle`, `pyvex`, and an unmodified upstream `z3` as siblings in one
+directory, initialize PyVEX's VEX submodule, and run:
 
 ```console
 $ ./wasm/build_wheels.sh
