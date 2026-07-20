@@ -300,28 +300,13 @@ def _parse_const_formats(entries):
 
 # Display-option attribute names round-tripped on Codegen. Mirrors the codegen_pb2.Codegen field names where the
 # Python attribute and the proto field share the same identifier.
-_DISPLAY_OPTION_ATTRS = (
-    "indent",
-    "show_casts",
-    "comment_gotos",
-    "braces_on_own_lines",
-    "use_compound_assignments",
-    "show_local_types",
-    "cstyle_null_cmp",
-    "show_externs",
-    "show_demangled_name",
-    "show_disambiguated_name",
-    "simplify_else_scope",
-    "cstyle_ifs",
-    "omit_func_header",
-    "display_block_addrs",
-    "display_vvar_ids",
-    "display_notes",
-    "prettify_thiscall",
-    "cstyle_void_param",
-    "binop_depth_cutoff",
-    "min_data_addr",
-    "max_str_len",
+# Display-option fields occupy the reserved number band [30, 59] in the Codegen message (see codegen.proto);
+# deriving the attribute list from the descriptor keeps the proto as the single source of truth.
+_DISPLAY_OPTION_FIELD_FIRST, _DISPLAY_OPTION_FIELD_LAST = 30, 59
+_DISPLAY_OPTION_ATTRS = tuple(
+    f.name
+    for f in codegen_pb2.Codegen.DESCRIPTOR.fields
+    if _DISPLAY_OPTION_FIELD_FIRST <= f.number <= _DISPLAY_OPTION_FIELD_LAST
 )
 
 

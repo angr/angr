@@ -436,7 +436,10 @@ message Codegen {
     // const_formats: dict[IdentType, dict[str, bool]]; IdentType = tuple[int, int, str]
     repeated ConstFormatEntry const_formats = 23;
 
-    // Display options (round-tripped but not strictly part of the result).
+    // Display options (round-tripped but not strictly part of the result). Field numbers 30-59 are reserved for
+    // this block: c_serialize derives its display-option attribute list from this number range at runtime, so a
+    // new display option only needs an optional scalar field here (plus the regenerated pb2) whose name matches
+    // the attribute on CStructuredCodeGenerator.
     optional int32 indent = 30;
     optional bool show_casts = 31;
     optional bool comment_gotos = 32;
