@@ -16,11 +16,11 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Generator, Iterator
 from typing import TYPE_CHECKING, Literal, overload
 
-import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.protos import cfg_pb2
+from angr.utils.lmdb import lmdb
 
 from .block_id import BlockID
 from .cfg_node import CFGENode, CFGNode

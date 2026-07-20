@@ -16,8 +16,12 @@ from traceback import format_exception
 from types import NoneType
 from typing import TYPE_CHECKING, Any
 
-import psutil
 from rich import progress
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from angr.misc import telemetry
 from angr.misc.plugins import PluginVendor, VendorPreset
@@ -408,7 +412,7 @@ class Analysis:
         Return the current RAM usage of the Python process, in bytes. The value is updated at most once per second.
         """
 
-        if time.time() - self._last_ramusage_update > 1:
+        if psutil is not None and time.time() - self._last_ramusage_update > 1:
             self._last_ramusage_update = time.time()
             proc = psutil.Process(os.getpid())
             meminfo = proc.memory_info()
