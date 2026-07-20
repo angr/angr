@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from angr.ailment import Const, Register
-from angr.ailment.expression import ComboRegister
+from angr.ailment.expression import Call, ComboRegister
+from angr.ailment.statement import SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStructArg
 
 from .utils import SideEffectStatementRewriter
-
-if TYPE_CHECKING:
-    from angr.ailment.statement import SideEffectStatement
 
 
 class RetExprRewriter(OptimizationPass):
@@ -39,9 +35,13 @@ class RetExprRewriter(OptimizationPass):
 
     def _analyze(self, cache=None):
         def callback(call_stmt: SideEffectStatement, _block, _stmt):
-            if isinstance(call_stmt.expr.target, Const) and call_stmt.expr.target.value in self.kb.functions:
-                func = self.kb.functions[call_stmt.expr.target.value]
-                if func.prototype and func.calling_convention and func.prototype.returnty:
+            if (
+                isinstance(call_stmt.expr, Call)
+                and isinstance(call_stmt.expr.target, Const)
+                and self.kb.functions.contains_addr(call_stmt.expr.target.value_int)
+            ):
+                func = self.kb.functions.get_by_addr(call_stmt.expr.target.value_int, meta_only=True)
+                if func.prototype is not None and func.calling_convention and func.prototype.returnty:
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     ret_locs = self._flatten_locs(ret_val)  # pyright: ignore[reportArgumentType]
                     if (
