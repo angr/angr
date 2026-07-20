@@ -5,10 +5,9 @@ from __future__ import annotations
 import time
 import unittest
 
-from angr.claripy.annotation import UninitializedAnnotation
-
 from angr import SIM_PROCEDURES, SimState, claripy
 from angr import options as o
+from angr.claripy.annotation import UninitializedAnnotation
 from angr.state_plugins import SimLightRegisters, SimSystemPosix
 from angr.storage.file import SimFile
 from angr.storage.memory_mixins import (

@@ -11,9 +11,8 @@ import shutil
 import unittest
 from contextlib import suppress
 
-from angr.claripy import BVS
-
 import angr
+from angr.claripy import BVS
 from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
 from angr.knowledge_plugins.cfg.spilling_digraph import SpillingDiGraph
 from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from angr.claripy.ast.base import Base
-
 from angr import claripy
+from angr.claripy.ast.base import Base
 
 
 class MyAnnotation(claripy.Annotation):

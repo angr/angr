@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from angr import claripy
 from angr.claripy import (
     IntToStr,
     StrConcat,
@@ -16,8 +17,6 @@ from angr.claripy import (
     StrToInt,
 )
 from angr.claripy.ast import BV, Bool, String
-
-from angr import claripy
 
 
 class TestStringOperations(unittest.TestCase):
