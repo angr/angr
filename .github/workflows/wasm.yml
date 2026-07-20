@@ -1,0 +1,90 @@
+name: WebAssembly
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      archinfo_ref:
+        description: archinfo ref
+        default: master
+      claripy_ref:
+        description: claripy ref
+        default: master
+      cle_ref:
+        description: cle ref
+        default: master
+      pyvex_ref:
+        description: pyvex ref
+        default: master
+      z3_ref:
+        description: Z3 ref
+        default: master
+
+permissions:
+  contents: read
+
+jobs:
+  browser-runtime:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout angr
+        uses: actions/checkout@v7.0.0
+        with:
+          path: workspace/angr
+      - name: Checkout archinfo
+        uses: actions/checkout@v7.0.0
+        with:
+          repository: angr/archinfo
+          ref: ${{ inputs.archinfo_ref || 'master' }}
+          path: workspace/archinfo
+      - name: Checkout claripy
+        uses: actions/checkout@v7.0.0
+        with:
+          repository: angr/claripy
+          ref: ${{ inputs.claripy_ref || 'master' }}
+          path: workspace/claripy
+      - name: Checkout cle
+        uses: actions/checkout@v7.0.0
+        with:
+          repository: angr/cle
+          ref: ${{ inputs.cle_ref || 'master' }}
+          path: workspace/cle
+      - name: Checkout PyVEX
+        uses: actions/checkout@v7.0.0
+        with:
+          repository: angr/pyvex
+          ref: ${{ inputs.pyvex_ref || 'master' }}
+          submodules: recursive
+          path: workspace/pyvex
+      - name: Checkout Z3
+        uses: actions/checkout@v7.0.0
+        with:
+          repository: Z3Prover/z3
+          ref: ${{ inputs.z3_ref || 'master' }}
+          path: workspace/z3
+      - name: Checkout test binaries
+        uses: actions/checkout@v7.0.0
+        with:
+          repository: angr/binaries
+          path: workspace/binaries
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+      - name: Build WebAssembly wheels
+        run: workspace/angr/wasm/build_wheels.sh
+        env:
+          ANGR_WASM_WORKSPACE: ${{ github.workspace }}/workspace
+      - name: Run symbolic-execution smoke test
+        run: workspace/angr/wasm/test_wheels.sh
+        env:
+          ANGR_WASM_WORKSPACE: ${{ github.workspace }}/workspace
+          ANGR_WASM_TEST_BINARY: ${{ github.workspace }}/workspace/binaries/tests/x86_64/fauxware
+      - name: Store browser distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: angr-wasm
+          path: |
+            workspace/angr/wasm/dist/*.whl
+            workspace/angr/wasm/manifest.json
+            workspace/angr/wasm/index.html
+            workspace/angr/wasm/worker.mjs

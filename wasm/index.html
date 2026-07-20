@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>angr WebAssembly demo</title>
+    <style>
+      body { max-width: 56rem; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.5 system-ui, sans-serif; }
+      button, input { font: inherit; }
+      pre { overflow: auto; padding: 1rem; background: #111; color: #d8f7d2; border-radius: .4rem; }
+    </style>
+  </head>
+  <body>
+    <h1>angr in your browser</h1>
+    <p>Choose a binary. It stays in this worker and is analyzed locally with angr, VEX, and Z3.</p>
+    <input id="binary" type="file" />
+    <button id="analyze" disabled>Analyze</button>
+    <pre id="output">Loading the WebAssembly runtime…</pre>
+    <script type="module">
+      const output = document.querySelector("#output");
+      const button = document.querySelector("#analyze");
+      const input = document.querySelector("#binary");
+      const worker = new Worker("./worker.mjs", { type: "module" });
+      let nextId = 0;
+      const pending = new Map();
+
+      worker.addEventListener("message", ({ data }) => {
+        const request = pending.get(data.id);
+        if (!request) return;
+        pending.delete(data.id);
+        (data.ok ? request.resolve : request.reject)(data.ok ? data.result : new Error(data.error));
+      });
+
+      function ask(message, transfer = []) {
+        const id = ++nextId;
+        return new Promise((resolve, reject) => {
+          pending.set(id, { resolve, reject });
+          worker.postMessage({ ...message, id }, transfer);
+        });
+      }
+
+      try {
+        const info = await ask({ type: "init" });
+        output.textContent = `angr ${info.version} is ready.`;
+        button.disabled = false;
+      } catch (error) {
+        output.textContent = error.stack;
+      }
+
+      button.addEventListener("click", async () => {
+        if (!input.files.length) return;
+        button.disabled = true;
+        output.textContent = "Analyzing…";
+        try {
+          const data = await input.files[0].arrayBuffer();
+          const result = await ask({ type: "analyze", data }, [data]);
+          output.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          output.textContent = error.stack;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

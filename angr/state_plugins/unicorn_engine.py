@@ -588,11 +588,15 @@ def _load_native():
         raise ImportError("Unable to import native SimUnicorn support") from e
 
 
-try:
-    _UC_NATIVE = _load_native()
-except ImportError:
+if sys.platform == "emscripten":
     _UC_NATIVE = None
     unicorn = None
+else:
+    try:
+        _UC_NATIVE = _load_native()
+    except ImportError:
+        _UC_NATIVE = None
+        unicorn = None
 
 
 class Unicorn(SimStatePlugin):
