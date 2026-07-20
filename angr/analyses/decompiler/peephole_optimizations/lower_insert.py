@@ -45,9 +45,11 @@ class LowerInsert(PeepholeOptimizationExprBase):
         if expr.value.bits + shift > expr.bits:
             # malformed Insert - the value does not fit into the base
             return None
-        # only lower Inserts that fit in a machine word: wider ones come from bulk memory operations and would only
-        # yield arithmetic on integer types that do not exist in C.
-        if expr.bits > self.project.arch.bits:
+        # only lower Inserts that fit in a C integer type: wider ones come from bulk memory operations and would only
+        # yield arithmetic on integer types that do not exist in C. The cutoff is the widest C integer rather than the
+        # target's machine word, so that 64-bit Inserts on 32-bit targets are still lowered instead of reaching the
+        # backend as `_INSERT`.
+        if expr.bits > 64:
             return None
         # if the base is a widening Convert and the insert reaches beyond the converted operand's width, the bits this
         # Insert claims to preserve are extension padding rather than data the base genuinely carries. In practice
@@ -60,17 +62,20 @@ class LowerInsert(PeepholeOptimizationExprBase):
         ):
             return None
 
+        # every generated node carries the original tags: the codegen builds its expression-to-address map from
+        # ins_addr, and untagged sub-expressions are unmappable back to an instruction in the UI.
         value = (
             expr.value
             if expr.value.bits == expr.bits
-            else Convert(self.manager.next_atom(), expr.value.bits, expr.bits, False, expr.value)
+            else Convert(self.manager.next_atom(), expr.value.bits, expr.bits, False, expr.value, **expr.tags)
         )
         shifted = (
             BinaryOp(
                 self.manager.next_atom(),
                 "Shl",
-                [value, Const(self.manager.next_atom(), shift, expr.bits)],
+                [value, Const(self.manager.next_atom(), shift, expr.bits, **expr.tags)],
                 signed=False,
+                **expr.tags,
             )
             if shift
             else value
@@ -82,13 +87,14 @@ class LowerInsert(PeepholeOptimizationExprBase):
             return shifted
 
         if isinstance(expr.base, Const) and isinstance(expr.base.value, int):
-            masked_base = Const(self.manager.next_atom(), expr.base.value & keep, expr.bits)
+            masked_base = Const(self.manager.next_atom(), expr.base.value & keep, expr.bits, **expr.tags)
         else:
             masked_base = BinaryOp(
                 self.manager.next_atom(),
                 "And",
-                [expr.base, Const(self.manager.next_atom(), keep, expr.bits)],
+                [expr.base, Const(self.manager.next_atom(), keep, expr.bits, **expr.tags)],
                 signed=False,
+                **expr.tags,
             )
 
         return BinaryOp(expr.idx, "Or", [masked_base, shifted], signed=False, **expr.tags)

@@ -22,6 +22,7 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.manager import Manager
+from angr.analyses.decompiler.optimization_passes.peephole_simplifier import PostStructuringPeepholeOptimizationPass
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
     CmpMaskedShift,
@@ -33,6 +34,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     RemoveConstInsert,
     SimplifyBitwiseInserts,
 )
+from angr.analyses.decompiler.structurer_nodes import LoopNode, SequenceNode
 from angr.analyses.decompiler.utils import peephole_optimize_expr
 from tests.common import bin_location
 
@@ -430,6 +432,70 @@ class TestPeepholeOptimizations(unittest.TestCase):
             "Iend_LE",
         )
         assert opt.optimize(expr) is None
+
+    def test_lower_insert_tags_every_generated_subexpression(self):
+        # the generated nodes must all carry the original ins_addr, otherwise the codegen's expression-to-address map
+        # has no entry for them and the decompiler UI cannot map the arithmetic back to an instruction
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        expr = Insert(
+            manager.next_atom(),
+            Register(manager.next_atom(), 0, 64),
+            Const(manager.next_atom(), 1, 64),
+            Register(manager.next_atom(), 32, 8),
+            "Iend_LE",
+            ins_addr=0x400123,
+        )
+        out = opt.optimize(expr)
+
+        assert out.tags.get("ins_addr") == 0x400123
+        masked_base, shifted = out.operands
+        # (base And mask)
+        assert masked_base.tags.get("ins_addr") == 0x400123
+        assert masked_base.operands[1].tags.get("ins_addr") == 0x400123
+        # (Conv(8->64, value) Shl 8)
+        assert shifted.tags.get("ins_addr") == 0x400123
+        assert shifted.operands[0].tags.get("ins_addr") == 0x400123
+        assert shifted.operands[1].tags.get("ins_addr") == 0x400123
+
+    def test_lower_insert_width_cutoff_is_c_representable_not_arch_word(self):
+        # a 64-bit Insert is `long long` arithmetic - perfectly representable in C - so it must be lowered even when
+        # the target's machine word is narrower. Gating on arch.bits left every 32-bit target emitting _INSERT.
+        proj = angr.load_shellcode(b"\x90", "X86")
+        assert proj.arch.bits == 32
+        manager = Manager()
+        opt = LowerInsert(proj, proj.kb, manager)
+
+        expr = self._insert(manager, Register(manager.next_atom(), 0, 64), 0, Register(manager.next_atom(), 32, 8))
+        assert isinstance(opt.optimize(expr), BinaryOp)
+
+        # ... but anything wider than a C integer type is still left alone
+        expr = self._insert(manager, Register(manager.next_atom(), 0, 128), 0, Register(manager.next_atom(), 32, 8))
+        assert opt.optimize(expr) is None
+
+    def test_lower_residual_inserts_honors_a_replaced_root_node(self):
+        # SequenceWalker cannot rewrite a LoopNode in place - it returns a fresh one. When the root of the sequence is
+        # itself a LoopNode, discarding walk()'s return value silently drops the lowering for its initializer.
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+
+        # for (v = _INSERT(rax, 0, al); ...) - the Insert lives in the loop initializer, i.e. a bare statement
+        insert = self._insert(manager, Register(manager.next_atom(), 0, 64), 0, Register(manager.next_atom(), 32, 8))
+        initializer = ailment.Stmt.Assignment(
+            manager.next_atom(), VirtualVariable(manager.next_atom(), 3, 64, VirtualVariableCategory.REGISTER), insert
+        )
+        loop = LoopNode("while", None, SequenceNode(0x400000, nodes=[]), addr=0x400000, initializer=initializer)
+
+        pass_ = PostStructuringPeepholeOptimizationPass.__new__(PostStructuringPeepholeOptimizationPass)
+        pass_.seq = loop
+        pass_._lowering_opts = [LowerInsert(proj, proj.kb, manager)]
+        pass_._lower_residual_inserts()
+
+        assert isinstance(pass_.seq, LoopNode)
+        assert not isinstance(pass_.seq.initializer.src, Insert), "the Insert survived in the loop initializer"
+        assert isinstance(pass_.seq.initializer.src, BinaryOp) and pass_.seq.initializer.src.op == "Or"
 
 
 if __name__ == "__main__":

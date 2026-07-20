@@ -8,6 +8,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import (
+    _PeepholeExprsWalker,
     peephole_optimize_expr,
     peephole_optimize_exprs,
     peephole_optimize_stmt_exprs,
@@ -64,6 +65,8 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
         ]
         # lowering rules are not part of the regular rotation; see _lower_residual_inserts()
         self._lowering_opts = [LowerInsert(self.project, self.kb, ail_manager=self.manager, func_addr=self._func.addr)]
+        # cached peephole expression walker, so the dispatch table is not rebuilt once per block
+        self._lowering_expr_walker = _PeepholeExprsWalker(expr_opts=self._lowering_opts)
         self.analyze()
 
     def _check(self):
@@ -93,7 +96,12 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
                 ailment.Block: self._lower_block,
             }
         )
-        walker.walk(self.seq)
+        # _lower_stmt propagates replacements upward, and the handlers for nodes that cannot be rewritten in place
+        # (LoopNode above all) return a fresh node rather than mutating. When the root itself is such a node, the
+        # replacement arrives here and must be written back, or the lowering is silently lost for it.
+        new_seq = walker.walk(self.seq)
+        if new_seq is not None:
+            self.seq = new_seq
 
     def _lower_expr(self, expr, **_):
         new_expr = peephole_optimize_expr(expr, self._lowering_opts)
@@ -105,7 +113,7 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
 
     def _lower_block(self, block, **_):
         # expressions are updated in place
-        peephole_optimize_exprs(block, self._lowering_opts)
+        peephole_optimize_exprs(block, self._lowering_opts, walker=self._lowering_expr_walker)
         return None
 
     def _optimize_expr(self, expr, **_):
