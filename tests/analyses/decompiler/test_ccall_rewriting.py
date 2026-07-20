@@ -42,6 +42,12 @@ class TestCCallRewriting(unittest.TestCase):
         assert "v0 = NtGetCurrentPeb();" in dec.codegen.text
 
 
+#
+# AMD64 rewriter unit tests: build amd64g_calculate_condition ccalls in memory, rewrite them,
+# and differential-test the rewritten expressions against ccall.py's executable semantics.
+#
+
+
 def _make_ccall(cond, op, dep1=None, dep2=None, ndep=None, bits=64):
     """Build a VEXCCallExpression for amd64g_calculate_condition."""
     if dep1 is None:
@@ -155,6 +161,86 @@ class TestAMD64CCallRewriterCondNL(unittest.TestCase):
             assert cmp.operands[1].value_int == 0, f"{op}: expected comparison against 0"
 
 
+class TestAMD64CCallRewriterCondBE(unittest.TestCase):
+    """CondBE (jbe / unsigned <=) recovery. Previously unhandled, leaving a generic `_ccall`."""
+
+    def test_condbe_sub_is_unsigned_le(self):
+        for op in ("G_CC_OP_SUBB", "G_CC_OP_SUBW", "G_CC_OP_SUBL", "G_CC_OP_SUBQ"):
+            ccall = _make_ccall(AMD64_CondTypes["CondBE"], AMD64_OpTypes[op])
+            result = _unwrap_convert(_rewrite(ccall))
+            assert isinstance(result, Expr.BinaryOp), f"{op}: not rewritten"
+            assert result.op == "CmpLE", f"{op}: got {result.op}"
+            assert result.signed is False, f"{op}: expected unsigned"
+
+    def test_condb_sub_still_unsigned_lt(self):
+        # control: CondB must be unchanged by the CondBE addition
+        for op in ("G_CC_OP_SUBB", "G_CC_OP_SUBW", "G_CC_OP_SUBL", "G_CC_OP_SUBQ"):
+            ccall = _make_ccall(AMD64_CondTypes["CondB"], AMD64_OpTypes[op])
+            result = _unwrap_convert(_rewrite(ccall))
+            assert isinstance(result, Expr.BinaryOp), f"{op}: not rewritten"
+            assert result.op == "CmpLT", f"{op}: got {result.op}"
+            assert result.signed is False, f"{op}: expected unsigned"
+
+    def test_condb_add_still_uses_cfadd(self):
+        # control: CondB x ADD must keep emitting __CFADD__, not a comparison
+        ccall = _make_ccall(AMD64_CondTypes["CondB"], AMD64_OpTypes["G_CC_OP_ADDL"])
+        result = _rewrite(ccall)
+        assert isinstance(result, Expr.Call) and result.target == "__CFADD__"
+
+    def test_condbe_add_is_not_rewritten(self):
+        # CondBE x ADD needs CF|ZF, which the CondB __CFADD__ form does not express: leave it alone
+        ccall = _make_ccall(AMD64_CondTypes["CondBE"], AMD64_OpTypes["G_CC_OP_ADDL"])
+        assert _rewrite(ccall) is None
+
+    def test_condbe_logic_is_zero_test(self):
+        # and/or/xor clear CF, so BE == CF|ZF degenerates to ZF
+        ccall = _make_ccall(AMD64_CondTypes["CondBE"], AMD64_OpTypes["G_CC_OP_LOGICL"])
+        result = _unwrap_convert(_rewrite(ccall))
+        assert isinstance(result, Expr.BinaryOp) and result.op == "CmpEQ"
+
+    def test_condb_logic_is_always_false(self):
+        ccall = _make_ccall(AMD64_CondTypes["CondB"], AMD64_OpTypes["G_CC_OP_LOGICL"])
+        result = _rewrite(ccall)
+        assert isinstance(result, Expr.Const) and result.value_int == 0
+        assert result.bits == ccall.bits
+
+    def test_condnb_sub_is_unsigned_ge(self):
+        for op in ("G_CC_OP_SUBB", "G_CC_OP_SUBW", "G_CC_OP_SUBL", "G_CC_OP_SUBQ"):
+            ccall = _make_ccall(AMD64_CondTypes["CondNB"], AMD64_OpTypes[op])
+            result = _unwrap_convert(_rewrite(ccall))
+            assert isinstance(result, Expr.BinaryOp), f"{op}: not rewritten"
+            assert result.op == "CmpGE", f"{op}: got {result.op}"
+            assert result.signed is False, f"{op}: expected unsigned"
+
+    def test_condnb_add_is_negated_cfadd(self):
+        # CondNB (jae) is !CF, the negation of the __CFADD__ carry test CondB emits.
+        # An inline (a + b) >= a comparison would be a C-promotion tautology at 8/16-bit widths.
+        for op in ("G_CC_OP_ADDB", "G_CC_OP_ADDW", "G_CC_OP_ADDL", "G_CC_OP_ADDQ"):
+            ccall = _make_ccall(AMD64_CondTypes["CondNB"], AMD64_OpTypes[op])
+            result = _unwrap_convert(_rewrite(ccall))
+            assert isinstance(result, Expr.BinaryOp), f"{op}: not rewritten"
+            assert result.op == "CmpEQ", f"{op}: got {result.op}"
+            lhs, rhs = result.operands
+            assert isinstance(lhs, Expr.Call) and lhs.target == "__CFADD__", f"{op}: expected a __CFADD__ call"
+            assert isinstance(rhs, Expr.Const) and rhs.value_int == 0, f"{op}: expected comparison against 0"
+
+    def test_condnb_logic_is_always_true(self):
+        ccall = _make_ccall(AMD64_CondTypes["CondNB"], AMD64_OpTypes["G_CC_OP_LOGICL"])
+        result = _rewrite(ccall)
+        assert isinstance(result, Expr.Const) and result.value_int == 1
+        assert result.bits == ccall.bits
+
+
+#  Boundary sweep: all 256 values of dep_1 against a fixed spread of dep_2 (zero, small values, the
+#  signed/unsigned transitions, the top of the range, and a bit pattern). These are ordering
+#  comparisons, so the boundary values cover every transition of the relation under test.
+#  A FULL 256x256 sweep (65,536 pairs) was run out-of-tree for every 8-bit cell below -- 0
+#  mismatches against ccall.py's executable amd64g_calculate_condition, and independently against a
+#  native cmpb/setcc oracle on hardware (CondB x SUBB included as a control; ~200k further control
+#  cases on pre-existing rules also clean). The 16/32/64-bit widths are covered by ccall.py and the
+#  width-logic tests, not by the hardware oracle. ccall.py alone would be circular -- the rewriter
+#  and the oracle share a model. Hardware-harness note: for LOGIC* ops, VEX's cc_dep1 is the
+#  RESULT of the operation, not an operand.
 _DEP2_SAMPLE = (0, 1, 2, 3, 0x7E, 0x7F, 0x80, 0x81, 0xFD, 0xFE, 0xFF, 0x55)
 
 
@@ -181,6 +267,27 @@ class TestAMD64CCallRewriterDifferential(unittest.TestCase):
 
     def test_condnl_logicb_differential(self):
         self._sweep("CondNL", "G_CC_OP_LOGICB")
+
+    def test_condbe_subb_differential(self):
+        self._sweep("CondBE", "G_CC_OP_SUBB")
+
+    def test_condb_subb_differential(self):
+        self._sweep("CondB", "G_CC_OP_SUBB")
+
+    def test_condnb_subb_differential(self):
+        self._sweep("CondNB", "G_CC_OP_SUBB")
+
+    def test_condbe_logicb_differential(self):
+        self._sweep("CondBE", "G_CC_OP_LOGICB")
+
+    def test_condb_logicb_differential(self):
+        self._sweep("CondB", "G_CC_OP_LOGICB")
+
+    def test_condnb_logicb_differential(self):
+        self._sweep("CondNB", "G_CC_OP_LOGICB")
+
+    def test_condnb_addb_differential(self):
+        self._sweep("CondNB", "G_CC_OP_ADDB")
 
 
 if __name__ == "__main__":

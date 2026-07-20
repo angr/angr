@@ -396,8 +396,10 @@ class AMD64CCallRewriter(CCallRewriterBase):
 
                         r = Expr.BinaryOp(ccall.idx, "CmpGT", (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
-                elif cond_v == AMD64_CondTypes["CondB"]:
-                    if op_v in {
+                elif cond_v in {AMD64_CondTypes["CondB"], AMD64_CondTypes["CondBE"]}:
+                    # CondB tests CF; CondBE tests CF | ZF
+                    is_be = cond_v == AMD64_CondTypes["CondBE"]
+                    if not is_be and op_v in {
                         AMD64_OpTypes["G_CC_OP_ADDB"],
                         AMD64_OpTypes["G_CC_OP_ADDW"],
                         AMD64_OpTypes["G_CC_OP_ADDL"],
@@ -439,7 +441,8 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         AMD64_OpTypes["G_CC_OP_SUBL"],
                         AMD64_OpTypes["G_CC_OP_SUBQ"],
                     }:
-                        # dep_1 <u dep_2
+                        # CF is dep_1 <u dep_2 and ZF is dep_1 == dep_2, so
+                        # dep_1 <u dep_2 for CondB, dep_1 <=u dep_2 for CondBE
 
                         dep_1 = self._fix_size(
                             dep_1,
@@ -460,12 +463,110 @@ class AMD64CCallRewriter(CCallRewriterBase):
 
                         r = Expr.BinaryOp(
                             ccall.idx,
-                            "CmpLT",
+                            "CmpLE" if is_be else "CmpLT",
                             (dep_1, dep_2),
                             False,
                             **ccall.tags,
                         )
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        # and/or/xor always clear CF, so CondB is never true and CondBE degenerates to ZF
+                        if not is_be:
+                            return Expr.Const(self.ail_manager.next_atom(), 0, ccall.bits, **ccall.tags)
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_LOGICB"],
+                            AMD64_OpTypes["G_CC_OP_LOGICW"],
+                            AMD64_OpTypes["G_CC_OP_LOGICL"],
+                            ccall.tags,
+                        )
+                        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
+                        r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, zero), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+                elif cond_v == AMD64_CondTypes["CondNB"]:
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_ADDB"],
+                        AMD64_OpTypes["G_CC_OP_ADDW"],
+                        AMD64_OpTypes["G_CC_OP_ADDL"],
+                        AMD64_OpTypes["G_CC_OP_ADDQ"],
+                    }:
+                        # CondNB is !CF, i.e. the negation of the __CFADD__ carry test that CondB
+                        # emits. An inline (a + b) >=u a comparison would be wrong here: C integer
+                        # promotion keeps sub-int additions from wrapping, making it a tautology at
+                        # 8/16-bit widths.
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+
+                        cfadd_call = Expr.Call(
+                            self.ail_manager.next_atom(),
+                            "__CFADD__",
+                            args=[dep_1, dep_2],
+                            bits=ccall.bits,
+                            **ccall.tags,
+                        )
+                        variable_map_of(self.ail_manager).set_calling_convention(
+                            cfadd_call, SimCCUsercall(self.project.arch, [], None)
+                        )
+                        zero = Expr.Const(self.ail_manager.next_atom(), 0, cfadd_call.bits)
+                        r = Expr.BinaryOp(ccall.idx, "CmpEQ", (cfadd_call, zero), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SUBB"],
+                        AMD64_OpTypes["G_CC_OP_SUBW"],
+                        AMD64_OpTypes["G_CC_OP_SUBL"],
+                        AMD64_OpTypes["G_CC_OP_SUBQ"],
+                    }:
+                        # dep_1 >=u dep_2
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+
+                        r = Expr.BinaryOp(ccall.idx, "CmpGE", (dep_1, dep_2), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        # and/or/xor always clear CF, so CondNB is always true
+                        return Expr.Const(self.ail_manager.next_atom(), 1, ccall.bits, **ccall.tags)
                 elif (
                     cond_v == AMD64_CondTypes["CondS"]
                     and op_v
