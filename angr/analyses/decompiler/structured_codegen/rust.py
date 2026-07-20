@@ -2756,10 +2756,19 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         min_data_addr: int = 0x400_000,
         notes=None,
         display_notes: bool = True,
-        variable_map: VariableMap | None = None,
+        max_str_len: int | None = None,
+        prettify_thiscall: bool = False,
+        cstyle_void_param: bool = True,
         indent_size: int = INDENT_DELTA,
+        variable_map: VariableMap | None = None,
     ):
-        super().__init__(flavor=flavor, notes=notes)
+        super().__init__(
+            flavor=flavor,
+            notes=notes,
+            stmt_comments=stmt_comments,
+            expr_comments=expr_comments,
+            const_formats=const_formats,
+        )
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -2828,15 +2837,17 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
         self.cstyle_null_cmp = cstyle_null_cmp
-        self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
-        self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
-        self.const_formats: dict[Any, dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
+        self.show_disambiguated_name = show_disambiguated_name
         self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
+        self.omit_func_header = omit_func_header
+        self.display_block_addrs = display_block_addrs
+        self.display_vvar_ids = display_vvar_ids
+        self.min_data_addr = min_data_addr
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2846,6 +2857,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.rust_func: RustFunction | None = None
         self.cexterns: set[RustVariable] | None = None
         self.display_notes = display_notes
+        self.max_str_len = max_str_len
+        self.prettify_thiscall = prettify_thiscall
+        self.cstyle_void_param = cstyle_void_param
         self.indent_delta = indent_size
 
         self._analyze()
@@ -2872,6 +2886,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.simplify_else_scope = value
             elif option.param == "cstyle_ifs":
                 self.cstyle_ifs = value
+            elif option.param == "cstyle_void_param":
+                self.cstyle_void_param = value
             elif option.param == "indent_size":
                 self.indent_delta = value
 
