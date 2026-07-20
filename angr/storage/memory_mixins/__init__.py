@@ -16,7 +16,7 @@ from .keyvalue_memory_mixin import KeyValueMemoryMixin
 from .label_merger_mixin import LabelMergerMixin
 from .multi_value_merger_mixin import MultiValueMergerMixin
 from .name_resolution_mixin import NameResolutionMixin
-from .paged_memory.page_backer_mixins import ClemoryBackerMixin, ConcreteBackerMixin, DictBackerMixin
+from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
 from .paged_memory.paged_memory_mixin import (
     ListPagesMixin,
     ListPagesWithLabelsMixin,
@@ -81,7 +81,6 @@ class DefaultMemory(
     DirtyAddrsMixin,
     # -----
     StackAllocationMixin,
-    ConcreteBackerMixin,
     ClemoryBackerMixin,
     DictBackerMixin,
     PrivilegedPagingMixin,
@@ -251,7 +250,6 @@ __all__ = (
     "ActionsMixinLow",
     "AddressConcretizationMixin",
     "ClemoryBackerMixin",
-    "ConcreteBackerMixin",
     "ConditionalMixin",
     "ConvenientMappingsMixin",
     "CooperationBase",
