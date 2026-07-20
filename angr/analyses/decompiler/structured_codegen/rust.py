@@ -2765,9 +2765,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         super().__init__(
             flavor=flavor,
             notes=notes,
-            stmt_comments=stmt_comments,
-            expr_comments=expr_comments,
-            const_formats=const_formats,
         )
 
         self._handlers = {
@@ -2837,6 +2834,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
         self.cstyle_null_cmp = cstyle_null_cmp
+        self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
+        self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
+        self.const_formats: dict[Any, dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
