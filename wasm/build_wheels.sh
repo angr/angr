@@ -31,7 +31,9 @@ source "$emsdk_env"
 
 git -C "$workspace/pyvex" submodule update --init --recursive
 "${pyodide[@]}" build "$workspace/pyvex" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
-"${pyodide[@]}" build "$workspace/z3/src/api/python" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
+real_make="$(command -v make)"
+PATH="$angr_dir/wasm/z3-build-tools:$PATH" ANGR_WASM_REAL_MAKE="$real_make" \
+    "${pyodide[@]}" build "$workspace/z3/src/api/python" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 "${pyodide[@]}" build 'capstone==5.0.6' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 "${pyodide[@]}" build 'pydemumble==0.0.1' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 
