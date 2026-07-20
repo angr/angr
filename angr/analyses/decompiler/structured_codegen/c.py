@@ -33,6 +33,7 @@ from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.serializable import Serializable
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -2773,7 +2774,7 @@ class CStructFieldNameDef:
         self.name = name
 
 
-class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
+class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializable):
     def __init__(
         self,
         func,
@@ -4365,6 +4366,30 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         stack_base = CFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
         return CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
 
+    #
+    # Serialization
+    #
+    # ``c_serialize`` imports from this module at its top, so it cannot be imported at the top of c.py; the method
+    # bodies import it lazily instead. ``serialize()`` / ``parse()`` are inherited from Serializable.
+    #
+
+    @classmethod
+    def _get_cmsg(cls):
+        from angr.protos import codegen_pb2  # pylint:disable=import-outside-toplevel
+
+        return codegen_pb2.Codegen()
+
+    def serialize_to_cmessage(self):
+        from . import c_serialize  # pylint:disable=import-outside-toplevel
+
+        return c_serialize.serialize_codegen(self)
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, *, project=None, kb=None, variable_kb=None, func=None, **kwargs):
+        from . import c_serialize  # pylint:disable=import-outside-toplevel
+
+        return c_serialize.parse_codegen(cmsg, project=project, kb=kb, variable_kb=variable_kb, func=func)
+
 
 class CStructuredCodeWalker:
     def handle(self, obj):
@@ -4616,30 +4641,6 @@ register_analysis(CStructuredCodeGenerator, "CStructuredCodeGenerator")
 
 # Register protobuf serializer/parser pairs for every concrete CConstruct subclass. Imported after all classes are
 # defined so that ``c_serialize.register_all`` can reference them by name.
-from angr.protos import codegen_pb2 as _codegen_pb2  # noqa: E402
-
 from . import c_serialize as _c_serialize  # noqa: E402
 
 _c_serialize.register_all()
-
-
-def _cstructuredcodegenerator_get_cmsg(cls):
-    return _codegen_pb2.Codegen()
-
-
-def _cstructuredcodegenerator_serialize(self):
-    return _c_serialize.serialize_codegen(self)
-
-
-def _cstructuredcodegenerator_parse(cls, cmsg, *, project=None, kb=None, variable_kb=None, func=None, **kwargs):
-    return _c_serialize.parse_codegen(cmsg, project=project, kb=kb, variable_kb=variable_kb, func=func)
-
-
-CStructuredCodeGenerator._get_cmsg = classmethod(_cstructuredcodegenerator_get_cmsg)
-CStructuredCodeGenerator.serialize_to_cmessage = _cstructuredcodegenerator_serialize
-CStructuredCodeGenerator.parse_from_cmessage = classmethod(_cstructuredcodegenerator_parse)
-# Inherit Serializable.serialize / Serializable.parse from base via methodless attachment.
-from angr.serializable import Serializable as _Serializable  # noqa: E402
-
-CStructuredCodeGenerator.serialize = _Serializable.serialize
-CStructuredCodeGenerator.parse = classmethod(_Serializable.parse.__func__)
