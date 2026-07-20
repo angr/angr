@@ -8,6 +8,9 @@ import os
 import unittest
 
 import angr
+from angr.ailment import Expr, Manager
+from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
+from angr.engines.vex.claripy.ccall import data
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -41,12 +44,9 @@ class TestAMD64CCallRewriterDecWidth(unittest.TestCase):
     """
 
     def _rewrite(self, cond, op, dep1_value):
-        from angr.ailment import Expr, Manager
-        from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
-        from angr.engines.vex.claripy.ccall import data
-
         cond_v = data["AMD64"]["CondTypes"][cond]
         op_v = data["AMD64"]["OpTypes"][op]
+        assert cond_v is not None and op_v is not None
         ccall = Expr.VEXCCallExpression(
             idx=0,
             callee="amd64g_calculate_condition",
@@ -66,6 +66,7 @@ class TestAMD64CCallRewriterDecWidth(unittest.TestCase):
         for op, bits in (("G_CC_OP_DECB", 8), ("G_CC_OP_DECW", 16), ("G_CC_OP_DECL", 32), ("G_CC_OP_DECQ", 64)):
             for cond in ("CondZ", "CondNZ"):
                 result = self._rewrite(cond, op, 1 << bits if bits < 64 else 1)
+                assert isinstance(result, Expr.Convert)
                 cmp = result.operand  # strip the Convert back to ccall.bits
                 lhs = cmp.operands[0]
                 assert lhs.bits == bits, f"{cond} x {op}: operand is {lhs.bits}-bit, expected {bits}"
@@ -73,6 +74,7 @@ class TestAMD64CCallRewriterDecWidth(unittest.TestCase):
     def test_condz_decb_ignores_upper_bits(self):
         # result low byte is 0 (ZF set) while bits above it are non-zero
         result = self._rewrite("CondZ", "G_CC_OP_DECB", 0x100)
+        assert isinstance(result, Expr.Convert)
         cmp = result.operand
         assert cmp.op == "CmpEQ"
         lhs, rhs = cmp.operands
