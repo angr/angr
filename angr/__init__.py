@@ -58,7 +58,6 @@ from . import (
 )
 from . import sim_manager as manager
 from . import sim_type as types
-from .platforms import capabilities
 from .analyses import Analysis, register_analysis
 from .blade import Blade
 from .block import Block
@@ -178,6 +177,7 @@ from .errors import (
 from .exploration_techniques import ExplorationTechnique
 from .knowledge_base import KnowledgeBase
 from .llm_client import LLMClient
+from .platforms import capabilities
 from .procedures import SIM_LIBRARIES, SIM_PROCEDURES, SIM_TYPE_COLLECTIONS, SimProcedures
 from .procedures.definitions import load_external_definitions
 from .project import Project, load_shellcode
