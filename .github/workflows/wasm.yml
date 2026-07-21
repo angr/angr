@@ -88,3 +88,4 @@ jobs:
             workspace/angr/wasm/manifest.json
             workspace/angr/wasm/index.html
             workspace/angr/wasm/worker.mjs
+            workspace/angr/wasm/samples/fauxware
