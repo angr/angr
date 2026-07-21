@@ -9,7 +9,6 @@ import pickle
 import unittest
 
 import networkx
-from google.protobuf.descriptor import FieldDescriptor
 
 import angr
 from angr.ailment import Block as AilBlock
@@ -101,8 +100,10 @@ class TestAilSerializationHelpers(unittest.TestCase):
         for name in _DISPLAY_OPTION_ATTRS:
             field = codegen_pb2.Codegen.DESCRIPTOR.fields_by_name[name]
             assert _DISPLAY_OPTION_FIELD_FIRST <= field.number <= _DISPLAY_OPTION_FIELD_LAST
-            assert field.type != FieldDescriptor.TYPE_MESSAGE
-            assert field.label != FieldDescriptor.LABEL_REPEATED
+            # not a message and not repeated. Use the modern FieldDescriptor API: protobuf 7.x (the upb backend)
+            # removed the ``label``/``type`` attributes and the LABEL_*/TYPE_* constants.
+            assert field.message_type is None
+            assert not field.is_repeated
 
     def test_tags_roundtrip_with_ins_offset(self):
         from angr.analyses.decompiler.structured_codegen.c_serialize import _parse_tags, _sanitize_tags
