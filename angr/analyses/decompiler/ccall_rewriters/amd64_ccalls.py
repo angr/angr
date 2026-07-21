@@ -545,6 +545,184 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
                     return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
+                elif cond_v in {AMD64_CondTypes["CondO"], AMD64_CondTypes["CondNO"]}:
+                    # overflow flag (jo / jno)
+                    is_no = cond_v == AMD64_CondTypes["CondNO"]
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        # and/or/xor always clear OF: CondO -> 0, CondNO -> 1
+                        return Expr.Const(self.ail_manager.next_atom(), 1 if is_no else 0, ccall.bits, **ccall.tags)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_ADDB"],
+                        AMD64_OpTypes["G_CC_OP_ADDW"],
+                        AMD64_OpTypes["G_CC_OP_ADDL"],
+                        AMD64_OpTypes["G_CC_OP_ADDQ"],
+                    }:
+                        # signed overflow of dep_1 + dep_2
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+                        return self._overflow_helper(ccall, "__OFADD__", dep_1, dep_2, is_no)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SUBB"],
+                        AMD64_OpTypes["G_CC_OP_SUBW"],
+                        AMD64_OpTypes["G_CC_OP_SUBL"],
+                        AMD64_OpTypes["G_CC_OP_SUBQ"],
+                    }:
+                        # signed overflow of dep_1 - dep_2
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+                        return self._overflow_helper(ccall, "__OFSUB__", dep_1, dep_2, is_no)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_UMULB"],
+                        AMD64_OpTypes["G_CC_OP_UMULW"],
+                        AMD64_OpTypes["G_CC_OP_UMULL"],
+                        AMD64_OpTypes["G_CC_OP_UMULQ"],
+                    }:
+                        # unsigned multiply overflow: high half of the full product is nonzero
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_UMULB"],
+                            AMD64_OpTypes["G_CC_OP_UMULW"],
+                            AMD64_OpTypes["G_CC_OP_UMULL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_UMULB"],
+                            AMD64_OpTypes["G_CC_OP_UMULW"],
+                            AMD64_OpTypes["G_CC_OP_UMULL"],
+                            ccall.tags,
+                        )
+                        return self._overflow_helper(ccall, "__OFUMUL__", dep_1, dep_2, is_no)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SMULB"],
+                        AMD64_OpTypes["G_CC_OP_SMULW"],
+                        AMD64_OpTypes["G_CC_OP_SMULL"],
+                        AMD64_OpTypes["G_CC_OP_SMULQ"],
+                    }:
+                        # signed multiply overflow
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SMULB"],
+                            AMD64_OpTypes["G_CC_OP_SMULW"],
+                            AMD64_OpTypes["G_CC_OP_SMULL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SMULB"],
+                            AMD64_OpTypes["G_CC_OP_SMULW"],
+                            AMD64_OpTypes["G_CC_OP_SMULL"],
+                            ccall.tags,
+                        )
+                        return self._overflow_helper(ccall, "__OFSMUL__", dep_1, dep_2, is_no)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_INCB"],
+                        AMD64_OpTypes["G_CC_OP_INCW"],
+                        AMD64_OpTypes["G_CC_OP_INCL"],
+                        AMD64_OpTypes["G_CC_OP_INCQ"],
+                    }:
+                        # inc overflows only when the result is the signed minimum
+                        nbits = self._op_nbits(
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_INCB"],
+                            AMD64_OpTypes["G_CC_OP_INCW"],
+                            AMD64_OpTypes["G_CC_OP_INCL"],
+                        )
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_INCB"],
+                            AMD64_OpTypes["G_CC_OP_INCW"],
+                            AMD64_OpTypes["G_CC_OP_INCL"],
+                            ccall.tags,
+                        )
+                        signmin = Expr.Const(self.ail_manager.next_atom(), 1 << (nbits - 1), dep_1.bits)
+                        expr_op = "CmpNE" if is_no else "CmpEQ"
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, signmin), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_DECB"],
+                        AMD64_OpTypes["G_CC_OP_DECW"],
+                        AMD64_OpTypes["G_CC_OP_DECL"],
+                        AMD64_OpTypes["G_CC_OP_DECQ"],
+                    }:
+                        # dec overflows only when the result is the signed maximum
+                        nbits = self._op_nbits(
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_DECB"],
+                            AMD64_OpTypes["G_CC_OP_DECW"],
+                            AMD64_OpTypes["G_CC_OP_DECL"],
+                        )
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_DECB"],
+                            AMD64_OpTypes["G_CC_OP_DECW"],
+                            AMD64_OpTypes["G_CC_OP_DECL"],
+                            ccall.tags,
+                        )
+                        signmax = Expr.Const(self.ail_manager.next_atom(), (1 << (nbits - 1)) - 1, dep_1.bits)
+                        expr_op = "CmpNE" if is_no else "CmpEQ"
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, signmax), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
+                    if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
+                        # dep_1 holds the packed flags; test the stored OF bit
+                        bitmask = AMD64_CondBitMasks["G_CC_MASK_O"]
+                        assert isinstance(bitmask, int)
+                        flag = Expr.Const(self.ail_manager.next_atom(), bitmask, dep_1.bits)
+                        masked_dep = Expr.BinaryOp(
+                            self.ail_manager.next_atom(), "And", [dep_1, flag], False, **ccall.tags
+                        )
+                        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
+                        expr_op = "CmpEQ" if is_no else "CmpNE"
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
         elif ccall.callee == "amd64g_calculate_rflags_c":
             # calculate the carry flag
             op = ccall.operands[0]
@@ -659,6 +837,33 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
 
         return None
+
+    @staticmethod
+    def _op_nbits(op_v: int, type_8bit, type_16bit, type_32bit) -> int:
+        if op_v == type_8bit:
+            return 8
+        if op_v == type_16bit:
+            return 16
+        if op_v == type_32bit:
+            return 32
+        return 64
+
+    def _overflow_helper(self, ccall, name: str, dep_1, dep_2, is_no: bool):
+        # Emit a named overflow-helper call (mirrors the __CFADD__ arm). The helper
+        # returns a 0/1 flag; for the negated condition (CondNO) compare it to 0.
+        call = Expr.Call(
+            ccall.idx,
+            name,
+            args=[dep_1, dep_2],
+            bits=ccall.bits,
+            **ccall.tags,
+        )
+        variable_map_of(self.ail_manager).set_calling_convention(call, SimCCUsercall(self.project.arch, [], None))
+        if not is_no:
+            return call
+        zero = Expr.Const(self.ail_manager.next_atom(), 0, ccall.bits)
+        r = Expr.BinaryOp(self.ail_manager.next_atom(), "CmpEQ", (call, zero), False, **ccall.tags)
+        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
     def _fix_size(self, expr, op_v: int, type_8bit, type_16bit, type_32bit, tags):
         if op_v == type_8bit:
