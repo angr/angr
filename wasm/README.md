@@ -17,9 +17,11 @@ $ ./wasm/build_wheels.sh
 $ ANGR_WASM_TEST_BINARY=/path/to/fauxware ./wasm/test_wheels.sh
 ```
 
-The build produces PEP 783 `pyemscripten_*_wasm32` wheels and `wasm/manifest.json`. Serve the repository over HTTP and
-open `wasm/index.html` for the minimal upload-and-analyze demo. `worker.mjs` also accepts a `run` message, so an
-application can execute its own Python analysis after initialization.
+The build produces PEP 783 `pyemscripten_*_wasm32` wheels and `wasm/manifest.json`. If the angr binaries repository is
+available as a sibling, it also bundles its x86-64 fauxware sample; set `ANGR_WASM_SAMPLE_BINARY` to use a different
+source path. Serve the repository over HTTP and open `wasm/index.html` to analyze the bundled sample or an uploaded
+binary. `worker.mjs` also accepts a `run` message, so an application can execute its own Python analysis after
+initialization.
 
 ## Worker protocol
 
