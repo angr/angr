@@ -4342,8 +4342,13 @@ class Clinic(Analysis, Serializable):
             msg._peephole_optimizations_set = True
             msg.peephole_optimizations.extend(pass_to_name(cls_) for cls_ in self.peephole_optimizations)
         if self._typehoon_cls is not None:
-            msg._typehoon_cls = pass_to_name(self._typehoon_cls) if self._typehoon_cls.__module__ != "builtins" else ""
-            # ``_typehoon_cls`` is normally the Typehoon class itself, not a pass; we still encode via FQN for symmetry.
+            # ``_typehoon_cls`` is the Typehoon class itself, not a registered pass, so it is resolved by importlib
+            # from a fully-qualified name (not the pass registry's bare class names).
+            msg._typehoon_cls = (
+                f"{self._typehoon_cls.__module__}.{self._typehoon_cls.__qualname__}"
+                if self._typehoon_cls.__module__ != "builtins"
+                else ""
+            )
 
         return msg
 
