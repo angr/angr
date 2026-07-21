@@ -4,15 +4,23 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping
-from typing import Any
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Set
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import networkx
 
 l = logging.getLogger(name=__name__)
 
 
-class OverlayManager:
+class RegionBound(Protocol):
+    @property
+    def addr(self) -> int: ...
+
+
+type Tx[U: RegionBound] = "U | RegionOverlay[U]"
+
+
+class OverlayManager[T: RegionBound]:
     """
     OverlayManager owns the single shared control-flow graph that all RegionOverlay objects are views of, plus the
     node-to-innermost-overlay ownership map.
@@ -32,8 +40,8 @@ class OverlayManager:
         "root",
     )
 
-    def __init__(self, graph: networkx.DiGraph, expose_loop_head_backedges: bool = False):
-        self.graph = graph
+    def __init__(self, graph: networkx.DiGraph[T], expose_loop_head_backedges: bool = False):
+        self.graph = cast("networkx.DiGraph[Tx[T]]", networkx.DiGraph(graph))  # will be mutated
         self.expose_loop_head_backedges = expose_loop_head_backedges
         self._version: int = 0
         # per-node topology version: bumped when an edge incident to a node changes (in the shared graph or in the
@@ -42,26 +50,27 @@ class OverlayManager:
         # flip node ownership/representatives broadly (create_subregion/dissolve/finalize) and by rollback (whose
         # inverse closures mutate the graph outside the touch-instrumented primitives); a change forces a full
         # cache clear.
-        self._node_version: dict[Any, int] = {}
+        self._node_version: dict[Tx[T], int] = {}
         self._adj_epoch: int = 0
         self._undo_log: list[Callable[[], None]] | None = None
 
+        # NOTE: this is the only callsite w/ head=None. If we can add a head param to this constructor we can clean up
         self.root = RegionOverlay(self, None, cyclic=False)
         self.root._under = set(graph)
         self.root._members = set(graph)
-        self._owner: dict[Any, RegionOverlay] = dict.fromkeys(graph, self.root)
+        self._owner: dict[Tx[T], RegionOverlay[T]] = dict.fromkeys(graph, self.root)
 
     @property
     def version(self) -> int:
         return self._version
 
-    def owner_of(self, node) -> RegionOverlay | None:
+    def owner_of(self, node: Tx[T]) -> RegionOverlay[T] | None:
         return self._owner.get(node)
 
     def _bump(self) -> None:
         self._version += 1
 
-    def _touch(self, node) -> None:
+    def _touch(self, node: Tx[T]) -> None:
         """Bump a node's topology version (its cached view-adjacency must be rebuilt). Also bump every enclosing
         overlay: in an enclosing region's view the node is represented by the child overlay that contains it, so a
         change to the node's edges changes that representative's adjacency too. Monotonic; not undone on rollback,
@@ -188,7 +197,7 @@ class OverlayManager:
         self._record(inverse)
 
 
-class RegionOverlay:
+class RegionOverlay[T: RegionBound]:
     """
     A single-entry region marked over the shared graph held by an OverlayManager. The region tree is built out of
     RegionOverlay objects (RegionIdentifier emits them) and they are the only region type the decompiler uses.
@@ -231,8 +240,8 @@ class RegionOverlay:
 
     def __init__(
         self,
-        mgr: OverlayManager,
-        head,
+        mgr: OverlayManager[T],
+        head: Tx[T] | None,
         cyclic: bool,
         cyclic_ancestor: bool = False,
         parent: RegionOverlay | None = None,
@@ -243,16 +252,16 @@ class RegionOverlay:
         self.cyclic_ancestor = cyclic_ancestor
         self.parent = parent
         self.children: list[RegionOverlay] = []
-        self._members: set = set()
-        self._under: set = set()
+        self._members: set[Tx[T]] = set()
+        self._under: set[T] = set()
         # edges (pairs of shared-graph nodes) hidden from this overlay's views only
-        self._hidden: set[tuple[Any, Any]] = set()
+        self._hidden: set[tuple[Tx[T], Tx[T]]] = set()
         # view-level edge pairs hidden from the with-successors view only
-        self._hidden_full: set[tuple[Any, Any]] = set()
+        self._hidden_full: set[tuple[Tx[T], Tx[T]]] = set()
         # view-level edge pairs injected into the with-successors view only (successor absorption)
-        self._extra_full_edges: set[tuple[Any, Any]] = set()
+        self._extra_full_edges: set[tuple[Tx[T], Tx[T]]] = set()
         # scratch edge marks (e.g., Phoenix's cyclic_refinement_outgoing), scoped to this overlay
-        self.edge_marks: defaultdict[str, set[tuple[Any, Any]]] = defaultdict(set)
+        self.edge_marks: defaultdict[str, set[tuple[Tx[T], Tx[T]]]] = defaultdict(set)
         # the node this overlay was finalized into, if any
         self.replacement = None
 
@@ -267,6 +276,8 @@ class RegionOverlay:
 
     @property
     def addr(self):
+        if self.head is None:
+            raise TypeError("Region with no head has no address")
         return self.head.addr
 
     #
@@ -274,11 +285,11 @@ class RegionOverlay:
     #
 
     @property
-    def manager(self) -> OverlayManager:
+    def manager(self) -> OverlayManager[T]:
         return self._mgr
 
     @property
-    def members(self) -> set:
+    def members(self) -> Set[Tx[T]]:
         return self._members
 
     def ancestors(self) -> set[RegionOverlay]:
@@ -290,15 +301,17 @@ class RegionOverlay:
             node = node.parent
         return result
 
-    def underlying_nodes(self) -> set:
+    def underlying_nodes(self) -> Set[T]:
         """All shared-graph nodes inside this region (including nodes of nested regions)."""
         return self._under
 
     @staticmethod
-    def _underlying(x) -> set:
+    def _underlying(x) -> Set[T]:
         return x._under if isinstance(x, RegionOverlay) else {x}
 
-    def create_subregion(self, head, members: Iterable, cyclic: bool, cyclic_ancestor: bool = False) -> RegionOverlay:
+    def create_subregion(
+        self, head: Tx[T], members: Iterable, cyclic: bool, cyclic_ancestor: bool = False
+    ) -> RegionOverlay[T]:
         """
         Carve a new child overlay out of this overlay. ``members`` must be a subset of this overlay's members
         (shared-graph nodes owned by this overlay and/or existing child overlays); ``head`` must be one of them.
@@ -376,10 +389,10 @@ class RegionOverlay:
     # Derived views
     #
 
-    def _is_hidden(self, src, dst) -> bool:
+    def _is_hidden(self, src: Tx[T], dst: Tx[T]) -> bool:
         return (src, dst) in self._hidden
 
-    def _hidden_context_head_under(self) -> frozenset | set:
+    def _hidden_context_head_under(self) -> Set[Tx[T]]:
         """
         Crossing edges that target the head of the region's processing context (the nearest cyclic ancestor, or
         the root region) were invisible during region identification: in-edges of the head are stripped before
@@ -397,7 +410,7 @@ class RegionOverlay:
             return frozenset()
         return self._underlying(anc.head)
 
-    def _crossing_out_edges(self) -> Iterator[tuple[Any, Any, dict]]:
+    def _crossing_out_edges(self) -> Iterator[tuple[Tx[T], Tx[T], dict[str, Any]]]:
         """All shared-graph edges leaving this region, except hidden ones."""
         graph = self._mgr.graph
         under = self._under
@@ -413,7 +426,7 @@ class RegionOverlay:
     def _in_loop(self) -> bool:
         return self.cyclic or self.cyclic_ancestor
 
-    def successor_nodes(self) -> set:
+    def successor_nodes(self) -> Set[Tx[T]]:
         """
         The derived successor set of this region: representatives of all shared-graph nodes targeted by edges
         leaving the region.
@@ -429,14 +442,14 @@ class RegionOverlay:
         self._cache_succs = (self._mgr.version, succs)
         return succs
 
-    def _quotient_edges(self, with_successors: bool) -> Iterator[tuple[Any, Any, dict]]:
+    def _quotient_edges(self, with_successors: bool) -> Iterator[tuple[Tx[T], Tx[T], dict[str, Any]]]:
         """
         Derive the edges of the region view (member -> member, and if requested member -> successor and
         successor -> successor) from the shared graph.
         """
         graph = self._mgr.graph
         under = self._under
-        member_of: dict[Any, Any] = {}
+        member_of: dict[Tx[T], Tx[T]] = {}
         for m in self._members:
             for n in self._underlying(m):
                 member_of[n] = m
@@ -483,7 +496,7 @@ class RegionOverlay:
 
     def view_graph(
         self, full: bool = False, include_marked: bool = False, blacklisted_edges: frozenset = frozenset()
-    ) -> RegionOverlayGraph:
+    ) -> RegionOverlayGraph[T]:
         """A zero-copy, networkx-compatible view of this region (see RegionOverlayGraph)."""
         if blacklisted_edges:
             return RegionOverlayGraph(
@@ -501,7 +514,7 @@ class RegionOverlay:
     # node so that RegionOverlayGraph can answer adjacency queries without materializing anything.
     #
 
-    def _iter_view_out_edges(self, n, full: bool) -> Iterator[tuple[Any, dict]]:
+    def _iter_view_out_edges(self, n, full: bool) -> Iterator[tuple[Tx[T], dict[str, Any]]]:
         """Visible out-edges of view node ``n`` (a member, or a successor in the full view), deduplicated."""
         graph = self._mgr.graph
         under = self._under
@@ -522,7 +535,7 @@ class RegionOverlay:
                         if rep_v not in seen:
                             seen.add(rep_v)
                             yield rep_v, data
-                    elif full and v not in hidden_head:
+                    elif hidden_head is not None and v not in hidden_head:
                         rep_v = self._representative_outside(v)
                         if rep_v is not None and rep_v not in seen:
                             seen.add(rep_v)
@@ -560,7 +573,7 @@ class RegionOverlay:
                 seen.add(v)
                 yield v, {}
 
-    def _iter_view_in_edges(self, n, full: bool) -> Iterator[tuple[Any, dict]]:
+    def _iter_view_in_edges(self, n: Tx[T], full: bool) -> Iterator[tuple[Tx[T], dict[str, Any]]]:
         """Visible in-edges of view node ``n``, deduplicated. The transpose of _iter_view_out_edges."""
         graph = self._mgr.graph
         under = self._under
@@ -621,21 +634,21 @@ class RegionOverlay:
                 seen.add(u)
                 yield u, {}
 
-    def view(self) -> RegionOverlayGraph:
+    def view(self) -> RegionOverlayGraph[T]:
         """The region graph (members only): a zero-copy networkx-compatible view; treat it as read-only."""
         return self.view_graph(full=False)
 
-    def view_with_successors(self) -> RegionOverlayGraph:
+    def view_with_successors(self) -> RegionOverlayGraph[T]:
         """The region graph including successor nodes: a zero-copy view; treat it as read-only."""
         return self.view_graph(full=True)
 
     @property
-    def raw_graph(self) -> RegionOverlayGraph:
+    def raw_graph(self) -> RegionOverlayGraph[T]:
         """The member view including marked edges (the old graph with cyclic_refinement_outgoing attrs present)."""
         return self.view_graph(full=False, include_marked=True)
 
     @property
-    def raw_graph_with_successors(self) -> RegionOverlayGraph:
+    def raw_graph_with_successors(self) -> RegionOverlayGraph[T]:
         """The with-successors view including marked edges."""
         return self.view_graph(full=True, include_marked=True)
 
@@ -644,15 +657,15 @@ class RegionOverlay:
     #
 
     @property
-    def graph(self) -> networkx.DiGraph:
+    def graph(self) -> networkx.DiGraph[Tx[T]]:
         return self.view()
 
     @property
-    def graph_with_successors(self) -> networkx.DiGraph:
+    def graph_with_successors(self) -> networkx.DiGraph[Tx[T]]:
         return self.view_with_successors()
 
     @property
-    def successors(self) -> set:
+    def successors(self) -> Set[Tx[T]]:
         return self.successor_nodes()
 
     @property
@@ -710,7 +723,7 @@ class RegionOverlay:
         self._on_node_added(node)
         self._invalidate()
 
-    def remove_node(self, node, absorbed_into=None, absorb_out_edges: bool = True) -> None:
+    def remove_node(self, node: Tx[T], absorbed_into: Tx[T] | None = None, absorb_out_edges: bool = True) -> None:
         """
         Remove a node. If ``node`` is a member (or a member overlay's node), it is removed from the shared graph
         for real. If it is a successor of this region, the removal is interpreted as hiding all edges from this
@@ -728,7 +741,9 @@ class RegionOverlay:
             self.hide_edge_to_successor(node)
             return
         external_in_edges = []
-        rewire_out_edges = []  # (dst, data, hide): edges to rewire onto absorbed_into in the shared graph
+        rewire_out_edges: list[
+            tuple[Tx[T], dict[str, Any], bool]
+        ] = []  # (dst, data, hide): edges to rewire onto absorbed_into in the shared graph
         if absorbed_into is not None:
             external_in_edges = [
                 (src, data)
@@ -753,13 +768,14 @@ class RegionOverlay:
         for src, data in external_in_edges:
             self._mgr.graph_add_edge(src, absorbed_into, **data)
         hidden_added = []
-        for dst, data, hide in rewire_out_edges:
-            self._mgr.graph_add_edge(absorbed_into, dst, **data)
-            if hide and (absorbed_into, dst) not in self._hidden:
-                self._hidden.add((absorbed_into, dst))
-                hidden_added.append((absorbed_into, dst))
-        if hidden_added:
-            self._mgr._record(lambda: self._hidden.difference_update(hidden_added))
+        if absorbed_into is not None:
+            for dst, data, hide in rewire_out_edges:
+                self._mgr.graph_add_edge(absorbed_into, dst, **data)
+                if hide and (absorbed_into, dst) not in self._hidden:
+                    self._hidden.add((absorbed_into, dst))
+                    hidden_added.append((absorbed_into, dst))
+            if hidden_added:
+                self._mgr._record(lambda: self._hidden.difference_update(hidden_added))
         self._invalidate()
 
     def hide_edge_to_successor(self, succ) -> None:
@@ -782,7 +798,7 @@ class RegionOverlay:
                     self._mgr._touch(rep)
             self._invalidate()
 
-    def underlying_edge_pairs(self, src, dst) -> list[tuple[Any, Any]]:
+    def underlying_edge_pairs(self, src: Tx[T], dst: Tx[T]) -> list[tuple[Tx[T], Tx[T]]]:
         graph = self._mgr.graph
         under_src = self._underlying(src)
         under_dst = self._underlying(dst)
@@ -795,7 +811,7 @@ class RegionOverlay:
                     pairs.append((u, v))
         return pairs
 
-    def add_edge(self, src, dst, **data) -> None:
+    def add_edge(self, src: Tx[T], dst: Tx[T], **data) -> None:
         """
         Add a real edge to the shared graph. Overlay endpoints are resolved to underlying nodes: the destination
         resolves to its entry (head chain); overlay sources are not supported. Endpoints that are not in the
@@ -805,6 +821,7 @@ class RegionOverlay:
         dst_ = dst
         while isinstance(dst_, RegionOverlay):
             dst_ = dst_.head
+        assert dst_ is not None
         if src not in self._mgr.graph:
             self.add_node(src)
         if dst_ not in self._mgr.graph:
@@ -815,7 +832,7 @@ class RegionOverlay:
             self._mgr._record(lambda: self._hidden.add((src, dst_)))
         self._invalidate()
 
-    def detach_edge(self, src, dst) -> None:
+    def detach_edge(self, src: Tx[T], dst: Tx[T]) -> None:
         """
         Remove an edge from the shared graph for real (e.g., when the edge has been virtualized into a goto).
         Overlay endpoints remove all underlying edges between the two node sets.
@@ -833,7 +850,7 @@ class RegionOverlay:
             self._mgr._touch(dst)
         self._invalidate()
 
-    def mark_edge(self, src, dst, **attrs) -> None:
+    def mark_edge(self, src: Tx[T], dst: Tx[T], **attrs) -> None:
         """
         Mark a view-level edge (e.g. cyclic_refinement_outgoing) so RegionOverlayGraph hides it by default.
         Marks live in overlay state, never reach the shared graph, and are remapped/cleared with the region.
@@ -847,13 +864,13 @@ class RegionOverlay:
                 self._mgr._touch(dst)
                 self._invalidate()
 
-    def absorb_successor_into(self, succ, new_node) -> None:
+    def absorb_successor_into(self, succ: Tx[T], new_node: Tx[T]) -> None:
         """
         Absorb a successor node into a structured member node in this region's with-successors view only (the
         successor still belongs to an enclosing region): the successor's view out-edges are re-attached to the
         member node as view-only extra edges, then the successor disappears from this region's views.
         """
-        added = []
+        added: list[tuple[Tx[T], Tx[T]]] = []
         for dst, _ in self.view_with_successors().overlay._iter_view_out_edges(succ, full=True):
             if dst is not new_node and (new_node, dst) not in self._extra_full_edges:
                 self._extra_full_edges.add((new_node, dst))
@@ -865,18 +882,18 @@ class RegionOverlay:
                 self._mgr._touch(dst)
         self.hide_edge_to_successor(succ)
 
-    def drop_edge_marks_from(self, node, key) -> None:
+    def drop_edge_marks_from(self, node: Tx[T], key: str) -> None:
         """Clear marks on all out-edges of a node (the new_node after a replace), undoably."""
         removed = [(u, v) for (u, v) in self.edge_marks[key] if u is node]
         if removed:
             self.edge_marks[key].difference_update(removed)
-            self._mgr._record(lambda: self.edge_marks.update(removed))
+            self._mgr._record(lambda: self.edge_marks[key].update(removed))
             self._mgr._touch(node)
             for _, v in removed:
                 self._mgr._touch(v)
             self._invalidate()
 
-    def remove_edge_with_successors_only(self, src, dst) -> None:
+    def remove_edge_with_successors_only(self, src: Tx[T], dst: Tx[T]) -> None:
         """
         Hide an edge from the with-successors view only, leaving the member view and the shared graph alone (a
         rare asymmetric bookkeeping pattern in Phoenix's switch-case structuring).
@@ -888,11 +905,11 @@ class RegionOverlay:
             self._mgr._touch(dst)
             self._invalidate()
 
-    def hide_edge(self, src, dst) -> None:
+    def hide_edge(self, src: Tx[T], dst: Tx[T]) -> None:
         """
         Remove an edge from this overlay's views only. Enclosing regions still see the underlying edge(s).
         """
-        added = []
+        added: list[tuple[Tx[T], Tx[T]]] = []
         for u, v in self.underlying_edge_pairs(src, dst):
             if (u, v) not in self._hidden:
                 self._hidden.add((u, v))
@@ -903,7 +920,9 @@ class RegionOverlay:
             self._mgr._touch(dst)
             self._invalidate()
 
-    def replace_nodes(self, old_node_0, new_node, old_node_1=None, self_loop: bool = True) -> None:
+    def replace_nodes(
+        self, old_node_0: Tx[T], new_node: Tx[T], old_node_1: Tx[T] | None = None, self_loop: bool = True
+    ) -> None:
         """
         Replace one or two member nodes with a new node, preserving and rewiring all underlying edges (including
         edges from/to nodes outside this region, which is how results become visible to enclosing regions).
@@ -961,12 +980,12 @@ class RegionOverlay:
             self._mgr._record(lambda: setattr(self, "head", old_head))
         self._invalidate()
 
-    def _remap_bookkeeping(self, old_nodes: set, new_node) -> None:
+    def _remap_bookkeeping(self, old_nodes: set[Tx[T]], new_node: Tx[T]) -> None:
         """Remap hidden edges and edge marks that reference replaced nodes, here and in all enclosing overlays."""
-        anc: RegionOverlay | None = self
+        anc = self
         while anc is not None:
             for attr in ("_hidden", "_hidden_full", "_extra_full_edges"):
-                pairs: set[tuple[Any, Any]] = getattr(anc, attr)
+                pairs: set[tuple[Tx[T], Tx[T]]] = getattr(anc, attr)
                 stale = [(u, v) for u, v in pairs if u in old_nodes or v in old_nodes]
                 if stale:
                     remapped = [
@@ -1002,7 +1021,7 @@ class RegionOverlay:
     # Region lifecycle
     #
 
-    def snapshot_successors(self) -> set:
+    def snapshot_successors(self) -> set[Tx[T]]:
         """
         Capture this region's structural successors and how many member edges reach each, taken before the region
         is structured. finalize() uses it to re-establish the region-to-successor edges that structuring removes
@@ -1011,12 +1030,12 @@ class RegionOverlay:
         return set(self.successor_nodes())
 
     @staticmethod
-    def _resolve_entry(node):
+    def _resolve_entry(node) -> T | None:
         while isinstance(node, RegionOverlay):
             node = node.head
         return node
 
-    def finalize(self, result_node=None, succ_snapshot=None):
+    def finalize(self, result_node: Tx[T] | None = None, succ_snapshot: set[Tx[T]] | None = None):
         """
         Collapse this fully-structured region into its parent: the region must consist of a single member node
         (the structuring result), which takes the region's place among the parent's members. Returns that node.
@@ -1053,6 +1072,7 @@ class RegionOverlay:
                 s_entry = self._resolve_entry(s)
                 if (
                     s_entry is not result_node
+                    and s_entry is not None
                     and s_entry is not parent_loop_head
                     and s_entry in graph
                     and not graph.has_edge(result_node, s_entry)
@@ -1097,7 +1117,8 @@ class RegionOverlay:
         self._invalidate()
         return result_node
 
-    def collapse_to(self, result_node):
+    # NOTE: this function seems unused
+    def collapse_to(self, result_node: RegionOverlay[T]):
         """
         Collapse this region into its parent by replacing all of its member nodes with a single external result
         node (the structuring result). Used by structurers that compute their result without destructively
@@ -1116,8 +1137,8 @@ class RegionOverlay:
         underset = self._under
 
         # capture crossing edges (one endpoint inside the region, the other outside) before removing the members
-        in_edges: list[tuple[Any, dict]] = []
-        out_edges: list[tuple[Any, dict]] = []
+        in_edges: list[tuple[Tx[T], dict[str, Any]]] = []
+        out_edges: list[tuple[Tx[T], dict[str, Any]]] = []
         seen_in: set = set()
         seen_out: set = set()
         for u in under:
@@ -1231,12 +1252,12 @@ class RegionOverlay:
 _PARANOID_ADJ_CHECK = bool(os.environ.get("ANGR_PARANOID_ADJ"))
 
 
-class _OverlayNodeAtlas(Mapping):
+class _OverlayNodeAtlas[T: RegionBound](Mapping[Tx[T], dict[str, Any]]):
     """Lazy node mapping of a RegionOverlayGraph: the overlay's view nodes, attributes from the shared graph."""
 
     __slots__ = ("_rog",)
 
-    def __init__(self, rog: RegionOverlayGraph):
+    def __init__(self, rog: RegionOverlayGraph[T]):
         self._rog = rog
 
     def __len__(self):
@@ -1258,12 +1279,12 @@ class _OverlayNodeAtlas(Mapping):
         return shared.nodes[n] if n in shared else {}
 
 
-class _OverlayAdjInner(Mapping):
+class _OverlayAdjInner[T: RegionBound](Mapping[Tx[T], dict[str, Any]]):
     """Adjacency of one view node: target -> edge data, derived on construction from the overlay."""
 
     __slots__ = ("_d",)
 
-    def __init__(self, rog: RegionOverlayGraph, n, pred: bool):
+    def __init__(self, rog: RegionOverlayGraph[T], n, pred: bool):
         overlay = rog.overlay
         it = overlay._iter_view_in_edges(n, rog.full) if pred else overlay._iter_view_out_edges(n, rog.full)
         if pred:
@@ -1284,26 +1305,26 @@ class _OverlayAdjInner(Mapping):
         return self._d[n]
 
 
-class _OverlayAdjAtlas(Mapping):
+class _OverlayAdjAtlas[T: RegionBound](Mapping[Tx[T], _OverlayAdjInner[T]]):
     """Outer adjacency mapping of a RegionOverlayGraph: view node -> _OverlayAdjInner."""
 
     __slots__ = ("_cache", "_epoch", "_pred", "_rog", "_succ_cache", "_succ_version")
 
-    def __init__(self, rog: RegionOverlayGraph, pred: bool):
+    def __init__(self, rog: RegionOverlayGraph[T], pred: bool):
         self._rog = rog
         self._pred = pred
         # Phoenix queries the same node's adjacency repeatedly (.successors/.predecessors/.in_degree/.out_degree/
         # .has_edge all route through here); cache the derived _OverlayAdjInner per node, keyed by that node's
         # topology version so an unrelated mutation does not evict it. _epoch tracks the manager's coarse epoch
         # (bumped by lifecycle ops / rollback) and forces a full clear when it changes.
-        self._cache: dict[Any, tuple[int, _OverlayAdjInner]] = {}
+        self._cache: dict[Tx[T], tuple[int, _OverlayAdjInner]] = {}
         self._epoch: int | None = None
         # successor-node adjacency cache: a successor's view adjacency depends on the whole region's successor
         # set and view state, not just on that node, so it cannot be keyed by the node's own version. Key the
         # whole cache by the manager's global version instead (bumped by every mutation and view-state change,
         # the same invariant _node_set relies on): reads between two mutations -- dominator fixpoints, SAILR's
         # per-edge in_degree queries -- hit the cache, and any mutation drops it wholesale.
-        self._succ_cache: dict[Any, _OverlayAdjInner] = {}
+        self._succ_cache: dict[Tx[T], _OverlayAdjInner] = {}
         self._succ_version: int | None = None
 
     def __len__(self):
@@ -1363,7 +1384,7 @@ class _OverlayAdjAtlas(Mapping):
         return entry[1]
 
 
-class RegionOverlayGraph[T](networkx.DiGraph):
+class RegionOverlayGraph[T: RegionBound](networkx.DiGraph[Tx[T]] if TYPE_CHECKING else networkx.DiGraph):
     """
     A read-only, networkx-compatible view of a RegionOverlay that stores no copy of the region's subgraph: all
     queries traverse the original shared graph through the overlay's membership. Compatible with every networkx
@@ -1378,10 +1399,10 @@ class RegionOverlayGraph[T](networkx.DiGraph):
 
     def __init__(
         self,
-        overlay: RegionOverlay,
+        overlay: RegionOverlay[T],
         full: bool = False,
         include_marked: bool = False,
-        blacklisted_edges: frozenset[tuple[Any, Any]] = frozenset(),
+        blacklisted_edges: frozenset[tuple[Tx[T], Tx[T]]] = frozenset(),
     ):
         super().__init__()
         self.overlay = overlay
@@ -1399,7 +1420,7 @@ class RegionOverlayGraph[T](networkx.DiGraph):
     # internals
     #
 
-    def _node_set(self) -> frozenset:
+    def _node_set(self) -> frozenset[Tx[T]]:
         version = self.overlay.manager.version
         cached = self._ns_cache
         if cached is not None and cached[0] == version:
@@ -1414,14 +1435,14 @@ class RegionOverlayGraph[T](networkx.DiGraph):
         self._ns_cache = (version, ns)
         return ns
 
-    def _pair_visible(self, src, dst) -> bool:
+    def _pair_visible(self, src: Tx[T], dst: Tx[T]) -> bool:
         if not self.include_marked and any((src, dst) in marks for marks in self.overlay.edge_marks.values()):
             return False
         if (src, dst) in self.blacklisted_edges:
             return False
         return not (self.full and (src, dst) in self.overlay._hidden_full)
 
-    def _variant(self, fullgraph, all_edges) -> RegionOverlayGraph:
+    def _variant(self, fullgraph: bool | None, all_edges: bool | None = None) -> RegionOverlayGraph[T]:
         full = self.full if fullgraph is None else fullgraph
         include_marked = self.include_marked if all_edges is None else all_edges
         if full == self.full and include_marked == self.include_marked:
@@ -1435,24 +1456,24 @@ class RegionOverlayGraph[T](networkx.DiGraph):
     #
 
     @property
-    def full_view(self) -> RegionOverlayGraph:
+    def full_view(self) -> RegionOverlayGraph[T]:
         """The with-successors sibling of this view (zero-copy)."""
         return self._variant(True, None)
 
     @property
-    def member_view(self) -> RegionOverlayGraph:
+    def member_view(self) -> RegionOverlayGraph[T]:
         """The members-only sibling of this view (zero-copy)."""
         return self._variant(False, None)
 
-    def with_all_edges(self) -> RegionOverlayGraph:
+    def with_all_edges(self) -> RegionOverlayGraph[T]:
         """A sibling view that includes edges marked through RegionOverlay.mark_edge."""
         return self._variant(None, True)
 
-    def filtered(self) -> RegionOverlayGraph:
+    def filtered(self) -> RegionOverlayGraph[T]:
         """A sibling view that hides edges marked through RegionOverlay.mark_edge (the default)."""
         return self._variant(None, False)
 
-    def to_acyclic_by_order(self, node_order) -> RegionOverlayGraph:
+    def to_acyclic_by_order(self, node_order: Mapping[Tx[T], int]) -> RegionOverlayGraph[T]:
         """
         An acyclic view of this graph, obtained by blacklisting back edges (edges whose source is ordered at or
         after their destination in ``node_order``). Replaces utils.graph.to_acyclic_graph without a copy.
@@ -1460,20 +1481,19 @@ class RegionOverlayGraph[T](networkx.DiGraph):
         back_edges = [(u, v) for u, v in self.edges if node_order[u] >= node_order[v]]
         return self.to_acyclic(back_edges)
 
-    def to_acyclic(self, blacklisted_edges) -> RegionOverlayGraph:
+    def to_acyclic(self, blacklisted_edges: Sequence[tuple[Tx[T], Tx[T]]]) -> RegionOverlayGraph[T]:
         """
         A new view with the given (view-level) edges additionally blacklisted; used to traverse the region as an
         acyclic graph without copying it.
         """
-        extra = frozenset((u, v) for u, v in blacklisted_edges)
         return RegionOverlayGraph(
             self.overlay,
             full=self.full,
             include_marked=self.include_marked,
-            blacklisted_edges=self.blacklisted_edges | extra,
+            blacklisted_edges=self.blacklisted_edges.union(blacklisted_edges),
         )
 
-    def reverse_view(self) -> RegionOverlayGraph:
+    def reverse_view(self) -> RegionOverlayGraph[T]:
         """The reversed view of this graph (zero-copy)."""
         g = RegionOverlayGraph(
             self.overlay,
@@ -1481,13 +1501,14 @@ class RegionOverlayGraph[T](networkx.DiGraph):
             include_marked=self.include_marked,
             blacklisted_edges=frozenset({(v, u) for u, v in self.blacklisted_edges}),
         )
-        g._succ, g._pred = g._pred, g._succ  # swap the adjacency mappings to reverse the graph
+        # swap the adjacency mappings to reverse the graph
+        g._succ, g._pred = g._pred, g._succ  # type: ignore
         # g._adj is synced with _succ
         return g
 
-    def materialize(self) -> networkx.DiGraph:
+    def materialize(self) -> networkx.DiGraph[Tx[T]]:
         """An independent networkx.DiGraph copy of this view."""
-        g: networkx.DiGraph = networkx.DiGraph()
+        g: networkx.DiGraph[Tx[T]] = networkx.DiGraph()
         g.add_nodes_from(self._node_set())
         for u in self._node_set():
             for v, data in self._adj[u].items():
@@ -1499,24 +1520,24 @@ class RegionOverlayGraph[T](networkx.DiGraph):
     # use .full_view / .member_view for those)
     #
 
-    def edge_marked(self, u, v, mark_name: str | None = None) -> bool:
+    def edge_marked(self, u: Tx[T], v: Tx[T], mark_name: str | None = None) -> bool:
         if mark_name is not None:
             return (u, v) in self.overlay.edge_marks.get(mark_name, set())
         return any((u, v) in marks for marks in self.overlay.edge_marks.values())
 
-    def successors(self, n, fullgraph: bool | None = None, all_edges: bool | None = None):
+    def successors(self, n: Tx[T], fullgraph: bool | None = None, all_edges: bool | None = None):
         g = self._variant(fullgraph, all_edges)
         if g is self:
             return super().successors(n)
         return g.successors(n)
 
-    def predecessors(self, n, fullgraph: bool | None = None, all_edges: bool | None = None):
+    def predecessors(self, n: Tx[T], fullgraph: bool | None = None, all_edges: bool | None = None):
         g = self._variant(fullgraph, all_edges)
         if g is self:
             return super().predecessors(n)
         return g.predecessors(n)
 
-    def has_edge(self, u, v, fullgraph: bool | None = None, all_edges: bool | None = None) -> bool:
+    def has_edge(self, u: Tx[T], v: Tx[T], fullgraph: bool | None = None, all_edges: bool | None = None) -> bool:
         g = self._variant(fullgraph, all_edges)
         if g is self:
             return super().has_edge(u, v)
@@ -1526,17 +1547,20 @@ class RegionOverlayGraph[T](networkx.DiGraph):
     # overrides for inherited methods that would construct self.__class__() without arguments
     #
 
-    def copy(self, as_view: bool = False) -> networkx.DiGraph:
+    # NOTE: this does not respect the intended semantics of as_view
+    def copy(self, as_view: bool = False) -> networkx.DiGraph[Tx[T]]:
         return self.materialize()
 
-    def subgraph(self, nodes) -> networkx.DiGraph:
+    def subgraph(self, nodes) -> networkx.DiGraph[Tx[T]]:
         # Build only the induced subgraph (cost O(induced subgraph)) instead of materialize()+restrict (cost O(whole
         # region graph)): callers (e.g. quasi_topological_sort_nodes' SCC handling) want a small induced subgraph and
         # then mutate it. Returns an independent, mutable networkx.DiGraph with exactly the nodes/edges/data (and the
         # same node/edge iteration order) that self.materialize().subgraph(nodes) would have produced.
+        if not isinstance(nodes, Iterable):
+            raise TypeError("Please use the non-pathological versions of the NetworkX api")
         node_set = self._node_set()
         selset = {n for n in nodes if n in node_set}
-        g: networkx.DiGraph = networkx.DiGraph()
+        g: networkx.DiGraph[Tx[T]] = networkx.DiGraph()
         g.add_nodes_from(n for n in node_set if n in selset)
         for u in g:
             for v, data in self._adj[u].items():
@@ -1544,5 +1568,6 @@ class RegionOverlayGraph[T](networkx.DiGraph):
                     g.add_edge(u, v, **data)
         return g
 
-    def to_directed(self, as_view: bool = False) -> networkx.DiGraph:
+    # NOTE: this does not respect the intended semantics of as_view
+    def to_directed(self, as_view: bool = False) -> networkx.DiGraph[Tx[T]]:
         return self.materialize()
