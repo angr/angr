@@ -388,6 +388,10 @@ message PositionMappingEntry {
     int32 start = 1;
     int32 length = 2;
     uint32 node_id = 3;                           // 0 means "no node" — though in practice obj is always present
+    // Membership flags: map_pos_to_node and map_pos_to_addr mostly contain identical entries, so both are stored
+    // in one merged table and each entry marks which map(s) it belongs to.
+    bool in_pos_to_node = 4;
+    bool in_pos_to_addr = 5;
 }
 
 message PositionMappingMsg {
@@ -430,8 +434,9 @@ message Codegen {
     optional string flavor = 4;
 
     // Display-side state.
-    PositionMappingMsg map_pos_to_node = 10;
-    PositionMappingMsg map_pos_to_addr = 11;
+    // Merged position maps (see PositionMappingEntry membership flags). Field 11 (map_pos_to_addr) was folded in.
+    PositionMappingMsg pos_maps = 10;
+    reserved 11;
     InstructionMappingMsg map_addr_to_pos = 12;
     repeated AstToPosEntry map_ast_to_pos = 13;
     repeated AddrToLabelEntry map_addr_to_label = 14;

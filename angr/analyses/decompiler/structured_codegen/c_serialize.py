@@ -374,25 +374,38 @@ def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
 #
 
 
-def _serialize_position_mapping(pm, ctx: SerializeContext, out_msg) -> None:
-    if pm is None:
-        return
-    for _, elem in pm.items():
-        obj = elem.obj
-        if obj is None or type(obj) not in _SERIALIZE_KIND_BY_CLASS:
+def _serialize_position_mappings(pos_to_node, pos_to_addr, ctx: SerializeContext, out_msg) -> None:
+    """Serialize map_pos_to_node and map_pos_to_addr into one merged entry table: the two maps mostly contain
+    identical (start, length, node) entries, so each merged entry carries membership flags instead."""
+    merged: dict[tuple[int, int, int], list[bool]] = {}  # (start, length, node_id) -> [in_node, in_addr]
+    for pm, slot in ((pos_to_node, 0), (pos_to_addr, 1)):
+        if pm is None:
             continue
+        for _, elem in pm.items():
+            obj = elem.obj
+            if obj is None or type(obj) not in _SERIALIZE_KIND_BY_CLASS:
+                continue
+            flags = merged.setdefault((elem.start, elem.length, ctx.serialize(obj)), [False, False])
+            flags[slot] = True
+    for (start, length, node_id), (in_node, in_addr) in merged.items():
         entry = out_msg.entries.add()
-        entry.start = elem.start
-        entry.length = elem.length
-        entry.node_id = ctx.serialize(obj)
+        entry.start = start
+        entry.length = length
+        entry.node_id = node_id
+        entry.in_pos_to_node = in_node
+        entry.in_pos_to_addr = in_addr
 
 
-def _parse_position_mapping(pm_msg, ctx: ParseContext):
-    pm = PositionMapping()
+def _parse_position_mappings(pm_msg, ctx: ParseContext):
+    pos_to_node = PositionMapping()
+    pos_to_addr = PositionMapping()
     for entry in pm_msg.entries:
         obj = ctx.resolve(entry.node_id) if entry.node_id != 0 else None
-        pm.add_mapping(entry.start, entry.length, obj)
-    return pm
+        if entry.in_pos_to_node:
+            pos_to_node.add_mapping(entry.start, entry.length, obj)
+        if entry.in_pos_to_addr:
+            pos_to_addr.add_mapping(entry.start, entry.length, obj)
+    return pos_to_node, pos_to_addr
 
 
 def _serialize_instruction_mapping(im, out_msg) -> None:
@@ -478,8 +491,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     if getattr(codegen, "flavor", None) is not None:
         msg.flavor = codegen.flavor
 
-    _serialize_position_mapping(codegen.map_pos_to_node, ctx, msg.map_pos_to_node)
-    _serialize_position_mapping(codegen.map_pos_to_addr, ctx, msg.map_pos_to_addr)
+    _serialize_position_mappings(codegen.map_pos_to_node, codegen.map_pos_to_addr, ctx, msg.pos_maps)
     _serialize_instruction_mapping(codegen.map_addr_to_pos, msg.map_addr_to_pos)
     # map_ast_to_pos is intentionally not serialized. The map is derivable from map_pos_to_node so we rebuild it after
     # parse.
@@ -564,8 +576,7 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     # resume idx allocation past every deserialized node so nodes created later stay unique
     cg._next_node_idx = max((n.node_id for n in msg.nodes), default=0) + 1
 
-    cg.map_pos_to_node = _parse_position_mapping(msg.map_pos_to_node, ctx)
-    cg.map_pos_to_addr = _parse_position_mapping(msg.map_pos_to_addr, ctx)
+    cg.map_pos_to_node, cg.map_pos_to_addr = _parse_position_mappings(msg.pos_maps, ctx)
     cg.map_addr_to_pos = _parse_instruction_mapping(msg.map_addr_to_pos)
     # map_ast_to_pos is rebuilt below from map_pos_to_node (see serialize_codegen for why we don't store it directly).
     cg.map_ast_to_pos = _rebuild_ast_to_pos(cg.map_pos_to_node)
