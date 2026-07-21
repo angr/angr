@@ -8,6 +8,7 @@ REQUIRED_DISTRIBUTIONS = (
     "z3_solver",
     "capstone",
     "pydemumble",
+    "pypcode",
     "pyvex",
     "archinfo",
     "claripy",

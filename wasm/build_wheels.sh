@@ -9,7 +9,7 @@ out_dir="$angr_dir/wasm/dist"
 sample_dir="$angr_dir/wasm/samples"
 pyodide=(uvx --python 3.14 --from 'pyodide-build[resolve]' pyodide)
 
-for repo in archinfo claripy cle pyvex z3; do
+for repo in archinfo claripy cle pypcode pyvex z3; do
     if [[ ! -d "$workspace/$repo" ]]; then
         echo "Missing sibling repository: $workspace/$repo" >&2
         exit 1
@@ -30,6 +30,8 @@ fi
 
 export PYODIDE_XBUILDENV_PATH="$xbuildenv_path"
 "${pyodide[@]}" xbuildenv install "$pyodide_version" --path "$xbuildenv_path"
+emscripten_version="$("${pyodide[@]}" config get emscripten_version)"
+"${pyodide[@]}" xbuildenv install-emscripten --version "$emscripten_version" --path "$xbuildenv_path"
 
 emsdk_env="$xbuildenv_path/$pyodide_version/emsdk/emsdk_env.sh"
 if [[ ! -f "$emsdk_env" ]]; then
@@ -41,6 +43,7 @@ source "$emsdk_env"
 
 git -C "$workspace/pyvex" submodule update --init --recursive
 "${pyodide[@]}" build "$workspace/pyvex" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
+"${pyodide[@]}" build "$workspace/pypcode" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 real_make="$(command -v make)"
 PATH="$angr_dir/wasm/z3-build-tools:$PATH" ANGR_WASM_REAL_MAKE="$real_make" \
     "${pyodide[@]}" build "$workspace/z3/src/api/python" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
