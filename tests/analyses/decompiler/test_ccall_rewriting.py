@@ -8,9 +8,8 @@ import itertools
 import os
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
 from angr.engines.vex.claripy.ccall import data, pc_calculate_condition
@@ -126,7 +125,7 @@ def _oracle(cond, op, dep1, dep2, ndep=0):
         claripy.BVV(ndep, 64),
         platform="AMD64",
     )
-    return bool(claripy.backends.concrete.eval(r, 1)[0])
+    return bool(r.concrete_value)
 
 
 def _rewritten_value(cond, op, dep1, dep2, ndep=0):
