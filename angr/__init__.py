@@ -382,6 +382,7 @@ __all__ = (
     "UnsupportedNodeTypeError",
     "UnsupportedSyscallError",
     "analyses",
+    "capabilities",
     "concretization_strategies",
     "default_cc",
     "engines",
