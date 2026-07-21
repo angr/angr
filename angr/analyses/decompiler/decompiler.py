@@ -34,6 +34,7 @@ from .optimization_passes.optimization_pass import OptimizationPassStage
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .region_identifier import RegionIdentifier
 from .sequence_walker import SequenceWalker
+from .structured_codegen import DummyStructuredCodeGenerator
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from .structurer_nodes import SequenceNode
@@ -81,7 +82,7 @@ class Decompiler(Analysis):
         ite_exprs=None,
         binop_operators=None,
         decompile=True,
-        regen_clinic=True,
+        regen_clinic=False,
         inline_functions=None,
         desired_variables=None,
         update_memory_data: bool = True,
@@ -271,6 +272,29 @@ class Decompiler(Analysis):
         with sprop_cache_scope(self._sprop_walker_cache):
             self._decompile()
 
+    def _reuse_cached_decompilation(self, cache, clinic, codegen) -> None:
+        """Full-reuse fast path: expose the cached clinic and codegen as this run's results without re-running the
+        pipeline. The codegen text is re-rendered so in-place display edits since the last render show up, and the
+        codegen inherits the cache's provenance stamps."""
+        codegen.version = cache.version
+        codegen.timestamp = cache.timestamp
+        codegen.regenerate_text()
+
+        self.cache = cache
+        self.clinic = clinic
+        self.codegen = codegen
+        self.seq_node = None
+        self.ail_graph = clinic.cc_graph
+        self.unoptimized_ail_graph = clinic.unoptimized_graph
+        self._variable_kb = clinic.variable_kb
+        self._variable_map = clinic.variable_map
+        self.vvar_id_start = clinic.vvar_id_start
+        self._copied_var_ids = clinic.copied_var_ids
+
+        if self.update_cache:
+            self.kb.decompilations[(self.func.addr, self._flavor)] = cache
+        self._finish_progress()
+
     @timethis
     def _decompile(self):
         if self.func.is_simprocedure:
@@ -298,6 +322,26 @@ class Decompiler(Analysis):
             ite_exprs = self._ite_exprs
             binop_operators = self._binop_operators
             l.debug("Decompilation cache miss")
+
+        # Full-reuse fast path: with use_cache and without regen_clinic (the default), a valid cache short-circuits
+        # the entire pipeline and hands back the cached clinic and codegen. The text is re-rendered from the cached
+        # codegen AST so any in-place display edits (const formats, comments) since the last render are reflected.
+        # A DummyStructuredCodeGenerator (legacy angrdb rows) has no AST to render from, so it takes the normal path.
+        # The cached codegen can only be re-rendered when it carries a live variable manager. Deserialized caches
+        # loaded without a variable_kb (angrdb rows, LMDB-spilled reloads) do not, so they fall through to a fresh
+        # decompilation (below, old_clinic with no variable_kb is likewise rejected as a reuse source).
+        if (
+            self.use_cache
+            and not self._regen_clinic
+            and cache is not None
+            and old_clinic is not None
+            and old_codegen is not None
+            and not isinstance(old_codegen, DummyStructuredCodeGenerator)
+            and getattr(old_codegen, "_variable_kb", None) is not None
+            and self.func.prototype is not None
+        ):
+            self._reuse_cached_decompilation(cache, old_clinic, old_codegen)
+            return
 
         self.options_by_class = defaultdict(list)
 
@@ -354,7 +398,9 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        if self._regen_clinic or old_clinic is None or self.func.prototype is None:
+        # Reuse the cached clinic only when it is a usable source: a deserialized clinic without a variable_kb
+        # (angrdb / LMDB-spilled reloads) cannot drive codegen, so re-run Clinic from scratch instead.
+        if self._regen_clinic or old_clinic is None or self.func.prototype is None or old_clinic.variable_kb is None:
             clinic = self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
@@ -530,6 +576,10 @@ class Decompiler(Analysis):
         # save a copy of the AIL graph that is optimized but not modified by region identification
         self.ail_graph = clinic.cc_graph
         self.cache.codegen = codegen
+        if codegen is not None:
+            # mirror the cache's provenance stamps onto the codegen
+            codegen.version = self.cache.version
+            codegen.timestamp = self.cache.timestamp
         # drop always-regenerable analysis state (the SRDA model) before the clinic goes into the cache
         self.clinic.downsize()
         self.cache.clinic = self.clinic

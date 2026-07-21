@@ -319,6 +319,10 @@ class DecompilationCache(Serializable):
         # legacy blobs carry the proto3 defaults ""/0, meaning "unknown"; do not re-stamp them with current values
         cache.version = cmsg.version
         cache.timestamp = cmsg.timestamp
+        if cache.codegen is not None:
+            # mirror the stamps onto the codegen (a fresh decompile does the same in Decompiler._decompile)
+            cache.codegen.version = cache.version
+            cache.codegen.timestamp = cache.timestamp
 
         if cmsg.parameters_set:
             cache.parameters = _parse_parameters(cmsg.parameters)

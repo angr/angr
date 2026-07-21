@@ -1895,8 +1895,13 @@ class TestDecompiler(unittest.TestCase):
         assert unified is not None
         unified.name = "argc"
         unified.renamed = True
+        # variable types were edited on the cached clinic's variable_kb; force a fresh decompilation so the new
+        # types drive codegen (the default reuses the cached codegen AST as-is).
         d = proj.analyses.Decompiler(
-            proj.kb.functions["main"], variable_kb=d.cache.clinic.variable_kb, options=decompiler_options
+            proj.kb.functions["main"],
+            variable_kb=d.cache.clinic.variable_kb,
+            options=decompiler_options,
+            regen_clinic=True,
         )
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
@@ -3463,7 +3468,9 @@ class TestDecompiler(unittest.TestCase):
 
         for width in (2, 8):
             options = set_decompiler_option(list(decompiler_options or []), [("indent_size", width)])
-            d = p.analyses[Decompiler].prep(fail_fast=True)(f, options=options)
+            # indent_size is a codegen display option, not a cache-validity parameter; force a fresh decompilation
+            # so the new width is applied instead of reusing the cached codegen.
+            d = p.analyses[Decompiler].prep(fail_fast=True)(f, options=options, regen_clinic=True)
             assert d.codegen is not None and d.codegen.text is not None
             levels = indent_levels(d.codegen.text)
             # every indentation level is a whole multiple of the configured width

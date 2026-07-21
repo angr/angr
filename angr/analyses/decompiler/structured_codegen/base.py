@@ -143,6 +143,9 @@ class BaseStructuredCodeGenerator:
         self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
         self.const_formats: dict[IdentType, dict[str, bool]] = const_formats if const_formats is not None else {}
+        # provenance stamps mirrored from the owning DecompilationCache (angr version + decompile time); "" / 0 = unknown
+        self.version: str = ""
+        self.timestamp: int = 0
         self.ident_counters: dict[str, count] = {}
         # node idx allocator; 0 is reserved (serialization uses it as the "absent" sentinel), and the counter is
         # never reset so idx values are unique across the lifetime of this codegen

@@ -549,9 +549,11 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     _serialize_const_formats(codegen.const_formats, msg.const_formats)
 
     for attr in _DISPLAY_OPTION_ATTRS:
-        if not hasattr(codegen, attr):
+        # ``indent`` is stored on the codegen as ``_indent``; every other display option matches the proto field name.
+        cg_attr = "_indent" if attr == "indent" else attr
+        if not hasattr(codegen, cg_attr):
             continue
-        value = getattr(codegen, attr)
+        value = getattr(codegen, cg_attr)
         if value is None:
             continue
         setattr(msg, attr, value)

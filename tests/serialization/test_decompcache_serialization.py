@@ -318,6 +318,31 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         d2 = self.proj.analyses.Decompiler(self.func, cfg=self.cfg.model, generate_code=True)
         assert d2.codegen.text == self.decompiler.codegen.text
 
+    def test_full_reuse_fast_path(self):
+        # With use_cache=True and regen_clinic=False (both defaults), a valid cache short-circuits the pipeline and
+        # returns the cached clinic + codegen objects, re-rendered.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions.function(name="authenticate")
+        d1 = proj.analyses.Decompiler(func, cfg=cfg.model)
+        cache = proj.kb.decompilations[(func.addr, "pseudocode")]
+
+        d2 = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert d2.codegen is d1.codegen
+        assert d2.clinic is d1.clinic
+        assert d2.codegen.text == d1.codegen.text
+        assert d2.codegen.version == cache.version == angr.__version__
+        assert d2.codegen.timestamp == cache.timestamp > 0
+
+    def test_regen_clinic_forces_fresh_decompilation(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions.function(name="authenticate")
+        d1 = proj.analyses.Decompiler(func, cfg=cfg.model)
+        d2 = proj.analyses.Decompiler(func, cfg=cfg.model, regen_clinic=True)
+        assert d2.codegen is not d1.codegen
+        assert d2.codegen.text == d1.codegen.text
+
 
 class TestSpillingDecompilationDict(unittest.TestCase):
     """Tests for the LRU + RtDb-spilling backing store of StructuredCodeManager."""
