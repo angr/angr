@@ -9,6 +9,16 @@ from typing import TYPE_CHECKING, Any
 import archinfo
 import pyvex
 
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
+from angr.codenode import BlockNode, SyscallNode
+from angr.errors import AngrTypeError
+from angr.knowledge_plugins import Function
+from angr.utils.formatting import add_edge_to_buffer, ansi_color, ansi_color_enabled
+from angr.utils.library import get_cpp_function_name
+
+from .disassembly_utils import decode_instruction
+
 if TYPE_CHECKING:
     import pypcode
 
@@ -21,16 +31,6 @@ else:
     except ImportError:
         pypcode = None
         pcode = None
-
-from angr.analyses.analysis import AnalysesHub, Analysis
-from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
-from angr.codenode import BlockNode, SyscallNode
-from angr.errors import AngrTypeError
-from angr.knowledge_plugins import Function
-from angr.utils.formatting import add_edge_to_buffer, ansi_color, ansi_color_enabled
-from angr.utils.library import get_cpp_function_name
-
-from .disassembly_utils import decode_instruction
 
 if TYPE_CHECKING:
     IRSBType = pyvex.IRSB | pcode.lifter.IRSB
