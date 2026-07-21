@@ -426,7 +426,7 @@ message Codegen {
     repeated CConstructNode nodes = 2;
 
     // Rendered text.
-    optional string text = 3;
+    optional bytes text_z = 3;                    // zlib-compressed UTF-8 rendered text
     optional string flavor = 4;
 
     // Display-side state.

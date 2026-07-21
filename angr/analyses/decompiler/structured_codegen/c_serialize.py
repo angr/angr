@@ -14,6 +14,7 @@ stay focused on rendering logic and a future audit of the serialization can look
 from __future__ import annotations
 
 import json
+import zlib
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
@@ -473,7 +474,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
         msg.root_id = ctx.serialize(codegen.cfunc)
 
     if codegen.text is not None:
-        msg.text = codegen.text
+        msg.text_z = zlib.compress(codegen.text.encode("utf-8"))
     if getattr(codegen, "flavor", None) is not None:
         msg.flavor = codegen.flavor
 
@@ -553,7 +554,7 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     cg.cfunc = ctx.resolve(msg.root_id) if msg.root_id != 0 else None
 
     # Base / display state.
-    cg.text = msg.text if msg.HasField("text") else None
+    cg.text = zlib.decompress(msg.text_z).decode("utf-8") if msg.HasField("text_z") else None
     cg.flavor = msg.flavor if msg.HasField("flavor") else None
     cg.notes = _parse_notes(msg.notes_json)
     cg.expr_comments = dict(msg.expr_comments)
