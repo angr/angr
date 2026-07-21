@@ -9,6 +9,10 @@ package angr.protos;
 //
 // ClinicMode and ClinicStage are stored as raw int32 values matching the Python ``.value`` of each enum member.
 
+// =====================================================================================================================
+// Small value types
+// =====================================================================================================================
+
 enum StackItemType {
     SI_UNKNOWN = 0;
     SI_SAVED_BP = 1;
@@ -16,23 +20,6 @@ enum StackItemType {
     SI_ARGUMENT = 3;
     SI_RET_ADDR = 4;
     SI_STACK_CANARY = 5;
-}
-
-// =====================================================================================================================
-// Small value types
-// =====================================================================================================================
-
-message DataRefDesc {
-    uint64 data_addr = 1;
-    int32  data_size = 2;
-    uint64 block_addr = 3;
-    int32  stmt_idx = 4;
-    uint64 ins_addr = 5;
-    string data_type_str = 6;
-}
-
-message DataRefList {
-    repeated DataRefDesc refs = 1;
 }
 
 message StackItem {
@@ -58,15 +45,6 @@ message ExternBytes {
     bytes payload = 1;
 }
 
-message StackArgOffsetRecord {
-    // One element of StackArgOffsetManager.stack_arg_offsets: ((block_addr, block_idx), ins_addr, offset, size).
-    int64 block_addr = 1;
-    optional int32 block_idx = 2;
-    uint64 ins_addr = 3;
-    int64 offset = 4;  // signed (u2s-normalized); also the dict key
-    int64 size = 5;
-}
-
 // =====================================================================================================================
 // Clinic
 // =====================================================================================================================
@@ -80,39 +58,26 @@ message Clinic {
     optional string flavor = 2;
 
 // ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
-    // Two former slots are reconstructed at parse time instead of being serialized:
-    //   - _blocks_by_addr_and_size is rebuilt from _init_ail_graph as {(b.addr, b.original_size): b};
-    //   - func_args is recomputed from arg_vvars as {vvar for vvar, _ in arg_vvars.values()}.
-    optional AilGraph graph = 10;                     // networkx.DiGraph[ailment.Block]
     optional AilGraph cc_graph = 11;
     optional AilGraph unoptimized_graph = 12;
-    optional AilGraph _ail_graph = 13;
-    optional AilGraph _init_ail_graph = 14;
     optional ArgVVars arg_vvars = 16;                 // dict[int, tuple[VirtualVariable, SimVariable]]
-    optional ArgVVars _init_arg_vvars = 17;
-    optional TypeHints _type_hints = 19;              // list[tuple[VirtualVariable | MemoryLocation, str]]
 
     // ---- Already-Serializable sub-objects ---------------------------------------------------------------------------
     // arg_list: list[SimVariable] | None
     repeated ExternBytes arg_list = 20;
-    optional ExternBytes func_ret_var = 21;           // SimVariable
     repeated ExternBytes externs = 22;                // set[SimMemoryVariable]
     // field 23 (reaching_definitions) removed: the SRDA model is never serialized; it is regenerated fresh from an
     // AIL graph whenever needed
-    reserved 23;
+    // Only state consumed by the decompiler's cache-reuse path is serialized; fields for attributes now cleared
+    // by Clinic.downsize() were removed and their numbers reserved.
+    reserved 10, 13, 14, 17, 19, 21, 23, 30, 33, 39, 100;
 
     // ---- CLEAN primitive collections --------------------------------------------------------------------------------
-    map<uint64, DataRefList> data_refs = 30;          // dict[int, list[DataRefDesc]]
     map<int32, int32> vvar_to_vvar = 31;              // dict[int, int]
     repeated uint32 secondary_stackvars = 32;         // set[int]
-    // StackArgOffsetManager.stack_arg_offsets records, flattened. The dict key equals each record's ``offset``;
-    // the derived stackoff_to_vvars / all_stackarg_vvars attributes are recomputed from the SRDA model at parse
-    // time via ``update_stackoff_vvars`` and are not serialized.
-    repeated StackArgOffsetRecord stackarg_offset_records = 33;
     repeated uint32 removed_vvar_ids = 36;            // set[int] | None
     optional bool _removed_vvar_ids_set = 37;
     repeated uint32 _preserve_vvar_ids = 38;
-    repeated uint64 _inline_functions = 39;           // function addresses
     map<uint64, int32> _inlined_counts = 40;          // dict[int, int]
     repeated uint64 _inlining_parents = 41;           // set[int]
     repeated string _must_struct = 42;                // set[str] | None
@@ -159,5 +124,4 @@ message Clinic {
     string _typehoon_cls = 92;                        // FQN; empty -> default Typehoon
 
     // ---- Notes -----------------------------------------------------------------------------------------------------
-    map<string, string> notes_json = 100;             // serialized DecompilationNote per key
 }

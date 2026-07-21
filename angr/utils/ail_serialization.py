@@ -150,26 +150,6 @@ def parse_arg_vvars(msg: ail_types_pb2.ArgVVars) -> dict[int, tuple[Any, Any]]:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
-# ---------------------------------------------------------------------------------------------------------------------
-
-
-def pack_type_hints(type_hints: list[tuple[Any, str]]) -> ail_types_pb2.TypeHints:
-    msg = ail_types_pb2.TypeHints()
-    for atom, hint in type_hints:
-        entry = msg.hints.add()
-        entry.atom.CopyFrom(atom.serialize_to_cmessage())
-        entry.hint = hint
-    return msg
-
-
-def parse_type_hints(msg: ail_types_pb2.TypeHints) -> list[tuple[Any, str]]:
-    from angr.knowledge_plugins.key_definitions.atoms import Atom
-
-    return [(Atom.parse_from_cmessage(entry.atom), entry.hint) for entry in msg.hints]
-
-
-# ---------------------------------------------------------------------------------------------------------------------
 # set[tuple[int, Expression]]
 # ---------------------------------------------------------------------------------------------------------------------
 

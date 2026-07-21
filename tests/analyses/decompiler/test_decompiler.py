@@ -3405,7 +3405,7 @@ class TestDecompiler(unittest.TestCase):
 
         # the two function arguments that are passed through stack into prepare_padded_number must have been eliminated
         # at this point, leaving block 401f40 empty.
-        the_block = next(nn for nn in d.clinic.graph if nn.addr == 0x401F40)
+        the_block = next(nn for nn in d.ail_graph if nn.addr == 0x401F40)
         assert len(the_block.statements) == 1  # it has an unused label
 
     @for_all_structuring_algos
@@ -4155,7 +4155,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert d.codegen is not None and d.clinic is not None
 
-        rd = proj.analyses.SReachingDefinitions(subject=f, func_graph=d.clinic.graph, func_args=set()).model
+        rd = proj.analyses.SReachingDefinitions(subject=f, func_graph=d.ail_graph, func_args=set()).model
         used_but_undefined_stack_vars = [
             str(rd.varid_to_vvar[vid])
             for vid, loc in rd.all_vvar_definitions.items()

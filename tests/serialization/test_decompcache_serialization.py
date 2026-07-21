@@ -9,7 +9,6 @@ import pickle
 import unittest
 
 import networkx
-from archinfo import Endness
 from google.protobuf.descriptor import FieldDescriptor
 
 import angr
@@ -34,18 +33,6 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_FIELD_FIRST,
     _DISPLAY_OPTION_FIELD_LAST,
 )
-from angr.engines.light import SpOffset
-from angr.knowledge_plugins.key_definitions.atoms import (
-    Atom,
-    ConstantSrc,
-    GuardUse,
-    MemoryLocation,
-    Register,
-    Tmp,
-    VirtualVariable,
-)
-from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
@@ -55,82 +42,15 @@ from angr.utils.ail_serialization import (
     pack_ite_exprs,
     pack_static_buffers,
     pack_static_vvars,
-    pack_type_hints,
     parse_arg_vvars,
     parse_graph,
     parse_ite_exprs,
     parse_static_buffers,
     parse_static_vvars,
-    parse_type_hints,
 )
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
-
-
-class TestKeyDefSerialization(unittest.TestCase):
-    def _roundtrip(self, obj):
-        return type(obj).parse(obj.serialize())
-
-    def test_atom_tmp(self):
-        a = Tmp(7, 4)
-        b = self._roundtrip(a)
-        assert b == a
-
-    def test_atom_register(self):
-        a = Register(8, 4)
-        b = self._roundtrip(a)
-        assert b == a
-
-    def test_atom_guarduse(self):
-        a = GuardUse(0x401000)
-        b = self._roundtrip(a)
-        assert b == a
-
-    def test_atom_constantsrc(self):
-        a = ConstantSrc(0xDEADBEEF, 4)
-        b = self._roundtrip(a)
-        assert b == a
-
-    def test_atom_virtualvariable_int_oident(self):
-        a = VirtualVariable(42, 4, Expr.VirtualVariableCategory.REGISTER, oident=16)
-        b = self._roundtrip(a)
-        assert b == a
-        assert b.oident == 16
-
-    def test_atom_virtualvariable_tuple_oident(self):
-        # COMBO_REGISTER uses a tuple oident; JSON encoding turns it into a list, _tuplify restores it.
-        a = VirtualVariable(43, 8, Expr.VirtualVariableCategory.COMBO_REGISTER, oident=(16, 24))
-        b = self._roundtrip(a)
-        assert b == a
-        assert b.oident == (16, 24)
-
-    def test_atom_memorylocation_int(self):
-        a = MemoryLocation(0x1000, 4, endness=Endness.LE)
-        assert self._roundtrip(a) == a
-
-    def test_atom_memorylocation_spoffset(self):
-        a = MemoryLocation(SpOffset(64, -16), 8, endness=Endness.LE)
-        assert self._roundtrip(a) == a
-
-    def test_atom_memorylocation_heapaddress(self):
-        assert self._roundtrip(MemoryLocation(HeapAddress(0x1000), 4)) == MemoryLocation(HeapAddress(0x1000), 4)
-        assert self._roundtrip(MemoryLocation(HeapAddress(UNDEFINED), 4)) == MemoryLocation(HeapAddress(UNDEFINED), 4)
-
-    def test_atom_polymorphic_dispatch(self):
-        # Atom.parse on the base class should dispatch to the correct concrete subclass.
-        atoms_to_test = [
-            Tmp(7, 4),
-            Register(8, 4),
-            GuardUse(0x401000),
-            ConstantSrc(0xDEADBEEF, 4),
-            VirtualVariable(42, 4, Expr.VirtualVariableCategory.REGISTER, oident=16),
-            MemoryLocation(0x1000, 4, endness=Endness.LE),
-        ]
-        for a in atoms_to_test:
-            b = Atom.parse(a.serialize())
-            assert type(b) is type(a)
-            assert b == a
 
 
 class TestSubObjectSerialization(unittest.TestCase):
@@ -233,14 +153,6 @@ class TestAilSerializationHelpers(unittest.TestCase):
         back = parse_arg_vvars(pack_arg_vvars(d))
         assert back == d
 
-    def test_type_hints_roundtrip(self):
-        vvc = Expr.VirtualVariableCategory
-        hints = [
-            (VirtualVariable(42, 8, vvc.REGISTER, oident=16), "char*"),
-            (MemoryLocation(SpOffset(64, -0x20), 8), "struct sockaddr"),
-        ]
-        assert parse_type_hints(pack_type_hints(hints)) == hints
-
     def test_ite_exprs_roundtrip(self):
         s = {(0x400123, Const(0, 5, 64)), (0x400456, Const(1, 7, 32))}
         assert parse_ite_exprs(pack_ite_exprs(s)) == s
@@ -308,29 +220,44 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
             variable_kb=clinic.variable_kb,
             cfg=clinic._cfg,
         )
-        assert back.graph.number_of_nodes() == clinic.graph.number_of_nodes()
+        # the fields the decompiler's cache-reuse path consumes round-trip
         assert back.cc_graph.number_of_nodes() == clinic.cc_graph.number_of_nodes()
+        assert back.unoptimized_graph.number_of_nodes() == clinic.unoptimized_graph.number_of_nodes()
+        assert back.arg_vvars == clinic.arg_vvars
+        assert len(back.externs) == len(clinic.externs)
+        assert (back.arg_list is None) == (clinic.arg_list is None)
         assert back.vvar_id_start == clinic.vvar_id_start
         assert back.copied_var_ids == clinic.copied_var_ids
+        assert back.edges_to_remove == clinic.edges_to_remove
+        assert back.entry_node_addr == clinic.entry_node_addr
         assert back._mode == clinic._mode
         assert back._start_stage == clinic._start_stage
         assert back._end_stage == clinic._end_stage
         assert back._skip_stages == clinic._skip_stages
         assert back.flavor == clinic.flavor
-        assert len(back.externs) == len(clinic.externs)
-        # the SRDA model is never serialized (and the live clinic is downsized before it enters the cache); it is
-        # regenerated fresh from an AIL graph whenever needed
-        assert clinic.reaching_definitions is None
-        assert back.reaching_definitions is None
-        # func_args is recomputed from arg_vvars rather than serialized
-        assert back.func_args == clinic.func_args
-        # _blocks_by_addr_and_size is rebuilt from _init_ail_graph: every original entry whose block is part of the
-        # graph must be reconstructed (entries for unreachable, never-graphed blocks are dead weight and may differ)
-        if clinic._blocks_by_addr_and_size and clinic._init_ail_graph is not None:
-            graph_blocks = set(clinic._init_ail_graph)
-            for key, blk in clinic._blocks_by_addr_and_size.items():
-                if blk in graph_blocks:
-                    assert back._blocks_by_addr_and_size.get(key) == blk
+        # everything downsize() clears comes back as the same downsized default (the live clinic was downsized
+        # before it entered the cache, so both sides agree)
+        for attr in (
+            "graph",
+            "_ail_graph",
+            "_init_ail_graph",
+            "_init_arg_vvars",
+            "func_args",
+            "func_ret_var",
+            "reaching_definitions",
+            "_blocks_by_addr_and_size",
+            "typehoon",
+        ):
+            assert getattr(clinic, attr) is None, attr
+            assert getattr(back, attr) is None, attr
+        for attr in ("data_refs", "notes"):
+            assert getattr(clinic, attr) == {}, attr
+            assert getattr(back, attr) == {}, attr
+        # stack_items is primitive result data and is kept through downsize and serialization
+        assert {k: (v.offset, v.size, v.name, v.item_type) for k, v in back.stack_items.items()} == {
+            k: (v.offset, v.size, v.name, v.item_type) for k, v in clinic.stack_items.items()
+        }
+        assert clinic._inline_functions == set() and back._inline_functions == set()
 
     def test_decompilation_cache_roundtrip(self):
         cache = self.decompiler.cache

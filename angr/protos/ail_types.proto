@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-import "angr/protos/key_defs.proto";
-
 package angr.protos;
 
 //
@@ -48,27 +46,6 @@ message ArgVVar {
 
 message ArgVVars {
     map<int64, ArgVVar> entries = 1;
-}
-
-//
-// set[ailment.Expr.VirtualVariable]  (SRDAModel.func_args)
-//
-
-message VVarSet {
-    repeated bytes vvars = 1;  // Expression.to_bytes() payloads
-}
-
-//
-// list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]  (Clinic._type_hints)
-//
-
-message TypeHint {
-    Atom atom = 1;
-    string hint = 2;
-}
-
-message TypeHints {
-    repeated TypeHint hints = 1;
 }
 
 //
