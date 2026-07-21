@@ -50,6 +50,7 @@ class DbKnowledgeBase(Base):
     comments = relationship("DbComment", back_populates="kb")
     labels = relationship("DbLabel", back_populates="kb")
     var_collections = relationship("DbVariableCollection", back_populates="kb")
+    dec_var_collections = relationship("DbDecVariableCollection", back_populates="kb")
     structured_code = relationship("DbStructuredCode", back_populates="kb")
     decompilation_caches = relationship("DbDecompilationCache", back_populates="kb")
 
@@ -121,6 +122,29 @@ class DbVariableCollection(Base):
         nullable=False,
     )
     kb = relationship("DbKnowledgeBase", uselist=False, back_populates="var_collections")
+    func_addr = Column(Integer)
+    ident = Column(String, nullable=True)
+    blob = Column(BLOB)
+
+
+class DbDecVariableCollection(Base):
+    """
+    Models a VariableManagerInternal instance belonging to the decompilation variable manager (kb.dec_variables).
+
+    This is a separate table from ``variables`` (the disassembly-level kb.variables) so the two managers do not
+    clobber each other, and so databases created before decompilation-variable serialization remain loadable:
+    ``create_all`` adds the missing table to old databases.
+    """
+
+    __tablename__ = "dec_variables"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="dec_var_collections")
     func_addr = Column(Integer)
     ident = Column(String, nullable=True)
     blob = Column(BLOB)

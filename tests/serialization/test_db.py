@@ -426,6 +426,51 @@ class TestDb(unittest.TestCase):
         old_format_proj = AngrDB(nullpool=True).load(db_file)
         assert set(old_format_proj.kb.variables.function_managers) == nonempty_addrs
 
+    def test_angrdb_dec_variables_roundtrip(self):
+        # Decompilation variables (kb.dec_variables) are serialized into their own ``dec_variables`` table, isolated
+        # from the disassembly-level kb.variables, and round-trip through angrdb with their content intact.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        main = proj.kb.functions.function(name="main")
+        dec = proj.analyses.Decompiler(main, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        dvm = proj.kb.dec_variables
+        nonempty_addrs = {addr for addr, internal in dvm.function_managers.items() if internal.serialize()}
+        assert nonempty_addrs, "decompilation should have produced at least one non-empty dec-variable manager"
+        # decompilation must not have populated the disassembly-level manager
+        assert not {addr for addr, internal in proj.kb.variables.function_managers.items() if internal.serialize()}
+
+        def content(internal):
+            return (
+                sorted(v.ident for v in internal._variables),
+                sorted(v.ident for v in internal._unified_variables),
+                sorted(v.ident for v in internal._phi_variables),
+            )
+
+        pre_content = {addr: content(dvm.function_managers[addr]) for addr in nonempty_addrs}
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # dec_variables rows land in their own table, not in variables
+        conn = sqlite3.connect(db_file)
+        dvar_rows = conn.execute("SELECT func_addr FROM dec_variables WHERE func_addr != -1").fetchall()
+        var_rows = conn.execute("SELECT func_addr FROM variables WHERE func_addr != -1").fetchall()
+        conn.close()
+        assert {func_addr for (func_addr,) in dvar_rows} == nonempty_addrs
+        assert not var_rows
+
+        # dec_variables round-trip with identical content
+        new_proj = AngrDB(nullpool=True).load(db_file)
+        new_dvm = new_proj.kb.dec_variables
+        assert set(new_dvm.function_managers) == nonempty_addrs
+        for addr in nonempty_addrs:
+            assert content(new_dvm.function_managers[addr]) == pre_content[addr]
+
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 

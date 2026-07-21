@@ -7,9 +7,9 @@ try:
 except ImportError:
     sqlalchemy = None
 
-from angr.angrdb.models import DbVariableCollection
+from angr.angrdb.models import DbDecVariableCollection, DbVariableCollection
 from angr.knowledge_plugins import VariableManager
-from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.knowledge_plugins.variables.variable_manager import DecompilationVariableManager, VariableManagerInternal
 
 if TYPE_CHECKING:
     from angr.angrdb.models import DbKnowledgeBase
@@ -19,14 +19,18 @@ if TYPE_CHECKING:
 class VariableManagerSerializer:
     """
     Serialize/unserialize a variable manager and its variables.
+
+    The same machinery serializes the disassembly-level manager (``kb.variables`` into the ``variables`` table) and
+    the decompilation manager (``kb.dec_variables`` into the ``dec_variables`` table); the target table and manager class
+    are parameterized.
     """
 
     @staticmethod
-    def dump(session, db_kb: DbKnowledgeBase, var_manager: VariableManager):
+    def dump(session, db_kb: DbKnowledgeBase, var_manager: VariableManager, table=DbVariableCollection):
         assert sqlalchemy is not None
 
         # Remove all existing variable collections
-        session.query(DbVariableCollection).filter_by(kb=db_kb).delete()
+        session.query(table).filter_by(kb=db_kb).delete()
 
         # make sure db_kb has a primary key so it can be used as a foreign key in the Core bulk insert below
         session.flush()
@@ -45,7 +49,11 @@ class VariableManagerSerializer:
 
         # bulk-insert the variable collection rows for speed
         if rows:
-            session.execute(sqlalchemy.insert(DbVariableCollection), rows)
+            session.execute(sqlalchemy.insert(table), rows)
+
+    @staticmethod
+    def dump_dvars(session, db_kb: DbKnowledgeBase, var_manager: VariableManager):
+        VariableManagerSerializer.dump(session, db_kb, var_manager, table=DbDecVariableCollection)
 
     @staticmethod
     def _internal_row(
@@ -61,10 +69,10 @@ class VariableManagerSerializer:
         return {"kb_id": db_kb.id, "ident": ident or None, "func_addr": func_addr, "blob": blob}
 
     @staticmethod
-    def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase, ident=None):
-        variable_manager = VariableManager(kb)
+    def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase, ident=None, table=DbVariableCollection):
+        variable_manager = DecompilationVariableManager(kb) if table is DbDecVariableCollection else VariableManager(kb)
 
-        db_varcolls = session.query(DbVariableCollection).filter_by(kb=db_kb, ident=ident)
+        db_varcolls = session.query(table).filter_by(kb=db_kb, ident=ident)
         for db_varcoll in db_varcolls:
             if not db_varcoll.blob:
                 # databases created by older versions of angr may contain empty variable managers; they decode to
@@ -77,6 +85,10 @@ class VariableManagerSerializer:
                 variable_manager.function_managers[internal.func_addr] = internal
 
         return variable_manager
+
+    @staticmethod
+    def load_dvars(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase, ident=None):
+        return VariableManagerSerializer.load(session, db_kb, kb, ident=ident, table=DbDecVariableCollection)
 
     @staticmethod
     def load_internal(db_varcoll, variable_manager: VariableManager) -> VariableManagerInternal:
