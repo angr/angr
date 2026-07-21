@@ -11,6 +11,18 @@ from typing import TYPE_CHECKING, Any
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from angr.analyses.analysis import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis, visitors
+from angr.block import BlockNode
+from angr.calling_conventions import SimStackArg
+from angr.codenode import FuncNode
+from angr.errors import SimTranslationError
+from angr.knowledge_plugins import Function
+from angr.utils.constants import is_alignment_mask
+from angr.utils.types import dereference_simtype_by_lib
+
+from .analysis import Analysis
+
 if TYPE_CHECKING:
     import pypcode
 
@@ -23,18 +35,6 @@ else:
     except ImportError:
         pypcode = None
         pcode = None
-
-from angr.analyses.analysis import AnalysesHub
-from angr.analyses.forward_analysis import ForwardAnalysis, visitors
-from angr.block import BlockNode
-from angr.calling_conventions import SimStackArg
-from angr.codenode import FuncNode
-from angr.errors import SimTranslationError
-from angr.knowledge_plugins import Function
-from angr.utils.constants import is_alignment_mask
-from angr.utils.types import dereference_simtype_by_lib
-
-from .analysis import Analysis
 
 if TYPE_CHECKING:
     from angr.block import Block
