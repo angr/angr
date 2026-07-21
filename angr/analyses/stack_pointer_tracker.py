@@ -11,13 +11,18 @@ from typing import TYPE_CHECKING, Any
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-try:
+if TYPE_CHECKING:
     import pypcode
 
     from angr.engines import pcode
-except ImportError:
-    pypcode = None
-    pcode = None
+else:
+    try:
+        import pypcode
+
+        from angr.engines import pcode
+    except ImportError:
+        pypcode = None
+        pcode = None
 
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
