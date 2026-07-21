@@ -319,6 +319,55 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, zero), True, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
+                elif cond_v == AMD64_CondTypes["CondNL"]:
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SUBB"],
+                        AMD64_OpTypes["G_CC_OP_SUBW"],
+                        AMD64_OpTypes["G_CC_OP_SUBL"],
+                        AMD64_OpTypes["G_CC_OP_SUBQ"],
+                    }:
+                        # CondNL (jge) is SF == OF, i.e. dep_1 >=s dep_2
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+
+                        r = Expr.BinaryOp(ccall.idx, "CmpGE", (dep_1, dep_2), True, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        # and/or/xor clear OF, so CondNL = SF == 0, i.e. the result dep_1 >=s 0
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_LOGICB"],
+                            AMD64_OpTypes["G_CC_OP_LOGICW"],
+                            AMD64_OpTypes["G_CC_OP_LOGICL"],
+                            ccall.tags,
+                        )
+                        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
+                        r = Expr.BinaryOp(ccall.idx, "CmpGE", (dep_1, zero), True, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
                 elif cond_v == AMD64_CondTypes["CondNBE"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
