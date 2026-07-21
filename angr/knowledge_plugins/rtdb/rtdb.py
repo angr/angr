@@ -19,6 +19,8 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.utils.lmdb import lmdb, lmdb_available
 
 if TYPE_CHECKING:
+    import lmdb as lmdb_types
+
     from angr.knowledge_base import KnowledgeBase
 
 # Name of the pin file inside each rtdb directory. Every process (and every RuntimeDb instance) that opens the
@@ -134,7 +136,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         super().__init__(kb)
 
         self._lmdb_path: str | None = lmdb_path
-        self._lmdb_env: lmdb.Environment | None = None
+        self._lmdb_env: lmdb_types.Environment | None = None
         self._lmdb_mapsize: int = 1024 * 1024 * 10
         self._dbnames: defaultdict[str, int] = defaultdict(int)
         self._dbs: dict[str, Any] = {}
@@ -189,7 +191,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         self._pin_lmdb_dir()
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
 
-    def _init_lmdb_attempt_multiple_locations(self) -> tuple[str, lmdb.Environment] | None:
+    def _init_lmdb_attempt_multiple_locations(self) -> tuple[str, lmdb_types.Environment] | None:
         if self._lmdb_env is not None:
             return None
 

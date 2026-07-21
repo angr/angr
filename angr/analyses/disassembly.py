@@ -4,18 +4,23 @@ import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import archinfo
 import pyvex
 
-try:
+if TYPE_CHECKING:
     import pypcode
 
     from angr.engines import pcode
-except ImportError:
-    pypcode = None
-    pcode = None
+else:
+    try:
+        import pypcode
+
+        from angr.engines import pcode
+    except ImportError:
+        pypcode = None
+        pcode = None
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
@@ -27,8 +32,12 @@ from angr.utils.library import get_cpp_function_name
 
 from .disassembly_utils import decode_instruction
 
-IRSBType = pyvex.IRSB if pcode is None else pyvex.IRSB | pcode.lifter.IRSB
-IROpObjType = pyvex.stmt.IRStmt if pypcode is None else pyvex.stmt.IRStmt | pypcode.PcodeOp
+if TYPE_CHECKING:
+    IRSBType = pyvex.IRSB | pcode.lifter.IRSB
+    IROpObjType = pyvex.stmt.IRStmt | pypcode.PcodeOp
+else:
+    IRSBType = pyvex.IRSB if pcode is None else pyvex.IRSB | pcode.lifter.IRSB
+    IROpObjType = pyvex.stmt.IRStmt if pypcode is None else pyvex.stmt.IRStmt | pypcode.PcodeOp
 
 l = logging.getLogger(name=__name__)
 
