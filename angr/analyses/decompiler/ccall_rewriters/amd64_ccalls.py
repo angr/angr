@@ -235,6 +235,26 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SHLB"],
+                        AMD64_OpTypes["G_CC_OP_SHLW"],
+                        AMD64_OpTypes["G_CC_OP_SHLL"],
+                        AMD64_OpTypes["G_CC_OP_SHLQ"],
+                    }:
+                        # dep_1 is the shift result; ZF = result == 0 at the op width
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SHLB"],
+                            AMD64_OpTypes["G_CC_OP_SHLW"],
+                            AMD64_OpTypes["G_CC_OP_SHLL"],
+                            ccall.tags,
+                        )
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
+
+                        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
                         # dep_1 & G_CC_MASK_Z == 0 or dep_1 & G_CC_MASK_Z != 0
 
