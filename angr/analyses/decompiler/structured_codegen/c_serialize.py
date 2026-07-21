@@ -72,23 +72,54 @@ from .c import (
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-def _sanitize_tags(tags: dict | None) -> codegen_pb2.CConstructTags:
-    """Drop tag entries we can't JSON-encode; keep the rest as ``{key: json.dumps(value)}``."""
-    out = codegen_pb2.CConstructTags()
+# The four dominant tag keys get typed proto fields; (key, required type) pairs.
+_TYPED_TAGS = (
+    ("ins_addr", int),
+    ("vex_block_addr", int),
+    ("vex_stmt_idx", int),
+    ("is_prototype_guessed", bool),
+)
+
+
+def _sanitize_tags(tags: dict | None) -> tuple[tuple, codegen_pb2.CConstructTags | None]:
+    """Split a tags dict into a CConstructTags message (typed fields for the dominant keys, JSON for the rest;
+    entries we can't JSON-encode are dropped) plus a hashable canonical key for interning. Returns
+    ``(key, None)`` for empty tag dicts."""
     if not tags:
-        return out
+        return (), None
+    out = codegen_pb2.CConstructTags()
+    key_parts = []
+    any_set = False
     for k, v in tags.items():
         if not isinstance(k, str):
             continue
+        typed = next((t for name, t in _TYPED_TAGS if name == k), None)
+        if typed is not None and type(v) is typed:
+            try:
+                setattr(out, k, v)
+            except ValueError:
+                pass  # out of range for the proto field; fall through to the JSON encoding
+            else:
+                key_parts.append((k, v))
+                any_set = True
+                continue
         try:
             out.json_values[k] = json.dumps(v)
         except (TypeError, ValueError):
             continue  # silently drop non-JSON-serializable values; they will be missing after round-trip
-    return out
+        key_parts.append((k, out.json_values[k]))
+        any_set = True
+    if not any_set:
+        return (), None
+    return tuple(sorted(key_parts)), out
 
 
 def _parse_tags(cmsg: codegen_pb2.CConstructTags) -> dict:
-    return {k: json.loads(v) for k, v in cmsg.json_values.items()}
+    out = {k: json.loads(v) for k, v in cmsg.json_values.items()}
+    for name, _ in _TYPED_TAGS:
+        if cmsg.HasField(name):
+            out[name] = getattr(cmsg, name)
+    return out
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -125,13 +156,16 @@ class SerializeContext:
     Tracks which nodes have been serialized while walking the C AST.
     """
 
-    __slots__ = ("_seen", "_type_pool", "nodes")
+    __slots__ = ("_seen", "_tag_pool", "_tag_pool_msgs", "_type_pool", "nodes")
 
     def __init__(self) -> None:
         self._seen: set[int] = set()  # stores CConstruct.idx for serialized nodes
         self.nodes: list[codegen_pb2.CConstructNode] = []
         # SimType JSON interning: json string -> ref (index+1 into Codegen.type_pool; 0 means absent)
         self._type_pool: dict[str, int] = {}
+        # tag-dict interning: canonical key -> ref (index+1 into Codegen.tag_pool; 0 means no tags)
+        self._tag_pool: dict[tuple, int] = {}
+        self._tag_pool_msgs: list[codegen_pb2.CConstructTags] = []
 
     def intern_type(self, t: SimType | None) -> int:
         """Intern a SimType's JSON encoding and return its ref (index+1 into the type pool); 0 for None."""
@@ -148,6 +182,22 @@ class SerializeContext:
     def type_pool(self) -> list[str]:
         return list(self._type_pool)  # insertion-ordered: pool[i] has ref i+1
 
+    def intern_tags(self, tags: dict | None) -> int:
+        """Intern a sanitized tags dict and return its ref (index+1 into the tag pool); 0 for no tags."""
+        key, msg = _sanitize_tags(tags)
+        if msg is None:
+            return 0
+        ref = self._tag_pool.get(key)
+        if ref is None:
+            ref = len(self._tag_pool) + 1
+            self._tag_pool[key] = ref
+            self._tag_pool_msgs.append(msg)
+        return ref
+
+    @property
+    def tag_pool(self) -> list[codegen_pb2.CConstructTags]:
+        return self._tag_pool_msgs
+
     def serialize(self, node: CConstruct | None) -> int:
         """Serialize ``node`` (recursively) and return its node_id (== node.idx). 0 indicates absent."""
         if node is None:
@@ -161,7 +211,7 @@ class SerializeContext:
         pb.node_id = nid
         pb.kind = _SERIALIZE_KIND_BY_CLASS[type(node)]
         pb.ident = node.ident
-        pb.tags.CopyFrom(_sanitize_tags(getattr(node, "tags", None)))
+        pb.tags_ref = self.intern_tags(getattr(node, "tags", None))
         if isinstance(node, CExpression):
             pb.collapsed = bool(getattr(node, "collapsed", False))
             ty = getattr(node, "_type", None)
@@ -177,9 +227,9 @@ class ParseContext:
     Tracks and resolves node.idx to the corresponding C AST.
     """
 
-    __slots__ = ("_msg_by_id", "_parsed", "_type_json_cache", "_type_pool", "kb", "project")
+    __slots__ = ("_msg_by_id", "_parsed", "_tag_pool", "_type_json_cache", "_type_pool", "kb", "project")
 
-    def __init__(self, nodes_msg, project=None, kb=None, type_pool=()) -> None:
+    def __init__(self, nodes_msg, project=None, kb=None, type_pool=(), tag_pool=()) -> None:
         self._msg_by_id: dict[int, codegen_pb2.CConstructNode] = {n.node_id: n for n in nodes_msg}
         self._parsed: dict[int, Any] = {}
         # Project / KB are used to resolve Function references and similar by-address pointers at parse time.
@@ -187,6 +237,7 @@ class ParseContext:
         self.kb = kb
         self._type_pool: list[str] = list(type_pool)
         self._type_json_cache: dict[int, Any] = {}
+        self._tag_pool = list(tag_pool)
 
     def resolve_type(self, ref: int) -> SimType | None:
         """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance."""
@@ -198,6 +249,12 @@ class ParseContext:
             self._type_json_cache[ref] = loaded
         return SimType.from_json(loaded)
 
+    def resolve_tags(self, ref: int) -> dict:
+        """Resolve a tag-pool ref (index+1; 0 means no tags) into a fresh tags dict."""
+        if ref == 0:
+            return {}
+        return _parse_tags(self._tag_pool[ref - 1])
+
     def resolve(self, node_id: int):
         if node_id == 0:
             return None
@@ -208,7 +265,7 @@ class ParseContext:
         # CConstruct base state
         obj.idx = pb.node_id
         obj.ident = pb.ident
-        obj.tags = _parse_tags(pb.tags)
+        obj.tags = self.resolve_tags(pb.tags_ref)
         obj.codegen = None  # back-reference re-attached by set_codegen()
         if isinstance(obj, CExpression):
             obj.collapsed = bool(pb.collapsed) if pb.HasField("collapsed") else False
@@ -252,13 +309,14 @@ def serialize_subtree(root: CConstruct) -> bytes:
     msg.root_id = root_id
     msg.nodes.extend(ctx.nodes)
     msg.type_pool.extend(ctx.type_pool)
+    msg.tag_pool.extend(ctx.tag_pool)
     return msg.SerializeToString()
 
 
 def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
     msg = codegen_pb2.Codegen()
     msg.ParseFromString(data)
-    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool)
+    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool)
     return ctx.resolve(msg.root_id)
 
 
@@ -406,6 +464,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     # The flat AST node table is filled in by ctx.serialize during the recursive calls above.
     msg.nodes.extend(ctx.nodes)
     msg.type_pool.extend(ctx.type_pool)
+    msg.tag_pool.extend(ctx.tag_pool)
     return msg
 
 
@@ -437,7 +496,7 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
     require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
-    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool)
+    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool)
 
     # Materialize the AST.
     cg.cfunc = ctx.resolve(msg.root_id) if msg.root_id != 0 else None

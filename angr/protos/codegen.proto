@@ -25,7 +25,12 @@ package angr.protos;
 // int / float / str / list / dict of those, in any nesting). Non-conforming entries are dropped on serialize. The
 // JSON encoding lets us round-trip the same set of values the SimType serialization already standardizes on.
 message CConstructTags {
+    // The four dominant tag keys get typed fields; everything else stays in the JSON map.
     map<string, string> json_values = 1;  // map[key] -> json.dumps(value)
+    optional uint64 ins_addr = 2;
+    optional uint64 vex_block_addr = 3;
+    optional int32 vex_stmt_idx = 4;
+    optional bool is_prototype_guessed = 5;
 }
 
 // Identifies which payload (oneof variant) a CConstructNode carries. We use a separate enum rather than relying on
@@ -325,7 +330,7 @@ message CDirtyExpressionMsg {
 message CConstructNode {
     uint32 node_id = 1;                           // == CConstruct.idx (unique across the owning codegen)
     CConstructKind kind = 2;
-    CConstructTags tags = 3;
+    uint32 tags_ref = 3;                          // index+1 into Codegen.tag_pool; 0 = no tags
     string ident = 4;                             // CConstruct.ident: per-class-name display label; NOT unique
     // For CExpression subclasses only:
     optional bool collapsed = 5;
@@ -439,6 +444,9 @@ message Codegen {
     // Interned SimType JSON strings (SimType.to_json output). All *_ref fields above and in the node bodies
     // are index+1 into this pool; 0 means absent.
     repeated string type_pool = 24;
+
+    // Interned tag dicts; CConstructNode.tags_ref is index+1 into this pool (identical tag dicts are stored once).
+    repeated CConstructTags tag_pool = 25;
 
     // Display options (round-tripped but not strictly part of the result). Field numbers 30-59 are reserved for
     // this block: c_serialize derives its display-option attribute list from this number range at runtime, so a
