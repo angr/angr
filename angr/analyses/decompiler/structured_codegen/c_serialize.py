@@ -164,7 +164,7 @@ class SerializeContext:
     Tracks which nodes have been serialized while walking the C AST.
     """
 
-    __slots__ = ("_seen", "_simvar_pool", "_tag_pool", "_tag_pool_msgs", "_type_pool", "nodes")
+    __slots__ = ("_node_config", "_seen", "_simvar_pool", "_tag_pool", "_tag_pool_msgs", "_type_pool", "nodes")
 
     def __init__(self) -> None:
         self._seen: set[int] = set()  # stores CConstruct.idx for serialized nodes
@@ -176,6 +176,8 @@ class SerializeContext:
         self._tag_pool_msgs: list[codegen_pb2.CConstructTags] = []
         # SimVariable payload interning: payload bytes -> ref (index+1 into Codegen.simvar_pool; 0 means absent)
         self._simvar_pool: dict[bytes, int] = {}
+        # out-of-line per-node display config: only nodes deviating from the defaults are recorded here
+        self._node_config: list[codegen_pb2.NodeConfigEntry] = []
 
     def intern_type(self, t: SimType | None) -> int:
         """Intern a SimType's JSON encoding and return its ref (index+1 into the type pool); 0 for None."""
@@ -223,6 +225,16 @@ class SerializeContext:
     def simvar_pool(self) -> list[bytes]:
         return list(self._simvar_pool)
 
+    def add_cfuncall_config(self, node_id: int, show_demangled_name: bool, show_disambiguated_name: bool) -> None:
+        entry = codegen_pb2.NodeConfigEntry(node_id=node_id)
+        entry.cfuncall.show_demangled_name = show_demangled_name
+        entry.cfuncall.show_disambiguated_name = show_disambiguated_name
+        self._node_config.append(entry)
+
+    @property
+    def node_config(self) -> list[codegen_pb2.NodeConfigEntry]:
+        return self._node_config
+
     def serialize(self, node: CConstruct | None) -> int:
         """Serialize ``node`` (recursively) and return its node_id (== node.idx). 0 indicates absent."""
         if node is None:
@@ -258,6 +270,7 @@ class ParseContext:
     """
 
     __slots__ = (
+        "_cfuncall_config",
         "_msg_by_id",
         "_parsed",
         "_simvar_pool",
@@ -268,7 +281,9 @@ class ParseContext:
         "project",
     )
 
-    def __init__(self, nodes_msg, project=None, kb=None, type_pool=(), tag_pool=(), simvar_pool=()) -> None:
+    def __init__(
+        self, nodes_msg, project=None, kb=None, type_pool=(), tag_pool=(), simvar_pool=(), node_config=None
+    ) -> None:
         self._msg_by_id: dict[int, codegen_pb2.CConstructNode] = {n.node_id: n for n in nodes_msg}
         self._parsed: dict[int, Any] = {}
         # Project / KB are used to resolve Function references and similar by-address pointers at parse time.
@@ -278,6 +293,18 @@ class ParseContext:
         self._type_json_cache: dict[int, Any] = {}
         self._tag_pool = list(tag_pool)
         self._simvar_pool = list(simvar_pool)
+        # node_id -> (show_demangled_name, show_disambiguated_name); nodes not listed use the (True, True) default
+        self._cfuncall_config: dict[int, tuple[bool, bool]] = {}
+        for entry in node_config.config_entries if node_config is not None else ():
+            if entry.WhichOneof("config") == "cfuncall":
+                self._cfuncall_config[entry.node_id] = (
+                    entry.cfuncall.show_demangled_name,
+                    entry.cfuncall.show_disambiguated_name,
+                )
+
+    def cfuncall_config(self, node_id: int) -> tuple[bool, bool]:
+        """(show_demangled_name, show_disambiguated_name) for a CFunctionCall node; defaults to (True, True)."""
+        return self._cfuncall_config.get(node_id, (True, True))
 
     def resolve_type(self, ref: int) -> SimType | None:
         """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance."""
@@ -357,6 +384,7 @@ def serialize_subtree(root: CConstruct) -> bytes:
     msg.type_pool.extend(ctx.type_pool)
     msg.tag_pool.extend(ctx.tag_pool)
     msg.simvar_pool.extend(ctx.simvar_pool)
+    msg.node_config.config_entries.extend(ctx.node_config)
     return msg.SerializeToString()
 
 
@@ -364,7 +392,13 @@ def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
     msg = codegen_pb2.Codegen()
     msg.ParseFromString(data)
     ctx = ParseContext(
-        msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool, simvar_pool=msg.simvar_pool
+        msg.nodes,
+        project=project,
+        kb=kb,
+        type_pool=msg.type_pool,
+        tag_pool=msg.tag_pool,
+        simvar_pool=msg.simvar_pool,
+        node_config=msg.node_config,
     )
     return ctx.resolve(msg.root_id)
 
@@ -527,6 +561,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     msg.type_pool.extend(ctx.type_pool)
     msg.tag_pool.extend(ctx.tag_pool)
     msg.simvar_pool.extend(ctx.simvar_pool)
+    msg.node_config.config_entries.extend(ctx.node_config)
     return msg
 
 
@@ -559,7 +594,13 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
     ctx = ParseContext(
-        msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool, simvar_pool=msg.simvar_pool
+        msg.nodes,
+        project=project,
+        kb=kb,
+        type_pool=msg.type_pool,
+        tag_pool=msg.tag_pool,
+        simvar_pool=msg.simvar_pool,
+        node_config=msg.node_config,
     )
 
     # Materialize the AST.
@@ -1133,8 +1174,9 @@ def _ser_cfuncall(node, pb, ctx):
         body.callee_func_addr = node.callee_func.addr
     for a in node.args:
         body.args_ids.append(ctx.serialize(a))
-    body.show_demangled_name = node.show_demangled_name
-    body.show_disambiguated_name = node.show_disambiguated_name
+    # show_demangled_name / show_disambiguated_name default to True; only record an override when either is False.
+    if not (node.show_demangled_name and node.show_disambiguated_name):
+        ctx.add_cfuncall_config(pb.node_id, node.show_demangled_name, node.show_disambiguated_name)
 
 
 def _parse_cfuncall(pb, ctx):
@@ -1154,8 +1196,7 @@ def _parse_cfuncall(pb, ctx):
     else:
         obj.callee_func = None
     obj.args = [ctx.resolve(i) for i in body.args_ids]
-    obj.show_demangled_name = body.show_demangled_name
-    obj.show_disambiguated_name = body.show_disambiguated_name
+    obj.show_demangled_name, obj.show_disambiguated_name = ctx.cfuncall_config(pb.node_id)
     return obj
 
 

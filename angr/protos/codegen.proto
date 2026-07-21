@@ -217,8 +217,24 @@ message CFunctionCallMsg {
     }
     optional uint64 callee_func_addr = 4;         // Function reference; resolved from KB at parse time
     repeated uint32 args_ids = 5;
-    bool show_demangled_name = 6;
-    bool show_disambiguated_name = 7;
+    // show_demangled_name / show_disambiguated_name moved to Codegen.node_config: they default to true and only the
+    // rare node that overrides them stores a NodeConfigEntry. Field numbers 6/7 are reserved.
+    reserved 6, 7;
+}
+
+// Per-node display configuration, stored out-of-line so the common default never occupies node bodies.
+message CFunctionCallConfigEntry {
+    bool show_demangled_name = 1;
+    bool show_disambiguated_name = 2;
+}
+message NodeConfigEntry {
+    uint32 node_id = 1;
+    oneof config {
+        CFunctionCallConfigEntry cfuncall = 2;
+    }
+}
+message NodeConfigMsg {
+    repeated NodeConfigEntry config_entries = 1;
 }
 
 // CStructField
@@ -458,6 +474,9 @@ message Codegen {
 
     // Interned SimVariable payloads ("<ClassName>\0<proto bytes>"); *_ref fields are index+1, 0 = absent.
     repeated bytes simvar_pool = 26;
+
+    // Out-of-line per-node display config; a node only appears here if it deviates from the defaults.
+    NodeConfigMsg node_config = 27;
 
     // Display options (round-tripped but not strictly part of the result). Field numbers 30-59 are reserved for
     // this block: c_serialize derives its display-option attribute list from this number range at runtime, so a
