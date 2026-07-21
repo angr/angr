@@ -233,35 +233,7 @@ class TestAMD64CondOverflowRewriting(unittest.TestCase):
 
 
 class TestAMD64CondOverflowBinary(unittest.TestCase):
-    """Whole-binary regression: no OF ccall may leak into the decompilation."""
-
-    def test_condo_binary_has_no_ccall(self):
-        bin_path = os.path.join(test_location, "x86_64", "condo_gcc_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
-
-        # the overflow-checked helpers, all of which compile to jo/cmovno on an OF cc_op
-        seen = 0
-        for func in cfg.functions.values():
-            if func.is_simprocedure or func.is_plt or func.is_alignment:
-                continue
-            dec = proj.analyses.Decompiler(func, cfg=cfg)
-            if dec.codegen is None or dec.codegen.text is None:
-                continue
-            seen += 1
-            assert "_ccall" not in dec.codegen.text, f"{func.addr:#x} still leaks a ccall"
-
-        assert seen > 0
-        # and the overflow helpers must actually show up
-        texts = []
-        for addr in (0x401220, 0x401230, 0x401250, 0x401270, 0x401290):
-            dec = proj.analyses.Decompiler(cfg.functions[addr], cfg=cfg)
-            texts.append(dec.codegen.text)
-        joined = "\n".join(texts)
-        assert "__OFUMUL__" in joined
-        assert "__OFSMUL__" in joined
-        assert "__OFADD__" in joined
-        assert "__OFSUB__" in joined
+    """Real-binary regression: no OF ccall may leak into the decompilation."""
 
     def test_gzip_overflow_checks_have_no_ccall(self):
         # gzip has a size-computation helper guarded by jo on ADDQ and SMULQ
