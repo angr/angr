@@ -6,6 +6,7 @@ import sys
 import pytest
 
 import angr
+import angr.utils.lmdb as lmdb_utils
 
 
 def test_platform_capabilities():
@@ -17,8 +18,6 @@ def test_platform_capabilities():
 
 
 def test_lmdb_emscripten_fallback(monkeypatch):
-    import angr.utils.lmdb as lmdb_utils
-
     try:
         with monkeypatch.context() as patch:
             patch.setattr(sys, "platform", "emscripten")
