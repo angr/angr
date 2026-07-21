@@ -895,10 +895,7 @@ class ConditionProcessor:
             # `lo == 0` extracts already lower to a clean `base & mask` and are left alone.
             for ext, other in (cond_.args, cond_.args[::-1]):
                 if (
-                    ext.op == "Extract"
-                    and other.op == "BVV"
-                    and other.args[0] == 0
-                    and ext.args[1] != 0  # lo
+                    ext.op == "Extract" and other.op == "BVV" and other.args[0] == 0 and ext.args[1] != 0  # lo
                 ):
                     hi, lo, base = ext.args
                     mask = ((1 << (hi - lo + 1)) - 1) << lo
