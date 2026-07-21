@@ -6,6 +6,7 @@ workspace="${ANGR_WASM_WORKSPACE:-$(dirname "$angr_dir")}"
 pyodide_version="${PYODIDE_VERSION:-314.0.2}"
 xbuildenv_path="${PYODIDE_XBUILDENV_PATH:-$workspace/.pyodide-xbuildenv}"
 out_dir="$angr_dir/wasm/dist"
+sample_dir="$angr_dir/wasm/samples"
 pyodide=(uvx --python 3.14 --from 'pyodide-build[resolve]' pyodide)
 
 for repo in archinfo claripy cle pyvex z3; do
@@ -17,6 +18,15 @@ done
 
 mkdir -p "$out_dir"
 rm -f "$out_dir"/*.whl
+
+sample_source="${ANGR_WASM_SAMPLE_BINARY:-$workspace/binaries/tests/x86_64/fauxware}"
+mkdir -p "$sample_dir"
+rm -f "$sample_dir/fauxware"
+if [[ -f "$sample_source" ]]; then
+    cp "$sample_source" "$sample_dir/fauxware"
+else
+    echo "Fauxware sample not found at $sample_source; the upload demo will still work" >&2
+fi
 
 export PYODIDE_XBUILDENV_PATH="$xbuildenv_path"
 "${pyodide[@]}" xbuildenv install "$pyodide_version" --path "$xbuildenv_path"

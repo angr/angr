@@ -7,22 +7,33 @@
     <style>
       body { max-width: 56rem; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.5 system-ui, sans-serif; }
       button, input { font: inherit; }
+      .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
       pre { overflow: auto; padding: 1rem; background: #111; color: #d8f7d2; border-radius: .4rem; }
     </style>
   </head>
   <body>
     <h1>angr in your browser</h1>
-    <p>Choose a binary. It stays in this worker and is analyzed locally with angr, VEX, and Z3.</p>
-    <input id="binary" type="file" />
-    <button id="analyze" disabled>Analyze</button>
+    <p>Try the bundled fauxware sample or choose your own binary. It stays in this worker and is analyzed locally.</p>
+    <div class="actions">
+      <button id="sample" disabled>Analyze fauxware</button>
+      <input id="binary" type="file" />
+      <button id="analyze" disabled>Analyze upload</button>
+    </div>
     <pre id="output">Loading the WebAssembly runtime…</pre>
     <script type="module">
       const output = document.querySelector("#output");
-      const button = document.querySelector("#analyze");
+      const sampleButton = document.querySelector("#sample");
+      const uploadButton = document.querySelector("#analyze");
       const input = document.querySelector("#binary");
       const worker = new Worker("./worker.mjs", { type: "module" });
       let nextId = 0;
+      let runtimeReady = false;
+      let fauxware;
       const pending = new Map();
+      const fauxwareRequest = fetch("./samples/fauxware").then(async (response) => {
+        if (!response.ok) throw new Error(`Could not load fauxware: HTTP ${response.status}`);
+        return new Uint8Array(await response.arrayBuffer());
+      });
 
       worker.addEventListener("message", ({ data }) => {
         const request = pending.get(data.id);
@@ -41,25 +52,42 @@
 
       try {
         const info = await ask({ type: "init" });
+        runtimeReady = true;
         output.textContent = `angr ${info.version} is ready.`;
-        button.disabled = false;
+        uploadButton.disabled = false;
       } catch (error) {
         output.textContent = error.stack;
       }
 
-      button.addEventListener("click", async () => {
-        if (!input.files.length) return;
-        button.disabled = true;
-        output.textContent = "Analyzing…";
+      try {
+        fauxware = await fauxwareRequest;
+        sampleButton.disabled = !runtimeReady;
+      } catch (error) {
+        sampleButton.title = error.message;
+      }
+
+      async function analyze(data, description) {
+        sampleButton.disabled = true;
+        uploadButton.disabled = true;
+        output.textContent = `Analyzing ${description}…`;
         try {
-          const data = await input.files[0].arrayBuffer();
           const result = await ask({ type: "analyze", data }, [data]);
           output.textContent = JSON.stringify(result, null, 2);
         } catch (error) {
           output.textContent = error.stack;
         } finally {
-          button.disabled = false;
+          sampleButton.disabled = !runtimeReady || !fauxware;
+          uploadButton.disabled = !runtimeReady;
         }
+      }
+
+      sampleButton.addEventListener("click", () => {
+        analyze(fauxware.slice().buffer, "fauxware");
+      });
+
+      uploadButton.addEventListener("click", async () => {
+        if (!input.files.length) return;
+        analyze(await input.files[0].arrayBuffer(), input.files[0].name);
       });
     </script>
   </body>
