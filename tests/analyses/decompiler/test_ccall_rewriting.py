@@ -257,6 +257,19 @@ class TestAMD64CondOverflowBinary(unittest.TestCase):
             assert "_ccall" not in dec.codegen.text, f"{addr:#x} still leaks a ccall"
             assert "__OFUMUL__" in dec.codegen.text, f"{addr:#x} lost its overflow check"
 
+    def test_tar_negated_overflow_check_is_rewritten(self):
+        # tar guards a multiply with `mul %rbp; jno`, i.e. the CondNO side of UMULQ.
+        # Other cc_op families still leak a ccall in that function, so only the OF
+        # conditions are asserted here.
+        bin_path = os.path.join(test_location, "x86_64", "tar_gcc17_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+        dec = proj.analyses.Decompiler(cfg.functions[0x53F6C0], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "__OFUMUL__" in dec.codegen.text
+        assert "_ccall(0, " not in dec.codegen.text
+        assert "_ccall(1, " not in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
