@@ -886,6 +886,39 @@ class ConditionProcessor:
             # TODO: Keep track of tags
             return ailment.Expr.UnaryOp(self.ail_manager.next_atom(), op, r, **tags)
 
+        def _cmp_reduce(op, cond_, tags):
+            # A bit test like `(base & 0b100) != 0` is canonicalized by clarirs into
+            # `Extract(hi, lo, base) != 0`. Lowering that extract literally yields `(base >> lo) & mask`;
+            # re-express the comparison against zero as the in-place mask `base & (mask << lo)` instead so
+            # it reads like the original `base & C`. This is only valid because comparing to zero makes it
+            # a boolean test (the shifted-down and in-place forms differ in value but not in truthiness).
+            # `lo == 0` extracts already lower to a clean `base & mask` and are left alone.
+            for ext, other in (cond_.args, cond_.args[::-1]):
+                if (
+                    ext.op == "Extract"
+                    and other.op == "BVV"
+                    and other.args[0] == 0
+                    and ext.args[1] != 0  # lo
+                ):
+                    hi, lo, base = ext.args
+                    mask = ((1 << (hi - lo + 1)) - 1) << lo
+                    base_ail = self.convert_claripy_bool_ast(base, memo=memo)
+                    masked = ailment.Expr.BinaryOp(
+                        self.ail_manager.next_atom(),
+                        "And",
+                        (base_ail, ailment.Expr.Const(self.ail_manager.next_atom(), mask, base.size(), **tags)),
+                        False,
+                        **tags,
+                    )
+                    return ailment.Expr.BinaryOp(
+                        self.ail_manager.next_atom(),
+                        op,
+                        (masked, ailment.Expr.Const(self.ail_manager.next_atom(), 0, base.size(), **tags)),
+                        False,
+                        **tags,
+                    )
+            return _binary_op_reduce(op, cond_.args, tags)
+
         _mapping = {
             "Not": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
             "__neg__": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
@@ -904,8 +937,8 @@ class ConditionProcessor:
             "SGE": lambda cond_, tags: _binary_op_reduce("CmpGE", cond_.args, tags, signed=True),
             "ULT": lambda cond_, tags: _binary_op_reduce("CmpLT", cond_.args, tags),
             "ULE": lambda cond_, tags: _binary_op_reduce("CmpLE", cond_.args, tags),
-            "__eq__": lambda cond_, tags: _binary_op_reduce("CmpEQ", cond_.args, tags),
-            "__ne__": lambda cond_, tags: _binary_op_reduce("CmpNE", cond_.args, tags),
+            "__eq__": lambda cond_, tags: _cmp_reduce("CmpEQ", cond_, tags),
+            "__ne__": lambda cond_, tags: _cmp_reduce("CmpNE", cond_, tags),
             "__add__": lambda cond_, tags: _binary_op_reduce("Add", cond_.args, tags, signed=False),
             "__sub__": lambda cond_, tags: _binary_op_reduce("Sub", cond_.args, tags),
             "__mul__": lambda cond_, tags: _binary_op_reduce("Mul", cond_.args, tags),
