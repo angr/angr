@@ -307,14 +307,18 @@ class ParseContext:
         return self._cfuncall_config.get(node_id, (True, True))
 
     def resolve_type(self, ref: int) -> SimType | None:
-        """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance."""
+        """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance, arch-bound so it can
+        report its size when re-rendered."""
         if ref == 0:
             return None
         loaded = self._type_json_cache.get(ref)
         if loaded is None:
             loaded = json.loads(self._type_pool[ref - 1])
             self._type_json_cache[ref] = loaded
-        return SimType.from_json(loaded)
+        ty = SimType.from_json(loaded)
+        if self.project is not None:
+            ty = ty.with_arch(self.project.arch)
+        return ty
 
     def resolve_simvar(self, ref: int) -> SimVariable | None:
         """Resolve a simvar-pool ref (index+1; 0 means absent) into a fresh SimVariable instance."""
@@ -589,11 +593,11 @@ def _rebuild_ast_to_pos(pos_to_node):
     return ast_to_pos
 
 
-def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
+def parse_codegen(msg, *, project=None, kb=None, func=None):
     """Materialize a CStructuredCodeGenerator from a Codegen cmessage. Bypasses __init__ since the constructor runs
     the full decompilation pipeline; instead we populate the attributes directly. The parsed instance is suitable for
     display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
-    require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
+    require ``project`` / ``func`` / ``kb`` to be reattached. Decompilation variables are read from ``kb.dec_variables``."""
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
     ctx = ParseContext(
         msg.nodes,
@@ -641,17 +645,25 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     cg._func_args = None
     cg._cfg = None
     cg._sequence = None
-    cg._variable_kb = variable_kb
+    cg.kb = kb
     cg.externs = set()
-    cg._variables_in_use = None
+    # codegen._variables_in_use is the same {SimVariable: CVariable} dict the CFunction carries (and serializes).
+    cg._variables_in_use = cg.cfunc.variables_in_use if cg.cfunc is not None else None
     cg._inlined_strings = set()
     cg._function_pointers = set()
     cg.ailexpr2cnode = None
     cg.cnode2ailexpr = None
     cg._handlers = None  # callers that want to re-render should construct a fresh CStructuredCodeGenerator
-    # The CFunction holds a back-reference to its variable_manager. variable_kb is the source.
+    # indent_delta (from the indent_size option) is not serialized; restore the default so re-rendering works.
+    from .c import INDENT_DELTA  # pylint:disable=import-outside-toplevel
+
+    cg.indent_delta = INDENT_DELTA
+    # The CFunction holds a back-reference to its per-function variable manager, sourced from kb.dec_variables.
+    # Only wire it when the manager already exists (don't lazily create an empty one, which would fool the
+    # decompiler's fast-path gate into thinking this function's variables were loaded).
     if cg.cfunc is not None:
-        cg.cfunc.variable_manager = variable_kb.variables if variable_kb is not None else None
+        has_dvars = kb is not None and func is not None and func.addr in kb.dec_variables
+        cg.cfunc.variable_manager = kb.dec_variables[func.addr] if has_dvars else None
 
     # Re-attach codegen back-references on every AST node.
     ctx.set_codegen(cg)

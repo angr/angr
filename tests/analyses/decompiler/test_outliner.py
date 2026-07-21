@@ -28,7 +28,7 @@ class TestOutliner(TestCase):
         print("[+] Original function:")
         assert dec.codegen is not None
         assert dec.codegen.text is not None
-        assert dec._variable_kb is not None
+        assert dec.func.addr in dec.kb.dec_variables
         assert dec.clinic is not None
         print(dec.codegen.text)
 
@@ -39,7 +39,7 @@ class TestOutliner(TestCase):
         )
 
         # now we have two graphs; gotta decompile them individually
-        del dec._variable_kb.variables[func.addr]
+        del dec.kb.dec_variables.function_managers[func.addr]
         dec_outer = proj.analyses[Decompiler].prep(
             fail_fast=True,
         )(
@@ -97,7 +97,7 @@ class TestOutliner(TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None
         assert dec.codegen.text is not None
-        assert dec._variable_kb is not None
+        assert dec.func.addr in dec.kb.dec_variables
         assert dec.clinic is not None
         print(dec.codegen.text)
 
@@ -172,7 +172,7 @@ class TestOutliner(TestCase):
                 extracted = tt.extract(final_state, 0xC000_0000)
                 print(extracted)
 
-        del dec._variable_kb.variables[func.addr]
+        del dec.kb.dec_variables.function_managers[func.addr]
         dec_outer = proj.analyses[Decompiler].prep(
             fail_fast=True,
         )(

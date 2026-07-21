@@ -16,7 +16,6 @@ from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.errors import AngrAIError
-from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
@@ -73,7 +72,6 @@ class Decompiler(Analysis):
         preset: str | DecompilationPreset | None = None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
-        variable_kb=None,
         peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE = None,
         vars_must_struct: set[str] | None = None,
         flavor="pseudocode",
@@ -139,7 +137,6 @@ class Decompiler(Analysis):
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
-        self._variable_kb = variable_kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
         self._ite_exprs = ite_exprs
@@ -152,7 +149,7 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
-        # ``cfg`` and ``variable_kb`` are deliberately NOT in this dict: they are inputs supplied by the parent
+        # ``cfg`` is deliberately NOT in this dict: it is an input supplied by the parent
         # Project and are not part of the decompilation result, so they are not part of the serialized cache.
         # Their identity is still checked for cache validity via :meth:`_can_use_decompilation_cache`.
         self._cache_parameters = (
@@ -240,12 +237,10 @@ class Decompiler(Analysis):
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         if self._cache_parameters is None or cache.parameters is None:
             return False
-        # cfg and variable_kb are identity-checked off the cache directly; they are not part of the parameters dict
-        # because they are not part of the decompilation result. Deserialized caches (protobuf, AngrDB) come back
-        # with these unset until the caller re-attaches them; an unset input is not a mismatch.
+        # cfg is identity-checked off the cache directly; it is not part of the parameters dict because it is not
+        # part of the decompilation result. Deserialized caches (protobuf, AngrDB) come back with it unset until
+        # the caller re-attaches it; an unset input is not a mismatch.
         if cache.cfg is not None and cache.cfg is not self._cfg:
-            return False
-        if cache.variable_kb is not None and cache.variable_kb is not self._variable_kb:
             return False
         a, b = self._cache_parameters, cache.parameters
         if not b:
@@ -274,11 +269,13 @@ class Decompiler(Analysis):
 
     def _reuse_cached_decompilation(self, cache, clinic, codegen) -> None:
         """Full-reuse fast path: expose the cached clinic and codegen as this run's results without re-running the
-        pipeline. The codegen text is re-rendered so in-place display edits since the last render show up, and the
-        codegen inherits the cache's provenance stamps."""
+        pipeline. A live codegen's text is re-rendered so in-place display edits since the last render show up; a
+        freshly-deserialized codegen (``_handlers is None``) keeps its stored text, which is authoritative and avoids
+        re-rendering from a lossily-reconstructed AST. Either way the codegen inherits the cache's provenance stamps."""
         codegen.version = cache.version
         codegen.timestamp = cache.timestamp
-        codegen.regenerate_text()
+        if codegen._handlers is not None:
+            codegen.regenerate_text()
 
         self.cache = cache
         self.clinic = clinic
@@ -286,7 +283,6 @@ class Decompiler(Analysis):
         self.seq_node = None
         self.ail_graph = clinic.cc_graph
         self.unoptimized_ail_graph = clinic.unoptimized_graph
-        self._variable_kb = clinic.variable_kb
         self._variable_map = clinic.variable_map
         self.vvar_id_start = clinic.vvar_id_start
         self._copied_var_ids = clinic.copied_var_ids
@@ -327,9 +323,9 @@ class Decompiler(Analysis):
         # the entire pipeline and hands back the cached clinic and codegen. The text is re-rendered from the cached
         # codegen AST so any in-place display edits (const formats, comments) since the last render are reflected.
         # A DummyStructuredCodeGenerator (legacy angrdb rows) has no AST to render from, so it takes the normal path.
-        # The cached codegen can only be re-rendered when it carries a live variable manager. Deserialized caches
-        # loaded without a variable_kb (angrdb rows, LMDB-spilled reloads) do not, so they fall through to a fresh
-        # decompilation (below, old_clinic with no variable_kb is likewise rejected as a reuse source).
+        # The cached codegen can only be re-rendered when kb.dec_variables holds this function's variables.
+        # Deserialized caches whose dec_variables were not loaded (angrdb rows, LMDB-spilled reloads) fall through
+        # to a fresh decompilation (below, a clinic whose function has no dec_variables is likewise rejected).
         if (
             self.use_cache
             and not self._regen_clinic
@@ -337,7 +333,7 @@ class Decompiler(Analysis):
             and old_clinic is not None
             and old_codegen is not None
             and not isinstance(old_codegen, DummyStructuredCodeGenerator)
-            and getattr(old_codegen, "_variable_kb", None) is not None
+            and self.func.addr in self.kb.dec_variables
             and self.func.prototype is not None
         ):
             self._reuse_cached_decompilation(cache, old_clinic, old_codegen)
@@ -353,15 +349,7 @@ class Decompiler(Analysis):
         self._set_global_variables()
         self._update_progress(5.0, text="Converting to AIL")
 
-        variable_kb = self._variable_kb
-        # fall back to old codegen
-        if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
-            variable_kb = old_codegen._variable_kb
-
-        if variable_kb is None:
-            reset_variable_names = True
-        else:
-            reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
+        reset_variable_names = self.func.addr not in self.kb.dec_variables.function_managers
 
         # determine a few arguments according to the structuring algorithm
         fold_callexprs_into_conditions = False
@@ -383,7 +371,6 @@ class Decompiler(Analysis):
 
         cache = DecompilationCache(self.func.addr)
         cache.cfg = self._cfg
-        cache.variable_kb = self._variable_kb
         if self._cache_parameters is not None:
             cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
@@ -398,14 +385,18 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        # Reuse the cached clinic only when it is a usable source: a deserialized clinic without a variable_kb
-        # (angrdb / LMDB-spilled reloads) cannot drive codegen, so re-run Clinic from scratch instead.
-        if self._regen_clinic or old_clinic is None or self.func.prototype is None or old_clinic.variable_kb is None:
+        # Reuse the cached clinic only when it is a usable source: a deserialized clinic whose function has no
+        # dec_variables cannot drive codegen, so re-run Clinic from scratch instead.
+        if (
+            self._regen_clinic
+            or old_clinic is None
+            or self.func.prototype is None
+            or self.func.addr not in self.kb.dec_variables
+        ):
             clinic = self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
                 fail_fast=self._fail_fast,
-                variable_kb=variable_kb,
                 reset_variable_names=reset_variable_names,
                 optimization_passes=self._optimization_passes,
                 sp_tracker_track_memory=self._sp_tracker_track_memory,
@@ -445,7 +436,6 @@ class Decompiler(Analysis):
         # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial
         # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
         cache.variable_map = clinic.variable_map
-        self._variable_kb = clinic.variable_kb
         self._variable_map = clinic.variable_map
         self._update_progress(70.0, text="Identifying regions")
         self.vvar_id_start = clinic.vvar_id_start
@@ -517,8 +507,8 @@ class Decompiler(Analysis):
             # simplify it
             # Get variable manager for loop counter naming in RegionSimplifier
             variable_manager = None
-            if clinic.variable_kb is not None and self.func.addr in clinic.variable_kb.variables:
-                variable_manager = clinic.variable_kb.variables[self.func.addr]
+            if self.func.addr in self.kb.dec_variables:
+                variable_manager = self.kb.dec_variables[self.func.addr]
             region_simplifier_params = self.options_to_params(self.options_by_class["region_simplifier"])
             # The Rust flavor forces if-else simplification off regardless of user options.
             region_simplifier_params.pop("simplify_ifelse", None)
@@ -541,7 +531,7 @@ class Decompiler(Analysis):
                 binop_operators=cache.binop_operators,
                 goto_manager=s.goto_manager,
                 graph=clinic.graph,
-                variable_kb=self._variable_kb,
+                kb=self.kb,
             )
 
             # rewrite the sequence node to remove phi expressions
@@ -560,7 +550,6 @@ class Decompiler(Analysis):
                     ail_graph=clinic.graph,
                     flavor=self._flavor,
                     func_args=clinic.arg_list,
-                    variable_kb=clinic.variable_kb,
                     variable_map=clinic.variable_map,
                     expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
@@ -656,7 +645,7 @@ class Decompiler(Analysis):
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
-                variable_kb=self._variable_kb,
+                kb=self.kb,
                 reaching_definitions=reaching_definitions,
                 entry_node_addr=self.clinic.entry_node_addr,
                 scratch=self._optimization_scratch,
@@ -721,7 +710,7 @@ class Decompiler(Analysis):
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
-                variable_kb=self._variable_kb,
+                kb=self.kb,
                 arg_vvars=arg_vvars,
                 region_identifier=ri,
                 reaching_definitions=reaching_definitions,
@@ -812,13 +801,13 @@ class Decompiler(Analysis):
             # nothing to reflow; but this should not happen
             return None
 
-        var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
+        var_kb = self.kb
 
-        if self.func.addr not in var_kb.variables:
+        if self.func.addr not in var_kb.dec_variables:
             # for some reason variables for the current function don't really exist...
             groundtruth = {}
         else:
-            var_manager = var_kb.variables[self.func.addr]
+            var_manager = var_kb.dec_variables[self.func.addr]
             # ground-truth types
             groundtruth = {}
             for variable in var_manager.variables_with_manual_types:
@@ -881,7 +870,7 @@ class Decompiler(Analysis):
                 and isinstance(codegen, CStructuredCodeGenerator)
                 and codegen.cfunc is not None
             ):
-                var_manager = var_kb.variables[self.func.addr]
+                var_manager = var_kb.dec_variables[self.func.addr]
                 for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):
                         break
@@ -950,12 +939,10 @@ class Decompiler(Analysis):
         :param ail_graph:   The AIL graph to transform out of SSA form.
         :return:            The translated AIL graph.
         """
-        variable_kb = self._variable_kb
         dephication = self.project.analyses.GraphDephication(
             self.func,
             ail_graph,
             rewrite=True,
-            variable_kb=variable_kb,
             variable_map=self._variable_map,
             kb=self.kb,
             fail_fast=self._fail_fast,
@@ -963,12 +950,10 @@ class Decompiler(Analysis):
         return dephication.output
 
     def transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
-        variable_kb = self._variable_kb
         dephication = self.project.analyses.SeqNodeDephication(
             self.func,
             seq_node,
             rewrite=True,
-            variable_kb=variable_kb,
             variable_map=self._variable_map,
             kb=self.kb,
             fail_fast=self._fail_fast,
@@ -1029,7 +1014,7 @@ class Decompiler(Analysis):
             return False
 
         # collect unified variables
-        varman = self._variable_kb.variables[self.func.addr]
+        varman = self.kb.dec_variables[self.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
 
         # also collect argument variables
@@ -1158,7 +1143,7 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        varman = self._variable_kb.variables[self.func.addr]
+        varman = self.kb.dec_variables[self.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
 
         if not unified_vars:

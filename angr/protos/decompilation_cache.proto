@@ -66,9 +66,10 @@ message DecompilationParameters {
 // =====================================================================================================================
 // DecompilationCache
 // =====================================================================================================================
-// cfg and variable_kb are intentionally NOT serialized: they are decompilation inputs supplied by the parent Project
-// at decompile time and are not part of the result. After parse, ``cache.cfg`` and ``cache.variable_kb`` come back as
-// None; the caller is expected to re-attach them.
+// cfg is intentionally NOT serialized: it is a decompilation input supplied by the parent Project at decompile time
+// and is not part of the result. After parse, ``cache.cfg`` comes back as None; the caller is expected to re-attach
+// it. Decompilation variables live on the shared ``kb.dec_variables`` and are serialized separately (angrdb / rtdb),
+// not inside the cache.
 
 message DecompilationCache {
     uint64 addr = 1;

@@ -229,7 +229,6 @@ class Clinic(Analysis, Serializable):
         peephole_optimizations: None
         | (Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
-        variable_kb: KnowledgeBase | None = None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
         rewrite_ites_to_diamond_max_cases: int = 15,
@@ -275,7 +274,8 @@ class Clinic(Analysis, Serializable):
         self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
         self.func_args = None
         self.func_ret_var = SimVariable(0, "__retvar", "__retvar")
-        self.variable_kb = variable_kb
+        # True once _recover_and_link_variables has populated kb.dec_variables for this function this run
+        self._variables_recovered = False
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
@@ -380,7 +380,7 @@ class Clinic(Analysis, Serializable):
             self._analyze_for_decompiling()
             if (
                 self._end_stage >= ClinicStage.MAKE_CALLSITES
-                and self.variable_kb is not None
+                and self._variables_recovered
                 and self._constrain_callee_prototypes
             ):
                 self.constrain_callee_prototypes()
@@ -513,11 +513,11 @@ class Clinic(Analysis, Serializable):
         return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
     def _slice_variables(self, ail_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph[ailment.Block]:
-        assert self.variable_kb is not None and self._desired_variables is not None
+        assert self._variables_recovered and self._desired_variables is not None
 
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
 
-        vfm = self.variable_kb.variables.function_managers[self.function.addr]
+        vfm = self.kb.dec_variables.function_managers[self.function.addr]
         for v_name in self._desired_variables:
             v = next(iter(vv for vv in vfm._unified_variables if vv.name == v_name))
             for va in vfm.get_variable_accesses(v):
@@ -530,7 +530,7 @@ class Clinic(Analysis, Serializable):
         a = TagSlicer(
             self.function,
             graph=ail_graph,
-            variable_kb=self.variable_kb,
+            kb=self.kb,
         )
         if a.out_graph:
             # use the new graph
@@ -992,7 +992,7 @@ class Clinic(Analysis, Serializable):
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(
+        self._recover_and_link_variables(
             self._ail_graph, self.arg_list, self.arg_vvars, self.vvar_to_vvar, self._type_hints
         )
 
@@ -1004,14 +1004,13 @@ class Clinic(Analysis, Serializable):
             self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
             avoid_vvar_ids=self.copied_var_ids,
-            variable_kb=variable_kb,
         )
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
-        self._make_function_prototype(self.arg_list, variable_kb)
+        self._make_function_prototype(self.arg_list)
 
-        self.variable_kb = variable_kb
+        self._variables_recovered = True
 
     def _stage_semantic_variable_naming(self) -> None:
         """
@@ -1020,8 +1019,8 @@ class Clinic(Analysis, Serializable):
         This stage analyzes the AIL graph for semantic patterns and renames variables accordingly.
         """
 
-        if self.variable_kb is None:
-            l.debug("variable_kb is None, skipping semantic variable naming")
+        if not self._variables_recovered:
+            l.debug("variables not recovered, skipping semantic variable naming")
             return
 
         if self.flavor == "rust":
@@ -1031,7 +1030,7 @@ class Clinic(Analysis, Serializable):
         self._update_progress(91.0, text="Applying semantic variable naming")
 
         # Get the variable manager for this function
-        var_manager = self.variable_kb.variables[self.function.addr]
+        var_manager = self.kb.dec_variables[self.function.addr]
 
         # Find the entry node
         entry_node: ailment.Block | None = None
@@ -1050,7 +1049,7 @@ class Clinic(Analysis, Serializable):
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
     def _stage_collect_externs(self) -> None:
-        self.externs = self._collect_externs(self._ail_graph, self.variable_kb, self.variable_map)
+        self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map)
 
     def _analyze_for_data_refs(self):
         # Remove alignment blocks
@@ -1130,7 +1129,7 @@ class Clinic(Analysis, Serializable):
 
         self.graph = ail_graph
         self.arg_list = None
-        self.variable_kb = None
+        self._variables_recovered = False
         self.cc_graph = None
         self.externs = set()
         self.data_refs: dict[int, list[DataRefDesc]] = self._collect_data_refs(ail_graph)
@@ -1994,7 +1993,6 @@ class Clinic(Analysis, Serializable):
         self,
         ail_graph,
         stage: OptimizationPassStage = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
-        variable_kb=None,
         stack_items: dict[int, StackItem] | None = None,
         stack_pointer_tracker=None,
         **kwargs,
@@ -2026,7 +2024,7 @@ class Clinic(Analysis, Serializable):
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
-                variable_kb=variable_kb,
+                kb=self.kb,
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.entry_node_addr,
                 scratch=self.optimization_scratch,
@@ -2339,7 +2337,7 @@ class Clinic(Analysis, Serializable):
         return ail_graph
 
     @timethis
-    def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb: KnowledgeBase):
+    def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.prototype is not None:
             if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
                 # do not overwrite an existing function prototype
@@ -2352,7 +2350,7 @@ class Clinic(Analysis, Serializable):
                 # FIXME: remove this branch once type inference supports floating point variables
                 return
 
-        variables = variable_kb.variables[self.function.addr]
+        variables = self.kb.dec_variables[self.function.addr]
         func_args = []
         for arg in arg_list:
             func_arg = None
@@ -2395,8 +2393,11 @@ class Clinic(Analysis, Serializable):
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]],
     ):
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
+        # Route variable recovery into the shared kb.dec_variables (VariableRecoveryBase writes to kb.variables
+        # of whatever KB it is given), keeping it isolated from the disassembly-level kb.variables.
+        tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
+        tmp_kb.register_plugin("variables", self.kb.dec_variables)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -3608,8 +3609,8 @@ class Clinic(Analysis, Serializable):
             node.statements.insert(0, lbl)
 
     @staticmethod
-    def _collect_externs(ail_graph, variable_kb, variable_map: VariableMap):
-        global_vars = variable_kb.variables.global_manager.get_variables()
+    def _collect_externs(ail_graph, kb, variable_map: VariableMap):
+        global_vars = kb.dec_variables.global_manager.get_variables()
         walker = ailment.AILBlockRewriter()
         variables = set()
 
@@ -4031,10 +4032,10 @@ class Clinic(Analysis, Serializable):
                 ail_graph.add_edge(new_node, succ)
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
-        if self.variable_kb is None:
+        if not self._variables_recovered:
             return {}
 
-        variables = self.variable_kb.variables[self.function.addr]
+        variables = self.kb.dec_variables[self.function.addr]
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
 
         # pylint:disable=unused-argument
@@ -4234,7 +4235,7 @@ class Clinic(Analysis, Serializable):
     # -----------------------------------------------------------------------------------------------------------------
     # Protobuf serialization. Conventions:
     # - Heavy sub-objects manage their own formats; AIL-typed slots use the typed messages from ail_types.proto.
-    # - Runtime back-references (project / kb / function / variable_kb / _cfg / _cache / typehoon / _spt) are not
+    # - Runtime back-references (project / kb / function / _cfg / _cache / typehoon / _spt) are not
     #   serialized; they are reattached at parse time from the caller's kwargs.
     # - parse_from_cmessage uses __new__ to bypass __init__, which would run the full decompilation pipeline.
     # -----------------------------------------------------------------------------------------------------------------
@@ -4360,12 +4361,11 @@ class Clinic(Analysis, Serializable):
         project=None,
         kb=None,
         function=None,
-        variable_kb=None,
         cfg=None,
         **kwargs,
     ):
         """Bypasses :meth:`Clinic.__init__` (which runs the analysis) and reconstructs the instance directly. Runtime
-        back-references — project / kb / function / variable_kb / _cfg — come from kwargs.
+        back-references — project / kb / function / _cfg — come from kwargs.
 
         Only the state consumed by the decompiler's cache-reuse path is serialized; every attribute cleared by
         :meth:`downsize` is restored to the same downsized default here, so live-cached and deserialized clinics
@@ -4419,8 +4419,8 @@ class Clinic(Analysis, Serializable):
         clinic.arg_list = [simvar_from_bytes_polymorphic(e.payload) for e in msg.arg_list] if msg.arg_list else None
         clinic.externs = {simvar_from_bytes_polymorphic(e.payload) for e in msg.externs}
 
-        # Variable_kb / cfg back-references.
-        clinic.variable_kb = variable_kb
+        # cfg back-reference; decompilation variables live on kb.dec_variables, not on the clinic.
+        clinic._variables_recovered = False
         clinic._cfg = cfg
 
         # Flavor.

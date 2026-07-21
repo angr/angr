@@ -15,7 +15,6 @@ from .dephication_base import DephicationBase
 from .graph_rewriting import GraphRewritingAnalysis
 
 if TYPE_CHECKING:
-    from angr import KnowledgeBase
     from angr.analyses.decompiler.variable_map import VariableMap
 
 
@@ -34,7 +33,6 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
         ail_graph,
         vvar_to_vvar_mapping: dict[int, int] | None = None,
         rewrite: bool = False,
-        variable_kb: KnowledgeBase | None = None,
         variable_map: VariableMap | None = None,
     ):
         """
@@ -48,7 +46,6 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
             func,
             vvar_to_vvar_mapping=vvar_to_vvar_mapping,
             rewrite=rewrite,
-            variable_kb=variable_kb,
             variable_map=variable_map,
         )
 
@@ -76,7 +73,7 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
             self._function,
             self._graph,
             self.vvar_to_vvar_mapping,
-            variable_kb=self.variable_kb,
+            kb=self.kb,
             variable_map=self.variable_map,
         )
         return rewriter.out_graph

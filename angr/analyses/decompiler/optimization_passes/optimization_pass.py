@@ -133,7 +133,7 @@ class OptimizationPass(BaseOptimizationPass):
         graph,
         blocks_by_addr=None,
         blocks_by_addr_and_idx=None,
-        variable_kb=None,
+        kb=None,
         region_identifier=None,
         reaching_definitions=None,
         vvar_id_start: int = 0,
@@ -155,7 +155,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr or {}
         self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx or {}
         self._graph = graph
-        self._variable_kb = variable_kb
+        self._dvars_kb = kb
         self._ri = region_identifier
         self._rd = reaching_definitions
         self._scratch = scratch if scratch is not None else {}

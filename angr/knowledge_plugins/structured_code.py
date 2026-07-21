@@ -42,8 +42,8 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
     unbounded in-memory dict and behave as if spilling were disabled.
 
     Spilled entries are deserialized on access with the owning knowledge base's project/function attached. Like all
-    deserialized decompilation caches, they come back without the four typehoon slots and without ``cfg`` /
-    ``variable_kb``, which cache-validity checks treat as valid.
+    deserialized decompilation caches, they come back without the four typehoon slots and without ``cfg``, which
+    cache-validity checks treat as valid.
     """
 
     def __init__(self, kb: KnowledgeBase, cache_limit: int = DECOMPILATION_CACHE_LIMIT):

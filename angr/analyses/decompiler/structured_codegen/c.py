@@ -2781,7 +2781,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         sequence,
         indent=0,
         cfg=None,
-        variable_kb=None,
         func_args: list[SimVariable] | None = None,
         binop_depth_cutoff: int = 16,
         show_casts=True,
@@ -2869,7 +2868,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self._func_args = func_args
         self._cfg = cfg
         self._sequence = sequence
-        self._variable_kb = variable_kb if variable_kb is not None else self.kb
         self._variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
         self.binop_depth_cutoff = binop_depth_cutoff
 
@@ -2960,7 +2958,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             arg_list,
             obj,
             self._variables_in_use,
-            self._variable_kb.variables[self._func.addr],
+            self.kb.dec_variables[self._func.addr],
             demangled_name=self._func.demangled_name,
             show_demangled_name=self.show_demangled_name,
             codegen=self,
@@ -3065,8 +3063,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self._variable_kb.variables["global"].get_variable_type(var)
-        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+            return self.kb.dec_variables["global"].get_variable_type(var)
+        return self.kb.dec_variables[self._func.addr].get_variable_type(var)
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
@@ -3123,7 +3121,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     ) -> CVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
-        unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
+        unified = self.kb.dec_variables[self._func.addr].unified_variable(variable)
         variable_type = self._get_variable_type(
             variable, is_global=isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable)
         )
@@ -3698,7 +3696,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def variables_unify(self, v1: Expr.VirtualVariable, v2: Expr.VirtualVariable) -> bool:
-        vmi = self._variable_kb.variables[self._func.addr]
+        vmi = self.kb.dec_variables[self._func.addr]
         v1_var = self._variable_map.variable(v1)
         v2_var = self._variable_map.variable(v2)
         v1v = vmi.unified_variable(v1_var) if v1_var is not None else None
@@ -4385,10 +4383,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return c_serialize.serialize_codegen(self)
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, *, project=None, kb=None, variable_kb=None, func=None, **kwargs):
+    def parse_from_cmessage(cls, cmsg, *, project=None, kb=None, func=None, **kwargs):
         from . import c_serialize  # pylint:disable=import-outside-toplevel
 
-        return c_serialize.parse_codegen(cmsg, project=project, kb=kb, variable_kb=variable_kb, func=func)
+        return c_serialize.parse_codegen(cmsg, project=project, kb=kb, func=func)
 
 
 class CStructuredCodeWalker:

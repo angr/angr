@@ -1394,4 +1394,24 @@ class VariableManager(KnowledgeBasePlugin):
                 self.convert_variable_list(subp.local_variables, manager)
 
 
+class DecompilationVariableManager(VariableManager):
+    """
+    Holds variables discovered during decompilation, kept separate from the disassembly-level ``kb.variables`` so the
+    two do not clobber each other. Exposed as ``kb.dec_variables``.
+    """
+
+    def copy(self) -> DecompilationVariableManager:
+        new = DecompilationVariableManager(self._kb)
+        new.global_manager = self._copy_internal(self.global_manager, new)
+        new.function_managers = {addr: self._copy_internal(vmi, new) for addr, vmi in self.function_managers.items()}
+        return new
+
+    @staticmethod
+    def _copy_internal(vmi: VariableManagerInternal, manager: VariableManager) -> VariableManagerInternal:
+        clone = VariableManagerInternal.parse(vmi.serialize(), variable_manager=manager, func_addr=vmi.func_addr)
+        clone.set_manager(manager)
+        return clone
+
+
 KnowledgeBasePlugin.register_default("variables", VariableManager)
+KnowledgeBasePlugin.register_default("dec_variables", DecompilationVariableManager)

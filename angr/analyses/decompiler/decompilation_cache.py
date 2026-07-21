@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from angr import ailment
     from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
-    from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.cfg import CFGModel
 
     from .notes import DecompilationNote
@@ -37,7 +36,8 @@ if TYPE_CHECKING:
 # Conventions:
 # - Heavy sub-objects (``clinic``, ``codegen``) are embedded as already-serialized bytes (each manages its own format).
 # - AIL-typed top-level slots (``arg_vvars``, ``ite_exprs``) use the typed messages from ``ail_types.proto``.
-# - ``cfg`` and ``variable_kb`` are intentionally not serialized — they come from the parent Project.
+# - ``cfg`` is intentionally not serialized — it comes from the parent Project. Decompilation variables live on
+#   kb.dec_variables.
 # - The 4 typehoon-typed slots are skipped entirely (typehoon is out of scope for now).
 # ---------------------------------------------------------------------------------------------------------------------
 
@@ -164,7 +164,7 @@ class DecompilationCache(Serializable):
     Caches key data structures that can be used later for refining decompilation results, such as retyping variables.
     """
 
-    # ``cfg`` and ``variable_kb`` are not part of the decompilation result: they are inputs supplied by the parent
+    # ``cfg`` is not part of the decompilation result: it is an input supplied by the parent
     # Project at decompile time and are used only for in-memory cache-validity checks. They are intentionally not
     # serialized; on deserialization they come back as None and must be re-attached by the caller.
     __slots__ = (
@@ -186,7 +186,6 @@ class DecompilationCache(Serializable):
         "timestamp",
         "type_constraints",
         "var_to_typevar",
-        "variable_kb",
         "variable_map",
         "version",
     )
@@ -200,7 +199,6 @@ class DecompilationCache(Serializable):
         self.timestamp: int = int(time.time())
         self.addr = addr
         self.cfg: CFGModel | None = None
-        self.variable_kb: KnowledgeBase | None = None
         self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
         self.arg_vvars: dict | None = None
         self.func_typevar: TypeVariable | None = None
@@ -219,9 +217,9 @@ class DecompilationCache(Serializable):
 
     @property
     def local_types(self):
-        if self.clinic is None or self.clinic.variable_kb is None:
+        if self.clinic is None or self.clinic.kb is None or self.addr not in self.clinic.kb.dec_variables:
             return None
-        return self.clinic.variable_kb.variables[self.addr].types
+        return self.clinic.kb.dec_variables[self.addr].types
 
     # -----------------------------------------------------------------------------------------------------------------
     # Protobuf serialization. Heavy sub-objects (clinic, codegen) are embedded as already-serialized bytes from their
@@ -229,7 +227,7 @@ class DecompilationCache(Serializable):
     # ail_types.proto.
     #
     # The 4 typehoon-typed slots (type_constraints, func_typevar, var_to_typevar, stack_offset_typevars) and the
-    # ``cfg`` / ``variable_kb`` runtime inputs are intentionally NOT serialized and come back as None.
+    # ``cfg`` runtime input is intentionally NOT serialized and comes back as None.
     # -----------------------------------------------------------------------------------------------------------------
 
     @classmethod
@@ -281,29 +279,23 @@ class DecompilationCache(Serializable):
         project=None,
         kb=None,
         function=None,
-        variable_kb=None,
         cfg=None,
         **_,
     ):
-        """Parse a DecompilationCache from a cmessage. Runtime back-references (project, kb, function, variable_kb,
-        cfg) are passed through to the embedded Clinic / codegen parsers so the parsed cache is functional for
-        cache-hit validity checks."""
+        """Parse a DecompilationCache from a cmessage. Runtime back-references (project, kb, function, cfg) are
+        passed through to the embedded Clinic / codegen parsers so the parsed cache is functional for cache-hit
+        validity checks. Decompilation variables live on kb.dec_variables."""
         from .notes import DecompilationNote  # pylint:disable=import-outside-toplevel
         from .structured_codegen.c import CStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
 
         cache = cls(cmsg.addr)
-        # cfg and variable_kb are not serialized; reattach from kwargs so cache-validity checks still work.
+        # cfg is not serialized; reattach from kwargs so cache-validity checks still work.
         cache.cfg = cfg
-        cache.variable_kb = variable_kb
 
         if cmsg.HasField("clinic"):
-            cache.clinic = Clinic.parse(
-                cmsg.clinic, project=project, kb=kb, function=function, variable_kb=variable_kb, cfg=cfg
-            )
+            cache.clinic = Clinic.parse(cmsg.clinic, project=project, kb=kb, function=function, cfg=cfg)
         if cmsg.HasField("codegen"):
-            cache.codegen = CStructuredCodeGenerator.parse(
-                cmsg.codegen, project=project, kb=kb, variable_kb=variable_kb, func=function
-            )
+            cache.codegen = CStructuredCodeGenerator.parse(cmsg.codegen, project=project, kb=kb, func=function)
 
         cache.errors = list(cmsg.errors)
         if cmsg.HasField("function_summary"):

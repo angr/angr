@@ -2730,7 +2730,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         sequence,
         indent=0,
         cfg=None,
-        variable_kb=None,
         func_args: list[SimVariable] | None = None,
         binop_depth_cutoff: int = 16,
         show_casts=True,
@@ -2812,7 +2811,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._func_args = func_args
         self._cfg = cfg
         self._sequence = sequence
-        self._variable_kb = variable_kb if variable_kb is not None else self.kb
         self._variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
         self.binop_depth_cutoff = binop_depth_cutoff
 
@@ -2911,7 +2909,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             arg_list,
             obj,
             self._variables_in_use,
-            self._variable_kb.variables[self._func.addr],
+            self.kb.dec_variables[self._func.addr],
             demangled_name=self._func.demangled_name,
             show_demangled_name=self.show_demangled_name,
             codegen=self,
@@ -3013,8 +3011,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self._variable_kb.variables["global"].get_variable_type(var)
-        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+            return self.kb.dec_variables["global"].get_variable_type(var)
+        return self.kb.dec_variables[self._func.addr].get_variable_type(var)
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
@@ -3059,7 +3057,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         #     import ipdb
         #
         #     ipdb.set_trace()
-        unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
+        unified = self.kb.dec_variables[self._func.addr].unified_variable(variable)
         variable_type = self._get_variable_type(
             variable, is_global=isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable)
         )

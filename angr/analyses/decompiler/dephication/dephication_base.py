@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from angr.analyses.analysis import Analysis
 
 if TYPE_CHECKING:
-    from angr import KnowledgeBase
     from angr.analyses.decompiler.variable_map import VariableMap
 
 l = logging.getLogger(name=__name__)
@@ -24,7 +23,6 @@ class DephicationBase(Analysis):
         func,
         vvar_to_vvar_mapping: dict[int, int] | None = None,
         rewrite: bool = False,
-        variable_kb: KnowledgeBase | None = None,
         variable_map: VariableMap | None = None,
     ):
         if isinstance(func, str):
@@ -32,7 +30,6 @@ class DephicationBase(Analysis):
         else:
             self._function = func
 
-        self.variable_kb = variable_kb
         self.vvar_to_vvar_mapping = vvar_to_vvar_mapping if vvar_to_vvar_mapping is not None else None
         self.variable_map = variable_map
         self.rewrite = rewrite

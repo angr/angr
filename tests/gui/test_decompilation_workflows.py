@@ -45,8 +45,8 @@ class TestDecompilationWorkflows(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert dec._variable_kb is not None
-        types = dec._variable_kb.variables["main"].types
+        assert dec.func.addr in dec.kb.dec_variables
+        types = dec.kb.dec_variables["main"].types
         # let's rename a struct field
         new_type_name = "my_awesome_type"
         t = types["struct_0"]
@@ -71,8 +71,8 @@ class TestDecompilationWorkflows(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert dec._variable_kb is not None
-        types = dec._variable_kb.variables["main"].types
+        assert dec.func.addr in dec.kb.dec_variables
+        types = dec.kb.dec_variables["main"].types
         # let's rename a struct field
         t = types["struct_0"]
         assert isinstance(t, TypeRef)
@@ -99,8 +99,8 @@ class TestDecompilationWorkflows(unittest.TestCase):
         print_decompilation_result(dec)
         assert "struct struct_1 *field_120;" in dec.codegen.text
 
-        assert dec._variable_kb is not None
-        types = dec._variable_kb.variables["main"].types
+        assert dec.func.addr in dec.kb.dec_variables
+        types = dec.kb.dec_variables["main"].types
         # let's type a struct field
         t = types["struct_0"]
         assert isinstance(t, TypeRef)

@@ -201,7 +201,7 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
     def test_codegen_roundtrip(self):
         codegen = self.decompiler.codegen
         blob = codegen.serialize()
-        back = type(codegen).parse(blob, project=self.proj, kb=self.proj.kb, variable_kb=codegen._variable_kb)
+        back = type(codegen).parse(blob, project=self.proj, kb=self.proj.kb)
         assert back.text == codegen.text
         assert back.cfunc is not None
         assert back.cfunc.name == codegen.cfunc.name
@@ -232,7 +232,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
             project=self.proj,
             kb=self.proj.kb,
             function=clinic.function,
-            variable_kb=clinic.variable_kb,
             cfg=clinic._cfg,
         )
         # the fields the decompiler's cache-reuse path consumes round-trip
@@ -282,7 +281,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
             project=self.proj,
             kb=self.proj.kb,
             function=self.func,
-            variable_kb=cache.variable_kb,
             cfg=self.cfg.model,
         )
         assert back.addr == cache.addr
@@ -306,7 +304,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
             project=self.proj,
             kb=self.proj.kb,
             function=self.func,
-            variable_kb=cache.variable_kb,
             cfg=self.cfg.model,
         )
 

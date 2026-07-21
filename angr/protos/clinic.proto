@@ -49,7 +49,7 @@ message ExternBytes {
 // Clinic
 // =====================================================================================================================
 // Many ctor parameters double as instance attributes; we round-trip all of them so the cache-hit path sees the same
-// configuration as the original Clinic. Runtime back-references (project / kb / function / variable_kb / cfg /
+// configuration as the original Clinic. Runtime back-references (project / kb / function / cfg /
 // _handlers / typehoon / _spt / _cache) are reattached at parse time from kwargs and are NOT serialized.
 
 message Clinic {

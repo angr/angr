@@ -374,9 +374,11 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
-        dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model)
-        assert dec.codegen is not None and dec.codegen.text is not None
+        proj.analyses.CFGFast(normalize=True)
+        # populate the disassembly-level variable manager (kb.variables), which is what the ``variables`` angrdb
+        # table serializes; decompilation variables live separately in kb.dec_variables
+        main = proj.kb.functions.function(name="main")
+        proj.analyses.VariableRecoveryFast(main)
 
         vm = proj.kb.variables
         # force-create empty variable managers for two functions that have none
@@ -387,7 +389,7 @@ class TestDb(unittest.TestCase):
             assert not vm.function_managers[addr].serialize()
 
         nonempty_addrs = {addr for addr, internal in vm.function_managers.items() if internal.serialize()}
-        assert nonempty_addrs, "decompilation should have produced at least one non-empty variable manager"
+        assert nonempty_addrs, "variable recovery should have produced at least one non-empty variable manager"
 
         def content(internal):
             return (
@@ -729,7 +731,7 @@ class TestDb(unittest.TestCase):
                 resolve_indirect_jumps=True,
                 detect_tail_calls=True,
             )
-            dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model, regen_clinic=False)
+            dec = proj.analyses.Decompiler("main", cfg=cfg.model, regen_clinic=False)
             assert dec.codegen is not None and dec.codegen.text is not None
 
             adb = AngrDB(proj, nullpool=True)

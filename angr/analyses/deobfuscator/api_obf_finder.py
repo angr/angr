@@ -29,7 +29,7 @@ from .api_obf_type2_finder import APIObfuscationType2Finder
 from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
 
 if TYPE_CHECKING:
-    from angr.knowledge_base import KnowledgeBase
+    pass
 
 _l = logging.getLogger(name=__name__)
 
@@ -100,9 +100,8 @@ class APIObfuscationFinder(Analysis):
     - Type 2: GetProcAddress(_, "api_name").
     """
 
-    def __init__(self, variable_kb: KnowledgeBase | None = None):
+    def __init__(self):
         self.type1_candidates = []
-        self.variable_kb = variable_kb or self.project.kb
 
         self.analyze()
 
@@ -114,7 +113,7 @@ class APIObfuscationFinder(Analysis):
                 type1_deobfuscated = self._analyze_type1(desc.func_addr, desc)
                 self.kb.obfuscations.type1_deobfuscated_apis.update(type1_deobfuscated)
 
-        APIObfuscationType2Finder(self.project, self.variable_kb).analyze()
+        APIObfuscationType2Finder(self.project, self.kb).analyze()
         self.project.analyses[HashLookupAPIDeobfuscator].prep(fail_fast=self._fail_fast)(
             self._hash_lookup_api_deobfuscator_lifter
         )
