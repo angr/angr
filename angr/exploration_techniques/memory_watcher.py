@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-try:
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
     import psutil
-except ImportError:
-    psutil = None
+else:
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
 
 from .base import ExplorationTechnique
 
