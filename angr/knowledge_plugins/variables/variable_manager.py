@@ -39,6 +39,7 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.types import replace_pointer_pts_to, unpack_pointer
 
+from .spilling import USE_SPILLING_DVARS, SpillingVariableInternalDict
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
@@ -1398,12 +1399,22 @@ class DecompilationVariableManager(VariableManager):
     """
     Holds variables discovered during decompilation, kept separate from the disassembly-level ``kb.variables`` so the
     two do not clobber each other. Exposed as ``kb.dec_variables``.
+
+    Its per-function managers are held in a :class:`SpillingVariableInternalDict`, which spills the least-recently-used
+    entries to the RuntimeDb LMDB store (unless spilling is disabled via the ``USE_SPILLING_DVARS`` environment
+    variable), so large binaries do not have to keep every function's decompilation variables in memory.
     """
+
+    def __init__(self, kb):
+        super().__init__(kb)
+        if USE_SPILLING_DVARS:
+            self.function_managers = SpillingVariableInternalDict(self)
 
     def copy(self) -> DecompilationVariableManager:
         new = DecompilationVariableManager(self._kb)
         new.global_manager = self._copy_internal(self.global_manager, new)
-        new.function_managers = {addr: self._copy_internal(vmi, new) for addr, vmi in self.function_managers.items()}
+        for addr, vmi in self.function_managers.items():
+            new.function_managers[addr] = self._copy_internal(vmi, new)
         return new
 
     @staticmethod

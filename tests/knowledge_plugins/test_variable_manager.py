@@ -9,6 +9,7 @@ import pickle
 import unittest
 
 import angr
+from angr.knowledge_plugins.variables.spilling import SpillingVariableInternalDict
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -37,6 +38,58 @@ class TestVariableManager(unittest.TestCase):
         ident4 = vmi2.next_variable_ident("register")
         assert ident3 == "is_2"
         assert ident4 == "ir_1"
+
+    def test_dec_variables_spill_evict_and_reload(self):
+        # kb.dec_variables holds its per-function managers in a SpillingVariableInternalDict. Forcing a tiny cache
+        # limit spills the least-recently-used entries to the RuntimeDb LMDB store, and they reload with identical
+        # content on access.
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        for name in ("main", "authenticate"):
+            p.analyses.Decompiler(name, cfg=cfg.model)
+
+        dvm = p.kb.dec_variables
+        fm = dvm.function_managers
+        assert isinstance(fm, SpillingVariableInternalDict)
+        assert len(fm) >= 2
+
+        def content(internal):
+            return sorted(v.ident for v in internal._variables)
+
+        pre = {addr: content(fm[addr]) for addr in list(fm)}
+        assert all(pre.values()), "each decompiled function should have variables"
+
+        # force every entry out of the in-memory cache
+        fm._cache_limit = 0
+        fm._evict_lru()
+        assert not fm._cache and len(fm._spilled) == len(pre)
+
+        # accessing a spilled entry reloads it losslessly (with the manager reattached)
+        for addr, expected in pre.items():
+            reloaded = fm[addr]
+            assert reloaded.manager is dvm
+            assert content(reloaded) == expected
+
+    def test_dec_variables_spilling_pickle_roundtrip(self):
+        # A knowledge base whose dec_variables have been spilled pickles self-containedly (the non-durable RuntimeDb
+        # reference is dropped) and the per-function variables survive the round-trip.
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.Decompiler("main", cfg=cfg.model)
+
+        dvm = p.kb.dec_variables
+        addr = next(iter(dvm.function_managers))
+        pre = sorted(v.ident for v in dvm.function_managers[addr]._variables)
+        # spill everything before pickling
+        dvm.function_managers._cache_limit = 0
+        dvm.function_managers._evict_lru()
+
+        kb2 = pickle.loads(pickle.dumps(p.kb))
+        dvm2 = kb2.dec_variables
+        assert isinstance(dvm2.function_managers, SpillingVariableInternalDict)
+        assert list(dvm2.function_managers) == [addr]
+        post = sorted(v.ident for v in dvm2.function_managers[addr]._variables)
+        assert post == pre
 
 
 if __name__ == "__main__":
