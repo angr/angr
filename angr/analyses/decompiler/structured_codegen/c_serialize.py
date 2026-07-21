@@ -210,7 +210,12 @@ class SerializeContext:
         pb = codegen_pb2.CConstructNode()
         pb.node_id = nid
         pb.kind = _SERIALIZE_KIND_BY_CLASS[type(node)]
-        pb.ident = node.ident
+        # ident is always "<ClassName>_<n>" (allocated by BaseStructuredCodeGenerator.next_ident); the class name is
+        # recoverable from ``kind``, so only the numeric suffix is stored.
+        cls_name, _, ident_no = node.ident.rpartition("_")
+        if cls_name != type(node).__name__ or not ident_no.isdigit():
+            raise TypeError(f"Cannot serialize non-canonical CConstruct.ident {node.ident!r} on {type(node).__name__}")
+        pb.ident_no = int(ident_no)
         pb.tags_ref = self.intern_tags(getattr(node, "tags", None))
         if isinstance(node, CExpression):
             pb.collapsed = bool(getattr(node, "collapsed", False))
@@ -264,7 +269,7 @@ class ParseContext:
         obj = _PARSERS[pb.kind](pb, self)
         # CConstruct base state
         obj.idx = pb.node_id
-        obj.ident = pb.ident
+        obj.ident = f"{_CLASS_BY_KIND[pb.kind].__name__}_{pb.ident_no}"
         obj.tags = self.resolve_tags(pb.tags_ref)
         obj.codegen = None  # back-reference re-attached by set_codegen()
         if isinstance(obj, CExpression):

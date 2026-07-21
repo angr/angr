@@ -331,7 +331,7 @@ message CConstructNode {
     uint32 node_id = 1;                           // == CConstruct.idx (unique across the owning codegen)
     CConstructKind kind = 2;
     uint32 tags_ref = 3;                          // index+1 into Codegen.tag_pool; 0 = no tags
-    string ident = 4;                             // CConstruct.ident: per-class-name display label; NOT unique
+    uint32 ident_no = 4;                          // numeric suffix of CConstruct.ident ("<ClassName>_<n>"); the class name is derived from kind
     // For CExpression subclasses only:
     optional bool collapsed = 5;
     uint32 expr_type_ref = 6;                     // _type as index+1 into Codegen.type_pool; 0 = absent
