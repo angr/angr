@@ -111,6 +111,10 @@ def _sanitize_tags(tags: dict | None) -> tuple[tuple, codegen_pb2.CConstructTags
         any_set = True
     if not any_set:
         return (), None
+    if out.HasField("ins_addr") and out.HasField("vex_block_addr"):
+        # store ins_addr as a small delta from vex_block_addr instead of a second absolute address
+        out.ins_offset = out.ins_addr - out.vex_block_addr
+        out.ClearField("ins_addr")
     return tuple(sorted(key_parts)), out
 
 
@@ -119,6 +123,9 @@ def _parse_tags(cmsg: codegen_pb2.CConstructTags) -> dict:
     for name, _ in _TYPED_TAGS:
         if cmsg.HasField(name):
             out[name] = getattr(cmsg, name)
+    if cmsg.HasField("ins_offset"):
+        # ins_offset is only ever produced alongside vex_block_addr
+        out["ins_addr"] = cmsg.vex_block_addr + cmsg.ins_offset
     return out
 
 
@@ -156,7 +163,7 @@ class SerializeContext:
     Tracks which nodes have been serialized while walking the C AST.
     """
 
-    __slots__ = ("_seen", "_tag_pool", "_tag_pool_msgs", "_type_pool", "nodes")
+    __slots__ = ("_seen", "_simvar_pool", "_tag_pool", "_tag_pool_msgs", "_type_pool", "nodes")
 
     def __init__(self) -> None:
         self._seen: set[int] = set()  # stores CConstruct.idx for serialized nodes
@@ -166,6 +173,8 @@ class SerializeContext:
         # tag-dict interning: canonical key -> ref (index+1 into Codegen.tag_pool; 0 means no tags)
         self._tag_pool: dict[tuple, int] = {}
         self._tag_pool_msgs: list[codegen_pb2.CConstructTags] = []
+        # SimVariable payload interning: payload bytes -> ref (index+1 into Codegen.simvar_pool; 0 means absent)
+        self._simvar_pool: dict[bytes, int] = {}
 
     def intern_type(self, t: SimType | None) -> int:
         """Intern a SimType's JSON encoding and return its ref (index+1 into the type pool); 0 for None."""
@@ -197,6 +206,21 @@ class SerializeContext:
     @property
     def tag_pool(self) -> list[codegen_pb2.CConstructTags]:
         return self._tag_pool_msgs
+
+    def intern_simvar(self, v: SimVariable | None) -> int:
+        """Intern a SimVariable's polymorphic payload and return its ref (index+1 into the pool); 0 for None."""
+        if v is None:
+            return 0
+        payload = _simvar_to_bytes(v)
+        ref = self._simvar_pool.get(payload)
+        if ref is None:
+            ref = len(self._simvar_pool) + 1
+            self._simvar_pool[payload] = ref
+        return ref
+
+    @property
+    def simvar_pool(self) -> list[bytes]:
+        return list(self._simvar_pool)
 
     def serialize(self, node: CConstruct | None) -> int:
         """Serialize ``node`` (recursively) and return its node_id (== node.idx). 0 indicates absent."""
@@ -232,9 +256,18 @@ class ParseContext:
     Tracks and resolves node.idx to the corresponding C AST.
     """
 
-    __slots__ = ("_msg_by_id", "_parsed", "_tag_pool", "_type_json_cache", "_type_pool", "kb", "project")
+    __slots__ = (
+        "_msg_by_id",
+        "_parsed",
+        "_simvar_pool",
+        "_tag_pool",
+        "_type_json_cache",
+        "_type_pool",
+        "kb",
+        "project",
+    )
 
-    def __init__(self, nodes_msg, project=None, kb=None, type_pool=(), tag_pool=()) -> None:
+    def __init__(self, nodes_msg, project=None, kb=None, type_pool=(), tag_pool=(), simvar_pool=()) -> None:
         self._msg_by_id: dict[int, codegen_pb2.CConstructNode] = {n.node_id: n for n in nodes_msg}
         self._parsed: dict[int, Any] = {}
         # Project / KB are used to resolve Function references and similar by-address pointers at parse time.
@@ -243,6 +276,7 @@ class ParseContext:
         self._type_pool: list[str] = list(type_pool)
         self._type_json_cache: dict[int, Any] = {}
         self._tag_pool = list(tag_pool)
+        self._simvar_pool = list(simvar_pool)
 
     def resolve_type(self, ref: int) -> SimType | None:
         """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance."""
@@ -253,6 +287,12 @@ class ParseContext:
             loaded = json.loads(self._type_pool[ref - 1])
             self._type_json_cache[ref] = loaded
         return SimType.from_json(loaded)
+
+    def resolve_simvar(self, ref: int) -> SimVariable | None:
+        """Resolve a simvar-pool ref (index+1; 0 means absent) into a fresh SimVariable instance."""
+        if ref == 0:
+            return None
+        return _simvar_from_bytes(self._simvar_pool[ref - 1])
 
     def resolve_tags(self, ref: int) -> dict:
         """Resolve a tag-pool ref (index+1; 0 means no tags) into a fresh tags dict."""
@@ -315,13 +355,16 @@ def serialize_subtree(root: CConstruct) -> bytes:
     msg.nodes.extend(ctx.nodes)
     msg.type_pool.extend(ctx.type_pool)
     msg.tag_pool.extend(ctx.tag_pool)
+    msg.simvar_pool.extend(ctx.simvar_pool)
     return msg.SerializeToString()
 
 
 def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
     msg = codegen_pb2.Codegen()
     msg.ParseFromString(data)
-    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool)
+    ctx = ParseContext(
+        msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool, simvar_pool=msg.simvar_pool
+    )
     return ctx.resolve(msg.root_id)
 
 
@@ -470,6 +513,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     msg.nodes.extend(ctx.nodes)
     msg.type_pool.extend(ctx.type_pool)
     msg.tag_pool.extend(ctx.tag_pool)
+    msg.simvar_pool.extend(ctx.simvar_pool)
     return msg
 
 
@@ -501,7 +545,9 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
     require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
-    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool)
+    ctx = ParseContext(
+        msg.nodes, project=project, kb=kb, type_pool=msg.type_pool, tag_pool=msg.tag_pool, simvar_pool=msg.simvar_pool
+    )
 
     # Materialize the AST.
     cg.cfunc = ctx.resolve(msg.root_id) if msg.root_id != 0 else None
@@ -940,9 +986,9 @@ def _parse_cfakevar(pb, ctx):
 
 
 def _ser_cvar(node, pb, ctx):
-    pb.cvar.variable = _simvar_to_bytes(node.variable)
+    pb.cvar.variable_ref = ctx.intern_simvar(node.variable)
     if node.unified_variable is not None:
-        pb.cvar.unified_variable = _simvar_to_bytes(node.unified_variable)
+        pb.cvar.unified_variable_ref = ctx.intern_simvar(node.unified_variable)
     if node.variable_type is not None:
         pb.cvar.variable_type_ref = ctx.intern_type(node.variable_type)
     if node.vvar_id is not None:
@@ -952,8 +998,8 @@ def _ser_cvar(node, pb, ctx):
 def _parse_cvar(pb, ctx):
     obj = CVariable.__new__(CVariable)
     body = pb.cvar
-    obj.variable = _simvar_from_bytes(body.variable)
-    obj.unified_variable = _simvar_from_bytes(body.unified_variable) if body.HasField("unified_variable") else None
+    obj.variable = ctx.resolve_simvar(body.variable_ref)
+    obj.unified_variable = ctx.resolve_simvar(body.unified_variable_ref)
     obj.variable_type = ctx.resolve_type(body.variable_type_ref)
     obj.vvar_id = body.vvar_id if body.HasField("vvar_id") else None
     return obj
@@ -1115,7 +1161,7 @@ def _ser_cfunction(node, pb, ctx):
     body.statements_id = ctx.serialize(node.statements)
     for simvar, cvar in node.variables_in_use.items():
         entry = body.variables_in_use.add()
-        entry.simvariable = _simvar_to_bytes(simvar)
+        entry.simvariable_ref = ctx.intern_simvar(simvar)
         entry.cvariable_id = ctx.serialize(cvar)
     if node.demangled_name is not None:
         body.demangled_name = node.demangled_name
@@ -1132,7 +1178,7 @@ def _parse_cfunction(pb, ctx):
     obj.arg_list = [ctx.resolve(i) for i in body.arg_list_ids]
     obj.statements = ctx.resolve(body.statements_id)
     obj.variables_in_use = {
-        _simvar_from_bytes(e.simvariable): ctx.resolve(e.cvariable_id) for e in body.variables_in_use
+        ctx.resolve_simvar(e.simvariable_ref): ctx.resolve(e.cvariable_id) for e in body.variables_in_use
     }
     obj.demangled_name = body.demangled_name if body.HasField("demangled_name") else None
     obj.show_demangled_name = body.show_demangled_name

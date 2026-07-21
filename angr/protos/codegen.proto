@@ -31,6 +31,9 @@ message CConstructTags {
     optional uint64 vex_block_addr = 3;
     optional int32 vex_stmt_idx = 4;
     optional bool is_prototype_guessed = 5;
+    // When both ins_addr and vex_block_addr are known, ins_addr is stored as this delta from vex_block_addr
+    // (typically a 1-2 byte varint) and the absolute ins_addr field is left unset.
+    optional sint64 ins_offset = 6;
 }
 
 // Identifies which payload (oneof variant) a CConstructNode carries. We use a separate enum rather than relying on
@@ -92,7 +95,7 @@ message CFunctionMsg {
 }
 
 message VariableInUseEntry {
-    bytes simvariable = 1;                        // serialized SimVariable (already Serializable)
+    uint32 simvariable_ref = 1;                   // index+1 into Codegen.simvar_pool; 0 = absent
     uint32 cvariable_id = 2;                      // CVariable node_id
 }
 
@@ -233,8 +236,8 @@ message CFakeVariableMsg {
 
 // CVariable
 message CVariableMsg {
-    bytes variable = 1;                           // serialized SimVariable
-    optional bytes unified_variable = 2;
+    uint32 variable_ref = 1;                      // index+1 into Codegen.simvar_pool; 0 = absent
+    uint32 unified_variable_ref = 2;
     uint32 variable_type_ref = 3;
     optional uint32 vvar_id = 4;
 }
@@ -447,6 +450,9 @@ message Codegen {
 
     // Interned tag dicts; CConstructNode.tags_ref is index+1 into this pool (identical tag dicts are stored once).
     repeated CConstructTags tag_pool = 25;
+
+    // Interned SimVariable payloads ("<ClassName>\0<proto bytes>"); *_ref fields are index+1, 0 = absent.
+    repeated bytes simvar_pool = 26;
 
     // Display options (round-tripped but not strictly part of the result). Field numbers 30-59 are reserved for
     // this block: c_serialize derives its display-option attribute list from this number range at runtime, so a

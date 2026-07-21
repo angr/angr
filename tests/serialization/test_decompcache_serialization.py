@@ -104,6 +104,20 @@ class TestAilSerializationHelpers(unittest.TestCase):
             assert field.type != FieldDescriptor.TYPE_MESSAGE
             assert field.label != FieldDescriptor.LABEL_REPEATED
 
+    def test_tags_roundtrip_with_ins_offset(self):
+        from angr.analyses.decompiler.structured_codegen.c_serialize import _parse_tags, _sanitize_tags
+
+        # both addresses known: ins_addr rides as a delta but round-trips to the absolute value
+        tags = {"ins_addr": 0x4010F0, "vex_block_addr": 0x401000, "vex_stmt_idx": 7, "custom": [1, 2]}
+        key, msg = _sanitize_tags(tags)
+        assert msg is not None and not msg.HasField("ins_addr") and msg.ins_offset == 0xF0
+        assert _parse_tags(msg) == tags
+        # ins_addr alone stays absolute
+        key2, msg2 = _sanitize_tags({"ins_addr": 0x400123})
+        assert msg2 is not None and msg2.HasField("ins_addr") and not msg2.HasField("ins_offset")
+        assert _parse_tags(msg2) == {"ins_addr": 0x400123}
+        assert key != key2
+
     def _blocks(self):
         b0 = AilBlock(0x1000, 4, statements=[Assignment(0, AilTmp(1, 2, 64), Const(2, 1, 64), ins_addr=0x1000)])
         b1 = AilBlock(0x1004, 4, statements=[Return(3, [], ins_addr=0x1004)])
