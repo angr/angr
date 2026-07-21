@@ -471,6 +471,41 @@ class TestDb(unittest.TestCase):
         for addr in nonempty_addrs:
             assert content(new_dvm.function_managers[addr]) == pre_content[addr]
 
+    def test_angrdb_dump_with_spilled_dec_variables(self):
+        # Dumping to angrdb while dec_variables entries are spilled to the RuntimeDb LMDB store faults them back in
+        # through the spilling dict's snapshot-safe iteration, and their content round-trips.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        for name in ("main", "authenticate"):
+            dec = proj.analyses.Decompiler(name, cfg=cfg.model)
+            assert dec.codegen is not None and dec.codegen.text is not None
+
+        dvm = proj.kb.dec_variables
+        fm = dvm.function_managers
+
+        def content(internal):
+            return sorted(v.ident for v in internal._variables)
+
+        pre_content = {addr: content(fm[addr]) for addr in list(fm)}
+        assert len(pre_content) >= 2
+
+        # spill every entry, then dump while nothing is in memory
+        fm._cache_limit = 0
+        fm._evict_lru()
+        assert not fm._cache and set(fm._spilled) == set(pre_content)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        new_proj = AngrDB(nullpool=True).load(db_file)
+        new_fm = new_proj.kb.dec_variables.function_managers
+        assert set(new_fm) == set(pre_content)
+        for addr, expected in pre_content.items():
+            assert content(new_fm[addr]) == expected
+
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 

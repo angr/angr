@@ -7,8 +7,10 @@ __package__ = __package__ or "tests.knowledge_plugins"  # pylint:disable=redefin
 import os
 import pickle
 import unittest
+from unittest import mock
 
 import angr
+from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling import SpillingVariableInternalDict
 from tests.common import bin_location
 
@@ -90,6 +92,33 @@ class TestVariableManager(unittest.TestCase):
         assert list(dvm2.function_managers) == [addr]
         post = sorted(v.ident for v in dvm2.function_managers[addr]._variables)
         assert post == pre
+
+    def test_dec_variables_decompile_under_tiny_spill_limit(self):
+        # Decompilation output is byte-identical whether dec_variables spill aggressively (cache limit 1, so every
+        # function's manager is evicted as soon as the next function is decompiled) or spilling is disabled.
+        binpath = os.path.join(test_location, "x86_64", "fauxware")
+        func_names = ("main", "authenticate", "accepted", "rejected")
+
+        p = angr.Project(binpath, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        fm = p.kb.dec_variables.function_managers
+        assert isinstance(fm, SpillingVariableInternalDict)
+        fm._cache_limit = 1
+
+        texts = {}
+        for name in func_names:
+            dec = p.analyses.Decompiler(name, cfg=cfg.model)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            texts[name] = dec.codegen.text
+        assert fm._spilled, "decompiling multiple functions under cache limit 1 must have spilled entries"
+
+        with mock.patch.object(variable_manager_mod, "USE_SPILLING_DVARS", False):
+            p2 = angr.Project(binpath, auto_load_libs=False)
+            cfg2 = p2.analyses.CFGFast(normalize=True)
+            assert type(p2.kb.dec_variables.function_managers) is dict
+            for name in func_names:
+                dec2 = p2.analyses.Decompiler(name, cfg=cfg2.model)
+                assert dec2.codegen is not None and dec2.codegen.text == texts[name]
 
 
 if __name__ == "__main__":
