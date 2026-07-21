@@ -122,7 +122,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        # self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        # the base of an Insert is consumed at full width: every byte outside the inserted range is preserved
+        # into the result, so narrowing the base (and zero-extending it back) would destroy those bytes
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         if isinstance(expr.base, VirtualVariable):
             self.vvars_used_as_insert_base.add(expr.base.varid)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
