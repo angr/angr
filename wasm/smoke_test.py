@@ -14,8 +14,7 @@ def main() -> None:
 
     assert sys.platform == "emscripten"
     assert angr.capabilities.emscripten
-    assert angr.capabilities.vex
-    assert angr.capabilities.z3
+    assert not angr.capabilities.icicle
     assert not angr.capabilities.lmdb
     assert not angr.capabilities.unicorn
 
@@ -23,6 +22,9 @@ def main() -> None:
     block = project.factory.block(project.entry)
     assert block.vex.statements
     assert block.capstone.insns
+
+    pcode_project = angr.Project(binary, auto_load_libs=False, engine=angr.engines.UberEnginePcode)
+    assert pcode_project.factory.block(pcode_project.entry).pcode.insns
 
     simgr = project.factory.simulation_manager()
     simgr.explore(find=lambda state: b"Welcome to the admin console" in state.posix.dumps(1))
