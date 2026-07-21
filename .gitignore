@@ -37,6 +37,7 @@ docs/api/
 uv.lock
 target/
 /wasm/manifest.json
+/wasm/samples/
 .DS_Store
 *_angr_rtdb
 *_angr_rtdb_*
