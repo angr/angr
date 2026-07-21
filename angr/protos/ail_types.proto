@@ -28,6 +28,9 @@ message AilEdge {
     uint32 src = 1;  // index into AilGraph.blocks
     uint32 dst = 2;
     optional AilEdgeData data = 3;
+    // When true, the edge's data is AilGraph.default_edge_data overlaid with ``data`` (which then carries only the
+    // fields that differ, e.g. a per-edge ins_addr). Lets the common default edge attributes be stored once.
+    bool has_default_data = 4;
 }
 
 message AilGraph {
@@ -36,6 +39,8 @@ message AilGraph {
     repeated bytes blocks = 1;  // ailment.Block.to_bytes() payloads, in node-insertion order
     repeated AilEdge edges = 2;
     repeated uint32 block_refs = 3;  // indices into the shared pool, in node-insertion order
+    // The modal edge-data value (excluding the per-edge ins_addr); edges with has_default_data reference it.
+    optional AilEdgeData default_edge_data = 4;
 }
 
 //

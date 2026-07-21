@@ -9,6 +9,7 @@ covered by the schema raises ``TypeError`` naming the offender, so the schema st
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 from angr.protos import ail_types_pb2
@@ -115,6 +116,12 @@ class BlockPool:
         return idx
 
 
+def _edge_data_key(data: dict[str, Any]) -> tuple:
+    """Hashable canonical form of an edge-data dict excluding ins_addr (which varies per edge). Skips None values to
+    match ``_pack_edge_data`` (which drops them), so it reflects exactly what round-trips."""
+    return tuple(sorted((k, v) for k, v in data.items() if k != "ins_addr" and v is not None))
+
+
 def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_types_pb2.AilGraph:
     """Encode a DiGraph of ailment Blocks. Node identity is preserved through per-graph block indices. When ``pool``
     is given, block payloads are deduplicated into it and the message stores pool refs instead of inline payloads."""
@@ -128,11 +135,27 @@ def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_ty
             msg.blocks.append(node.to_bytes())
         else:
             msg.block_refs.append(pool.add(node))
-    for src, dst, data in graph.edges(data=True):
+
+    # Pick the modal non-ins_addr edge-data value as the default so common edge attributes are stored once.
+    edge_list = list(graph.edges(data=True))
+    key_counts = Counter(_edge_data_key(data) for _, _, data in edge_list)
+    default_key, default_count = key_counts.most_common(1)[0] if key_counts else ((), 0)
+    default_dict = dict(default_key)
+    use_default = default_count >= 2 and bool(default_dict)
+    if use_default:
+        _pack_edge_data(default_dict, msg.default_edge_data)
+
+    for src, dst, data in edge_list:
         edge = msg.edges.add()
         edge.src = node_to_idx[src]
         edge.dst = node_to_idx[dst]
-        if data:
+        if use_default and _edge_data_key(data) == default_key:
+            # matches the graph default: keep only the per-edge ins_addr (if any) and let parse restore the rest
+            edge.has_default_data = True
+            ins_addr = data.get("ins_addr")
+            if ins_addr is not None:
+                edge.data.ins_addr = ins_addr
+        elif data:
             edge_data = ail_types_pb2.AilEdgeData()
             if _pack_edge_data(data, edge_data):
                 edge.data.CopyFrom(edge_data)
@@ -149,8 +172,14 @@ def parse_graph(msg: ail_types_pb2.AilGraph, pool_payloads=None) -> networkx.DiG
     else:
         blocks = [Block.from_bytes(b) for b in msg.blocks]
     graph.add_nodes_from(blocks)
+    default_data = _parse_edge_data(msg.default_edge_data) if msg.HasField("default_edge_data") else {}
     for edge in msg.edges:
-        data = _parse_edge_data(edge.data) if edge.HasField("data") else {}
+        if edge.has_default_data:
+            data = dict(default_data)
+            if edge.HasField("data") and edge.data.HasField("ins_addr"):
+                data["ins_addr"] = edge.data.ins_addr
+        else:
+            data = _parse_edge_data(edge.data) if edge.HasField("data") else {}
         graph.add_edge(blocks[edge.src], blocks[edge.dst], **data)
     return graph
 
