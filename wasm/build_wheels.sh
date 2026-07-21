@@ -55,7 +55,10 @@ uv build --wheel --out-dir "$out_dir" "$workspace/claripy"
 uv build --wheel --out-dir "$out_dir" "$workspace/cle"
 python3 -m pip wheel --no-deps --wheel-dir "$out_dir" 'mulpyplexer==0.09' 'arpy==1.1.1'
 
-rustup target add wasm32-unknown-emscripten
+(
+    cd "$angr_dir"
+    rustup target add wasm32-unknown-emscripten
+)
 
 uvx --python 3.14 --from 'pyodide-build[resolve]' --with 'setuptools>=77' --with setuptools-rust --with wheel \
     pyodide build "$angr_dir" --xbuildenv-path "$xbuildenv_path" --no-isolation --skip-dependency-check \
