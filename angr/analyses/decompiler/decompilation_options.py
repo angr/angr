@@ -46,9 +46,8 @@ class DecompilationOption[T]:
 O = DecompilationOption
 
 # Serialization contract for display options (cls="codegen"): to survive Codegen serialization, an option's param
-# must have a matching optional scalar proto field, named identically, in the reserved field-number band [30, 59]
-# of the Codegen message (protos/codegen.proto). c_serialize derives its display-option attribute list from that
-# band at runtime; options without an in-band field are silently dropped on round-trip.
+# must have a matching optional scalar proto field, named identically, in the trailing display-option block of the
+# Codegen message (protos/codegen.proto). Options without such a field are dropped on round-trip.
 
 options = [
     O(

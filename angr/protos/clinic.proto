@@ -57,74 +57,68 @@ message Clinic {
     optional uint64 function_addr = 1;
     optional string flavor = 2;
 
-// ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
+    // ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
     // Shared pool of ailment.Block.to_bytes() payloads; the graphs reference into it via AilGraph.block_refs so
     // byte-identical blocks appearing in both graphs are stored once.
-    repeated bytes block_pool = 24;
-    optional AilGraph cc_graph = 11;
-    optional AilGraph unoptimized_graph = 12;
-    optional ArgVVars arg_vvars = 16;                 // dict[int, tuple[VirtualVariable, SimVariable]]
+    repeated bytes block_pool = 3;
+    optional AilGraph cc_graph = 4;
+    optional AilGraph unoptimized_graph = 5;
+    optional ArgVVars arg_vvars = 6;                  // dict[int, tuple[VirtualVariable, SimVariable]]
 
     // ---- Already-Serializable sub-objects ---------------------------------------------------------------------------
     // arg_list: list[SimVariable] | None
-    repeated ExternBytes arg_list = 20;
-    repeated ExternBytes externs = 22;                // set[SimMemoryVariable]
-    // field 23 (reaching_definitions) removed: the SRDA model is never serialized; it is regenerated fresh from an
-    // AIL graph whenever needed
-    // Only state consumed by the decompiler's cache-reuse path is serialized; fields for attributes now cleared
-    // by Clinic.downsize() were removed and their numbers reserved.
-    reserved 10, 13, 14, 17, 19, 21, 23, 30, 33, 39, 100;
+    repeated ExternBytes arg_list = 7;
+    repeated ExternBytes externs = 8;                 // set[SimMemoryVariable]
+    // Only state consumed by the decompiler's cache-reuse path is serialized.
 
     // ---- CLEAN primitive collections --------------------------------------------------------------------------------
-    map<int32, int32> vvar_to_vvar = 31;              // dict[int, int]
-    repeated uint32 secondary_stackvars = 32;         // set[int]
-    repeated uint32 removed_vvar_ids = 36;            // set[int] | None
-    optional bool _removed_vvar_ids_set = 37;
-    repeated uint32 _preserve_vvar_ids = 38;
-    map<uint64, int32> _inlined_counts = 40;          // dict[int, int]
-    repeated uint64 _inlining_parents = 41;           // set[int]
-    repeated string _must_struct = 42;                // set[str] | None
-    optional bool _must_struct_set = 43;
-    repeated string _desired_variables = 44;
-    optional bool _desired_variables_set = 45;
-    map<int32, StackItem> stack_items = 46;           // dict[int, StackItem]
-    repeated AddressPair edges_to_remove = 47;
-    repeated uint32 copied_var_ids = 48;
-    repeated uint32 _new_block_addrs = 49;
-    optional AddressTuple entry_node_addr = 50;
+    map<int32, int32> vvar_to_vvar = 9;               // dict[int, int]
+    repeated uint32 secondary_stackvars = 10;         // set[int]
+    repeated uint32 removed_vvar_ids = 11;            // set[int] | None
+    optional bool _removed_vvar_ids_set = 12;
+    repeated uint32 _preserve_vvar_ids = 13;
+    map<uint64, int32> _inlined_counts = 14;          // dict[int, int]
+    repeated uint64 _inlining_parents = 15;           // set[int]
+    repeated string _must_struct = 16;                // set[str] | None
+    optional bool _must_struct_set = 17;
+    repeated string _desired_variables = 18;
+    optional bool _desired_variables_set = 19;
+    map<int32, StackItem> stack_items = 20;           // dict[int, StackItem]
+    repeated AddressPair edges_to_remove = 21;
+    repeated uint32 copied_var_ids = 22;
+    repeated uint32 _new_block_addrs = 23;
+    optional AddressTuple entry_node_addr = 24;
 
     // ---- CLEAN scalars ----------------------------------------------------------------------------------------------
-    int32 vvar_id_start = 60;
-    int32 _max_stack_depth = 61;
-    int32 _sp_shift = 62;
-    int32 _max_type_constraints = 63;
-    int32 _type_constraint_set_degradation_threshold = 64;
-    bool _fold_callexprs_into_conditions = 65;
-    bool _fold_expressions = 66;
-    bool _insert_labels = 67;
-    bool _remove_dead_memdefs = 68;
-    bool _exception_edges = 69;
-    bool _sp_tracker_track_memory = 70;
-    bool _reset_variable_names = 71;
-    bool _rewrite_ites_to_diamonds = 72;
-    bool _flatten_args = 73;
-    bool _semvar_naming = 74;
-    bool _force_loop_single_exit = 75;
-    bool _refine_loops_with_single_successor = 76;
-    bool _register_save_areas_removed = 78;
-    int32 _rewrite_ites_to_diamond_max_cases = 84;
-    bool _expose_loop_head_backedges = 85;
-    bool _constrain_callee_prototypes = 86;
+    int32 vvar_id_start = 25;
+    int32 _max_stack_depth = 26;
+    int32 _sp_shift = 27;
+    int32 _max_type_constraints = 28;
+    int32 _type_constraint_set_degradation_threshold = 29;
+    bool _fold_callexprs_into_conditions = 30;
+    bool _fold_expressions = 31;
+    bool _insert_labels = 32;
+    bool _remove_dead_memdefs = 33;
+    bool _exception_edges = 34;
+    bool _sp_tracker_track_memory = 35;
+    bool _reset_variable_names = 36;
+    bool _rewrite_ites_to_diamonds = 37;
+    bool _flatten_args = 38;
+    bool _semvar_naming = 39;
+    bool _force_loop_single_exit = 40;
+    bool _refine_loops_with_single_successor = 41;
+    bool _register_save_areas_removed = 42;
+    int32 _rewrite_ites_to_diamond_max_cases = 43;
+    bool _expose_loop_head_backedges = 44;
+    bool _constrain_callee_prototypes = 45;
 
-    int32 _mode = 80;                                  // ClinicMode.value
-    int32 _start_stage = 81;                           // ClinicStage.value
-    int32 _end_stage = 82;
-    repeated int32 _skip_stages = 83;
+    int32 _mode = 46;                                  // ClinicMode.value
+    int32 _start_stage = 47;                           // ClinicStage.value
+    int32 _end_stage = 48;
+    repeated int32 _skip_stages = 49;
 
     // ---- Pass class references (round-tripped via the optimization-pass registry) -----------------------------------
-    repeated string peephole_optimizations = 90;      // FQNs from optimization_pass_registry; empty -> None
-    optional bool _peephole_optimizations_set = 91;   // distinguish [] from None
-    string _typehoon_cls = 92;                        // FQN; empty -> default Typehoon
-
-    // ---- Notes -----------------------------------------------------------------------------------------------------
+    repeated string peephole_optimizations = 50;      // FQNs from optimization_pass_registry; empty -> None
+    optional bool _peephole_optimizations_set = 51;   // distinguish [] from None
+    string _typehoon_cls = 52;                        // FQN; empty -> default Typehoon
 }

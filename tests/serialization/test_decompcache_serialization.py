@@ -30,7 +30,6 @@ from angr.analyses.decompiler.structured_codegen.c import CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
-    _DISPLAY_OPTION_FIELD_LAST,
 )
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
@@ -93,13 +92,13 @@ class TestSubObjectSerialization(unittest.TestCase):
 
 class TestAilSerializationHelpers(unittest.TestCase):
     def test_display_option_attrs_derived_from_proto(self):
-        # _DISPLAY_OPTION_ATTRS is generated from the Codegen descriptor's reserved field-number band; every entry
+        # _DISPLAY_OPTION_ATTRS is generated from the Codegen descriptor's trailing display-option block; every entry
         # must be an optional scalar (the serialize loop uses plain setattr, which cannot handle message fields).
         assert {"indent", "show_casts", "max_str_len"} <= set(_DISPLAY_OPTION_ATTRS)
         assert len(set(_DISPLAY_OPTION_ATTRS)) == len(_DISPLAY_OPTION_ATTRS)
         for name in _DISPLAY_OPTION_ATTRS:
             field = codegen_pb2.Codegen.DESCRIPTOR.fields_by_name[name]
-            assert _DISPLAY_OPTION_FIELD_FIRST <= field.number <= _DISPLAY_OPTION_FIELD_LAST
+            assert field.number >= _DISPLAY_OPTION_FIELD_FIRST
             # not a message and not repeated. Use the modern FieldDescriptor API: protobuf 7.x (the upb backend)
             # removed the ``label``/``type`` attributes and the LABEL_*/TYPE_* constants.
             assert field.message_type is None

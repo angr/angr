@@ -22,8 +22,7 @@ package angr.protos;
 // =====================================================================================================================
 
 // CConstruct.tags is constrained at serialize time to entries with string keys and primitive values (None / bool /
-// int / float / str / list / dict of those, in any nesting). Non-conforming entries are dropped on serialize. The
-// JSON encoding lets us round-trip the same set of values the SimType serialization already standardizes on.
+// int / float / str / list / dict of those, in any nesting). Non-conforming entries are dropped on serialize.
 message CConstructTags {
     // The four dominant tag keys get typed fields; everything else stays in the JSON map.
     map<string, string> json_values = 1;  // map[key] -> json.dumps(value)
@@ -36,8 +35,8 @@ message CConstructTags {
     optional sint64 ins_offset = 6;
 }
 
-// Identifies which payload (oneof variant) a CConstructNode carries. We use a separate enum rather than relying on
-// oneof field tags so that the polymorphic dispatch table stays explicit in Python code.
+// Identifies which payload (oneof variant) a CConstructNode carries; drives the polymorphic dispatch table in
+// Python code.
 enum CConstructKind {
     CCK_UNKNOWN = 0;
     CCK_FUNCTION = 1;
@@ -217,9 +216,8 @@ message CFunctionCallMsg {
     }
     optional uint64 callee_func_addr = 4;         // Function reference; resolved from KB at parse time
     repeated uint32 args_ids = 5;
-    // show_demangled_name / show_disambiguated_name moved to Codegen.node_config: they default to true and only the
-    // rare node that overrides them stores a NodeConfigEntry. Field numbers 6/7 are reserved.
-    reserved 6, 7;
+    // show_demangled_name / show_disambiguated_name live in Codegen.node_config; only nodes that override the
+    // defaults store a NodeConfigEntry.
 }
 
 // Per-node display configuration, stored out-of-line so the common default never occupies node bodies.
@@ -450,59 +448,57 @@ message Codegen {
     optional string flavor = 4;
 
     // Display-side state.
-    // Merged position maps (see PositionMappingEntry membership flags). Field 11 (map_pos_to_addr) was folded in.
-    PositionMappingMsg pos_maps = 10;
-    reserved 11;
-    InstructionMappingMsg map_addr_to_pos = 12;
-    repeated AstToPosEntry map_ast_to_pos = 13;
-    repeated AddrToLabelEntry map_addr_to_label = 14;
-    repeated uint32 cexterns_ids = 15;            // CVariable node_ids
+    // Merged position maps (see PositionMappingEntry membership flags).
+    PositionMappingMsg pos_maps = 5;
+    InstructionMappingMsg map_addr_to_pos = 6;
+    repeated AstToPosEntry map_ast_to_pos = 7;
+    repeated AddrToLabelEntry map_addr_to_label = 8;
+    repeated uint32 cexterns_ids = 9;             // CVariable node_ids
 
     // Comments and notes.
-    map<int64, string> expr_comments = 20;
-    map<int64, string> stmt_comments = 21;
-    map<string, string> notes_json = 22;          // DecompilationNote serialized to JSON; key = note key
+    map<int64, string> expr_comments = 10;
+    map<int64, string> stmt_comments = 11;
+    map<string, string> notes_json = 12;          // DecompilationNote serialized to JSON; key = note key
     // const_formats: dict[IdentType, dict[str, bool]]; IdentType = tuple[int, int, str]
-    repeated ConstFormatEntry const_formats = 23;
+    repeated ConstFormatEntry const_formats = 13;
 
     // Interned SimType JSON strings (SimType.to_json output). All *_ref fields above and in the node bodies
     // are index+1 into this pool; 0 means absent.
-    repeated string type_pool = 24;
+    repeated string type_pool = 14;
 
     // Interned tag dicts; CConstructNode.tags_ref is index+1 into this pool (identical tag dicts are stored once).
-    repeated CConstructTags tag_pool = 25;
+    repeated CConstructTags tag_pool = 15;
 
     // Interned SimVariable payloads ("<ClassName>\0<proto bytes>"); *_ref fields are index+1, 0 = absent.
-    repeated bytes simvar_pool = 26;
+    repeated bytes simvar_pool = 16;
 
     // Out-of-line per-node display config; a node only appears here if it deviates from the defaults.
-    NodeConfigMsg node_config = 27;
+    NodeConfigMsg node_config = 17;
 
-    // Display options (round-tripped but not strictly part of the result). Field numbers 30-59 are reserved for
-    // this block: c_serialize derives its display-option attribute list from this number range at runtime, so a
-    // new display option only needs an optional scalar field here (plus the regenerated pb2) whose name matches
-    // the attribute on CStructuredCodeGenerator.
-    optional int32 indent = 30;
-    optional bool show_casts = 31;
-    optional bool comment_gotos = 32;
-    optional bool braces_on_own_lines = 33;
-    optional bool use_compound_assignments = 34;
-    optional bool show_local_types = 35;
-    optional bool cstyle_null_cmp = 36;
-    optional bool show_externs = 37;
-    optional bool show_demangled_name = 38;
-    optional bool show_disambiguated_name = 39;
-    optional bool simplify_else_scope = 40;
-    optional bool cstyle_ifs = 41;
-    optional bool omit_func_header = 42;
-    optional bool display_block_addrs = 43;
-    optional bool display_vvar_ids = 44;
-    optional bool display_notes = 45;
-    optional bool prettify_thiscall = 46;
-    optional bool cstyle_void_param = 47;
-    optional int32 binop_depth_cutoff = 48;
-    optional uint64 min_data_addr = 49;
-    optional int32 max_str_len = 50;
+    // Display options (round-tripped but not strictly part of the result). This block must stay last:
+    // c_serialize treats every field from ``indent`` onward as a display option, so a new display option only
+    // needs an optional scalar field appended here whose name matches the attribute on CStructuredCodeGenerator.
+    optional int32 indent = 18;
+    optional bool show_casts = 19;
+    optional bool comment_gotos = 20;
+    optional bool braces_on_own_lines = 21;
+    optional bool use_compound_assignments = 22;
+    optional bool show_local_types = 23;
+    optional bool cstyle_null_cmp = 24;
+    optional bool show_externs = 25;
+    optional bool show_demangled_name = 26;
+    optional bool show_disambiguated_name = 27;
+    optional bool simplify_else_scope = 28;
+    optional bool cstyle_ifs = 29;
+    optional bool omit_func_header = 30;
+    optional bool display_block_addrs = 31;
+    optional bool display_vvar_ids = 32;
+    optional bool display_notes = 33;
+    optional bool prettify_thiscall = 34;
+    optional bool cstyle_void_param = 35;
+    optional int32 binop_depth_cutoff = 36;
+    optional uint64 min_data_addr = 37;
+    optional int32 max_str_len = 38;
 }
 
 message ConstFormatEntry {

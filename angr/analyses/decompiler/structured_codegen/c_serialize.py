@@ -504,15 +504,12 @@ def _parse_const_formats(entries):
     return result
 
 
-# Display-option attribute names round-tripped on Codegen. Mirrors the codegen_pb2.Codegen field names where the
-# Python attribute and the proto field share the same identifier.
-# Display-option fields occupy the reserved number band [30, 59] in the Codegen message (see codegen.proto);
-# deriving the attribute list from the descriptor keeps the proto as the single source of truth.
-_DISPLAY_OPTION_FIELD_FIRST, _DISPLAY_OPTION_FIELD_LAST = 30, 59
+# Display-option attribute names round-tripped on Codegen, derived from the descriptor so the proto stays the
+# single source of truth. Display options are the trailing field block in the Codegen message (see codegen.proto):
+# every field from ``indent`` onward is a display option.
+_DISPLAY_OPTION_FIELD_FIRST = codegen_pb2.Codegen.DESCRIPTOR.fields_by_name["indent"].number
 _DISPLAY_OPTION_ATTRS = tuple(
-    f.name
-    for f in codegen_pb2.Codegen.DESCRIPTOR.fields
-    if _DISPLAY_OPTION_FIELD_FIRST <= f.number <= _DISPLAY_OPTION_FIELD_LAST
+    f.name for f in codegen_pb2.Codegen.DESCRIPTOR.fields if f.number >= _DISPLAY_OPTION_FIELD_FIRST
 )
 
 
