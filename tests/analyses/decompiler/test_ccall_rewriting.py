@@ -310,5 +310,45 @@ class TestAMD64CCallRewriterDifferential(unittest.TestCase):
         self._sweep("CondNB", "G_CC_OP_ADDB")
 
 
+class TestAMD64CCallRewriterRealBinaries(unittest.TestCase):
+    """Binary-driven regressions for the amd64 ccall rewriter.
+
+    The synthetic tests above feed hand-built ccalls straight to the rewriter. They cannot
+    exercise the part of the pipeline that actually needed fixing: the propagator folding
+    cc_op/cc_dep across basic blocks so the ccall is even recognizable at rewrite time. When a
+    cell is unhandled the rewriter returns None, the callee survives as an undeclared `_ccall`,
+    and it reaches the C output. Each function below decompiled to a stray `_ccall(...)` before
+    these commits and is clean after; the assertion is simply that no `_ccall(` remains.
+
+    The binaries are real gcc-13.3.0 -O2 objects (stripped) copied into the angr binaries repo.
+    A whole-binary CFGFast is required -- region/scoped CFGs do not reproduce these cross-block
+    ccall folds. Every target was confirmed stable across 3 repeated decompiles.
+    """
+
+    def _assert_no_ccall(self, bin_name, addrs):
+        bin_path = os.path.join(test_location, "x86_64", bin_name)
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True)
+        for addr in addrs:
+            func = cfg.functions.get_by_addr(addr)
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+            assert dec.codegen is not None and dec.codegen.text is not None, f"no codegen for {addr:#x}"
+            assert "_ccall(" not in dec.codegen.text, f"{addr:#x}: stray _ccall in decompilation"
+
+    def test_file_ccalls_cleared(self):
+        # gcc-13.3.0 -O2 `file`. These carry CondBE/CondNB over SUB (unsigned <= / >=) folds;
+        # sub_409150 recovers the `v <= 0x200` selector of file_pstring_length_size.
+        self._assert_no_ccall(
+            "file_gcc13.3.0_O2",
+            [0x409150, 0x40C360, 0x4134D0, 0x413630, 0x418BD0, 0x41DD00],
+        )
+
+    def test_gzip_ccall_cleared(self):
+        # gcc-13.3.0 -O2 `gzip`. sub_409b60 had two ccalls; clearing them flips the function to
+        # fully compilable C.
+        self._assert_no_ccall("gzip_gcc13.3.0_O2", [0x409B60])
+
+
 if __name__ == "__main__":
     unittest.main()
