@@ -4192,6 +4192,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
+        # A truncation to a width with no matching C integer type cannot be represented faithfully by a
+        # cast: it gets rounded up to the next real type, silently widening the value. A Convert(32 -> 5)
+        # would render as `(char)x` (the low 8 bits, not 5), and a Convert(8 -> 1) as a no-op `(char)`
+        # cast that prints as a bare `x` (i.e. `x != 0` rather than `x & 1`). Emit an explicit low-bits
+        # mask instead, which is exact and matches how such truncations tend to appear in the source.
+        if expr.to_bits < expr.from_bits and expr.to_bits not in {8, 16, 32, 64, 128, 256, 512}:
+            child = self._handle(expr.operand)
+            const_type = child.type if child.type is not None else self.default_simtype_from_bits(expr.from_bits, False)
+            mask = CConstant((1 << expr.to_bits) - 1, const_type, codegen=self, tags=expr.tags)
+            return CBinaryOp("And", child, mask, codegen=self, tags=expr.tags)
+
         # width of converted type is easy
         dst_type: SimTypeInt | SimTypeChar
         if 512 >= expr.to_bits > 256:
