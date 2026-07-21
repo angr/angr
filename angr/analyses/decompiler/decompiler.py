@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 
+    from .decompiler_observer import DecompilerObserver
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from .structured_codegen.base import BaseStructuredCodeGenerator
 
@@ -98,6 +99,7 @@ class Decompiler(Analysis):
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
+        observer: DecompilerObserver | None = None,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -151,6 +153,8 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
+        # the observer is pure observability; it is deliberately excluded from _cache_parameters
+        self._observer = observer
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
@@ -259,6 +263,14 @@ class Decompiler(Analysis):
     def _decompile_with_cache(self):
         with sprop_cache_scope(self._sprop_walker_cache):
             self._decompile()
+
+    def _notify_observer(self, stage_name: str) -> None:
+        if self._observer is None or self.clinic is None or self.clinic.graph is None:
+            return
+        try:
+            self._observer.on_decompiler_stage(self.func.addr, stage_name, self.clinic.graph)
+        except Exception:  # pylint:disable=broad-exception-caught
+            l.warning("DecompilerObserver failed at decompiler stage %s", stage_name, exc_info=True)
 
     @timethis
     def _decompile(self):
@@ -373,6 +385,7 @@ class Decompiler(Analysis):
                 static_buffers=self._static_buffers,
                 flavor=self._flavor,
                 variable_map=variable_map,
+                observer=self._observer,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -396,6 +409,8 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
+        self._notify_observer("CLINIC")
+
         # expose a copy of the graph before any optimizations that may change the graph occur;
         # use this graph if you need a reference of exact mapping of instructions to AIL statements
         self.unoptimized_ail_graph = (
@@ -408,12 +423,14 @@ class Decompiler(Analysis):
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
         )
+        self._notify_observer("GRAPH_SIMPLIFICATION")
 
         # recover regions, delay updating when we have optimizations that may update regions themselves
         delay_graph_updates = any(
             pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
         )
         self.region_identifier = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
+        self._notify_observer("REGION_IDENTIFICATION")
 
         self._update_progress(73.0, text="Running region-simplification passes")
 
@@ -426,6 +443,7 @@ class Decompiler(Analysis):
             arg_vvars=set(clinic.arg_vvars) if clinic.arg_vvars is not None else set(),
             edges_to_remove=clinic.edges_to_remove,
         )
+        self._notify_observer("REGION_SIMPLIFICATION")
 
         if not self._want_full_graph:
             # finally (no more graph-based simplifications will run in the future),
@@ -434,6 +452,7 @@ class Decompiler(Analysis):
 
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = clinic.copy_graph()
+        self._notify_observer("EDGE_REMOVAL")
 
         codegen = None
         seq_node = None
@@ -453,6 +472,7 @@ class Decompiler(Analysis):
                 ail_manager=clinic._ail_manager,
                 **self._recursive_structurer_params,
             )
+            self._notify_observer("STRUCTURING")
             self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it
@@ -477,6 +497,7 @@ class Decompiler(Analysis):
                 **region_simplifier_params,
             )
             seq_node = s.result
+            self._notify_observer("REGION_SIMPLIFIER")
             seq_node = self._run_post_structuring_simplification_passes(
                 seq_node,
                 binop_operators=cache.binop_operators,
@@ -484,9 +505,11 @@ class Decompiler(Analysis):
                 graph=clinic.graph,
                 variable_kb=self._variable_kb,
             )
+            self._notify_observer("POST_STRUCTURING")
 
             # rewrite the sequence node to remove phi expressions
             seq_node = self.transform_seqnode_from_ssa(seq_node)
+            self._notify_observer("SSA_TO_NONSSA")
 
             # update memory data
             if self._cfg is not None and self._update_memory_data:
@@ -511,6 +534,7 @@ class Decompiler(Analysis):
                     notes=self.notes,
                     **self.options_to_params(self.options_by_class["codegen"]),
                 )
+                self._notify_observer("CODEGEN")
 
         self.seq_node = seq_node
         self.codegen = codegen
