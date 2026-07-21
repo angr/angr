@@ -76,7 +76,7 @@ enum CConstructKind {
 message CFunctionMsg {
     optional uint64 addr = 1;
     string name = 2;
-    string functy_json = 3;                       // SimTypeFunction.to_json
+    uint32 functy_ref = 3;                        // SimTypeFunction; index+1 into Codegen.type_pool, 0 = absent
     repeated uint32 arg_list_ids = 4;             // CVariable node_ids
     uint32 statements_id = 5;                     // CStatements node_id
     repeated VariableInUseEntry variables_in_use = 6;
@@ -215,7 +215,7 @@ message CFunctionCallMsg {
 
 // CStructField
 message CStructFieldMsg {
-    string struct_type_json = 1;
+    uint32 struct_type_ref = 1;
     int64 offset = 2;
     string field = 3;
 }
@@ -223,14 +223,14 @@ message CStructFieldMsg {
 // CFakeVariable
 message CFakeVariableMsg {
     string name = 1;
-    optional string type_json = 2;                // _type as SimType.to_json
+    uint32 type_ref = 2;
 }
 
 // CVariable
 message CVariableMsg {
     bytes variable = 1;                           // serialized SimVariable
     optional bytes unified_variable = 2;
-    optional string variable_type_json = 3;
+    uint32 variable_type_ref = 3;
     optional uint32 vvar_id = 4;
 }
 
@@ -238,7 +238,7 @@ message CVariableMsg {
 message CIndexedVariableMsg {
     uint32 variable_id = 1;
     uint32 index_id = 2;
-    optional string type_json = 3;
+    uint32 type_ref = 3;
 }
 
 // CVariableField
@@ -259,19 +259,19 @@ message CBinaryOpMsg {
     string op = 1;
     uint32 lhs_id = 2;
     uint32 rhs_id = 3;
-    string common_type_json = 4;                  // common_type as SimType.to_json
+    uint32 common_type_ref = 4;
 }
 
 // CTypeCast
 message CTypeCastMsg {
-    string src_type_json = 1;
-    string dst_type_json = 2;
+    uint32 src_type_ref = 1;
+    uint32 dst_type_ref = 2;
     uint32 expr_id = 3;
 }
 
 // CConstant. ``value`` is int | float | str. ``reference_values`` is dict[SimType, int|MemoryData|bytes|str].
 message CConstantReferenceValue {
-    string type_json = 1;
+    uint32 type_ref = 1;
     oneof value {
         int64 int_value = 2;
         bytes raw_bytes = 3;
@@ -285,7 +285,7 @@ message CConstantMsg {
         double float_value = 2;
         string str_value = 3;
     }
-    string type_json = 4;
+    uint32 type_ref = 4;
     repeated CConstantReferenceValue reference_values = 5;
 }
 
@@ -329,7 +329,7 @@ message CConstructNode {
     string ident = 4;                             // CConstruct.ident: per-class-name display label; NOT unique
     // For CExpression subclasses only:
     optional bool collapsed = 5;
-    optional string expr_type_json = 6;           // _type as SimType.to_json (cached on CExpression)
+    uint32 expr_type_ref = 6;                     // _type as index+1 into Codegen.type_pool; 0 = absent
 
     oneof body {
         CFunctionMsg cfunction = 100;
@@ -435,6 +435,10 @@ message Codegen {
     map<string, string> notes_json = 22;          // DecompilationNote serialized to JSON; key = note key
     // const_formats: dict[IdentType, dict[str, bool]]; IdentType = tuple[int, int, str]
     repeated ConstFormatEntry const_formats = 23;
+
+    // Interned SimType JSON strings (SimType.to_json output). All *_ref fields above and in the node bodies
+    // are index+1 into this pool; 0 means absent.
+    repeated string type_pool = 24;
 
     // Display options (round-tripped but not strictly part of the result). Field numbers 30-59 are reserved for
     // this block: c_serialize derives its display-option attribute list from this number range at runtime, so a

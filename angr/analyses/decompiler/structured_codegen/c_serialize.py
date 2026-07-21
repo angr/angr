@@ -96,18 +96,6 @@ def _parse_tags(cmsg: codegen_pb2.CConstructTags) -> dict:
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-def _simtype_to_json(t: SimType | None) -> str:
-    if t is None:
-        return ""
-    return json.dumps(t.to_json())
-
-
-def _simtype_from_json(s: str) -> SimType | None:
-    if not s:
-        return None
-    return SimType.from_json(json.loads(s))
-
-
 def _simvar_to_bytes(v: SimVariable | None) -> bytes:
     """Encode a SimVariable as ``b"<ClassName>\\0<protobuf>"`` so the dispatch type tag round-trips with the payload.
     SimVariable subclasses each define their own _pb2 message; we need the type tag to know which Serializable.parse
@@ -137,11 +125,28 @@ class SerializeContext:
     Tracks which nodes have been serialized while walking the C AST.
     """
 
-    __slots__ = ("_seen", "nodes")
+    __slots__ = ("_seen", "_type_pool", "nodes")
 
     def __init__(self) -> None:
         self._seen: set[int] = set()  # stores CConstruct.idx for serialized nodes
         self.nodes: list[codegen_pb2.CConstructNode] = []
+        # SimType JSON interning: json string -> ref (index+1 into Codegen.type_pool; 0 means absent)
+        self._type_pool: dict[str, int] = {}
+
+    def intern_type(self, t: SimType | None) -> int:
+        """Intern a SimType's JSON encoding and return its ref (index+1 into the type pool); 0 for None."""
+        if t is None:
+            return 0
+        key = json.dumps(t.to_json())
+        ref = self._type_pool.get(key)
+        if ref is None:
+            ref = len(self._type_pool) + 1
+            self._type_pool[key] = ref
+        return ref
+
+    @property
+    def type_pool(self) -> list[str]:
+        return list(self._type_pool)  # insertion-ordered: pool[i] has ref i+1
 
     def serialize(self, node: CConstruct | None) -> int:
         """Serialize ``node`` (recursively) and return its node_id (== node.idx). 0 indicates absent."""
@@ -161,7 +166,7 @@ class SerializeContext:
             pb.collapsed = bool(getattr(node, "collapsed", False))
             ty = getattr(node, "_type", None)
             if ty is not None:
-                pb.expr_type_json = _simtype_to_json(ty)
+                pb.expr_type_ref = self.intern_type(ty)
         _SERIALIZERS[type(node)](node, pb, self)
         self.nodes.append(pb)
         return nid
@@ -172,14 +177,26 @@ class ParseContext:
     Tracks and resolves node.idx to the corresponding C AST.
     """
 
-    __slots__ = ("_msg_by_id", "_parsed", "kb", "project")
+    __slots__ = ("_msg_by_id", "_parsed", "_type_json_cache", "_type_pool", "kb", "project")
 
-    def __init__(self, nodes_msg, project=None, kb=None) -> None:
+    def __init__(self, nodes_msg, project=None, kb=None, type_pool=()) -> None:
         self._msg_by_id: dict[int, codegen_pb2.CConstructNode] = {n.node_id: n for n in nodes_msg}
         self._parsed: dict[int, Any] = {}
         # Project / KB are used to resolve Function references and similar by-address pointers at parse time.
         self.project = project
         self.kb = kb
+        self._type_pool: list[str] = list(type_pool)
+        self._type_json_cache: dict[int, Any] = {}
+
+    def resolve_type(self, ref: int) -> SimType | None:
+        """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance."""
+        if ref == 0:
+            return None
+        loaded = self._type_json_cache.get(ref)
+        if loaded is None:
+            loaded = json.loads(self._type_pool[ref - 1])
+            self._type_json_cache[ref] = loaded
+        return SimType.from_json(loaded)
 
     def resolve(self, node_id: int):
         if node_id == 0:
@@ -195,7 +212,7 @@ class ParseContext:
         obj.codegen = None  # back-reference re-attached by set_codegen()
         if isinstance(obj, CExpression):
             obj.collapsed = bool(pb.collapsed) if pb.HasField("collapsed") else False
-            obj._type = _simtype_from_json(pb.expr_type_json) if pb.HasField("expr_type_json") else None
+            obj._type = self.resolve_type(pb.expr_type_ref)
         self._parsed[node_id] = obj
         return obj
 
@@ -234,13 +251,14 @@ def serialize_subtree(root: CConstruct) -> bytes:
     msg = codegen_pb2.Codegen()
     msg.root_id = root_id
     msg.nodes.extend(ctx.nodes)
+    msg.type_pool.extend(ctx.type_pool)
     return msg.SerializeToString()
 
 
 def parse_subtree(data: bytes, project=None, kb=None) -> CConstruct | None:
     msg = codegen_pb2.Codegen()
     msg.ParseFromString(data)
-    ctx = ParseContext(msg.nodes, project=project, kb=kb)
+    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool)
     return ctx.resolve(msg.root_id)
 
 
@@ -387,6 +405,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
 
     # The flat AST node table is filled in by ctx.serialize during the recursive calls above.
     msg.nodes.extend(ctx.nodes)
+    msg.type_pool.extend(ctx.type_pool)
     return msg
 
 
@@ -418,7 +437,7 @@ def parse_codegen(msg, *, project=None, kb=None, variable_kb=None, func=None):
     display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
     require ``project`` / ``func`` / ``variable_kb`` to be reattached."""
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
-    ctx = ParseContext(msg.nodes, project=project, kb=kb)
+    ctx = ParseContext(msg.nodes, project=project, kb=kb, type_pool=msg.type_pool)
 
     # Materialize the AST.
     cg.cfunc = ctx.resolve(msg.root_id) if msg.root_id != 0 else None
@@ -756,7 +775,7 @@ def _ser_cbinop(node, pb, ctx):
     pb.cbinop.op = node.op
     pb.cbinop.lhs_id = ctx.serialize(node.lhs)
     pb.cbinop.rhs_id = ctx.serialize(node.rhs)
-    pb.cbinop.common_type_json = _simtype_to_json(node.common_type)
+    pb.cbinop.common_type_ref = ctx.intern_type(node.common_type)
 
 
 def _parse_cbinop(pb, ctx):
@@ -764,21 +783,21 @@ def _parse_cbinop(pb, ctx):
     obj.op = pb.cbinop.op
     obj.lhs = ctx.resolve(pb.cbinop.lhs_id)
     obj.rhs = ctx.resolve(pb.cbinop.rhs_id)
-    obj.common_type = _simtype_from_json(pb.cbinop.common_type_json)
+    obj.common_type = ctx.resolve_type(pb.cbinop.common_type_ref)
     obj._cstyle_null_cmp = False  # rebuilt from codegen flags after set_codegen; safe default
     return obj
 
 
 def _ser_ctypecast(node, pb, ctx):
-    pb.ctypecast.src_type_json = _simtype_to_json(node.src_type)
-    pb.ctypecast.dst_type_json = _simtype_to_json(node.dst_type)
+    pb.ctypecast.src_type_ref = ctx.intern_type(node.src_type)
+    pb.ctypecast.dst_type_ref = ctx.intern_type(node.dst_type)
     pb.ctypecast.expr_id = ctx.serialize(node.expr)
 
 
 def _parse_ctypecast(pb, ctx):
     obj = CTypeCast.__new__(CTypeCast)
-    obj.src_type = _simtype_from_json(pb.ctypecast.src_type_json)
-    obj.dst_type = _simtype_from_json(pb.ctypecast.dst_type_json)
+    obj.src_type = ctx.resolve_type(pb.ctypecast.src_type_ref)
+    obj.dst_type = ctx.resolve_type(pb.ctypecast.dst_type_ref)
     obj.expr = ctx.resolve(pb.ctypecast.expr_id)
     return obj
 
@@ -826,14 +845,14 @@ def _parse_cvex(pb, ctx):
 # Variables and structs.
 # -----------------------------------------------------------------------------------------------------------------
 def _ser_cstructfield(node, pb, ctx):
-    pb.cstruct_field.struct_type_json = _simtype_to_json(node.struct_type)
+    pb.cstruct_field.struct_type_ref = ctx.intern_type(node.struct_type)
     pb.cstruct_field.offset = node.offset
     pb.cstruct_field.field = node.field
 
 
 def _parse_cstructfield(pb, ctx):
     obj = CStructField.__new__(CStructField)
-    obj.struct_type = _simtype_from_json(pb.cstruct_field.struct_type_json)
+    obj.struct_type = ctx.resolve_type(pb.cstruct_field.struct_type_ref)
     obj.offset = pb.cstruct_field.offset
     obj.field = pb.cstruct_field.field
     return obj
@@ -843,16 +862,16 @@ def _ser_cfakevar(node, pb, ctx):
     pb.cfake_var.name = node.name
     ty = getattr(node, "_type", None)
     if ty is not None:
-        pb.cfake_var.type_json = _simtype_to_json(ty)
+        pb.cfake_var.type_ref = ctx.intern_type(ty)
 
 
 def _parse_cfakevar(pb, ctx):
     obj = CFakeVariable.__new__(CFakeVariable)
     obj.name = pb.cfake_var.name
-    # _type is restored by ParseContext.resolve via expr_type_json on the wrapper; CFakeVariable also has _type
+    # _type is restored by ParseContext.resolve via expr_type_ref on the wrapper; CFakeVariable also has _type
     # in __slots__, set there too if present in body.
-    if pb.cfake_var.HasField("type_json"):
-        obj._type = _simtype_from_json(pb.cfake_var.type_json)
+    if pb.cfake_var.type_ref:
+        obj._type = ctx.resolve_type(pb.cfake_var.type_ref)
     return obj
 
 
@@ -861,7 +880,7 @@ def _ser_cvar(node, pb, ctx):
     if node.unified_variable is not None:
         pb.cvar.unified_variable = _simvar_to_bytes(node.unified_variable)
     if node.variable_type is not None:
-        pb.cvar.variable_type_json = _simtype_to_json(node.variable_type)
+        pb.cvar.variable_type_ref = ctx.intern_type(node.variable_type)
     if node.vvar_id is not None:
         pb.cvar.vvar_id = node.vvar_id
 
@@ -871,7 +890,7 @@ def _parse_cvar(pb, ctx):
     body = pb.cvar
     obj.variable = _simvar_from_bytes(body.variable)
     obj.unified_variable = _simvar_from_bytes(body.unified_variable) if body.HasField("unified_variable") else None
-    obj.variable_type = _simtype_from_json(body.variable_type_json) if body.HasField("variable_type_json") else None
+    obj.variable_type = ctx.resolve_type(body.variable_type_ref)
     obj.vvar_id = body.vvar_id if body.HasField("vvar_id") else None
     return obj
 
@@ -881,7 +900,7 @@ def _ser_cidxvar(node, pb, ctx):
     pb.cindexed_var.index_id = ctx.serialize(node.index)
     ty = getattr(node, "_type", None)
     if ty is not None:
-        pb.cindexed_var.type_json = _simtype_to_json(ty)
+        pb.cindexed_var.type_ref = ctx.intern_type(ty)
 
 
 def _parse_cidxvar(pb, ctx):
@@ -889,8 +908,8 @@ def _parse_cidxvar(pb, ctx):
     body = pb.cindexed_var
     obj.variable = ctx.resolve(body.variable_id)
     obj.index = ctx.resolve(body.index_id)
-    if body.HasField("type_json"):
-        obj._type = _simtype_from_json(body.type_json)
+    if body.type_ref:
+        obj._type = ctx.resolve_type(body.type_ref)
     return obj
 
 
@@ -922,13 +941,13 @@ def _ser_cconst(node, pb, ctx):
         body.float_value = node.value
     elif isinstance(node.value, str):
         body.str_value = node.value
-    body.type_json = _simtype_to_json(node._type)
+    body.type_ref = ctx.intern_type(node._type)
     if node.reference_values:
         from angr.knowledge_plugins.cfg.memory_data import MemoryData
 
         for ty, val in node.reference_values.items():
             entry = body.reference_values.add()
-            entry.type_json = _simtype_to_json(ty)
+            entry.type_ref = ctx.intern_type(ty)
             if isinstance(val, bool):
                 entry.int_value = int(val)
             elif isinstance(val, int):
@@ -956,11 +975,11 @@ def _parse_cconst(pb, ctx):
         obj.value = body.str_value
     else:
         obj.value = None
-    obj._type = _simtype_from_json(body.type_json)
+    obj._type = ctx.resolve_type(body.type_ref)
     if body.reference_values:
         refs = {}
         for entry in body.reference_values:
-            key = _simtype_from_json(entry.type_json)
+            key = ctx.resolve_type(entry.type_ref)
             w = entry.WhichOneof("value")
             if w == "int_value":
                 refs[key] = entry.int_value
@@ -1026,7 +1045,7 @@ def _ser_cfunction(node, pb, ctx):
     if node.addr is not None:
         body.addr = node.addr
     body.name = node.name
-    body.functy_json = _simtype_to_json(node.functy)
+    body.functy_ref = ctx.intern_type(node.functy)
     for arg in node.arg_list:
         body.arg_list_ids.append(ctx.serialize(arg))
     body.statements_id = ctx.serialize(node.statements)
@@ -1045,7 +1064,7 @@ def _parse_cfunction(pb, ctx):
     body = pb.cfunction
     obj.addr = body.addr if body.HasField("addr") else None
     obj.name = body.name
-    obj.functy = _simtype_from_json(body.functy_json)
+    obj.functy = ctx.resolve_type(body.functy_ref)
     obj.arg_list = [ctx.resolve(i) for i in body.arg_list_ids]
     obj.statements = ctx.resolve(body.statements_id)
     obj.variables_in_use = {
