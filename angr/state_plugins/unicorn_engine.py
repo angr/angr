@@ -399,6 +399,9 @@ class _VexArchInfo(ctypes.Structure):
 
 
 def _load_native():
+    if sys.platform == "emscripten":
+        raise ImportError("Native SimUnicorn support is unavailable on Emscripten")
+
     if sys.platform == "darwin":
         libfile = "unicornlib.dylib"
     elif sys.platform in {"win32", "cygwin"}:
@@ -588,15 +591,11 @@ def _load_native():
         raise ImportError("Unable to import native SimUnicorn support") from e
 
 
-if sys.platform == "emscripten":
+try:
+    _UC_NATIVE = _load_native()
+except ImportError:
     _UC_NATIVE = None
     unicorn = None
-else:
-    try:
-        _UC_NATIVE = _load_native()
-    except ImportError:
-        _UC_NATIVE = None
-        unicorn = None
 
 
 class Unicorn(SimStatePlugin):

@@ -4,12 +4,12 @@ angr supports browsers and other WebAssembly hosts through Pyodide. The WebAssem
 engine, Claripy/Z3 solving, binary loading, CFG recovery, AIL, and the portable parts of `angr.rustylib`.
 
 The host features reported as unavailable by `angr.capabilities` are LMDB-backed spilling, psutil memory monitoring,
-P-code, Unicorn, Icicle, subprocesses, and multiprocessing. Browser files live in Pyodide's virtual filesystem; pass
-uploaded bytes to the worker rather than a host path.
+Unicorn, Icicle, subprocesses, and multiprocessing. Browser files live in Pyodide's virtual filesystem; pass uploaded
+bytes to the worker rather than a host path.
 
 ## Build and test
 
-Check out `angr`, `archinfo`, `claripy`, `cle`, `pyvex`, and an unmodified upstream `z3` as siblings in one
+Check out `angr`, `archinfo`, `claripy`, `cle`, `pypcode`, `pyvex`, and an unmodified upstream `z3` as siblings in one
 directory, initialize PyVEX's VEX submodule, and run:
 
 ```console
