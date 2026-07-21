@@ -270,6 +270,52 @@ class TestAMD64CondOverflowBinary(unittest.TestCase):
         assert "_ccall(0, " not in dec.codegen.text
         assert "_ccall(1, " not in dec.codegen.text
 
+    def test_coreutils_cat_overflow_checks_have_no_ccall(self):
+        # coreutils' xalloc idiom. Verified cc_op values, all constant:
+        #   main    @ 0x4023c0 -- CondO x SMULQ (52) and CondO x ADDQ (4)
+        #   xpalloc @ 0x41f470 -- CondO x ADDQ (4) and CondO x SMULQ (52)
+        bin_path = os.path.join(test_location, "x86_64", "cat_gcc17.0.0_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+        for addr in (0x4023C0, 0x41F470):
+            dec = proj.analyses.Decompiler(cfg.functions[addr], cfg=cfg)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            assert "_ccall" not in dec.codegen.text, f"{addr:#x} still leaks a ccall"
+            assert "__OFSMUL__" in dec.codegen.text, f"{addr:#x} lost its overflow check"
+            assert "__OFADD__" in dec.codegen.text, f"{addr:#x} lost its overflow check"
+
+    def test_grep_overflow_checks_have_no_ccall(self):
+        # Verified cc_op values, all constant:
+        #   fillbuf    @ 0x40cc10 -- CondO x ADDQ (4), 2 sites
+        #   xstrtoimax @ 0x4888a0 -- CondO x SMULQ (52), 14 sites
+        bin_path = os.path.join(test_location, "x86_64", "grep_gcc17.0.0_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+
+        dec = proj.analyses.Decompiler(cfg.functions[0x40CC10], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "_ccall" not in dec.codegen.text
+        assert "__OFADD__" in dec.codegen.text
+
+        dec = proj.analyses.Decompiler(cfg.functions[0x4888A0], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "_ccall" not in dec.codegen.text
+        assert "__OFSMUL__" in dec.codegen.text
+
+    def test_zlib_minigzip_umul_overflow_has_no_ccall(self):
+        # zlib guards its gz buffer sizing with an unsigned multiply. Verified
+        # cc_op values, all constant:
+        #   gzfread  @ 0x40ea40 -- CondO x UMULQ (48)
+        #   gzfwrite @ 0x413d50 -- CondO x UMULQ (48)
+        bin_path = os.path.join(test_location, "x86_64", "minigzip_gcc17.0.0_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+        for addr in (0x40EA40, 0x413D50):
+            dec = proj.analyses.Decompiler(cfg.functions[addr], cfg=cfg)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            assert "_ccall" not in dec.codegen.text, f"{addr:#x} still leaks a ccall"
+            assert "__OFUMUL__" in dec.codegen.text, f"{addr:#x} lost its overflow check"
+
 
 if __name__ == "__main__":
     unittest.main()
