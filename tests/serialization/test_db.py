@@ -694,7 +694,7 @@ class TestDb(unittest.TestCase):
 
     def test_angrdb_full_decompilation_cache_roundtrip(self):
         # DecompilationCache objects in the structured code manager are fully serialized into the database and come
-        # back with real codegen (not DummyStructuredCodeGenerator) and their provenance stamps intact.
+        # back with real codegen (not DummyStructuredCodeGenerator) and their version and timestamp intact.
         from angr.analyses.decompiler.decompilation_cache import DecompilationCache
         from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 
@@ -754,7 +754,7 @@ class TestDb(unittest.TestCase):
                 new_proj = AngrDB(nullpool=True).load(db_file)
                 backing = new_proj.kb.decompilations.cached
                 assert isinstance(backing, SpillingDecompilationDict)
-                # both caches were imported as bytes and registered as spilled, not materialized
+                # both caches were imported as bytes and registered as spilled, not deserialized
                 assert backing._spilled == {(auth_func.addr, "pseudocode"), (main_func.addr, "pseudocode")}
                 assert len(backing._cache) == 0
 

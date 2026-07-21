@@ -1,7 +1,7 @@
 # The *_pb2.py modules in this package are generated from the .proto sources at build/install time (see
 # build_protos() in setup.py) and are not committed. After editing a .proto, regenerate manually with
 #
-#  $ cd angr  # the repository root; you would expect angr/protos to exist after this
+#  $ cd angr  # the repository root
 #  $ python -m grpc_tools.protoc -I. --python_out=. angr/protos/*.proto
 #
 # (grpcio-tools is a build dependency; installs with --no-build-isolation need it installed in the environment.)

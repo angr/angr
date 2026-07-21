@@ -286,7 +286,7 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.errors == cache.errors
         assert back.function_summary == cache.function_summary
         assert back.codegen.text == cache.codegen.text
-        # provenance stamps are set at decompile time and round-trip verbatim
+        # version and timestamp are set at decompile time and round-trip verbatim
         assert cache.version == angr.__version__
         assert cache.timestamp > 0
         assert back.version == cache.version
@@ -369,7 +369,7 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert main_key in d
         assert set(d) == {auth_key, main_key}
 
-        # reloading the spilled entry deserializes it with full codegen and provenance stamps
+        # reloading the spilled entry deserializes it with full codegen and version/timestamp
         back = d[auth_key]
         assert back is not self.auth_dec.cache
         assert back.codegen.text == self.auth_dec.cache.codegen.text

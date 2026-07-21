@@ -2393,8 +2393,8 @@ class Clinic(Analysis, Serializable):
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]],
     ):
         # variable recovery
-        # Route variable recovery into the shared kb.dec_variables (VariableRecoveryBase writes to kb.variables
-        # of whatever KB it is given), keeping it isolated from the disassembly-level kb.variables.
+        # route recovery into kb.dec_variables: VariableRecoveryBase writes to the "variables" plugin of the KB
+        # it is given
         tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
@@ -4343,8 +4343,7 @@ class Clinic(Analysis, Serializable):
             msg._peephole_optimizations_set = True
             msg.peephole_optimizations.extend(pass_to_name(cls_) for cls_ in self.peephole_optimizations)
         if self._typehoon_cls is not None:
-            # ``_typehoon_cls`` is the Typehoon class itself, not a registered pass, so it is resolved by importlib
-            # from a fully-qualified name (not the pass registry's bare class names).
+            # _typehoon_cls is the Typehoon class itself (not a registered pass); store its fully-qualified name
             msg._typehoon_cls = (
                 f"{self._typehoon_cls.__module__}.{self._typehoon_cls.__qualname__}"
                 if self._typehoon_cls.__module__ != "builtins"

@@ -164,9 +164,8 @@ class DecompilationCache(Serializable):
     Caches key data structures that can be used later for refining decompilation results, such as retyping variables.
     """
 
-    # ``cfg`` is not part of the decompilation result: it is an input supplied by the parent
-    # Project at decompile time and are used only for in-memory cache-validity checks. They are intentionally not
-    # serialized; on deserialization they come back as None and must be re-attached by the caller.
+    # ``cfg`` is a decompile-time input used only for cache-validity checks. It is not serialized; after
+    # deserialization it is None until the caller re-attaches it.
     __slots__ = (
         "addr",
         "arg_vvars",
@@ -194,7 +193,7 @@ class DecompilationCache(Serializable):
         import angr  # pylint:disable=import-outside-toplevel,cyclic-import
 
         self.parameters: dict[str, Any] = {}
-        # provenance stamps; the cache is created when decompilation happens
+        # angr version and creation time of this decompilation
         self.version: str = angr.__version__
         self.timestamp: int = int(time.time())
         self.addr = addr
@@ -222,12 +221,9 @@ class DecompilationCache(Serializable):
         return self.clinic.kb.dec_variables[self.addr].types
 
     # -----------------------------------------------------------------------------------------------------------------
-    # Protobuf serialization. Heavy sub-objects (clinic, codegen) are embedded as already-serialized bytes from their
-    # own Serializable interfaces; AIL-typed top-level fields (arg_vvars, ite_exprs) use the typed messages from
-    # ail_types.proto.
-    #
-    # The 4 typehoon-typed slots (type_constraints, func_typevar, var_to_typevar, stack_offset_typevars) and the
-    # ``cfg`` runtime input is intentionally NOT serialized and comes back as None.
+    # Protobuf serialization. Heavy sub-objects (clinic, codegen) are embedded as already-serialized bytes; AIL-typed
+    # top-level fields (arg_vvars, ite_exprs) use the typed messages from ail_types.proto. The four typehoon-typed
+    # slots and the ``cfg`` input are not serialized and come back as None.
     # -----------------------------------------------------------------------------------------------------------------
 
     @classmethod

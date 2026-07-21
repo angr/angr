@@ -149,9 +149,8 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
-        # ``cfg`` is deliberately NOT in this dict: it is an input supplied by the parent
-        # Project and are not part of the decompilation result, so they are not part of the serialized cache.
-        # Their identity is still checked for cache validity via :meth:`_can_use_decompilation_cache`.
+        # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
+        # checked separately in :meth:`_can_use_decompilation_cache`.
         self._cache_parameters = (
             {
                 "options": {(o, v) for o, v in self._options if o.category != "Display" and v != o.default_value},
@@ -237,15 +236,12 @@ class Decompiler(Analysis):
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         if self._cache_parameters is None or cache.parameters is None:
             return False
-        # cfg is identity-checked off the cache directly; it is not part of the parameters dict because it is not
-        # part of the decompilation result. Deserialized caches (protobuf, AngrDB) come back with it unset until
-        # the caller re-attaches it; an unset input is not a mismatch.
+        # deserialized caches come back with cfg unset until the caller re-attaches it; unset is not a mismatch
         if cache.cfg is not None and cache.cfg is not self._cfg:
             return False
         a, b = self._cache_parameters, cache.parameters
         if not b:
-            # AngrDB-loaded caches carry no recorded parameters; there is nothing to validate against (matching the
-            # pre-existing behavior where such caches were always used).
+            # AngrDB-loaded caches carry no recorded parameters; there is nothing to validate against
             return True
         return all(k in b and a[k] == b[k] for k in a)
 
@@ -269,9 +265,9 @@ class Decompiler(Analysis):
 
     def _reuse_cached_decompilation(self, cache, clinic, codegen) -> None:
         """Full-reuse fast path: expose the cached clinic and codegen as this run's results without re-running the
-        pipeline. A live codegen's text is re-rendered so in-place display edits since the last render show up; a
-        freshly-deserialized codegen (``_handlers is None``) keeps its stored text, which is authoritative and avoids
-        re-rendering from a lossily-reconstructed AST. Either way the codegen inherits the cache's provenance stamps."""
+        pipeline. A live codegen's text is re-rendered to pick up in-place display edits; a freshly-deserialized
+        codegen (``_handlers is None``) keeps its stored text. The codegen inherits the cache's version and
+        timestamp."""
         codegen.version = cache.version
         codegen.timestamp = cache.timestamp
         if codegen._handlers is not None:
@@ -320,12 +316,9 @@ class Decompiler(Analysis):
             l.debug("Decompilation cache miss")
 
         # Full-reuse fast path: with use_cache and without regen_clinic (the default), a valid cache short-circuits
-        # the entire pipeline and hands back the cached clinic and codegen. The text is re-rendered from the cached
-        # codegen AST so any in-place display edits (const formats, comments) since the last render are reflected.
-        # A DummyStructuredCodeGenerator (legacy angrdb rows) has no AST to render from, so it takes the normal path.
-        # The cached codegen can only be re-rendered when kb.dec_variables holds this function's variables.
-        # Deserialized caches whose dec_variables were not loaded (angrdb rows, LMDB-spilled reloads) fall through
-        # to a fresh decompilation (below, a clinic whose function has no dec_variables is likewise rejected).
+        # the entire pipeline and hands back the cached clinic and codegen. Requires an AST-carrying codegen (not
+        # DummyStructuredCodeGenerator) and this function's variables in kb.dec_variables; anything else falls
+        # through to a fresh decompilation.
         if (
             self.use_cache
             and not self._regen_clinic
@@ -385,8 +378,7 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        # Reuse the cached clinic only when it is a usable source: a deserialized clinic whose function has no
-        # dec_variables cannot drive codegen, so re-run Clinic from scratch instead.
+        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
         if (
             self._regen_clinic
             or old_clinic is None
@@ -566,7 +558,7 @@ class Decompiler(Analysis):
         self.ail_graph = clinic.cc_graph
         self.cache.codegen = codegen
         if codegen is not None:
-            # mirror the cache's provenance stamps onto the codegen
+            # copy the cache's version and timestamp onto the codegen
             codegen.version = self.cache.version
             codegen.timestamp = self.cache.timestamp
         # drop always-regenerable analysis state (the SRDA model) before the clinic goes into the cache

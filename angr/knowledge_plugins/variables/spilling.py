@@ -26,13 +26,12 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
     recently used cache_limit entries in memory and spills the rest to an LMDB database managed by the RuntimeDb
     knowledge base plugin. It is the backing store for ``DecompilationVariableManager.function_managers``.
 
-    Evicted entries are serialized (``internal.serialize()``) and written out; they are deserialized on access with the
-    owning manager reattached. Decompilation only mutates a function's internal manager while decompiling that
-    function -- when it is the most-recently-used entry and therefore never a spill candidate -- and treats it as
-    read-only afterwards, so a reload always reflects the last committed state.
+    Evicted entries are serialized and written out; they are deserialized on access with the owning manager
+    reattached. Decompilation only mutates a function's internal manager while decompiling that function (when it is
+    the most-recently-used entry) and treats it as read-only afterwards, so spilling is safe.
 
-    The RuntimeDb reference is non-durable: it is dropped when the owning manager is pickled and the serialized entries
-    travel inside the pickle, to be re-imported into a fresh LMDB on first access after unpickling.
+    On pickle, the serialized entries travel inside the pickle and are re-imported into a fresh LMDB on first access
+    after unpickling.
     """
 
     def __init__(self, manager: DecompilationVariableManager, cache_limit: int = DVARS_CACHE_LIMIT):
@@ -42,8 +41,8 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
         self._spilled: set[int] = set()
         self._db: str | None = None
         self._eviction_enabled: bool = True
-        # serialized entries restored by __setstate__ that have not been written to LMDB yet; unpickling cannot touch
-        # the RuntimeDb plugin because the owning knowledge base may itself still be mid-unpickle
+        # serialized entries restored by __setstate__, imported into LMDB on first access (the owning knowledge
+        # base may still be mid-unpickle during __setstate__)
         self._pending_import: dict[int, bytes] | None = None
 
     @property
@@ -150,17 +149,16 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
         return len(self._cache) + len(self._spilled)
 
     def __iter__(self) -> Iterator[int]:
-        # snapshot the keys: consumers that call __getitem__ per key (e.g. items()/values()) reorder the LRU cache and
-        # may fault in spilled entries, both of which mutate the live containers mid-iteration
+        # snapshot the keys: consumers that call __getitem__ per key (e.g. items()/values()) mutate the live
+        # containers mid-iteration
         yield from list(self._cache)
         yield from list(self._spilled)
 
     #
     # Pickling
     #
-    # Live entries are serialized to their protobuf bytes and spilled entries are copied straight out of LMDB, so the
-    # pickle is self-contained and does not reference the (non-durable) RuntimeDb. The owning manager is restored by
-    # reference so reloads reattach to the correct manager.
+    # Live entries are serialized to their protobuf bytes and spilled entries are copied straight out of LMDB, so
+    # the pickle is self-contained and does not reference the (non-durable) RuntimeDb.
     #
 
     def __getstate__(self) -> dict:
@@ -177,7 +175,6 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
 
     def __setstate__(self, state: dict) -> None:
         self.__init__(state["manager"], cache_limit=state["cache_limit"])  # type: ignore[misc]
-        # the knowledge base (and its RuntimeDb plugin) may itself still be mid-unpickle; defer the LMDB import to
-        # the first real access
+        # defer the LMDB import to the first real access; the knowledge base may still be mid-unpickle here
         self._pending_import = dict(state["serialized"])
         self._spilled = set(self._pending_import)

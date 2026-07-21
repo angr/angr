@@ -1397,12 +1397,9 @@ class VariableManager(KnowledgeBasePlugin):
 
 class DecompilationVariableManager(VariableManager):
     """
-    Holds variables discovered during decompilation, kept separate from the disassembly-level ``kb.variables`` so the
-    two do not clobber each other. Exposed as ``kb.dec_variables``.
-
-    Its per-function managers are held in a :class:`SpillingVariableInternalDict`, which spills the least-recently-used
-    entries to the RuntimeDb LMDB store (unless spilling is disabled via the ``USE_SPILLING_DVARS`` environment
-    variable), so large binaries do not have to keep every function's decompilation variables in memory.
+    Holds variables discovered during decompilation, kept separate from the disassembly-level ``kb.variables``.
+    Exposed as ``kb.dec_variables``. Per-function managers are held in a :class:`SpillingVariableInternalDict`, which
+    spills least-recently-used entries to the RuntimeDb LMDB store (disable via ``USE_SPILLING_DVARS``).
     """
 
     def __init__(self, kb):

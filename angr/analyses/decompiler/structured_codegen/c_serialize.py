@@ -3,12 +3,10 @@ Protobuf serialization helpers for the C AST defined in :mod:`c`.
 
 The AST is serialized as a flat indexed table of :class:`CConstructNode` cmessages: every :class:`CConstruct` instance
 is assigned a non-zero ``uint32`` node_id at serialize time, and child CConstructs are referenced by id rather than
-embedded inline. This keeps the schema-level representation flat (which avoids unbounded recursion in protobuf
-encoding) and lets :class:`PositionMapping`, ``cexterns``, and ``map_addr_to_label`` reference into the AST without
-duplicating subtrees.
+embedded inline. This avoids unbounded recursion in protobuf encoding and lets :class:`PositionMapping`,
+``cexterns``, and ``map_addr_to_label`` reference into the AST without duplicating subtrees.
 
-The dispatch is table-driven (per subclass) rather than method-based so that the rendering-side classes in :mod:`c`
-stay focused on rendering logic and a future audit of the serialization can look at this one file.
+The dispatch is table-driven (per subclass) rather than method-based, keeping all serialization logic in this file.
 """
 
 from __future__ import annotations
@@ -528,8 +526,7 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
 
     _serialize_position_mappings(codegen.map_pos_to_node, codegen.map_pos_to_addr, ctx, msg.pos_maps)
     _serialize_instruction_mapping(codegen.map_addr_to_pos, msg.map_addr_to_pos)
-    # map_ast_to_pos is intentionally not serialized. The map is derivable from map_pos_to_node so we rebuild it after
-    # parse.
+    # map_ast_to_pos is derivable from map_pos_to_node, so it is rebuilt after parse instead of serialized.
     for (addr, idx), label in (codegen.map_addr_to_label or {}).items():
         entry = msg.map_addr_to_label.add()
         entry.addr = addr
@@ -591,10 +588,10 @@ def _rebuild_ast_to_pos(pos_to_node):
 
 
 def parse_codegen(msg, *, project=None, kb=None, func=None):
-    """Materialize a CStructuredCodeGenerator from a Codegen cmessage. Bypasses __init__ since the constructor runs
-    the full decompilation pipeline; instead we populate the attributes directly. The parsed instance is suitable for
-    display, navigation, and cache-validity checks but is not "live" — methods that re-render or re-run analyses
-    require ``project`` / ``func`` / ``kb`` to be reattached. Decompilation variables are read from ``kb.dec_variables``."""
+    """Create a CStructuredCodeGenerator from a Codegen cmessage. Bypasses __init__ (which runs the full
+    decompilation pipeline) and populates the attributes directly. The parsed instance is suitable for display,
+    navigation, and cache-validity checks; re-rendering and re-running analyses require ``project`` / ``func`` /
+    ``kb`` to be reattached. Decompilation variables are read from ``kb.dec_variables``."""
     cg = CStructuredCodeGenerator.__new__(CStructuredCodeGenerator)
     ctx = ParseContext(
         msg.nodes,
@@ -606,7 +603,7 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
         node_config=msg.node_config,
     )
 
-    # Materialize the AST.
+    # Create the AST.
     cg.cfunc = ctx.resolve(msg.root_id) if msg.root_id != 0 else None
 
     # Base / display state.
@@ -622,7 +619,7 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
 
     cg.map_pos_to_node, cg.map_pos_to_addr = _parse_position_mappings(msg.pos_maps, ctx)
     cg.map_addr_to_pos = _parse_instruction_mapping(msg.map_addr_to_pos)
-    # map_ast_to_pos is rebuilt below from map_pos_to_node (see serialize_codegen for why we don't store it directly).
+    # map_ast_to_pos is not serialized; it is rebuilt below from map_pos_to_node.
     cg.map_ast_to_pos = _rebuild_ast_to_pos(cg.map_pos_to_node)
 
     cg.map_addr_to_label = {}
@@ -655,9 +652,8 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
     from .c import INDENT_DELTA  # pylint:disable=import-outside-toplevel
 
     cg.indent_delta = INDENT_DELTA
-    # The CFunction holds a back-reference to its per-function variable manager, sourced from kb.dec_variables.
-    # Only wire it when the manager already exists (don't lazily create an empty one, which would fool the
-    # decompiler's fast-path gate into thinking this function's variables were loaded).
+    # Wire the CFunction's variable manager only when kb.dec_variables already has one; creating an empty manager
+    # here would fool the decompiler's fast-path gate.
     if cg.cfunc is not None:
         has_dvars = kb is not None and func is not None and func.addr in kb.dec_variables
         cg.cfunc.variable_manager = kb.dec_variables[func.addr] if has_dvars else None

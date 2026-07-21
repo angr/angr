@@ -36,14 +36,10 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
     cache_limit entries in memory and spills the rest to an LMDB database managed by the RuntimeDb knowledge base
     plugin.
 
-    Evicted entries are always serialized and written out (decompilation caches are mutated in place, e.g. via
-    ``errors`` and codegen comments, so there is no reliable clean/dirty distinction). Entries that cannot be
-    serialized (e.g. caches holding a DummyStructuredCodeGenerator or a rust-flavor codegen) are parked in an
-    unbounded in-memory dict and behave as if spilling were disabled.
-
-    Spilled entries are deserialized on access with the owning knowledge base's project/function attached. Like all
-    deserialized decompilation caches, they come back without the four typehoon slots and without ``cfg``, which
-    cache-validity checks treat as valid.
+    Evicted entries are always serialized and written out (caches are mutated in place, so there is no clean/dirty
+    distinction). Entries that cannot be serialized (e.g. DummyStructuredCodeGenerator or rust-flavor caches) are
+    parked in an unbounded in-memory dict. Spilled entries are deserialized on access with the owning knowledge
+    base's project/function attached.
     """
 
     def __init__(self, kb: KnowledgeBase, cache_limit: int = DECOMPILATION_CACHE_LIMIT):
@@ -55,8 +51,8 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
         self._db: str | None = None
         self._eviction_enabled: bool = True
         self._warned_unspillable: bool = False
-        # serialized entries restored by __setstate__ that have not been written to LMDB yet; unpickling cannot touch
-        # the RuntimeDb plugin because the owning knowledge base may itself still be mid-unpickle
+        # serialized entries restored by __setstate__, imported into LMDB on first access (the owning knowledge
+        # base may still be mid-unpickle during __setstate__)
         self._pending_import: dict[CacheKey, bytes] | None = None
 
     #
@@ -237,9 +233,8 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
     #
     # Pickling
     #
-    # Serializable entries are pickled as their protobuf bytes rather than as live Python objects: live caches hold
-    # analysis internals (e.g. Typehoon's TypeTranslator) that cannot be pickled. Unserializable entries are pickled
-    # as-is, matching the behavior of the plain-dict backing store.
+    # Serializable entries are pickled as their protobuf bytes (live caches hold unpicklable analysis internals);
+    # unserializable entries are pickled as-is.
     #
 
     def __getstate__(self) -> dict:
@@ -253,8 +248,7 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
 
     def __setstate__(self, state: dict) -> None:
         self.__init__(state["kb"], cache_limit=state["cache_limit"])  # type: ignore[misc]
-        # the knowledge base (and its RuntimeDb plugin) may itself still be mid-unpickle; defer the LMDB import to
-        # the first real access
+        # defer the LMDB import to the first real access; the knowledge base may still be mid-unpickle here
         self._pending_import = dict(state["serialized"])
         self._spilled = set(self._pending_import)
         self._unspillable.update(state["unspillable"])

@@ -129,11 +129,9 @@ class DbVariableCollection(Base):
 
 class DbDecVariableCollection(Base):
     """
-    Models a VariableManagerInternal instance belonging to the decompilation variable manager (kb.dec_variables).
-
-    This is a separate table from ``variables`` (the disassembly-level kb.variables) so the two managers do not
-    clobber each other, and so databases created before decompilation-variable serialization remain loadable:
-    ``create_all`` adds the missing table to old databases.
+    Models a VariableManagerInternal instance of the decompilation variable manager (kb.dec_variables). A separate
+    table from ``variables`` (the disassembly-level kb.variables) so databases created before it existed remain
+    loadable: ``create_all`` adds missing tables.
     """
 
     __tablename__ = "dec_variables"
@@ -176,12 +174,9 @@ class DbStructuredCode(Base):
 
 class DbDecompilationCache(Base):
     """
-    Models a fully serialized DecompilationCache instance (a protobuf DecompilationCache message).
-
-    This is a separate table from ``structured_code`` (which stores only codegen metadata such as comments and
-    constant formats) so that databases created before full decompilation-cache serialization remain loadable:
-    ``create_all`` adds missing tables to old databases, while adding a column to an existing table would not be
-    reflected in old database files.
+    Models a fully serialized DecompilationCache instance (a protobuf DecompilationCache message). A separate table
+    from ``structured_code`` (which stores only codegen metadata) so databases created before it existed remain
+    loadable: ``create_all`` adds missing tables.
     """
 
     __tablename__ = "decompilation_caches"

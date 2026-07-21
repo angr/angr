@@ -3,8 +3,8 @@ Typed protobuf pack/parse helpers for AIL-typed containers.
 
 AIL leaves (Block / Statement / Expression) serialize through their native ``to_bytes()`` methods (postcard,
 implemented in Rust); the helpers here only encode the Python container structure around them using the typed
-messages in :mod:`angr.protos.ail_types_pb2`. There is deliberately no generic fallback: any value shape that is not
-covered by the schema raises ``TypeError`` naming the offender, so the schema stays the single source of truth.
+messages in :mod:`angr.protos.ail_types_pb2`. There is no generic fallback: any value shape not covered by the
+schema raises ``TypeError``.
 """
 
 from __future__ import annotations
