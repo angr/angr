@@ -422,6 +422,9 @@ class Decompiler(Analysis):
             # reuse the old, unaltered graph
             clinic.graph = clinic.cc_graph
             clinic.cc_graph = clinic.copy_graph()
+            # the SRDA model is tied to the previous run's graph; drop it so the simplification passes below
+            # regenerate it fresh for the reused graph
+            clinic.reaching_definitions = None
 
         self.clinic = clinic
         self.cache = cache
@@ -561,8 +564,6 @@ class Decompiler(Analysis):
             # copy the cache's version and timestamp onto the codegen
             codegen.version = self.cache.version
             codegen.timestamp = self.cache.timestamp
-        # drop always-regenerable analysis state (the SRDA model) before the clinic goes into the cache
-        self.clinic.downsize()
         self.cache.clinic = self.clinic
 
         # LLM refinement pass

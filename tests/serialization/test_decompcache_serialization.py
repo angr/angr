@@ -248,8 +248,8 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back._end_stage == clinic._end_stage
         assert back._skip_stages == clinic._skip_stages
         assert back.flavor == clinic.flavor
-        # everything downsize() clears comes back as the same downsized default (the live clinic was downsized
-        # before it entered the cache, so both sides agree)
+        # regenerable / runtime-only state is not serialized, so the deserialized clinic comes back with the
+        # default (the caller's fast-path reuse regenerates whatever it needs)
         for attr in (
             "graph",
             "_ail_graph",
@@ -261,10 +261,8 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
             "_blocks_by_addr_and_size",
             "typehoon",
         ):
-            assert getattr(clinic, attr) is None, attr
             assert getattr(back, attr) is None, attr
         for attr in ("data_refs", "notes"):
-            assert getattr(clinic, attr) == {}, attr
             assert getattr(back, attr) == {}, attr
         # stack_items is primitive result data and is kept through downsize and serialization
         assert {k: (v.offset, v.size, v.name, v.item_type) for k, v in back.stack_items.items()} == {
