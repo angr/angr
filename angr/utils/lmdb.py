@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-if sys.platform != "emscripten":
+if TYPE_CHECKING:
+    import lmdb
+
+    lmdb_available: bool
+elif sys.platform != "emscripten":
     try:
-        import lmdb as lmdb
+        import lmdb
     except ImportError:
         lmdb = None
 else:
