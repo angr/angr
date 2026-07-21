@@ -96,15 +96,38 @@ def _parse_edge_data(msg: ail_types_pb2.AilEdgeData) -> dict[str, Any]:
     return data
 
 
-def pack_graph(graph: networkx.DiGraph) -> ail_types_pb2.AilGraph:
-    """Encode a DiGraph of ailment Blocks. Node identity is preserved through per-graph block indices."""
+class BlockPool:
+    """A shared pool of ``Block.to_bytes()`` payloads for deduplicating byte-identical blocks across graphs."""
+
+    __slots__ = ("_index_by_payload", "payloads")
+
+    def __init__(self) -> None:
+        self.payloads: list[bytes] = []
+        self._index_by_payload: dict[bytes, int] = {}
+
+    def add(self, block) -> int:
+        payload = block.to_bytes()
+        idx = self._index_by_payload.get(payload)
+        if idx is None:
+            idx = len(self.payloads)
+            self._index_by_payload[payload] = idx
+            self.payloads.append(payload)
+        return idx
+
+
+def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_types_pb2.AilGraph:
+    """Encode a DiGraph of ailment Blocks. Node identity is preserved through per-graph block indices. When ``pool``
+    is given, block payloads are deduplicated into it and the message stores pool refs instead of inline payloads."""
     msg = ail_types_pb2.AilGraph()
     node_to_idx: dict[Any, int] = {}
     for i, node in enumerate(graph.nodes):
         if not isinstance(node, Block):
             raise TypeError(f"Unsupported AIL graph node type {type(node).__name__}; only ailment.Block is allowed")
         node_to_idx[node] = i
-        msg.blocks.append(node.to_bytes())
+        if pool is None:
+            msg.blocks.append(node.to_bytes())
+        else:
+            msg.block_refs.append(pool.add(node))
     for src, dst, data in graph.edges(data=True):
         edge = msg.edges.add()
         edge.src = node_to_idx[src]
@@ -116,11 +139,15 @@ def pack_graph(graph: networkx.DiGraph) -> ail_types_pb2.AilGraph:
     return msg
 
 
-def parse_graph(msg: ail_types_pb2.AilGraph) -> networkx.DiGraph:
+def parse_graph(msg: ail_types_pb2.AilGraph, pool_payloads=None) -> networkx.DiGraph:
     import networkx
 
     graph = networkx.DiGraph()
-    blocks = [Block.from_bytes(b) for b in msg.blocks]
+    if msg.block_refs:
+        # pool-backed encoding: a fresh Block per graph occurrence so graphs never share node objects
+        blocks = [Block.from_bytes(pool_payloads[i]) for i in msg.block_refs]
+    else:
+        blocks = [Block.from_bytes(b) for b in msg.blocks]
     graph.add_nodes_from(blocks)
     for edge in msg.edges:
         data = _parse_edge_data(edge.data) if edge.HasField("data") else {}

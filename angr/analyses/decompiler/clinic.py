@@ -73,6 +73,7 @@ from angr.sim_variable import (
 )
 from angr.utils import timethis
 from angr.utils.ail_serialization import (
+    BlockPool,
     pack_arg_vvars,
     pack_graph,
     parse_arg_vvars,
@@ -4253,10 +4254,13 @@ class Clinic(Analysis, Serializable):
 
         # AIL-typed slots consumed by the decompiler's cache-reuse path. The other AIL graphs (graph, _ail_graph,
         # _init_ail_graph) and the remaining non-primitive state are cleared by downsize() and never serialized.
+        # Both graphs share one block pool: most of their blocks are byte-identical and get stored once.
+        block_pool = BlockPool()
         if self.cc_graph is not None:
-            msg.cc_graph.CopyFrom(pack_graph(self.cc_graph))
+            msg.cc_graph.CopyFrom(pack_graph(self.cc_graph, pool=block_pool))
         if self.unoptimized_graph is not None:
-            msg.unoptimized_graph.CopyFrom(pack_graph(self.unoptimized_graph))
+            msg.unoptimized_graph.CopyFrom(pack_graph(self.unoptimized_graph, pool=block_pool))
+        msg.block_pool.extend(block_pool.payloads)
         if self.arg_vvars is not None:
             msg.arg_vvars.CopyFrom(pack_arg_vvars(self.arg_vvars))
 
@@ -4381,8 +4385,10 @@ class Clinic(Analysis, Serializable):
         clinic.optimization_scratch = {}
 
         # AIL-typed slots consumed by the cache-reuse path.
-        clinic.cc_graph = parse_graph(msg.cc_graph) if msg.HasField("cc_graph") else None
-        clinic.unoptimized_graph = parse_graph(msg.unoptimized_graph) if msg.HasField("unoptimized_graph") else None
+        clinic.cc_graph = parse_graph(msg.cc_graph, msg.block_pool) if msg.HasField("cc_graph") else None
+        clinic.unoptimized_graph = (
+            parse_graph(msg.unoptimized_graph, msg.block_pool) if msg.HasField("unoptimized_graph") else None
+        )
         clinic.arg_vvars = parse_arg_vvars(msg.arg_vvars) if msg.HasField("arg_vvars") else None
 
         # Attributes cleared by downsize(); restored to the same downsized defaults.

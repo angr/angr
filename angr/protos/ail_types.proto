@@ -31,8 +31,11 @@ message AilEdge {
 }
 
 message AilGraph {
+    // Either ``blocks`` carries the payloads inline, or ``block_refs`` indexes into a caller-supplied shared pool
+    // (e.g. Clinic.block_pool) so that byte-identical blocks shared between graphs are stored once.
     repeated bytes blocks = 1;  // ailment.Block.to_bytes() payloads, in node-insertion order
     repeated AilEdge edges = 2;
+    repeated uint32 block_refs = 3;  // indices into the shared pool, in node-insertion order
 }
 
 //

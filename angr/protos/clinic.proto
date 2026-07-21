@@ -58,6 +58,9 @@ message Clinic {
     optional string flavor = 2;
 
 // ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
+    // Shared pool of ailment.Block.to_bytes() payloads; the graphs reference into it via AilGraph.block_refs so
+    // byte-identical blocks appearing in both graphs are stored once.
+    repeated bytes block_pool = 24;
     optional AilGraph cc_graph = 11;
     optional AilGraph unoptimized_graph = 12;
     optional ArgVVars arg_vvars = 16;                 // dict[int, tuple[VirtualVariable, SimVariable]]
