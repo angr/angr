@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .base import ExplorationTechnique
+
 if TYPE_CHECKING:
     import psutil
 else:
@@ -9,8 +11,6 @@ else:
         import psutil
     except ImportError:
         psutil = None
-
-from .base import ExplorationTechnique
 
 
 class MemoryWatcher(ExplorationTechnique):
