@@ -436,6 +436,9 @@ class Decompiler(Analysis):
             )
         else:
             clinic = old_clinic
+            # the deserialized clinic may carry peephole-optimization names that were unresolvable at parse time
+            # (their defining module was not imported then); retry resolving before its passes run again
+            clinic.resolve_peephole_optimizations()
             # reuse the old, unaltered graph
             clinic.graph = clinic.cc_graph
             clinic.cc_graph = clinic.copy_graph()

@@ -293,6 +293,40 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.unoptimized_graph.number_of_nodes() == clinic.unoptimized_graph.number_of_nodes()
         assert back.unoptimized_graph.number_of_edges() == clinic.unoptimized_graph.number_of_edges()
 
+    def test_clinic_unresolvable_peephole_optimizations_roundtrip(self):
+        from angr.analyses.decompiler import optimization_pass_registry as reg
+        from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
+
+        # name_to_pass returns None (not raising) for names that are not registered
+        assert reg.name_to_pass("NotARegisteredPass") is None
+
+        dec = self.proj.analyses.Decompiler(
+            self.func, cfg=self.cfg.model, peephole_optimizations=list(EXPR_OPTS[:2]), regen_clinic=True
+        )
+        clinic = dec.clinic
+        # simulate a peephole pass defined by an analysis/plugin that is not imported
+        clinic.unresolvable_peephole_optimizations = ["PluginOnlyPeephole"]
+
+        back = type(clinic).parse(
+            clinic.serialize(), project=self.proj, kb=self.proj.kb, function=clinic.function, cfg=clinic._cfg
+        )
+        # the resolvable ones come back as classes; the unknown name is preserved, not dropped or crashed on
+        assert len(back.peephole_optimizations) == 2
+        assert back.unresolvable_peephole_optimizations == ["PluginOnlyPeephole"]
+
+        # once the defining module is imported (mocked here), a retry resolves it
+        class PluginOnlyPeephole:
+            __qualname__ = "PluginOnlyPeephole"
+
+        original = reg._known_passes
+        reg._known_passes = lambda: {**original(), "PluginOnlyPeephole": PluginOnlyPeephole}
+        try:
+            back.resolve_peephole_optimizations()
+        finally:
+            reg._known_passes = original
+        assert back.unresolvable_peephole_optimizations == []
+        assert PluginOnlyPeephole in back.peephole_optimizations
+
     def test_decompilation_cache_roundtrip(self):
         cache = self.decompiler.cache
         blob = cache.serialize()
