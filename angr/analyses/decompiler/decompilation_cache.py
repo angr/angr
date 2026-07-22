@@ -97,9 +97,10 @@ def _serialize_parameters(params: dict, out_msg) -> None:
     for cls in params.get("optimization_passes") or ():
         out_msg.optimization_passes.append(pass_to_name(cls))
     # peephole_optimizations is the one None-able collection: None means "use the default peephole set"
-    if params.get("peephole_optimizations") is not None:
-        out_msg._peephole_optimizations_set = True
-        for cls in params["peephole_optimizations"]:
+    peepholes = params.get("peephole_optimizations")
+    out_msg.peephole_optimizations_use_default = peepholes is None
+    if peepholes is not None:
+        for cls in peepholes:
             out_msg.peephole_optimizations.append(pass_to_name(cls))
     for k, v in (params.get("expr_comments") or {}).items():
         out_msg.expr_comments[k] = v
@@ -140,7 +141,7 @@ def _parse_parameters(msg) -> dict:
         },
         "optimization_passes": [name_to_pass(n) for n in msg.optimization_passes],
         "peephole_optimizations": (
-            [name_to_pass(n) for n in msg.peephole_optimizations] if msg._peephole_optimizations_set else None
+            None if msg.peephole_optimizations_use_default else [name_to_pass(n) for n in msg.peephole_optimizations]
         ),
         "expr_comments": dict(msg.expr_comments),
         "stmt_comments": dict(msg.stmt_comments),

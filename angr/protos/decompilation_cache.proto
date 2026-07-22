@@ -49,7 +49,7 @@ message DecompilationParameters {
     // peephole_optimizations is the one None-able collection: None means "use the default peephole set", which is
     // distinct from an explicitly empty list.
     repeated string peephole_optimizations = 8;
-    bool _peephole_optimizations_set = 9;     // distinguish [] from None
+    bool peephole_optimizations_use_default = 9;  // True when peephole_optimizations was None (default set in use)
 
     map<int64, string> expr_comments = 10;
     map<int64, string> stmt_comments = 11;
