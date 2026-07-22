@@ -3141,9 +3141,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def _resolve_const_folded_next(self, irsb: pyvex.IRSB | None, jumpkind: str) -> int | None:
         """
         Check whether the jump/call target of this block was constant-folded from a registered read-only region
-        at lift time (recorded in IRSB.const_vals), e.g. an import call through the IAT in a PE binary. Mirroring
-        AMD64PeIatResolver, the folded target is only accepted if it is hooked; everything else falls back to the
-        regular indirect jump resolution logic.
+        at lift time (recorded in IRSB.const_vals), e.g. an import call through the IAT (or delay-load IAT) in a PE
+        binary. This reproduces the decision of the timeless load-based resolvers (AMD64PeIatResolver and
+        MemoryLoadResolver) without re-lifting the block or dispatching the resolvers: the loaded pointer is the
+        same value they would read, and it is accepted when it is a valid jump target (executable or hooked), which
+        is exactly MemoryLoadResolver's ``_is_target_valid`` criterion (a superset of AMD64PeIatResolver's hooked
+        check). Everything else falls back to the regular indirect jump resolution logic.
 
         :param irsb:        The (possibly statement-less) IRSB of the block.
         :param jumpkind:    The jumpkind of the default exit.
@@ -3158,7 +3161,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         next_tmp = irsb.next.tmp
         for cv in irsb.const_vals:
             if cv.tmp == next_tmp:
-                if self.project.is_hooked(cv.value):
+                if self._addr_in_exec_memory_regions(cv.value) or self.project.is_hooked(cv.value):
                     return cv.value
                 return None
         return None
@@ -3253,6 +3256,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # indirect jump resolvers
                 folded_target = self._resolve_const_folded_next(irsb, jumpkind)
                 if folded_target is not None:
+                    # the statement-less irsb already carries the instruction addresses that the resolver path
+                    # would recompute from a re-lift
+                    cfg_node.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
                     resolved, resolved_targets, ij = True, {folded_target}, None
                 else:
                     # FIXME: in some cases, a statementless irsb will be missing its instr addresses
@@ -5244,12 +5250,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
 
         elif self.project.arch.name in {"AMD64", "X86"} and isinstance(self.project.simos, SimWindows):
-            # register non-writable sections (e.g. .rdata, which holds the bound IAT) so that rip-relative import
-            # calls and jumps (call/jmp qword ptr [rip+disp]) can be constant-folded at lift time; the delay-load
-            # IAT (.didat) is writable and thus correctly excluded
+            # register sections that hold jump/call targets so that rip-relative import calls and jumps
+            # (call/jmp qword ptr [rip+disp]) can be constant-folded at lift time and resolved without a re-lift
+            # and resolver dispatch:
+            #   - non-writable sections (e.g. .rdata, the bound IAT), and
+            #   - the delay-load import table (.didat): although writable, its slots are static during CFG recovery
+            #     and point to the delay-load thunks, which MemoryLoadResolver already resolves by reading them.
+            # The folded value is only accepted when it is a valid jump target, so registering these regions cannot
+            # introduce edges the timeless load resolvers would not also produce.
             self._ro_region_cdata_cache = []
             for section in self.project.loader.main_object.sections:
-                if section.is_readable and not section.is_writable and section.memsize >= 8:
+                register = (section.is_readable and not section.is_writable and section.memsize >= 8) or (
+                    section.name == ".didat" and section.is_readable and section.memsize >= 8
+                )
+                if register:
                     try:
                         content = self.project.loader.memory.load(section.vaddr, section.memsize)
                     except KeyError:
