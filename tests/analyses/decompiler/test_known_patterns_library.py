@@ -48,7 +48,7 @@ def _find(proj, func, dec, templates=ALL_LINKED_LIST_TEMPLATES):
 
 def _outline_text(proj, cfg, func, dec, finder):
     result = finder.outline(finder.matches[0])
-    del dec._variable_kb.variables[func.addr]
+    del dec.kb.dec_variables.function_managers[func.addr]
     func.prototype_source = PrototypeSource.GUESSED
     dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
         func,
