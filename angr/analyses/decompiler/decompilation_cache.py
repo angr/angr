@@ -78,67 +78,55 @@ def _serialize_parameters(params: dict, out_msg) -> None:
         pass_to_name,
     )
 
-    if "flavor" in params and params["flavor"] is not None:
+    if params.get("flavor") is not None:
         out_msg.flavor = params["flavor"]
     if "sp_tracker_track_memory" in params:
         out_msg.sp_tracker_track_memory = bool(params["sp_tracker_track_memory"])
-    if "vars_must_struct" in params and params["vars_must_struct"] is not None:
-        out_msg._vars_must_struct_set = True
-        out_msg.vars_must_struct.extend(sorted(params["vars_must_struct"]))
-    if "desired_variables" in params and params["desired_variables"] is not None:
-        out_msg.desired_variables.extend(sorted(params["desired_variables"]))
-    if "inline_functions" in params and params["inline_functions"] is not None:
-        out_msg.inline_functions.extend(sorted(params["inline_functions"]))
-    if params.get("options"):
-        for option, value in params["options"]:
-            entry = out_msg.options.add()
-            entry.param = option.param
-            try:
-                entry.value_json = json.dumps(value)
-            except (TypeError, ValueError):
-                entry.value_json = json.dumps(None)
-    if "optimization_passes" in params and params["optimization_passes"] is not None:
-        out_msg._optimization_passes_set = True
-        for cls in params["optimization_passes"]:
-            out_msg.optimization_passes.append(pass_to_name(cls))
-    if "peephole_optimizations" in params and params["peephole_optimizations"] is not None:
-        out_msg._peephole_optimizations_set = True
-        for cls in params["peephole_optimizations"]:
-            out_msg.peephole_optimizations.append(pass_to_name(cls))
-    if "expr_comments" in params and params["expr_comments"] is not None:
-        out_msg._expr_comments_set = True
-        for k, v in params["expr_comments"].items():
-            out_msg.expr_comments[k] = v
-    if "stmt_comments" in params and params["stmt_comments"] is not None:
-        out_msg._stmt_comments_set = True
-        for k, v in params["stmt_comments"].items():
-            out_msg.stmt_comments[k] = v
-    if "binop_operators" in params and params["binop_operators"] is not None:
-        out_msg._binop_operators_set = True
-        _serialize_binop_operators(params["binop_operators"], out_msg.binop_operators)
-    if "ite_exprs" in params and params["ite_exprs"] is not None:
+    # Collection-typed parameters are never None (the Decompiler normalizes them to empty collections), so each is
+    # written directly; an empty collection is left unset and parses back to empty.
+    out_msg.vars_must_struct.extend(sorted(params.get("vars_must_struct") or ()))
+    out_msg.desired_variables.extend(sorted(params.get("desired_variables") or ()))
+    out_msg.inline_functions.extend(sorted(params.get("inline_functions") or ()))
+    for option, value in params.get("options") or ():
+        entry = out_msg.options.add()
+        entry.param = option.param
+        try:
+            entry.value_json = json.dumps(value)
+        except (TypeError, ValueError):
+            entry.value_json = json.dumps(None)
+    for cls in params.get("optimization_passes") or ():
+        out_msg.optimization_passes.append(pass_to_name(cls))
+    for cls in params.get("peephole_optimizations") or ():
+        out_msg.peephole_optimizations.append(pass_to_name(cls))
+    for k, v in (params.get("expr_comments") or {}).items():
+        out_msg.expr_comments[k] = v
+    for k, v in (params.get("stmt_comments") or {}).items():
+        out_msg.stmt_comments[k] = v
+    _serialize_binop_operators(params.get("binop_operators") or {}, out_msg.binop_operators)
+    if params.get("ite_exprs"):
         out_msg.ite_exprs.CopyFrom(pack_ite_exprs(params["ite_exprs"]))
-    if "static_vvars" in params and params["static_vvars"] is not None:
+    if params.get("static_vvars"):
         out_msg.static_vvars.CopyFrom(pack_static_vvars(params["static_vvars"]))
-    if "static_buffers" in params and params["static_buffers"] is not None:
+    if params.get("static_buffers"):
         out_msg.static_buffers.CopyFrom(pack_static_buffers(params["static_buffers"]))
-    if "save_unoptimized_graph" in params:
-        out_msg.save_unoptimized_graph = bool(params["save_unoptimized_graph"])
+    out_msg.save_unoptimized_graph = bool(params.get("save_unoptimized_graph"))
 
 
 def _parse_parameters(msg) -> dict:
-    """Always populate every one of the 15 keys in the returned dict, with None for fields that weren't set in the
-    cmsg. This matches what the decompiler's _can_use_decompilation_cache expects when iterating over its own
-    _cache_parameters and looking up each key in the deserialized cache."""
+    """Always populate every one of the 15 keys in the returned dict; scalar fields that were not set come back as
+    None and collection fields come back empty. This matches the decompiler's normalized _cache_parameters, which
+    _can_use_decompilation_cache compares key by key against the deserialized cache."""
     from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION  # pylint:disable=import-outside-toplevel
     from angr.analyses.decompiler.optimization_pass_registry import (  # pylint:disable=import-outside-toplevel
         name_to_pass,
     )
 
+    # Collection-typed values come back as empty collections (never None) so they match the Decompiler's normalized
+    # _cache_parameters during cache-validity comparison.
     return {
         "flavor": msg.flavor if msg.HasField("flavor") else None,
         "sp_tracker_track_memory": msg.sp_tracker_track_memory if msg.HasField("sp_tracker_track_memory") else None,
-        "vars_must_struct": set(msg.vars_must_struct) if msg._vars_must_struct_set else None,
+        "vars_must_struct": set(msg.vars_must_struct),
         "desired_variables": frozenset(msg.desired_variables),
         "inline_functions": frozenset(msg.inline_functions),
         "options": {
@@ -146,19 +134,15 @@ def _parse_parameters(msg) -> dict:
             for e in msg.options
             if e.param in PARAM_TO_OPTION
         },
-        "optimization_passes": (
-            [name_to_pass(n) for n in msg.optimization_passes] if msg._optimization_passes_set else None
-        ),
-        "peephole_optimizations": (
-            [name_to_pass(n) for n in msg.peephole_optimizations] if msg._peephole_optimizations_set else None
-        ),
-        "expr_comments": dict(msg.expr_comments) if msg._expr_comments_set else None,
-        "stmt_comments": dict(msg.stmt_comments) if msg._stmt_comments_set else None,
-        "binop_operators": _parse_binop_operators(msg.binop_operators) if msg._binop_operators_set else None,
-        "ite_exprs": parse_ite_exprs(msg.ite_exprs) if msg.HasField("ite_exprs") else None,
-        "static_vvars": parse_static_vvars(msg.static_vvars) if msg.HasField("static_vvars") else None,
-        "static_buffers": parse_static_buffers(msg.static_buffers) if msg.HasField("static_buffers") else None,
-        "save_unoptimized_graph": msg.save_unoptimized_graph if msg.HasField("save_unoptimized_graph") else None,
+        "optimization_passes": [name_to_pass(n) for n in msg.optimization_passes],
+        "peephole_optimizations": [name_to_pass(n) for n in msg.peephole_optimizations],
+        "expr_comments": dict(msg.expr_comments),
+        "stmt_comments": dict(msg.stmt_comments),
+        "binop_operators": _parse_binop_operators(msg.binop_operators),
+        "ite_exprs": parse_ite_exprs(msg.ite_exprs) if msg.HasField("ite_exprs") else set(),
+        "static_vvars": parse_static_vvars(msg.static_vvars) if msg.HasField("static_vvars") else {},
+        "static_buffers": parse_static_buffers(msg.static_buffers) if msg.HasField("static_buffers") else {},
+        "save_unoptimized_graph": msg.save_unoptimized_graph,
     }
 
 
@@ -201,17 +185,19 @@ class DecompilationCache(Serializable):
         self.timestamp: int = int(time.time())
         self.addr = addr
         self.cfg: CFGModel | None = None
-        self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
-        self.arg_vvars: dict | None = None
+        # Collection-typed fields default to empty containers rather than None, so serialization never has to
+        # distinguish None from empty.
+        self.type_constraints: dict[TypeVariable, set[TypeConstraint]] = {}
+        self.arg_vvars: dict = {}
         self.func_typevar: TypeVariable | None = None
-        self.var_to_typevar: dict | None = None
-        self.stackvar_max_sizes: dict | None = None
-        self.stack_offset_typevars: dict | None = None
+        self.var_to_typevar: dict = {}
+        self.stackvar_max_sizes: dict = {}
+        self.stack_offset_typevars: dict = {}
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.clinic: Clinic | None = None
         self.variable_map: VariableMap | None = None
-        self.ite_exprs: set[tuple[int, ailment.Expression]] | None = None
-        self.binop_operators: dict[OpDescriptor, str] | None = None
+        self.ite_exprs: set[tuple[int, ailment.Expression]] = set()
+        self.binop_operators: dict[OpDescriptor, str] = {}
         self.errors: list[str] = []
         self.function_summary: str | None = None
         self.notes: dict[str, DecompilationNote] = {}
@@ -244,25 +230,23 @@ class DecompilationCache(Serializable):
         msg.errors.extend(self.errors)
         if self.function_summary is not None:
             msg.function_summary = self.function_summary
-        if self.arg_vvars is not None:
+        # Collection fields are never None; an empty collection is simply left unset and parses back to empty.
+        if self.arg_vvars:
             msg.arg_vvars.CopyFrom(pack_arg_vvars(self.arg_vvars))
-        if self.ite_exprs is not None:
+        if self.ite_exprs:
             msg.ite_exprs.CopyFrom(pack_ite_exprs(self.ite_exprs))
-        if self.binop_operators is not None:
-            msg._binop_operators_set = True
-            _serialize_binop_operators(self.binop_operators, msg.binop_operators)
-        if self.stackvar_max_sizes is not None:
-            msg._stackvar_max_sizes_set = True
-            for simvar, size in self.stackvar_max_sizes.items():
-                entry = msg.stackvar_max_sizes.add()
-                entry.simvar = _simvar_to_bytes(simvar)
-                entry.max_size = size
+        _serialize_binop_operators(self.binop_operators, msg.binop_operators)
+        for simvar, size in self.stackvar_max_sizes.items():
+            entry = msg.stackvar_max_sizes.add()
+            entry.simvar = _simvar_to_bytes(simvar)
+            entry.max_size = size
 
         msg.version = self.version
         msg.timestamp = self.timestamp
 
+        # An unset parameters message means "no recorded parameters"; cache-validity checks treat such a cache as
+        # always usable (matching runs with use_cache=False).
         if self.parameters:
-            msg.parameters_set = True
             _serialize_parameters(self.parameters, msg.parameters)
 
         for k, note in self.notes.items():
@@ -299,13 +283,13 @@ class DecompilationCache(Serializable):
         cache.errors = list(cmsg.errors)
         if cmsg.HasField("function_summary"):
             cache.function_summary = cmsg.function_summary
-        cache.arg_vvars = parse_arg_vvars(cmsg.arg_vvars) if cmsg.HasField("arg_vvars") else None
-        cache.ite_exprs = parse_ite_exprs(cmsg.ite_exprs) if cmsg.HasField("ite_exprs") else None
-        cache.binop_operators = _parse_binop_operators(cmsg.binop_operators) if cmsg._binop_operators_set else None
-        if cmsg._stackvar_max_sizes_set:
-            cache.stackvar_max_sizes = {_simvar_from_bytes(e.simvar): e.max_size for e in cmsg.stackvar_max_sizes}
-        else:
-            cache.stackvar_max_sizes = None
+        # Collection fields default to empty (set in __init__); only assign when the message carries content.
+        if cmsg.HasField("arg_vvars"):
+            cache.arg_vvars = parse_arg_vvars(cmsg.arg_vvars)
+        if cmsg.HasField("ite_exprs"):
+            cache.ite_exprs = parse_ite_exprs(cmsg.ite_exprs)
+        cache.binop_operators = _parse_binop_operators(cmsg.binop_operators)
+        cache.stackvar_max_sizes = {_simvar_from_bytes(e.simvar): e.max_size for e in cmsg.stackvar_max_sizes}
 
         # legacy blobs carry the proto3 defaults ""/0, meaning "unknown"; do not re-stamp them with current values
         cache.version = cmsg.version
@@ -315,7 +299,7 @@ class DecompilationCache(Serializable):
             cache.codegen.version = cache.version
             cache.codegen.timestamp = cache.timestamp
 
-        if cmsg.parameters_set:
+        if cmsg.HasField("parameters"):
             cache.parameters = _parse_parameters(cmsg.parameters)
 
         cache.notes = {k: DecompilationNote.from_json(v) for k, v in cmsg.notes_json.items()}

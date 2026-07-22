@@ -162,18 +162,22 @@ class Decompiler(Analysis):
         self._save_unoptimized_graph = save_unoptimized_graph
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
+        # Collection-typed values are normalized to empty collections (never None) so the serialized cache does not
+        # need to distinguish None from empty. These are copies used only for cache-validity comparison and storage;
+        # the None-able attributes above still drive Clinic directly (e.g. peephole_optimizations=None means "use the
+        # default peephole set").
         self._cache_parameters = (
             {
                 "options": {(o, v) for o, v in self._options if o.category != "Display" and v != o.default_value},
                 "optimization_passes": self._optimization_passes,
                 "sp_tracker_track_memory": self._sp_tracker_track_memory,
-                "peephole_optimizations": self._peephole_optimizations,
-                "vars_must_struct": self._vars_must_struct,
+                "peephole_optimizations": self._peephole_optimizations or [],
+                "vars_must_struct": self._vars_must_struct or set(),
                 "flavor": self._flavor,
-                "expr_comments": self._expr_comments,
-                "stmt_comments": self._stmt_comments,
-                "ite_exprs": self._ite_exprs,
-                "binop_operators": self._binop_operators,
+                "expr_comments": self._expr_comments or {},
+                "stmt_comments": self._stmt_comments or {},
+                "ite_exprs": self._ite_exprs or set(),
+                "binop_operators": self._binop_operators or {},
                 "inline_functions": self._inline_functions,
                 "desired_variables": self._desired_variables,
                 "static_vvars": self._static_vvars,
@@ -323,8 +327,9 @@ class Decompiler(Analysis):
         else:
             old_codegen = None
             old_clinic = None
-            ite_exprs = self._ite_exprs
-            binop_operators = self._binop_operators
+            # normalize to empty collections so the cache never stores None (passes treat None and empty the same)
+            ite_exprs = self._ite_exprs or set()
+            binop_operators = self._binop_operators or {}
             l.debug("Decompilation cache miss")
 
         # Full-reuse fast path: with use_cache and without regen_clinic (the default), a valid cache short-circuits
