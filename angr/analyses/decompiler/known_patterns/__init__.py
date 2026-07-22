@@ -41,6 +41,7 @@ from .linked_list import (
 )
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
 from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
+from .std_string_cstr import STD_STRING_CSTR
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
 from .std_swap import STD_SWAP
 from .std_vector_size import (
@@ -74,6 +75,7 @@ def register_pattern_template(template: KnownPatternTemplate) -> None:
 register_pattern_template(STD_STRING_LENGTH)
 register_pattern_template(STD_STRING_EMPTY)
 register_pattern_template(STD_STRING_INDEX)
+register_pattern_template(STD_STRING_CSTR)
 register_pattern_template(STD_VECTOR_SHORT_SIZE)
 register_pattern_template(STD_VECTOR_INT_SIZE)
 register_pattern_template(STD_VECTOR_LONG_LONG_SIZE)
@@ -136,6 +138,7 @@ __all__ = [
     "INITIALIZE_LIST_HEAD",
     "IS_LIST_EMPTY",
     "REMOVE_ENTRY_LIST",
+    "STD_STRING_CSTR",
     "STD_STRING_EMPTY",
     "STD_STRING_INDEX",
     "STD_STRING_LENGTH",

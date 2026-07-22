@@ -13,6 +13,7 @@ from angr.analyses.decompiler.known_patterns import (
     ALL_PROTOBUF_TEMPLATES,
     ALL_STL_TEMPLATES,
     ALL_VECTOR_MATH_TEMPLATES,
+    STD_STRING_CSTR,
     KnownPatternFinder,
 )
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -24,6 +25,7 @@ STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_pat
 PB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_protobuf")
 VM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_vecmath")
 MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_stl_msvc_17_x64.exe")
+CSTR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_msvc_string_cstr.exe")
 MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
@@ -230,6 +232,41 @@ class TestUnorderedStmtSeqDecl(TestCase):
         for t in (INITIALIZE_LIST_HEAD, REMOVE_ENTRY_LIST):
             p = t.instantiate(ctx)
             assert isinstance(p.pattern, PStmtSeq) and p.pattern.ordered is False
+
+
+class TestMsvcStringCstr(TestCase):
+    # MSVC std::string::c_str() is inlined as a small-string-optimization select
+    # (a control-flow diamond), not an expression idiom, so it exercises the
+    # PGraphPat + PPhi path against a real, statically-linked MSVC binary. The
+    # target function inlines c_str() three times.
+    CSTR_FUNC = 0x140009280
+
+    def _decompile_fast(self):
+        proj = angr.Project(CSTR_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(addr=self.CSTR_FUNC)
+        assert func is not None
+        # 'fast' preset: no outlining pass, so the raw SSO diamonds are intact
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="fast")
+        return proj, cfg, func, dec
+
+    def test_find_msvc_string_cstr(self):
+        proj, _cfg, func, dec = self._decompile_fast()
+        finder = _find(proj, func, dec, templates=[STD_STRING_CSTR])
+        assert len(finder.matches) == 3, [m.pattern.name for m in finder.matches]
+        for m in finder.matches:
+            assert m.block_map is not None and set(m.block_map) == {"entry", "heap"}
+            assert m.frontier_locs is not None and len(m.frontier_locs) == 1
+
+    def test_outline_msvc_string_cstr(self):
+        proj, cfg, func, dec = self._decompile_fast()
+        finder = _find(proj, func, dec, templates=[STD_STRING_CSTR])
+        # the outlined callee takes exactly the string pointer as its single arg
+        result = finder.outline(finder.matches[0])
+        assert len(result.child_funcargs) == 1
+        text = _outline_text(proj, cfg, func, dec, finder)
+        assert "std::string::c_str(" in text
 
 
 if __name__ == "__main__":
