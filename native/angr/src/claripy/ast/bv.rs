@@ -91,6 +91,7 @@ impl BV {
                 &args[1].cast_bound::<BV>(py)?.get().inner,
             )?,
             "__neg__" => GLOBAL_CONTEXT.neg(&args[0].cast_bound::<BV>(py)?.get().inner)?,
+            "__invert__" => GLOBAL_CONTEXT.not(&args[0].cast_bound::<BV>(py)?.get().inner)?,
             "__add__" => GLOBAL_CONTEXT.add(
                 &args[0].cast_bound::<BV>(py)?.get().inner,
                 &args[1].cast_bound::<BV>(py)?.get().inner,
