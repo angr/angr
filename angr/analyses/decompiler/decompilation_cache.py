@@ -73,7 +73,7 @@ def _parse_binop_operators(entries):
 
 
 def _serialize_parameters(params: dict, out_msg) -> None:
-    """Translate the 14-key parameters dict into a DecompilationParameters cmessage."""
+    """Translate the 15-key parameters dict into a DecompilationParameters cmessage."""
     from angr.analyses.decompiler.optimization_pass_registry import (  # pylint:disable=import-outside-toplevel
         pass_to_name,
     )
@@ -122,10 +122,12 @@ def _serialize_parameters(params: dict, out_msg) -> None:
         out_msg.static_vvars.CopyFrom(pack_static_vvars(params["static_vvars"]))
     if "static_buffers" in params and params["static_buffers"] is not None:
         out_msg.static_buffers.CopyFrom(pack_static_buffers(params["static_buffers"]))
+    if "save_unoptimized_graph" in params:
+        out_msg.save_unoptimized_graph = bool(params["save_unoptimized_graph"])
 
 
 def _parse_parameters(msg) -> dict:
-    """Always populate every one of the 14 keys in the returned dict, with None for fields that weren't set in the
+    """Always populate every one of the 15 keys in the returned dict, with None for fields that weren't set in the
     cmsg. This matches what the decompiler's _can_use_decompilation_cache expects when iterating over its own
     _cache_parameters and looking up each key in the deserialized cache."""
     from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION  # pylint:disable=import-outside-toplevel
@@ -156,6 +158,7 @@ def _parse_parameters(msg) -> dict:
         "ite_exprs": parse_ite_exprs(msg.ite_exprs) if msg.HasField("ite_exprs") else None,
         "static_vvars": parse_static_vvars(msg.static_vvars) if msg.HasField("static_vvars") else None,
         "static_buffers": parse_static_buffers(msg.static_buffers) if msg.HasField("static_buffers") else None,
+        "save_unoptimized_graph": msg.save_unoptimized_graph if msg.HasField("save_unoptimized_graph") else None,
     }
 
 

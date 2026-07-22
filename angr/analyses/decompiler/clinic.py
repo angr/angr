@@ -260,6 +260,7 @@ class Clinic(Analysis, Serializable):
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
+        save_unoptimized_graph: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -354,6 +355,7 @@ class Clinic(Analysis, Serializable):
         self.copied_var_ids: set[int] = set()
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
+        self._save_unoptimized_graph = save_unoptimized_graph
 
         self._new_block_addrs: set[int] = set()
 
@@ -4223,13 +4225,16 @@ class Clinic(Analysis, Serializable):
         if self.flavor is not None:
             msg.flavor = self.flavor
 
-        # AIL-typed slots consumed by the decompiler's cache-reuse path. The other AIL graphs (graph, _ail_graph,
-        # _init_ail_graph) and the remaining regenerable/runtime state are not serialized.
-        # Both graphs share one block pool: most of their blocks are byte-identical and get stored once.
+        # AIL-typed slots consumed by the decompiler's cache-reuse path and by post-decompilation consumers. The
+        # internal AIL graphs (_ail_graph, _init_ail_graph) and the remaining regenerable/runtime state are not
+        # serialized. unoptimized_graph is only serialized on request (Decompiler(save_unoptimized_graph=True)).
+        # All graphs share one block pool: most of their blocks are byte-identical and get stored once.
         block_pool = BlockPool()
         if self.cc_graph is not None:
             msg.cc_graph.CopyFrom(pack_graph(self.cc_graph, pool=block_pool))
-        if self.unoptimized_graph is not None:
+        if self.graph is not None:
+            msg.graph.CopyFrom(pack_graph(self.graph, pool=block_pool))
+        if self._save_unoptimized_graph and self.unoptimized_graph is not None:
             msg.unoptimized_graph.CopyFrom(pack_graph(self.unoptimized_graph, pool=block_pool))
         msg.block_pool.extend(block_pool.payloads)
         if self.arg_vvars is not None:
@@ -4302,6 +4307,7 @@ class Clinic(Analysis, Serializable):
         msg._rewrite_ites_to_diamond_max_cases = self._rewrite_ites_to_diamond_max_cases
         msg._expose_loop_head_backedges = self._expose_loop_head_backedges
         msg._constrain_callee_prototypes = self._constrain_callee_prototypes
+        msg._save_unoptimized_graph = self._save_unoptimized_graph
 
         msg._mode = self._mode.value
         msg._start_stage = self._start_stage.value
@@ -4336,10 +4342,10 @@ class Clinic(Analysis, Serializable):
         """Bypasses :meth:`Clinic.__init__` (which runs the analysis) and reconstructs the instance directly. Runtime
         back-references — project / kb / function / _cfg — come from kwargs.
 
-        Only the state consumed by the decompiler's cache-reuse path is serialized; regenerable and runtime-only
-        state is not, and is restored to its default here. A deserialized clinic therefore has ``graph`` unset,
-        which routes it through a fresh Clinic run rather than the in-place clinic-reuse path. If ``function`` is
-        None and ``kb`` is provided, the function is resolved by address from the cmessage."""
+        Only the state consumed by the decompiler's cache-reuse path and by post-decompilation consumers
+        (cc_graph, graph, optionally unoptimized_graph) is serialized; regenerable and runtime-only state is
+        restored to its default here. If ``function`` is None and ``kb`` is provided, the function is resolved by
+        address from the cmessage."""
         msg = cmsg
         clinic = cls.__new__(cls)
 
@@ -4358,15 +4364,15 @@ class Clinic(Analysis, Serializable):
         clinic._optimization_passes = []
         clinic.optimization_scratch = {}
 
-        # AIL-typed slots consumed by the cache-reuse path.
+        # AIL-typed slots consumed by the cache-reuse path and by post-decompilation consumers.
         clinic.cc_graph = parse_graph(msg.cc_graph, msg.block_pool) if msg.HasField("cc_graph") else None
+        clinic.graph = parse_graph(msg.graph, msg.block_pool) if msg.HasField("graph") else None
         clinic.unoptimized_graph = (
             parse_graph(msg.unoptimized_graph, msg.block_pool) if msg.HasField("unoptimized_graph") else None
         )
         clinic.arg_vvars = parse_arg_vvars(msg.arg_vvars) if msg.HasField("arg_vvars") else None
 
         # Regenerable/runtime state that is not serialized; restored to its default.
-        clinic.graph = None
         clinic._ail_graph = None
         clinic._init_ail_graph = None
         clinic._init_arg_vvars = None
@@ -4442,6 +4448,7 @@ class Clinic(Analysis, Serializable):
         clinic._rewrite_ites_to_diamond_max_cases = msg._rewrite_ites_to_diamond_max_cases
         clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
         clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
+        clinic._save_unoptimized_graph = msg._save_unoptimized_graph
 
         clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE
         clinic._start_stage = ClinicStage(msg._start_stage)

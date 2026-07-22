@@ -235,7 +235,12 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         )
         # the fields the decompiler's cache-reuse path consumes round-trip
         assert back.cc_graph.number_of_nodes() == clinic.cc_graph.number_of_nodes()
-        assert back.unoptimized_graph.number_of_nodes() == clinic.unoptimized_graph.number_of_nodes()
+        assert back.graph.number_of_nodes() == clinic.graph.number_of_nodes()
+        assert back.graph.number_of_edges() == clinic.graph.number_of_edges()
+        # unoptimized_graph is only serialized with Decompiler(save_unoptimized_graph=True); this decompiler used
+        # the default, so it does not survive the round-trip
+        assert clinic.unoptimized_graph is not None and back.unoptimized_graph is None
+        assert back._save_unoptimized_graph is False
         assert back.arg_vvars == clinic.arg_vvars
         assert len(back.externs) == len(clinic.externs)
         assert (back.arg_list is None) == (clinic.arg_list is None)
@@ -251,7 +256,6 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         # regenerable / runtime-only state is not serialized, so the deserialized clinic comes back with the
         # default (the caller's fast-path reuse regenerates whatever it needs)
         for attr in (
-            "graph",
             "_ail_graph",
             "_init_ail_graph",
             "_init_arg_vvars",
@@ -269,6 +273,25 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
             k: (v.offset, v.size, v.name, v.item_type) for k, v in clinic.stack_items.items()
         }
         assert clinic._inline_functions == set() and back._inline_functions == set()
+
+    def test_clinic_roundtrip_with_save_unoptimized_graph(self):
+        # Decompiler(save_unoptimized_graph=True) opts the unoptimized graph into serialization.
+        dec = self.proj.analyses.Decompiler(
+            self.func, cfg=self.cfg.model, save_unoptimized_graph=True, regen_clinic=True
+        )
+        clinic = dec.clinic
+        assert clinic is not None and clinic.unoptimized_graph is not None
+        back = type(clinic).parse(
+            clinic.serialize(),
+            project=self.proj,
+            kb=self.proj.kb,
+            function=clinic.function,
+            cfg=clinic._cfg,
+        )
+        assert back._save_unoptimized_graph is True
+        assert back.unoptimized_graph is not None
+        assert back.unoptimized_graph.number_of_nodes() == clinic.unoptimized_graph.number_of_nodes()
+        assert back.unoptimized_graph.number_of_edges() == clinic.unoptimized_graph.number_of_edges()
 
     def test_decompilation_cache_roundtrip(self):
         cache = self.decompiler.cache
@@ -289,9 +312,9 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert cache.timestamp > 0
         assert back.version == cache.version
         assert back.timestamp == cache.timestamp
-        # parameters preserves the 14 keys
+        # parameters preserves the 15 keys
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
-        assert len(back.parameters) == 14
+        assert len(back.parameters) == 15
 
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache

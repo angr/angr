@@ -97,6 +97,7 @@ class Decompiler(Analysis):
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
+        save_unoptimized_graph: bool = False,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -149,6 +150,7 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
+        self._save_unoptimized_graph = save_unoptimized_graph
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
         self._cache_parameters = (
@@ -167,6 +169,7 @@ class Decompiler(Analysis):
                 "desired_variables": self._desired_variables,
                 "static_vvars": self._static_vvars,
                 "static_buffers": self._static_buffers,
+                "save_unoptimized_graph": self._save_unoptimized_graph,
             }
             if use_cache
             else None
@@ -413,6 +416,7 @@ class Decompiler(Analysis):
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                save_unoptimized_graph=self._save_unoptimized_graph,
                 flavor=self._flavor,
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),

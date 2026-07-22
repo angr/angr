@@ -20,7 +20,7 @@ message StackvarMaxSizeEntry {
 }
 
 // =====================================================================================================================
-// DecompilationParameters: closed schema for the 14-key ``parameters`` dict.
+// DecompilationParameters: closed schema for the 15-key ``parameters`` dict.
 // =====================================================================================================================
 
 message OptionEntry {
@@ -61,6 +61,8 @@ message DecompilationParameters {
     optional IteExprs ite_exprs = 18;         // set[tuple[int, ailment.Expression]] | None
     optional StaticVVars static_vvars = 19;
     optional StaticBuffers static_buffers = 20;
+
+    optional bool save_unoptimized_graph = 21;
 }
 
 // =====================================================================================================================
