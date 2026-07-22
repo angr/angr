@@ -817,6 +817,47 @@ class TestDb(unittest.TestCase):
 
             _proj = AngrDB(nullpool=True).load(out_db)
 
+    def test_angrdb_reloaded_decompilation_rerenders_identically(self):
+        # Full workflow: load a binary, decompile a function (populating kb.dec_variables), spill the decompilation
+        # and dec_variables into angrdb, reload, then re-render the cached codegen. The re-rendered output must be
+        # byte-identical to the original — variable declarations (types) and string constants included.
+        bin_path = os.path.join(test_location, "x86_64", "1after909")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "1after909.adb")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            proj.analyses.CompleteCallingConventions(recover_variables=False)
+            func = proj.kb.functions.function(name="doit")
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            original_text = dec.codegen.text
+            # sanity: the original has variable declarations and rendered strings
+            assert "int node;" in original_text
+            assert 'puts("1 AFTER 909:' in original_text or "1 AFTER 909" in original_text
+
+            AngrDB(proj, nullpool=True).dump(db_file)
+            reloaded = AngrDB(nullpool=True).load(db_file)
+            func2 = reloaded.kb.functions.function(name="doit")
+
+            # dec_variables (with types) round-tripped
+            assert func2.addr in reloaded.kb.dec_variables
+            assert reloaded.kb.dec_variables[func2.addr].variable_to_types
+
+            # the cached codegen re-renders identically (what angr-management does on display/edit)
+            cached = reloaded.kb.decompilations[(func2.addr, "pseudocode")]
+            assert cached.codegen is not None
+            assert cached.codegen.text == original_text  # stored text
+            cached.codegen.regenerate_text()
+            assert cached.codegen.text == original_text  # re-rendered text
+
+            # and going through the Decompiler again yields the same, re-renderable, result
+            dec2 = reloaded.analyses.Decompiler(func2, cfg=reloaded.kb.cfgs.get_most_accurate())
+            assert dec2.codegen is not None
+            dec2.codegen.regenerate_text()
+            assert dec2.codegen.text == original_text
+
     def test_angrdb_blob_loader_options_roundtrip(self):
         with tempfile.TemporaryDirectory() as td:
             blob_path = os.path.join(td, "sample.bin")
