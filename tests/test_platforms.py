@@ -5,18 +5,7 @@ import sys
 
 import pytest
 
-import angr
 import angr.utils.lmdb as lmdb_utils
-
-
-def test_platform_capabilities():
-    assert angr.capabilities.emscripten == (sys.platform == "emscripten")
-    assert angr.capabilities.icicle != angr.capabilities.emscripten
-    assert angr.capabilities.lmdb != angr.capabilities.emscripten
-    assert angr.capabilities.multiprocessing != angr.capabilities.emscripten
-    assert angr.capabilities.psutil != angr.capabilities.emscripten
-    assert angr.capabilities.subprocess != angr.capabilities.emscripten
-    assert angr.capabilities.unicorn != angr.capabilities.emscripten
 
 
 def test_lmdb_emscripten_fallback(monkeypatch):

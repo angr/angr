@@ -8,6 +8,7 @@ import re
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+import pypcode
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
@@ -16,25 +17,13 @@ from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.block import BlockNode
 from angr.calling_conventions import SimStackArg
 from angr.codenode import FuncNode
+from angr.engines import pcode
 from angr.errors import SimTranslationError
 from angr.knowledge_plugins import Function
 from angr.utils.constants import is_alignment_mask
 from angr.utils.types import dereference_simtype_by_lib
 
 from .analysis import Analysis
-
-if TYPE_CHECKING:
-    import pypcode
-
-    from angr.engines import pcode
-else:
-    try:
-        import pypcode
-
-        from angr.engines import pcode
-    except ImportError:
-        pypcode = None
-        pcode = None
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -631,7 +620,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
-            elif pypcode is not None and isinstance(vex_block, pcode.lifter.IRSB):  # type: ignore
+            elif isinstance(vex_block, pcode.lifter.IRSB):
                 curr_stmt_start_addr = self._process_pcode_irsb(node, vex_block, state)
             else:
                 raise NotImplementedError(f"Unsupported block type {type(vex_block)}")
