@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+import "angr/protos/ail_types.proto";
+
+package angr.protos;
+
+//
+// Mirrored enums
+//
+// ClinicMode and ClinicStage are stored as raw int32 values matching the Python ``.value`` of each enum member.
+
+// =====================================================================================================================
+// Small value types
+// =====================================================================================================================
+
+enum StackItemType {
+    SI_UNKNOWN = 0;
+    SI_SAVED_BP = 1;
+    SI_SAVED_REGS = 2;
+    SI_ARGUMENT = 3;
+    SI_RET_ADDR = 4;
+    SI_STACK_CANARY = 5;
+}
+
+message StackItem {
+    int32 offset = 1;
+    int32 size = 2;
+    string name = 3;
+    StackItemType item_type = 4;
+}
+
+message AddressTuple {
+    // ailment.Address = tuple[int, int | None]
+    int64 addr = 1;
+    optional int32 idx = 2;
+}
+
+message AddressPair {
+    AddressTuple src = 1;
+    AddressTuple dst = 2;
+}
+
+message ExternBytes {
+    // serialized SimMemoryVariable subclass via "<ClassName>\\0<proto bytes>" so polymorphic dispatch works at parse.
+    bytes payload = 1;
+}
+
+// =====================================================================================================================
+// Clinic
+// =====================================================================================================================
+// Many ctor parameters double as instance attributes; we round-trip all of them so the cache-hit path sees the same
+// configuration as the original Clinic. Runtime back-references (project / kb / function / cfg /
+// _handlers / typehoon / _spt / _cache) are reattached at parse time from kwargs and are NOT serialized.
+
+message Clinic {
+    // ---- Function and arch hints (resolved from project at parse time) -----------------------------------------------
+    optional uint64 function_addr = 1;
+    optional string flavor = 2;
+
+    // ---- AIL-typed slots (typed messages from ail_types.proto) -------------------------------------------------------
+    // Shared pool of ailment.Block.to_bytes() payloads; the graphs reference into it via AilGraph.block_refs so
+    // byte-identical blocks appearing in multiple graphs are stored once.
+    repeated bytes block_pool = 3;
+    optional AilGraph cc_graph = 4;
+    optional AilGraph graph = 5;                      // final graph after region simplification
+    optional AilGraph unoptimized_graph = 6;          // only when Decompiler(save_unoptimized_graph=True)
+    optional ArgVVars arg_vvars = 7;                  // dict[int, tuple[VirtualVariable, SimVariable]]
+
+    // ---- Already-Serializable sub-objects ---------------------------------------------------------------------------
+    // arg_list: list[SimVariable] | None
+    repeated ExternBytes arg_list = 8;
+    repeated ExternBytes externs = 9;                 // set[SimMemoryVariable]
+    // Only state consumed by the decompiler's cache-reuse path is serialized.
+
+    // ---- CLEAN primitive collections --------------------------------------------------------------------------------
+    map<int32, int32> vvar_to_vvar = 10;              // dict[int, int]
+    repeated uint32 secondary_stackvars = 11;         // set[int]
+    repeated uint32 removed_vvar_ids = 12;            // set[int] | None
+    optional bool _removed_vvar_ids_set = 13;
+    repeated uint32 _preserve_vvar_ids = 14;
+    map<uint64, int32> _inlined_counts = 15;          // dict[int, int]
+    repeated uint64 _inlining_parents = 16;           // set[int]
+    repeated string _must_struct = 17;                // set[str] | None
+    optional bool _must_struct_set = 18;
+    repeated string _desired_variables = 19;
+    optional bool _desired_variables_set = 20;
+    map<int32, StackItem> stack_items = 21;           // dict[int, StackItem]
+    repeated AddressPair edges_to_remove = 22;
+    repeated uint32 copied_var_ids = 23;
+    repeated uint32 _new_block_addrs = 24;
+    optional AddressTuple entry_node_addr = 25;
+
+    // ---- CLEAN scalars ----------------------------------------------------------------------------------------------
+    int32 vvar_id_start = 26;
+    int32 _max_stack_depth = 27;
+    int32 _sp_shift = 28;
+    int32 _max_type_constraints = 29;
+    int32 _type_constraint_set_degradation_threshold = 30;
+    bool _fold_callexprs_into_conditions = 31;
+    bool _fold_expressions = 32;
+    bool _insert_labels = 33;
+    bool _remove_dead_memdefs = 34;
+    bool _exception_edges = 35;
+    bool _sp_tracker_track_memory = 36;
+    bool _reset_variable_names = 37;
+    bool _rewrite_ites_to_diamonds = 38;
+    bool _flatten_args = 39;
+    bool _semvar_naming = 40;
+    bool _force_loop_single_exit = 41;
+    bool _refine_loops_with_single_successor = 42;
+    bool _register_save_areas_removed = 43;
+    int32 _rewrite_ites_to_diamond_max_cases = 44;
+    bool _expose_loop_head_backedges = 45;
+    bool _constrain_callee_prototypes = 46;
+    bool _save_unoptimized_graph = 47;
+
+    int32 _mode = 48;                                  // ClinicMode.value
+    int32 _start_stage = 49;                           // ClinicStage.value
+    int32 _end_stage = 50;
+    repeated int32 _skip_stages = 51;
+
+    // ---- Pass class references (round-tripped via the optimization-pass registry) -----------------------------------
+    repeated string peephole_optimizations = 52;          // FQNs from optimization_pass_registry
+    bool peephole_optimizations_use_default = 53;         // True when peephole_optimizations was None (default set)
+    string _typehoon_cls = 54;                        // FQN; empty -> default Typehoon
+}

@@ -148,9 +148,10 @@ class TestTypehoon(unittest.TestCase):
             and func_read6numbers.prototype.args[1].pts_to.signed is True
         )
 
-        # decompile phase_2 again, and we should see an unsigned int [6] on the stack
+        # decompile phase_2 again, and we should see an unsigned int [6] on the stack. regen_clinic=True forces a
+        # fresh run so the newly-inferred read_six_numbers prototype back-propagates instead of reusing the cache.
         dec_phase2 = proj.analyses.Decompiler(
-            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)]
+            func_phase2, fail_fast=True, options=[("constrain_callee_prototypes", True)], regen_clinic=True
         )
         assert dec_phase2.codegen is not None and dec_phase2.codegen.text is not None
         print_decompilation_result(dec_phase2)

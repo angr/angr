@@ -104,8 +104,8 @@ class TestDecompilerTypes(unittest.TestCase):
         print_decompilation_result(dec)
 
         # take the stack variable v2; it should be a char array of size 64
-        assert dec._variable_kb is not None
-        varman = dec._variable_kb.variables.get_function_manager(func.addr)
+        assert dec.func.addr in dec.kb.dec_variables
+        varman = dec.kb.dec_variables.get_function_manager(func.addr)
         var2 = next(iter(varman.find_variables_by_stack_offset(-0x58)))
         assert var2 is not None
         var2 = varman.unified_variable(var2)
@@ -117,7 +117,7 @@ class TestDecompilerTypes(unittest.TestCase):
         varman.set_variable_type(var2, SimTypeArray(SimTypeChar(), 0).with_arch(proj.arch), mark_manual=True)
 
         # decompile again; should not crash!
-        new_dec = proj.analyses.Decompiler(func, variable_kb=dec._variable_kb, fail_fast=True)
+        new_dec = proj.analyses.Decompiler(func, fail_fast=True, regen_clinic=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(new_dec)
         assert f"char {var2.name}[0];" in new_dec.codegen.text
@@ -126,7 +126,7 @@ class TestDecompilerTypes(unittest.TestCase):
         varman.set_variable_type(var2, SimTypeInt().with_arch(proj.arch), mark_manual=True)
 
         # decompile again; should not crash!
-        new_dec = proj.analyses.Decompiler(func, variable_kb=dec._variable_kb, fail_fast=True)
+        new_dec = proj.analyses.Decompiler(func, fail_fast=True, regen_clinic=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(new_dec)
         assert f"int {var2.name};" in new_dec.codegen.text

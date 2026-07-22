@@ -1,5 +1,15 @@
 [build-system]
-requires = ["setuptools>=77.0.0", "setuptools-rust", "pyvex==9.3.1.dev0"]
+# grpcio-tools generates angr/protos/*_pb2.py at build time. The generated code carries a protobuf gencode version
+# stamp (6.31.1 for the pinned grpcio-tools) that the runtime protobuf validates at import: the runtime must be the
+# same major version and no older than the stamp. Pinning grpcio-tools keeps the stamp deterministic and on the 6.x
+# major, so the runtime "protobuf>=6.33.0" (and any 6.x/7.x resolution of it) can always load the generated modules.
+requires = [
+    "setuptools>=77.0.0",
+    "setuptools-rust",
+    "pyvex==9.3.1.dev0",
+    "grpcio-tools~=1.80.0",
+    "protobuf>=6.31.1,<7",
+]
 build-backend = "setuptools.build_meta"
 
 [project]

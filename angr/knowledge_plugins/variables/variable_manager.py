@@ -39,6 +39,7 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.types import replace_pointer_pts_to, unpack_pointer
 
+from .spilling_vardict import USE_SPILLING_DVARS, SpillingVariableInternalDict
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
@@ -1282,10 +1283,12 @@ class VariableManager(KnowledgeBasePlugin):
     Manage variables.
     """
 
+    function_managers: dict[int, VariableManagerInternal] | SpillingVariableInternalDict
+
     def __init__(self, kb):
         super().__init__(kb=kb)
         self.global_manager = VariableManagerInternal(self)
-        self.function_managers: dict[int, VariableManagerInternal] = {}
+        self.function_managers = {}
 
     def __contains__(self, key) -> bool:
         if key == "global":
@@ -1394,4 +1397,31 @@ class VariableManager(KnowledgeBasePlugin):
                 self.convert_variable_list(subp.local_variables, manager)
 
 
+class DecompilationVariableManager(VariableManager):
+    """
+    Holds variables discovered during decompilation, kept separate from the disassembly-level ``kb.variables``.
+    Exposed as ``kb.dec_variables``. Per-function managers are held in a :class:`SpillingVariableInternalDict`, which
+    spills least-recently-used entries to the RuntimeDb LMDB store (disable via ``USE_SPILLING_DVARS``).
+    """
+
+    def __init__(self, kb):
+        super().__init__(kb)
+        if USE_SPILLING_DVARS:
+            self.function_managers = SpillingVariableInternalDict(self)
+
+    def copy(self) -> DecompilationVariableManager:
+        new = DecompilationVariableManager(self._kb)
+        new.global_manager = self._copy_internal(self.global_manager, new)
+        for addr, vmi in self.function_managers.items():
+            new.function_managers[addr] = self._copy_internal(vmi, new)
+        return new
+
+    @staticmethod
+    def _copy_internal(vmi: VariableManagerInternal, manager: VariableManager) -> VariableManagerInternal:
+        clone = VariableManagerInternal.parse(vmi.serialize(), variable_manager=manager, func_addr=vmi.func_addr)
+        clone.set_manager(manager)
+        return clone
+
+
 KnowledgeBasePlugin.register_default("variables", VariableManager)
+KnowledgeBasePlugin.register_default("dec_variables", DecompilationVariableManager)

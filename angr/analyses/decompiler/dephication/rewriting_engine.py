@@ -56,7 +56,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         project,
         vvar_to_vvar: dict[int, int],
         func_addr: int | None = None,
-        variable_kb: KnowledgeBase | None = None,
+        kb: KnowledgeBase | None = None,
         variable_map: VariableMap | None = None,
     ):
         super().__init__(project)
@@ -64,7 +64,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         self.vvar_to_vvar = vvar_to_vvar
         self.out_block = None
         self.func_addr = func_addr
-        self.variable_kb = variable_kb
+        self._dvars_kb = kb
         self.variable_map = variable_map
 
         self._stmt_handlers["IncompleteSwitchCaseHeadStatement"] = self._handle_stmt_IncompleteSwitchCaseHeadStatement
@@ -121,13 +121,13 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 return ()
             if (
                 self.func_addr is not None
-                and self.variable_kb is not None
-                and self.func_addr in self.variable_kb.variables
+                and self._dvars_kb is not None
+                and self.func_addr in self._dvars_kb.dec_variables
                 and self.variable_map is not None
             ):
                 dst_var = self.variable_map.variable(dst)
                 src_var = self.variable_map.variable(src)
-                var_manager = self.variable_kb.variables[self.func_addr]
+                var_manager = self._dvars_kb.dec_variables[self.func_addr]
                 if (
                     dst_var is not None
                     and src_var is not None
