@@ -9,12 +9,14 @@ import logging
 import os
 import random
 import unittest
+from unittest import mock
 
 import archinfo
 
 import angr
+from angr.analyses.cfg.cfg_fast import CFGFast
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
-from angr.codenode import FuncNode
+from angr.codenode import BlockNode, FuncNode
 from angr.knowledge_plugins.cfg import CFGModel, CFGNode
 from tests.common import bin_location, broken
 
@@ -1140,6 +1142,64 @@ class TestCfgfast(unittest.TestCase):
         assert block_size(4096, repeating_byte_run_threshold=0) == 99
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
+
+    def test_fresh_model_rebuilds_function_graphs(self):
+        project = angr.Project(os.path.join(test_location, "armel", "libsoap.so"), auto_load_libs=False)
+        original_post_analysis = CFGFast._post_analysis  # pylint: disable=protected-access
+        observed_block_sizes = []
+
+        def observe_before_normalization(cfg):
+            function = cfg.functions[0x4066C8]
+            observed_block_sizes.append(
+                sorted(node.size for node in function.graph if isinstance(node, BlockNode) and node.addr == 0x4066EC)
+            )
+            return original_post_analysis(cfg)
+
+        with mock.patch.object(CFGFast, "_post_analysis", observe_before_normalization):
+            for _ in range(2):
+                cfg = project.analyses.CFGFast(
+                    normalize=True,
+                    regions=[(0x4066C8, 0x40676C)],
+                    function_starts=[0x4066C8],
+                )
+                self.assertTrue(cfg.functions[0x4066C8].normalized)
+
+        self.assertEqual(observed_block_sizes, [[28], [28]])
+
+    def test_fresh_model_invalidates_function_graph_caches(self):
+        project = angr.Project(os.path.join(test_location, "armel", "libsoap.so"), auto_load_libs=False)
+        function_addr = 0x4066C8
+        first = project.analyses.CFGFast(
+            normalize=False,
+            regions=[(function_addr, 0x406710)],
+            function_starts=[function_addr],
+        )
+        function = first.functions[function_addr]
+        first_complexity = function.cyclomatic_complexity
+        original_post_analysis = CFGFast._post_analysis  # pylint: disable=protected-access
+        observed = {}
+
+        def observe_rebuilt_graph(cfg):
+            rebuilt_function = cfg.functions[function_addr]
+            observed["same_function"] = rebuilt_function is function
+            observed["formula"] = (
+                rebuilt_function.transition_graph.number_of_edges()
+                - rebuilt_function.transition_graph.number_of_nodes()
+                + 2
+            )
+            observed["complexity"] = rebuilt_function.cyclomatic_complexity
+            return original_post_analysis(cfg)
+
+        with mock.patch.object(CFGFast, "_post_analysis", observe_rebuilt_graph):
+            project.analyses.CFGFast(
+                normalize=False,
+                regions=[(function_addr, 0x40676C)],
+                function_starts=[function_addr],
+            )
+
+        self.assertTrue(observed["same_function"])
+        self.assertNotEqual(first_complexity, observed["formula"])
+        self.assertEqual(observed["complexity"], observed["formula"])
 
 
 if __name__ == "__main__":
