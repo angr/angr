@@ -620,7 +620,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
-            elif isinstance(vex_block, pcode.lifter.IRSB):
+            elif pypcode is not None and isinstance(vex_block, pcode.lifter.IRSB):  # type: ignore
                 curr_stmt_start_addr = self._process_pcode_irsb(node, vex_block, state)
             else:
                 raise NotImplementedError(f"Unsupported block type {type(vex_block)}")
