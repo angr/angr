@@ -38,10 +38,16 @@ class RustSimType:
 
 class RustSimTypeInt(RustSimType, SimTypeInt):
     _ident = "rust_int"
+    # unlike SimTypeInt, the size is explicit and arch-independent, so it must participate in equality and hashing
+    _fields = (*SimTypeInt._fields, "_size")
+    _args = ("size", "signed", "label")
 
     def __init__(self, size=32, signed=True, label=None):
         super().__init__(signed, label)
         self._size = size
+
+    def copy(self):
+        return self.__class__(size=self._size, signed=self.signed, label=self.label).with_arch(self._arch)
 
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         if name is None or len(name) == 0:
