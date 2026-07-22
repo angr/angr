@@ -12,7 +12,7 @@ impl ToOpString for AstRef<'static> {
             AstOp::Not(..) => if self.ast_type().is_bool() {
                 "Not"
             } else {
-                "__neg__"
+                "__invert__"
             }
             .to_string(),
             AstOp::And(..) => if self.ast_type().is_bool() {
