@@ -224,10 +224,10 @@ class DecompilationCache(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return decompilation_cache_pb2.DecompilationCache()
+        return decompilation_cache_pb2.DecompilationCache()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
-        msg = decompilation_cache_pb2.DecompilationCache(addr=self.addr)
+        msg = decompilation_cache_pb2.DecompilationCache(addr=self.addr)  # pylint:disable=no-member
 
         if self.clinic is not None:
             msg.clinic = self.clinic.serialize()

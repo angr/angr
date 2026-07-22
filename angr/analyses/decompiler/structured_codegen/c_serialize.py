@@ -18,6 +18,7 @@ from typing import Any
 
 from angr import sim_variable
 from angr.analyses.decompiler.notes import DecompilationNote
+from angr.knowledge_plugins.cfg.memory_data import MemoryData
 from angr.protos import codegen_pb2
 from angr.rustylib.ailment import Block as AilBlock
 from angr.rustylib.ailment import Expression as AilExpression
@@ -1109,8 +1110,6 @@ def _ser_cconst(node, pb, ctx):
         body.str_value = node.value
     body.type_ref = ctx.intern_type(node._type)
     if node.reference_values:
-        from angr.knowledge_plugins.cfg.memory_data import MemoryData
-
         for ty, val in node.reference_values.items():
             entry = body.reference_values.add()
             entry.type_ref = ctx.intern_type(ty)
@@ -1128,8 +1127,6 @@ def _ser_cconst(node, pb, ctx):
 
 
 def _parse_cconst(pb, ctx):
-    from angr.knowledge_plugins.cfg.memory_data import MemoryData
-
     obj = CConstant.__new__(CConstant)
     body = pb.cconst
     which = body.WhichOneof("value")
@@ -1249,31 +1246,31 @@ def _parse_cfunction(pb, ctx):
 # -----------------------------------------------------------------------------------------------------------------
 # Ailment-coupled subclasses (native AIL to_bytes payloads).
 # -----------------------------------------------------------------------------------------------------------------
-def _ser_cailblock(node, pb, ctx):
+def _ser_cailblock(node, pb, _ctx):
     pb.cailblock.block = node.block.to_bytes()
 
 
-def _parse_cailblock(pb, ctx):
+def _parse_cailblock(pb, _ctx):
     obj = CAILBlock.__new__(CAILBlock)
     obj.block = AilBlock.from_bytes(pb.cailblock.block)
     return obj
 
 
-def _ser_cunsupported(node, pb, ctx):
+def _ser_cunsupported(node, pb, _ctx):
     pb.cunsupported.stmt = node.stmt.to_bytes()
 
 
-def _parse_cunsupported(pb, ctx):
+def _parse_cunsupported(pb, _ctx):
     obj = CUnsupportedStatement.__new__(CUnsupportedStatement)
     obj.stmt = AilStatement.from_bytes(pb.cunsupported.stmt)
     return obj
 
 
-def _ser_cdirtyexpr(node, pb, ctx):
+def _ser_cdirtyexpr(node, pb, _ctx):
     pb.cdirty_expr.dirty = node.dirty.to_bytes()
 
 
-def _parse_cdirtyexpr(pb, ctx):
+def _parse_cdirtyexpr(pb, _ctx):
     obj = CDirtyExpression.__new__(CDirtyExpression)
     obj.dirty = AilExpression.from_bytes(pb.cdirty_expr.dirty)
     return obj

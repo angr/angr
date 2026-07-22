@@ -55,7 +55,7 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
 
     @property
     def _kb(self):
-        return self._manager._kb
+        return self._manager._kb  # pylint: disable=protected-access
 
     def _init_lmdb(self) -> None:
         if self._db is None:
