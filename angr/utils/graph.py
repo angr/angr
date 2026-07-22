@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, cast
 
@@ -148,51 +148,63 @@ def subgraph_between_nodes[T](
     :rtype:                         networkx.DiGraph
     """
 
-    graph = networkx.DiGraph(graph)  # make a copy
-    for pred in list(graph.predecessors(source)):
-        # make sure we cannot go from any other node to the source node
-        graph.remove_edge(pred, source)
-
-    g0 = networkx.DiGraph()
+    frontier = set(frontier)
 
     if source not in graph or any(node not in graph for node in frontier):
         raise KeyError("Source node or frontier nodes are not in the source graph.")
 
+    # Precompute, with a single reverse multi-source traversal, the set of nodes that can reach any frontier node.
+    # Not expanding the predecessors of the source is exactly equivalent to removing every incoming edge of the
+    # source before the search, which is what this function used to do on a full copy of the graph.
+    reaches_frontier = set(frontier)
+    reverse_queue = deque(frontier)
+    while reverse_queue:
+        node = reverse_queue.popleft()
+        if node == source:
+            continue
+        for pred in graph.predecessors(node):
+            if pred not in reaches_frontier:
+                reaches_frontier.add(pred)
+                reverse_queue.append(pred)
+
+    g0 = networkx.DiGraph()
+
     # BFS on graph and add new nodes to g0
-    queue = [source]
+    queue = deque([source])
     traversed = set()
 
-    frontier = set(frontier)
-
     while queue:
-        node = queue.pop(0)
+        node = queue.popleft()
         traversed.add(node)
 
         for _, succ, data in graph.out_edges(node, data=True):
-            if g0.has_edge(node, succ):
+            if succ == source or g0.has_edge(node, succ):
                 continue
 
             g0.add_edge(node, succ, **data)
             if succ in traversed or succ in frontier:
                 continue
-            for frontier_node in frontier:
-                if networkx.has_path(graph, succ, frontier_node):
-                    queue.append(succ)
-                    break
+            if succ in reaches_frontier:
+                queue.append(succ)
 
-    # recursively remove all nodes that have less than two neighbors
-    to_remove = [
-        n
-        for n in g0.nodes()
-        if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
-    ]
+    # recursively remove all nodes that have less than two neighbors, using a degree worklist instead of rescanning
+    # the whole graph after every removal
+    def _removable(n) -> bool:
+        return n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
+
+    to_remove = deque(n for n in g0 if _removable(n))
+    queued = set(to_remove)
     while to_remove:
-        g0.remove_nodes_from(to_remove)
-        to_remove = [
-            n
-            for n in g0.nodes()
-            if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
-        ]
+        node = to_remove.popleft()
+        queued.discard(node)
+        if node not in g0 or not _removable(node):
+            continue
+        neighbors = [*g0.predecessors(node), *g0.successors(node)]
+        g0.remove_node(node)
+        for neighbor in neighbors:
+            if neighbor in g0 and neighbor not in queued and _removable(neighbor):
+                queued.add(neighbor)
+                to_remove.append(neighbor)
 
     if not include_frontier:
         # remove the frontier nodes
