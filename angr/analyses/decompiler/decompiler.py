@@ -163,15 +163,14 @@ class Decompiler(Analysis):
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
         # Collection-typed values are normalized to empty collections (never None) so the serialized cache does not
-        # need to distinguish None from empty. These are copies used only for cache-validity comparison and storage;
-        # the None-able attributes above still drive Clinic directly (e.g. peephole_optimizations=None means "use the
-        # default peephole set").
+        # need to distinguish None from empty. The exception is peephole_optimizations, where None means "use the
+        # default peephole set" and is distinct from an explicitly empty list.
         self._cache_parameters = (
             {
                 "options": {(o, v) for o, v in self._options if o.category != "Display" and v != o.default_value},
                 "optimization_passes": self._optimization_passes,
                 "sp_tracker_track_memory": self._sp_tracker_track_memory,
-                "peephole_optimizations": self._peephole_optimizations or [],
+                "peephole_optimizations": self._peephole_optimizations,
                 "vars_must_struct": self._vars_must_struct or set(),
                 "flavor": self._flavor,
                 "expr_comments": self._expr_comments or {},

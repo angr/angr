@@ -96,8 +96,11 @@ def _serialize_parameters(params: dict, out_msg) -> None:
             entry.value_json = json.dumps(None)
     for cls in params.get("optimization_passes") or ():
         out_msg.optimization_passes.append(pass_to_name(cls))
-    for cls in params.get("peephole_optimizations") or ():
-        out_msg.peephole_optimizations.append(pass_to_name(cls))
+    # peephole_optimizations is the one None-able collection: None means "use the default peephole set"
+    if params.get("peephole_optimizations") is not None:
+        out_msg._peephole_optimizations_set = True
+        for cls in params["peephole_optimizations"]:
+            out_msg.peephole_optimizations.append(pass_to_name(cls))
     for k, v in (params.get("expr_comments") or {}).items():
         out_msg.expr_comments[k] = v
     for k, v in (params.get("stmt_comments") or {}).items():
@@ -114,8 +117,9 @@ def _serialize_parameters(params: dict, out_msg) -> None:
 
 def _parse_parameters(msg) -> dict:
     """Always populate every one of the 15 keys in the returned dict; scalar fields that were not set come back as
-    None and collection fields come back empty. This matches the decompiler's normalized _cache_parameters, which
-    _can_use_decompilation_cache compares key by key against the deserialized cache."""
+    None and collection fields come back empty, except peephole_optimizations where None means "use the default
+    peephole set". This matches the decompiler's normalized _cache_parameters, which _can_use_decompilation_cache
+    compares key by key against the deserialized cache."""
     from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION  # pylint:disable=import-outside-toplevel
     from angr.analyses.decompiler.optimization_pass_registry import (  # pylint:disable=import-outside-toplevel
         name_to_pass,
@@ -135,7 +139,9 @@ def _parse_parameters(msg) -> dict:
             if e.param in PARAM_TO_OPTION
         },
         "optimization_passes": [name_to_pass(n) for n in msg.optimization_passes],
-        "peephole_optimizations": [name_to_pass(n) for n in msg.peephole_optimizations],
+        "peephole_optimizations": (
+            [name_to_pass(n) for n in msg.peephole_optimizations] if msg._peephole_optimizations_set else None
+        ),
         "expr_comments": dict(msg.expr_comments),
         "stmt_comments": dict(msg.stmt_comments),
         "binop_operators": _parse_binop_operators(msg.binop_operators),

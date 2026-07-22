@@ -31,8 +31,9 @@ message OptionEntry {
     string value_json = 2;
 }
 
-// All collection-typed parameters are never None on the Python side (the Decompiler normalizes its inputs to empty
-// collections), so an unset repeated/map field simply parses back to an empty collection.
+// Collection-typed parameters (except peephole_optimizations) are never None on the Python side (the Decompiler
+// normalizes its inputs to empty collections), so an unset repeated/map field simply parses back to an empty
+// collection.
 message DecompilationParameters {
     optional string flavor = 1;
     optional bool sp_tracker_track_memory = 2;
@@ -44,17 +45,21 @@ message DecompilationParameters {
     repeated OptionEntry options = 6;
 
     repeated string optimization_passes = 7;  // FQN strings
+
+    // peephole_optimizations is the one None-able collection: None means "use the default peephole set", which is
+    // distinct from an explicitly empty list.
     repeated string peephole_optimizations = 8;
+    bool _peephole_optimizations_set = 9;     // distinguish [] from None
 
-    map<int64, string> expr_comments = 9;
-    map<int64, string> stmt_comments = 10;
-    repeated BinopOperatorEntry binop_operators = 11;
+    map<int64, string> expr_comments = 10;
+    map<int64, string> stmt_comments = 11;
+    repeated BinopOperatorEntry binop_operators = 12;
 
-    optional IteExprs ite_exprs = 12;         // set[tuple[int, ailment.Expression]]; unset -> empty set
-    optional StaticVVars static_vvars = 13;   // unset -> empty dict
-    optional StaticBuffers static_buffers = 14;
+    optional IteExprs ite_exprs = 13;         // set[tuple[int, ailment.Expression]]; unset -> empty set
+    optional StaticVVars static_vvars = 14;   // unset -> empty dict
+    optional StaticBuffers static_buffers = 15;
 
-    bool save_unoptimized_graph = 15;
+    bool save_unoptimized_graph = 16;
 }
 
 // =====================================================================================================================
