@@ -313,6 +313,9 @@ class Clinic(Analysis, Serializable):
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
         self.peephole_optimizations = peephole_optimizations
+        # peephole-optimization names that could not be resolved at parse time (their defining module was not
+        # imported); resolve_peephole_optimizations() retries them
+        self.unresolvable_peephole_optimizations: list[str] = []
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
@@ -4221,6 +4224,22 @@ class Clinic(Analysis, Serializable):
             .model
         )
 
+    def resolve_peephole_optimizations(self) -> None:
+        """Retry resolving peephole-optimization names that were unresolvable at parse time (their defining module
+        may have been imported since). Resolved classes move into ``peephole_optimizations``; names that still do not
+        resolve stay in ``unresolvable_peephole_optimizations``."""
+        if not self.unresolvable_peephole_optimizations:
+            return
+        assert self.peephole_optimizations is not None
+        still_unresolvable = []
+        for name in self.unresolvable_peephole_optimizations:
+            cls_ = name_to_pass(name)
+            if cls_ is None:
+                still_unresolvable.append(name)
+            else:
+                self.peephole_optimizations.append(cls_)
+        self.unresolvable_peephole_optimizations = still_unresolvable
+
     # -----------------------------------------------------------------------------------------------------------------
     # Protobuf serialization. Conventions:
     # - Heavy sub-objects manage their own formats; AIL-typed slots use the typed messages from ail_types.proto.
@@ -4331,10 +4350,12 @@ class Clinic(Analysis, Serializable):
         msg._end_stage = self._end_stage.value
         msg._skip_stages.extend(s.value for s in self._skip_stages)
 
-        # Pass class refs. peephole_optimizations=None means "use the default peephole set".
+        # Pass class refs. peephole_optimizations=None means "use the default peephole set". Names that are still
+        # unresolvable are re-serialized as-is so they are not lost across round-trips.
         msg.peephole_optimizations_use_default = self.peephole_optimizations is None
         if self.peephole_optimizations is not None:
             msg.peephole_optimizations.extend(pass_to_name(cls_) for cls_ in self.peephole_optimizations)
+            msg.peephole_optimizations.extend(self.unresolvable_peephole_optimizations)
         if self._typehoon_cls is not None:
             # _typehoon_cls is the Typehoon class itself (not a registered pass); store its fully-qualified name
             msg._typehoon_cls = (
@@ -4472,11 +4493,20 @@ class Clinic(Analysis, Serializable):
         clinic._end_stage = ClinicStage(msg._end_stage)
         clinic._skip_stages = tuple(ClinicStage(s) for s in msg._skip_stages)
 
-        # Pass class refs. peephole_optimizations=None means "use the default peephole set".
+        # Pass class refs. peephole_optimizations=None means "use the default peephole set". Names that cannot be
+        # resolved (their defining module is not imported) are kept in unresolvable_peephole_optimizations;
+        # resolve_peephole_optimizations() retries them.
+        clinic.unresolvable_peephole_optimizations = []
         if msg.peephole_optimizations_use_default:
             clinic.peephole_optimizations = None
         else:
-            clinic.peephole_optimizations = [name_to_pass(n) for n in msg.peephole_optimizations]
+            clinic.peephole_optimizations = []
+            for n in msg.peephole_optimizations:
+                cls_ = name_to_pass(n)
+                if cls_ is None:
+                    clinic.unresolvable_peephole_optimizations.append(n)
+                else:
+                    clinic.peephole_optimizations.append(cls_)
         if msg._typehoon_cls:
             # _typehoon_cls is the Typehoon class itself (not a registered pass). Resolve directly by FQN.
             module_name, _, cls_name = msg._typehoon_cls.rpartition(".")

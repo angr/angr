@@ -19,13 +19,12 @@ def pass_to_name(cls: type) -> str:
     return cls.__qualname__
 
 
-def name_to_pass(name: str) -> type:
-    """Resolve a class name back to its registered pass class.
-
-    :raises KeyError: if ``name`` does not refer to a class in
-        ``ALL_OPTIMIZATION_PASSES`` or ``ALL_PEEPHOLE_OPTS``.
+def name_to_pass(name: str) -> type | None:
     """
-    return _known_passes()[name]
+    Resolve a class name back to its registered pass class. Returns None for names that are not registered at the time
+    this method is called. Peephole passes might be defined by analyses or plugins that have not yet been imported.
+    """
+    return _known_passes().get(name)
 
 
 __all__ = ("name_to_pass", "pass_to_name")

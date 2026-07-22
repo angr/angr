@@ -139,9 +139,13 @@ def _parse_parameters(msg) -> dict:
             for e in msg.options
             if e.param in PARAM_TO_OPTION
         },
-        "optimization_passes": [name_to_pass(n) for n in msg.optimization_passes],
+        # unresolvable pass names (defining module not imported) drop out; the resulting shorter list will not match
+        # the live decompiler's parameters, so the cache falls through to a fresh decompilation
+        "optimization_passes": [cls for n in msg.optimization_passes if (cls := name_to_pass(n)) is not None],
         "peephole_optimizations": (
-            None if msg.peephole_optimizations_use_default else [name_to_pass(n) for n in msg.peephole_optimizations]
+            None
+            if msg.peephole_optimizations_use_default
+            else [cls for n in msg.peephole_optimizations if (cls := name_to_pass(n)) is not None]
         ),
         "expr_comments": dict(msg.expr_comments),
         "stmt_comments": dict(msg.stmt_comments),
