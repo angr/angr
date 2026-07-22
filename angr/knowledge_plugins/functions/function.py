@@ -1410,6 +1410,8 @@ class Function(Serializable):
 
     @dirty_func
     def clear_transition_graph(self):
+        self.normalized = False
+        self._cyclomatic_complexity = None
         self._graph = FunctionGraph(self.addr)
         self._transition_graph = None
         self._node_objs = {}
