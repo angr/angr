@@ -8,8 +8,20 @@ xbuildenv_path="${PYODIDE_XBUILDENV_PATH:-$workspace/.pyodide-xbuildenv}"
 out_dir="$angr_dir/wasm/dist"
 sample_dir="$angr_dir/wasm/samples"
 pyodide=(uvx --python 3.14 --from 'pyodide-build[resolve]' pyodide)
+source_repos=(archinfo claripy cle pypcode pyvex)
 
-for repo in archinfo claripy cle pypcode pyvex z3; do
+missing_repos=()
+for repo in "${source_repos[@]}"; do
+    if [[ ! -d "$workspace/$repo" ]]; then
+        missing_repos+=("$repo")
+    fi
+done
+if (( ${#missing_repos[@]} )); then
+    uv run --project "$angr_dir" --no-sync python "$angr_dir/wasm/materialize_uv_sources.py" \
+        "$workspace" "${missing_repos[@]}"
+fi
+
+for repo in "${source_repos[@]}" z3; do
     if [[ ! -d "$workspace/$repo" ]]; then
         echo "Missing sibling repository: $workspace/$repo" >&2
         exit 1
@@ -59,6 +71,12 @@ python3 -m pip wheel --no-deps --wheel-dir "$out_dir" 'mulpyplexer==0.09' 'arpy=
     cd "$angr_dir"
     rustup target add wasm32-unknown-emscripten
 )
+
+# Do not package stale modules or extensions from a prior native build.
+if [[ -d "$angr_dir/build" ]]; then
+    find "$angr_dir/build" -depth -delete
+fi
+find "$angr_dir/angr" -maxdepth 1 -type f \( -name 'rustylib*.so' -o -name 'unicornlib.so' \) -delete
 
 uvx --python 3.14 --from 'pyodide-build[resolve]' --with 'setuptools>=77' --with setuptools-rust --with wheel \
     pyodide build "$angr_dir" --xbuildenv-path "$xbuildenv_path" --no-isolation --skip-dependency-check \

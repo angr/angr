@@ -61,7 +61,6 @@ def _angr_analyze(path, build_cfg):
         "entry": project.entry,
         "entryBlockSize": block.size,
         "entryInstructions": [str(insn) for insn in block.capstone.insns],
-        "capabilities": angr.capabilities.__dict__,
     }
     if build_cfg:
         cfg = project.analyses.CFGFast(normalize=True)
@@ -87,7 +86,7 @@ self.addEventListener("message", async ({ data: request }) => {
 
     if (request.type === "init") {
       result = convertResult(
-        pyodide.runPython("{'version': angr.__version__, 'capabilities': angr.capabilities.__dict__}")
+        pyodide.runPython("{'version': angr.__version__}")
       );
     } else if (request.type === "analyze") {
       result = await analyze(pyodide, request);
