@@ -79,6 +79,7 @@ fi
 find "$angr_dir/angr" -maxdepth 1 -type f \( -name 'rustylib*.so' -o -name 'unicornlib.so' \) -delete
 
 uvx --python 3.14 --from 'pyodide-build[resolve]' --with 'setuptools>=77' --with setuptools-rust --with wheel \
+    --with 'grpcio-tools~=1.80.0' --with 'protobuf>=6.31.1,<7' \
     pyodide build "$angr_dir" --xbuildenv-path "$xbuildenv_path" --no-isolation --skip-dependency-check \
     --outdir "$out_dir"
 
