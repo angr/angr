@@ -53,7 +53,7 @@ def _decompile(bin_path: str, func_name: str, preset: str = "fast"):
 def _redecompile(proj, cfg, func, dec, graph):
     # drop the previous run's recovered variables and prototype so they do not
     # feed Typehoon as ground truth
-    del dec._variable_kb.variables[func.addr]
+    del dec.kb.dec_variables.function_managers[func.addr]
     func.prototype_source = PrototypeSource.GUESSED
     dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
         func,
