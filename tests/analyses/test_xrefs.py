@@ -23,11 +23,17 @@ class TestXrefs(unittest.TestCase):
         func = cfg.functions[0x23C9]
         state = p.factory.blank_state()
 
+        # The two pointer-loads (ldr rX, [pc, #imm]) at 0x23C9 and 0x241D materialize 0x1FFF36F4, and pyvex's
+        # intra-block constant folding then follows each into its subsequent load (ldr rX, [rY]) at 0x23CB and
+        # 0x241F, recording the folded base as a data reference too. Without propagation context these are all
+        # reported as Offset references; the read/write typing is recovered by the Propagator+XRefs pass below.
         timenow_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x1FFF36F4)  # the value in .bss
-        assert len(timenow_xrefs) == 2
+        assert len(timenow_xrefs) == 4
         assert timenow_xrefs == {
             XRef(ins_addr=0x23C9, dst=0x1FFF36F4, xref_type=XRefType.Offset),
+            XRef(ins_addr=0x23CB, dst=0x1FFF36F4, xref_type=XRefType.Offset),
             XRef(ins_addr=0x241D, dst=0x1FFF36F4, xref_type=XRefType.Offset),
+            XRef(ins_addr=0x241F, dst=0x1FFF36F4, xref_type=XRefType.Offset),
         }
 
         # kill existing xrefs
