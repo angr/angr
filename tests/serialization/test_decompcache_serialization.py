@@ -237,9 +237,9 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.cc_graph.number_of_nodes() == clinic.cc_graph.number_of_nodes()
         assert back.graph.number_of_nodes() == clinic.graph.number_of_nodes()
         assert back.graph.number_of_edges() == clinic.graph.number_of_edges()
-        # unoptimized_graph is only serialized with Decompiler(save_unoptimized_graph=True); this decompiler used
-        # the default, so it does not survive the round-trip
-        assert clinic.unoptimized_graph is not None and back.unoptimized_graph is None
+        # unoptimized_graph is only built (and serialized) with Decompiler(save_unoptimized_graph=True); this
+        # decompiler used the default, so it is absent on both the live and the deserialized clinic
+        assert clinic.unoptimized_graph is None and back.unoptimized_graph is None
         assert back._save_unoptimized_graph is False
         assert back.arg_vvars == clinic.arg_vvars
         assert len(back.externs) == len(clinic.externs)

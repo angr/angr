@@ -69,9 +69,8 @@ class Decompiler(Analysis):
     - ``ail_graph`` (= ``clinic.cc_graph``): the simplified graph before region identification.
     - ``clinic.graph``: the final graph after region identification and region simplification.
     - ``unoptimized_ail_graph`` (= ``clinic.unoptimized_graph``): a snapshot before the first structure-altering
-      optimization pass; use it for an exact instruction-to-AIL mapping. Always populated on a fresh run, but it
-      only survives cache serialization when ``save_unoptimized_graph=True`` is passed — on a cache hit without
-      it, this attribute is None.
+      optimization pass; use it for an exact instruction-to-AIL mapping. Only built when
+      ``save_unoptimized_graph=True`` is passed; otherwise this attribute is None on both fresh runs and cache hits.
     """
 
     def __init__(
@@ -454,11 +453,13 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
-        # expose a copy of the graph before any optimizations that may change the graph occur;
-        # use this graph if you need a reference of exact mapping of instructions to AIL statements
-        self.unoptimized_ail_graph = (
-            clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
-        )
+        # expose a copy of the graph before any optimizations that may change the graph occur; use this graph if you
+        # need an exact instruction-to-AIL mapping. Only built when save_unoptimized_graph is set. clinic captured
+        # the snapshot iff a structure-altering pass ran; if none did, the current graph is itself unoptimized.
+        if self._save_unoptimized_graph:
+            self.unoptimized_ail_graph = (
+                clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
+            )
         cond_proc = ConditionProcessor(self.project.arch, clinic._ail_manager)
 
         clinic.graph = self._run_graph_simplification_passes(

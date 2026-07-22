@@ -3058,7 +3058,7 @@ class TestDecompiler(unittest.TestCase):
 
         proj.analyses.CompleteCallingConventions(cfg=cfg)
         f = proj.kb.functions[0x404410]
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options, save_unoptimized_graph=True)
         print_decompilation_result(d)
 
         target_addrs = {0x4045D8, 0x404575}
@@ -4061,7 +4061,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg)
         f = proj.kb.functions["recover_mode"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
-            f, cfg=cfg.model, options=decompiler_options, generate_code=False
+            f, cfg=cfg.model, options=decompiler_options, generate_code=False, save_unoptimized_graph=True
         )
 
         # we should have skipped generating code

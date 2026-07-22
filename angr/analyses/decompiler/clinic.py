@@ -220,8 +220,8 @@ class Clinic(Analysis, Serializable):
       identification, and region-simplification passes — the final graph. Serialized; available on both live and
       cached-and-reloaded clinics.
     - ``unoptimized_graph``: a copy taken before the first structure-altering optimization pass; use it for an
-      exact instruction-to-AIL mapping. Always available live (when such a pass ran), but only serialized with
-      ``Decompiler(save_unoptimized_graph=True)`` — otherwise it is None on a cached-and-reloaded clinic.
+      exact instruction-to-AIL mapping. Only built (and serialized) with ``Decompiler(save_unoptimized_graph=True)``;
+      otherwise it is None on both live and cached-and-reloaded clinics.
     - ``_ail_graph`` / ``_init_ail_graph``: pipeline internals; never serialized.
     """
 
@@ -2026,9 +2026,12 @@ class Clinic(Analysis, Serializable):
             if stage != pass_.STAGE:
                 continue
 
-            if pass_ in DUPLICATING_OPTS + CONDENSING_OPTS and self.unoptimized_graph is None:
-                # we should save a copy at the first time any optimization that could alter the structure
-                # of the graph is applied
+            if (
+                self._save_unoptimized_graph
+                and pass_ in DUPLICATING_OPTS + CONDENSING_OPTS
+                and self.unoptimized_graph is None
+            ):
+                # save a copy the first time any optimization that could alter the structure of the graph is applied
                 self.unoptimized_graph = self._copy_graph(ail_graph)
 
             pass_ = timethis(pass_)
