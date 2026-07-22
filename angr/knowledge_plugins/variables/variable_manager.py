@@ -39,7 +39,7 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.types import replace_pointer_pts_to, unpack_pointer
 
-from .spilling import USE_SPILLING_DVARS, SpillingVariableInternalDict
+from .spilling_vardict import USE_SPILLING_DVARS, SpillingVariableInternalDict
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
@@ -1283,10 +1283,12 @@ class VariableManager(KnowledgeBasePlugin):
     Manage variables.
     """
 
+    function_managers: dict[int, VariableManagerInternal] | SpillingVariableInternalDict
+
     def __init__(self, kb):
         super().__init__(kb=kb)
         self.global_manager = VariableManagerInternal(self)
-        self.function_managers: dict[int, VariableManagerInternal] = {}
+        self.function_managers = {}
 
     def __contains__(self, key) -> bool:
         if key == "global":

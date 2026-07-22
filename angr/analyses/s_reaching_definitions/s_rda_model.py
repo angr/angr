@@ -66,8 +66,6 @@ class SRDAModel:
         implicit call-site uses). Tmp tracking is not updated (AILSimplifier does not track tmps).
         """
 
-        from angr.utils.ssa import get_vvar_deflocs, get_vvar_uselocs  # pylint:disable=import-outside-toplevel
-
         edited_blocks = list(edited_blocks)
         block_keys = {(b.addr, b.idx) for b in edited_blocks}
 

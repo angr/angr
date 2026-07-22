@@ -16,8 +16,11 @@ import archinfo
 import cle
 
 import angr
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
+from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -730,9 +733,6 @@ class TestDb(unittest.TestCase):
     def test_angrdb_full_decompilation_cache_roundtrip(self):
         # DecompilationCache objects in the structured code manager are fully serialized into the database and come
         # back with real codegen (not DummyStructuredCodeGenerator) and their version and timestamp intact.
-        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-        from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         with tempfile.TemporaryDirectory() as td:
@@ -768,8 +768,6 @@ class TestDb(unittest.TestCase):
     def test_angrdb_fast_load_spilled_decompilation_caches(self):
         # When the database contains more decompilation caches than the manager may keep in memory, the serialized
         # bytes are moved directly into the LMDB backing store on load without being deserialized.
-        from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
-
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         with tempfile.TemporaryDirectory() as td:

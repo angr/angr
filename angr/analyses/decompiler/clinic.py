@@ -16,7 +16,7 @@ import networkx
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
+from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
@@ -103,11 +103,9 @@ from .stackarg_offset_manager import StackArgOffsetManager
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
-    from angr.analyses.s_reaching_definitions import SRDAModel
     from angr.knowledge_plugins.cfg import CFGModel
 
     from .decompilation_cache import DecompilationCache
-    from .notes import DecompilationNote
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
 l = logging.getLogger(name=__name__)
@@ -554,8 +552,10 @@ class Clinic(Analysis, Serializable):
     def _inline_child_functions(self, ail_graph):
         for blk in ail_graph.nodes():
             for idx, stmt in enumerate(blk.statements):
-                if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                    stmt.expr.target, ailment.Expr.Const
+                if (
+                    isinstance(stmt, ailment.Stmt.SideEffectStatement)
+                    and isinstance(stmt.expr, Call)
+                    and isinstance(stmt.expr.target, ailment.Expr.Const)
                 ):
                     assert self.function._function_manager is not None
                     callee = self.function._function_manager.function(stmt.expr.target.value)
@@ -681,9 +681,11 @@ class Clinic(Analysis, Serializable):
                             self._ail_manager.next_atom(),
                             reg_offset,
                             reg_arg.bits,
-                            ins_addr=caller_block.addr + caller_block.original_size,
+                            ins_addr=caller_block.addr
+                            + (caller_block.original_size if caller_block.original_size is not None else 0),
                         ),
-                        ins_addr=caller_block.addr + caller_block.original_size,
+                        ins_addr=caller_block.addr
+                        + (caller_block.original_size if caller_block.original_size is not None else 0),
                     )
                     caller_block.statements.append(stmt)
                 else:
@@ -4229,10 +4231,10 @@ class Clinic(Analysis, Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return clinic_pb2.Clinic()
+        return clinic_pb2.Clinic()  # type: ignore  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
-        msg = clinic_pb2.Clinic()
+        msg = clinic_pb2.Clinic()  # type: ignore  # pylint:disable=no-member
 
         # Function and arch hints.
         if self.function is not None and self.function.addr is not None:

@@ -179,7 +179,7 @@ class StructuredCodeManagerSerializer:
             for db_cache in db_caches:
                 cache = DecompilationCache.parse(
                     db_cache.blob,
-                    project=kb._project,
+                    project=kb._project,  # pylint:disable=protected-access
                     kb=kb,
                     function=kb.functions.get(db_cache.func_addr),
                 )

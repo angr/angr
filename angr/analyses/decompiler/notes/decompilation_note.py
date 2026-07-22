@@ -81,7 +81,7 @@ class DecompilationNote:
     @classmethod
     def from_jsonable(cls, d: dict[str, Any]) -> DecompilationNote:
         klass = cls._subclasses.get(d.get("class", ""), DecompilationNote)
-        return klass._from_jsonable_impl(d)
+        return klass._from_jsonable_impl(d)  # pylint:disable=protected-access
 
     @classmethod
     def _from_jsonable_impl(cls, d: dict[str, Any]) -> DecompilationNote:

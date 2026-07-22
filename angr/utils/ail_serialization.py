@@ -6,18 +6,21 @@ implemented in Rust); the helpers here only encode the Python container structur
 messages in :mod:`angr.protos.ail_types_pb2`. There is no generic fallback: any value shape not covered by the
 schema raises ``TypeError``.
 """
+# pylint:disable=no-member
 
 from __future__ import annotations
 
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
+import networkx
+
+from angr import sim_variable
+from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.protos import ail_types_pb2
 from angr.rustylib.ailment import Block, Expression
 
 if TYPE_CHECKING:
-    import networkx
-
     from angr.sim_variable import SimVariable
 
 
@@ -32,11 +35,9 @@ def simvar_to_bytes_polymorphic(v: SimVariable) -> bytes:
 
 
 def simvar_from_bytes_polymorphic(b: bytes) -> SimVariable:
-    import angr.sim_variable as sv_mod
-
     sep = b.index(b"\0")
     cls_name = b[:sep].decode("ascii")
-    return getattr(sv_mod, cls_name).parse(b[sep + 1 :])
+    return getattr(sim_variable, cls_name).parse(b[sep + 1 :])
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -163,8 +164,6 @@ def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_ty
 
 
 def parse_graph(msg: ail_types_pb2.AilGraph, pool_payloads=None) -> networkx.DiGraph:
-    import networkx
-
     graph = networkx.DiGraph()
     if msg.block_refs:
         # pool-backed encoding: a fresh Block per graph occurrence so graphs never share node objects
@@ -229,8 +228,6 @@ def parse_ite_exprs(msg: ail_types_pb2.IteExprs) -> set[tuple[int, Any]]:
 
 
 def pack_static_vvars(static_vvars: dict[int, Any]) -> ail_types_pb2.StaticVVars:
-    from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBufferPtr
-
     msg = ail_types_pb2.StaticVVars()
     for varid, value in static_vvars.items():
         entry = msg.entries[varid]
@@ -245,8 +242,6 @@ def pack_static_vvars(static_vvars: dict[int, Any]) -> ail_types_pb2.StaticVVars
 
 
 def parse_static_vvars(msg: ail_types_pb2.StaticVVars) -> dict[int, Any]:
-    from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBufferPtr
-
     result: dict[int, Any] = {}
     for varid, entry in msg.entries.items():
         if entry.WhichOneof("v") == "ptr":
@@ -267,6 +262,4 @@ def pack_static_buffers(static_buffers: dict[str, Any]) -> ail_types_pb2.StaticB
 
 
 def parse_static_buffers(msg: ail_types_pb2.StaticBuffers) -> dict[str, Any]:
-    from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer
-
     return {key: FixedBuffer(entry.ident, entry.size, entry.content) for key, entry in msg.entries.items()}

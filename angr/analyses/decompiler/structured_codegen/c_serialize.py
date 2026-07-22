@@ -2,12 +2,11 @@
 Protobuf serialization helpers for the C AST defined in :mod:`c`.
 
 The AST is serialized as a flat indexed table of :class:`CConstructNode` cmessages: every :class:`CConstruct` instance
-is assigned a non-zero ``uint32`` node_id at serialize time, and child CConstructs are referenced by id rather than
-embedded inline. This avoids unbounded recursion in protobuf encoding and lets :class:`PositionMapping`,
-``cexterns``, and ``map_addr_to_label`` reference into the AST without duplicating subtrees.
-
-The dispatch is table-driven (per subclass) rather than method-based, keeping all serialization logic in this file.
+is assigned a non-zero ``uint32`` node_id at serialize time, and child CConstructs are referenced by id. This avoids
+unbounded recursion in protobuf encoding and lets :class:`PositionMapping`, ``cexterns``, and ``map_addr_to_label``
+reference into the AST without duplicating subtrees.
 """
+# pylint:disable=no-member,protected-access
 
 from __future__ import annotations
 
@@ -17,7 +16,8 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
-import angr.sim_variable as sim_variable
+from angr import sim_variable
+from angr.analyses.decompiler.notes import DecompilationNote
 from angr.protos import codegen_pb2
 from angr.rustylib.ailment import Block as AilBlock
 from angr.rustylib.ailment import Expression as AilExpression
@@ -25,7 +25,7 @@ from angr.rustylib.ailment import Statement as AilStatement
 from angr.sim_type import SimType
 from angr.sim_variable import SimVariable
 
-from .base import PositionMapping
+from .base import InstructionMapping, PositionMapping
 from .c import (
     CITE,
     CAILBlock,
@@ -454,8 +454,6 @@ def _serialize_instruction_mapping(im, out_msg) -> None:
 
 
 def _parse_instruction_mapping(im_msg):
-    from .base import InstructionMapping
-
     im = InstructionMapping()
     for entry in im_msg.entries:
         im.add_mapping(entry.ins_addr, entry.posmap_pos)
@@ -476,8 +474,6 @@ def _serialize_notes(notes: dict | None, out_msg) -> None:
 
 
 def _parse_notes(notes_msg):
-    from angr.analyses.decompiler.notes import DecompilationNote
-
     return {k: DecompilationNote.from_json(blob) for k, blob in notes_msg.items()}
 
 
@@ -671,40 +667,40 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
 # -----------------------------------------------------------------------------------------------------------------
 # Trivial subclasses (no payload beyond base fields).
 # -----------------------------------------------------------------------------------------------------------------
-def _ser_cbreak(node, pb, ctx):
+def _ser_cbreak(_node, pb, _ctx):
     pb.cbreak.SetInParent()
 
 
-def _parse_cbreak(pb, ctx):
+def _parse_cbreak(_pb, _ctx):
     return CBreak.__new__(CBreak)
 
 
-def _ser_ccontinue(node, pb, ctx):
+def _ser_ccontinue(_node, pb, _ctx):
     pb.ccontinue.SetInParent()
 
 
-def _parse_ccontinue(pb, ctx):
+def _parse_ccontinue(_pb, _ctx):
     return CContinue.__new__(CContinue)
 
 
 # -----------------------------------------------------------------------------------------------------------------
 # Plain-primitive subclasses.
 # -----------------------------------------------------------------------------------------------------------------
-def _ser_clabel(node, pb, ctx):
+def _ser_clabel(node, pb, _ctx):
     pb.clabel.name = node.name
 
 
-def _parse_clabel(pb, ctx):
+def _parse_clabel(pb, _ctx):
     obj = CLabel.__new__(CLabel)
     obj.name = pb.clabel.name
     return obj
 
 
-def _ser_cregister(node, pb, ctx):
+def _ser_cregister(node, pb, _ctx):
     pb.creg.reg = node.reg
 
 
-def _parse_cregister(pb, ctx):
+def _parse_cregister(pb, _ctx):
     obj = CRegister.__new__(CRegister)
     obj.reg = pb.creg.reg
     return obj

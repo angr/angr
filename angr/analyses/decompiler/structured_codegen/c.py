@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use,protected-access
 from __future__ import annotations
 
 import logging
@@ -736,7 +736,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     if isinstance(field, SimStruct) and field not in extern_types:
                         if field.name and not field.fields and field.name in defined_struct_names:
                             continue
-                        extern_types.append(field)
+                        extern_types.append(field)  # pylint:disable=modified-iterating-list
 
             # Emit in reverse order: nested structs first
             for ty in reversed(extern_types):
@@ -2500,7 +2500,8 @@ class CConstant(CExpression):
                         return
                     yield hex(self.reference_values[self._type]), self
                     return
-                elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
+
+                if isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                     refval = self.reference_values[self._type]
                     if isinstance(refval, MemoryData):
                         v = refval.content.decode("utf-8") if refval.content else f"<unknown@{refval.addr:#x}>"
@@ -2512,7 +2513,8 @@ class CConstant(CExpression):
                         assert isinstance(v, str)
                     yield CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len), self
                     return
-                elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
+
+                if isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                     refval = self.reference_values[self._type]
                     if isinstance(refval, MemoryData):
                         v = decode_utf16_string(refval.content) if refval.content else f"<unknown@{refval.addr:#x}>"
@@ -2522,14 +2524,14 @@ class CConstant(CExpression):
                         assert False, f"Unexpected reference value type {type(refval)} for wide char pointer"
                     yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
                     return
-                else:
-                    if isinstance(self.reference_values[self._type], int):
-                        yield self.fmt_int(self.reference_values[self._type]), self
-                        return
-                    o = _default_output(self.reference_values[self.type])
-                    if o is not None:
-                        yield o, self
-                        return
+
+                if isinstance(self.reference_values[self._type], int):
+                    yield self.fmt_int(self.reference_values[self._type]), self
+                    return
+                o = _default_output(self.reference_values[self.type])
+                if o is not None:
+                    yield o, self
+                    return
 
             # default priority: string references -> variables -> other reference values
             for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
@@ -4367,15 +4369,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     #
     # Serialization
     #
-    # ``c_serialize`` imports from this module at its top, so it cannot be imported at the top of c.py; the method
-    # bodies import it lazily instead. ``serialize()`` / ``parse()`` are inherited from Serializable.
-    #
 
     @classmethod
     def _get_cmsg(cls):
         from angr.protos import codegen_pb2  # pylint:disable=import-outside-toplevel
 
-        return codegen_pb2.Codegen()
+        return codegen_pb2.Codegen()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         from . import c_serialize  # pylint:disable=import-outside-toplevel
@@ -4639,6 +4638,6 @@ register_analysis(CStructuredCodeGenerator, "CStructuredCodeGenerator")
 
 # Register protobuf serializer/parser pairs for every concrete CConstruct subclass. Imported after all classes are
 # defined so that ``c_serialize.register_all`` can reference them by name.
-from . import c_serialize as _c_serialize  # noqa: E402
+from . import c_serialize as _c_serialize  # noqa: E402  # pylint: disable=wrong-import-position
 
 _c_serialize.register_all()

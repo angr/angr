@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 # The default number of per-function decompilation variable managers to keep in memory when spilling is enabled.
-DVARS_CACHE_LIMIT = 1000
+DECVARS_CACHE_LIMIT = 1000
 USE_SPILLING_DVARS = os.environ.get("USE_SPILLING_DVARS", "True").lower() not in ("0", "false", "no")
 
 
@@ -34,7 +34,7 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
     after unpickling.
     """
 
-    def __init__(self, manager: DecompilationVariableManager, cache_limit: int = DVARS_CACHE_LIMIT):
+    def __init__(self, manager: DecompilationVariableManager, cache_limit: int = DECVARS_CACHE_LIMIT):
         self._manager = manager
         self._cache_limit: int = cache_limit
         self._cache: OrderedDict[int, VariableManagerInternal] = OrderedDict()  # LRU order: oldest first
@@ -90,8 +90,10 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
         self._bulk_put([(key, blob)])
 
     def _load_from_lmdb(self, key: int) -> VariableManagerInternal:
+
+        from .variable_manager import VariableManagerInternal  # pylint:disable=import-outside-toplevel
+
         self._flush_pending()
-        from .variable_manager import VariableManagerInternal
 
         assert self._db is not None
         with self._kb.rtdb.begin_txn(self._db) as txn:

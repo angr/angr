@@ -108,7 +108,7 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
         addr, _flavor = key
         cache = DecompilationCache.parse(
             blob,
-            project=self._kb._project,
+            project=self._kb._project,  # pylint:disable=protected-access
             kb=self._kb,
             function=self._kb.functions.get(addr),
         )

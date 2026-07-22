@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use,line-too-long
+# pylint: disable=missing-class-docstring,no-self-use,line-too-long,no-member,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
@@ -30,6 +30,8 @@ from angr.analyses.decompiler.structured_codegen.c import CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
+    _parse_tags,
+    _sanitize_tags,
 )
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
@@ -105,8 +107,6 @@ class TestAilSerializationHelpers(unittest.TestCase):
             assert not field.is_repeated
 
     def test_tags_roundtrip_with_ins_offset(self):
-        from angr.analyses.decompiler.structured_codegen.c_serialize import _parse_tags, _sanitize_tags
-
         # both addresses known: ins_addr rides as a delta but round-trips to the absolute value
         tags = {"ins_addr": 0x4010F0, "vex_block_addr": 0x401000, "vex_stmt_idx": 7, "custom": [1, 2]}
         key, msg = _sanitize_tags(tags)

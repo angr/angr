@@ -639,7 +639,7 @@ class VirtualVariable(Atom):
     def oident(self) -> Any:
         """VirtualVariable.oident"""
     @property
-    def reg_vvars(self) -> dict[int, Expression]:
+    def reg_vvars(self) -> list[VirtualVariable] | None:
         """VirtualVariable.reg_vvars  Returns ``None`` for non-COMBO_REGISTER vvars, an empty list for COMBO_REGISTER vvars whose sub-registers haven't been populated yet, and a list of ``VirtualVariable`` Expression wrappers otherwise. Each call mints fresh wrappers around clones of the inner ``AilExpression`` nodes (same pattern as ``.operands``)."""
     @property
     def was_reg(self) -> bool:

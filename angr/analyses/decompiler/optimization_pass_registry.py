@@ -1,12 +1,5 @@
 """
 Stable name resolution for decompiler optimization passes and peephole optimizations.
-
-Used by DecompilationCache serialization to round-trip pass-class references as strings
-rather than embedding live class objects. Names are bare ``__qualname__`` strings (the
-class names); only classes registered in ``ALL_OPTIMIZATION_PASSES`` or ``ALL_PEEPHOLE_OPTS``
-(including user-registered ones added via ``register_optimization_pass``) are resolvable,
-so loading is a whitelisted lookup rather than an arbitrary ``importlib`` call. The class
-names are unique across the registry, so the module prefix is not needed.
 """
 
 from __future__ import annotations
@@ -14,8 +7,9 @@ from __future__ import annotations
 
 def _known_passes() -> dict[str, type]:
     # Recomputed on each call to pick up classes added via ``register_optimization_pass`` after this module is imported.
-    from .optimization_passes import ALL_OPTIMIZATION_PASSES
-    from .peephole_optimizations import ALL_PEEPHOLE_OPTS
+
+    from .optimization_passes import ALL_OPTIMIZATION_PASSES  # pylint:disable=import-outside-toplevel
+    from .peephole_optimizations import ALL_PEEPHOLE_OPTS  # pylint:disable=import-outside-toplevel
 
     return {cls.__qualname__: cls for cls in (*ALL_OPTIMIZATION_PASSES, *ALL_PEEPHOLE_OPTS)}
 

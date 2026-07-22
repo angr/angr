@@ -11,7 +11,7 @@ from unittest import mock
 
 import angr
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
-from angr.knowledge_plugins.variables.spilling import SpillingVariableInternalDict
+from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
