@@ -10,6 +10,7 @@ reference into the AST without duplicating subtrees.
 
 from __future__ import annotations
 
+import inspect
 import json
 import zlib
 from collections import defaultdict
@@ -352,6 +353,9 @@ class ParseContext:
     def set_codegen(self, codegen) -> None:
         for node in self._parsed.values():
             node.codegen = codegen
+            # CBinaryOp caches this display flag per-instance at __init__ (bypassed by parse); rebuild it here
+            if isinstance(node, CBinaryOp):
+                node._cstyle_null_cmp = codegen.cstyle_null_cmp
 
 
 #
@@ -506,6 +510,16 @@ _DISPLAY_OPTION_FIELD_FIRST = codegen_pb2.Codegen.DESCRIPTOR.fields_by_name["ind
 _DISPLAY_OPTION_ATTRS = tuple(
     f.name for f in codegen_pb2.Codegen.DESCRIPTOR.fields if f.number >= _DISPLAY_OPTION_FIELD_FIRST
 )
+# Constructor defaults for the display options, so a deserialized codegen has the same values a fresh one would for
+# options that were not serialized (an option whose value is None, e.g. max_str_len, is skipped on serialize).
+_CODEGEN_CTOR_DEFAULTS = {
+    name: param.default
+    for name, param in inspect.signature(CStructuredCodeGenerator.__init__).parameters.items()
+    if param.default is not inspect.Parameter.empty
+}
+_DISPLAY_OPTION_DEFAULTS = {
+    attr: _CODEGEN_CTOR_DEFAULTS[attr] for attr in _DISPLAY_OPTION_ATTRS if attr in _CODEGEN_CTOR_DEFAULTS
+}
 
 
 def serialize_codegen(codegen) -> codegen_pb2.Codegen:
@@ -626,12 +640,17 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
 
     cg.cexterns = {ctx.resolve(i) for i in msg.cexterns_ids} if msg.cexterns_ids else None
 
-    # Display options: only set those present in the cmessage.
+    # Display options: those present in the cmessage override the constructor defaults; options that were not
+    # serialized (a None value, e.g. max_str_len) fall back to the constructor default so the attribute exists.
     for attr in _DISPLAY_OPTION_ATTRS:
+        cg_attr = "_indent" if attr == "indent" else attr
         if msg.HasField(attr):
-            setattr(cg, "_indent" if attr == "indent" else attr, getattr(msg, attr))
+            setattr(cg, cg_attr, getattr(msg, attr))
+        elif attr in _DISPLAY_OPTION_DEFAULTS:
+            setattr(cg, cg_attr, _DISPLAY_OPTION_DEFAULTS[attr])
 
     # Runtime / back-reference state — caller-provided.
+    cg.project = project
     cg._func = func
     cg._func_args = None
     cg._cfg = None
@@ -1151,7 +1170,12 @@ def _parse_cconst(pb, ctx):
             elif w == "str_value":
                 refs[key] = entry.str_value
             elif w == "memory_data":
-                refs[key] = MemoryData.parse(entry.memory_data)
+                md = MemoryData.parse(entry.memory_data)
+                # MemoryData.content (e.g. the string bytes) is not serialized; re-read it from the loader so string
+                # references render as strings rather than raw addresses
+                if md.content is None and ctx.project is not None:
+                    md.fill_content(ctx.project.loader)
+                refs[key] = md
         obj.reference_values = refs
     else:
         obj.reference_values = None

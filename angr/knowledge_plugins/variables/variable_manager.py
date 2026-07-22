@@ -1,5 +1,7 @@
+# pylint:disable=protected-access
 from __future__ import annotations
 
+import json
 import logging
 from collections import defaultdict
 from collections.abc import Iterator
@@ -287,7 +289,27 @@ class VariableManagerInternal(Serializable):
                 phi_relations.append(relation)
         cmsg.phi2var.extend(phi_relations)
 
-        # TODO: Types
+        # Types: variable_to_types (SimVariable ident -> SimType), with the manual-type flag. SimType JSON strings
+        # are interned into a shared type pool since many variables share the same type.
+        type_pool: list[str] = []
+        type_ref_by_json: dict[str, int] = {}
+        type_entries = []
+        for var, var_type in self.variable_to_types.items():
+            if var.ident is None:
+                continue
+            type_json = json.dumps(var_type.to_json())
+            ref = type_ref_by_json.get(type_json)
+            if ref is None:
+                type_pool.append(type_json)
+                ref = len(type_pool)  # index+1
+                type_ref_by_json[type_json] = ref
+            entry = variables_pb2.VariableType()  # type: ignore[reportAttributeAccessIssue]
+            entry.ident = var.ident
+            entry.type_ref = ref
+            entry.manual = var in self.variables_with_manual_types
+            type_entries.append(entry)
+        cmsg.types.extend(type_entries)
+        cmsg.type_pool.extend(type_pool)
 
         # TODO: vvarid_to_varialbes & variable_to_vvarids
 
@@ -404,7 +426,21 @@ class VariableManagerInternal(Serializable):
             model._phi_variables[phi].add(var)
             model._variables_to_phivars[var].add(phi)
 
-        # TODO: Types
+        # Types: variable_to_types (keyed by both regular and unified variables) + variables_with_manual_types.
+        # Each pooled type JSON is parsed once and shared across the variables that reference it.
+        arch = model.manager._kb._project.arch if model.manager is not None else None
+        type_by_ref: dict[int, SimType] = {}
+        for ref, type_json in enumerate(cmsg.type_pool, start=1):
+            var_type = SimType.from_json(json.loads(type_json))
+            type_by_ref[ref] = var_type.with_arch(arch) if arch is not None else var_type
+        for type_pb2 in cmsg.types:
+            var = variable_by_ident.get(type_pb2.ident) or unified_variable_by_ident.get(type_pb2.ident)
+            var_type = type_by_ref.get(type_pb2.type_ref)
+            if var is None or var_type is None:
+                continue
+            model.variable_to_types[var] = var_type
+            if type_pb2.manual:
+                model.variables_with_manual_types.add(var)
 
         for var in model._variables:
             if isinstance(var, SimStackVariable):

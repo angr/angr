@@ -1446,12 +1446,12 @@ class CAssignment(CStatement):
             and self.rhs.op in compound_assignment_ops
             and self.lhs.unified_variable is not None
         ):
-            if isinstance(self.rhs.lhs, CVariable) and self.lhs.unified_variable is self.rhs.lhs.unified_variable:
+            if isinstance(self.rhs.lhs, CVariable) and self.lhs.unified_variable == self.rhs.lhs.unified_variable:
                 compound_expr_rhs = self.rhs.rhs
             elif (
                 self.rhs.op in commutative_ops
                 and isinstance(self.rhs.rhs, CVariable)
-                and self.lhs.unified_variable is self.rhs.rhs.unified_variable
+                and self.lhs.unified_variable == self.rhs.rhs.unified_variable
             ):
                 compound_expr_rhs = self.rhs.lhs
 
@@ -2995,6 +2995,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         """
         if self.cfunc is None:
             return
+        # recompute the unified local variables and their types from the (possibly updated or freshly deserialized)
+        # variable manager, so re-rendering reflects the current variable types
+        self.cfunc.refresh()
         self.cleanup()
         (
             self.text,
