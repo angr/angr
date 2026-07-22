@@ -70,7 +70,8 @@ message VariableAccess {
 
 message VariableType {
     string          ident = 1;
-    string          var_type = 2;  // FIXME: Use a better solution than a string!
+    uint32          type_ref = 2;  // index+1 into VariableManagerInternal.type_pool
+    bool            manual = 3;    // whether the type was set manually (variables_with_manual_types)
 }
 
 message Var2Unified {
@@ -101,6 +102,8 @@ message VariableManagerInternal {
     repeated Var2Unified var2unified = 10;
     // Types
     repeated VariableType types = 11;
+    // Interned SimType JSON strings (json.dumps(SimType.to_json())); VariableType.type_ref is index+1 into this pool
+    repeated string type_pool = 14;
     // Phi variables
     repeated Phi2Var phi2var = 12;
 }

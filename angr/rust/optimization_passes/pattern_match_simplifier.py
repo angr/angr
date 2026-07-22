@@ -250,17 +250,17 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         self._graph = kwargs.get("graph")
-        self._variable_kb = kwargs.get("variable_kb")
+        self._dvars_kb = kwargs.get("kb")
         self.analyze()
 
     def _check(self):
         return bool(self.seq is not None and self.seq.nodes), None
 
     def _analyze(self, cache=None):
-        if self._variable_kb is None:
+        if self._dvars_kb is None:
             return
         walker = PatternMatchWalker(
-            self._variable_kb.variables.get_function_manager(self._func.addr),
+            self._dvars_kb.dec_variables.get_function_manager(self._func.addr),
             self._graph,
             variable_map_of(self.manager),
         )

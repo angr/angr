@@ -44,6 +44,7 @@ class KnowledgeBaseSerializer:
         CommentsSerializer.dump(session, db_kb, kb.comments)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
+        VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
 
     @staticmethod
@@ -93,6 +94,11 @@ class KnowledgeBaseSerializer:
         variables = VariableManagerSerializer.load(session, db_kb, kb)
         if variables is not None:
             kb.variables = variables
+
+        # Load decompilation variables (kb.dec_variables)
+        dec_variables = VariableManagerSerializer.load_dvars(session, db_kb, kb)
+        if dec_variables is not None:
+            kb.dec_variables = dec_variables
 
         # Load structured code
         structured_code = StructuredCodeManagerSerializer.load(session, db_kb, kb)

@@ -26,13 +26,13 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object, obj
         func,
         ail_graph,
         vvar_to_vvar: dict[int, int],
-        variable_kb=None,
+        kb=None,
         variable_map=None,
     ):
         self.project = project
         self._function = func
         self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
-        self.variable_kb = variable_kb
+        self._dvars_kb = kb
         self.variable_map = variable_map
 
         ForwardAnalysis.__init__(
@@ -44,7 +44,7 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object, obj
             self.project,
             self._vvar_to_vvar,
             func_addr=self._function.addr,
-            variable_kb=self.variable_kb,
+            kb=self._dvars_kb,
             variable_map=self.variable_map,
         )
 

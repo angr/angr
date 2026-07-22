@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+from typing import Any
+
 from .decompilation_note import DecompilationNote
 
 
@@ -54,3 +57,26 @@ class DeobfuscatedStringsNote(DecompilationNote):
             lines.append(f"  Type {deobf_str.type} @ {deobf_str.ref_addr:#x}: {deobf_str.value!r}")
 
         return "\n".join(lines)
+
+    #
+    # JSON serialization
+    #
+
+    def to_jsonable(self) -> dict[str, Any]:
+        d = super().to_jsonable()
+        d["strings"] = [
+            {
+                "ref_addr": s.ref_addr,
+                "type": s.type,
+                "value": base64.b64encode(s.value).decode("ascii"),
+            }
+            for _, s in sorted(self.strings.items())
+        ]
+        return d
+
+    @classmethod
+    def _from_jsonable_impl(cls, d: dict[str, Any]) -> DeobfuscatedStringsNote:
+        note = cls(key=d["key"], name=d["name"])
+        for entry in d.get("strings", []):
+            note.add_string(entry["type"], base64.b64decode(entry["value"]), ref_addr=entry["ref_addr"])
+        return note

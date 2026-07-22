@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package angr.protos;
+
+//
+// networkx.DiGraph[ailment.Block]
+//
+
+enum AilEdgeType {
+    AIL_EDGE_TYPE_UNSPECIFIED = 0;
+    AIL_EDGE_TRANSITION = 1;
+    AIL_EDGE_EXCEPTION = 2;
+    AIL_EDGE_FAKE_RETURN = 3;
+    AIL_EDGE_CALL = 4;
+    AIL_EDGE_SYSCALL = 5;
+    AIL_EDGE_RETURN = 6;
+}
+
+message AilEdgeData {
+    optional AilEdgeType type = 1;
+    optional bool outside = 2;
+    optional uint64 ins_addr = 3;
+    optional sint64 stmt_idx = 4;  // DEFAULT_STATEMENT == -2
+    optional bool confirmed = 5;
+}
+
+message AilEdge {
+    uint32 src = 1;  // index into AilGraph.blocks
+    uint32 dst = 2;
+    optional AilEdgeData data = 3;
+    // When true, the edge's data is AilGraph.default_edge_data overlaid with ``data`` (which then carries only the
+    // fields that differ, e.g. a per-edge ins_addr). Lets the common default edge attributes be stored once.
+    bool has_default_data = 4;
+}
+
+message AilGraph {
+    // Either ``blocks`` carries the payloads inline, or ``block_refs`` indexes into a caller-supplied shared pool
+    // (e.g. Clinic.block_pool) so that byte-identical blocks shared between graphs are stored once.
+    repeated bytes blocks = 1;  // ailment.Block.to_bytes() payloads, in node-insertion order
+    repeated AilEdge edges = 2;
+    repeated uint32 block_refs = 3;  // indices into the shared pool, in node-insertion order
+    // The modal edge-data value (excluding the per-edge ins_addr); edges with has_default_data reference it.
+    optional AilEdgeData default_edge_data = 4;
+}
+
+//
+// dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]]  (Clinic.arg_vvars, DecompilationCache.arg_vvars)
+//
+
+message ArgVVar {
+    bytes vvar = 1;    // ailment.Expr.VirtualVariable via Expression.to_bytes()
+    bytes simvar = 2;  // polymorphic "<ClassName>\0<proto bytes>" SimVariable encoding
+}
+
+message ArgVVars {
+    map<int64, ArgVVar> entries = 1;
+}
+
+//
+// set[tuple[int, ailment.Expr.Expression]]  (DecompilationCache.ite_exprs)
+//
+
+message IteExpr {
+    int64 addr = 1;
+    bytes expr = 2;  // Expression.to_bytes()
+}
+
+message IteExprs {
+    repeated IteExpr entries = 1;
+}
+
+//
+// Static buffer parameters (optimization_passes.static_vvar_rewriter)
+//
+
+message FixedBufferMsg {
+    string ident = 1;
+    int64 size = 2;
+    bytes content = 3;
+}
+
+message FixedBufferPtrMsg {
+    string buffer_ident = 1;
+    int64 offset = 2;
+}
+
+// dict[int, FixedBufferPtr | ailment.Expr.Const]  (decompilation parameter "static_vvars")
+message StaticVVar {
+    oneof v {
+        FixedBufferPtrMsg ptr = 1;
+        bytes const_expr = 2;  // Expression.to_bytes()
+    }
+}
+
+message StaticVVars {
+    map<int64, StaticVVar> entries = 1;
+}
+
+// dict[str, FixedBuffer]  (decompilation parameter "static_buffers")
+message StaticBuffers {
+    map<string, FixedBufferMsg> entries = 1;
+}

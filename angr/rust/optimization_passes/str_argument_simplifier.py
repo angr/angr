@@ -25,8 +25,8 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
         super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project, variable_map_of(manager))
 
-        if self._variable_kb is not None:
-            self._var_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
+        if self._dvars_kb is not None:
+            self._var_manager = self._dvars_kb.dec_variables.get_function_manager(self._func.addr)
         else:
             self._var_manager = None
 

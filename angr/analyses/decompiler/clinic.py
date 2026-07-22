@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import enum
+import importlib
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
@@ -15,12 +16,14 @@ import networkx
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
+from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
@@ -44,6 +47,8 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.protos import clinic_pb2
+from angr.serializable import Serializable
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -67,12 +72,22 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils import timethis
+from angr.utils.ail_serialization import (
+    BlockPool,
+    pack_arg_vvars,
+    pack_graph,
+    parse_arg_vvars,
+    parse_graph,
+    simvar_from_bytes_polymorphic,
+    simvar_to_bytes_polymorphic,
+)
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
     DUPLICATING_OPTS,
@@ -88,11 +103,9 @@ from .stackarg_offset_manager import StackArgOffsetManager
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
-    from angr.analyses.s_reaching_definitions import SRDAModel
     from angr.knowledge_plugins.cfg import CFGModel
 
     from .decompilation_cache import DecompilationCache
-    from .notes import DecompilationNote
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
 l = logging.getLogger(name=__name__)
@@ -193,9 +206,21 @@ class ComboRegReferenceWalker(AILBlockRewriter):
         return expr
 
 
-class Clinic(Analysis):
+class Clinic(Analysis, Serializable):
     """
-    A Clinic deals with AILments.
+    A Clinic deals with AILments: it lifts a function to AIL and runs the decompiler's simplification pipeline on it.
+
+    AIL graphs exposed after a DECOMPILE-mode run:
+
+    - ``cc_graph``: the graph at the end of Clinic's own simplification, frozen as a copy before region
+      identification. Serialized; available on both live and cached-and-reloaded clinics.
+    - ``graph``: ``cc_graph`` further transformed by the decompiler's graph-simplification passes, region
+      identification, and region-simplification passes — the final graph. Serialized; available on both live and
+      cached-and-reloaded clinics.
+    - ``unoptimized_graph``: a copy taken before the first structure-altering optimization pass; use it for an
+      exact instruction-to-AIL mapping. Only built (and serialized) with ``Decompiler(save_unoptimized_graph=True)``;
+      otherwise it is None on both live and cached-and-reloaded clinics.
+    - ``_ail_graph`` / ``_init_ail_graph``: pipeline internals; never serialized.
     """
 
     _ail_manager: ailment.Manager
@@ -214,7 +239,6 @@ class Clinic(Analysis):
         peephole_optimizations: None
         | (Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
-        variable_kb: KnowledgeBase | None = None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
         rewrite_ites_to_diamond_max_cases: int = 15,
@@ -246,6 +270,7 @@ class Clinic(Analysis):
         semvar_naming: bool = True,
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
+        save_unoptimized_graph: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -260,7 +285,8 @@ class Clinic(Analysis):
         self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
         self.func_args = None
         self.func_ret_var = SimVariable(0, "__retvar", "__retvar")
-        self.variable_kb = variable_kb
+        # True once _recover_and_link_variables has populated kb.dec_variables for this function this run
+        self._variables_recovered = False
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
@@ -287,6 +313,9 @@ class Clinic(Analysis):
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
         self.peephole_optimizations = peephole_optimizations
+        # peephole-optimization names that could not be resolved at parse time (their defining module was not
+        # imported); resolve_peephole_optimizations() retries them
+        self.unresolvable_peephole_optimizations: list[str] = []
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
@@ -339,6 +368,7 @@ class Clinic(Analysis):
         self.copied_var_ids: set[int] = set()
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
+        self._save_unoptimized_graph = save_unoptimized_graph
 
         self._new_block_addrs: set[int] = set()
 
@@ -365,7 +395,7 @@ class Clinic(Analysis):
             self._analyze_for_decompiling()
             if (
                 self._end_stage >= ClinicStage.MAKE_CALLSITES
-                and self.variable_kb is not None
+                and self._variables_recovered
                 and self._constrain_callee_prototypes
             ):
                 self.constrain_callee_prototypes()
@@ -498,11 +528,11 @@ class Clinic(Analysis):
         return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
     def _slice_variables(self, ail_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph[ailment.Block]:
-        assert self.variable_kb is not None and self._desired_variables is not None
+        assert self._variables_recovered and self._desired_variables is not None
 
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
 
-        vfm = self.variable_kb.variables.function_managers[self.function.addr]
+        vfm = self.kb.dec_variables.function_managers[self.function.addr]
         for v_name in self._desired_variables:
             v = next(iter(vv for vv in vfm._unified_variables if vv.name == v_name))
             for va in vfm.get_variable_accesses(v):
@@ -515,7 +545,7 @@ class Clinic(Analysis):
         a = TagSlicer(
             self.function,
             graph=ail_graph,
-            variable_kb=self.variable_kb,
+            kb=self.kb,
         )
         if a.out_graph:
             # use the new graph
@@ -525,8 +555,10 @@ class Clinic(Analysis):
     def _inline_child_functions(self, ail_graph):
         for blk in ail_graph.nodes():
             for idx, stmt in enumerate(blk.statements):
-                if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                    stmt.expr.target, ailment.Expr.Const
+                if (
+                    isinstance(stmt, ailment.Stmt.SideEffectStatement)
+                    and isinstance(stmt.expr, Call)
+                    and isinstance(stmt.expr.target, ailment.Expr.Const)
                 ):
                     assert self.function._function_manager is not None
                     callee = self.function._function_manager.function(stmt.expr.target.value)
@@ -652,9 +684,11 @@ class Clinic(Analysis):
                             self._ail_manager.next_atom(),
                             reg_offset,
                             reg_arg.bits,
-                            ins_addr=caller_block.addr + caller_block.original_size,
+                            ins_addr=caller_block.addr
+                            + (caller_block.original_size if caller_block.original_size is not None else 0),
                         ),
-                        ins_addr=caller_block.addr + caller_block.original_size,
+                        ins_addr=caller_block.addr
+                        + (caller_block.original_size if caller_block.original_size is not None else 0),
                     )
                     caller_block.statements.append(stmt)
                 else:
@@ -977,7 +1011,7 @@ class Clinic(Analysis):
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(
+        self._recover_and_link_variables(
             self._ail_graph, self.arg_list, self.arg_vvars, self.vvar_to_vvar, self._type_hints
         )
 
@@ -989,14 +1023,13 @@ class Clinic(Analysis):
             self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
             avoid_vvar_ids=self.copied_var_ids,
-            variable_kb=variable_kb,
         )
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
-        self._make_function_prototype(self.arg_list, variable_kb)
+        self._make_function_prototype(self.arg_list)
 
-        self.variable_kb = variable_kb
+        self._variables_recovered = True
 
     def _stage_semantic_variable_naming(self) -> None:
         """
@@ -1005,8 +1038,8 @@ class Clinic(Analysis):
         This stage analyzes the AIL graph for semantic patterns and renames variables accordingly.
         """
 
-        if self.variable_kb is None:
-            l.debug("variable_kb is None, skipping semantic variable naming")
+        if not self._variables_recovered:
+            l.debug("variables not recovered, skipping semantic variable naming")
             return
 
         if self.flavor == "rust":
@@ -1016,7 +1049,7 @@ class Clinic(Analysis):
         self._update_progress(91.0, text="Applying semantic variable naming")
 
         # Get the variable manager for this function
-        var_manager = self.variable_kb.variables[self.function.addr]
+        var_manager = self.kb.dec_variables[self.function.addr]
 
         # Find the entry node
         entry_node: ailment.Block | None = None
@@ -1035,7 +1068,7 @@ class Clinic(Analysis):
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
     def _stage_collect_externs(self) -> None:
-        self.externs = self._collect_externs(self._ail_graph, self.variable_kb, self.variable_map)
+        self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map)
 
     def _analyze_for_data_refs(self):
         # Remove alignment blocks
@@ -1115,7 +1148,7 @@ class Clinic(Analysis):
 
         self.graph = ail_graph
         self.arg_list = None
-        self.variable_kb = None
+        self._variables_recovered = False
         self.cc_graph = None
         self.externs = set()
         self.data_refs: dict[int, list[DataRefDesc]] = self._collect_data_refs(ail_graph)
@@ -1979,7 +2012,6 @@ class Clinic(Analysis):
         self,
         ail_graph,
         stage: OptimizationPassStage = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
-        variable_kb=None,
         stack_items: dict[int, StackItem] | None = None,
         stack_pointer_tracker=None,
         **kwargs,
@@ -1999,9 +2031,12 @@ class Clinic(Analysis):
             if stage != pass_.STAGE:
                 continue
 
-            if pass_ in DUPLICATING_OPTS + CONDENSING_OPTS and self.unoptimized_graph is None:
-                # we should save a copy at the first time any optimization that could alter the structure
-                # of the graph is applied
+            if (
+                self._save_unoptimized_graph
+                and pass_ in DUPLICATING_OPTS + CONDENSING_OPTS
+                and self.unoptimized_graph is None
+            ):
+                # save a copy the first time any optimization that could alter the structure of the graph is applied
                 self.unoptimized_graph = self._copy_graph(ail_graph)
 
             pass_ = timethis(pass_)
@@ -2011,7 +2046,7 @@ class Clinic(Analysis):
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
-                variable_kb=variable_kb,
+                kb=self.kb,
                 vvar_id_start=self.vvar_id_start,
                 entry_node_addr=self.entry_node_addr,
                 scratch=self.optimization_scratch,
@@ -2324,7 +2359,7 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb: KnowledgeBase):
+    def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.prototype is not None:
             if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
                 # do not overwrite an existing function prototype
@@ -2337,7 +2372,7 @@ class Clinic(Analysis):
                 # FIXME: remove this branch once type inference supports floating point variables
                 return
 
-        variables = variable_kb.variables[self.function.addr]
+        variables = self.kb.dec_variables[self.function.addr]
         func_args = []
         for arg in arg_list:
             func_arg = None
@@ -2380,8 +2415,11 @@ class Clinic(Analysis):
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]],
     ):
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
+        # route recovery into kb.dec_variables: VariableRecoveryBase writes to the "variables" plugin of the KB
+        # it is given
+        tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
+        tmp_kb.register_plugin("variables", self.kb.dec_variables)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -3593,8 +3631,8 @@ class Clinic(Analysis):
             node.statements.insert(0, lbl)
 
     @staticmethod
-    def _collect_externs(ail_graph, variable_kb, variable_map: VariableMap):
-        global_vars = variable_kb.variables.global_manager.get_variables()
+    def _collect_externs(ail_graph, kb, variable_map: VariableMap):
+        global_vars = kb.dec_variables.global_manager.get_variables()
         walker = ailment.AILBlockRewriter()
         variables = set()
 
@@ -4016,10 +4054,10 @@ class Clinic(Analysis):
                 ail_graph.add_edge(new_node, succ)
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
-        if self.variable_kb is None:
+        if not self._variables_recovered:
             return {}
 
-        variables = self.variable_kb.variables[self.function.addr]
+        variables = self.kb.dec_variables[self.function.addr]
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
 
         # pylint:disable=unused-argument
@@ -4185,6 +4223,304 @@ class Clinic(Analysis):
             )
             .model
         )
+
+    def resolve_peephole_optimizations(self) -> None:
+        """Retry resolving peephole-optimization names that were unresolvable at parse time (their defining module
+        may have been imported since). Resolved classes move into ``peephole_optimizations``; names that still do not
+        resolve stay in ``unresolvable_peephole_optimizations``."""
+        if not self.unresolvable_peephole_optimizations:
+            return
+        assert self.peephole_optimizations is not None
+        still_unresolvable = []
+        for name in self.unresolvable_peephole_optimizations:
+            cls_ = name_to_pass(name)
+            if cls_ is None:
+                still_unresolvable.append(name)
+            else:
+                self.peephole_optimizations.append(cls_)
+        self.unresolvable_peephole_optimizations = still_unresolvable
+
+    # -----------------------------------------------------------------------------------------------------------------
+    # Protobuf serialization. Conventions:
+    # - Heavy sub-objects manage their own formats; AIL-typed slots use the typed messages from ail_types.proto.
+    # - Runtime back-references (project / kb / function / _cfg / _cache / typehoon / _spt) are not
+    #   serialized; they are reattached at parse time from the caller's kwargs.
+    # - parse_from_cmessage uses __new__ to bypass __init__, which would run the full decompilation pipeline.
+    # -----------------------------------------------------------------------------------------------------------------
+
+    @classmethod
+    def _get_cmsg(cls):
+        return clinic_pb2.Clinic()  # type: ignore  # pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        msg = clinic_pb2.Clinic()  # type: ignore  # pylint:disable=no-member
+
+        # Function and arch hints.
+        if self.function is not None and self.function.addr is not None:
+            msg.function_addr = self.function.addr
+        if self.flavor is not None:
+            msg.flavor = self.flavor
+
+        # AIL-typed slots consumed by the decompiler's cache-reuse path and by post-decompilation consumers. The
+        # internal AIL graphs (_ail_graph, _init_ail_graph) and the remaining regenerable/runtime state are not
+        # serialized. unoptimized_graph is only serialized on request (Decompiler(save_unoptimized_graph=True)).
+        # All graphs share one block pool: most of their blocks are byte-identical and get stored once.
+        block_pool = BlockPool()
+        if self.cc_graph is not None:
+            msg.cc_graph.CopyFrom(pack_graph(self.cc_graph, pool=block_pool))
+        if self.graph is not None:
+            msg.graph.CopyFrom(pack_graph(self.graph, pool=block_pool))
+        if self._save_unoptimized_graph and self.unoptimized_graph is not None:
+            msg.unoptimized_graph.CopyFrom(pack_graph(self.unoptimized_graph, pool=block_pool))
+        msg.block_pool.extend(block_pool.payloads)
+        if self.arg_vvars is not None:
+            msg.arg_vvars.CopyFrom(pack_arg_vvars(self.arg_vvars))
+
+        # Already-Serializable sub-objects.
+        if self.arg_list is not None:
+            for sv in self.arg_list:
+                msg.arg_list.add().payload = simvar_to_bytes_polymorphic(sv)
+        for sv in self.externs:
+            msg.externs.add().payload = simvar_to_bytes_polymorphic(sv)
+
+        # CLEAN collections.
+        if self.vvar_to_vvar is not None:
+            for k, v in self.vvar_to_vvar.items():
+                msg.vvar_to_vvar[k] = v
+        msg.secondary_stackvars.extend(sorted(self.secondary_stackvars))
+        if self._removed_vvar_ids is not None:
+            msg._removed_vvar_ids_set = True
+            msg.removed_vvar_ids.extend(sorted(self._removed_vvar_ids))
+        msg._preserve_vvar_ids.extend(sorted(self._preserve_vvar_ids))
+        for k, v in self._inlined_counts.items():
+            msg._inlined_counts[k] = v
+        msg._inlining_parents.extend(sorted(self._inlining_parents))
+        if self._must_struct is not None:
+            msg._must_struct_set = True
+            msg._must_struct.extend(sorted(self._must_struct))
+        if self._desired_variables is not None:
+            msg._desired_variables_set = True
+            msg._desired_variables.extend(sorted(self._desired_variables))
+        for off, item in self.stack_items.items():
+            msg.stack_items[off].offset = item.offset
+            msg.stack_items[off].size = item.size
+            msg.stack_items[off].name = item.name
+            msg.stack_items[off].item_type = item.item_type.value
+        for src, dst in self.edges_to_remove:
+            pair = msg.edges_to_remove.add()
+            pair.src.addr = src[0]
+            if src[1] is not None:
+                pair.src.idx = src[1]
+            pair.dst.addr = dst[0]
+            if dst[1] is not None:
+                pair.dst.idx = dst[1]
+        msg.copied_var_ids.extend(sorted(self.copied_var_ids))
+        msg._new_block_addrs.extend(sorted(self._new_block_addrs))
+        if self.entry_node_addr is not None:
+            msg.entry_node_addr.addr = self.entry_node_addr[0]
+            if self.entry_node_addr[1] is not None:
+                msg.entry_node_addr.idx = self.entry_node_addr[1]
+
+        # CLEAN scalars.
+        msg.vvar_id_start = self.vvar_id_start
+        msg._max_stack_depth = self._max_stack_depth
+        msg._sp_shift = self._sp_shift
+        msg._max_type_constraints = self._max_type_constraints
+        msg._type_constraint_set_degradation_threshold = self._type_constraint_set_degradation_threshold
+        msg._fold_callexprs_into_conditions = self._fold_callexprs_into_conditions
+        msg._fold_expressions = self._fold_expressions
+        msg._insert_labels = self._insert_labels
+        msg._remove_dead_memdefs = self._remove_dead_memdefs
+        msg._exception_edges = self._exception_edges
+        msg._sp_tracker_track_memory = self._sp_tracker_track_memory
+        msg._reset_variable_names = self._reset_variable_names
+        msg._rewrite_ites_to_diamonds = self._rewrite_ites_to_diamonds
+        msg._flatten_args = self._flatten_args
+        msg._semvar_naming = self._semvar_naming
+        msg._force_loop_single_exit = self._force_loop_single_exit
+        msg._refine_loops_with_single_successor = self._refine_loops_with_single_successor
+        msg._register_save_areas_removed = self._register_save_areas_removed
+        msg._rewrite_ites_to_diamond_max_cases = self._rewrite_ites_to_diamond_max_cases
+        msg._expose_loop_head_backedges = self._expose_loop_head_backedges
+        msg._constrain_callee_prototypes = self._constrain_callee_prototypes
+        msg._save_unoptimized_graph = self._save_unoptimized_graph
+
+        msg._mode = self._mode.value
+        msg._start_stage = self._start_stage.value
+        msg._end_stage = self._end_stage.value
+        msg._skip_stages.extend(s.value for s in self._skip_stages)
+
+        # Pass class refs. peephole_optimizations=None means "use the default peephole set". Names that are still
+        # unresolvable are re-serialized as-is so they are not lost across round-trips.
+        msg.peephole_optimizations_use_default = self.peephole_optimizations is None
+        if self.peephole_optimizations is not None:
+            msg.peephole_optimizations.extend(pass_to_name(cls_) for cls_ in self.peephole_optimizations)
+            msg.peephole_optimizations.extend(self.unresolvable_peephole_optimizations)
+        if self._typehoon_cls is not None:
+            # _typehoon_cls is the Typehoon class itself (not a registered pass); store its fully-qualified name
+            msg._typehoon_cls = (
+                f"{self._typehoon_cls.__module__}.{self._typehoon_cls.__qualname__}"
+                if self._typehoon_cls.__module__ != "builtins"
+                else ""
+            )
+
+        return msg
+
+    @classmethod
+    def parse_from_cmessage(
+        cls,
+        cmsg,
+        *,
+        project=None,
+        kb=None,
+        function=None,
+        cfg=None,
+        **kwargs,
+    ):
+        """Bypasses :meth:`Clinic.__init__` (which runs the analysis) and reconstructs the instance directly. Runtime
+        back-references — project / kb / function / _cfg — come from kwargs.
+
+        Only the state consumed by the decompiler's cache-reuse path and by post-decompilation consumers
+        (cc_graph, graph, optionally unoptimized_graph) is serialized; regenerable and runtime-only state is
+        restored to its default here. If ``function`` is None and ``kb`` is provided, the function is resolved by
+        address from the cmessage."""
+        msg = cmsg
+        clinic = cls.__new__(cls)
+
+        # Resolve function from address if not provided.
+        if function is None and kb is not None and msg.HasField("function_addr"):
+            function = kb.functions.function(msg.function_addr)
+
+        # Initialize back-references and Analysis-base state. We bypass Analysis.__init__ so set the bare minimum.
+        clinic.project = project
+        clinic.kb = kb
+        clinic.function = function
+        clinic._cache = None
+        clinic._ail_manager = None
+        clinic._spt = None
+        clinic.typehoon = None
+        clinic._optimization_passes = []
+        clinic.optimization_scratch = {}
+
+        # AIL-typed slots consumed by the cache-reuse path and by post-decompilation consumers.
+        clinic.cc_graph = parse_graph(msg.cc_graph, msg.block_pool) if msg.HasField("cc_graph") else None
+        clinic.graph = parse_graph(msg.graph, msg.block_pool) if msg.HasField("graph") else None
+        clinic.unoptimized_graph = (
+            parse_graph(msg.unoptimized_graph, msg.block_pool) if msg.HasField("unoptimized_graph") else None
+        )
+        clinic.arg_vvars = parse_arg_vvars(msg.arg_vvars) if msg.HasField("arg_vvars") else None
+
+        # Regenerable/runtime state that is not serialized; restored to its default.
+        clinic._ail_graph = None
+        clinic._init_ail_graph = None
+        clinic._init_arg_vvars = None
+        clinic._type_hints = []
+        clinic._blocks_by_addr_and_size = None
+        clinic.func_args = None
+        clinic.func_ret_var = None
+        clinic.data_refs = {}
+        clinic.stack_items = {
+            off: StackItem(item.offset, item.size, item.name, StackItemType(item.item_type))
+            for off, item in msg.stack_items.items()
+        }
+        clinic._inline_functions = set()
+        clinic.notes = {}
+        clinic._func_graph = None
+        clinic.reaching_definitions = None
+
+        # Already-Serializable sub-objects.
+        clinic.arg_list = [simvar_from_bytes_polymorphic(e.payload) for e in msg.arg_list] if msg.arg_list else None
+        clinic.externs = {simvar_from_bytes_polymorphic(e.payload) for e in msg.externs}
+
+        # cfg back-reference; decompilation variables live on kb.dec_variables, not on the clinic.
+        clinic._variables_recovered = False
+        clinic._cfg = cfg
+
+        # Flavor.
+        clinic.flavor = msg.flavor if msg.HasField("flavor") else "pseudocode"
+
+        # CLEAN collections.
+        clinic.vvar_to_vvar = dict(msg.vvar_to_vvar) if msg.vvar_to_vvar else None
+        clinic.secondary_stackvars = set(msg.secondary_stackvars)
+        clinic._stackarg_offset_manager = StackArgOffsetManager(project.arch.bits if project is not None else 64)
+        clinic._removed_vvar_ids = set(msg.removed_vvar_ids) if msg._removed_vvar_ids_set else None
+        clinic._preserve_vvar_ids = set(msg._preserve_vvar_ids)
+        clinic._inlined_counts = dict(msg._inlined_counts)
+        clinic._inlining_parents = set(msg._inlining_parents)
+        clinic._must_struct = set(msg._must_struct) if msg._must_struct_set else None
+        clinic._desired_variables = set(msg._desired_variables) if msg._desired_variables_set else None
+        clinic.edges_to_remove = [
+            (
+                (pair.src.addr, pair.src.idx if pair.src.HasField("idx") else None),
+                (pair.dst.addr, pair.dst.idx if pair.dst.HasField("idx") else None),
+            )
+            for pair in msg.edges_to_remove
+        ]
+        clinic.copied_var_ids = set(msg.copied_var_ids)
+        clinic._new_block_addrs = set(msg._new_block_addrs)
+        clinic.entry_node_addr = (
+            (msg.entry_node_addr.addr, msg.entry_node_addr.idx if msg.entry_node_addr.HasField("idx") else None)
+            if msg.HasField("entry_node_addr")
+            else None
+        )
+
+        # CLEAN scalars.
+        clinic.vvar_id_start = msg.vvar_id_start
+        clinic._max_stack_depth = msg._max_stack_depth
+        clinic._sp_shift = msg._sp_shift
+        clinic._max_type_constraints = msg._max_type_constraints
+        clinic._type_constraint_set_degradation_threshold = msg._type_constraint_set_degradation_threshold
+        clinic._fold_callexprs_into_conditions = msg._fold_callexprs_into_conditions
+        clinic._fold_expressions = msg._fold_expressions
+        clinic._insert_labels = msg._insert_labels
+        clinic._remove_dead_memdefs = msg._remove_dead_memdefs
+        clinic._exception_edges = msg._exception_edges
+        clinic._sp_tracker_track_memory = msg._sp_tracker_track_memory
+        clinic._reset_variable_names = msg._reset_variable_names
+        clinic._rewrite_ites_to_diamonds = msg._rewrite_ites_to_diamonds
+        clinic._flatten_args = msg._flatten_args
+        clinic._semvar_naming = msg._semvar_naming
+        clinic._force_loop_single_exit = msg._force_loop_single_exit
+        clinic._refine_loops_with_single_successor = msg._refine_loops_with_single_successor
+        clinic._register_save_areas_removed = msg._register_save_areas_removed
+        clinic._rewrite_ites_to_diamond_max_cases = msg._rewrite_ites_to_diamond_max_cases
+        clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
+        clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
+        clinic._save_unoptimized_graph = msg._save_unoptimized_graph
+
+        clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE
+        clinic._start_stage = ClinicStage(msg._start_stage)
+        clinic._end_stage = ClinicStage(msg._end_stage)
+        clinic._skip_stages = tuple(ClinicStage(s) for s in msg._skip_stages)
+
+        # Pass class refs. peephole_optimizations=None means "use the default peephole set". Names that cannot be
+        # resolved (their defining module is not imported) are kept in unresolvable_peephole_optimizations;
+        # resolve_peephole_optimizations() retries them.
+        clinic.unresolvable_peephole_optimizations = []
+        if msg.peephole_optimizations_use_default:
+            clinic.peephole_optimizations = None
+        else:
+            clinic.peephole_optimizations = []
+            for n in msg.peephole_optimizations:
+                cls_ = name_to_pass(n)
+                if cls_ is None:
+                    clinic.unresolvable_peephole_optimizations.append(n)
+                else:
+                    clinic.peephole_optimizations.append(cls_)
+        if msg._typehoon_cls:
+            # _typehoon_cls is the Typehoon class itself (not a registered pass). Resolve directly by FQN.
+            module_name, _, cls_name = msg._typehoon_cls.rpartition(".")
+            clinic._typehoon_cls = getattr(importlib.import_module(module_name), cls_name)
+        else:
+            clinic._typehoon_cls = Typehoon
+
+        # The remainder of the public Clinic surface that isn't part of the serialized state — set sensible defaults so
+        # attribute access doesn't crash.
+        clinic.static_vvars = {}
+        clinic.static_buffers = {}
+        clinic.variable_map = VariableMap()
+
+        return clinic
 
 
 register_analysis(Clinic, "Clinic")

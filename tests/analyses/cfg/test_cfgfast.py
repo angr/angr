@@ -736,6 +736,21 @@ class TestCfgfast(unittest.TestCase):
 
         assert len(cfg.model.graph) == 2
 
+    def test_entry_jump_within_function_symbol_is_not_tail_jump(self):
+        """Loop rotation may put an unconditional jump at a function's entry."""
+        binary_path = os.path.join(test_location, "x86_64", "cfg_entry_jump_within_function")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        function_symbol = proj.loader.find_symbol("rotated_loop")
+        assert function_symbol is not None
+        function_addr = function_symbol.rebased_addr
+        entry = cfg.model.get_any_node(function_addr)
+
+        assert entry is not None
+        assert len(entry.successors) == 1
+        assert entry.successors[0].function_address == function_addr
+        assert entry.successors[0].addr in {node.addr for node in cfg.functions[function_addr].graph}
+
     def test_starting_point_ordering(self):
         # project entry should always be first
         # so edge/path to unlabeled main function from _start

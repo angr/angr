@@ -64,6 +64,15 @@ def build_unicornlib():
     shutil.copy(os.path.join("native/unicornlib", library_file), "angr")
 
 
+def build_protos():
+    proto_files = sorted(glob.glob("angr/protos/*.proto"))
+    cmd = [sys.executable, "-m", "grpc_tools.protoc", "-I.", "--python_out=.", *proto_files]
+    try:
+        subprocess.run(cmd, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError) as err:
+        raise LibError("Error while generating protobuf modules: " + str(err)) from err
+
+
 def clean_unicornlib():
     oglob = glob.glob("native/*.o")
     oglob += glob.glob("native/*.obj")
@@ -76,6 +85,7 @@ def clean_unicornlib():
 
 class build(st_build):
     def run(self, *args):
+        self.execute(build_protos, (), msg="Generating protobuf modules")
         self.execute(build_unicornlib, (), msg="Building unicornlib")
         super().run(*args)
 

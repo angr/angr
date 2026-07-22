@@ -1,0 +1,509 @@
+syntax = "proto3";
+
+
+
+package angr.protos;
+
+// =====================================================================================================================
+// Indexed AST node table
+// =====================================================================================================================
+// Every CConstruct instance is assigned a unique non-zero ``uint32 node_id`` at serialize time. Children that are
+// CConstructs are referenced by their node_id rather than embedded inline. This lets PositionMapping / map_addr_to_label
+// / cexterns reference into the AST without duplicating subtrees, and gives us a stable handle for resolving cross-tree
+// references on parse.
+//
+// The codegen-level ``Codegen`` message carries:
+//   - ``root_id``      : node_id of the top-level CFunction.
+//   - ``nodes``        : flat list of every CConstruct in the AST.
+//
+// Reference semantics: a missing ``optional ChildId`` field means "no child" (e.g., CWhileLoop with no body). A 0 in a
+// ``repeated`` child-id field is never produced (we never assign 0 as a node_id), but readers should treat 0 as absent
+// just in case.
+// =====================================================================================================================
+
+// CConstruct.tags is constrained at serialize time to entries with string keys and primitive values (None / bool /
+// int / float / str / list / dict of those, in any nesting). Non-conforming entries are dropped on serialize.
+message CConstructTags {
+    // The four dominant tag keys get typed fields; everything else stays in the JSON map.
+    map<string, string> json_values = 1;  // map[key] -> json.dumps(value)
+    optional uint64 ins_addr = 2;
+    optional uint64 vex_block_addr = 3;
+    optional int32 vex_stmt_idx = 4;
+    optional bool is_prototype_guessed = 5;
+    // When both ins_addr and vex_block_addr are known, ins_addr is stored as this delta from vex_block_addr
+    // (typically a 1-2 byte varint) and the absolute ins_addr field is left unset.
+    optional sint64 ins_offset = 6;
+}
+
+// Identifies which payload (oneof variant) a CConstructNode carries; drives the polymorphic dispatch table in
+// Python code.
+enum CConstructKind {
+    CCK_UNKNOWN = 0;
+    CCK_FUNCTION = 1;
+    CCK_STATEMENTS = 2;
+    CCK_AIL_BLOCK = 3;
+    CCK_WHILE_LOOP = 4;
+    CCK_DO_WHILE_LOOP = 5;
+    CCK_FOR_LOOP = 6;
+    CCK_IF_ELSE = 7;
+    CCK_IF_BREAK = 8;
+    CCK_BREAK = 9;
+    CCK_CONTINUE = 10;
+    CCK_SWITCH_CASE = 11;
+    CCK_INCOMPLETE_SWITCH_CASE = 12;
+    CCK_ASSIGNMENT = 13;
+    CCK_EXPRESSION_STATEMENT = 14;
+    CCK_RETURN = 15;
+    CCK_GOTO = 16;
+    CCK_UNSUPPORTED_STATEMENT = 17;
+    CCK_DIRTY_STATEMENT = 18;
+    CCK_LABEL = 19;
+    CCK_FUNCTION_CALL = 20;
+    CCK_STRUCT_FIELD = 21;
+    CCK_FAKE_VARIABLE = 22;
+    CCK_VARIABLE = 23;
+    CCK_INDEXED_VARIABLE = 24;
+    CCK_VARIABLE_FIELD = 25;
+    CCK_UNARY_OP = 26;
+    CCK_BINARY_OP = 27;
+    CCK_TYPE_CAST = 28;
+    CCK_CONSTANT = 29;
+    CCK_REGISTER = 30;
+    CCK_ITE = 31;
+    CCK_MULTI_STATEMENT_EXPRESSION = 32;
+    CCK_VEX_CCALL_EXPRESSION = 33;
+    CCK_DIRTY_EXPRESSION = 34;
+}
+
+// =====================================================================================================================
+// Per-subclass payload messages
+// =====================================================================================================================
+
+// CFunction
+message CFunctionMsg {
+    optional uint64 addr = 1;
+    string name = 2;
+    uint32 functy_ref = 3;                        // SimTypeFunction; index+1 into Codegen.type_pool, 0 = absent
+    repeated uint32 arg_list_ids = 4;             // CVariable node_ids
+    uint32 statements_id = 5;                     // CStatements node_id
+    repeated VariableInUseEntry variables_in_use = 6;
+    optional string demangled_name = 7;
+    bool show_demangled_name = 8;
+    bool omit_header = 9;
+    // variable_manager is reattached at parse time from kwargs; unified_local_vars is recomputed via refresh().
+}
+
+message VariableInUseEntry {
+    uint32 simvariable_ref = 1;                   // index+1 into Codegen.simvar_pool; 0 = absent
+    uint32 cvariable_id = 2;                      // CVariable node_id
+}
+
+// CStatements
+message CStatementsMsg {
+    repeated uint32 statements_ids = 1;
+    optional uint64 addr = 2;
+}
+
+// CAILBlock (ailment-coupled)
+message CAILBlockMsg {
+    bytes block = 1;                              // ailment.Block.to_bytes()
+}
+
+// CWhileLoop / CDoWhileLoop — same shape.
+message CLoopMsg {
+    optional uint32 condition_id = 1;
+    optional uint32 body_id = 2;
+}
+
+// CForLoop
+message CForLoopMsg {
+    optional uint32 initializer_id = 1;
+    optional uint32 condition_id = 2;
+    optional uint32 iterator_id = 3;
+    optional uint32 body_id = 4;
+}
+
+// CIfElse
+message CIfElseBranch {
+    uint32 condition_id = 1;
+    optional uint32 statement_id = 2;
+}
+message CIfElseMsg {
+    repeated CIfElseBranch condition_and_nodes = 1;
+    optional uint32 else_node_id = 2;
+    bool simplify_else_scope = 3;
+    bool cstyle_ifs = 4;
+}
+
+// CIfBreak
+message CIfBreakMsg {
+    uint32 condition_id = 1;
+    bool cstyle_ifs = 2;
+}
+
+// CBreak / CContinue
+message CBreakMsg {}
+message CContinueMsg {}
+
+// CSwitchCase
+message CSwitchCaseEntry {
+    repeated int64 case_ids = 1;                  // a single int or a tuple of ints
+    uint32 statements_id = 2;                     // CStatements node_id
+}
+message CSwitchCaseMsg {
+    uint32 switch_id = 1;                         // CExpression node_id
+    repeated CSwitchCaseEntry cases = 2;
+    optional uint32 default_id = 3;
+}
+
+// CIncompleteSwitchCase
+message CIncompleteSwitchCaseEntry {
+    int64 case_addr = 1;
+    uint32 statements_id = 2;
+}
+message CIncompleteSwitchCaseMsg {
+    uint32 head_id = 1;
+    repeated CIncompleteSwitchCaseEntry cases = 2;
+}
+
+// CAssignment
+message CAssignmentMsg {
+    uint32 lhs_id = 1;
+    uint32 rhs_id = 2;
+}
+
+// CExpressionStatement
+message CExpressionStatementMsg {
+    uint32 expr_id = 1;
+    bool returning = 2;
+}
+
+// CReturn
+message CReturnMsg {
+    optional uint32 retval_id = 1;
+}
+
+// CGoto. ``target`` may be an int or a CExpression — encode as oneof.
+message CGotoMsg {
+    oneof target {
+        int64 target_int = 1;
+        uint32 target_expr_id = 2;
+    }
+    optional int32 target_idx = 3;
+}
+
+// CUnsupportedStatement (ailment-coupled)
+message CUnsupportedStatementMsg {
+    bytes stmt = 1;                               // ailment Statement.to_bytes()
+}
+
+// CDirtyStatement (NOT ailment-coupled; wraps a CDirtyExpression)
+message CDirtyStatementMsg {
+    uint32 dirty_id = 1;                          // CDirtyExpression node_id
+}
+
+// CLabel
+message CLabelMsg {
+    string name = 1;
+}
+
+// CFunctionCall. ``callee_target`` is int | str | CExpression — oneof.
+message CFunctionCallMsg {
+    oneof callee_target {
+        int64 callee_target_int = 1;
+        string callee_target_str = 2;
+        uint32 callee_target_expr_id = 3;
+    }
+    optional uint64 callee_func_addr = 4;         // Function reference; resolved from KB at parse time
+    repeated uint32 args_ids = 5;
+    // show_demangled_name / show_disambiguated_name live in Codegen.node_config; only nodes that override the
+    // defaults store a NodeConfigEntry.
+}
+
+// Per-node display configuration, stored out-of-line so the common default never occupies node bodies.
+message CFunctionCallConfigEntry {
+    bool show_demangled_name = 1;
+    bool show_disambiguated_name = 2;
+}
+message NodeConfigEntry {
+    uint32 node_id = 1;
+    oneof config {
+        CFunctionCallConfigEntry cfuncall = 2;
+    }
+}
+message NodeConfigMsg {
+    repeated NodeConfigEntry config_entries = 1;
+}
+
+// CStructField
+message CStructFieldMsg {
+    uint32 struct_type_ref = 1;
+    int64 offset = 2;
+    string field = 3;
+}
+
+// CFakeVariable
+message CFakeVariableMsg {
+    string name = 1;
+    uint32 type_ref = 2;
+}
+
+// CVariable
+message CVariableMsg {
+    uint32 variable_ref = 1;                      // index+1 into Codegen.simvar_pool; 0 = absent
+    uint32 unified_variable_ref = 2;
+    uint32 variable_type_ref = 3;
+    optional uint32 vvar_id = 4;
+}
+
+// CIndexedVariable
+message CIndexedVariableMsg {
+    uint32 variable_id = 1;
+    uint32 index_id = 2;
+    uint32 type_ref = 3;
+}
+
+// CVariableField
+message CVariableFieldMsg {
+    uint32 variable_id = 1;
+    uint32 field_id = 2;                          // CStructField node_id
+    bool var_is_ptr = 3;
+}
+
+// CUnaryOp
+message CUnaryOpMsg {
+    string op = 1;
+    uint32 operand_id = 2;
+}
+
+// CBinaryOp
+message CBinaryOpMsg {
+    string op = 1;
+    uint32 lhs_id = 2;
+    uint32 rhs_id = 3;
+    uint32 common_type_ref = 4;
+}
+
+// CTypeCast
+message CTypeCastMsg {
+    uint32 src_type_ref = 1;
+    uint32 dst_type_ref = 2;
+    uint32 expr_id = 3;
+}
+
+// CConstant. ``value`` is int | float | str. ``reference_values`` is dict[SimType, int|MemoryData|bytes|str].
+message CConstantReferenceValue {
+    uint32 type_ref = 1;
+    oneof value {
+        int64 int_value = 2;
+        bytes raw_bytes = 3;
+        string str_value = 4;
+        bytes memory_data = 5;                    // serialized MemoryData via its existing Serializable
+    }
+}
+message CConstantMsg {
+    oneof value {
+        int64 int_value = 1;
+        double float_value = 2;
+        string str_value = 3;
+    }
+    uint32 type_ref = 4;
+    repeated CConstantReferenceValue reference_values = 5;
+}
+
+// CRegister
+message CRegisterMsg {
+    string reg = 1;
+}
+
+// CITE
+message CITEMsg {
+    uint32 cond_id = 1;
+    uint32 iftrue_id = 2;
+    uint32 iffalse_id = 3;
+}
+
+// CMultiStatementExpression
+message CMultiStatementExpressionMsg {
+    uint32 stmts_id = 1;
+    uint32 expr_id = 2;
+}
+
+// CVEXCCallExpression
+message CVEXCCallExpressionMsg {
+    string callee = 1;
+    repeated uint32 operands_ids = 2;
+}
+
+// CDirtyExpression (ailment-coupled)
+message CDirtyExpressionMsg {
+    bytes dirty = 1;                              // ailment Expression.to_bytes()
+}
+
+// =====================================================================================================================
+// Polymorphic CConstruct wrapper
+// =====================================================================================================================
+
+message CConstructNode {
+    uint32 node_id = 1;                           // == CConstruct.idx (unique across the owning codegen)
+    CConstructKind kind = 2;
+    uint32 tags_ref = 3;                          // index+1 into Codegen.tag_pool; 0 = no tags
+    uint32 ident_no = 4;                          // numeric suffix of CConstruct.ident ("<ClassName>_<n>"); the class name is derived from kind
+    // For CExpression subclasses only:
+    optional bool collapsed = 5;
+    uint32 expr_type_ref = 6;                     // _type as index+1 into Codegen.type_pool; 0 = absent
+
+    oneof body {
+        CFunctionMsg cfunction = 100;
+        CStatementsMsg cstatements = 101;
+        CAILBlockMsg cailblock = 102;
+        CLoopMsg cwhile = 103;
+        CLoopMsg cdowhile = 104;
+        CForLoopMsg cfor = 105;
+        CIfElseMsg cifelse = 106;
+        CIfBreakMsg cifbreak = 107;
+        CBreakMsg cbreak = 108;
+        CContinueMsg ccontinue = 109;
+        CSwitchCaseMsg cswitch = 110;
+        CIncompleteSwitchCaseMsg cincomplete_switch = 111;
+        CAssignmentMsg cassignment = 112;
+        CExpressionStatementMsg cexpression_stmt = 113;
+        CReturnMsg creturn = 114;
+        CGotoMsg cgoto = 115;
+        CUnsupportedStatementMsg cunsupported = 116;
+        CDirtyStatementMsg cdirty_stmt = 117;
+        CLabelMsg clabel = 118;
+        CFunctionCallMsg cfuncall = 119;
+        CStructFieldMsg cstruct_field = 120;
+        CFakeVariableMsg cfake_var = 121;
+        CVariableMsg cvar = 122;
+        CIndexedVariableMsg cindexed_var = 123;
+        CVariableFieldMsg cvar_field = 124;
+        CUnaryOpMsg cunop = 125;
+        CBinaryOpMsg cbinop = 126;
+        CTypeCastMsg ctypecast = 127;
+        CConstantMsg cconst = 128;
+        CRegisterMsg creg = 129;
+        CITEMsg cite = 130;
+        CMultiStatementExpressionMsg cmulti_stmt_expr = 131;
+        CVEXCCallExpressionMsg cvex_ccall = 132;
+        CDirtyExpressionMsg cdirty_expr = 133;
+    }
+}
+
+// =====================================================================================================================
+// Position mappings
+// =====================================================================================================================
+// PositionMappingElement holds (start, length, obj). For all three PositionMappings used by codegen (map_pos_to_node,
+// map_pos_to_addr, and the per-SimVariable sets in map_ast_to_pos), ``obj`` is a CConstruct, so we store it as a
+// node_id reference. The InstructionMapping (map_addr_to_pos) maps ins_addr -> posmap_pos which are both ints.
+
+message PositionMappingEntry {
+    int32 start = 1;
+    int32 length = 2;
+    uint32 node_id = 3;                           // 0 means "no node" — though in practice obj is always present
+    // Membership flags: map_pos_to_node and map_pos_to_addr mostly contain identical entries, so both are stored
+    // in one merged table and each entry marks which map(s) it belongs to.
+    bool in_pos_to_node = 4;
+    bool in_pos_to_addr = 5;
+}
+
+message PositionMappingMsg {
+    repeated PositionMappingEntry entries = 1;
+}
+
+message InstructionMappingEntry {
+    uint64 ins_addr = 1;
+    int32 posmap_pos = 2;
+}
+
+message InstructionMappingMsg {
+    repeated InstructionMappingEntry entries = 1;
+}
+
+// map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]]
+message AstToPosEntry {
+    bytes simvariable = 1;
+    repeated PositionMappingEntry elements = 2;
+}
+
+// map_addr_to_label: dict[tuple[int, int | None], CLabel]
+message AddrToLabelEntry {
+    int64 addr = 1;
+    optional int32 idx = 2;                       // tuple's second element (block_idx); absent means None
+    uint32 label_id = 3;                          // CLabel node_id
+}
+
+// =====================================================================================================================
+// Top-level codegen wrapper
+// =====================================================================================================================
+
+message Codegen {
+    // AST table.
+    uint32 root_id = 1;                           // node_id of the top-level CFunction
+    repeated CConstructNode nodes = 2;
+
+    // Rendered text.
+    optional bytes text_z = 3;                    // zlib-compressed UTF-8 rendered text
+    optional string flavor = 4;
+
+    // Display-side state.
+    // Merged position maps (see PositionMappingEntry membership flags).
+    PositionMappingMsg pos_maps = 5;
+    InstructionMappingMsg map_addr_to_pos = 6;
+    repeated AstToPosEntry map_ast_to_pos = 7;
+    repeated AddrToLabelEntry map_addr_to_label = 8;
+    repeated uint32 cexterns_ids = 9;             // CVariable node_ids
+
+    // Comments and notes.
+    map<int64, string> expr_comments = 10;
+    map<int64, string> stmt_comments = 11;
+    map<string, string> notes_json = 12;          // DecompilationNote serialized to JSON; key = note key
+    // const_formats: dict[IdentType, dict[str, bool]]; IdentType = tuple[int, int, str]
+    repeated ConstFormatEntry const_formats = 13;
+
+    // Interned SimType JSON strings (SimType.to_json output). All *_ref fields above and in the node bodies
+    // are index+1 into this pool; 0 means absent.
+    repeated string type_pool = 14;
+
+    // Interned tag dicts; CConstructNode.tags_ref is index+1 into this pool (identical tag dicts are stored once).
+    repeated CConstructTags tag_pool = 15;
+
+    // Interned SimVariable payloads ("<ClassName>\0<proto bytes>"); *_ref fields are index+1, 0 = absent.
+    repeated bytes simvar_pool = 16;
+
+    // Out-of-line per-node display config; a node only appears here if it deviates from the defaults.
+    NodeConfigMsg node_config = 17;
+
+    // Display options (round-tripped but not strictly part of the result). This block must stay last:
+    // c_serialize treats every field from ``indent`` onward as a display option, so a new display option only
+    // needs an optional scalar field appended here whose name matches the attribute on CStructuredCodeGenerator.
+    optional int32 indent = 18;
+    optional bool show_casts = 19;
+    optional bool comment_gotos = 20;
+    optional bool braces_on_own_lines = 21;
+    optional bool use_compound_assignments = 22;
+    optional bool show_local_types = 23;
+    optional bool cstyle_null_cmp = 24;
+    optional bool show_externs = 25;
+    optional bool show_demangled_name = 26;
+    optional bool show_disambiguated_name = 27;
+    optional bool simplify_else_scope = 28;
+    optional bool cstyle_ifs = 29;
+    optional bool omit_func_header = 30;
+    optional bool display_block_addrs = 31;
+    optional bool display_vvar_ids = 32;
+    optional bool display_notes = 33;
+    optional bool prettify_thiscall = 34;
+    optional bool cstyle_void_param = 35;
+    optional int32 binop_depth_cutoff = 36;
+    optional uint64 min_data_addr = 37;
+    optional int32 max_str_len = 38;
+}
+
+message ConstFormatEntry {
+    int64 ident_ins_addr = 1;
+    int32 ident_kind = 2;
+    string ident_value = 3;
+    map<string, bool> fmt = 4;
+}

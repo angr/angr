@@ -50,7 +50,9 @@ class DbKnowledgeBase(Base):
     comments = relationship("DbComment", back_populates="kb")
     labels = relationship("DbLabel", back_populates="kb")
     var_collections = relationship("DbVariableCollection", back_populates="kb")
+    dec_var_collections = relationship("DbDecVariableCollection", back_populates="kb")
     structured_code = relationship("DbStructuredCode", back_populates="kb")
+    decompilation_caches = relationship("DbDecompilationCache", back_populates="kb")
 
 
 class DbCFGModel(Base):
@@ -125,6 +127,27 @@ class DbVariableCollection(Base):
     blob = Column(BLOB)
 
 
+class DbDecVariableCollection(Base):
+    """
+    Models a VariableManagerInternal instance of the decompilation variable manager (kb.dec_variables). A separate
+    table from ``variables`` (the disassembly-level kb.variables) so databases created before it existed remain
+    loadable: ``create_all`` adds missing tables.
+    """
+
+    __tablename__ = "dec_variables"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="dec_var_collections")
+    func_addr = Column(Integer)
+    ident = Column(String, nullable=True)
+    blob = Column(BLOB)
+
+
 class DbStructuredCode(Base):
     """
     Models a StructuredCode instance.
@@ -147,6 +170,27 @@ class DbStructuredCode(Base):
     const_formats = Column(BLOB, nullable=True)
     ite_exprs = Column(BLOB, nullable=True)
     errors = Column(TEXT, nullable=True)
+
+
+class DbDecompilationCache(Base):
+    """
+    Models a fully serialized DecompilationCache instance (a protobuf DecompilationCache message). A separate table
+    from ``structured_code`` (which stores only codegen metadata) so databases created before it existed remain
+    loadable: ``create_all`` adds missing tables.
+    """
+
+    __tablename__ = "decompilation_caches"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="decompilation_caches")
+    func_addr = Column(Integer)
+    flavor = Column(String)
+    blob = Column(BLOB, nullable=True)
 
 
 class DbXRefs(Base):

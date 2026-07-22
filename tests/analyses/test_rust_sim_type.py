@@ -83,6 +83,25 @@ def test_rust_scalar_reference_and_array_repr_json_roundtrip():
     assert fn.to_json()["variadic"] is True
 
 
+def test_rust_int_equality_includes_size():
+    # regression test for angr/angr#6625: ints of different sizes compared equal (and hashed equal), which made
+    # the declared type of unified variables depend on nondeterministic set iteration order
+    u8 = RustSimTypeInt(8, signed=False)
+    u32 = RustSimTypeInt(32, signed=False)
+    u64 = RustSimTypeInt(64, signed=False)
+
+    assert u32 != u64
+    assert u8 != u32
+    assert hash(u32) != hash(u64)
+    assert u32 == RustSimTypeInt(32, signed=False)
+    assert hash(u32) == hash(RustSimTypeInt(32, signed=False))
+    assert u32 != RustSimTypeInt(32, signed=True)
+
+    # copy() must preserve the explicit size
+    assert u64.copy().size == 64
+    assert u64.copy() == u64
+
+
 def test_rust_struct_nested_field_lookup_and_json_roundtrip():
     arch = archinfo.ArchAMD64()
     inner = RustSimStruct(OrderedDict({"value": RustSimTypeInt(16, signed=False)}), name="Inner", pack=True).with_arch(

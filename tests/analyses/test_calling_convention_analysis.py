@@ -40,6 +40,20 @@ def cca_mode(modes: str):
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
+    def test_itanium_qualified_free_function_does_not_gain_this(self):
+        """Machine facts must disambiguate namespace functions from members."""
+        binary = os.path.join(test_location, "x86_64", "cpp_qualified_symbols.so")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        project.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model, analyze_callsites=True)
+        free = project.kb.functions["_ZN4demo10free_valueEv"]
+        assert free.prototype is not None
+        assert len(free.prototype.args) == 0
+        assert isinstance(free.prototype.returnty, SimTypeInt)
+        member = project.kb.functions["_ZN4demo3Box3addEi"]
+        assert member.prototype is not None
+        assert len(member.prototype.args) == 2
+
     def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, arch, "fauxware")
         fauxware = angr.Project(binary_path, auto_load_libs=False)

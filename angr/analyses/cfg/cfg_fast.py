@@ -48,6 +48,7 @@ from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
+from angr.simos import SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.funcid import (
     is_function_likely_security_init_cookie,
@@ -868,6 +869,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # mapping to all known thunks
         self._known_thunks = {}
+
+        # when True, jump/call targets loaded from registered read-only regions (e.g. PE IAT slots) are
+        # constant-folded at lift time and consumed in _create_jobs without invoking indirect jump resolvers
+        self._fold_ro_const_loads = False
 
         self._initial_state = None
         self._next_addr: int | None = None
@@ -3133,6 +3138,34 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         return entries
 
+    def _resolve_const_folded_next(self, irsb: pyvex.IRSB | None, jumpkind: str) -> int | None:
+        """
+        Check whether the jump/call target of this block was constant-folded from a registered read-only region
+        at lift time (recorded in IRSB.const_vals), e.g. an import call through the IAT (or delay-load IAT) in a PE
+        binary. This reproduces the decision of the timeless load-based resolvers (AMD64PeIatResolver and
+        MemoryLoadResolver) without re-lifting the block or dispatching the resolvers: the loaded pointer is the
+        same value they would read, and it is accepted when it is a valid jump target (executable or hooked), which
+        is exactly MemoryLoadResolver's ``_is_target_valid`` criterion (a superset of AMD64PeIatResolver's hooked
+        check). Everything else falls back to the regular indirect jump resolution logic.
+
+        :param irsb:        The (possibly statement-less) IRSB of the block.
+        :param jumpkind:    The jumpkind of the default exit.
+        :return:            The resolved target, or None if unavailable.
+        """
+        if not self._fold_ro_const_loads or irsb is None:
+            return None
+        if jumpkind not in ("Ijk_Call", "Ijk_Boring"):
+            return None
+        if not irsb.const_vals or not isinstance(irsb.next, pyvex.IRExpr.RdTmp):
+            return None
+        next_tmp = irsb.next.tmp
+        for cv in irsb.const_vals:
+            if cv.tmp == next_tmp:
+                if self._addr_in_exec_memory_regions(cv.value) or self.project.is_hooked(cv.value):
+                    return cv.value
+                return None
+        return None
+
     def _create_jobs(
         self,
         target: Any,
@@ -3218,14 +3251,24 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 jumpkind in ("Ijk_Boring", "Ijk_Call", "Ijk_InvalICache") or jumpkind.startswith("Ijk_Sys")
             ):
                 # This is an indirect jump. Try to resolve it.
-                # FIXME: in some cases, a statementless irsb will be missing its instr addresses
-                # and this next part will fail. Use the real IRSB instead
-                irsb = self._lift(cfg_node.addr, size=cfg_node.size).vex
-                assert irsb is not None
-                cfg_node.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
-                resolved, resolved_targets, ij = self._indirect_jump_encountered(
-                    addr, cfg_node, irsb, current_function_addr, stmt_idx
-                )
+                # fast path: the target may have been constant-folded from a read-only region at lift time
+                # (e.g. an AMD64 PE IAT slot); consuming it here avoids re-lifting the block and running the
+                # indirect jump resolvers
+                folded_target = self._resolve_const_folded_next(irsb, jumpkind)
+                if folded_target is not None:
+                    # the statement-less irsb already carries the instruction addresses that the resolver path
+                    # would recompute from a re-lift
+                    cfg_node.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
+                    resolved, resolved_targets, ij = True, {folded_target}, None
+                else:
+                    # FIXME: in some cases, a statementless irsb will be missing its instr addresses
+                    # and this next part will fail. Use the real IRSB instead
+                    irsb = self._lift(cfg_node.addr, size=cfg_node.size).vex
+                    assert irsb is not None
+                    cfg_node.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
+                    resolved, resolved_targets, ij = self._indirect_jump_encountered(
+                        addr, cfg_node, irsb, current_function_addr, stmt_idx
+                    )
                 if resolved:
                     for resolved_target in resolved_targets:
                         if jumpkind == "Ijk_Call":
@@ -3596,7 +3639,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     target_func_addr = node.function_address
             # case 2: if the source instruction is the first instruction of the current function, has only one branch
             # to the target address, and is a jump (Ijk_Boring, not a call), then the target address is likely the
-            # start of another function
+            # start of another function. A compiler may also begin a function with an
+            # unconditional jump to an internal loop guard (loop rotation). When the loader
+            # supplies a non-empty function symbol, its extent is stronger evidence than this
+            # tail-jump heuristic: keep a target inside that extent in the current function.
             if (
                 target_func_addr is None
                 and len(src_node.instruction_addrs) == 1
@@ -3605,7 +3651,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 and all_successors is not None
                 and len(all_successors) == 1
             ):
-                target_func_addr = target_addr
+                current_symbol = self.project.loader.find_symbol(current_function_addr)
+                current_symbol_size = getattr(current_symbol, "size", 0) or 0
+                target_is_inside_current_symbol = (
+                    current_symbol is not None
+                    and current_symbol.is_function
+                    and current_symbol.rebased_addr == current_function_addr
+                    and current_symbol_size > 0
+                    and current_function_addr <= target_addr < current_function_addr + current_symbol_size
+                )
+                if not target_is_inside_current_symbol:
+                    target_func_addr = target_addr
             # last resort: the block probably belongs to the current function
             if target_func_addr is None:
                 target_func_addr = current_function_addr
@@ -5193,6 +5249,30 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         self._ro_region_cdata_cache.append(content_buf)
                         pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
 
+        elif self.project.arch.name in {"AMD64", "X86"} and isinstance(self.project.simos, SimWindows):
+            # register sections that hold jump/call targets so that rip-relative import calls and jumps
+            # (call/jmp qword ptr [rip+disp]) can be constant-folded at lift time and resolved without a re-lift
+            # and resolver dispatch:
+            #   - non-writable sections (e.g. .rdata, the bound IAT), and
+            #   - the delay-load import table (.didat): although writable, its slots are static during CFG recovery
+            #     and point to the delay-load thunks, which MemoryLoadResolver already resolves by reading them.
+            # The folded value is only accepted when it is a valid jump target, so registering these regions cannot
+            # introduce edges the timeless load resolvers would not also produce.
+            self._ro_region_cdata_cache = []
+            for section in self.project.loader.main_object.sections:
+                register = (section.is_readable and not section.is_writable and section.memsize >= 8) or (
+                    section.name == ".didat" and section.is_readable and section.memsize >= 8
+                )
+                if register:
+                    try:
+                        content = self.project.loader.memory.load(section.vaddr, section.memsize)
+                    except KeyError:
+                        continue
+                    content_buf = pyvex.ffi.from_buffer(content)
+                    self._ro_region_cdata_cache.append(content_buf)
+                    pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
+            self._fold_ro_const_loads = bool(self._ro_region_cdata_cache)
+
     def _lifter_deregister_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
         self._ro_region_cdata_cache = None
@@ -5456,6 +5536,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     collect_data_refs=True,
                     strict_block_end=True,
                     load_from_ro_regions=True,
+                    const_prop=self._fold_ro_const_loads,
                     initial_regs=initial_regs,
                 )
                 irsb = lifted_block.vex_nostmt  # may raise SimTranslationError
@@ -5500,6 +5581,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             collect_data_refs=True,
                             strict_block_end=True,
                             load_from_ro_regions=True,
+                            const_prop=self._fold_ro_const_loads,
                             initial_regs=initial_regs,
                         )
                         irsb = lifted_block.vex_nostmt

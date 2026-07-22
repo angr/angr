@@ -1860,9 +1860,10 @@ class TestDecompiler(unittest.TestCase):
         """)
 
         d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
-        assert d.cache is not None and d.cache.clinic is not None and d.cache.clinic.variable_kb is not None
+        assert d.cache is not None and d.cache.clinic is not None
+        assert d.func.addr in proj.kb.dec_variables
 
-        vmi: VariableManagerInternal = d.cache.clinic.variable_kb.variables["main"]
+        vmi: VariableManagerInternal = proj.kb.dec_variables["main"]
         vmi.set_variable_type(
             next(iter(vmi.find_variables_by_stack_offset(-0x148))),
             SimTypePointer(typedefs[1]["struct C"]),
@@ -1895,8 +1896,12 @@ class TestDecompiler(unittest.TestCase):
         assert unified is not None
         unified.name = "argc"
         unified.renamed = True
+        # variable types were edited on kb.dec_variables; force a fresh decompilation so the new
+        # types drive codegen (the default reuses the cached codegen AST as-is).
         d = proj.analyses.Decompiler(
-            proj.kb.functions["main"], variable_kb=d.cache.clinic.variable_kb, options=decompiler_options
+            proj.kb.functions["main"],
+            options=decompiler_options,
+            regen_clinic=True,
         )
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
@@ -2583,13 +2588,13 @@ class TestDecompiler(unittest.TestCase):
         assert len(following_logic) == 5, "Unexpected number of lines after switch-case"
         # expected:
         #     v1 = p[1];
-        #     ptr = &p[1];
+        #     ptr = &p[1];   (or "ptr = p + 1;" when the local is typed as an element pointer)
         #     if (!p[1])
         #         return;
         # }
         expected = [
             r"[a-zA-Z0-9]+ = [a-zA-Z0-9\[\]]+;",
-            r"[a-zA-Z0-9]+ = &[a-zA-Z0-9\[\]]+;",
+            r"[a-zA-Z0-9]+ = (?:&[a-zA-Z0-9\[\]]+|[a-zA-Z0-9]+ \+ \d+);",
             r"if \(![a-zA-Z0-9\[\]]+\)",
             r"return;",
             r"}",
@@ -3001,7 +3006,7 @@ class TestDecompiler(unittest.TestCase):
         # 1. Condition: (!a0)
         # 2. Has a scope ending in a return
         # 3. Has no else scope after the return
-        a0_name = d.clinic.variable_kb.variables[d.func.addr].unified_variable(d.clinic.arg_list[0]).name
+        a0_name = d.clinic.kb.dec_variables[d.func.addr].unified_variable(d.clinic.arg_list[0]).name
         good_if_pattern = r"if \(!" + a0_name + r"\)\s*\{[^}]*return 1;\s*\}(?!\s*else)"
         good_if = re.search(good_if_pattern, text)
         assert good_if is not None
@@ -3053,7 +3058,7 @@ class TestDecompiler(unittest.TestCase):
 
         proj.analyses.CompleteCallingConventions(cfg=cfg)
         f = proj.kb.functions[0x404410]
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options, save_unoptimized_graph=True)
         print_decompilation_result(d)
 
         target_addrs = {0x4045D8, 0x404575}
@@ -3405,7 +3410,7 @@ class TestDecompiler(unittest.TestCase):
 
         # the two function arguments that are passed through stack into prepare_padded_number must have been eliminated
         # at this point, leaving block 401f40 empty.
-        the_block = next(nn for nn in d.clinic.graph if nn.addr == 0x401F40)
+        the_block = next(nn for nn in d.ail_graph if nn.addr == 0x401F40)
         assert len(the_block.statements) == 1  # it has an unused label
 
     @for_all_structuring_algos
@@ -3463,7 +3468,9 @@ class TestDecompiler(unittest.TestCase):
 
         for width in (2, 8):
             options = set_decompiler_option(list(decompiler_options or []), [("indent_size", width)])
-            d = p.analyses[Decompiler].prep(fail_fast=True)(f, options=options)
+            # indent_size is a codegen display option, not a cache-validity parameter; force a fresh decompilation
+            # so the new width is applied instead of reusing the cached codegen.
+            d = p.analyses[Decompiler].prep(fail_fast=True)(f, options=options, regen_clinic=True)
             assert d.codegen is not None and d.codegen.text is not None
             levels = indent_levels(d.codegen.text)
             # every indentation level is a whole multiple of the configured width
@@ -4054,7 +4061,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg)
         f = proj.kb.functions["recover_mode"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
-            f, cfg=cfg.model, options=decompiler_options, generate_code=False
+            f, cfg=cfg.model, options=decompiler_options, generate_code=False, save_unoptimized_graph=True
         )
 
         # we should have skipped generating code
@@ -4155,7 +4162,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert d.codegen is not None and d.clinic is not None
 
-        rd = proj.analyses.SReachingDefinitions(subject=f, func_graph=d.clinic.graph, func_args=set()).model
+        rd = proj.analyses.SReachingDefinitions(subject=f, func_graph=d.ail_graph, func_args=set()).model
         used_but_undefined_stack_vars = [
             str(rd.varid_to_vvar[vid])
             for vid, loc in rd.all_vvar_definitions.items()
@@ -5678,21 +5685,21 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
+        a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert f"return test_tailcall_callee({a0} + 1);" in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_noreturn_tailcall"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
+        a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert f"test_noreturn_tailcall_callee({a0} + 1); /* do not return */" in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_tailcall_jmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
+        a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
                 if ((int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
@@ -5703,7 +5710,7 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
+        a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
                 if ({a0})
                     test_cond_noreturn_tailcall_jmp_callee(); /* do not return */
@@ -5714,7 +5721,7 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
+        a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
                 if ((int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
@@ -5725,7 +5732,7 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        a0 = dec.clinic.variable_kb.variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
+        a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
                 if ({a0})
                     test_cond_noreturn_tailcall_cjmp_callee(); /* do not return */

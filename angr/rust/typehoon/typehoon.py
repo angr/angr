@@ -96,6 +96,9 @@ class RustTypehoon(Typehoon):
             if isinstance(the_type, SimTypeBottom) and var.size is not None:
                 the_type = RustSimTypeInt(signed=False, size=var.size * self.project.arch.byte_width)
 
+            if func_addr != "global":
+                the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
+
             self.kb.variables[func_addr].set_variable_type(
                 var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
             )

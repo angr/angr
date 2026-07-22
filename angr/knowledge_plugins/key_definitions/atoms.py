@@ -170,6 +170,9 @@ class Atom:
     def __eq__(self, other):
         return type(self) is type(other) and self._identity() == other._identity()
 
+    # The atom is serialized as a wrapping ``Atom`` cmessage carrying the per-kind inner cmessage in a oneof field;
+    # ``parse_from_cmessage`` dispatches on ``WhichOneof("kind")`` to the right subclass.
+
 
 class GuardUse(Atom):
     """

@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+import "angr/protos/ail_types.proto";
+
+package angr.protos;
+
+// =====================================================================================================================
+// Small value types
+// =====================================================================================================================
+
+message BinopOperatorEntry {
+    string key_json = 1;                      // OpDescriptor serialized to JSON
+    string value = 2;
+}
+
+message StackvarMaxSizeEntry {
+    // SimStackVariable is polymorphic; we use the same "<ClassName>\0<proto bytes>" wrapping as elsewhere.
+    bytes simvar = 1;
+    int32 max_size = 2;
+}
+
+// =====================================================================================================================
+// DecompilationParameters: closed schema for the 15-key ``parameters`` dict.
+// =====================================================================================================================
+
+message OptionEntry {
+    // Identified by DecompilationOption.param (a unique key in PARAM_TO_OPTION).
+    string param = 1;
+    // JSON-encoded value. The original tuples (option_obj, value) are reconstructed by looking up the option from
+    // PARAM_TO_OPTION at parse time.
+    string value_json = 2;
+}
+
+// Collection-typed parameters (except peephole_optimizations) are never None on the Python side (the Decompiler
+// normalizes its inputs to empty collections), so an unset repeated/map field simply parses back to an empty
+// collection.
+message DecompilationParameters {
+    optional string flavor = 1;
+    optional bool sp_tracker_track_memory = 2;
+
+    repeated string vars_must_struct = 3;     // set[str]
+    repeated string desired_variables = 4;    // frozenset[str]
+    repeated uint64 inline_functions = 5;     // frozenset[int]
+
+    repeated OptionEntry options = 6;
+
+    repeated string optimization_passes = 7;  // FQN strings
+
+    // peephole_optimizations is the one None-able collection: None means "use the default peephole set", which is
+    // distinct from an explicitly empty list.
+    repeated string peephole_optimizations = 8;
+    bool peephole_optimizations_use_default = 9;  // True when peephole_optimizations was None (default set in use)
+
+    map<int64, string> expr_comments = 10;
+    map<int64, string> stmt_comments = 11;
+    repeated BinopOperatorEntry binop_operators = 12;
+
+    optional IteExprs ite_exprs = 13;         // set[tuple[int, ailment.Expression]]; unset -> empty set
+    optional StaticVVars static_vvars = 14;   // unset -> empty dict
+    optional StaticBuffers static_buffers = 15;
+
+    bool save_unoptimized_graph = 16;
+}
+
+// =====================================================================================================================
+// DecompilationCache
+// =====================================================================================================================
+// cfg is a decompile-time input, not part of the result; it is not serialized and comes back as None until the
+// caller re-attaches it. Decompilation variables live on ``kb.dec_variables`` and are serialized separately.
+
+message DecompilationCache {
+    uint64 addr = 1;
+
+    // Heavy sub-objects, embedded as already-serialized bytes from their own Serializable interfaces.
+    optional bytes clinic = 2;                // Clinic.serialize()
+    optional bytes codegen = 3;               // CStructuredCodeGenerator.serialize()
+
+    // Top-level cache state. Collection-typed fields are never None on the Python side; unset fields parse back to
+    // empty collections.
+    repeated string errors = 4;
+    optional string function_summary = 5;
+    optional ArgVVars arg_vvars = 6;          // dict[int, (VirtualVariable, SimVariable)]; unset -> empty dict
+    optional IteExprs ite_exprs = 7;          // set[tuple[int, ailment.Expression]]; unset -> empty set
+    repeated BinopOperatorEntry binop_operators = 8;
+    repeated StackvarMaxSizeEntry stackvar_max_sizes = 9;
+
+    // The angr version that produced this decompilation and the time (seconds since the epoch) when it happened.
+    // Legacy blobs carry the proto3 defaults ""/0, meaning "unknown".
+    string version = 10;
+    int64 timestamp = 11;
+
+    // Unset means "no recorded parameters" (e.g. the run had use_cache=False); cache-validity checks treat such a
+    // cache as always usable.
+    optional DecompilationParameters parameters = 12;
+
+    map<string, string> notes_json = 13;      // DecompilationNote serialized to JSON; key = note key
+}

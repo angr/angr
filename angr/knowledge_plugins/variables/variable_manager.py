@@ -1,5 +1,7 @@
+# pylint:disable=protected-access
 from __future__ import annotations
 
+import json
 import logging
 from collections import defaultdict
 from collections.abc import Iterator
@@ -39,6 +41,7 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.types import replace_pointer_pts_to, unpack_pointer
 
+from .spilling_vardict import USE_SPILLING_DVARS, SpillingVariableInternalDict
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
@@ -286,7 +289,27 @@ class VariableManagerInternal(Serializable):
                 phi_relations.append(relation)
         cmsg.phi2var.extend(phi_relations)
 
-        # TODO: Types
+        # Types: variable_to_types (SimVariable ident -> SimType), with the manual-type flag. SimType JSON strings
+        # are interned into a shared type pool since many variables share the same type.
+        type_pool: list[str] = []
+        type_ref_by_json: dict[str, int] = {}
+        type_entries = []
+        for var, var_type in self.variable_to_types.items():
+            if var.ident is None:
+                continue
+            type_json = json.dumps(var_type.to_json())
+            ref = type_ref_by_json.get(type_json)
+            if ref is None:
+                type_pool.append(type_json)
+                ref = len(type_pool)  # index+1
+                type_ref_by_json[type_json] = ref
+            entry = variables_pb2.VariableType()  # type: ignore[reportAttributeAccessIssue]
+            entry.ident = var.ident
+            entry.type_ref = ref
+            entry.manual = var in self.variables_with_manual_types
+            type_entries.append(entry)
+        cmsg.types.extend(type_entries)
+        cmsg.type_pool.extend(type_pool)
 
         # TODO: vvarid_to_varialbes & variable_to_vvarids
 
@@ -403,7 +426,21 @@ class VariableManagerInternal(Serializable):
             model._phi_variables[phi].add(var)
             model._variables_to_phivars[var].add(phi)
 
-        # TODO: Types
+        # Types: variable_to_types (keyed by both regular and unified variables) + variables_with_manual_types.
+        # Each pooled type JSON is parsed once and shared across the variables that reference it.
+        arch = model.manager._kb._project.arch if model.manager is not None else None
+        type_by_ref: dict[int, SimType] = {}
+        for ref, type_json in enumerate(cmsg.type_pool, start=1):
+            var_type = SimType.from_json(json.loads(type_json))
+            type_by_ref[ref] = var_type.with_arch(arch) if arch is not None else var_type
+        for type_pb2 in cmsg.types:
+            var = variable_by_ident.get(type_pb2.ident) or unified_variable_by_ident.get(type_pb2.ident)
+            var_type = type_by_ref.get(type_pb2.type_ref)
+            if var is None or var_type is None:
+                continue
+            model.variable_to_types[var] = var_type
+            if type_pb2.manual:
+                model.variables_with_manual_types.add(var)
 
         for var in model._variables:
             if isinstance(var, SimStackVariable):
@@ -1282,10 +1319,12 @@ class VariableManager(KnowledgeBasePlugin):
     Manage variables.
     """
 
+    function_managers: dict[int, VariableManagerInternal] | SpillingVariableInternalDict
+
     def __init__(self, kb):
         super().__init__(kb=kb)
         self.global_manager = VariableManagerInternal(self)
-        self.function_managers: dict[int, VariableManagerInternal] = {}
+        self.function_managers = {}
 
     def __contains__(self, key) -> bool:
         if key == "global":
@@ -1394,4 +1433,31 @@ class VariableManager(KnowledgeBasePlugin):
                 self.convert_variable_list(subp.local_variables, manager)
 
 
+class DecompilationVariableManager(VariableManager):
+    """
+    Holds variables discovered during decompilation, kept separate from the disassembly-level ``kb.variables``.
+    Exposed as ``kb.dec_variables``. Per-function managers are held in a :class:`SpillingVariableInternalDict`, which
+    spills least-recently-used entries to the RuntimeDb LMDB store (disable via ``USE_SPILLING_DVARS``).
+    """
+
+    def __init__(self, kb):
+        super().__init__(kb)
+        if USE_SPILLING_DVARS:
+            self.function_managers = SpillingVariableInternalDict(self)
+
+    def copy(self) -> DecompilationVariableManager:
+        new = DecompilationVariableManager(self._kb)
+        new.global_manager = self._copy_internal(self.global_manager, new)
+        for addr, vmi in self.function_managers.items():
+            new.function_managers[addr] = self._copy_internal(vmi, new)
+        return new
+
+    @staticmethod
+    def _copy_internal(vmi: VariableManagerInternal, manager: VariableManager) -> VariableManagerInternal:
+        clone = VariableManagerInternal.parse(vmi.serialize(), variable_manager=manager, func_addr=vmi.func_addr)
+        clone.set_manager(manager)
+        return clone
+
+
 KnowledgeBasePlugin.register_default("variables", VariableManager)
+KnowledgeBasePlugin.register_default("dec_variables", DecompilationVariableManager)

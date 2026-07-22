@@ -16,8 +16,11 @@ import archinfo
 import cle
 
 import angr
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
+from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -374,9 +377,11 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
-        dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model)
-        assert dec.codegen is not None and dec.codegen.text is not None
+        proj.analyses.CFGFast(normalize=True)
+        # populate the disassembly-level variable manager (kb.variables), which is what the ``variables`` angrdb
+        # table serializes; decompilation variables live separately in kb.dec_variables
+        main = proj.kb.functions.function(name="main")
+        proj.analyses.VariableRecoveryFast(main)
 
         vm = proj.kb.variables
         # force-create empty variable managers for two functions that have none
@@ -387,7 +392,7 @@ class TestDb(unittest.TestCase):
             assert not vm.function_managers[addr].serialize()
 
         nonempty_addrs = {addr for addr, internal in vm.function_managers.items() if internal.serialize()}
-        assert nonempty_addrs, "decompilation should have produced at least one non-empty variable manager"
+        assert nonempty_addrs, "variable recovery should have produced at least one non-empty variable manager"
 
         def content(internal):
             return (
@@ -423,6 +428,86 @@ class TestDb(unittest.TestCase):
         conn.close()
         old_format_proj = AngrDB(nullpool=True).load(db_file)
         assert set(old_format_proj.kb.variables.function_managers) == nonempty_addrs
+
+    def test_angrdb_dec_variables_roundtrip(self):
+        # Decompilation variables (kb.dec_variables) are serialized into their own ``dec_variables`` table, isolated
+        # from the disassembly-level kb.variables, and round-trip through angrdb with their content intact.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        main = proj.kb.functions.function(name="main")
+        dec = proj.analyses.Decompiler(main, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        dvm = proj.kb.dec_variables
+        nonempty_addrs = {addr for addr, internal in dvm.function_managers.items() if internal.serialize()}
+        assert nonempty_addrs, "decompilation should have produced at least one non-empty dec-variable manager"
+        # decompilation must not have populated the disassembly-level manager
+        assert not {addr for addr, internal in proj.kb.variables.function_managers.items() if internal.serialize()}
+
+        def content(internal):
+            return (
+                sorted(v.ident for v in internal._variables),
+                sorted(v.ident for v in internal._unified_variables),
+                sorted(v.ident for v in internal._phi_variables),
+            )
+
+        pre_content = {addr: content(dvm.function_managers[addr]) for addr in nonempty_addrs}
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # dec_variables rows land in their own table, not in variables
+        conn = sqlite3.connect(db_file)
+        dvar_rows = conn.execute("SELECT func_addr FROM dec_variables WHERE func_addr != -1").fetchall()
+        var_rows = conn.execute("SELECT func_addr FROM variables WHERE func_addr != -1").fetchall()
+        conn.close()
+        assert {func_addr for (func_addr,) in dvar_rows} == nonempty_addrs
+        assert not var_rows
+
+        # dec_variables round-trip with identical content
+        new_proj = AngrDB(nullpool=True).load(db_file)
+        new_dvm = new_proj.kb.dec_variables
+        assert set(new_dvm.function_managers) == nonempty_addrs
+        for addr in nonempty_addrs:
+            assert content(new_dvm.function_managers[addr]) == pre_content[addr]
+
+    def test_angrdb_dump_with_spilled_dec_variables(self):
+        # Dumping to angrdb while dec_variables entries are spilled to the RuntimeDb LMDB store faults them back in
+        # through the spilling dict's snapshot-safe iteration, and their content round-trips.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        for name in ("main", "authenticate"):
+            dec = proj.analyses.Decompiler(name, cfg=cfg.model)
+            assert dec.codegen is not None and dec.codegen.text is not None
+
+        dvm = proj.kb.dec_variables
+        fm = dvm.function_managers
+
+        def content(internal):
+            return sorted(v.ident for v in internal._variables)
+
+        pre_content = {addr: content(fm[addr]) for addr in list(fm)}
+        assert len(pre_content) >= 2
+
+        # spill every entry, then dump while nothing is in memory
+        fm._cache_limit = 0
+        fm._evict_lru()
+        assert not fm._cache and set(fm._spilled) == set(pre_content)
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        new_proj = AngrDB(nullpool=True).load(db_file)
+        new_fm = new_proj.kb.dec_variables.function_managers
+        assert set(new_fm) == set(pre_content)
+        for addr, expected in pre_content.items():
+            assert content(new_fm[addr]) == expected
 
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
@@ -645,6 +730,71 @@ class TestDb(unittest.TestCase):
             print_decompilation_result(dec_2)
             assert dec_2.codegen.text.count("0x8") == 1
 
+    def test_angrdb_full_decompilation_cache_roundtrip(self):
+        # DecompilationCache objects in the structured code manager are fully serialized into the database and come
+        # back with real codegen (not DummyStructuredCodeGenerator) and their version and timestamp intact.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            proj.analyses.CFGFast(normalize=True)
+            func = proj.kb.functions.function(name="authenticate")
+            dec = proj.analyses.Decompiler(func)
+            assert dec.codegen is not None and dec.codegen.text is not None
+
+            cache = proj.kb.decompilations[(func.addr, "pseudocode")]
+            assert cache.version == angr.__version__
+            assert cache.timestamp > 0
+
+            # add an unserializable cache; it must round-trip through the legacy structured_code table
+            dummy_cache = DecompilationCache(0xDEAD)
+            dummy_cache.codegen = DummyStructuredCodeGenerator("pseudocode", stmt_comments={0x1000: "hi"})
+            proj.kb.decompilations[(0xDEAD, "pseudocode")] = dummy_cache
+
+            new_proj = self._roundtrip_angrdb(proj, db_file)
+
+            new_cache = new_proj.kb.decompilations[(func.addr, "pseudocode")]
+            assert not isinstance(new_cache.codegen, DummyStructuredCodeGenerator)
+            assert new_cache.codegen.text == dec.codegen.text
+            assert new_cache.version == cache.version
+            assert new_cache.timestamp == cache.timestamp
+
+            new_dummy = new_proj.kb.decompilations[(0xDEAD, "pseudocode")]
+            assert isinstance(new_dummy.codegen, DummyStructuredCodeGenerator)
+            assert new_dummy.codegen.stmt_comments == {0x1000: "hi"}
+
+    def test_angrdb_fast_load_spilled_decompilation_caches(self):
+        # When the database contains more decompilation caches than the manager may keep in memory, the serialized
+        # bytes are moved directly into the LMDB backing store on load without being deserialized.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            proj.analyses.CFGFast(normalize=True)
+            auth_func = proj.kb.functions.function(name="authenticate")
+            main_func = proj.kb.functions.function(name="main")
+            auth_dec = proj.analyses.Decompiler(auth_func)
+            main_dec = proj.analyses.Decompiler(main_func)
+            assert auth_dec.codegen is not None and main_dec.codegen is not None
+
+            AngrDB(proj, nullpool=True).dump(db_file)
+
+            with mock.patch("angr.knowledge_plugins.structured_code.DECOMPILATION_CACHE_LIMIT", 1):
+                new_proj = AngrDB(nullpool=True).load(db_file)
+                backing = new_proj.kb.decompilations.cached
+                assert isinstance(backing, SpillingDecompilationDict)
+                # both caches were imported as bytes and registered as spilled, not deserialized
+                assert backing._spilled == {(auth_func.addr, "pseudocode"), (main_func.addr, "pseudocode")}
+                assert len(backing._cache) == 0
+
+                # accessing a spilled cache deserializes it lazily
+                new_cache = new_proj.kb.decompilations[(auth_func.addr, "pseudocode")]
+                assert new_cache.codegen.text == auth_dec.codegen.text
+
     def test_angrdb_decompilation_load_variables(self):
         # https://github.com/angr/angr/issues/5990
 
@@ -659,13 +809,54 @@ class TestDb(unittest.TestCase):
                 resolve_indirect_jumps=True,
                 detect_tail_calls=True,
             )
-            dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model, regen_clinic=False)
+            dec = proj.analyses.Decompiler("main", cfg=cfg.model, regen_clinic=False)
             assert dec.codegen is not None and dec.codegen.text is not None
 
             adb = AngrDB(proj, nullpool=True)
             adb.dump(out_db, extra_info={"binary_path": bin_path})
 
             _proj = AngrDB(nullpool=True).load(out_db)
+
+    def test_angrdb_reloaded_decompilation_rerenders_identically(self):
+        # Full workflow: load a binary, decompile a function (populating kb.dec_variables), spill the decompilation
+        # and dec_variables into angrdb, reload, then re-render the cached codegen. The re-rendered output must be
+        # byte-identical to the original — variable declarations (types) and string constants included.
+        bin_path = os.path.join(test_location, "x86_64", "1after909")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "1after909.adb")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            proj.analyses.CompleteCallingConventions(recover_variables=False)
+            func = proj.kb.functions.function(name="doit")
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            original_text = dec.codegen.text
+            # sanity: the original has variable declarations and rendered strings
+            assert "int node;" in original_text
+            assert 'puts("1 AFTER 909:' in original_text or "1 AFTER 909" in original_text
+
+            AngrDB(proj, nullpool=True).dump(db_file)
+            reloaded = AngrDB(nullpool=True).load(db_file)
+            func2 = reloaded.kb.functions.function(name="doit")
+
+            # dec_variables (with types) round-tripped
+            assert func2.addr in reloaded.kb.dec_variables
+            assert reloaded.kb.dec_variables[func2.addr].variable_to_types
+
+            # the cached codegen re-renders identically (what angr-management does on display/edit)
+            cached = reloaded.kb.decompilations[(func2.addr, "pseudocode")]
+            assert cached.codegen is not None
+            assert cached.codegen.text == original_text  # stored text
+            cached.codegen.regenerate_text()
+            assert cached.codegen.text == original_text  # re-rendered text
+
+            # and going through the Decompiler again yields the same, re-renderable, result
+            dec2 = reloaded.analyses.Decompiler(func2, cfg=reloaded.kb.cfgs.get_most_accurate())
+            assert dec2.codegen is not None
+            dec2.codegen.regenerate_text()
+            assert dec2.codegen.text == original_text
 
     def test_angrdb_blob_loader_options_roundtrip(self):
         with tempfile.TemporaryDirectory() as td:

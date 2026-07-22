@@ -484,6 +484,36 @@ class TestSerialize(unittest.TestCase):
         a2 = Statement.from_bytes(s)
         assert isinstance(a2, Assignment)
 
+    def test_block_to_from_bytes(self):
+        block = Block(
+            0x400,
+            statements=[
+                Label(0, "L1"),
+                Assignment(1, Tmp(0, 1, 32), Const(0, 42, 32)),
+                Jump(2, Const(0, 0x410, 64)),
+            ],
+            original_size=12,
+        )
+        b2 = Block.from_bytes(block.to_bytes())
+        assert b2 == block
+        assert b2.original_size == 12 and b2.idx is None
+        assert isinstance(b2.statements[1], Assignment)
+
+    def test_block_to_from_bytes_with_idx(self):
+        block = Block(0x500, statements=[Return(0, [])], idx=3)
+        b2 = Block.from_bytes(block.to_bytes())
+        assert b2 == block and b2.idx == 3
+
+    def test_empty_block_to_from_bytes(self):
+        b2 = Block.from_bytes(Block(0x600).to_bytes())
+        assert b2.addr == 0x600 and b2.original_size is None and len(b2.statements) == 0
+
+    def test_block_to_bytes_rejects_non_statement(self):
+        block = Block(0x700)
+        block.statements.append("not a statement")
+        with self.assertRaises(TypeError):
+            block.to_bytes()
+
 
 if __name__ == "__main__":
     unittest.main()
