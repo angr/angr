@@ -4329,9 +4329,9 @@ class Clinic(Analysis, Serializable):
         msg._end_stage = self._end_stage.value
         msg._skip_stages.extend(s.value for s in self._skip_stages)
 
-        # Pass class refs.
+        # Pass class refs. peephole_optimizations=None means "use the default peephole set".
+        msg.peephole_optimizations_use_default = self.peephole_optimizations is None
         if self.peephole_optimizations is not None:
-            msg._peephole_optimizations_set = True
             msg.peephole_optimizations.extend(pass_to_name(cls_) for cls_ in self.peephole_optimizations)
         if self._typehoon_cls is not None:
             # _typehoon_cls is the Typehoon class itself (not a registered pass); store its fully-qualified name
@@ -4470,11 +4470,11 @@ class Clinic(Analysis, Serializable):
         clinic._end_stage = ClinicStage(msg._end_stage)
         clinic._skip_stages = tuple(ClinicStage(s) for s in msg._skip_stages)
 
-        # Pass class refs.
-        if msg._peephole_optimizations_set:
-            clinic.peephole_optimizations = [name_to_pass(n) for n in msg.peephole_optimizations]
-        else:
+        # Pass class refs. peephole_optimizations=None means "use the default peephole set".
+        if msg.peephole_optimizations_use_default:
             clinic.peephole_optimizations = None
+        else:
+            clinic.peephole_optimizations = [name_to_pass(n) for n in msg.peephole_optimizations]
         if msg._typehoon_cls:
             # _typehoon_cls is the Typehoon class itself (not a registered pass). Resolve directly by FQN.
             module_name, _, cls_name = msg._typehoon_cls.rpartition(".")

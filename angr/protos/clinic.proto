@@ -120,7 +120,7 @@ message Clinic {
     repeated int32 _skip_stages = 51;
 
     // ---- Pass class references (round-tripped via the optimization-pass registry) -----------------------------------
-    repeated string peephole_optimizations = 52;      // FQNs from optimization_pass_registry; empty -> None
-    optional bool _peephole_optimizations_set = 53;   // distinguish [] from None
+    repeated string peephole_optimizations = 52;          // FQNs from optimization_pass_registry
+    bool peephole_optimizations_use_default = 53;         // True when peephole_optimizations was None (default set)
     string _typehoon_cls = 54;                        // FQN; empty -> default Typehoon
 }
