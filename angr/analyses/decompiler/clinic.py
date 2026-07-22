@@ -210,7 +210,19 @@ class ComboRegReferenceWalker(AILBlockRewriter):
 
 class Clinic(Analysis, Serializable):
     """
-    A Clinic deals with AILments.
+    A Clinic deals with AILments: it lifts a function to AIL and runs the decompiler's simplification pipeline on it.
+
+    AIL graphs exposed after a DECOMPILE-mode run:
+
+    - ``cc_graph``: the graph at the end of Clinic's own simplification, frozen as a copy before region
+      identification. Serialized; available on both live and cached-and-reloaded clinics.
+    - ``graph``: ``cc_graph`` further transformed by the decompiler's graph-simplification passes, region
+      identification, and region-simplification passes — the final graph. Serialized; available on both live and
+      cached-and-reloaded clinics.
+    - ``unoptimized_graph``: a copy taken before the first structure-altering optimization pass; use it for an
+      exact instruction-to-AIL mapping. Always available live (when such a pass ran), but only serialized with
+      ``Decompiler(save_unoptimized_graph=True)`` — otherwise it is None on a cached-and-reloaded clinic.
+    - ``_ail_graph`` / ``_init_ail_graph``: pipeline internals; never serialized.
     """
 
     _ail_manager: ailment.Manager

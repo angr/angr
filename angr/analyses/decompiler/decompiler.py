@@ -62,6 +62,16 @@ class Decompiler(Analysis):
 
     Run this on a Function object for which a normalized CFG has been constructed.
     The fully processed output can be found in result.codegen.text
+
+    AIL graphs exposed on the result (both on a fresh run and on a cache hit, including caches reloaded from
+    angrdb or the runtime-db spill):
+
+    - ``ail_graph`` (= ``clinic.cc_graph``): the simplified graph before region identification.
+    - ``clinic.graph``: the final graph after region identification and region simplification.
+    - ``unoptimized_ail_graph`` (= ``clinic.unoptimized_graph``): a snapshot before the first structure-altering
+      optimization pass; use it for an exact instruction-to-AIL mapping. Always populated on a fresh run, but it
+      only survives cache serialization when ``save_unoptimized_graph=True`` is passed — on a cache hit without
+      it, this attribute is None.
     """
 
     def __init__(
