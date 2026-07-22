@@ -6,10 +6,9 @@ PyVEX, pypcode, Capstone, pydemumble, and Z3; the remaining Python dependencies 
 packages. The VEX execution engine, Claripy/Z3, CLE loaders, CFG recovery, AIL, and the portable Rust extension
 modules are supported.
 
-The browser host does not provide every native operating-system facility. ``angr.capabilities`` describes the
-active platform. In particular, WebAssembly builds do not provide LMDB-backed spilling, psutil memory monitoring,
-Unicorn, Icicle, subprocesses, or multiprocessing. Analyses use in-memory function and CFG storage when LMDB is
-unavailable.
+The browser host does not provide every native operating-system facility. WebAssembly builds do not provide
+LMDB-backed spilling, psutil memory monitoring, Unicorn, Icicle, subprocesses, or multiprocessing. Analyses use
+in-memory function and CFG storage when LMDB is unavailable.
 
 The browser example and reproducible wheel build are in the repository's ``wasm`` directory. The example loads angr
 in a dedicated module worker, copies an uploaded binary into Pyodide's virtual filesystem, and runs CFG recovery
