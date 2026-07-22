@@ -132,9 +132,26 @@ class Typehoon(Analysis):
             else:
                 the_type = type_candidates[0]
 
+            if func_addr != "global":
+                the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
+
             self.kb.variables[func_addr].set_variable_type(
                 var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
             )
+
+    @staticmethod
+    def _flatten_pointer_to_array(ty: SimType, arch) -> SimType:
+        """
+        Flatten a pointer-to-array type (``T(*)[N]``) into a pointer to the array's element type (``T*``).
+
+        Function-scope variables hold pointer *values*; a pointer-to-array solution would be declared in C
+        with the pointer level dropped (see ``SimTypePointer.c_repr``), yielding an array declaration that is
+        not assignable. Only global variables, which denote the array objects themselves, may keep the
+        pointer-to-array form.
+        """
+        while isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeArray):
+            ty = SimTypePointer(ty.pts_to.elem_type).with_arch(arch)
+        return ty
 
     def pp_constraints(self) -> None:
         """

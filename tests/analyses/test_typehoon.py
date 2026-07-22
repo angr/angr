@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
@@ -16,6 +16,7 @@ from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.analyses.typehoon.typeconsts import Float32, Float64, Int32, Pointer64, Struct
+from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
     DerivedTypeVariable,
     FuncIn,
@@ -561,6 +562,45 @@ class TestFunctionArgTypeNormalization(unittest.TestCase):
         joined = SimpleSolver.join_simtypes(t1, t2, self.arch)
         assert isinstance(joined, SimTypePointer)
         assert isinstance(joined.pts_to, SimTypeInt)
+
+
+class TestLocalVariableTypeFlattening(unittest.TestCase):
+    """
+    Tests for Typehoon._flatten_pointer_to_array, which flattens pointer-to-array solutions for function-scope
+    variables. A local variable (register or pointer-sized stack slot) holds a pointer value; keeping the
+    pointer-to-array type would make the C backend declare it as an array (``SimTypePointer.c_repr`` drops
+    the pointer level when the pointee is an array), and any later assignment to it would be illegal C
+    ("assignment to expression with array type").
+    """
+
+    arch = archinfo.arch_from_id("amd64")
+
+    def test_pointer_to_array_flattens_to_element_pointer(self):
+        # int[8] * -> int *
+        ty = SimTypePointer(SimTypeArray(SimTypeInt(), 8)).with_arch(self.arch)
+        flattened = Typehoon._flatten_pointer_to_array(ty, self.arch)
+        assert isinstance(flattened, SimTypePointer)
+        assert isinstance(flattened.pts_to, SimTypeInt)
+        # the resulting declaration must be a pointer, not an array
+        assert flattened.c_repr(name="v").endswith("*v")
+
+    def test_pointer_to_nested_array_flattens_fully(self):
+        # int[4][8] * -> int *; single-level flattening would still be declared as an array
+        ty = SimTypePointer(SimTypeArray(SimTypeArray(SimTypeInt(), 4), 8)).with_arch(self.arch)
+        flattened = Typehoon._flatten_pointer_to_array(ty, self.arch)
+        assert isinstance(flattened, SimTypePointer)
+        assert isinstance(flattened.pts_to, SimTypeInt)
+
+    def test_plain_array_unchanged(self):
+        # a genuine in-place local array (char v[22]) is typed as a plain array and must keep its type
+        ty = SimTypeArray(SimTypeChar(), 22).with_arch(self.arch)
+        flattened = Typehoon._flatten_pointer_to_array(ty, self.arch)
+        assert flattened is ty
+
+    def test_plain_pointer_unchanged(self):
+        ty = SimTypePointer(SimTypeChar()).with_arch(self.arch)
+        flattened = Typehoon._flatten_pointer_to_array(ty, self.arch)
+        assert flattened is ty
 
 
 if __name__ == "__main__":

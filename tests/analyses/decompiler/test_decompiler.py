@@ -2583,13 +2583,13 @@ class TestDecompiler(unittest.TestCase):
         assert len(following_logic) == 5, "Unexpected number of lines after switch-case"
         # expected:
         #     v1 = p[1];
-        #     ptr = &p[1];
+        #     ptr = &p[1];   (or "ptr = p + 1;" when the local is typed as an element pointer)
         #     if (!p[1])
         #         return;
         # }
         expected = [
             r"[a-zA-Z0-9]+ = [a-zA-Z0-9\[\]]+;",
-            r"[a-zA-Z0-9]+ = &[a-zA-Z0-9\[\]]+;",
+            r"[a-zA-Z0-9]+ = (?:&[a-zA-Z0-9\[\]]+|[a-zA-Z0-9]+ \+ \d+);",
             r"if \(![a-zA-Z0-9\[\]]+\)",
             r"return;",
             r"}",
