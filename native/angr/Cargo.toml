@@ -31,6 +31,7 @@ serde = { version = "1.0.228", features = ["derive", "rc"] }
 rustc-hash = "2"
 target-lexicon = "0.13.5"
 
+# Icicle's region dependency does not provide its OS query implementation for wasm32.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
 icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }

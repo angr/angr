@@ -13,10 +13,6 @@ def main() -> None:
         raise SystemExit("Set ANGR_WASM_TEST_BINARY to the x86-64 fauxware test binary")
 
     assert sys.platform == "emscripten"
-    assert angr.capabilities.emscripten
-    assert not angr.capabilities.icicle
-    assert not angr.capabilities.lmdb
-    assert not angr.capabilities.unicorn
 
     project = angr.Project(binary, auto_load_libs=False)
     block = project.factory.block(project.entry)

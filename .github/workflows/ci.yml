@@ -6,22 +6,6 @@ on:
       - master
   pull_request:
   workflow_dispatch:
-    inputs:
-      claripy_ref:
-        description: claripy ref for the WebAssembly build
-        default: master
-      cle_ref:
-        description: cle ref for the WebAssembly build
-        default: master
-      pypcode_ref:
-        description: pypcode ref for the WebAssembly build
-        default: master
-      pyvex_ref:
-        description: pyvex ref for the WebAssembly build
-        default: master
-      z3_ref:
-        description: Z3 ref for the WebAssembly build
-        default: master
   merge_group:
 
 concurrency:
@@ -87,41 +71,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           path: workspace/angr
-      - name: Checkout archinfo
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          repository: angr/archinfo
-          path: workspace/archinfo
-      - name: Checkout claripy
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          repository: angr/claripy
-          ref: ${{ inputs.claripy_ref || github.head_ref || 'master' }}
-          path: workspace/claripy
-      - name: Checkout CLE
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          repository: angr/cle
-          ref: ${{ inputs.cle_ref || github.head_ref || 'master' }}
-          path: workspace/cle
-      - name: Checkout pypcode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          repository: angr/pypcode
-          ref: ${{ inputs.pypcode_ref || github.head_ref || 'master' }}
-          path: workspace/pypcode
-      - name: Checkout PyVEX
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          repository: angr/pyvex
-          ref: ${{ inputs.pyvex_ref || github.head_ref || 'master' }}
-          submodules: recursive
-          path: workspace/pyvex
       - name: Checkout Z3
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           repository: Z3Prover/z3
-          ref: ${{ inputs.z3_ref || 'master' }}
           path: workspace/z3
       - name: Checkout test binaries
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
@@ -130,6 +83,9 @@ jobs:
           path: workspace/binaries
       - name: Set up uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v6
+      - name: Sync dependency sources
+        working-directory: workspace/angr
+        run: uv sync --no-install-project --no-default-groups
       - name: Build WebAssembly wheels
         run: workspace/angr/wasm/build_wheels.sh
         env:
