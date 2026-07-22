@@ -17,6 +17,7 @@ from angr.ailment.expression import Const
 from angr.ailment.expression import Tmp as AilTmp
 from angr.ailment.expression import VirtualVariable as AilVirtualVariable
 from angr.ailment.statement import Assignment, Return
+from angr.analyses.decompiler import optimization_pass_registry
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.notes.decompilation_note import (
     DecompilationNote,
@@ -25,6 +26,7 @@ from angr.analyses.decompiler.notes.decompilation_note import (
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
+from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.c import CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
@@ -294,11 +296,8 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.unoptimized_graph.number_of_edges() == clinic.unoptimized_graph.number_of_edges()
 
     def test_clinic_unresolvable_peephole_optimizations_roundtrip(self):
-        from angr.analyses.decompiler import optimization_pass_registry as reg
-        from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
-
         # name_to_pass returns None (not raising) for names that are not registered
-        assert reg.name_to_pass("NotARegisteredPass") is None
+        assert optimization_pass_registry.name_to_pass("NotARegisteredPass") is None
 
         dec = self.proj.analyses.Decompiler(
             self.func, cfg=self.cfg.model, peephole_optimizations=list(EXPR_OPTS[:2]), regen_clinic=True
@@ -318,12 +317,12 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         class PluginOnlyPeephole:
             __qualname__ = "PluginOnlyPeephole"
 
-        original = reg._known_passes
-        reg._known_passes = lambda: {**original(), "PluginOnlyPeephole": PluginOnlyPeephole}
+        original = optimization_pass_registry._known_passes
+        optimization_pass_registry._known_passes = lambda: {**original(), "PluginOnlyPeephole": PluginOnlyPeephole}
         try:
             back.resolve_peephole_optimizations()
         finally:
-            reg._known_passes = original
+            optimization_pass_registry._known_passes = original
         assert back.unresolvable_peephole_optimizations == []
         assert PluginOnlyPeephole in back.peephole_optimizations
 

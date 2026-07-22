@@ -20,8 +20,10 @@ def pass_to_name(cls: type) -> str:
 
 
 def name_to_pass(name: str) -> type | None:
-    """Resolve a class name back to its registered pass class. Returns None for names that are not registered —
-    e.g. passes defined by analyses or plugins that have not been imported (yet)."""
+    """
+    Resolve a class name back to its registered pass class. Returns None for names that are not registered at the time
+    this method is called. Peephole passes might be defined by analyses or plugins that have not yet been imported.
+    """
     return _known_passes().get(name)
 
 
