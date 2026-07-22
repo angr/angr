@@ -3596,7 +3596,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     target_func_addr = node.function_address
             # case 2: if the source instruction is the first instruction of the current function, has only one branch
             # to the target address, and is a jump (Ijk_Boring, not a call), then the target address is likely the
-            # start of another function
+            # start of another function. A compiler may also begin a function with an
+            # unconditional jump to an internal loop guard (loop rotation). When the loader
+            # supplies a non-empty function symbol, its extent is stronger evidence than this
+            # tail-jump heuristic: keep a target inside that extent in the current function.
             if (
                 target_func_addr is None
                 and len(src_node.instruction_addrs) == 1
@@ -3605,7 +3608,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 and all_successors is not None
                 and len(all_successors) == 1
             ):
-                target_func_addr = target_addr
+                current_symbol = self.project.loader.find_symbol(current_function_addr)
+                current_symbol_size = getattr(current_symbol, "size", 0) or 0
+                target_is_inside_current_symbol = (
+                    current_symbol is not None
+                    and current_symbol.is_function
+                    and current_symbol.rebased_addr == current_function_addr
+                    and current_symbol_size > 0
+                    and current_function_addr <= target_addr < current_function_addr + current_symbol_size
+                )
+                if not target_is_inside_current_symbol:
+                    target_func_addr = target_addr
             # last resort: the block probably belongs to the current function
             if target_func_addr is None:
                 target_func_addr = current_function_addr
