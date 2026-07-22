@@ -28,6 +28,7 @@ from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
     DirtyStatement,
+    Jump,
     Label,
     Return,
     SideEffectStatement,
@@ -837,14 +838,18 @@ class KnownPatternFinder(Analysis):
         interior_locs = [loc for lbl, loc in match.block_map.items() if loc != entry_loc]
 
         # every interior (non-entry) block must be fully consumed apart from
-        # Label statements — otherwise the region has residue we cannot cut
+        # Label statements and a trailing unconditional Jump — otherwise the
+        # region has residue we cannot cut. A Jump is control-flow scaffolding
+        # the Outliner rebuilds from the region edges, not data-flow residue, so
+        # it never needs a pattern node to consume it (an interior block ending
+        # in an explicit `goto merge`, common in un-structured AIL, is fine).
         for loc in interior_locs:
             block = nodes_dict.get(loc)
             if block is None:
                 raise UnsupportedOutlineError("stale match: a matched block is gone from the graph")
             consumed = match.consumed_by_block[loc]
             for i, stmt in enumerate(block.statements):
-                if i not in consumed and not isinstance(stmt, Label):
+                if i not in consumed and not isinstance(stmt, (Label, Jump)):
                     raise UnsupportedOutlineError(
                         f"pattern {match.pattern.name}: interior block {loc} has unmatched statements"
                     )
