@@ -5946,6 +5946,34 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
 
+    def test_decompiling_vla_ffs(self, decompiler_options=None):
+        # sub_4051d0 declares a variable-length array `uint8_t blk[e->bs];`, which GCC lowers to an inline
+        # stack-probe alloca (align rsp, a page-touch probe loop, and a variable remainder subtraction).
+        # angr should recover it as an array variable with a runtime dimension instead of leaking raw
+        # stack-pointer virtual variables (vvar_*{r48}) and `*(p) = *(p)` no-op page touches.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ffs")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+        p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        f = cfg.functions[0x4051D0]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert text is not None
+        # the VLA is recovered as an array declaration with a runtime dimension, tagged `// alloca`
+        m = re.search(r"uint8_t (\w+)\[[^\]]+\];\s*// alloca", text)
+        assert m is not None, "expected a recovered VLA declaration `uint8_t <name>[<dim>];  // alloca`"
+        name = m.group(1)
+        # no raw stack-pointer virtual variables leak into the output
+        assert "{r48" not in text and "vvar_" not in text
+        # the page-probe loop and its `*(p) = *(p)` no-op touches are gone
+        assert re.search(r"do\s*\{\s*\}\s*while", text) is None
+        # the pread call addresses the recovered buffer by name
+        assert re.search(rf"pread\([^)]*\b{name}\b", text) is not None
+
 
 if __name__ == "__main__":
     unittest.main()

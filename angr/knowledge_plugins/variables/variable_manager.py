@@ -134,6 +134,10 @@ class VariableManagerInternal(Serializable):
         self.variable_to_types: dict[SimVariable, SimType] = {}
         self.variables_with_manual_types = set()
 
+        # dimension expressions for variable-length arrays (VLAs). Maps a (unified) variable typed as a
+        # length-less SimTypeArray to the ailment expression giving its runtime length, e.g. ``e->bs``.
+        self.array_length_exprs: dict[SimVariable, ailment.Expression] = {}
+
         # optimization
         self._variables_without_writes = set()
 
