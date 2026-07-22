@@ -1068,6 +1068,7 @@ class Function(Serializable):
 
     @dirty_func
     def _clear_transition_graph(self):
+        self.normalized = False
         self._block_sizes = {}
         self._addr_to_block_node = {}
         self._local_blocks = {}

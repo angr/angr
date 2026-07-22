@@ -761,6 +761,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if is_dotnet and once("dotnet_native"):
                 l.warning("You're trying to analyze a .NET binary as native code. Are you sure?")
 
+        self._model_was_provided = model is not None
+
         CFGBase.__init__(
             self,
             "fast",
@@ -1529,6 +1531,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Call _initialize_cfg() before self.functions is used.
         self._initialize_cfg()
+
+        # A fresh CFG model must not be recovered into function graphs left over from a different model. In
+        # particular, a normalized graph may contain artificial splits of overlapping instruction streams that a
+        # lifter cannot reproduce. Retain function metadata and known starts, but rebuild all structural data from
+        # this model.
+        if not self._model_was_provided:
+            self.functions.callgraph.clear_edges()
+            for function in self.functions.values():
+                function._clear_transition_graph()
+                self.functions.set_func_block_count(function.addr, 0)
 
         # Scan for __x86_return_thunk and friends
         self._known_thunks = self._find_thunks()
