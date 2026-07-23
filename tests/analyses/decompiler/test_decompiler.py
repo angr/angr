@@ -50,6 +50,7 @@ from angr.sim_type import (
     SimTypeInt,
     SimTypeLongLong,
     SimTypePointer,
+    SimTypeShort,
 )
 from angr.sim_variable import SimStackVariable
 from angr.utils.library import convert_cproto_to_py
@@ -5672,7 +5673,7 @@ class TestDecompiler(unittest.TestCase):
 
     def test_tail_calls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tail_calls.o")
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj = angr.Project(bin_path)
         cfg = proj.analyses.CFG(normalize=True)
         proj.analyses.CompleteCallingConventions(analyze_callsites=False)
 
@@ -5701,9 +5702,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((int){a0})
+                if ((unsigned int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
-                return (int){a0} - 1;
+                return (unsigned int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
@@ -5723,9 +5724,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((int){a0})
+                if ((unsigned int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
-                return (int){a0} - 1;
+                return (unsigned int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
@@ -5952,6 +5953,29 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
+
+    def test_widening_conversion_signedness(self, decompiler_options=None):
+        # A widening integer conversion carries the signedness of its source operand: a sign-extending Convert
+        # (e.g. movswl) implies a signed source, and a zero-extending Convert (e.g. movzwl) implies an unsigned
+        # source. Make sure a sign-extended 16-bit parameter is recovered as a signed short (not unsigned short).
+        bin_path = os.path.join(test_location, "x86_64", "sign_extend_widen")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+
+        expected_signed = {
+            "w_s8": (SimTypeChar, True),
+            "w_u8": (SimTypeChar, False),
+            "w_s16": (SimTypeShort, True),
+            "w_u16": (SimTypeShort, False),
+        }
+        for name, (ty_cls, signed) in expected_signed.items():
+            f = proj.kb.functions.function(name=name)
+            dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+            print_decompilation_result(dec)
+            arg0 = f.prototype.args[0]
+            assert isinstance(arg0, ty_cls), f"{name}: expected {ty_cls.__name__}, got {arg0!r}"
+            assert arg0.signed is signed, f"{name}: expected signed={signed}, got signed={arg0.signed}"
 
 
 if __name__ == "__main__":
