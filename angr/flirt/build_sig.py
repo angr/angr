@@ -191,6 +191,11 @@ def main():
     parser.add_argument("sig_name", help="Name of the signature (a string inside the signature file)")
     parser.add_argument("sig_path", help="File name of the generated signature")
     parser.add_argument(
+        "--library",
+        help="Concrete, unique name of the library this signature is built from (e.g., libc), shared by all "
+        "signature variants of the same library. Defaults to sig_name. It will be stored in the meta data file.",
+    )
+    parser.add_argument(
         "--compiler", help="Name of the compiler (e.g., gcc, clang). It will be stored in the meta data file."
     )
     parser.add_argument(
@@ -222,6 +227,10 @@ def main():
         sigmake_path = os.environ["SIGMAKE_PATH"]
     else:
         raise ValueError("sigmake_path must be specified.")
+
+    library = args.library
+    if library:
+        library = library.lower()
 
     compiler = args.compiler
     if compiler:
@@ -288,6 +297,8 @@ def main():
     with open(meta_path, "w", encoding="utf-8") as f:
         metadata = {
             "unique_strings": unique_strings,
+            # sig_name has been sanitized at this point and matches the library name stored in the signature file
+            "library": library or sig_name,
         }
         metadata.update(basic_info)
         if compiler_version:
