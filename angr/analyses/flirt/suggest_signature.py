@@ -22,9 +22,14 @@ class SuggestSignatureAnalysis(Analysis):
     libraries in the binary. Suggestions whose number of matched constants meets ``min_matches`` are accepted, and,
     when ``apply`` is set, each accepted signature is matched against the binary via FlirtAnalysis.
 
+    Multiple signatures may exist for one library (e.g., libc builds for different distro releases). Suggestions are
+    grouped by the concrete library name (the ``library`` field of the signature metadata, falling back to the
+    signature name when unset), and only the ``max_signatures_per_library`` best-scored signatures of each library are
+    accepted.
+
     Results are stored in ``suggestions`` (all arch-compatible suggestions returned by sigserv), ``accepted`` (the
-    accepted subset, best-scored first), and ``applied`` (sig_path to number of matched functions, when ``apply`` is
-    set).
+    accepted subset, best-scored first), ``accepted_by_library`` (the accepted subset grouped by library), and
+    ``applied`` (sig_path to number of matched functions, when ``apply`` is set).
     """
 
     def __init__(
@@ -34,6 +39,7 @@ class SuggestSignatureAnalysis(Analysis):
         sig_server=None,
         apply: bool = True,
         min_matches: int = 2,
+        max_signatures_per_library: int = 1,
         max_signatures: int | None = None,
         platform: str | None = None,
         max_mismatched_bytes: int = 0,
@@ -67,10 +73,22 @@ class SuggestSignatureAnalysis(Analysis):
             strings=self.query_strings, integers=self.query_integers, arch=None, platform=platform
         )
         self.suggestions: list[dict] = [s for s in suggestions if self._arch_matches(s["meta"].get("arch"))]
+        for s in self.suggestions:
+            s["library"] = s["meta"].get("library") or s["library_name"]
 
         accepted = [
             s for s in self.suggestions if len(s["matched_strings"]) + len(s["matched_integers"]) >= min_matches
         ]
+        # keep only the best-scored signatures of each library
+        by_library: dict[str, list[dict]] = {}
+        for s in accepted:
+            by_library.setdefault(s["library"], []).append(s)
+        for lib, group in by_library.items():
+            group.sort(key=lambda s: s["score"], reverse=True)
+            by_library[lib] = group[:max_signatures_per_library]
+        self.accepted_by_library: dict[str, list[dict]] = by_library
+
+        accepted = [s for group in by_library.values() for s in group]
         accepted.sort(key=lambda s: s["score"], reverse=True)
         if max_signatures is not None:
             accepted = accepted[:max_signatures]
@@ -80,7 +98,7 @@ class SuggestSignatureAnalysis(Analysis):
         if apply:
             for s in self.accepted:
                 sig_path = s["sig_path"]
-                _l.info("Applying suggested FLIRT signature %s (library %s).", sig_path, s["library_name"])
+                _l.info("Applying suggested FLIRT signature %s (library %s).", sig_path, s["library"])
                 flirt = self.project.analyses.Flirt(sig_path, max_mismatched_bytes=max_mismatched_bytes)
                 self.applied[sig_path] = sum(len(d) for _, d in flirt.matched_suggestions.values())
 

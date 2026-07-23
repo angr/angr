@@ -47,6 +47,7 @@ class TestSuggestSignature(unittest.TestCase):
         )
         meta = {
             "unique_strings": LIBC_STRINGS,
+            "library": "libc",
             "arch": "amd64",
             "platform": "linux",
             "os": "ubuntu",
@@ -57,6 +58,16 @@ class TestSuggestSignature(unittest.TestCase):
         with open(os.path.join(cls.sigs_dir, "libc_ubuntu_2004.meta"), "w", encoding="utf-8") as f:
             json.dump(meta, f)
 
+        # a second, worse-scoring signature of the same library: fewer unique strings match the binary
+        shutil.copy(
+            os.path.join(cls.sigs_dir, "libc_ubuntu_2004.sig"),
+            os.path.join(cls.sigs_dir, "libc_ubuntu_2004_alt.sig"),
+        )
+        alt_meta = dict(meta)
+        alt_meta["unique_strings"] = LIBC_STRINGS[:2]
+        with open(os.path.join(cls.sigs_dir, "libc_ubuntu_2004_alt.meta"), "w", encoding="utf-8") as f:
+            json.dump(alt_meta, f)
+
         # a decoy library whose unique strings do not occur in the binary
         shutil.copy(
             os.path.join(bin_location, "tests", "armhf", "debian_10.3_libc.sig"),
@@ -64,6 +75,7 @@ class TestSuggestSignature(unittest.TestCase):
         )
         decoy_meta = dict(meta)
         decoy_meta["unique_strings"] = DECOY_STRINGS
+        decoy_meta["library"] = "decoy"
         with open(os.path.join(cls.sigs_dir, "decoy_lib.meta"), "w", encoding="utf-8") as f:
             json.dump(decoy_meta, f)
 
@@ -83,8 +95,13 @@ class TestSuggestSignature(unittest.TestCase):
         assert analysis.accepted
         top = analysis.accepted[0]
         assert top["library_name"] == "libc_ubuntu_2004"
+        assert top["library"] == "libc"
         assert len(top["matched_strings"]) >= 2
         assert all(s["library_name"] != "decoy_lib" for s in analysis.accepted)
+        # both libc signatures are suggested, but only the best-scored one per library is accepted
+        assert any(s["library_name"] == "libc_ubuntu_2004_alt" for s in analysis.suggestions)
+        assert [s["library_name"] for s in analysis.accepted if s["library"] == "libc"] == ["libc_ubuntu_2004"]
+        assert set(analysis.accepted_by_library) == {"libc"}
         assert not analysis.applied
         assert proj.kb.functions[0x415CC0].is_default_name is True
 
@@ -101,15 +118,26 @@ class TestSuggestSignature(unittest.TestCase):
         db_path = os.path.join(self.tmpdir.name, "sigs.db")
         server = sigserv.SigServer(db_url=f"sqlite://{db_path}")
         counts = server.import_dir(self.sigs_dir)
-        assert counts["libraries"] == 2
+        assert counts["libraries"] == 3
 
         analysis = self.proj.analyses.SuggestSignature(db_url=f"sqlite://{db_path}", apply=False)
         assert analysis.suggestions
         assert analysis.accepted
         top = analysis.accepted[0]
         assert top["library_name"] == "libc_ubuntu_2004"
+        assert top["library"] == "libc"
         assert len(top["matched_strings"]) >= 2
         assert all(s["library_name"] != "decoy_lib" for s in analysis.accepted)
+        assert [s["library_name"] for s in analysis.accepted if s["library"] == "libc"] == ["libc_ubuntu_2004"]
+
+    def test_per_library_selection(self):
+        analysis = self.proj.analyses.SuggestSignature(
+            signatures_dir=self.sigs_dir, apply=False, max_signatures_per_library=2
+        )
+        libc_group = analysis.accepted_by_library["libc"]
+        assert [s["library_name"] for s in libc_group] == ["libc_ubuntu_2004", "libc_ubuntu_2004_alt"]
+        assert libc_group[0]["score"] > libc_group[1]["score"]
+        assert all(s["library"] == "libc" for s in libc_group)
 
     def test_input_collection(self):
         analysis = self.proj.analyses.SuggestSignature(signatures_dir=self.sigs_dir, apply=False)
