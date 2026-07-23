@@ -24,6 +24,7 @@ from .fcp import FastConstantPropagation
 from .find_objects_static import StaticObjectFinder
 from .flirt import FlirtAnalysis
 from .forward_analysis import ForwardAnalysis, visitors
+from .full_program_indirect_jump_resolution import FullProgramIndirectJumpResolution
 from .identifier import Identifier
 from .init_finder import InitializationFinder
 from .language_detector import LanguageDetector
@@ -83,6 +84,7 @@ __all__ = (
     "FastConstantPropagation",
     "FlirtAnalysis",
     "ForwardAnalysis",
+    "FullProgramIndirectJumpResolution",
     "Identifier",
     "InitializationFinder",
     "LanguageDetector",
