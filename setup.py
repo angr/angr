@@ -27,6 +27,8 @@ elif sys.platform in ("win32", "cygwin"):
 else:
     library_file = "unicornlib.so"
 
+is_wasm_build = sys.platform == "emscripten" or os.environ.get("_PYTHON_HOST_PLATFORM", "").startswith("emscripten")
+
 
 def build_unicornlib():
     try:
@@ -86,7 +88,8 @@ def clean_unicornlib():
 class build(st_build):
     def run(self, *args):
         self.execute(build_protos, (), msg="Generating protobuf modules")
-        self.execute(build_unicornlib, (), msg="Building unicornlib")
+        if not is_wasm_build:
+            self.execute(build_unicornlib, (), msg="Building unicornlib")
         super().run(*args)
 
 

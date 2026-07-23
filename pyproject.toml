@@ -35,12 +35,12 @@ dependencies = [
     "cffi>=1.14.0",
     "claripy==9.3.1.dev0",
     "cle==9.3.1.dev0",
-    "lmdb==2.1.1",
+    "lmdb==2.1.1; sys_platform != 'emscripten'",
     "msgspec; implementation_name == 'cpython'",
     "mulpyplexer",
     "networkx!=2.8.1,>=2.0",
     "protobuf>=6.33.0",
-    "psutil",
+    "psutil; sys_platform != 'emscripten'",
     "pycparser~=3.0",
     "platformdirs",
     "pydemumble==0.0.1",
@@ -122,8 +122,9 @@ default-groups = ["dev", "extras"]
 angr-data = { git = "https://github.com/angr/angr-data.git", branch = "master" }
 archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
-cle = { git = "https://github.com/angr/cle.git", branch = "master" }
-claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
+cle = { git = "https://github.com/angr/cle.git", branch = "wasm-host-followup" }
+claripy = { git = "https://github.com/angr/claripy.git", branch = "wasm-host-support" }
+pypcode = { git = "https://github.com/angr/pypcode.git", branch = "wasm-host-support" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
 
 [tool.ruff]

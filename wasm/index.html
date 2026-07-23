@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>angr WebAssembly demo</title>
+    <style>
+      body { max-width: 56rem; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.5 system-ui, sans-serif; }
+      button, input { font: inherit; }
+      .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+      pre { overflow: auto; padding: 1rem; background: #111; color: #d8f7d2; border-radius: .4rem; }
+    </style>
+  </head>
+  <body>
+    <h1>angr in your browser</h1>
+    <p>Try the bundled fauxware sample or choose your own binary. It stays in this worker and is analyzed locally.</p>
+    <div class="actions">
+      <button id="sample" disabled>Analyze fauxware</button>
+      <input id="binary" type="file" />
+      <button id="analyze" disabled>Analyze upload</button>
+    </div>
+    <pre id="output">Loading the WebAssembly runtime…</pre>
+    <script type="module">
+      const output = document.querySelector("#output");
+      const sampleButton = document.querySelector("#sample");
+      const uploadButton = document.querySelector("#analyze");
+      const input = document.querySelector("#binary");
+      const worker = new Worker("./worker.mjs", { type: "module" });
+      let nextId = 0;
+      let runtimeReady = false;
+      let fauxware;
+      const pending = new Map();
+      const fauxwareRequest = fetch("./samples/fauxware").then(async (response) => {
+        if (!response.ok) throw new Error(`Could not load fauxware: HTTP ${response.status}`);
+        return new Uint8Array(await response.arrayBuffer());
+      });
+
+      worker.addEventListener("message", ({ data }) => {
+        const request = pending.get(data.id);
+        if (!request) return;
+        pending.delete(data.id);
+        (data.ok ? request.resolve : request.reject)(data.ok ? data.result : new Error(data.error));
+      });
+
+      function ask(message, transfer = []) {
+        const id = ++nextId;
+        return new Promise((resolve, reject) => {
+          pending.set(id, { resolve, reject });
+          worker.postMessage({ ...message, id }, transfer);
+        });
+      }
+
+      try {
+        const info = await ask({ type: "init" });
+        runtimeReady = true;
+        output.textContent = `angr ${info.version} is ready.`;
+        uploadButton.disabled = false;
+      } catch (error) {
+        output.textContent = error.stack;
+      }
+
+      try {
+        fauxware = await fauxwareRequest;
+        sampleButton.disabled = !runtimeReady;
+      } catch (error) {
+        sampleButton.title = error.message;
+      }
+
+      async function analyze(data, description) {
+        sampleButton.disabled = true;
+        uploadButton.disabled = true;
+        output.textContent = `Analyzing ${description}…`;
+        try {
+          const result = await ask({ type: "analyze", data }, [data]);
+          output.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          output.textContent = error.stack;
+        } finally {
+          sampleButton.disabled = !runtimeReady || !fauxware;
+          uploadButton.disabled = !runtimeReady;
+        }
+      }
+
+      sampleButton.addEventListener("click", () => {
+        analyze(fauxware.slice().buffer, "fauxware");
+      });
+
+      uploadButton.addEventListener("click", async () => {
+        if (!input.files.length) return;
+        analyze(await input.files[0].arrayBuffer(), input.files[0].name);
+      });
+    </script>
+  </body>
+</html>

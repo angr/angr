@@ -7,9 +7,8 @@ import os
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
 
-import lmdb
-
 import angr
+from angr.utils.lmdb import lmdb, lmdb_available
 
 from .plugin import KnowledgeBasePlugin
 
@@ -24,7 +23,11 @@ l = logging.getLogger(name=__name__)
 
 # The default number of decompilation caches to keep in memory when spilling is enabled.
 DECOMPILATION_CACHE_LIMIT = 128
-USE_SPILLING_CODE_CACHE = os.environ.get("USE_SPILLING_CODE_CACHE", "True").lower() not in ("0", "false", "no")
+USE_SPILLING_CODE_CACHE = lmdb_available and os.environ.get("USE_SPILLING_CODE_CACHE", "True").lower() not in (
+    "0",
+    "false",
+    "no",
+)
 
 # (function address, flavor)
 CacheKey = tuple[int, str]

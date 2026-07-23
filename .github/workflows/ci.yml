@@ -62,3 +62,46 @@ jobs:
         with:
           python-version: "3.12"
       - run: cargo test --release
+
+  browser_runtime:
+    name: Test WebAssembly browser runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout angr
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          path: workspace/angr
+      - name: Checkout Z3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          repository: Z3Prover/z3
+          path: workspace/z3
+      - name: Checkout test binaries
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          repository: angr/binaries
+          path: workspace/binaries
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v6
+      - name: Sync dependency sources
+        working-directory: workspace/angr
+        run: uv sync --no-install-project --no-default-groups
+      - name: Build WebAssembly wheels
+        run: workspace/angr/wasm/build_wheels.sh
+        env:
+          ANGR_WASM_WORKSPACE: ${{ github.workspace }}/workspace
+      - name: Run symbolic-execution smoke test
+        run: workspace/angr/wasm/test_wheels.sh
+        env:
+          ANGR_WASM_WORKSPACE: ${{ github.workspace }}/workspace
+          ANGR_WASM_TEST_BINARY: ${{ github.workspace }}/workspace/binaries/tests/x86_64/fauxware
+      - name: Store browser distribution
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: angr-wasm
+          path: |
+            workspace/angr/wasm/dist/*.whl
+            workspace/angr/wasm/manifest.json
+            workspace/angr/wasm/index.html
+            workspace/angr/wasm/worker.mjs
+            workspace/angr/wasm/samples/fauxware

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -z "${ANGR_WASM_REAL_MAKE:-}" ]]; then
+    echo "ANGR_WASM_REAL_MAKE must name the system make executable" >&2
+    exit 1
+fi
+
+"$ANGR_WASM_REAL_MAKE" "$@"
+
+# Emscripten's CMake platform gives executables a .js suffix even when the
+# output is a raw WebAssembly module. Z3's unmodified Python packager accepts
+# the extensionless fallback, so normalize the build artifact after make.
+if [[ -f z3.js && ! -e z3 ]]; then
+    cp z3.js z3
+fi
