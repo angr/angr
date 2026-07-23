@@ -21,6 +21,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ConstantDereferences,
     EagerEvaluation,
     OptimizedDivisionSimplifier,
+    RemoveRedundantShifts,
     SimplifyBitwiseInserts,
 )
 from angr.analyses.decompiler.utils import peephole_optimize_expr
@@ -233,6 +234,39 @@ class TestPeepholeOptimizations(unittest.TestCase):
                 assert isinstance(r.operand, BinaryOp) and r.operand.op == "Div"
                 divisor_operand = r.operand.operands[1]
                 assert isinstance(divisor_operand, Const) and divisor_operand.value == divisor
+
+    def test_remove_redundant_shifts_preserves_sign_extension(self):
+        # (x << N) Sar N is a sign-extension of the low (bits - N) bits and must NOT be turned into a
+        # zero-extending bitmask. Regression test for the simplifier dropping the sign bit, decompiling
+        # `(int)(x << 20) >> 20` (sign-extend the low 12 bits) into the wrong `x & 0xfff` (zero-extend).
+        mgr = Manager(arch=archinfo.arch_from_id("AMD64"))
+
+        # Arithmetic shift, standard resulting width (32 - 16 = 16): sign-extend via a *signed* outer Convert.
+        x = Register(mgr.next_atom(), 16, 32)
+        shl = BinaryOp(mgr.next_atom(), "Shl", [x, Const(mgr.next_atom(), 16, 8)], False, bits=32)
+        sar = BinaryOp(mgr.next_atom(), "Sar", [shl, Const(mgr.next_atom(), 16, 8)], True, bits=32)
+        r = RemoveRedundantShifts(None, None, mgr).optimize(sar)
+        assert isinstance(r, Convert)
+        assert r.from_bits == 16 and r.to_bits == 32
+        assert r.is_signed is True  # the outer conversion MUST sign-extend (not zero-extend)
+        assert isinstance(r.operand, Convert) and r.operand.from_bits == 32 and r.operand.to_bits == 16
+
+        # Arithmetic shift, non-standard resulting width (32 - 20 = 12): leave the Sar/Shl pair intact rather
+        # than emit a zero-extend mask that would silently drop the sign bit (12 bits has no clean C type).
+        x = Register(mgr.next_atom(), 16, 32)
+        shl = BinaryOp(mgr.next_atom(), "Shl", [x, Const(mgr.next_atom(), 20, 8)], False, bits=32)
+        sar = BinaryOp(mgr.next_atom(), "Sar", [shl, Const(mgr.next_atom(), 20, 8)], True, bits=32)
+        r = RemoveRedundantShifts(None, None, mgr).optimize(sar)
+        assert r is None
+
+        # Logical shift (Shr): the low-bit *zero*-extension is correct for any width -> unsigned outer Convert.
+        x = Register(mgr.next_atom(), 16, 32)
+        shl = BinaryOp(mgr.next_atom(), "Shl", [x, Const(mgr.next_atom(), 20, 8)], False, bits=32)
+        shr = BinaryOp(mgr.next_atom(), "Shr", [shl, Const(mgr.next_atom(), 20, 8)], False, bits=32)
+        r = RemoveRedundantShifts(None, None, mgr).optimize(shr)
+        assert isinstance(r, Convert)
+        assert r.from_bits == 12 and r.to_bits == 32
+        assert r.is_signed is False  # zero-extend
 
     def test_bswap32_intrinsic_name(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
