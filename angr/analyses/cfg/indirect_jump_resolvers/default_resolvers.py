@@ -10,6 +10,7 @@ from . import (
     AMD64PeIatResolver,
     ArmElfFastResolver,
     ConstantResolver,
+    FastJumpTableResolver,
     JumpTableResolver,
     MipsElfFastResolver,
     MipsElfGotResolver,
@@ -69,7 +70,7 @@ DEFAULT_RESOLVERS = {
             AArch64MachOGotResolver,
         ]
     },
-    "ALL": [MemoryLoadResolver, JumpTableResolver, ConstantResolver, SyscallResolver],
+    "ALL": [MemoryLoadResolver, FastJumpTableResolver, JumpTableResolver, ConstantResolver, SyscallResolver],
 }
 
 
