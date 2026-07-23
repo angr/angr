@@ -1348,11 +1348,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     )
                     start_addr += pointer_length
 
-                elif start_addr <= 0x100000:
-                    # for high addresses, all pointers have been found in _scan_for_consecutive_pointers() because we
-                    # set threshold there to 1
-                    threshold = 4
-                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=6)
+                else:
+                    if start_addr <= 0x100000:
+                        # for low addresses, in-object values are common false positives, so
+                        # _scan_for_consecutive_pointers() ran with a high threshold and may have missed
+                        # non-consecutive pointers; require a high pointer density here
+                        threshold, window = 4, 6
+                    else:
+                        # for high addresses, all consecutive pointers have been found in
+                        # _scan_for_consecutive_pointers() because we set threshold there to 1. what remains are
+                        # interleaved tables (e.g., alternating value-pointer pairs), which have at most window // 2
+                        # pointers; use a wider window with the same evidence requirement
+                        threshold, window = 4, 8
+                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=window)
                     pointer_length = pointer_count * self.project.arch.bytes
 
                     if pointer_length:
