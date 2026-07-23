@@ -650,6 +650,16 @@ class SimEngineVRAIL(
                         r.typevar, label=typevars.ConvertTo(expr.to_bits)
                     )
 
+        if (
+            expr.from_bits != expr.to_bits
+            and r.typevar is not None
+            and not isinstance(r.typevar, typeconsts.TypeConstant)
+        ):
+            int_type_cls = typeconsts.signed_int_type if expr.is_signed else typeconsts.unsigned_int_type
+            tc = int_type_cls(expr.from_bits)
+            if tc is not None:
+                self.state.add_type_constraint(typevars.Subtype(r.typevar, tc))
+
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
     def _handle_expr_Extract(self, expr: ailment.expression.Extract):
