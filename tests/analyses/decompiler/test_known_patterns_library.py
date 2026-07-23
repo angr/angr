@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
+import contextlib
 import os.path
 import unittest
 from unittest import TestCase
@@ -27,6 +28,7 @@ VM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patt
 MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_stl_msvc_17_x64.exe")
 CSTR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_msvc_string_cstr.exe")
 MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
+CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
 _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
@@ -236,37 +238,142 @@ class TestUnorderedStmtSeqDecl(TestCase):
 
 class TestMsvcStringCstr(TestCase):
     # MSVC std::string::c_str() is inlined as a small-string-optimization select
-    # (a control-flow diamond), not an expression idiom, so it exercises the
-    # PGraphPat + PPhi path against a real, statically-linked MSVC binary. The
-    # target function inlines c_str() three times.
+    # (a control-flow diamond / PGraphPat), matched in clean pre-de-phi SSA so
+    # the KnownPatternOutliner pass recognizes and outlines it *during*
+    # decompilation. The target function inlines c_str() three times.
     CSTR_FUNC = 0x140009280
 
-    def _decompile_fast(self):
+    def test_find_msvc_string_cstr(self):
+        # the clean SSA form (no de-phi copies) is present right after Stage-1 SSA
         proj = angr.Project(CSTR_BIN, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(addr=self.CSTR_FUNC)
         assert func is not None
-        # 'fast' preset: no outlining pass, so the raw SSO diamonds are intact
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="fast")
-        return proj, cfg, func, dec
-
-    def test_find_msvc_string_cstr(self):
-        proj, _cfg, func, dec = self._decompile_fast()
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="fast", clinic_end_stage=ClinicStage.SSA_LEVEL1_TRANSFORMATION
+        )
         finder = _find(proj, func, dec, templates=[STD_STRING_CSTR])
         assert len(finder.matches) == 3, [m.pattern.name for m in finder.matches]
         for m in finder.matches:
             assert m.block_map is not None and set(m.block_map) == {"entry", "heap"}
             assert m.frontier_locs is not None and len(m.frontier_locs) == 1
 
-    def test_outline_msvc_string_cstr(self):
-        proj, cfg, func, dec = self._decompile_fast()
-        finder = _find(proj, func, dec, templates=[STD_STRING_CSTR])
-        # the outlined callee takes exactly the string pointer as its single arg
-        result = finder.outline(finder.matches[0])
-        assert len(result.child_funcargs) == 1
-        text = _outline_text(proj, cfg, func, dec, finder)
-        assert "std::string::c_str(" in text
+    def test_outlines_during_decompilation(self):
+        # c_str is enabled by default, so a normal full-preset decompile outlines
+        # all three SSO diamonds. This exercises the whole in-pipeline path:
+        # matching the clean SSA form at BEFORE_VARIABLE_RECOVERY, outlining a
+        # value-producing diamond, and the Outliner collapsing the frontier phi so
+        # the subsequent de-phi succeeds. (Also pins c_str as enabled-by-default.)
+        proj = angr.Project(CSTR_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(addr=self.CSTR_FUNC)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None
+        assert dec.codegen.text.count("std::string::c_str(") == 3, dec.codegen.text
+
+
+@contextlib.contextmanager
+def _all_patterns_enabled():
+    """Temporarily flip every KnownPattern template to enabled-by-default so the
+    KnownPatternOutliner pass exercises the opt-in ones too."""
+    import dataclasses
+
+    from angr.analyses.decompiler.known_patterns import ALL_KNOWN_PATTERN_TEMPLATES, TEMPLATE_BY_CALL_NAME
+
+    saved = list(ALL_KNOWN_PATTERN_TEMPLATES)
+    saved_map = dict(TEMPLATE_BY_CALL_NAME)
+    enabled = [t if t.enabled_by_default else dataclasses.replace(t, enabled_by_default=True) for t in saved]
+    ALL_KNOWN_PATTERN_TEMPLATES[:] = enabled
+    TEMPLATE_BY_CALL_NAME.update({t.call_name: t for t in enabled})
+    try:
+        yield
+    finally:
+        ALL_KNOWN_PATTERN_TEMPLATES[:] = saved
+        TEMPLATE_BY_CALL_NAME.clear()
+        TEMPLATE_BY_CALL_NAME.update(saved_map)
+
+
+def _assert_outlines_during(test, bin_path, targets):
+    """Assert each (func-name-or-address, call-fragment) is outlined by the pass
+    during a normal full-preset decompile (not only via a finder afterwards)."""
+    with _all_patterns_enabled():
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        for ref, frag in targets:
+            with test.subTest(target=ref):
+                func = cfg.functions.function(name=ref) if isinstance(ref, str) else cfg.functions.function(addr=ref)
+                assert func is not None, ref
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+                assert dec.codegen is not None and dec.codegen.text is not None
+                assert frag in dec.codegen.text, f"{ref!r}: {frag!r} not outlined DURING decompilation"
+
+
+class TestPatternsOutlineDuringDecompilation(TestCase):
+    # Every pattern must be recognized and outlined *during* decompilation (by the
+    # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
+    # is run on the final graph afterwards. The opt-in templates are enabled here so
+    # the pass exercises them; this guards against a pattern being calibrated only
+    # for the final (post-de-phi) form — the bug that made c_str match after but not
+    # during decompilation. (std::swap: see test_known_patterns.TestAutomaticPipeline;
+    # std::string::c_str: see TestMsvcStringCstr.test_outlines_during_decompilation.)
+
+    def test_stl_elf(self):
+        _assert_outlines_during(
+            self,
+            STL_BIN,
+            [
+                ("get_len", "std::string::length("),
+                ("get_size", "std::vector<int>::size("),
+                ("get_size_ll", "std::vector<long long>::size("),
+                ("str_empty", "std::string::empty("),
+                ("str_index", "std::string::operator[]("),
+                ("vec_empty", "std::vector<int>::empty("),
+                ("vec_capacity", "std::vector<int>::capacity("),
+                ("vec_index", "std::vector<int>::operator[]("),
+            ],
+        )
+
+    def test_linked_list(self):
+        _assert_outlines_during(
+            self,
+            LINUX_BIN,
+            [("lx_is_empty", "IsListEmpty("), ("lx_init", "InitializeListHead("), ("lx_del", "RemoveEntryList(")],
+        )
+        _assert_outlines_during(self, WDK_BIN, [("wdk_remove", "RemoveEntryList(")])
+
+    def test_containing_record(self):
+        _assert_outlines_during(self, CR_BIN, [("sum_list", "CONTAINING_RECORD(")])
+
+    def test_protobuf(self):
+        _assert_outlines_during(
+            self,
+            PB_BIN,
+            [
+                ("has_field", "_pb_has_field("),
+                ("set_has_field", "_pb_set_has_field("),
+                ("clear_has_field", "_pb_clear_has_field("),
+            ],
+        )
+
+    def test_vecmath(self):
+        _assert_outlines_during(self, VM_BIN, [("vec_dot3", "dot3("), ("vec_length_sq", "length_sq(")])
+
+    def test_msvc_stl(self):
+        _assert_outlines_during(
+            self,
+            MSVC_BIN,
+            [
+                (0x1400013A0, "std::string::length("),
+                (0x140001690, "std::string::empty("),
+                (0x1400013B0, "std::vector<int>::size("),
+                (0x1400016A0, "std::vector<int>::capacity("),
+                (0x1400016B0, "std::vector<int>::empty("),
+                (0x1400016C0, "std::vector<int>::operator[]("),
+            ],
+        )
 
 
 if __name__ == "__main__":

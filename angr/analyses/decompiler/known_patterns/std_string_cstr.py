@@ -11,16 +11,20 @@ when it is long, i.e.::
     if (s->_Myres >= 16)              // capacity past the SSO threshold?
         result = s->_Bx._Ptr;        // == *(void**)s  (the heap pointer)
 
-which the compiler lowers to a control-flow diamond that survives into the AIL
-as::
+which the compiler lowers to a control-flow diamond. In clean SSA it is::
 
-    entry:  res = s;  if (Load(s + cap_off) < 16) goto merge else goto heap
-    heap:   h = Load(s);  h2 = h
-    merge:  result = Phi(h2 [heap], res [entry])
+    entry:  if (Load(s + cap_off) < 16) goto merge else goto heap
+    heap:   h = Load(s)
+    merge:  result = Phi(h [heap], s [entry])          // Phi(*s, s)
 
-so it is a :class:`PGraphPat` (three blocks) rather than an expression idiom.
-The offsets are word-scaled from the :class:`PatternContext` (cap_off is 24 on
-x64, 20 on x86); the 16-byte SSO threshold is fixed for ``char`` strings.
+so it is a :class:`PGraphPat` (entry + heap; the phi merge is the frontier)
+rather than an expression idiom. This matches the SSA form *before* de-phi — the
+form the KnownPatternOutliner pass sees when it runs at BEFORE_VARIABLE_RECOVERY
+— so the idiom is recognized and outlined during decompilation. (SSA
+destruction later inserts ``res = s`` / ``h2 = h`` copies that would obscure this
+shape; matching the clean form avoids depending on them and needs no cross-copy
+unification.) The offsets are word-scaled (cap_off is 24 on x64, 20 on x86); the
+16-byte SSO threshold is fixed for ``char`` strings.
 
 libstdc++ ``c_str()`` is a bare ``_M_p`` load (no SSO branch) and is not matched
 here. Opt-in — a control-flow select is genericish. Calibrated against
@@ -31,8 +35,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import VirtualVariable
-
 from .context import INTEL
 from .dsl import PAssign, PBinOp, PBlockPat, PCondJump, PConst, PGraphPat, PLoad, PStmtSeq, PVVar
 from .layouts import string_data_offset
@@ -41,22 +43,10 @@ from .std_string_length import STD_BASIC_STRING
 from .templates import make_template
 
 if TYPE_CHECKING:
-    from angr.ailment.expression import Expression
-
     from .context import PatternContext
 
 # MSVC ``char`` SSO buffer capacity: a string with _Myres past this is heap-allocated.
 _SSO_BUF_SIZE = 16
-
-
-def _res_is_a_copy_of_string(bindings: dict[str, Expression]) -> bool:
-    """The capacity test loads from ``resc``, a same-block copy of the string
-    pointer made by the entry's ``res = s``. The copy carries a fresh register
-    hint, so ``res`` (the copy's def) and ``resc`` (its use in the condition)
-    are the same SSA variable yet are not ``.likes()``-equal; unify them by
-    varid instead of by structural capture."""
-    res, resc = bindings.get("res"), bindings.get("resc")
-    return isinstance(res, VirtualVariable) and isinstance(resc, VirtualVariable) and res.varid == resc.varid
 
 
 def _build_string_cstr(ctx: PatternContext) -> KnownPattern:
@@ -68,43 +58,24 @@ def _build_string_cstr(ctx: PatternContext) -> KnownPattern:
     # hence this template gates on platform, not on the detected runtime).
     cap_off = _SSO_BUF_SIZE + ws
     data_off = string_data_offset(ctx)
-    heap_ptr = (
-        PLoad(PVVar("s"), size=ws) if data_off == 0 else PLoad(PBinOp("Add", (PVVar("s"), PConst(data_off))), size=ws)
-    )
-    cap_addr = PBinOp("Add", (PVVar("resc"), PConst(cap_off)))
+    heap_ptr = PLoad(PVVar("s") if data_off == 0 else PBinOp("Add", (PVVar("s"), PConst(data_off))), size=ws)
+    cap_load = PLoad(PBinOp("Add", (PVVar("s"), PConst(cap_off))), size=ws)
     return KnownPattern(
         name="msvc_string_c_str",
         display_name="std::string::c_str",
         call_name="std::string::c_str",
         pattern=PGraphPat(
             blocks={
-                # res = s; if (s->_Myres < 16) fall through to merge, else take the heap branch
-                "entry": PBlockPat(
-                    "entry",
-                    PStmtSeq(
-                        (
-                            PAssign(PVVar("res"), PVVar("s")),
-                            PCondJump(PBinOp("CmpLT", (PLoad(cap_addr, size=ws), PConst(_SSO_BUF_SIZE)))),
-                        )
-                    ),
-                ),
-                # h = *(void**)s; h2 = h   (the heap pointer, its own SSA copy before the phi)
-                "heap": PBlockPat(
-                    "heap",
-                    PStmtSeq(
-                        (
-                            PAssign(PVVar("heapp"), heap_ptr),
-                            PAssign(PVVar("heapc"), PVVar("heapp")),
-                        )
-                    ),
-                ),
+                # if (s->_Myres < 16) fall through to the merge, else take the heap branch
+                "entry": PBlockPat("entry", PStmtSeq((PCondJump(PBinOp("CmpLT", (cap_load, PConst(_SSO_BUF_SIZE)))),))),
+                # h = *(void**)s   (the heap pointer)
+                "heap": PBlockPat("heap", PStmtSeq((PAssign(PVVar("h"), heap_ptr),))),
             },
             edges=[("entry", "heap"), ("entry", "merge"), ("heap", "merge")],
             entry="entry",
         ),
         params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
         returnty="char *",
-        where=_res_is_a_copy_of_string,
     )
 
 
@@ -120,6 +91,6 @@ STD_STRING_CSTR = make_template(
     _build_string_cstr,
     arches=INTEL,
     platforms=("windows",),
-    enabled_by_default=False,
+    enabled_by_default=True,
     name="msvc_string_c_str",
 )
