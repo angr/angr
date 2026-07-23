@@ -129,7 +129,7 @@ class FastJumpTableResolver(IndirectJumpResolver):
         """
         if self._is_arm or self.resolve_pic:
             return self._has_computed_load(vex)
-        return self._next_is_computed_load(vex)
+        return self._next_is_scaled_load(vex)
 
     @staticmethod
     def _has_computed_load(vex) -> bool:
@@ -142,8 +142,14 @@ class FastJumpTableResolver(IndirectJumpResolver):
                 return True
         return False
 
-    @staticmethod
-    def _next_is_computed_load(vex) -> bool:
+    @classmethod
+    def _next_is_scaled_load(cls, vex) -> bool:
+        """
+        True when the jump target is loaded straight from ``base + index*stride``: the
+        VEX ``next`` resolves to a Load whose address contains a shift/multiply (the index
+        scaling). This rejects register-indirect jumps, PIC offset tables (target computed
+        *from* a load), and rip/GOT-relative constant loads, without AIL simplification.
+        """
         nxt = vex.next
         if not isinstance(nxt, pyvex.IRExpr.RdTmp):
             return False
@@ -153,7 +159,26 @@ class FastJumpTableResolver(IndirectJumpResolver):
         while isinstance(data, pyvex.IRExpr.RdTmp) and data.tmp not in seen:
             seen.add(data.tmp)
             data = defs.get(data.tmp)
-        return isinstance(data, pyvex.IRExpr.Load) and not isinstance(data.addr, pyvex.IRExpr.Const)
+        if not (isinstance(data, pyvex.IRExpr.Load) and not isinstance(data.addr, pyvex.IRExpr.Const)):
+            return False
+        return cls._contains_scaling(data.addr, defs, set())
+
+    @classmethod
+    def _contains_scaling(cls, expr, defs: dict, seen: set) -> bool:
+        """Recursively (through tmp definitions) look for a shift/multiply in ``expr``."""
+        if isinstance(expr, pyvex.IRExpr.RdTmp):
+            if expr.tmp in seen:
+                return False
+            seen.add(expr.tmp)
+            nxt = defs.get(expr.tmp)
+            return nxt is not None and cls._contains_scaling(nxt, defs, seen)
+        if isinstance(expr, pyvex.IRExpr.Binop):
+            if expr.op.startswith(("Iop_Shl", "Iop_Mul")):
+                return True
+            return any(cls._contains_scaling(arg, defs, seen) for arg in expr.args)
+        if isinstance(expr, pyvex.IRExpr.Unop):
+            return cls._contains_scaling(expr.args[0], defs, seen)
+        return False
 
     # helpers
 
