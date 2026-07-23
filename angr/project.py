@@ -68,7 +68,7 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     )
 
 
-CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges"}
+CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges", "memory_data"}
 
 _UNSET = object()
 
@@ -991,3 +991,28 @@ class Project:
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG edges
         return min(((sz // 256) // 100 + 1) * 50, 800)
+
+    def _estimate_main_object_size(self) -> int | None:
+        if self.loader.main_object.cached_content is not None:
+            return len(self.loader.main_object.cached_content)
+        if self.loader.main_object.max_addr is not None and self.loader.main_object.min_addr is not None:
+            return self.loader.main_object.max_addr - self.loader.main_object.min_addr
+        return None
+
+    def get_memory_data_cache_limit(self) -> int | None:
+        """
+        Get the cache limit for the CFG ``memory_data`` cache (addr -> MemoryData).
+
+        :return: The cache limit, or None to disable the cache.
+        """
+        if "memory_data" in self.cache_limits:
+            return self.cache_limits["memory_data"]
+
+        sz = self._estimate_main_object_size()
+        if sz is None:
+            return 20000  # sigh
+        if sz < 256 * 1024:
+            return None  # if the binary is small, don't spill memory data
+        # memory_data entries scale roughly with the number of data references; keep enough resident to
+        # cover the working set of tidy_data_references while capping resident memory on huge binaries.
+        return min(((sz // 256) // 100 + 1) * 40, 40000)

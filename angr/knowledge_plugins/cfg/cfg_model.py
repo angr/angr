@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import cle
 import networkx
-from sortedcontainers import SortedDict, SortedList
+from sortedcontainers import SortedList
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
@@ -20,6 +20,7 @@ from .cfg_node import CFGNode
 from .indirect_jump import IndirectJump
 from .memory_data import MemoryData, MemoryDataSort
 from .spilling_cfg import SpillingCFG
+from .spilling_memory_data import SpillingMemoryDataDict
 
 if TYPE_CHECKING:
     from archinfo.arch_soot import SootAddressDescriptor
@@ -73,6 +74,7 @@ class CFGModel(Serializable):
         db_batch_size: int = 800,
         edge_cache_limit: int | None = None,
         edge_db_batch_size: int = 800,
+        memory_data_cache_limit: int | None = None,
         addr_type: CFG_ADDR_TYPES = "int",
     ):
         self.ident = ident
@@ -108,8 +110,9 @@ class CFGModel(Serializable):
         self.jump_tables: dict[int, IndirectJump] = {}
 
         # Memory references
-        # A mapping between address and the actual data in memory
-        self.memory_data: SortedDict[int, MemoryData] = SortedDict()
+        # A mapping between address and the actual data in memory. Backed by an LRU + LMDB spilling
+        # container so that large binaries do not keep every MemoryData resident.
+        self.memory_data: SpillingMemoryDataDict = SpillingMemoryDataDict(rtdb, cache_limit=memory_data_cache_limit)
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
 
