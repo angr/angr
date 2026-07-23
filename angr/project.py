@@ -68,7 +68,7 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     )
 
 
-CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges", "memory_data", "xrefs"}
+CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges", "memory_data", "xrefs", "callgraph"}
 
 _UNSET = object()
 
@@ -1032,3 +1032,21 @@ class Project:
         if sz < 256 * 1024:
             return None  # if the binary is small, don't spill xrefs
         return min(((sz // 256) // 100 + 1) * 40, 40000)
+
+    def get_callgraph_cache_limit(self) -> int | None:
+        """
+        Get the cache limit for the functions callgraph adjacency spilling.
+
+        :return: The cache limit, or None to disable the cache.
+        """
+        if "callgraph" in self.cache_limits:
+            return self.cache_limits["callgraph"]
+
+        sz = self._estimate_main_object_size()
+        if sz is None:
+            return 10000  # sigh
+        if sz < 256 * 1024:
+            return None  # if the binary is small, don't spill the callgraph
+        # the callgraph has one adjacency entry per function; keep enough resident to cover typical
+        # neighborhood queries while capping resident memory on huge binaries.
+        return min(((sz // 256) // 100 + 1) * 50, 40000)

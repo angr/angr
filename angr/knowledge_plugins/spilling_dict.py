@@ -59,6 +59,9 @@ class SpillingObjectDict[K, V]:
     _DB_NAME: str = "spilling_objects"
     # Whether ``__getitem__`` on a missing key auto-creates (and stores) a default value.
     _VIVIFY: bool = False
+    # Whether keys are kept in sorted order (enabling irange/islice/bisect and sorted iteration). Set False to
+    # preserve insertion order instead (e.g. to match networkx's plain-dict adjacency iteration order).
+    _SORTED: bool = True
     # Whether to guarantee canonical object identity: a value handed out for a key is always the *same*
     # Python object while it is still referenced anywhere (e.g. through insn_addr_to_memory_data or an XRef).
     # Reloading from LMDB reuses the live object instead of deserializing a divergent copy. Values must be
@@ -79,7 +82,9 @@ class SpillingObjectDict[K, V]:
         self._data: dict[K, V] = {}
         self._spilled_keys: set[K] = set()
         self._lru_order: OrderedDict[K, None] = OrderedDict()
-        self._list: SortedList = SortedList()
+        # registry of all keys (cached + spilled): a SortedList when _SORTED (for irange/islice/bisect), else an
+        # insertion-ordered dict (keys map to None) to mirror networkx's plain-dict adjacency iteration order.
+        self._list = SortedList() if self._SORTED else {}
         # canonical-object registry: keeps a weak reference to every value handed out, so that a value which
         # is still referenced elsewhere is never replaced by a divergent copy reloaded from LMDB.
         self._canonical: weakref.WeakValueDictionary[K, V] | None = (
@@ -94,6 +99,18 @@ class SpillingObjectDict[K, V]:
 
     def __del__(self):
         self._cleanup_lmdb()
+
+    def _key_add(self, key: K) -> None:
+        if self._SORTED:
+            self._list.add(key)
+        else:
+            self._list[key] = None
+
+    def _key_remove(self, key: K) -> None:
+        if self._SORTED:
+            self._list.remove(key)
+        else:
+            del self._list[key]
 
     #
     # Value (de)serialization -- override in subclasses
@@ -131,7 +148,7 @@ class SpillingObjectDict[K, V]:
 
     def __setitem__(self, key: K, value: V) -> None:
         if key not in self._data and key not in self._spilled_keys:
-            self._list.add(key)
+            self._key_add(key)
         self._data[key] = value
         if self._canonical is not None:
             self._canonical[key] = value
@@ -147,7 +164,7 @@ class SpillingObjectDict[K, V]:
         if self._canonical is not None:
             self._canonical.pop(key, None)
         if present:
-            self._list.remove(key)
+            self._key_remove(key)
 
     def __contains__(self, key: object) -> bool:
         return key in self._data or key in self._spilled_keys
@@ -434,7 +451,7 @@ class SpillingObjectDict[K, V]:
             if new._canonical is not None:
                 new._canonical[key] = self._data[key]
             new._lru_order[key] = None
-            new._list.add(key)
+            new._key_add(key)
         # Byte-copy spilled records.
         if self._spilled_keys and self._db is not None and self.rtdb is not None:
             new._init_lmdb()
@@ -448,7 +465,7 @@ class SpillingObjectDict[K, V]:
                     if raw is not None:
                         dst_txn.put(self._encode_key(key), raw)
                         new._spilled_keys.add(key)
-                        new._list.add(key)
+                        new._key_add(key)
         new._eviction_enabled = True
         return new
 
@@ -476,7 +493,7 @@ class SpillingObjectDict[K, V]:
         self._data = {}
         self._spilled_keys = set()
         self._lru_order = OrderedDict()
-        self._list = SortedList()
+        self._list = SortedList() if self._SORTED else {}
         self._canonical = weakref.WeakValueDictionary() if self._CANONICAL_IDENTITY else None
         self._db = None
         self._eviction_enabled = True
