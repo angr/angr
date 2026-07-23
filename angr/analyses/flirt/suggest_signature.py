@@ -105,7 +105,7 @@ class SuggestSignatureAnalysis(Analysis):
     def _collect_strings(self, cfg_model) -> list[str]:
         strings: set[str] = set()
         for md in cfg_model.memory_data.values():
-            if md.sort != MemoryDataSort.String:
+            if md.sort not in (MemoryDataSort.String, MemoryDataSort.UnicodeString):
                 continue
             content = md.content
             if content is None:
@@ -113,7 +113,10 @@ class SuggestSignatureAnalysis(Analysis):
                     continue
                 content = self.project.loader.memory.load(md.addr, md.size)
             try:
-                s = content.decode("ascii", errors="ignore")
+                if md.sort == MemoryDataSort.UnicodeString:
+                    s = content.decode("utf-16-le", errors="ignore")
+                else:
+                    s = content.decode("ascii", errors="ignore")
             except (UnicodeDecodeError, AttributeError):
                 continue
             s = s.rstrip("\x00")
