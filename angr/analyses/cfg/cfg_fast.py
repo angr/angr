@@ -1348,11 +1348,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     )
                     start_addr += pointer_length
 
-                elif start_addr <= 0x100000:
-                    # for high addresses, all pointers have been found in _scan_for_consecutive_pointers() because we
-                    # set threshold there to 1
-                    threshold = 4
-                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=6)
+                else:
+                    if start_addr <= 0x100000:
+                        # for low addresses, in-object values are common false positives, so
+                        # _scan_for_consecutive_pointers() ran with a high threshold and may have missed
+                        # non-consecutive pointers; require a high pointer density here
+                        threshold, window = 4, 6
+                    else:
+                        # for high addresses, all consecutive pointers have been found in
+                        # _scan_for_consecutive_pointers() because we set threshold there to 1. what remains are
+                        # interleaved tables (e.g., alternating value-pointer pairs), which have at most window // 2
+                        # pointers; use a wider window with the same evidence requirement
+                        threshold, window = 4, 8
+                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=window)
                     pointer_length = pointer_count * self.project.arch.bytes
 
                     if pointer_length:
@@ -1364,24 +1372,33 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         start_addr += pointer_length
 
             if not matched_something:
-                # find strings
+                # find strings; tolerate a single leading null byte, which is usually the leftover of a multi-null
+                # string separator (string scans only consume one null terminator of the preceding string, and a
+                # single remaining null byte is not caught by the repeating-zero scan below)
+                leading_nulls = 1 if self._load_a_byte_as_int(start_addr) == 0 else 0
+                str_addr = start_addr + leading_nulls
                 is_widestring = False
-                string_length = self._scan_for_printable_strings(start_addr)
+                string_length = self._scan_for_printable_strings(str_addr)
                 if string_length == 0:
                     is_widestring = True
-                    string_length = self._scan_for_printable_widestrings(start_addr)
+                    string_length = self._scan_for_printable_widestrings(str_addr)
 
                 if string_length:
                     matched_something = True
-                    self._seg_list.occupy(start_addr, string_length, "string")
+                    if leading_nulls:
+                        self._seg_list.occupy(start_addr, leading_nulls, "alignment")
+                        self.model.memory_data[start_addr] = MemoryData(
+                            start_addr, leading_nulls, MemoryDataSort.Alignment
+                        )
+                    self._seg_list.occupy(str_addr, string_length, "string")
                     md = MemoryData(
-                        start_addr,
+                        str_addr,
                         string_length,
                         MemoryDataSort.String if not is_widestring else MemoryDataSort.UnicodeString,
                     )
                     md.fill_content(self.project.loader)
-                    self.model.memory_data[start_addr] = md
-                    start_addr += string_length
+                    self.model.memory_data[str_addr] = md
+                    start_addr = str_addr + string_length
 
             if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
                 cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)

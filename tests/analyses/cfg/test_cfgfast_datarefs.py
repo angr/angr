@@ -178,6 +178,33 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert cfg_model.memory_data[0x10001004].size == 228
         assert cfg_model.memory_data[0x10001004].sort == MemoryDataSort.PointerArray
 
+    def test_pe_32bit_string_tables_in_text_section(self):
+        # this binary carries read-only data (string tables, pointer tables, etc.) at the beginning of its .text
+        # section. its string tables separate strings with two null bytes; the string scans only consume one
+        # terminating null byte, and the single remaining null byte used to defeat all data heuristics in
+        # _next_code_addr_core(), causing entire string tables to be misidentified as code (and functions).
+        path = os.path.join(
+            test_location, "i386", "windows", "9888704382abfb694984c1c7a7707a45b4ebc406fc98d35622461077553aa797"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast()
+        memory_data = cfg.model.memory_data
+
+        # ASCII string tables: strings must be recovered and no functions created among them
+        assert memory_data[0x4019B0].sort == MemoryDataSort.String
+        assert memory_data[0x4019B0].content == b"address not available"
+        assert memory_data[0x402384].sort == MemoryDataSort.String
+        assert memory_data[0x402384].content == b"__vectorcall"
+        assert not [f for f in cfg.kb.functions if 0x4019A0 <= f < 0x402700]
+
+        # UTF-16 string tables: same failure mode, with the leftover null byte also breaking the scan phase
+        assert cfg._seg_list.occupied_by_sort(0x405F12) == "unicode"
+        assert not [f for f in cfg.kb.functions if 0x405E00 <= f < 0x406100]
+
+        # interleaved (value, pointer) tables are detected by the mixed-pointer scan
+        assert memory_data[0x401FBC].sort == MemoryDataSort.PointerArray
+
     def test_long_printable_ascii_string_without_null_byte(self):
         # suboptimal logic in _scan_for_printable_strings was causing the CFG recovery of this binary to be extremely
         # slow; we were repeatedly trying (and failing) to build a super long ASCII string in this binary.
