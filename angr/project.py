@@ -68,7 +68,7 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     )
 
 
-CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges", "memory_data"}
+CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges", "memory_data", "xrefs"}
 
 _UNSET = object()
 
@@ -1015,4 +1015,20 @@ class Project:
             return None  # if the binary is small, don't spill memory data
         # memory_data entries scale roughly with the number of data references; keep enough resident to
         # cover the working set of tidy_data_references while capping resident memory on huge binaries.
+        return min(((sz // 256) // 100 + 1) * 40, 40000)
+
+    def get_xrefs_cache_limit(self) -> int | None:
+        """
+        Get the cache limit for the XRefManager indexes (per-address sets of XRefs).
+
+        :return: The cache limit, or None to disable the cache.
+        """
+        if "xrefs" in self.cache_limits:
+            return self.cache_limits["xrefs"]
+
+        sz = self._estimate_main_object_size()
+        if sz is None:
+            return 20000  # sigh
+        if sz < 256 * 1024:
+            return None  # if the binary is small, don't spill xrefs
         return min(((sz // 256) // 100 + 1) * 40, 40000)
