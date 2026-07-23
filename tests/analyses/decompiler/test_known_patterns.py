@@ -27,6 +27,9 @@ from tests.common import bin_location
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 MB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_multiblock")
+# statically-linked, stripped MSVC C++ binary: no msvcp dependency, no mangled
+# symbols — its C++-ness is only evident from RTTI type descriptors in data.
+STATIC_MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_msvc_string_cstr.exe")
 
 
 def _ctx(bits=64, runtime=LIBSTDCXX, platform="linux", arch="AMD64"):
@@ -112,6 +115,9 @@ class TestKnownPatternsDsl(TestCase):
         assert detect_cxx_runtime(angr.Project(CR_BIN, auto_load_libs=False)) is None
         # the g++ ELF is libstdc++
         assert detect_cxx_runtime(angr.Project(STL_BIN, auto_load_libs=False)) == LIBSTDCXX
+        # a statically-linked, stripped MSVC binary has no msvcp dependency and no
+        # mangled symbols; it is still recognized via RTTI type descriptors in data
+        assert detect_cxx_runtime(angr.Project(STATIC_MSVC_BIN, auto_load_libs=False)) == MSVC
 
     def test_register_rejects_duplicate_call_name(self):
         from angr.analyses.decompiler.known_patterns import make_template, register_pattern_template

@@ -9,11 +9,17 @@ libstdc++ and MSVC, etc.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from angr.project import Project
+
+# MSVC RTTI type descriptor: ``.?AV<name>@@`` (class) / ``.?AU<name>@@`` (struct).
+_MSVC_RTTI_RE = re.compile(rb"\.\?A[VU][\w@?$]{1,255}?@@")
+# Itanium ABI (libstdc++/libc++) typeinfo-name / typeinfo / vtable symbol names.
+_ITANIUM_RTTI_RE = re.compile(rb"_ZT[ISV][A-Za-z0-9_]{2,255}")
 
 # C++ runtime identifiers
 LIBSTDCXX = "libstdcxx"
@@ -55,11 +61,40 @@ def _mangled_symbol_prefixes(project: Project) -> set[str]:
     return prefixes
 
 
+def _rtti_evidence(project: Project) -> str | None:
+    """Scan initialized data sections for C++ RTTI type descriptors, which
+    survive even when a binary is statically linked (no runtime-DLL dependency)
+    and stripped (no C++ symbols) — e.g. a static MSVC build whose only import
+    is kernel32. MSVC emits ``.?AV…@@`` / ``.?AU…@@`` type descriptors; the
+    Itanium ABI (libstdc++/libc++) emits ``_ZTS``/``_ZTI``/``_ZTV`` names."""
+    try:
+        sections = project.loader.main_object.sections
+    except (AttributeError, TypeError):
+        return None
+    for sec in sections or []:
+        if getattr(sec, "is_executable", False) or getattr(sec, "only_contains_uninitialized_data", False):
+            continue
+        size = min(getattr(sec, "filesize", 0) or 0, getattr(sec, "memsize", 0) or 0)
+        if size <= 0:
+            continue
+        try:
+            data = project.loader.memory.load(sec.vaddr, size)
+        except Exception:  # pylint:disable=broad-except  (best-effort fallback)
+            continue
+        if _MSVC_RTTI_RE.search(data):
+            return MSVC
+        if _ITANIUM_RTTI_RE.search(data):
+            return LIBSTDCXX
+    return None
+
+
 def detect_cxx_runtime(project: Project) -> str | None:
     """Identify the C++ standard-library runtime: ``"msvc"``, ``"libstdcxx"``,
     or None. Mirrors the old is_cpp_binary / is_msvc_cpp_binary heuristics:
     dependency names first, then mangled-symbol evidence (mingw PEs link
-    libstdc++ and use its layouts even though they are PEs)."""
+    libstdc++ and use its layouts even though they are PEs), then — for
+    statically-linked, stripped binaries that carry neither — RTTI type
+    descriptors embedded in data sections."""
     deps = _deps(project)
     if any("msvcp" in d for d in deps):
         return MSVC
@@ -70,7 +105,7 @@ def detect_cxx_runtime(project: Project) -> str | None:
         return LIBSTDCXX
     if "?" in prefixes:
         return MSVC
-    return None
+    return _rtti_evidence(project)
 
 
 @dataclass(frozen=True)
