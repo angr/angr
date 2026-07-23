@@ -4,6 +4,7 @@
 # same major version and no older than the stamp. Pinning grpcio-tools keeps the stamp deterministic and on the 6.x
 # major, so the runtime "protobuf>=6.33.0" (and any 6.x/7.x resolution of it) can always load the generated modules.
 requires = [
+    "cmake",                # For z3
     "setuptools>=77.0.0",
     "setuptools-rust",
     "pyvex==9.3.1.dev0",
@@ -177,13 +178,16 @@ ignore = [
 required-imports = ["from __future__ import annotations"]
 
 [tool.pylint.main]
-load-plugins = ["pylint.extensions.no_self_use", "pylint.extensions.bad_builtin"]
+load-plugins = [
+    "pylint.extensions.no_self_use",
+    "pylint.extensions.bad_builtin",
+]
 
 [tool.pylint."messages control"]
 disable = [
     # Categories
     "design",
-    "format",  # Ruff handles formatting
+    "format", # Ruff handles formatting
 
     # Individual rules
     "abstract-method",
@@ -199,20 +203,15 @@ disable = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-testpaths = [
-    "tests",
-]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
-source = [ "angr" ]
+source = ["angr"]
 parallel = true
-patch = [ "_exit" ]
+patch = ["_exit"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-exclude_lines = [
-  "if TYPE_CHECKING:",
-  "if __name__ == .__main__.:"
-]
+exclude_lines = ["if TYPE_CHECKING:", "if __name__ == .__main__.:"]
