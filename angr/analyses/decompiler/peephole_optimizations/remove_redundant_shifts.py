@@ -19,12 +19,19 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
 
     def optimize(self, expr: BinaryOp, **kwargs):
         # (expr << N) >> N  ==> Convert((M-N)->M, Convert(M->(M-N), expr))
+        #
+        # For a *logical* right shift (Shr) the outer conversion zero-extends, which the C backend renders as a
+        # bitmask (e.g. `& 0xfff`) that is correct for any width. For an *arithmetic* right shift (Sar) the outer
+        # conversion must sign-extend the low (M-N) bits; that is only rendered faithfully by the C backend when
+        # (M-N) is a standard integer width (8/16/32/64). For non-standard widths we leave the Sar/Shl pair intact
+        # (which renders as a signed `(expr << N) >> N`) rather than emit a bogus zero-extend mask that silently
+        # drops the sign bit.
         if expr.op in ("Shr", "Sar") and isinstance(expr.operands[1], Const):
             expr_a = expr.operands[0]
             n0 = expr.operands[1].value
             if isinstance(expr_a, BinaryOp) and expr_a.op in {"Shl", "Mul"} and isinstance(expr_a.operands[1], Const):
                 n1 = get_expr_shift_left_amount(expr_a)
-                if n0 == n1:
+                if n0 == n1 and (expr.op == "Shr" or (expr_a.bits - n0) in (8, 16, 32, 64)):
                     inner_expr = expr_a.operands[0]
                     conv_inner_expr = Convert(
                         self.manager.next_atom(),
@@ -38,7 +45,7 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                         self.manager.next_atom(),
                         expr_a.bits - n0,
                         expr.bits,
-                        False,
+                        expr.op == "Sar",  # sign-extend for arithmetic shift, zero-extend for logical shift
                         conv_inner_expr,
                         **expr.tags,
                     )

@@ -2271,6 +2271,34 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
+        # Sar is an arithmetic (signed) right shift, but it renders as the C `>>` operator, which only performs an
+        # arithmetic shift when its left operand is signed. If the left operand renders as an unsigned integer, emit
+        # an explicit signed cast; otherwise `>>` would be a logical shift and silently drop the sign bit. The cast is
+        # emitted here at render time because the earlier typecast-collapsing passes treat same-size signed/unsigned
+        # integer casts as redundant and would strip a cast added during code generation.
+        lhs_ty = self.lhs.type
+        if (
+            isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
+            and getattr(lhs_ty, "signed", None) is False
+            and lhs_ty.size is not None
+        ):
+            signed_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=True)
+            paren = CClosingObject("(")
+            yield "(", paren
+            yield f"{signed_ty.c_repr(name=None)}", signed_ty
+            yield ")", paren
+            yield "(", paren
+            yield from self._try_c_repr_chunks(self.lhs)
+            yield ")", paren
+            yield " >> ", self
+            if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence:
+                paren2 = CClosingObject("(")
+                yield "(", paren2
+                yield from self._try_c_repr_chunks(self.rhs)
+                yield ")", paren2
+            else:
+                yield from self._try_c_repr_chunks(self.rhs)
+            return
         yield from self._c_repr_chunks(" >> ")
 
     def _c_repr_chunks_logicaland(self):
