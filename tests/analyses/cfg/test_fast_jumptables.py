@@ -130,6 +130,29 @@ class TestFastJumpTableResolver(unittest.TestCase):
     def test_ab_armel_cfgswitches(self):
         self._check_equivalence(os.path.join(test_location, "armel", "cfg_switches"), [ArmElfFastResolver])
 
+    # (c) PIC path guard: a pre-scaled index must defer to the slow resolver (resolve_pic)
+
+    def test_pic_prescaled_index_defers(self):
+        """
+        libc.so.6 block 0x5616ae has a pre-scaled index (``shl rdx,2; cmp rdx,0x4f``), so
+        its true index domain is sparse ({0,4,..,76} = 20 values). Even with resolve_pic
+        enabled, the fast path must bail on such a scaled bound (it would otherwise
+        over-read a dense 0..79 = 80 entries); the slow JumpTableResolver recovers the
+        correct 20 via VSA strided-interval cardinality.
+        """
+        p = angr.Project(os.path.join(test_location, "x86_64", "libc.so.6"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast()
+
+        resolver = FastJumpTableResolver(p, resolve_pic=True)
+        ij = cfg.indirect_jumps[0x5616AE]
+        ok, targets = resolver.resolve(cfg, 0x5616AE, ij.func_addr, p.factory.block(0x5616AE), ij.jumpkind)
+        assert ok is False
+        assert targets is None
+
+        # the slow resolver (in the default chain) recovered the correct sparse count
+        assert 0x5616AE in cfg.model.jump_tables
+        assert len(cfg.model.jump_tables[0x5616AE].jumptable_entries) == 20
+
 
 if __name__ == "__main__":
     unittest.main()

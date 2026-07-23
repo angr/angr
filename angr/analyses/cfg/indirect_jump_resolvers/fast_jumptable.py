@@ -539,7 +539,11 @@ class FastJumpTableResolver(IndirectJumpResolver):
         cmp_var = self._compare_var(ite.cond, defs)
         if cmp_var is None:
             return None
-        if not self._expr_like(self._reduce(match.index_expr, defs), self._reduce(cmp_var, defs)):
+        cmp_reduced = self._reduce(cmp_var, defs)
+        # A scaled bounded quantity means a sparse index domain -> defer (see Case 1).
+        if self._contains_scale(cmp_reduced, defs):
+            return None
+        if not self._expr_like(self._reduce(match.index_expr, defs), cmp_reduced):
             return None
         # The table load is selected when the ITE condition is True.
         count = self._count_from_cond(ite.cond, positive=True)
@@ -617,13 +621,36 @@ class FastJumpTableResolver(IndirectJumpResolver):
         jump_idx = self._reduce(index_expr, jump_defs)
         cmp = self._reduce(compare_operand, pred_defs)
 
+        # If the bounded quantity is a scaled index (index pre-multiplied/shifted before
+        # the compare, e.g. ``shl rdx,2; cmp rdx,N``), the true index domain is sparse and
+        # a dense 0..N count would over-read. Defer to the slow resolver, whose VSA
+        # strided-interval cardinality recovers the sparse domain correctly.
+        if self._contains_scale(cmp, pred_defs):
+            return False
+
         if isinstance(jump_idx, Register):
             src = self._register_def(pred_block, jump_idx)
             if src is not None:
-                return self._expr_like(self._reduce(src, pred_defs), cmp)
+                bridged = self._reduce(src, pred_defs)
+                if self._contains_scale(bridged, pred_defs):
+                    return False
+                return self._expr_like(bridged, cmp)
             # Live-in register: the compare must be directly on that same register.
             return self._expr_like(jump_idx, cmp)
+        if self._contains_scale(jump_idx, jump_defs):
+            return False
         return self._expr_like(jump_idx, cmp)
+
+    def _contains_scale(self, expr: Expression, defs: dict[int, Expression]) -> bool:
+        """True if ``expr`` (dereferenced) contains a multiply/shift -- a scaled index."""
+        expr = self._deref(expr, defs)
+        if isinstance(expr, BinaryOp):
+            if expr.op in {"Mul", "Shl"}:
+                return True
+            return any(self._contains_scale(op, defs) for op in expr.operands)
+        if isinstance(expr, Convert):
+            return self._contains_scale(expr.operand, defs)
+        return False
 
     def _expr_like(self, a: Expression, b: Expression) -> bool:
         """Structural equality over the expression subset used for jump-table indices."""
