@@ -19,7 +19,7 @@ from angr.utils.doms import IncrementalDominators
 from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
 
 from .condition_processor import ConditionProcessor
-from .region_overlay import OverlayManager, RegionOverlay
+from .region_overlay import OverlayManager, RegionOverlay, Tx
 from .structurer_nodes import ConditionNode, IncompleteSwitchCaseHeadStatement, MultiNode
 from .utils import copy_graph, first_nonlabel_nonphi_statement, replace_last_statement
 
@@ -29,7 +29,9 @@ l = logging.getLogger(name=__name__)
 # an ever-incrementing counter
 CONDITIONNODE_ADDR = count(0xFF000000)
 
-type TNode = Block | RegionOverlay | MultiNode | ConditionNode
+type TNode = Tx[Block | MultiNode | ConditionNode]
+type TOverlay = RegionOverlay[Block | MultiNode | ConditionNode]
+type TManager = OverlayManager[Block | MultiNode | ConditionNode]
 type TGraph = "networkx.DiGraph[TNode]"
 
 
@@ -78,8 +80,8 @@ class RegionIdentifier(Analysis):
             # copy the graph so updates don't affect the original graph
             graph = copy_graph(graph)  # type: ignore
 
-        self.region: RegionOverlay | None = None
-        self.overlay_manager: OverlayManager | None = None
+        self.region: TOverlay | None = None
+        self.overlay_manager: TManager | None = None
         self._start_node = None
         self._loop_headers: list | None = None
         self.regions_by_block_addrs = []
@@ -89,7 +91,7 @@ class RegionIdentifier(Analysis):
         self._expose_loop_head_backedges = expose_loop_head_backedges
         # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
         # dictionary as we update the graph
-        self._node_order: dict[Any, tuple[int, int]] = {}
+        self._node_order: dict[TNode, tuple[int, int]] = {}
 
         self._graph = self._analyze(graph)
 
@@ -182,11 +184,11 @@ class RegionIdentifier(Analysis):
         """
 
         assert self.region is not None
-        work_list: list[RegionOverlay] = [self.region]
+        work_list: list[TOverlay] = [self.region]
         block_only_regions = []
         seen_regions = set()
         while work_list:
-            children_regions: list[RegionOverlay] = []
+            children_regions: list[TOverlay] = []
             for region in work_list:
                 children_blocks = []
                 for node in region.members:
@@ -198,7 +200,7 @@ class RegionIdentifier(Analysis):
                         if node not in seen_regions:
                             children_regions.append(node)
                             children_blocks.append(
-                                (node.head.addr, node.head.idx if hasattr(node.head, "idx") else None)
+                                (node.head.addr, node.head.idx if hasattr(node.head, "idx") else None)  # type: ignore
                             )
                             seen_regions.add(node)
                     else:
@@ -459,11 +461,11 @@ class RegionIdentifier(Analysis):
 
         return refined_loop_nodes, refined_exit_nodes
 
-    def _make_regions(self, graph: TGraph) -> RegionOverlay:
+    def _make_regions(self, graph: TGraph) -> TOverlay:
         assert self.overlay_manager is not None
         root = self.overlay_manager.root
         structured_loop_headers = set()
-        new_regions: list[RegionOverlay] = []
+        new_regions: list[TOverlay] = []
 
         # FIXME: _get_start_node() will fail if the graph is just a loop
 
@@ -518,6 +520,7 @@ class RegionIdentifier(Analysis):
         # No more loops left. Structure acyclic regions.
         while new_regions:
             region = new_regions.pop(0)
+            assert region.head is not None
             head = region.head
             # collapse a working copy of the region body during acyclic region identification; for the root region,
             # the phase-1 working graph already matches its member-level view
@@ -618,7 +621,7 @@ class RegionIdentifier(Analysis):
 
         return region
 
-    def _refine_loop_successors_to_guarded_successors(self, region: RegionOverlay, graph: TGraph):
+    def _refine_loop_successors_to_guarded_successors(self, region: TOverlay, graph: TGraph):
         """
         If there are multiple successors of a loop, convert them into guarded successors. Eventually there should be
         only one loop successor. This is used in the DREAM structuring algorithm.
@@ -747,7 +750,7 @@ class RegionIdentifier(Analysis):
         self,
         head: TNode,
         graph: TGraph,
-        parent_region: RegionOverlay,
+        parent_region: TOverlay,
         failed_region_attempts: set[tuple[TNode, TNode]],
         cyclic: bool,
     ):
@@ -873,7 +876,7 @@ class RegionIdentifier(Analysis):
         return region_created
 
     @staticmethod
-    def _update_graph(graph: TGraph, new_region: RegionOverlay, replaced_nodes: set[TNode]) -> None:
+    def _update_graph(graph: TGraph, new_region: TOverlay, replaced_nodes: set[TNode]) -> None:
         region_in_edges = RegionIdentifier._region_in_edges(graph, new_region, data=True)
         region_out_edges = RegionIdentifier._region_out_edges(graph, new_region, data=True)
         for node in replaced_nodes:
@@ -954,7 +957,7 @@ class RegionIdentifier(Analysis):
     @staticmethod
     def _abstract_acyclic_region(
         graph: TGraph,
-        region: RegionOverlay,
+        region: TOverlay,
         frontier: set[TNode],
         node_order: dict[TNode, tuple[int, int]],
         dummy_endnode: TNode | None = None,
@@ -993,7 +996,7 @@ class RegionIdentifier(Analysis):
         normal_exit_node: TNode | None,
         abnormal_exit_nodes: set[TNode],
         node_order: dict[TNode, tuple[int, int]],
-    ) -> RegionOverlay:
+    ) -> TOverlay:
         loop_nodes = set(loop_nodes)
         region = self._parent_overlay_of(head).create_subregion(head, loop_nodes, cyclic=True)
 
@@ -1033,7 +1036,7 @@ class RegionIdentifier(Analysis):
 
         return region
 
-    def _parent_overlay_of(self, node: TNode) -> RegionOverlay:
+    def _parent_overlay_of(self, node: TNode) -> TOverlay:
         """Find the overlay that the given working-graph node is currently a direct member of."""
         if isinstance(node, RegionOverlay):
             assert node.parent is not None
@@ -1046,19 +1049,19 @@ class RegionIdentifier(Analysis):
     @overload
     @staticmethod
     def _region_in_edges(
-        graph: TGraph, region: RegionOverlay, data: Literal[True]
+        graph: TGraph, region: TOverlay, data: Literal[True]
     ) -> list[tuple[TNode, TNode, dict[str, Any]]]: ...
 
     @overload
     @staticmethod
-    def _region_in_edges(graph: TGraph, region: RegionOverlay, data: Literal[False]) -> list[tuple[TNode, TNode]]: ...
+    def _region_in_edges(graph: TGraph, region: TOverlay, data: Literal[False]) -> list[tuple[TNode, TNode]]: ...
 
     @staticmethod
     def _region_in_edges(graph, region, data=False):
         return list(graph.in_edges(region.head, data=data))
 
     @staticmethod
-    def _region_out_edges(graph, region: RegionOverlay, data=False):
+    def _region_out_edges(graph, region: TOverlay, data=False):
         out_edges = []
         for node in region.members:
             out_ = graph.out_edges(node, data=data)
@@ -1130,6 +1133,7 @@ class RegionIdentifier(Analysis):
 
     def _ensure_jump_at_loop_exit_ends(self, node: TNode) -> None:
         if isinstance(node, Block):
+            assert node.original_size is not None
             if not node.statements:
                 node.statements.append(
                     Jump(
