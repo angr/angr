@@ -153,6 +153,30 @@ class TestFastJumpTableResolver(unittest.TestCase):
         assert 0x5616AE in cfg.model.jump_tables
         assert len(cfg.model.jump_tables[0x5616AE].jumptable_entries) == 20
 
+    # (d) multi-block bound discovery: the bound sits 1+ blocks back / across a convergence
+
+    def test_pic_multiblock_bound_matches_ground_truth(self):
+        """
+        Blocks whose bounding compare is not in the immediate single predecessor -- it is
+        one or more blocks back, or split across a converging predecessor pair. The
+        multi-block backward walk must recover them, and (resolve_pic=True) the recovered
+        entries must exactly equal the stock chain's ground truth. 0x464719 (3-way
+        convergence) and 0x4648b8 (2-pred fork) live in func 0x46c780; 0x422ae3 is a small
+        2-pred fork.
+        """
+        p = angr.Project(os.path.join(test_location, "x86_64", "libc.so.6"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast()  # default chain -> stock ground truth for these PIC tables
+
+        resolver = FastJumpTableResolver(p, resolve_pic=True)
+        for block_addr in (0x422AE3, 0x464719, 0x4648B8):
+            assert block_addr in cfg.model.jump_tables, f"{block_addr:#x} not resolved by stock chain"
+            ground_truth = list(cfg.model.jump_tables[block_addr].jumptable_entries)
+
+            ij = cfg.indirect_jumps[block_addr]
+            ok, targets = resolver.resolve(cfg, block_addr, ij.func_addr, p.factory.block(block_addr), ij.jumpkind)
+            assert ok is True, f"fast path failed to resolve {block_addr:#x}"
+            assert list(targets) == ground_truth, f"entry mismatch at {block_addr:#x}"
+
 
 if __name__ == "__main__":
     unittest.main()
