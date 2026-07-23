@@ -2796,6 +2796,7 @@ class Clinic(Analysis, Serializable):
                 # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
                 self._unify_callee_argument_structs(vr, var_manager)
+                self._register_referenced_union_structs(var_manager)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise
@@ -2866,6 +2867,97 @@ class Clinic(Analysis, Serializable):
             pts_to = pts_to.ty
         return pts_to if isinstance(pts_to, SimStruct) else None
 
+    @staticmethod
+    def _struct_layout_signature(struct: SimStruct) -> tuple | None:
+        """A name-independent signature of a struct's field layout, used to deduplicate identical layouts."""
+        try:
+            offsets = struct.offsets
+            sig = tuple(
+                sorted(
+                    (offset, fld_ty.c_repr() if hasattr(fld_ty, "c_repr") else repr(fld_ty))
+                    for fld_name, fld_ty in struct.fields.items()
+                    if not fld_name.startswith("padding_") and (offset := offsets.get(fld_name)) is not None
+                )
+            )
+        except Exception:  # pylint:disable=broad-except
+            return None
+        return sig or None
+
+    def _sanitize_union_struct_fields(self, union_struct: SimStruct) -> None:
+        """
+        Replace pointer-to-struct fields with ``void *`` unless they point to a struct minted by union
+        canonicalization. Field types are copied from callee prototype structs, whose nested struct references carry
+        per-function type names (struct_0, struct_1, ...); importing those into another function's output collides
+        with that function's own per-function names.
+        """
+        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        minted_names = set(registry.values())
+        for fld_name, fld_ty in list(union_struct.fields.items()):
+            nested = self._pointee_struct(fld_ty)
+            if nested is not None and nested._name not in minted_names:  # pylint:disable=protected-access
+                union_struct.fields[fld_name] = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+
+    def _canonicalize_union_struct(self, union_struct: SimStruct) -> TypeRef:
+        """
+        Return a project-wide canonical TypeRef for the given struct layout: reuse a previously-unioned struct with an
+        identical layout if one exists, otherwise register the given struct under a fresh unique name. This keeps
+        repeated unions of the same layout (across values, functions, and re-decompilations) from proliferating
+        duplicate typedefs. Only structs minted by this canonicalization are candidates for reuse — reusing
+        translator- or user-named structs by structural equality risks name collisions with per-function type names.
+        """
+        # session-lifetime registry of layouts we minted, kept on the types store (deliberately not serialized)
+        registry: dict[tuple, str] | None = getattr(self.kb.types, "_union_struct_layouts", None)
+        if registry is None:
+            registry = {}
+            self.kb.types._union_struct_layouts = registry  # pylint:disable=protected-access
+
+        signature = self._struct_layout_signature(union_struct)
+        if signature is not None and signature in registry:
+            existing_name = registry[signature]
+            if existing_name in self.kb.types:
+                existing = self.kb.types.get_own(existing_name)
+                if isinstance(existing.ty, SimStruct):
+                    return existing
+
+        # deterministic naming: kb.types.unique_type_name() falls back to random names once the fruit pool is
+        # exhausted, which would make decompilation output non-deterministic on binaries with many unioned structs
+        ctr = len(registry)
+        while f"ustruct_{ctr}" in self.kb.types:
+            ctr += 1
+        name = f"ustruct_{ctr}"
+        union_struct._name = name  # pylint:disable=protected-access
+        ref = TypeRef(name, union_struct).with_arch(self.project.arch)
+        self.kb.types[name] = ref
+        if signature is not None:
+            registry[signature] = name
+        return ref
+
+    def _register_referenced_union_structs(self, var_manager) -> None:
+        """
+        Ensure canonical union structs referenced by this function's variable types or prototype are present in the
+        per-function type store, which the code generator emits typedefs from. Union structs are registered in the
+        project-wide ``kb.types`` when minted; without this, a function whose variables reference one (e.g. through a
+        back-propagated callee prototype) would use the type name without ever declaring it.
+        """
+        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        minted_names = set(registry.values())
+        if not minted_names:
+            return
+        candidate_types: list = list(var_manager.variable_to_types.values())
+        if self.function.prototype is not None:
+            candidate_types += list(self.function.prototype.args or ())
+            candidate_types.append(self.function.prototype.returnty)
+        for ty in candidate_types:
+            struct = self._pointee_struct(ty)
+            if struct is None:
+                inner = ty.ty if isinstance(ty, TypeRef) else ty
+                struct = inner if isinstance(inner, SimStruct) else None
+            if struct is None:
+                continue
+            name = struct._name  # pylint:disable=protected-access
+            if name in minted_names and name not in var_manager.types and name in self.kb.types:
+                var_manager.types[name] = self.kb.types.get_own(name)
+
     def _unify_callee_argument_structs(self, vr, var_manager) -> None:
         """
         Progressively unify partial struct layouts recovered for the same caller value across multiple callees.
@@ -2905,22 +2997,29 @@ class Clinic(Analysis, Serializable):
             if len(union_struct.offsets) < 2:
                 continue
 
-            # only act when the union is strictly more detailed than what we already have for this value
+            # drop nested references to per-function-named structs: carrying e.g. a callee-local "struct_1 *" field
+            # into the caller collides with the caller's own per-function type names
+            self._sanitize_union_struct_fields(union_struct)
+
+            # reuse a project-wide canonical struct for this layout (or register a fresh one) so identical unions
+            # across values, functions, and re-decompilations share a single typedef
+            canonical_ref = self._canonicalize_union_struct(union_struct)
+            union_ptr = SimTypePointer(canonical_ref).with_arch(arch)
+
+            # skip when what we have is already at least as detailed: either strictly more fields, or the same layout
+            # already canonicalized (equal field count under the canonical name)
             current_struct = self._pointee_struct(current)
-            if current_struct is not None and len(current_struct.offsets) >= len(union_struct.offsets):
+            if current_struct is not None and (
+                len(current_struct.offsets) > len(union_struct.offsets)
+                or (
+                    len(current_struct.offsets) == len(union_struct.offsets)
+                    and current_struct._name == canonical_ref.name  # pylint:disable=protected-access
+                )
+            ):
                 continue
 
-            # give the freshly-built unioned struct a stable, shared name (reserved in the project type store). We set
-            # the raw _name attribute because accessing SimStruct.name lazily materializes an anonymous repr.
-            name = self.kb.types.unique_type_name()
-            union_struct._name = name  # pylint:disable=protected-access
-            if name not in self.kb.types:
-                self.kb.types[name] = TypeRef(name, union_struct).with_arch(arch)
-
-            var_manager.set_variable_type(variable, union, all_unified=True)
-            registered = var_manager.get_variable_type(variable)
-            if isinstance(registered, SimTypePointer):
-                self._propagate_arg_struct_to_callees(contributors, registered)
+            var_manager.set_variable_type(variable, union_ptr, all_unified=True)
+            self._propagate_arg_struct_to_callees(contributors, union_ptr)
 
     def _propagate_arg_struct_to_callees(self, contributors: list[tuple[int, int]], union_ptr: SimTypePointer) -> None:
         """Upgrade callee prototype argument types to the unioned struct when it is strictly more detailed."""
@@ -2937,8 +3036,16 @@ class Clinic(Analysis, Serializable):
             # never override user-specified prototypes
             if callee.prototype_source >= PrototypeSource.USER:
                 continue
+            # skip when the callee already has strictly more detail, or the exact same canonical struct; an
+            # equal-count layout under a different name is still rewritten so all contributors share one typedef
             existing_struct = self._pointee_struct(proto.args[arg_idx])
-            if existing_struct is not None and len(existing_struct.offsets) >= len(union_struct.offsets):
+            if existing_struct is not None and (
+                len(existing_struct.offsets) > len(union_struct.offsets)
+                or (
+                    len(existing_struct.offsets) == len(union_struct.offsets)
+                    and existing_struct._name == union_struct._name  # pylint:disable=protected-access
+                )
+            ):
                 continue
             new_args = list(proto.args)
             new_args[arg_idx] = union_ptr
