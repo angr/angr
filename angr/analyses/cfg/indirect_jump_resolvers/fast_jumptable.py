@@ -92,6 +92,10 @@ class FastJumpTableResolver(IndirectJumpResolver):
     block, avoiding the symbolic backward-slice machinery of :class:`JumpTableResolver`.
     """
 
+    #: Maximum number of blocks to walk backward looking for the index bound. >= Blade's
+    #: 4-level slice used by the slow resolver.
+    MAX_BOUND_DEPTH = 5
+
     def __init__(self, project, resolve_calls: bool = True, resolve_pic: bool = False):
         super().__init__(project, timeless=False)
         self.resolve_calls = resolve_calls
@@ -434,24 +438,6 @@ class FastJumpTableResolver(IndirectJumpResolver):
         memo[addr] = result
         return result
 
-    @staticmethod
-    def _boring_predecessors(cfg, node):
-        """Intra-function transition predecessors of ``node`` (``Ijk_Boring`` edges only)."""
-        return [
-            pred
-            for pred, jk in cfg.model.get_predecessors_and_jumpkinds(node, excluding_fakeret=True)
-            if jk == "Ijk_Boring"
-        ]
-
-    @staticmethod
-    def _boring_successors(cfg, node):
-        """Intra-function transition successors of ``node`` (``Ijk_Boring`` edges only)."""
-        return [
-            succ
-            for succ, jk in cfg.model.get_successors_and_jumpkinds(node, excluding_fakeret=True)
-            if jk == "Ijk_Boring"
-        ]
-
     def _find_num_entries(
         self,
         cfg,
@@ -462,27 +448,87 @@ class FastJumpTableResolver(IndirectJumpResolver):
         memo: dict[int, Block | None],
     ) -> int | None:
         """
-        Recover the number of table entries from a bounds compare in the (single)
-        predecessor of the jump block. Returns None when the shape is not a clean
-        single-predecessor / two-successor jump table, or when the compared value is not
-        the same value used to index the table.
+        Recover the number of table entries by walking the CFG graph backward from the jump
+        block until a comparison that bounds the table index is found.
 
-        The predecessor is located on the (function-agnostic) CFG graph rather than the
-        owning function's transition graph, so a jump block reassigned to a nearby function
-        between scanning and finalization is still handled.
+        The bound frequently sits several blocks back (the index is moved/converted through
+        intervening blocks), or in a block reassigned to a different function -- so this
+        walks the function-agnostic CFG graph rather than the owning function's transition
+        graph. Soundness is preserved by a *linear guarded chain* requirement: every block
+        between the jump and the compare must have exactly one intra-function predecessor,
+        so the compare provably dominates the jump; the index is only carried across
+        pass-through moves/converts/benign masks (never a scale or an opaque redefinition).
+        The single-predecessor / depth-1 case is unchanged.
         """
         node = cfg.model.get_any_node(block_addr)
         if node is None:
             return None
-        preds = self._boring_predecessors(cfg, node)
-        if len(preds) != 1:
-            return None
-        pred = preds[0]
-        succs = [s for s in self._boring_successors(cfg, pred) if s.addr != pred.addr]
-        if len(succs) != 2:
-            return None
+        tracked_index = self._reduce(index_expr, jump_defs)
 
-        return self._bound_from_pred(cfg, func_addr, pred, block_addr, index_expr, jump_defs, memo)
+        for _ in range(self.MAX_BOUND_DEPTH):
+            preds = [
+                pred
+                for pred, jk in cfg.model.get_predecessors_and_jumpkinds(node, excluding_fakeret=True)
+                if jk == "Ijk_Boring"
+            ]
+            if not preds:
+                return None
+
+            if len(preds) == 1:
+                pred = preds[0]
+                # (1) Bound check: does this predecessor's compare bound the tracked index?
+                count = self._bound_from_pred(cfg, func_addr, pred, node.addr, tracked_index, {}, memo)
+                if count is not None:
+                    return count
+                # (2) Bridge the index back across this predecessor for the next hop.
+                pred_block = self._lift_cached(pred.addr, pred.size, func_addr, memo)
+                if pred_block is None or not pred_block.statements:
+                    return None
+                bridged = self._bridge_index(tracked_index, pred_block)
+                if bridged is None:
+                    return None  # scaled / opaque redefinition -> cannot bound soundly
+                tracked_index = bridged
+                node = pred
+                continue
+
+            # Convergence: ``node`` dominates the jump (single-predecessor chain so far).
+            # It is sound to bound the index here only if EVERY incoming transition edge
+            # bounds the same tracked index; the table then spans up to the loosest bound.
+            counts = []
+            for pred in preds:
+                count = self._bound_from_pred(cfg, func_addr, pred, node.addr, tracked_index, {}, memo)
+                if count is None:
+                    return None  # an unbounded incoming path -> cannot bound soundly
+                counts.append(count)
+            return max(counts)
+
+        return None
+
+    def _bridge_index(self, tracked_index: Expression, pred_block: Block) -> Expression | None:
+        """
+        Re-express the tracked index in terms of ``pred_block``'s inputs for the next hop.
+        Only pass-through transforms are followed: if the index register is redefined in
+        ``pred_block`` by a register move / width Convert / benign mask, the tracked index
+        becomes that source; if it is scaled (Mul/Shl) or defined via a Load / arithmetic /
+        opaque op, return None to drop the path; if the register is not redefined here it is
+        carried unchanged (live-in).
+        """
+        idx = self._reduce(tracked_index, {})
+        if not isinstance(idx, Register):
+            # A non-register index (e.g. a stack slot load) is carried unchanged; it may
+            # still match a compare structurally further back.
+            return idx
+        pred_defs = self._defs_map(pred_block.statements)
+        src = self._register_def(pred_block, idx)
+        if src is None:
+            return idx  # live-in register, unchanged
+        bridged = self._reduce(src, pred_defs)
+        if self._contains_scale(bridged, pred_defs):
+            return None
+        if not isinstance(bridged, Register):
+            # not a pass-through move/convert/mask of a register -> opaque; drop the path
+            return None
+        return bridged
 
     def _bound_from_pred(
         self,
@@ -590,11 +636,11 @@ class FastJumpTableResolver(IndirectJumpResolver):
         cmp_var = self._compare_var(ite.cond, defs)
         if cmp_var is None:
             return None
-        cmp_reduced = self._reduce(cmp_var, defs)
+        cmp_reduced = self._peel_index_mask(self._reduce(cmp_var, defs), defs)
         # A scaled bounded quantity means a sparse index domain -> defer (see Case 1).
         if self._contains_scale(cmp_reduced, defs):
             return None
-        if not self._expr_like(self._reduce(match.index_expr, defs), cmp_reduced):
+        if not self._expr_like(self._peel_index_mask(self._reduce(match.index_expr, defs), defs), cmp_reduced):
             return None
         # The table load is selected when the ITE condition is True.
         count = self._count_from_cond(ite.cond, positive=True)
@@ -610,8 +656,14 @@ class FastJumpTableResolver(IndirectJumpResolver):
 
     #: ``And`` masks that only normalize the width of an already-narrow index and can be
     #: stripped; narrower masks (e.g. ``& 0xff``) genuinely change the compared value and
-    #: are preserved so a mismatch against the index is caught.
+    #: are preserved by ``_reduce`` so a mismatch against the index is caught.
     _BENIGN_MASKS = frozenset({0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF})
+
+    #: Sub-word masks a compiler emits when bounding a byte/half switch selector
+    #: (``(reg & 0xff) <= N``) while the table indexes with the full register. Peeled only
+    #: when cross-checking the compare against the index; the entry-validity check remains
+    #: the backstop against an off-by-one from an implicit non-zero lower bound.
+    _INDEX_MASKS = frozenset({0xFF, 0xFFFF})
 
     def _compare_var(self, cond: BinaryOp, defs: dict[int, Expression]) -> Expression | None:
         """Return the non-constant operand of a comparison, or None if both/neither is."""
@@ -669,8 +721,8 @@ class FastJumpTableResolver(IndirectJumpResolver):
         used to index the table. When the index arrives via a register, its defining
         expression in the predecessor is used to bridge the two blocks.
         """
-        jump_idx = self._reduce(index_expr, jump_defs)
-        cmp = self._reduce(compare_operand, pred_defs)
+        jump_idx = self._peel_index_mask(self._reduce(index_expr, jump_defs), jump_defs)
+        cmp = self._peel_index_mask(self._reduce(compare_operand, pred_defs), pred_defs)
 
         # If the bounded quantity is a scaled index (index pre-multiplied/shifted before
         # the compare, e.g. ``shl rdx,2; cmp rdx,N``), the true index domain is sparse and
@@ -682,7 +734,7 @@ class FastJumpTableResolver(IndirectJumpResolver):
         if isinstance(jump_idx, Register):
             src = self._register_def(pred_block, jump_idx)
             if src is not None:
-                bridged = self._reduce(src, pred_defs)
+                bridged = self._peel_index_mask(self._reduce(src, pred_defs), pred_defs)
                 if self._contains_scale(bridged, pred_defs):
                     return False
                 return self._expr_like(bridged, cmp)
@@ -691,6 +743,17 @@ class FastJumpTableResolver(IndirectJumpResolver):
         if self._contains_scale(jump_idx, jump_defs):
             return False
         return self._expr_like(jump_idx, cmp)
+
+    def _peel_index_mask(self, expr: Expression, defs: dict[int, Expression]) -> Expression:
+        """Peel a single sub-word ``And`` mask (``& 0xff`` / ``& 0xffff``) from ``expr``."""
+        if isinstance(expr, BinaryOp) and expr.op == "And":
+            a = self._deref(expr.operands[0], defs)
+            b = self._deref(expr.operands[1], defs)
+            if isinstance(b, Const) and b.value in self._INDEX_MASKS:
+                return self._reduce(a, defs)
+            if isinstance(a, Const) and a.value in self._INDEX_MASKS:
+                return self._reduce(b, defs)
+        return expr
 
     def _contains_scale(self, expr: Expression, defs: dict[int, Expression]) -> bool:
         """True if ``expr`` (dereferenced) contains a multiply/shift -- a scaled index."""
