@@ -427,12 +427,16 @@ class SimLibrary:
         """
         Check if a function has a prototype associated with it.
 
+        A prototype that is explicitly registered as ``None`` (i.e. the function is known but its signature is not) does
+        not count: this keeps ``has_prototype()`` consistent with ``get_prototype()``, which returns ``None`` for such
+        entries.
+
         :param str func_name: The name of the function.
         :return:              A bool indicating if a prototype of the function is available.
         :rtype:               bool
         """
 
-        return func_name in self.prototypes or func_name in self.prototypes_json
+        return self.prototypes.get(func_name) is not None or func_name in self.prototypes_json
 
     def is_returning(self, name: str) -> bool:
         """
@@ -808,13 +812,17 @@ class SimSyscallLibrary(SimLibrary):
         """
         Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
 
+        Syscalls whose signature is unknown are registered with a ``None`` prototype (see, e.g., ``capset`` in
+        ``linux_kernel.py``). Those do not count as having a prototype: this keeps ``has_prototype()`` consistent with
+        ``get_prototype()``, which returns ``None`` for such entries.
+
         :param abi:         Name of the ABI.
         :param name:        The syscall name.
         :return:            bool
         """
         if abi not in self.syscall_prototypes:
             return False
-        return name in self.syscall_prototypes[abi]
+        return self.syscall_prototypes[abi].get(name) is not None
 
 
 #
