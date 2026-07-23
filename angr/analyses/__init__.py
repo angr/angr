@@ -22,7 +22,7 @@ from .disassembly import Disassembly
 from .dominance_frontier import DominanceFrontier
 from .fcp import FastConstantPropagation
 from .find_objects_static import StaticObjectFinder
-from .flirt import FlirtAnalysis
+from .flirt import FlirtAnalysis, SuggestSignatureAnalysis
 from .forward_analysis import ForwardAnalysis, visitors
 from .identifier import Identifier
 from .init_finder import InitializationFinder
@@ -106,6 +106,7 @@ __all__ = (
     "StackPointerTracker",
     "StaticHooker",
     "StaticObjectFinder",
+    "SuggestSignatureAnalysis",
     "Typehoon",
     "VariableRecovery",
     "VariableRecoveryFast",

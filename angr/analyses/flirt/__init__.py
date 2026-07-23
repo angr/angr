@@ -3,6 +3,7 @@ from __future__ import annotations
 from .consts import FLIRT_ARCH_TO_ARCHNAME, FLIRT_OS_TO_OSNAME, FlirtAppType, FlirtOSType
 from .flirt import FlirtAnalysis
 from .flirt_sig import FlirtSignature, FlirtSignatureError, FlirtSignatureParsed
+from .suggest_signature import SuggestSignatureAnalysis
 
 
 def flirt_arch_to_arch_name(flirt_arch: int, app_types: int) -> str:
@@ -43,6 +44,7 @@ __all__ = [
     "FlirtSignature",
     "FlirtSignatureError",
     "FlirtSignatureParsed",
+    "SuggestSignatureAnalysis",
     "flirt_arch_to_arch_name",
     "flirt_os_type_to_os_name",
 ]
