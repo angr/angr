@@ -38,7 +38,6 @@ except ImportError:
 if TYPE_CHECKING:
     from angr.ailment.block import Block
     from angr.ailment.expression import Expression
-    from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(name=__name__)
 
@@ -233,9 +232,13 @@ class FastJumpTableResolver(IndirectJumpResolver):
         if not (isinstance(block.vex, pyvex.IRSB) and self._prefilter(block.vex)):
             return False, None
 
-        func: Function = cfg.kb.functions[func_addr]
-
+        # The function must exist in the KB (guarded above); bound discovery itself walks
+        # the function-agnostic CFG graph rather than this function's transition graph.
+        # Per-resolve memo so shared blocks (the jump block and predecessors reached along
+        # multiple paths of the backward walk) are lifted+simplified at most once.
+        lift_memo: dict[int, Block | None] = {}
         jump_block = self._lift_and_simplify(addr, block.size, func_addr)
+        lift_memo[addr] = jump_block
         if jump_block is None or not jump_block.statements:
             return False, None
 
@@ -248,7 +251,7 @@ class FastJumpTableResolver(IndirectJumpResolver):
             match = self._match_jump_target(last.target, defs)
             if match is None:
                 return False, None
-            num_entries = self._find_num_entries(cfg, func, addr, defs, match.index_expr, func_graph_complete)
+            num_entries = self._find_num_entries(cfg, func_addr, addr, defs, match.index_expr, lift_memo)
         elif isinstance(last, ConditionalJump) and self._is_arm:
             # ARM single-block table (``ldr pc, [pc, idx, lsl#2]`` guarded by a same-block
             # compare): both the load and the bound are in this block.
@@ -423,33 +426,80 @@ class FastJumpTableResolver(IndirectJumpResolver):
 
     # bound discovery
 
+    def _lift_cached(self, addr: int, size: int | None, func_addr: int, memo: dict[int, Block | None]) -> Block | None:
+        """Lift+simplify ``addr`` once per ``resolve()`` call, caching the result."""
+        if addr in memo:
+            return memo[addr]
+        result = self._lift_and_simplify(addr, size, func_addr)
+        memo[addr] = result
+        return result
+
+    @staticmethod
+    def _boring_predecessors(cfg, node):
+        """Intra-function transition predecessors of ``node`` (``Ijk_Boring`` edges only)."""
+        return [
+            pred
+            for pred, jk in cfg.model.get_predecessors_and_jumpkinds(node, excluding_fakeret=True)
+            if jk == "Ijk_Boring"
+        ]
+
+    @staticmethod
+    def _boring_successors(cfg, node):
+        """Intra-function transition successors of ``node`` (``Ijk_Boring`` edges only)."""
+        return [
+            succ
+            for succ, jk in cfg.model.get_successors_and_jumpkinds(node, excluding_fakeret=True)
+            if jk == "Ijk_Boring"
+        ]
+
     def _find_num_entries(
         self,
         cfg,
-        func: Function,
+        func_addr: int,
         block_addr: int,
         jump_defs: dict[int, Expression],
         index_expr: Expression,
-        func_graph_complete: bool,
+        memo: dict[int, Block | None],
     ) -> int | None:
         """
         Recover the number of table entries from a bounds compare in the (single)
         predecessor of the jump block. Returns None when the shape is not a clean
         single-predecessor / two-successor jump table, or when the compared value is not
         the same value used to index the table.
+
+        The predecessor is located on the (function-agnostic) CFG graph rather than the
+        owning function's transition graph, so a jump block reassigned to a nearby function
+        between scanning and finalization is still handled.
         """
-        node = func.get_node(block_addr)
-        if node is None or node not in func.transition_graph:
+        node = cfg.model.get_any_node(block_addr)
+        if node is None:
             return None
-        preds = list(func.transition_graph.predecessors(node))
+        preds = self._boring_predecessors(cfg, node)
         if len(preds) != 1:
             return None
         pred = preds[0]
-        succs = [s for s in func.transition_graph.successors(pred) if s.addr != pred.addr]
+        succs = [s for s in self._boring_successors(cfg, pred) if s.addr != pred.addr]
         if len(succs) != 2:
             return None
 
-        pred_block = self._lift_and_simplify(pred.addr, pred.size, func.addr)
+        return self._bound_from_pred(cfg, func_addr, pred, block_addr, index_expr, jump_defs, memo)
+
+    def _bound_from_pred(
+        self,
+        cfg,
+        func_addr: int,
+        pred,
+        came_from_addr: int,
+        index_expr: Expression,
+        jump_defs: dict[int, Expression],
+        memo: dict[int, Block | None],
+    ) -> int | None:
+        """
+        If ``pred`` ends in a comparison-guarded conditional jump toward ``came_from_addr``,
+        cross-check the compared value against the table index and return the entry count.
+        Returns None if ``pred`` is not a bounding compare for this index.
+        """
+        pred_block = self._lift_cached(pred.addr, pred.size, func_addr, memo)
         if pred_block is None or not pred_block.statements:
             return None
         last = pred_block.statements[-1]
@@ -459,12 +509,13 @@ class FastJumpTableResolver(IndirectJumpResolver):
         if not (isinstance(cond, BinaryOp) and cond.op in _FLIP_CMP):
             return None
 
-        # ``positive`` is whether the compare must hold to reach the jump block.
+        # ``positive`` is whether the compare must hold to reach the jump block. Polarity is
+        # exact: we know which successor we came from (the in-bounds edge).
         true_addr = self._const_value(last.true_target)
         false_addr = self._const_value(last.false_target)
-        if true_addr == block_addr:
+        if true_addr == came_from_addr:
             positive = True
-        elif false_addr == block_addr:
+        elif false_addr == came_from_addr:
             positive = False
         else:
             return None
