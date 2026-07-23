@@ -5673,7 +5673,7 @@ class TestDecompiler(unittest.TestCase):
 
     def test_tail_calls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tail_calls.o")
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj = angr.Project(bin_path)
         cfg = proj.analyses.CFG(normalize=True)
         proj.analyses.CompleteCallingConventions(analyze_callsites=False)
 
@@ -5702,9 +5702,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((int){a0})
+                if ((unsigned int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
-                return (int){a0} - 1;
+                return (unsigned int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
@@ -5724,9 +5724,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((int){a0})
+                if ((unsigned int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
-                return (int){a0} - 1;
+                return (unsigned int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
