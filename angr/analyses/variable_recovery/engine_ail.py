@@ -249,7 +249,14 @@ class SimEngineVRAIL(
                 isinstance(expr.target, (ailment.Expr.Const, str))
                 or expr.tags.get("is_prototype_guessed", True) is False
             ) and expr.args is not None:
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
+                prototype_guessed = (
+                    func.is_prototype_guessed
+                    if func is not None
+                    else expr.tags.get("is_prototype_guessed", True) is not False
+                )
+                self._call_add_arg_based_type_constraints(
+                    prototype, prototype_libname, args, list(expr.args), prototype_guessed=prototype_guessed
+                )
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
@@ -322,7 +329,14 @@ class SimEngineVRAIL(
                 isinstance(stmt.expr.target, (ailment.Expr.Const, str))
                 or stmt.tags.get("is_prototype_guessed", True) is False
             ):
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.expr.args)
+                prototype_guessed = (
+                    func.is_prototype_guessed
+                    if func is not None
+                    else stmt.tags.get("is_prototype_guessed", True) is not False
+                )
+                self._call_add_arg_based_type_constraints(
+                    prototype, prototype_libname, args, stmt.expr.args, prototype_guessed=prototype_guessed
+                )
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
             ret_ty = self.tv_manager.new_tv()
@@ -362,7 +376,12 @@ class SimEngineVRAIL(
             )
 
     def _call_add_arg_based_type_constraints(
-        self, prototype: SimTypeFunction, prototype_libname: str | None, args: list, arg_atoms: list
+        self,
+        prototype: SimTypeFunction,
+        prototype_libname: str | None,
+        args: list,
+        arg_atoms: list,
+        prototype_guessed: bool = False,
     ) -> None:
         # add type constraints
         if not args:
@@ -373,6 +392,12 @@ class SimEngineVRAIL(
                 continue
             arg_type = dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
             arg_ty = self.type_lifter.lift(arg_type)
+            if prototype_guessed and isinstance(arg_ty, typeconsts.Int) and not isinstance(arg_ty, typeconsts.Pointer):
+                # plain integer parameter types in guessed prototypes are usually size-based defaults and carry
+                # no real type information. adding them as constraints can conflict with precise (e.g., pointer)
+                # constraints from other call sites and degrade the solution to the bottom type. skip them;
+                # informative types (pointers, structs, floats) from guessed prototypes are still used.
+                continue
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
             ):
