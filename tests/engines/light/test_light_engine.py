@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -48,14 +48,13 @@ class TestLightEngine(TestCase):
     def test_inlined_string_abs_visits_operand(self):
         engine: Any = object.__new__(InlinedStringTransformationAILEngine)
         seen = []
-        engine._expr = lambda expr: seen.append(expr)
+        engine._expr = seen.append
         operand = ailment.Expr.Const(0, 1.0, 32)  # pyright: ignore[reportArgumentType]
         abs_expr = ailment.Expr.UnaryOp(1, "Abs", operand)
 
-        result = engine._handle_unop_Abs(abs_expr)
+        engine._handle_unop_Abs(abs_expr)
 
         assert seen == [operand]
-        assert result is None
 
     def test_rda_abs_visits_operand(self):
         engine: Any = object.__new__(SimEngineRDAIL)
