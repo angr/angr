@@ -8,6 +8,7 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import xrefs_pb2
 from angr.serializable import Serializable
 
+from .spilling_xref import SpillingXrefDict
 from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)
@@ -38,8 +39,24 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def __init__(self, kb):
         super().__init__(kb=kb)
 
-        self.xrefs_by_ins_addr = XrefDict()
-        self.xrefs_by_dst = XrefDict()
+        rtdb = kb.rtdb if kb is not None else None
+        if kb is not None and getattr(kb, "_project", None) is not None:
+            self._xrefs_cache_limit = kb._project.get_xrefs_cache_limit()
+        else:
+            self._xrefs_cache_limit = None
+
+        self.xrefs_by_ins_addr = self._new_index(rtdb, "xrefs_by_ins")
+        self.xrefs_by_dst = self._new_index(rtdb, "xrefs_by_dst")
+
+    def _new_index(self, rtdb, db_name) -> SpillingXrefDict:
+        return SpillingXrefDict(rtdb, cache_limit=self._xrefs_cache_limit, db_name=db_name)
+
+    def set_kb(self, kb):
+        super().set_kb(kb)
+        # re-attach the RuntimeDb after unpickling so that xref spilling works again
+        rtdb = kb.rtdb
+        self.xrefs_by_ins_addr.set_rtdb(rtdb)
+        self.xrefs_by_dst.set_rtdb(rtdb)
 
     def copy(self):
         xm = XRefManager(self._kb)
@@ -48,8 +65,9 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         return xm
 
     def clear(self):
-        self.xrefs_by_ins_addr = XrefDict()
-        self.xrefs_by_dst = XrefDict()
+        rtdb = self._kb.rtdb if self._kb is not None else None
+        self.xrefs_by_ins_addr = self._new_index(rtdb, "xrefs_by_ins")
+        self.xrefs_by_dst = self._new_index(rtdb, "xrefs_by_dst")
 
     def add_xref(self, xref):
         to_remove = set()

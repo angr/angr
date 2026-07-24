@@ -35,16 +35,19 @@ class CFGManager(KnowledgeBasePlugin):
                 is_arm = is_arm_arch(self._kb._project.arch)
                 cache_limit = self._kb._project.get_cfg_node_cache_limit()
                 edge_cache_limit = self._kb._project.get_cfg_edge_cache_limit()
+                memory_data_cache_limit = self._kb._project.get_memory_data_cache_limit()
             else:
                 is_arm = False
                 cache_limit = None
                 edge_cache_limit = None
+                memory_data_cache_limit = None
             self.cfgs[ident] = CFGModel(
                 ident,
                 cfg_manager=self,
                 is_arm=is_arm,
                 cache_limit=cache_limit,
                 edge_cache_limit=edge_cache_limit,
+                memory_data_cache_limit=memory_data_cache_limit,
             )
         return self.cfgs[ident]
 
@@ -121,6 +124,10 @@ class CFGManager(KnowledgeBasePlugin):
             cfg_model._cfg_manager = self  # pylint:disable=protected-access
             if cfg_model.graph is not None:
                 cfg_model.graph.set_rtdb(rtdb)
+            # re-attach the RuntimeDb to the memory_data spilling container too
+            set_rtdb = getattr(cfg_model.memory_data, "set_rtdb", None)
+            if set_rtdb is not None:
+                set_rtdb(rtdb)
 
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)

@@ -247,7 +247,10 @@ class RuntimeDb(KnowledgeBasePlugin):
         if self._lmdb_env is not None:
             return None
 
-        kwargs: dict[str, Any] = {"sync": False, "map_size": self._lmdb_mapsize, "max_dbs": 10}
+        # max_dbs must accommodate every spilling container that may open a named sub-database: CFG nodes,
+        # two edge adjacency dicts, functions, memory_data, the two xref indexes, the two callgraph adjacency
+        # dicts, decompilations and dvars -- times the number of CFG models. Keep generous headroom.
+        kwargs: dict[str, Any] = {"sync": False, "map_size": self._lmdb_mapsize, "max_dbs": 40}
         if _is_windows_appcontainer():
             # AppContainer processes cannot access the ``Global\`` namespace used by LMDB's
             # cross-process mutex; ``MDB_NOLOCK`` is safe because RuntimeDb is single-process.
