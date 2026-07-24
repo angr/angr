@@ -176,8 +176,11 @@ class InlinedWcscpySimplifier(OptimizationPass):
             if isinstance(stmt, SideEffectStatement) and self.is_inlined_wcsncpy(stmt):
                 assert stmt.expr.args is not None and len(stmt.expr.args) >= 3
                 base, off = self._parse_addr(stmt.expr.args[0])
-                store_size = stmt.expr.args[2].value * 2 if isinstance(stmt.expr.args[2], Const) else None
-                if off is not None and store_size is not None:
+                count = stmt.expr.args[2]
+                if not isinstance(count, Const) or not count.is_int:
+                    return None
+                store_size = count.value_int * 2
+                if off is not None:
                     candidates.append((i, base, off, store_size, stmt))
             elif isinstance(stmt, Store) and isinstance(stmt.data, Const):
                 base, off = self._parse_addr(stmt.addr)
@@ -262,8 +265,10 @@ class InlinedWcscpySimplifier(OptimizationPass):
                         merged_stmt = merged[0]
                         new_base, new_off = self._parse_addr(merged_stmt.expr.args[0])
                         new_sz = (
-                            merged_stmt.expr.args[2].value * 2
-                            if len(merged_stmt.expr.args) >= 3 and isinstance(merged_stmt.expr.args[2], Const)
+                            merged_stmt.expr.args[2].value_int * 2
+                            if len(merged_stmt.expr.args) >= 3
+                            and isinstance(merged_stmt.expr.args[2], Const)
+                            and merged_stmt.expr.args[2].is_int
                             else sz0 + sz1
                         )
                         new_item = idx0, new_base, new_off, new_sz, merged_stmt
@@ -442,6 +447,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 and starting_stmt.addr.op == "Add"
                 and isinstance(starting_stmt.addr.operands[0], VirtualVariable)
                 and isinstance(starting_stmt.addr.operands[1], Const)
+                and starting_stmt.addr.operands[1].is_int
             ):
                 expected_store_varid = starting_stmt.addr.operands[0].varid
             else:
@@ -464,7 +470,9 @@ class InlinedWcscpySimplifier(OptimizationPass):
             ):
                 offset = stmt.dst.stack_offset
                 value = (
-                    ail_const_to_be(stmt.src, self.project.arch.memory_endness) if isinstance(stmt.src, Const) else None
+                    ail_const_to_be(stmt.src, self.project.arch.memory_endness)
+                    if isinstance(stmt.src, Const) and stmt.src.is_int
+                    else None
                 )
             elif expected_type == "store" and isinstance(stmt, Store):
                 if isinstance(stmt.addr, VirtualVariable) and stmt.addr.varid == expected_store_varid:
@@ -474,14 +482,15 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     and stmt.addr.op == "Add"
                     and isinstance(stmt.addr.operands[0], VirtualVariable)
                     and isinstance(stmt.addr.operands[1], Const)
+                    and stmt.addr.operands[1].is_int
                     and stmt.addr.operands[0].varid == expected_store_varid
                 ):
-                    offset = stmt.addr.operands[1].value
+                    offset = stmt.addr.operands[1].value_int
                 else:
                     offset = None
                 value = (
                     ail_const_to_be(stmt.data, self.project.arch.memory_endness)
-                    if isinstance(stmt.data, Const)
+                    if isinstance(stmt.data, Const) and stmt.data.is_int
                     else None
                 )
             else:
@@ -508,16 +517,19 @@ class InlinedWcscpySimplifier(OptimizationPass):
     def even_offsets_are_zero(lst):
         if len(lst) >= 2 and lst[-1] == 0 and lst[-2] == 0:
             lst = lst[:-2]
-        return all((ch == 0 if i % 2 == 0 else ch != 0) for i, ch in enumerate(lst))
+        return all(isinstance(ch, int) and (ch == 0 if i % 2 == 0 else ch != 0) for i, ch in enumerate(lst))
 
     @staticmethod
     def odd_offsets_are_zero(lst):
         if len(lst) >= 2 and lst[-1] == 0 and lst[-2] == 0:
             lst = lst[:-2]
-        return all((ch == 0 if i % 2 == 1 else ch != 0) for i, ch in enumerate(lst))
+        return all(isinstance(ch, int) and (ch == 0 if i % 2 == 1 else ch != 0) for i, ch in enumerate(lst))
 
     @staticmethod
     def is_integer_likely_a_wide_string(v, size, endness, min_length=4):
+        if not isinstance(v, int) or not isinstance(size, int):
+            return False, None
+
         chars = []
         if endness == Endness.LE:
             while v != 0:
@@ -579,12 +591,12 @@ class InlinedWcscpySimplifier(OptimizationPass):
         ):
             return StackBaseOffset(-1, 64, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
-            if addr.op == "Add" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
+            if addr.op == "Add" and isinstance(addr.operands[1], Const) and addr.operands[1].is_int:
                 base_0, offset_0 = InlinedWcscpySimplifier._parse_addr(addr.operands[0])
-                return base_0, offset_0 + addr.operands[1].value
-            if addr.op == "Sub" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
+                return base_0, offset_0 + addr.operands[1].value_int
+            if addr.op == "Sub" and isinstance(addr.operands[1], Const) and addr.operands[1].is_int:
                 base_0, offset_0 = InlinedWcscpySimplifier._parse_addr(addr.operands[0])
-                return base_0, offset_0 - addr.operands[1].value
+                return base_0, offset_0 - addr.operands[1].value_int
         return addr, 0
 
     @staticmethod

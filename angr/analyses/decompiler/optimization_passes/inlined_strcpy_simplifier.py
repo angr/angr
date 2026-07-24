@@ -96,9 +96,11 @@ class InlinedStrcpySimplifier(OptimizationPass):
             elif (
                 isinstance(stmt.src, Insert)
                 and isinstance(stmt.src.base, (Const, VirtualVariable))
+                and (not isinstance(stmt.src.base, Const) or stmt.src.base.is_int)
                 and isinstance(stmt.src.value, Const)
                 and stmt.src.value.is_int
                 and isinstance(stmt.src.offset, Const)
+                and stmt.src.offset.is_int
             ):
                 inlined_strcpy_candidate = True
                 src = stmt.src.value
@@ -253,7 +255,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
             delta = self._get_delta(addr_last, addr_curr)
             if delta is not None and delta == len(s_last):
                 new_str = s_last + s_curr
-        elif isinstance(stmt, Store) and isinstance(stmt.data, Const):
+        elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and stmt.data.is_int:
             addr_curr = stmt.addr
             delta = self._get_delta(addr_last, addr_curr)
             if delta is not None and delta == len(s_last):
@@ -322,7 +324,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 and stmt.dst.was_stack
                 and isinstance(stmt.dst.stack_offset, int)
             ):
-                if isinstance(stmt.src, Const):
+                if isinstance(stmt.src, Const) and stmt.src.is_int:
                     r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
                 if (
                     isinstance(stmt.src, Insert)
@@ -334,17 +336,20 @@ class InlinedStrcpySimplifier(OptimizationPass):
                             and stmt.src.base.stack_offset == stmt.dst.stack_offset
                         )
                     )
+                    and (not isinstance(stmt.src.base, Const) or stmt.src.base.is_int)
                     and isinstance(stmt.src.offset, Const)
+                    and stmt.src.offset.is_int
                     and isinstance(stmt.src.value, Const)
+                    and stmt.src.value.is_int
                 ):
-                    r[stmt.dst.stack_offset + stmt.src.offset.value] = (
+                    r[stmt.dst.stack_offset + stmt.src.offset.value_int] = (
                         idx,
                         ail_const_to_be(stmt.src.value, self.project.arch.memory_endness),
                     )
                 else:
                     r[stmt.dst.stack_offset] = idx, None
             elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
-                if isinstance(stmt.data, Const):
+                if isinstance(stmt.data, Const) and stmt.data.is_int:
                     r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, self.project.arch.memory_endness)
                 else:
                     r[stmt.addr.offset] = idx, None
@@ -420,12 +425,12 @@ class InlinedStrcpySimplifier(OptimizationPass):
         ):
             return StackBaseOffset(-1, addr.bits, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
-            if addr.op == "Add" and isinstance(addr.operands[1], Const):
+            if addr.op == "Add" and isinstance(addr.operands[1], Const) and addr.operands[1].is_int:
                 base_0, offset_0 = InlinedStrcpySimplifier._parse_addr(addr.operands[0])
-                return base_0, offset_0 + addr.operands[1].value
-            if addr.op == "Sub" and isinstance(addr.operands[1], Const):
+                return base_0, offset_0 + addr.operands[1].value_int
+            if addr.op == "Sub" and isinstance(addr.operands[1], Const) and addr.operands[1].is_int:
                 base_0, offset_0 = InlinedStrcpySimplifier._parse_addr(addr.operands[0])
-                return base_0, offset_0 - addr.operands[1].value
+                return base_0, offset_0 - addr.operands[1].value_int
         return addr, 0
 
     @staticmethod
