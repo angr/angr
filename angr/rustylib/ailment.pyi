@@ -609,7 +609,7 @@ class Const(Atom):
     @property
     def sign_bit(self) -> int:
         """``Const.sign_bit`` -- the top bit of the int value at the Const's declared width. Computed as a bit-extract (not an arithmetic shift) so values stored as their u64 two's-complement form -- e.g. ``-8`` carried as ``2^64 - 8`` from the lifter -- correctly report ``1``."""
-    def __init__(self, idx: int | None, value: int, bits: int, **tags: Any) -> None: ...
+    def __init__(self, idx: int | None, value: float, bits: int, **tags: Any) -> None: ...
 
 class Tmp(Atom):
     @property
