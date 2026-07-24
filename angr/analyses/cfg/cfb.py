@@ -123,13 +123,17 @@ class CFBlanket(Analysis):
         self,
         exclude_region_types: set[str] | None = None,
         on_object_added: Callable[[int, Any], None] | None = None,
+        on_object_removed: Callable[[int, Any], None] | None = None,
     ):
         """
-        :param on_object_added: Callable with parameters (addr, obj) called after an object is added to the blanket.
+        :param on_object_added:   Callable with parameters (addr, obj) called after an object is added to the blanket.
+        :param on_object_removed: Callable with parameters (addr, obj) called after an object is removed from the
+                                  blanket.
         """
         self._blanket = SortedDict()
 
         self._on_object_added_callback = on_object_added
+        self._on_object_removed_callback = on_object_removed
         self._regions = []
         self._exclude_region_types = exclude_region_types or set()
 
@@ -355,6 +359,31 @@ class CFBlanket(Analysis):
             trimmed.reference_size = obj.reference_size
             return trimmed
         return None
+
+    def remove_obj(self, addr, fill: bool = True):
+        """
+        Remove the object at `addr` from the blanket. When `fill` is set (the default), the removed object's span is
+        re-filled with an Unknown region so that the blanket remains a total cover of the mapped address space.
+        Removing a missing address is a no-op.
+
+        :return: The removed object, or None if no object exists at `addr`.
+        """
+        obj = self._blanket.pop(addr, None)
+        if obj is None:
+            return None
+        if self._on_object_removed_callback:
+            self._on_object_removed_callback(addr, obj)
+
+        size = self._obj_size(obj)
+        if fill and size:
+            cle_obj = self.project.loader.find_object_containing(addr, membership_check=False)
+            loader = None if cle_obj is None or isinstance(cle_obj, ExternObject) else self.project.loader
+            section = cle_obj.find_section_containing(addr) if cle_obj is not None else None
+            filler = Unknown(addr, size, object_=cle_obj, section=section, loader=loader)
+            self._blanket[addr] = filler
+            if self._on_object_added_callback:
+                self._on_object_added_callback(addr, filler)
+        return obj
 
     def add_function(self, func):
         """

@@ -6404,6 +6404,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                 self._remove_jobs_by_source_node_addr(existing_node.addr)
 
+            if self._cfb is not None:
+                # remove the block from the control-flow blanket as well, so that stale blocks are not displayed
+                # (the blanket key is the real address; already-carved entries hit the no-op path)
+                self._cfb.remove_obj(assumption_addr)
+
             if not self.model.has_node_addr(assumption_addr) and not self.model.has_node_addr(assumption_addr + 1):
                 # remove the address (the real address) from the traced addresses set. only remove this address if both
                 # the ARM node and the THUMB node no longer exist.
