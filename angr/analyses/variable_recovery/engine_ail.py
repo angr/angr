@@ -1230,7 +1230,10 @@ class SimEngineVRAIL(
     _handle_binop_Set = _handle_binop_Default
     _handle_binop_MaxV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
-    _handle_binop_HAddV = _handle_binop_Default
+
+    def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
+        return cast(RichR[claripy.ast.BV | claripy.ast.FP], self._handle_binop_Default(expr))
+
     _handle_binop_QAddV = _handle_binop_Default
     _handle_binop_QSubV = _handle_binop_Default
     _handle_binop_QNarrowBinV = _handle_binop_Default

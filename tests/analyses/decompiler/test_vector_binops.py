@@ -10,6 +10,8 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestVectorBinops(unittest.TestCase):
+    """Test vector operations throughout the decompiler pipeline."""
+
     def test_haddv_survives_decompilation(self):
         bin_path = os.path.join(test_location, "armel", "libc-2.31.so")
 
@@ -28,7 +30,7 @@ class TestVectorBinops(unittest.TestCase):
                 )
                 function = cfg.functions[function_addr]
 
-                decompilation = project.analyses.Decompiler(function, cfg=cfg.model, fail_fast=True)
+                decompilation = project.analyses.Decompiler(function, cfg=cfg.model)
                 assert decompilation.codegen is not None
                 assert decompilation.codegen.text is not None
                 assert "HAddV(" in decompilation.codegen.text

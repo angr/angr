@@ -42,7 +42,7 @@ class TestAILExec(unittest.TestCase):
                     vector_count=4,
                     vector_size=8,
                 )
-                result = engine._expr_bv(expr)
+                result = engine._expr_bv(expr)  # pylint: disable=protected-access
                 assert result.concrete and result.concrete_value == expected
 
     def test_smoketest(self):
