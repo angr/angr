@@ -1240,34 +1240,54 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _scan_for_fp_constants(self, start_addr: int, threshold: int = 4) -> int:
         """
-        Scan from a given address for a run of plausible double-precision floating-point constants.
+        Scan from a given address for a run of plausible floating-point constants.
 
-        A value qualifies when its biased exponent falls within a band covering magnitudes between 2 ** -64 and
-        2 ** 64, which is where constants in compiler- and libm-generated tables (polynomial coefficients,
-        logarithm and trigonometry tables, etc.) almost always live. Code bytes rarely produce multiple
-        consecutive qualifying values.
+        A double-precision value qualifies when its biased exponent falls within a band covering magnitudes
+        between 2 ** -64 and 2 ** 64, which is where constants in compiler- and libm-generated tables (polynomial
+        coefficients, logarithm and trigonometry tables, etc.) almost always live. Code bytes rarely produce
+        multiple consecutive qualifying values.
+
+        Single-precision values are detected as well, but with a tighter magnitude band (2 ** -32 to 2 ** 32) and
+        twice the run-length requirement: an 8-bit exponent in a 4-byte value is a much weaker signal than an
+        11-bit exponent in an 8-byte value, and anything looser starts matching real code.
 
         :param start_addr:  The address to start scanning from.
-        :param threshold:   The minimum number of consecutive qualifying 8-byte values.
-        :return:            The total size in bytes of the qualifying values, or 0 if fewer than threshold values
-                            are found.
+        :param threshold:   The minimum number of consecutive qualifying double-precision values.
+        :return:            The total size in bytes of the qualifying values, or 0 if not enough values are found.
         """
 
-        addr = start_addr
-        fp_count = 0
+        for size, exp_shift, exp_mask, exp_lo, exp_hi, min_count in (
+            (8, 52, 0x7FF, 959, 1087, threshold),  # doubles: 1023 +/- 64
+            (4, 23, 0xFF, 95, 159, threshold * 2),  # floats: 127 +/- 32
+        ):
+            addr = start_addr
+            fp_count = 0
+            first_val = None
+            has_multiple_values = False
 
-        while self._inside_regions(addr):
-            val = self._fast_memory_load_pointer(addr, size=8)
-            if val is None:
-                break
-            exponent = (val >> 52) & 0x7FF
-            if not 959 <= exponent <= 1087:  # 1023 +/- 64
-                break
-            fp_count += 1
-            addr += 8
+            uniform_mul = ((1 << (size * 8)) - 1) // 0xFF
 
-        if fp_count >= threshold:
-            return fp_count * 8
+            while self._inside_regions(addr):
+                val = self._fast_memory_load_pointer(addr, size=size)
+                if val is None:
+                    break
+                if val == (val & 0xFF) * uniform_mul:
+                    # all bytes are identical: this is filler (e.g., 0xCC padding or "????", whose bit patterns
+                    # carry in-band exponents), not a constant
+                    break
+                exponent = (val >> exp_shift) & exp_mask
+                if not exp_lo <= exponent <= exp_hi:
+                    break
+                if first_val is None:
+                    first_val = val
+                elif val != first_val:
+                    has_multiple_values = True
+                fp_count += 1
+                addr += size
+
+            # a run of one repeated value carries no table evidence
+            if fp_count >= min_count and has_multiple_values:
+                return fp_count * size
         return 0
 
     def _scan_for_monotonic_byte_ramp(self, start_addr: int, threshold: int = 16) -> int:
