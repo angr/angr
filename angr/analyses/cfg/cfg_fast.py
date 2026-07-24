@@ -700,6 +700,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         jumptable_resolver_resolves_calls: bool | None = None,
         retedges: bool = False,
         drop_bad_funcs: bool = True,
+        treat_functions_as_complete: bool = True,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -778,6 +779,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         aborted CFG recovery is passed in, recovery resumes on top of it: bytes covered
                                         by existing nodes and memory data are treated as already scanned and will not
                                         be re-lifted.
+        :param treat_functions_as_complete: Whether post-analysis may treat the recovered functions as complete
+                                        (drop bad functions, conclude returning=False for functions without
+                                        return paths). Set to False for incremental runs that extend a partial
+                                        model without completing it (see the resume recipes below).
         :param resume_state:            The resume_state captured by a previously aborted CFGFast instance. Its
                                         unprocessed jobs and unresolved indirect jumps are re-created (with their
                                         original function context) so that the recovery continues where it left off.
@@ -810,7 +815,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             proj.analyses.CFGFast(model=partial_cfg.model, function_starts=[addr], start_at_entry=False,
                                   symbols=False, function_prologues=False, eh_frame=False,
-                                  force_smart_scan=False, force_complete_scan=False)
+                                  force_smart_scan=False, force_complete_scan=False,
+                                  treat_functions_as_complete=False)
+
+        treat_functions_as_complete=False tells post-analysis that the resulting model is still partial: functions
+        must not be dropped as bad, and returning=False must not be concluded for (possibly truncated) functions -
+        such conclusions would poison a later full resume the same way an abort would without them being reset.
 
         :return: None
         """
@@ -993,6 +1003,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._transitory_unresolved_indirect_jumps = 0
 
         self._drop_bad_funcs = drop_bad_funcs
+        self._treat_functions_as_complete = treat_functions_as_complete
 
         self.stage: str = ""
 
@@ -2725,6 +2736,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def _post_analysis(self):
         self.stage = "Analysis (Stage 2)"
 
+        # is the resulting model known to be partial? this is the case when the analysis was aborted, and when the
+        # caller declared upfront that this run only extends a partial model (treat_functions_as_complete=False)
+        model_is_partial = self.should_abort or not self._treat_functions_as_complete
+
         if self.should_abort:
             # the analysis was aborted before completion; capture the unprocessed jobs (preserving their function
             # context) and the unresolved indirect jumps so that the caller may resume the analysis later by passing
@@ -2736,11 +2751,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             )
             self.unprocessed_job_addrs = {j.addr for j in unprocessed_jobs}
 
-            # returning=False conclusions reached mid-analysis may be transient: e.g., a PLT stub is concluded as
-            # non-returning while the job that would process its jump target (an always-returning extern function)
-            # is still sitting in the queue. An uninterrupted analysis corrects such conclusions once the callee is
-            # processed; since the correction will never come, reset them to undetermined so that neither this run's
-            # make_functions() nor a resumed analysis (which would suppress all return sites of calls to these
+        if model_is_partial:
+            # returning=False conclusions reached over a partial model may be transient: e.g., a PLT stub is
+            # concluded as non-returning while the job that would process its jump target (an always-returning extern
+            # function) is still sitting in the queue, or the callee simply lies in a not-yet-recovered part of the
+            # binary. An analysis over the complete binary corrects such conclusions once the callee is processed;
+            # since the correction will not come in this run, reset them to undetermined so that neither this run's
+            # make_functions() nor a future resumed analysis (which would suppress all return sites of calls to these
             # functions) treats them as ground truth. Provably non-returning SimProcedures and syscalls keep their
             # status.
             for func_addr in list(self.functions.nonreturning_func_addrs()):
@@ -2751,8 +2768,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     func.returning = None
 
         self._calculate_progress_and_notify(skip_percentage=True)
-        if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs and not self.should_abort:
-            # note: when the analysis is aborted, functions may be truncated (their outgoing edges were never
+        if (self._force_complete_scan or self._force_smart_scan) and self._drop_bad_funcs and not model_is_partial:
+            # note: when the model is partial, functions may be truncated (their outgoing edges were never
             # processed), which makes them look like bad functions; do not drop them
             self.drop_bad_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
@@ -2781,12 +2798,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.make_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
 
-        # when the analysis is aborted, functions may be truncated and callees may be missing; the batch function-
+        # when the model is partial, functions may be truncated and callees may be missing; the batch function-
         # feature analysis would incorrectly conclude returning=False for functions whose return sites or callees
         # were simply never processed, and a future resumed analysis would then suppress their fall-through edges.
-        # skip it entirely on abort - the incrementally determined features stay in place, and a resumed analysis
-        # re-runs this pass with complete knowledge.
-        if not self.should_abort:
+        # skip it entirely for partial models - the incrementally determined features stay in place, and a full
+        # analysis re-runs this pass with complete knowledge.
+        if not model_is_partial:
             self._analyze_all_function_features(all_funcs_completed=True)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
@@ -2833,8 +2850,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # Finally, mark endpoints of every single function
                 f.mark_nonreturning_calls_endpoints()
 
-        if not self.should_abort:
-            # keep returning=None (undetermined) for truncated functions when the analysis is aborted
+        if not model_is_partial:
+            # keep returning=None (undetermined) for truncated functions when the model is partial
             for func_addr in sorted(self.functions.unknown_returning_func_addrs()):
                 f = self.functions.get_by_addr(func_addr)
                 # Scan all functions, and make sure .returning for all functions are either True or False

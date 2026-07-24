@@ -192,6 +192,55 @@ class TestCfgfastAbortResume(unittest.TestCase):
         # unresolved indirect jumps captured at abort time must be re-processed on resume
         self._assert_resume_state_exact("cfg_switches", (5, 50), allow_unreachable_orphan_extras=True)
 
+    def test_full_resume_exact_after_strict_resume(self):
+        # a strict resume-from-address over a partial model must declare treat_functions_as_complete=False;
+        # otherwise its post-analysis concludes returning=False for truncated functions, which poisons a later
+        # full resume (return sites of calls to those functions get suppressed and gap scanning promotes the
+        # orphaned bytes to bogus functions)
+        path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        ref = angr.Project(path, auto_load_libs=False)
+        ref.analyses.CFGFast(normalize=True)
+        ref_funcs = set(ref.kb.functions)
+
+        orig_interval = cfg_fast_mod.PROGRESS_NOTIFY_INTERVAL
+        cfg_fast_mod.PROGRESS_NOTIFY_INTERVAL = 0
+        try:
+            proj = angr.Project(path, auto_load_libs=False)
+            count = [0]
+
+            def cb(percentage, text=None, cfg=None, **kwargs):  # pylint:disable=unused-argument
+                if cfg is not None:
+                    count[0] += 1
+                    if count[0] >= 20:
+                        cfg.abort()
+
+            partial = proj.analyses.CFGFast(normalize=True, progress_callback=cb)
+            assert partial.should_abort
+
+            missing = sorted(ref_funcs - set(proj.kb.functions))
+            assert missing
+            proj.analyses.CFGFast(
+                model=partial.model,
+                function_starts=[missing[0]],
+                normalize=True,
+                treat_functions_as_complete=False,
+                **RESUME_ONLY_KWARGS,
+            )
+            proj.analyses.CFGFast(
+                model=partial.model,
+                start_at_entry=False,
+                resume_state=partial.resume_state,
+                normalize=True,
+            )
+            got = set(proj.kb.functions)
+            assert got == ref_funcs, (
+                f"{len(got)} funcs vs reference {len(ref_funcs)}; "
+                f"extra={sorted(hex(a) for a in got - ref_funcs)[:10]}, "
+                f"missing={sorted(hex(a) for a in ref_funcs - got)[:10]}"
+            )
+        finally:
+            cfg_fast_mod.PROGRESS_NOTIFY_INTERVAL = orig_interval
+
     def test_second_pass_idempotent(self):
         path = os.path.join(test_location, "x86_64", "fauxware")
 
