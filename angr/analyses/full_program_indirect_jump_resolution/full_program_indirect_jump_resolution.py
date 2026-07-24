@@ -239,10 +239,16 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
 
     def _analyze_function(self, func: Function) -> None:
+        # Stop right after the level-1 SSA transformation, before the post-SSA-level-1 simplification round. That final
+        # round is the single most expensive slice of the per-function decompilation (profiled at ~25% of the analysis
+        # on libc) yet contributes nothing to indirect-jump resolution: a whole-binary A/B on libc.so.6 found the SSA
+        # form produced here already exposes every pointer shape the post-round would (39/39 sites, 64/64 targets
+        # identical), so stopping here is byte-for-byte resolution-equivalent while ~25% faster. Do not drop to
+        # PRE_SSA_LEVEL1_SIMPLIFICATIONS: without the level-1 transform two libc sites stop resolving.
         clinic = self.project.analyses.Clinic(
             func,
             cfg=self._cfg_model,
-            end_stage=ClinicStage.POST_SSA_LEVEL1_SIMPLIFICATIONS,
+            end_stage=ClinicStage.SSA_LEVEL1_TRANSFORMATION,
             fail_fast=self._fail_fast_flag,
         )
         graph = clinic.graph
