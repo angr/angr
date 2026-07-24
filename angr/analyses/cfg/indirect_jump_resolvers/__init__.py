@@ -5,6 +5,7 @@ from .amd64_elf_got import AMD64ElfGotResolver
 from .amd64_pe_iat import AMD64PeIatResolver
 from .arm_elf_fast import ArmElfFastResolver
 from .const_resolver import ConstantResolver
+from .fast_jumptable import FastJumpTableResolver
 from .jumptable import JumpTableResolver
 from .memload_resolver import MemoryLoadResolver
 from .mips_elf_fast import MipsElfFastResolver
@@ -19,6 +20,7 @@ __all__ = (
     "AMD64PeIatResolver",
     "ArmElfFastResolver",
     "ConstantResolver",
+    "FastJumpTableResolver",
     "JumpTableResolver",
     "MemoryLoadResolver",
     "MipsElfFastResolver",

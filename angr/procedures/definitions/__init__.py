@@ -814,7 +814,8 @@ class SimSyscallLibrary(SimLibrary):
         """
         if abi not in self.syscall_prototypes:
             return False
-        return name in self.syscall_prototypes[abi]
+        # some prototypes are stored as None (they could not be parsed at generation time); treat them as absent
+        return self.syscall_prototypes[abi].get(name) is not None
 
 
 #
