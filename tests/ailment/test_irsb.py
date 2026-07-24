@@ -207,6 +207,39 @@ class TestVexConverterAcrossArches(unittest.TestCase):
                 self._check_binary(os.path.normpath(os.path.join(base, rel)))
 
 
+class TestLiftWindowOverread(unittest.TestCase):
+    """libVEX decoders may read the full length of an instruction that starts
+    inside the lift window, i.e. a few bytes past ``max_bytes`` -- and past the
+    end of the buffer when the window ends at it. The fast path must pad such
+    windows with NULs (mirroring pyvex) instead of lifting adjacent heap
+    garbage, which made the block content (jumpkind, temp numbering)
+    nondeterministic."""
+
+    # 38 bytes at 0x400b5a in s390x/fauxware: nopr padding + function prologue,
+    # ending with the first 4 bytes of a 6-byte `lg` at 0x400b7c. The last two
+    # bytes of the `lg` fall outside the window; whether it decodes depends
+    # entirely on out-of-window bytes.
+    window = bytes.fromhex("070707070707eb6ff0300024b904001fa7fbff60e310f0000024c0c000000a060707e340f110")
+    addr = 0x400B5A
+
+    def test_lift_does_not_read_past_window(self):
+        arch = archinfo.arch_from_id("s390x")
+        from_py = VEXIRSBConverter.convert(
+            pyvex.IRSB(self.window, self.addr, arch, opt_level=1), ailment.Manager(arch=arch)
+        )
+        # 0x04 completes the truncated `lg`: an unguarded overread decodes it
+        # and ends the block Ijk_Boring instead of Ijk_NoDecode.
+        backing = bytearray(self.window + b"\x04" * 8)
+        from_lift_mv = VEXIRSBConverter.convert_from_lift(
+            arch, self.addr, memoryview(backing)[: len(self.window)], ailment.Manager(arch=arch), opt_level=1
+        )
+        from_lift_bytes = VEXIRSBConverter.convert_from_lift(
+            arch, self.addr, self.window, ailment.Manager(arch=arch), opt_level=1
+        )
+        assert from_py == from_lift_mv
+        assert from_py == from_lift_bytes
+
+
 class TestVexOpParity(unittest.TestCase):
     """The Rust vexop classifier must match Python ``vexop_to_simop`` for every
     VEX op (guards against drift in the hand-ported claripy/irop name-sets)."""
