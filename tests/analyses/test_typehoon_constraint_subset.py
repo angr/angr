@@ -64,7 +64,7 @@ class _IterationCountingSet(set[TypeConstraint]):
         return super().__iter__()
 
 
-def test_constraint_subset_preserves_endpoint_semantics():
+def test_constraint_subset_preserves_tv_semantics():
     root = TypeVariable(name="root")
     connected = TypeVariable(name="connected")
     out_of_scope_bridge = TypeVariable(name="out_of_scope_bridge")
@@ -98,7 +98,7 @@ def test_constraint_subset_preserves_endpoint_semantics():
     }
 
     index = SimpleSolver._index_subtype_constraints(constraints)
-    subset, related = SimpleSolver._generate_constraint_subset(constraints, {root}, endpoint_to_constraints=index)
+    subset, related = SimpleSolver._generate_constraint_subset(constraints, {root}, tv_to_constraints=index)
 
     assert subset == {
         derived_root,
@@ -138,7 +138,7 @@ def test_constraint_subset_matches_reference_on_randomized_graphs():
 
         expected = _reference_generate_constraint_subset(constraints, seeds)
         index = SimpleSolver._index_subtype_constraints(constraints)
-        indexed = SimpleSolver._generate_constraint_subset(constraints, seeds, endpoint_to_constraints=index)
+        indexed = SimpleSolver._generate_constraint_subset(constraints, seeds, tv_to_constraints=index)
         on_demand = SimpleSolver._generate_constraint_subset(constraints, seeds)
 
         assert indexed == expected
@@ -172,7 +172,7 @@ def test_constraint_index_is_reused_across_many_components():
 
     for idx in range(0, len(typevars), 2):
         subset, related = SimpleSolver._generate_constraint_subset(
-            constraints, {typevars[idx]}, endpoint_to_constraints=index
+            constraints, {typevars[idx]}, tv_to_constraints=index
         )
         assert subset == {Subtype(typevars[idx], typevars[idx + 1])}
         assert related == {typevars[idx], typevars[idx + 1]}
