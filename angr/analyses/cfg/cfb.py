@@ -66,18 +66,41 @@ class MemoryRegion:
 
 
 class Unknown:
-    def __init__(self, addr, size, bytes_=None, object_=None, segment=None, section=None):
+    """
+    An unknown byte region in a control-flow blanket.
+    """
+
+    # the maximum number of bytes to load for display purposes; matches the display cap of the linear viewer in angr
+    # management (101 lines of 16 bytes each)
+    MAX_BYTES = 1616
+
+    def __init__(self, addr, size, bytes_=None, object_=None, segment=None, section=None, loader=None):
         self.addr = addr
         self.size = size
 
         # Optional
-        self.bytes = bytes_
+        self._bytes = bytes_
+        self._loader = loader
         self.object = object_
         self.segment = segment
         self.section = section
 
         if size == 0:
             raise Exception("You cannot create an unknown region of size 0.")
+
+    @property
+    def bytes(self):
+        """
+        The bytes of this region, for display purposes. Lazily loaded on first access (and capped at MAX_BYTES) when
+        a loader is available.
+        """
+        if self._bytes is None and self._loader is not None:
+            try:
+                self._bytes = self._loader.memory.load(self.addr, min(self.size, self.MAX_BYTES))
+            except KeyError:
+                # the address is not mapped; do not retry
+                self._loader = None
+        return self._bytes
 
     def __repr__(self):
         return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
@@ -403,23 +426,9 @@ class CFBlanket(Analysis):
                 next_addr = max_addr
 
             size = next_addr - min_addr
-            if obj is None or isinstance(obj, cle.ExternObject):
-                bytes_ = None
-            else:
-                try:
-                    _l.debug(
-                        "Loading bytes from object %s, section %s, segment %s, address %#x.",
-                        obj,
-                        section,
-                        segment,
-                        min_addr,
-                    )
-                    bytes_ = self.project.loader.memory.load(min_addr, size)
-                except KeyError:
-                    # The address does not exist
-                    bytes_ = None
+            loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
             self.add_obj(
-                min_addr, Unknown(min_addr, size, bytes_=bytes_, object_=obj, segment=segment, section=section)
+                min_addr, Unknown(min_addr, size, object_=obj, segment=segment, section=section, loader=loader)
             )
 
         addr = min_addr
@@ -440,23 +449,9 @@ class CFBlanket(Analysis):
                 if next_addr > end_addr:
                     # there is a gap
                     size = next_addr - end_addr
-                    if obj is None or isinstance(obj, cle.ExternObject):
-                        bytes_ = None
-                    else:
-                        try:
-                            _l.debug(
-                                "Loading bytes from object %s, section %s, segment %s, address %#x.",
-                                obj,
-                                section,
-                                segment,
-                                end_addr,
-                            )
-                            bytes_ = self.project.loader.memory.load(end_addr, size)
-                        except KeyError:
-                            # The address does not exist
-                            bytes_ = None
+                    loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
                     self.add_obj(
-                        end_addr, Unknown(end_addr, size, bytes_=bytes_, object_=obj, segment=segment, section=section)
+                        end_addr, Unknown(end_addr, size, object_=obj, segment=segment, section=section, loader=loader)
                     )
                 addr = next_addr
             else:
