@@ -63,6 +63,76 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         targets = self._union_of_resolutions(fpijr, dispatch)
         assert targets == expected
 
+    def test_progress_callback(self):
+        binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        updates = []
+
+        def callback(percentage, text=None, **kwargs):
+            updates.append((percentage, text, kwargs.get("analysis")))
+
+        fpijr = proj.analyses.FullProgramIndirectJumpResolution(progress_callback=callback)
+
+        # progress must be reported, be monotonically non-decreasing, end at 100%, and expose the running instance
+        assert updates
+        percentages = [p for p, _, _ in updates]
+        assert percentages == sorted(percentages)
+        assert percentages[-1] == 100.0
+        assert any(inst is fpijr for _, _, inst in updates)
+
+        # low_priority must not change the result
+        dispatch = cfg.kb.functions["dispatch"]
+        expected = {cfg.kb.functions[name].addr for name in ("f0", "f1", "f2", "f3")}
+        assert self._union_of_resolutions(fpijr, dispatch) == expected
+
+    def test_low_priority(self):
+        binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        fpijr = proj.analyses.FullProgramIndirectJumpResolution(low_priority=True)
+
+        dispatch = cfg.kb.functions["dispatch"]
+        expected = {cfg.kb.functions[name].addr for name in ("f0", "f1", "f2", "f3")}
+        assert self._union_of_resolutions(fpijr, dispatch) == expected
+
+    def test_abort(self):
+        binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # abort from within the progress callback (as a host GUI would, via the passed-in analysis instance), after the
+        # very first per-function update. The run must stop early yet still finalize a valid resolved_indirect_jumps.
+        state = {"instance": None, "aborted_after": None}
+
+        def callback(percentage, text=None, **kwargs):
+            inst = kwargs.get("analysis")
+            if inst is not None and state["instance"] is None:
+                state["instance"] = inst
+                inst.abort()
+                state["aborted_after"] = percentage
+
+        fpijr = proj.analyses.FullProgramIndirectJumpResolution(progress_callback=callback)
+
+        assert fpijr.should_abort
+        assert state["instance"] is fpijr
+        # aborting on the first tick means far fewer functions were analyzed than were selected
+        assert len(fpijr._func_facts) < len(fpijr._selected_funcs)  # pylint:disable=protected-access
+        # partial results must still be a valid dict
+        assert isinstance(fpijr.resolved_indirect_jumps, dict)
+
+    def test_abort_before_run_is_idempotent(self):
+        _, _, fpijr = self._run("fpijr_global_table")
+        # aborting a finished analysis is a harmless no-op and does not invalidate results
+        fpijr.abort()
+        assert fpijr.should_abort
+        assert isinstance(fpijr.resolved_indirect_jumps, dict)
+
 
 if __name__ == "__main__":
     unittest.main()

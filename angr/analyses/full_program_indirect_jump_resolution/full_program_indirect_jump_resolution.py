@@ -72,9 +72,21 @@ class FullProgramIndirectJumpResolution(Analysis):
     fixed point. Finally, every indirect jump/call target expression is evaluated against the collected shapes to
     recover the set of possible target functions.
 
+    The per-function phase dominates the runtime, so the analysis supports the usual angr responsiveness controls:
+    pass ``progress_callback`` and/or ``show_progressbar`` (handled by the base :class:`Analysis`) to observe progress,
+    ``low_priority=True`` to periodically release the GIL and keep a host application (e.g. a GUI) responsive, and call
+    :meth:`abort` to stop early. Each progress update passes ``analysis=self`` to the callback, so a host can grab the
+    running instance and call :meth:`abort` on it (or do so from another thread). An aborted run still finalizes the
+    partial results collected so far, leaving ``resolved_indirect_jumps`` valid.
+
     :ivar resolved_indirect_jumps: mapping from the instruction address of an indirect jump/call to the set of
                                    resolved target function addresses.
     :ivar pointer_shapes:          the descriptor store, exposed for debugging and inspection.
+
+    :param functions:      Optional iterable of Function objects or addresses to restrict the analysis to.
+    :param fail_fast:      Re-raise per-function exceptions instead of skipping the offending function.
+    :param max_iterations: Cap on the interprocedural propagation fixed-point iterations.
+    :param low_priority:   Periodically release the GIL during the per-function phase to stay responsive.
     """
 
     def __init__(
@@ -82,9 +94,17 @@ class FullProgramIndirectJumpResolution(Analysis):
         functions=None,
         fail_fast: bool = False,
         max_iterations: int = 8,
+        low_priority: bool = False,
     ):
         self._fail_fast_flag = fail_fast
         self._max_iterations = max_iterations
+        self._low_priority = low_priority
+
+        # abort support: set via abort(); checked between per-function analyses and inside the later phases so a
+        # requested abort finalizes the partial results collected so far instead of dropping them.
+        self._should_abort = False
+        # counter driving the periodic GIL release in low-priority mode
+        self._gil_ctr = 0
 
         self.resolved_indirect_jumps: dict[int, set[int]] = {}
         self.pointer_shapes: DescriptorStore = DescriptorStore()
@@ -107,6 +127,21 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
     # Public methods
     #
+
+    @property
+    def should_abort(self) -> bool:
+        """
+        Whether an abort of this analysis has been requested.
+        """
+        return self._should_abort
+
+    def abort(self) -> None:
+        """
+        Request the analysis to stop as soon as possible. This is safe to call from another thread (e.g. a GUI thread).
+        The analysis stops launching new per-function analyses and finalizes whatever partial results have been
+        collected so far, so ``resolved_indirect_jumps`` remains valid (though possibly incomplete) afterwards.
+        """
+        self._should_abort = True
 
     def get_resolutions(self, func) -> dict[int, set[int]]:
         """
@@ -153,23 +188,51 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
 
     def _analyze(self):
+        # Phase A dominates the runtime (a Clinic run per function), so it owns most of the progress budget; the
+        # cheap interprocedural phases share the remainder.
+        total = len(self._selected_funcs)
+
         # Phase A: per-function intra-procedural shape extraction
-        for func in self._selected_funcs:
+        for i, func in enumerate(self._selected_funcs):
+            if self._should_abort:
+                l.info(
+                    "FullProgramIndirectJumpResolution aborted after %d/%d functions; finalizing partial results.",
+                    i,
+                    total,
+                )
+                break
+            if total:
+                self._update_progress(
+                    i * 90.0 / total,
+                    text=f"Analyzing function {i + 1}/{total} at {func.addr:#x}",
+                    analysis=self,
+                )
             try:
                 self._analyze_function(func)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast_flag:
                     raise
                 l.warning("Failed to analyze function %#x for indirect jump resolution.", func.addr, exc_info=True)
+            if self._low_priority:
+                self._gil_ctr += 1
+                self._release_gil(self._gil_ctr, 1)
+
+        # The remaining phases are cheap relative to Phase A and bounded by the facts already collected, so they run to
+        # completion even after an abort in order to turn those partial facts into the best resolutions possible.
 
         # Phase B: interprocedural pointer-shape propagation (fixed point)
+        self._update_progress(90.0, text="Propagating pointer shapes", analysis=self)
         self._propagate_interproc()
 
         # Phase C: harvest global tables now that strides/fields have settled
+        self._update_progress(95.0, text="Harvesting global tables", analysis=self)
         self._harvest_global_tables()
 
         # Phase D: resolve indirect sites
+        self._update_progress(98.0, text="Resolving indirect jumps", analysis=self)
         self._resolve_sites()
+
+        self._finish_progress()
 
     #
     # Phase A: intra-procedural extraction
