@@ -377,6 +377,7 @@ class SimplifierAILEngine(
             return ailment.expression.UnaryOp(expr.idx, expr.op, operand, **expr.tags)
         return expr
 
+    _handle_unop_Abs = _handle_unop_Default
     _handle_unop_Not = _handle_unop_Default
     _handle_unop_Neg = _handle_unop_Default
     _handle_unop_BitwiseNeg = _handle_unop_Default
