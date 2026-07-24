@@ -3639,7 +3639,8 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(d)
         text = d.codegen.text
-        good_if_return_pattern = r"if \(\!a2\)\s+return .*;"
+        # bridge_print_opt is void; do not accept a stack-canary comparison as its return value.
+        good_if_return_pattern = r"if \(\!a2\)\s+return;"
         good_if_return = re.search(good_if_return_pattern, text)
         assert good_if_return is not None
 

@@ -22,6 +22,97 @@ test_location = os.path.join(bin_location, "tests")
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestFactCollector(unittest.TestCase):
+    @staticmethod
+    def _collect_shellcode_facts(code: bytes, arch: str = "amd64"):
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch=arch, load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        return project.analyses.FunctionFactCollector(cfg.kb.functions[base_addr])
+
+    def test_stack_canary_comparison_is_not_a_return_value(self):
+        prefix = bytes.fromhex(
+            "4883ec18"  # sub rsp, 0x18
+            "64488b042528000000"  # mov rax, qword ptr fs:[0x28]
+            "4889442408"  # mov qword ptr [rsp + 8], rax
+            "31c0"  # xor eax, eax
+            "488b442408"  # mov rax, qword ptr [rsp + 8]
+        )
+        void_tail = bytes.fromhex(
+            "7505"  # jne stack_chk_fail
+            "4883c418"  # add rsp, 0x18
+            "c3"  # ret
+            "e800000000"  # call stack_chk_fail
+        )
+
+        for operation in ("64482b042528000000", "644833042528000000"):  # sub/xor rax, qword ptr fs:[0x28]
+            with self.subTest(operation=operation):
+                facts = self._collect_shellcode_facts(prefix + bytes.fromhex(operation) + void_tail)
+                self.assertIsNone(facts.retval_size)
+
+    def test_x86_stack_canary_comparison_is_not_a_return_value(self):
+        code = bytes.fromhex(
+            "83ec0c"  # sub esp, 0xc
+            "65a114000000"  # mov eax, dword ptr gs:[0x14]
+            "89442404"  # mov dword ptr [esp + 4], eax
+            "31c0"  # xor eax, eax
+            "8b442404"  # mov eax, dword ptr [esp + 4]
+            "652b0514000000"  # sub eax, dword ptr gs:[0x14]
+            "7504"  # jne stack_chk_fail
+            "83c40c"  # add esp, 0xc
+            "c3"  # ret
+            "e800000000"  # call stack_chk_fail
+        )
+
+        facts = self._collect_shellcode_facts(code, arch="x86")
+
+        self.assertIsNone(facts.retval_size)
+
+    def test_stack_canary_comparison_preserves_real_return_value(self):
+        prefix = bytes.fromhex(
+            "4883ec18"  # sub rsp, 0x18
+            "64488b042528000000"  # mov rax, qword ptr fs:[0x28]
+            "4889442408"  # mov qword ptr [rsp + 8], rax
+            "31c0"  # xor eax, eax
+            "488b442408"  # mov rax, qword ptr [rsp + 8]
+            "64482b042528000000"  # sub rax, qword ptr fs:[0x28]
+        )
+        epilogue = bytes.fromhex("4883c418c3e800000000")  # add rsp, 0x18; ret; call stack_chk_fail
+
+        cases = (
+            ("750ab82a000000", 4),  # jne +10; mov eax, 42
+            ("750f48b82a00000078563412", 8),  # jne +15; movabs rax, 0x123456780000002a
+        )
+        for return_code, expected_size in cases:
+            with self.subTest(expected_size=expected_size):
+                facts = self._collect_shellcode_facts(prefix + bytes.fromhex(return_code) + epilogue)
+                self.assertEqual(facts.retval_size, expected_size)
+
+    def test_tls_arithmetic_without_terminal_call_is_a_return_value(self):
+        code = bytes.fromhex(
+            "4883ec18"  # sub rsp, 0x18
+            "64488b042528000000"  # mov rax, qword ptr fs:[0x28]
+            "4889442408"  # mov qword ptr [rsp + 8], rax
+            "31c0"  # xor eax, eax
+            "488b442408"  # mov rax, qword ptr [rsp + 8]
+            "64482b042528000000"  # sub rax, qword ptr fs:[0x28]
+            "7505"  # jne alternate return
+            "4883c418"  # add rsp, 0x18
+            "c3"  # ret
+            "4883c418"  # add rsp, 0x18
+            "c3"  # ret
+        )
+
+        facts = self._collect_shellcode_facts(code)
+
+        self.assertEqual(facts.retval_size, 8)
+
     def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, arch, "fauxware")
         fauxware = angr.Project(binary_path, auto_load_libs=False)
