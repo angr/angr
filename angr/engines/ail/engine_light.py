@@ -642,6 +642,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         v = self._expr_bv(expr.operand)
         return ~v
 
+    def _handle_unop_Abs(self, expr: ailment.UnaryOp) -> DataType:
+        value = self._expr(expr.operand)
+        if isinstance(value, claripy.ast.FP):
+            return claripy.fpAbs(value)
+        return self._top(expr.bits)
+
     def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType:
         match expr.operand:
             case ailment.expression.VirtualVariable():

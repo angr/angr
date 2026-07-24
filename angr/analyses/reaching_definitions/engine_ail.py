@@ -603,6 +603,10 @@ class SimEngineRDAIL(
     def _handle_unop_Default(self, expr):
         return self._top(expr.bits)
 
+    def _handle_unop_Abs(self, expr):
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
     _handle_unop_Reference = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default

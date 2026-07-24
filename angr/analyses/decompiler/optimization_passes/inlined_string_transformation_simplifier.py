@@ -347,6 +347,9 @@ class InlinedStringTransformationAILEngine(
             return ~v
         return None
 
+    def _handle_unop_Abs(self, expr: UnaryOp):
+        self._expr(expr.operand)
+
     def _handle_unop_Default(self, expr: UnaryOp):
         return None
 

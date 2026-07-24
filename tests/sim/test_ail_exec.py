@@ -23,6 +23,32 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestAILExec(unittest.TestCase):
+    def test_abs_expression_preserves_fp_sort(self):
+        class _Engine(SimEngineAILSimState):
+            value: claripy.ast.Bits
+
+            def _expr(self, expr):  # pylint: disable=unused-argument
+                return self.value
+
+        engine = object.__new__(_Engine)
+        expr = SimpleNamespace(operand=object(), bits=32)
+
+        engine.value = claripy.FPV(-1.5, claripy.FSORT_FLOAT)
+        fp_result = engine._handle_unop_Abs(expr)  # pyright: ignore[reportArgumentType]  # pylint: disable=protected-access
+        assert isinstance(fp_result, claripy.ast.FP)
+        assert fp_result.sort == claripy.FSORT_FLOAT
+        assert fp_result.concrete and fp_result.args[0] == 1.5
+
+        engine.value = claripy.BVV(0x80000000, 32)
+        bv_result = engine._handle_unop_Abs(expr)  # pyright: ignore[reportArgumentType]  # pylint: disable=protected-access
+        assert isinstance(bv_result, claripy.ast.BV)
+        assert len(bv_result) == 32
+        assert (
+            bv_result.op == "BVS"
+            and isinstance(bv_result.args[0], str)
+            and bv_result.args[0].startswith("ail_engine_top")
+        )
+
     def test_haddv_expression(self):
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state()

@@ -420,6 +420,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
     def _handle_unop_default(self, expr: ailment.Expression) -> DataType_co:
         return self._expr_noconst(expr.operand)
 
+    _handle_unop_Abs = _handle_unop_default
     _handle_unop_Clz = _handle_unop_default
     _handle_unop_Ctz = _handle_unop_default
     _handle_unop_GetMSBs = _handle_unop_default
