@@ -22,6 +22,11 @@ from angr.ailment.expression import (
 )
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.ailment.utils import (
+    has_dirty_memory_write,
+    has_effectful_dirty_expression,
+    is_effectful_dirty_expression,
+)
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -302,6 +307,9 @@ class SPropagatorAnalysis(Analysis):
                 ):
                     # come back later, this is not the def you're looking for
                     continue
+                if is_effectful_dirty_expression(stmt.src):
+                    # Propagating an effectful expression would duplicate or move its side effect.
+                    continue
 
                 if (
                     (vvar.was_reg or vvar.was_parameter)
@@ -325,7 +333,12 @@ class SPropagatorAnalysis(Analysis):
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         continue
 
-                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs_set) == 2 and not is_phi_assignment(stmt):
+                if (
+                    (vvar.was_reg or vvar.was_stack)
+                    and len(vvar_uselocs_set) == 2
+                    and not is_phi_assignment(stmt)
+                    and not has_effectful_dirty_expression(stmt.src)
+                ):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
@@ -489,6 +502,10 @@ class SPropagatorAnalysis(Analysis):
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):
+                    if is_effectful_dirty_expression(stmt.src):
+                        # Propagating an effectful expression would duplicate or move its side effect.
+                        continue
+
                     r, v = is_const_assignment(stmt, self.only_consts)
                     if r:
                         # we can propagate it!
@@ -510,8 +527,12 @@ class SPropagatorAnalysis(Analysis):
                             self.replace(replacements, loc, tmp_used, v)
                         continue
 
-                    if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(
-                        stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_DIRTY_WHITELIST)
+                    if (
+                        len(tmp_uses) <= 2
+                        and is_const_vvar_load_dirty_assignment(
+                            stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_DIRTY_WHITELIST)
+                        )
+                        and not has_effectful_dirty_expression(stmt.src)
                     ):
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
                             same_inst = (
@@ -519,7 +540,7 @@ class SPropagatorAnalysis(Analysis):
                                 == block.statements[tmp_use_stmtidx].tags["ins_addr"]
                             )
                             has_store = any(
-                                isinstance(stmt_, Store)
+                                isinstance(stmt_, Store) or has_dirty_memory_write(stmt_)
                                 for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
                             )
                             if same_inst or not has_store:
@@ -551,6 +572,9 @@ class SPropagatorAnalysis(Analysis):
 
             for idx in range(start_stmt_idx, end_stmt_idx):
                 stmt = block.statements[idx]
+                if has_dirty_memory_write(stmt):
+                    # Dirty memory effects are opaque; conservatively assume they may alias the global.
+                    return True
                 if isinstance(stmt, Store) and isinstance(stmt.addr, Const):
                     store_addr = stmt.addr.value
                     store_size = stmt.size

@@ -7,6 +7,7 @@ import networkx as nx
 
 from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump, DirtyStatement, Jump, Statement
+from angr.ailment.utils import has_effectful_dirty_expression
 from angr.analyses.decompiler.block_io_finder import BlockIOFinder
 from angr.analyses.decompiler.block_similarity import index_of_similar_stmts, is_similar
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -137,12 +138,20 @@ class CodeMotionOptimization(OptimizationPass):
         To understand the limitations of this approach, see the TODOs.
         """
         # TODO: how can you handle an odd-numbered switch case? or many blocks with the same child?
+        blocks_with_side_effects = {
+            block
+            for block in graph.nodes
+            if any(
+                isinstance(stmt, DirtyStatement) or has_effectful_dirty_expression(stmt) for stmt in block.statements
+            )
+        }
         for b0, b1 in itertools.combinations(graph.nodes, 2):
             if (
                 b0 is b1
                 or not b0.statements
                 or not b1.statements
-                or any(isinstance(stmt, DirtyStatement) for stmt in b0.statements + b1.statements)
+                or b0 in blocks_with_side_effects
+                or b1 in blocks_with_side_effects
                 or is_similar(b0, b1)
             ):
                 continue

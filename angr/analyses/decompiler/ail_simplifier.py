@@ -40,6 +40,7 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
+from angr.ailment.utils import is_effectful_dirty_expression
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
@@ -2182,7 +2183,10 @@ class AILSimplifier(Analysis):
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and (stmt.dst.was_reg or stmt.dst.was_tmp)
-                    and isinstance(stmt.src, (DirtyExpression, VEXCCallExpression))
+                    and (
+                        isinstance(stmt.src, VEXCCallExpression)
+                        or (isinstance(stmt.src, DirtyExpression) and not is_effectful_dirty_expression(stmt.src))
+                    )
                 ):
                     dirty_vvar_ids.add(stmt.dst.varid)
 
