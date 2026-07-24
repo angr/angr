@@ -637,6 +637,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "CmpLTV": self._handle_binop_CmpLEV,
             "MinV": self._handle_binop_MinV,
             "MaxV": self._handle_binop_MaxV,
+            "HAddV": self._handle_binop_HAddV,
             "QAddV": self._handle_binop_QAddV,
             "QSubV": self._handle_binop_QSubV,
             "QNarrowBinV": self._handle_binop_QNarrowBinV,
@@ -1045,6 +1046,9 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
 
     @abstractmethod
     def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...

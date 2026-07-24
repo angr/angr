@@ -502,6 +502,7 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_SubV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
     _handle_binop_MaxV = _handle_binop_Default
+    _handle_binop_HAddV = _handle_binop_Default
     _handle_binop_QAddV = _handle_binop_Default
     _handle_binop_QSubV = _handle_binop_Default
     _handle_binop_QNarrowBinV = _handle_binop_Default

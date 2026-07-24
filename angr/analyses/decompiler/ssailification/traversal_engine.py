@@ -871,6 +871,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     _handle_binop_CmpLTV = _unreachable
     _handle_binop_MinV = _unreachable
     _handle_binop_MaxV = _unreachable
+    _handle_binop_HAddV = _unreachable
     _handle_binop_QAddV = _unreachable
     _handle_binop_QSubV = _unreachable
     _handle_binop_QNarrowBinV = _unreachable

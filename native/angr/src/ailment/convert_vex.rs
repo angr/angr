@@ -597,6 +597,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         let mut vector_size: Option<i64> = None;
         if simop.vector_count.is_some() && simop.vector_size.is_some() {
             op_name = Some(format!("{}V", op_name.unwrap_or_default()));
+            signed = simop.is_signed();
             vector_count = simop.vector_count.map(|v| v as i64);
             vector_size = simop.vector_size.map(|v| v as i64);
         } else if matches!(
