@@ -5,9 +5,7 @@ import logging
 from collections.abc import Iterator
 from typing import Any, Self
 
-import claripy
-
-from angr import errors
+from angr import claripy, errors
 from angr.errors import AngrError, SimEmptyCallStackError, SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE

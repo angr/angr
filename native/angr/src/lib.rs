@@ -1,5 +1,6 @@
 pub mod ailment;
 pub mod automaton;
+pub mod claripy;
 pub mod fuzzer;
 pub mod icicle;
 pub mod segmentlist;
@@ -43,6 +44,14 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         automaton::automaton,
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "ailment", ailment::ailment)?;
+
+    let py = m.py();
+    let claripy_module = PyModule::new(py, "angr.rustylib.claripy")?;
+    claripy::claripy(py, &claripy_module)?;
+    PyModule::import(py, "sys")?
+        .getattr("modules")?
+        .set_item("angr.rustylib.claripy", claripy_module.clone())?;
+    m.add("claripy", claripy_module)?;
 
     m.add_class::<segmentlist::Segment>()?;
     m.add_class::<segmentlist::SegmentList>()?;

@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import OrderedDict
 from typing import TYPE_CHECKING
 
-import claripy
 from archinfo import Endness
 
+from angr import claripy
 from angr.ailment.expression import Array, BinaryOp, Const, Load, Struct, UnaryOp
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeSlice

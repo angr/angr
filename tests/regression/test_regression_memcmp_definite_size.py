@@ -4,9 +4,8 @@ from __future__ import annotations
 import os
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from tests.common import bin_location, broken
 
 

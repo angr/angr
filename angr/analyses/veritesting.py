@@ -5,11 +5,11 @@ from collections import defaultdict
 from functools import cmp_to_key
 
 import networkx
-from claripy import ClaripyError
 
 from angr import sim_options as o
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGEmulated
+from angr.claripy import ClaripyError
 from angr.errors import AngrCFGError, AngrError, SimError, SimSolverModeError, SimValueError
 from angr.knowledge_base import KnowledgeBase
 from angr.procedures import SIM_PROCEDURES

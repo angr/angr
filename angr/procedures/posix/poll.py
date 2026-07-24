@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import select
 
-import claripy
-
 import angr
+from angr import claripy
 
 
 class poll(angr.SimProcedure):

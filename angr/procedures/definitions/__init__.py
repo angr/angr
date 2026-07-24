@@ -686,10 +686,13 @@ class SimSyscallLibrary(SimLibrary):
         # a bit of a hack.
         name = proc.display_name
         if self.has_prototype(abi, name):
-            proc.guessed_prototype = False
+            # The prototype tables store None for syscalls whose prototype was never parsed
+            # (e.g. rt_sigtimedwait), so has_prototype() can be True while get_prototype()
+            # returns None. Only record a prototype when one is actually available.
             proto = self.get_prototype(abi, name, deref=True)
-            assert proto is not None
-            proc.prototype = proto.with_arch(arch)
+            if proto is not None:
+                proc.guessed_prototype = False
+                proc.prototype = proto.with_arch(arch)
 
     def add_alias(self, name, *alt_names):
         """

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 
 # all the input values were generated via
 # [random.randrange(256) for _ in range(16)]

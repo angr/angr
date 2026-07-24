@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.procedures.cgc.transmit import transmit as orig_transmit
 
 l = logging.getLogger(name=__name__)

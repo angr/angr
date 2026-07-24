@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from claripy.ast import BV
+from angr.claripy.ast import BV
 
 
 class AbstractAddressDescriptor:

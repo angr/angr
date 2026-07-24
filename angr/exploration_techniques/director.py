@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-import claripy
 import networkx
 
+from angr import claripy
 from angr.calling_conventions import default_cc
 from angr.errors import AngrDirectorError
 from angr.knowledge_base import KnowledgeBase

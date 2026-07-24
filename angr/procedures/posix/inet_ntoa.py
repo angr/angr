@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from socket import inet_ntoa as _inet_ntoa
 
-from claripy import BVS, BVV, Concat
-from claripy.ast import BV
-
 import angr
+from angr.claripy import BVS, BVV, Concat
+from angr.claripy.ast import BV
 from angr.sim_type import SimStructValue
 
 

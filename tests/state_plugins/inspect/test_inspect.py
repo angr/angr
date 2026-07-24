@@ -8,11 +8,10 @@ import os
 import unittest
 
 import archinfo
-import claripy
 import pyvex
 
 import angr
-from angr import BP_AFTER, BP_BEFORE, SIM_PROCEDURES, SimState, concretization_strategies
+from angr import BP_AFTER, BP_BEFORE, SIM_PROCEDURES, SimState, claripy, concretization_strategies
 from angr.engines import HeavyVEXMixin, ProcedureEngine, SimInspectMixin
 from angr.project import load_shellcode
 from tests.common import bin_location

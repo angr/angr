@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Generator, Iterable
 from typing import TYPE_CHECKING, Any
 
-import claripy
-
 import angr.ailment as ailment
+from angr import claripy
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation

@@ -6,8 +6,8 @@ from collections.abc import Iterable
 from typing import Any, Literal, overload
 
 import cffi
-import claripy
 
+from angr import claripy
 from angr.errors import SimMemoryError
 from angr.state_plugins.sim_action_object import SimActionObject
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin

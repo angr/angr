@@ -5,9 +5,8 @@ from __future__ import annotations
 import struct
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 
 
 class TestSolverEvalCasting(unittest.TestCase):

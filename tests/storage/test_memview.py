@@ -6,11 +6,10 @@ import ctypes
 import unittest
 from collections import OrderedDict
 
-import claripy
 from archinfo import Endness
 
 import angr
-from angr import SimState
+from angr import SimState, claripy
 from angr.sim_type import SimStruct, SimTypeNumOffset, parse_types, register_types
 
 

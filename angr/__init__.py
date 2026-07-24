@@ -20,6 +20,21 @@ Good luck!
 """)
 
 # isort: off
+# claripy is built from the vendored clarirs sources as part of angr.rustylib;
+# its canonical module paths are angr.rustylib.claripy.*. Alias it (and every
+# submodule) as angr.claripy in sys.modules before anything imports it. There
+# is deliberately no top-level `claripy` module: import it as
+# `from angr import claripy` (or `angr.claripy`).
+import sys
+
+from .rustylib import claripy
+
+sys.modules["angr.claripy"] = claripy
+_CLARIPY_PREFIX = "angr.rustylib.claripy."
+for _name in [k for k in sys.modules if k.startswith(_CLARIPY_PREFIX)]:
+    sys.modules["angr.claripy." + _name[len(_CLARIPY_PREFIX) :]] = sys.modules[_name]
+del _name, _CLARIPY_PREFIX, sys
+
 from .utils.formatting import setup_terminal
 
 setup_terminal()

@@ -29,6 +29,10 @@ jobs:
             python-version: 3.14
       fail-fast: false
     runs-on: ${{ matrix.environment.os }}
+    env:
+      # Authenticate z3-sys's gh-release download against the GitHub API to
+      # avoid anonymous rate limits (HTTP 403) when building the Rust extension.
+      READ_ONLY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
@@ -42,6 +46,8 @@ jobs:
   rust_check:
     name: Rust Check
     runs-on: ubuntu-latest
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
@@ -55,6 +61,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1

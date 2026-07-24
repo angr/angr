@@ -3,10 +3,10 @@ from __future__ import annotations
 import operator
 from collections.abc import Callable, Iterable
 
-import claripy
-from claripy.ast.bv import BV
 from pypcode import OpCode
 
+from angr import claripy
+from angr.claripy.ast.bv import BV
 from angr.errors import AngrError
 
 # pylint:disable=abstract-method

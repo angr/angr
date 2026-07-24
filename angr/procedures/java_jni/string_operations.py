@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from claripy import StringV, StrLen
-
+from angr.claripy import StringV, StrLen
 from angr.engines.soot.values import SimSootValue_StringRef
 
 from . import JNISimProcedure

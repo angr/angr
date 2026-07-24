@@ -8,13 +8,12 @@ from collections import defaultdict
 from functools import reduce
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
 import angr
-from angr import procedures
+from angr import claripy, procedures
 from angr import sim_options as o
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.backward_slice import BackwardSlice

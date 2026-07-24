@@ -8,12 +8,12 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import archinfo
-import claripy
 from archinfo import Arch
 from archinfo.arch_soot import SootAddressDescriptor
 from cle import Clemory
 
 import angr
+from angr import claripy
 
 from . import sim_options as o
 from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError

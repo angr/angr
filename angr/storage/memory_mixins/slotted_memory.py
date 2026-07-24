@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import claripy
-
+from angr import claripy
 from angr.errors import SimMergeError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages.ispo_mixin import ISPOMixin

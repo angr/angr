@@ -5,11 +5,10 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
-import claripy
-
 import angr
 import angr.ailment as ailment
 import angr.ailment.utils
+from angr import claripy
 from angr.ailment.block import Block
 
 INDENT_DELTA = 2

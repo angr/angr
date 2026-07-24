@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 import pyvex
 
-from angr import errors
+from angr import claripy, errors
 from angr import sim_options as o
 from angr.engines.vex.light import VEXMixin
 

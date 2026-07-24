@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
 import angr
+from angr import claripy
 from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)

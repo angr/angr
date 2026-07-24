@@ -8,9 +8,9 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import archinfo
-import claripy
-from claripy.annotation import Annotation
 
+from angr import claripy
+from angr.claripy.annotation import Annotation
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.errors import SimMemoryError, SimMemoryMissingError

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 from archinfo.arch_soot import (
     ArchSoot,
     SootAddressDescriptor,
@@ -13,6 +12,7 @@ from archinfo.arch_soot import (
 from cle import CLEError
 
 import angr
+from angr import claripy
 from angr import sim_options as o
 from angr.engines.procedure import ProcedureMixin
 from angr.engines.successors import SuccessorsEngine

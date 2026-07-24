@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
-
-from angr import SimHeapPTMalloc, SimState
+from angr import SimHeapPTMalloc, SimState, claripy
 
 
 # TODO: Make these tests more architecture-independent (note dependencies of some behavior on chunk metadata size)

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 from cle import BackedCGC
 
+from angr import claripy
 from angr import sim_options as o
 from angr.procedures import SIM_LIBRARIES as L
 from angr.state_plugins.sim_action import SimActionData

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr import sim_options as options
 from angr.errors import SimFastMemoryError
 from angr.misc.ux import once

@@ -7,8 +7,9 @@ import types
 from collections import defaultdict
 from types import TracebackType
 
-import claripy
 import mulpyplexer
+
+from angr import claripy
 
 from .errors import AngrError, SimError, SimMergeError, SimulationManagerError, SimUnsatError
 from .exploration_techniques import ExplorationTechnique, Explorer, Suggestions, Threading, Veritesting

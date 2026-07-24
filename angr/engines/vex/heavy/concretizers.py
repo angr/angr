@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-import claripy
+from angr import claripy
 
 # Copied from engines/vex/claripy/irop.py
 fp_rm_map = {

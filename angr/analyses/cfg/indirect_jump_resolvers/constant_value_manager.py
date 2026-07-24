@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-import claripy
-
+from angr import claripy
 from angr.analyses.propagator.vex_vars import VEXReg
 from angr.code_location import CodeLocation
 

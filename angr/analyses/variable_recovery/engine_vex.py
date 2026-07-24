@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from angr import claripy
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc

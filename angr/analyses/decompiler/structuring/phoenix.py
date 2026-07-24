@@ -7,9 +7,9 @@ from collections import OrderedDict, defaultdict
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-import claripy
 import networkx
 
+from angr import claripy
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement

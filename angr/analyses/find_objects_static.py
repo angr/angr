@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import claripy
-
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis

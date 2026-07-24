@@ -4,10 +4,8 @@ import itertools
 import logging
 from typing import TYPE_CHECKING
 
-import claripy
-
 import angr
-from angr import ailment, errors
+from angr import ailment, claripy, errors
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
 from angr.engines.successors import SimSuccessors

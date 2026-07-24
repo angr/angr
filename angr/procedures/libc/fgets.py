@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import claripy
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 import angr
+from angr import claripy
 from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 
 

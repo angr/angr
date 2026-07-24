@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import claripy
+from angr import claripy
 
 
 def truncate_bits(value: int, nbits: int) -> int:

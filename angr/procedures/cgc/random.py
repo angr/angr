@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import itertools
 
-import claripy
-
 import angr
+from angr import claripy
 from angr.state_plugins.sim_action_object import SimActionObject
 
 rand_count = itertools.count()

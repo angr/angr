@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import itertools
 
-import claripy
-
 import angr
+from angr import claripy
 
 fdcount = itertools.count()
 

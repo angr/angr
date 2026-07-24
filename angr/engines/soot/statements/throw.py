@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 from archinfo.arch_soot import SootAddressTerminator
+
+from angr import claripy
 
 from .base import SimSootStmt
 

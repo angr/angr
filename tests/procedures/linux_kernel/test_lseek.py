@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
-
-from angr import SIM_PROCEDURES, SimFile, SimPosixError, SimState
+from angr import SIM_PROCEDURES, SimFile, SimPosixError, SimState, claripy
 
 FAKE_ADDR = 0x100000
 

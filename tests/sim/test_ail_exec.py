@@ -6,10 +6,8 @@ import unittest
 from functools import cache
 from types import SimpleNamespace
 
-import claripy
-
 import angr
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses.decompiler.clinic import Clinic
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState

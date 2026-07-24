@@ -6,9 +6,9 @@ import string
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any
 
-import claripy
 import networkx
 
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,

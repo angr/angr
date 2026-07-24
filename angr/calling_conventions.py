@@ -8,10 +8,10 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, cast
 
 import archinfo
-import claripy
 from archinfo import RegisterName
 
 import angr
+from angr import claripy
 
 from .errors import AngrTypeError
 from .rust.sim_type import RustSimEnum

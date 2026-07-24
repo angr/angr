@@ -4,17 +4,15 @@ import functools
 import typing
 from itertools import chain
 
-import claripy
-
 import angr
+from angr import claripy
 from angr import sim_options as o
 from angr.errors import SimActionError
 from angr.sim_state import SimState
 
 if typing.TYPE_CHECKING:
-    from claripy.annotation import Annotation
-    from claripy.ast.base import ArgType, Base  # noqa: F401  (Base referenced via ArgType forward ref)
-
+    from angr.claripy.annotation import Annotation
+    from angr.claripy.ast.base import ArgType, Base  # noqa: F401  (Base referenced via ArgType forward ref)
     from angr.state_plugins.sim_action import SimActionData, SimActionOperation
 
 

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import string
 
-import claripy
-
+from angr import claripy
 from angr.analyses.identifier.func import Func, TestData, rand_str
 
 
