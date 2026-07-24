@@ -6,9 +6,11 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os
 import unittest
+from typing import cast
 
 import angr
 from angr import ailment
+from angr.analyses.decompiler.decompiler import Decompiler
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.utils.ssa import get_tmp_deflocs
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -51,7 +53,8 @@ class TestPropagatorRules(unittest.TestCase):
         print_decompilation_result(dec)
 
         # ensure that each line contains at most five operators
-        for line in dec.codegen.text.splitlines():
+        codegen_text = cast(str, dec.codegen.text)
+        for line in codegen_text.splitlines():
             if line.strip() == "":
                 continue
             op_count = line.count("+") + line.count("-") + line.count("^") + line.count("ROL") + line.count("ROR")
@@ -65,7 +68,7 @@ class TestPropagatorRules(unittest.TestCase):
             test_location, "i386", "windows", "0c694dfa7ad465bded90c4faf63100c7008b5efc4bc49b38644a9770b42669b0"
         )
         proj, _ = load_project_with_scoped_cfg(bin_path, 0x4847D4, expand_call_tree=False, run_ccc=False)
-        dec = proj.analyses.Decompiler(0x4847D4, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x4847D4)
         # it should not raise any exceptions; it was triggering an assertion error before this fix at
         # ailment/expression.py:
         #
@@ -89,16 +92,18 @@ class TestPropagatorRules(unittest.TestCase):
             and isinstance(stmt.src, ailment.Expr.DirtyExpression)
             and stmt.src.callee == "load_linked_le"
         )
+        assert isinstance(tmp_def_stmt.dst, ailment.Expr.Tmp)
+        tmp_def = tmp_def_stmt.dst
         tmp_use_stmt = next(
             stmt
             for stmt in ail_block.statements[tmp_def_stmt_idx + 1 :]
             if isinstance(stmt, ailment.Stmt.Assignment)
             and isinstance(stmt.src, ailment.Expr.Tmp)
-            and stmt.src.tmp_idx == tmp_def_stmt.dst.tmp_idx
+            and stmt.src.tmp_idx == tmp_def.tmp_idx
         )
 
         tmp_deflocs = get_tmp_deflocs([ail_block])
-        tmp_atom = atoms.Tmp(tmp_def_stmt.dst.tmp_idx, tmp_def_stmt.dst.bits)
+        tmp_atom = atoms.Tmp(tmp_def.tmp_idx, tmp_def.bits)
         assert tmp_deflocs[(ail_block.addr, ail_block.idx)][tmp_atom] == tmp_def_stmt_idx
 
         propagator = project.analyses.SPropagator(ail_block, ail_manager=manager)

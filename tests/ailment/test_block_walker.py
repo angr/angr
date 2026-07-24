@@ -121,6 +121,9 @@ def test_block_rewriter_updates_dirty_memory_address():
     new_stmt = new_block.statements[0]
     assert isinstance(new_stmt, Assignment)
     assert isinstance(new_stmt.src, DirtyExpression)
-    assert new_stmt.src.operands[0].value == 2
-    assert new_stmt.src.maddr is not None
-    assert new_stmt.src.maddr.value == 2
+    new_operand = new_stmt.src.operands[0]
+    assert isinstance(new_operand, Const)
+    assert new_operand.value == 2
+    new_maddr = new_stmt.src.maddr
+    assert isinstance(new_maddr, Const)
+    assert new_maddr.value == 2

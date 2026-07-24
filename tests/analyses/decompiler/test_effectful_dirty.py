@@ -4,6 +4,7 @@ import angr
 from angr import ailment
 from angr.ailment.expression import DirtyExpression, VirtualVariableCategory
 from angr.analyses.decompiler.block_io_finder import BlockIOFinder
+from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.optimization_passes.duplication_reverter.duplication_reverter import (
     DuplicationReverter,
 )
@@ -29,12 +30,12 @@ def _store_conditional(idx: int, addr=None):
     )
 
 
-def _dirty_assignments(block):
-    return [
-        stmt
-        for stmt in block.statements
-        if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, DirtyExpression)
-    ]
+def _dirty_expressions(block: ailment.Block) -> list[DirtyExpression]:
+    dirty_expressions = []
+    for stmt in block.statements:
+        if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, DirtyExpression):
+            dirty_expressions.append(stmt.src)
+    return dirty_expressions
 
 
 def test_unused_store_conditional_survives_block_simplification_and_full_decompilation():
@@ -44,16 +45,16 @@ def test_unused_store_conditional_survives_block_simplification_and_full_decompi
     manager = ailment.Manager(arch=project.arch)
     ail_block = ailment.IRSBConverter.convert(project.factory.block(0x1000, size=8).vex, manager)
 
-    dirty_assignments = _dirty_assignments(ail_block)
-    assert len(dirty_assignments) == 1
-    assert dirty_assignments[0].src.callee == "store_conditional_le"
+    dirty_expressions = _dirty_expressions(ail_block)
+    assert len(dirty_expressions) == 1
+    assert dirty_expressions[0].callee == "store_conditional_le"
 
     simplified = project.analyses.AILBlockSimplifier(ail_block, manager, peephole_optimizations=[]).result_block
-    assert [stmt.src.callee for stmt in _dirty_assignments(simplified)].count("store_conditional_le") == 1
+    assert [expr.callee for expr in _dirty_expressions(simplified)].count("store_conditional_le") == 1
 
     cfg = project.analyses.CFGFast(normalize=True, function_starts=[0x1000], fail_fast=True)
     function = cfg.functions[0x1000]
-    decompilation = project.analyses.Decompiler(function, cfg=cfg, fail_fast=True)
+    decompilation = project.analyses[Decompiler].prep(fail_fast=True)(function, cfg=cfg)
     assert decompilation.codegen is not None and decompilation.codegen.text is not None
     assert decompilation.codegen.text.count("store_conditional_le") == 1
 
@@ -76,7 +77,7 @@ def test_pure_dirty_expression_remains_dead_assignment_eliminatable():
     )
 
     simplified = project.analyses.AILBlockSimplifier(block, manager, peephole_optimizations=[]).result_block
-    callees = [stmt.src.callee for stmt in _dirty_assignments(simplified)]
+    callees = [expr.callee for expr in _dirty_expressions(simplified)]
     assert "unsupported_arithmetic" not in callees
     assert callees.count("helper_guest_state") == 1
     assert callees.count("store_conditional_le") == 1
