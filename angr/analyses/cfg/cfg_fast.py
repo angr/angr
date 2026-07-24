@@ -1238,6 +1238,38 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return repeating_length
         return 0
 
+    def _scan_for_fp_constants(self, start_addr: int, threshold: int = 4) -> int:
+        """
+        Scan from a given address for a run of plausible double-precision floating-point constants.
+
+        A value qualifies when its biased exponent falls within a band covering magnitudes between 2 ** -64 and
+        2 ** 64, which is where constants in compiler- and libm-generated tables (polynomial coefficients,
+        logarithm and trigonometry tables, etc.) almost always live. Code bytes rarely produce multiple
+        consecutive qualifying values.
+
+        :param start_addr:  The address to start scanning from.
+        :param threshold:   The minimum number of consecutive qualifying 8-byte values.
+        :return:            The total size in bytes of the qualifying values, or 0 if fewer than threshold values
+                            are found.
+        """
+
+        addr = start_addr
+        fp_count = 0
+
+        while self._inside_regions(addr):
+            val = self._fast_memory_load_pointer(addr, size=8)
+            if val is None:
+                break
+            exponent = (val >> 52) & 0x7FF
+            if not 959 <= exponent <= 1087:  # 1023 +/- 64
+                break
+            fp_count += 1
+            addr += 8
+
+        if fp_count >= threshold:
+            return fp_count * 8
+        return 0
+
     def _scan_for_monotonic_byte_ramp(self, start_addr: int, threshold: int = 16) -> int:
         """
         Scan from a given address for a run of monotonically increasing bytes, where each byte equals the previous
@@ -1398,6 +1430,27 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             start_addr, pointer_length, MemoryDataSort.PointerArray
                         )
                         start_addr += pointer_length
+
+            if not matched_something:
+                # find floating-point constant tables; this must run before the string and repeating-zero scans
+                # because the low mantissa bytes of table entries are frequently zero or incidentally printable,
+                # which would misphase the table. since scanning misclassified code often dumps us in the middle
+                # of a table entry, probe the next 4- and 8-byte boundaries as well.
+                fp_addr_4 = start_addr + (-start_addr % 4)
+                fp_addr_8 = start_addr + (-start_addr % 8)
+                for fp_addr in (fp_addr_4,) if fp_addr_4 == fp_addr_8 else (fp_addr_4, fp_addr_8):
+                    fp_length = self._scan_for_fp_constants(fp_addr)
+                    if fp_length:
+                        matched_something = True
+                        if fp_addr > start_addr:
+                            self._seg_list.occupy(start_addr, fp_addr - start_addr, "alignment")
+                            self.model.memory_data[start_addr] = MemoryData(
+                                start_addr, fp_addr - start_addr, MemoryDataSort.Alignment
+                            )
+                        self._seg_list.occupy(fp_addr, fp_length, "fp")
+                        self.model.memory_data[fp_addr] = MemoryData(fp_addr, fp_length, MemoryDataSort.FloatingPoint)
+                        start_addr = fp_addr + fp_length
+                        break
 
             if not matched_something:
                 # find strings; tolerate a single leading null byte, which is usually the leftover of a multi-null

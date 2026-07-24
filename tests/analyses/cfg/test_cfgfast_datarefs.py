@@ -211,6 +211,11 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert memory_data[0x403390].size == 193
         assert not [f for f in cfg.kb.functions if 0x4033A0 <= f < 0x403690]
 
+        # double-precision constant tables are detected by the floating-point constant scan
+        assert memory_data[0x406278].sort == MemoryDataSort.FloatingPoint
+        assert memory_data[0x406278].size == 2064
+        assert not [f for f in cfg.kb.functions if 0x406270 <= f < 0x406B00]
+
     def test_long_printable_ascii_string_without_null_byte(self):
         # suboptimal logic in _scan_for_printable_strings was causing the CFG recovery of this binary to be extremely
         # slow; we were repeatedly trying (and failing) to build a super long ASCII string in this binary.
