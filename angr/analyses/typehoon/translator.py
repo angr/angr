@@ -285,6 +285,14 @@ class TypeTranslator:
     # SimType handlers
     #
 
+    def _translate_SimTypeNum(self, st: sim_type.SimTypeNum) -> typeconsts.TypeConstant:
+        if st.size not in {8, 16, 32, 64}:
+            return typeconsts.BottomType()
+
+        tc = typeconsts.signed_int_type(st.size) if st.signed else typeconsts.unsigned_int_type(st.size)
+        tc.name = st.label
+        return tc
+
     def _translate_SimTypeInt128(self, st: sim_type.SimTypeChar) -> typeconsts.Int128:
         return typeconsts.Int128(name=st.label)
 
@@ -441,6 +449,7 @@ TypeConstHandlers = {
 
 SimTypeHandlers = {
     sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
+    sim_type.SimTypeNum: TypeTranslator._translate_SimTypeNum,
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeWideChar: TypeTranslator._translate_SimTypeWideChar,
     sim_type.SimTypeInt: TypeTranslator._translate_SimTypeInt,
