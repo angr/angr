@@ -25,6 +25,7 @@ class sprintf(FormatParser):
 
         return out_str.size() // self.arch.byte_width
 
+
 class __sprintf_chk(FormatParser):
     # pylint:disable=arguments-differ
 
