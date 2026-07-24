@@ -128,6 +128,11 @@ class CFGManager(KnowledgeBasePlugin):
             set_rtdb = getattr(cfg_model.memory_data, "set_rtdb", None)
             if set_rtdb is not None:
                 set_rtdb(rtdb)
+            # ... and to the insn_addr -> memory data map, which also needs its model reference back
+            set_rtdb = getattr(cfg_model.insn_addr_to_memory_data, "set_rtdb", None)
+            if set_rtdb is not None:
+                set_rtdb(rtdb)
+                cfg_model.insn_addr_to_memory_data.set_model(cfg_model)
 
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)

@@ -20,7 +20,7 @@ from .cfg_node import CFGNode
 from .indirect_jump import IndirectJump
 from .memory_data import MemoryData, MemoryDataSort
 from .spilling_cfg import SpillingCFG
-from .spilling_memory_data import SpillingMemoryDataDict
+from .spilling_memory_data import InsnAddrToMemoryDataMap, SpillingMemoryDataDict
 
 if TYPE_CHECKING:
     from archinfo.arch_soot import SootAddressDescriptor
@@ -111,10 +111,14 @@ class CFGModel(Serializable):
 
         # Memory references
         # A mapping between address and the actual data in memory. Backed by an LRU + LMDB spilling
-        # container so that large binaries do not keep every MemoryData resident.
+        # container so that large binaries do not keep every MemoryData resident. This is the single owner
+        # of all MemoryData objects.
         self.memory_data: SpillingMemoryDataDict = SpillingMemoryDataDict(rtdb, cache_limit=memory_data_cache_limit)
-        # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
+        # A mapping between address of the instruction that's referencing the memory data and the memory data itself.
+        # Internally stores only data addresses (spilled ints) and materializes from memory_data on access.
+        self.insn_addr_to_memory_data: InsnAddrToMemoryDataMap = InsnAddrToMemoryDataMap(
+            rtdb, model=self, cache_limit=memory_data_cache_limit
+        )
 
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
         self._node_addrs: SortedList[int] | None = None
@@ -198,6 +202,11 @@ class CFGModel(Serializable):
 
         # Restore cfg_model reference in the graph
         self.graph._cfg_model = self
+
+        # Restore the model reference in the insn_addr -> memory data map (not pickled)
+        set_model = getattr(self.insn_addr_to_memory_data, "set_model", None)
+        if set_model is not None:
+            set_model(self)
 
         # Restore cfg_model reference in all nodes
         for addr in self._nodes:
@@ -393,6 +402,7 @@ class CFGModel(Serializable):
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
+        model.insn_addr_to_memory_data.set_model(model)
         model.edges_to_repair = self.edges_to_repair.copy()
         model._node_function_addrs_complete = self._node_function_addrs_complete
 
