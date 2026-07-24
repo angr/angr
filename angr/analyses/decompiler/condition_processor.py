@@ -995,7 +995,11 @@ class ConditionProcessor:
                 if not isinstance(condition.offset, ailment.expression.Const)
                 else condition.offset.value
             )
-            var = claripy.BVS(f"ailexpr_Extract({offset_expr}, {hash(var_)})", condition.bits, explicit_name=True)
+            var = claripy.BVS(
+                f"ailexpr_Extract({condition.bits}, {condition.endness}, {offset_expr}, {hash(var_)})",
+                condition.bits,
+                explicit_name=True,
+            )
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.expression.Insert):
