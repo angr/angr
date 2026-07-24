@@ -527,6 +527,12 @@ class SimEngineSSARewriting(
             if new_guard is not None:
                 updated = True
 
+        new_maddr = None
+        if expr.maddr is not None:
+            new_maddr = self._expr(expr.maddr)
+            if new_maddr is not None:
+                updated = True
+
         if updated:
             return DirtyExpression(
                 expr.idx,
@@ -534,7 +540,7 @@ class SimEngineSSARewriting(
                 new_operands,
                 guard=new_guard,
                 mfx=expr.mfx,
-                maddr=expr.maddr,
+                maddr=new_maddr if new_maddr is not None else expr.maddr,
                 msize=expr.msize,
                 bits=expr.bits,
                 **expr.tags,

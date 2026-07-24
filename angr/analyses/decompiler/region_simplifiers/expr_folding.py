@@ -9,6 +9,7 @@ from angr import ailment
 from angr.ailment import AILBlockRewriter, Block, Expression
 from angr.ailment.expression import ITE, Atom, Call, Load, VirtualVariable
 from angr.ailment.statement import Assignment, Return, Statement
+from angr.ailment.utils import has_dirty_memory_write, has_effectful_dirty_expression, is_effectful_dirty_expression
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
@@ -287,6 +288,8 @@ class ExpressionCounter(SequenceWalker):
         if isinstance(stmt, ailment.Stmt.Assignment):
             if is_phi_assignment(stmt):
                 return
+            if has_effectful_dirty_expression(stmt.src):
+                return
             if isinstance(stmt.dst, ailment.Expr.VirtualVariable) and stmt.dst.was_reg:
                 # dependency
                 dependency_finder = ExpressionUseFinder()
@@ -411,6 +414,11 @@ class ExpressionSpotter(VVarUsesCollector):
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
         self.has_loads = True
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if is_effectful_dirty_expression(expr):
+            self.has_calls = True
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class InterferenceChecker(SequenceWalker):
@@ -809,7 +817,7 @@ class StoreStatementFinder(SequenceWalker):
             if stmt_loc in self._end_to_starts:
                 for start in self._end_to_starts[stmt_loc]:
                     self._active_intervals.discard((start, stmt_loc))
-            if isinstance(stmt, ailment.Stmt.Store):
+            if isinstance(stmt, ailment.Stmt.Store) or has_dirty_memory_write(stmt):
                 for interval in self._active_intervals:
                     self.interval_to_hasstore[interval] = True
 

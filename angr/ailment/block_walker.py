@@ -1145,6 +1145,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_guard = self._handle_expr(2, guard_in, stmt_idx, stmt, block)
             changed |= new_guard != guard_in
 
+        new_maddr = None
+        maddr_in = expr.maddr
+        if maddr_in is not None:
+            new_maddr = self._handle_expr(3, maddr_in, stmt_idx, stmt, block)
+            changed |= new_maddr != maddr_in
+
         if changed:
             return DirtyExpression(
                 expr.idx,
@@ -1152,7 +1158,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
                 new_operands,
                 guard=new_guard,
                 mfx=expr.mfx,
-                maddr=expr.maddr,
+                maddr=new_maddr,
                 msize=expr.msize,
                 bits=expr.bits,
                 **expr.tags,

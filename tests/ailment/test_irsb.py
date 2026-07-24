@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import pickle
 import unittest
+from typing import cast
 
 import archinfo
 import pypcode
@@ -79,6 +80,43 @@ class TestIrsb(unittest.TestCase):
         )
         assert from_py == from_lift
         assert from_py.statements  # non-empty
+
+    def test_llsc_results_are_defined(self):
+        for arch_id, block_bytes, callee, result_bits, mfx, msize in (
+            ("ARMEL", bytes.fromhex("9f1f93e1"), "load_linked_le", 32, "Ifx_Read", 4),
+            ("ARMEL", bytes.fromhex("910f83e1"), "store_conditional_le", 1, "Ifx_Write", 4),
+            ("AARCH64", bytes.fromhex("617c5fc8"), "load_linked_le", 64, "Ifx_Read", 8),
+            ("AARCH64", bytes.fromhex("617c00c8"), "store_conditional_le", 1, "Ifx_Write", 8),
+            ("PPC32BE", bytes.fromhex("7c602028"), "load_linked_be", 32, "Ifx_Read", 4),
+            ("PPC32BE", bytes.fromhex("7c60212d"), "store_conditional_be", 1, "Ifx_Write", 4),
+        ):
+            with self.subTest(arch=arch_id, callee=callee):
+                arch = archinfo.arch_from_id(arch_id)
+                irsb = pyvex.IRSB(block_bytes, 0x1000, arch, opt_level=0)  # pyright: ignore[reportArgumentType]
+                from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+                from_lift = VEXIRSBConverter.convert_from_lift(
+                    arch, 0x1000, block_bytes, ailment.Manager(arch=arch), opt_level=0
+                )
+
+                assert from_py == from_lift
+                llsc_stmt = next(stmt for stmt in irsb.statements if isinstance(stmt, pyvex.IRStmt.LLSC))
+                llsc_definition = next(
+                    stmt
+                    for stmt in from_py.statements
+                    if isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.Tmp)
+                    and isinstance(stmt.src, ailment.Expr.DirtyExpression)
+                    and stmt.src.callee == callee
+                )
+                assert llsc_definition.dst.tmp_idx == llsc_stmt.result
+                assert llsc_definition.dst.bits == result_bits
+                llsc_expr = cast(ailment.Expr.DirtyExpression, llsc_definition.src)
+                assert llsc_expr.bits == result_bits
+                assert llsc_expr.mfx == mfx
+                assert llsc_expr.msize == msize
+                assert llsc_expr.maddr is not None
+                assert llsc_expr.maddr.likes(llsc_expr.operands[0])
+                assert len(llsc_expr.operands) == (2 if mfx == "Ifx_Write" else 1)
 
 
 class TestNonConstRoundingMode(unittest.TestCase):
@@ -224,7 +262,7 @@ class TestVexConverterAcrossArches(unittest.TestCase):
                 )
             except Exception:
                 # The fast path defers blocks with statements/expressions it can't
-                # render byte-identically (MBE/LLSC/PutI, GetI/Qop, ...) to the
+                # render byte-identically (MBE/PutI, GetI/Qop, ...) to the
                 # Python-IRSB path; those are exercised by the fallback.
                 continue
             assert from_py == from_lift, f"mismatch at {node.addr:#x} in {path}"

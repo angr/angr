@@ -1666,6 +1666,38 @@ fn effect_name(fx: u32) -> String {
     .to_string()
 }
 
+fn llsc_kind<E: Clone>(
+    result: u32,
+    result_bits: u32,
+    addr: E,
+    storedata: Option<(E, u32)>,
+    endness: &str,
+) -> StmtKind<E> {
+    let mut args = vec![addr.clone()];
+    let (operation, mfx, msize) = match storedata {
+        None => ("load_linked", "Ifx_Read", (result_bits / 8) as i64),
+        Some((data, data_bits)) => {
+            args.push(data);
+            ("store_conditional", "Ifx_Write", (data_bits / 8) as i64)
+        }
+    };
+    let suffix = match endness {
+        "Iend_LE" => "le",
+        "Iend_BE" => "be",
+        _ => "unknown_endness",
+    };
+    StmtKind::Dirty {
+        callee: format!("{operation}_{suffix}"),
+        args,
+        guard: None,
+        mfx: Some(mfx.to_string()),
+        maddr: Some(addr),
+        msize: Some(msize),
+        tmp: Some(result),
+        tmp_bits: result_bits,
+    }
+}
+
 fn loadg_cvt_name(cvt: u32) -> String {
     match cvt {
         0x1D01 => "ILGop_IdentV128",
@@ -1798,6 +1830,24 @@ impl IrReader for CReader {
                         endness: endness_str(d.end).to_string(),
                     }
                 }
+                IST_LLSC => {
+                    let result = ist.llsc.result;
+                    let result_bits = type_size_bits(self.tyenv_lookup(result));
+                    let addr = ist.llsc.addr;
+                    let storedata = if ist.llsc.storedata.is_null() {
+                        None
+                    } else {
+                        let data = ist.llsc.storedata;
+                        Some((data, self.result_bits(&data)))
+                    };
+                    llsc_kind(
+                        result,
+                        result_bits,
+                        addr,
+                        storedata,
+                        endness_str(ist.llsc.end),
+                    )
+                }
                 IST_DIRTY => {
                     let d = &*ist.dirty.details;
                     let callee = cstr((*d.cee).name);
@@ -1834,7 +1884,7 @@ impl IrReader for CReader {
                     }
                 }
                 _ => {
-                    // MBE / LLSC / PutI etc.: the Python converter labels these
+                    // MBE / PutI etc.: the Python converter labels these
                     // with ``str(stmt)`` (e.g. "MBusEvent-Imbe_Fence"), which we
                     // can't faithfully reproduce from the C struct. Error out so
                     // the caller falls back to the Python-IRSB path. (run() only
@@ -2352,6 +2402,20 @@ impl<'py> IrReader for PyReader<'py> {
                     old_hi_bits,
                     endness: stmt.getattr("endness")?.extract()?,
                 }
+            }
+            "LLSC" => {
+                let result: u32 = stmt.getattr("result")?.extract()?;
+                let result_bits = self.tyenv.call_method1("sizeof", (result,))?.extract()?;
+                let addr = unbind_any(stmt.getattr("addr")?);
+                let storedata_obj = stmt.getattr("storedata")?;
+                let endness: String = stmt.getattr("endness")?.extract()?;
+                let storedata = if storedata_obj.is_none() {
+                    None
+                } else {
+                    let store_bits = self.result_size(&storedata_obj);
+                    Some((unbind_any(storedata_obj), store_bits))
+                };
+                llsc_kind(result, result_bits, addr, storedata, &endness)
             }
             "Dirty" => {
                 let tmp_raw: u32 = stmt.getattr("tmp")?.extract()?;

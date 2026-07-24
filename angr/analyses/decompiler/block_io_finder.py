@@ -11,8 +11,10 @@ from angr.ailment.expression import (
     Call,
     Const,
     Convert,
+    DirtyExpression,
     Expression,
     Load,
+    MultiStatementExpression,
     StackBaseOffset,
     Tmp,
     UnaryOp,
@@ -21,11 +23,17 @@ from angr.ailment.expression import (
 from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
+    DirtyStatement,
     Jump,
     Return,
     SideEffectStatement,
     Statement,
     Store,
+)
+from angr.ailment.utils import (
+    has_dirty_memory_read,
+    has_dirty_memory_write,
+    is_effectful_dirty_expression,
 )
 from angr.knowledge_plugins.key_definitions.atoms import ConstantSrc, MemoryLocation, Register, SpOffset
 
@@ -45,6 +53,8 @@ class BlockIOFinder(AILBlockViewer):
         self.inputs_by_stmt = defaultdict(set)
         self.outputs_by_stmt = defaultdict(set)
         self.derefed_at = defaultdict(set)
+        self.side_effects_at = set()
+        self._current_top_stmt_idx: int | None = None
 
         block = Block(0, len(ail_obj), statements=ail_obj) if isinstance(ail_obj, list) else ail_obj
         self.walk(block)
@@ -110,6 +120,10 @@ class BlockIOFinder(AILBlockViewer):
             # you can never move jumps
             isinstance(stmt, (ConditionalJump, Jump))
             or
+            # opaque dirty operations may have effects beyond their explicit inputs and outputs
+            curr_idx in self.side_effects_at
+            or new_idx in self.side_effects_at
+            or
             # we can't handle memory locations
             self._has_dangerous_deref(curr_idx)
             or self._has_dangerous_deref(new_idx)
@@ -132,6 +146,21 @@ class BlockIOFinder(AILBlockViewer):
     #
     # Statements (all with side effects)
     #
+
+    def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None):
+        if block is None:
+            if isinstance(stmt, DirtyStatement) and self._current_top_stmt_idx is not None:
+                self.side_effects_at.add(self._current_top_stmt_idx)
+            return super()._handle_stmt(stmt_idx, stmt, block)
+
+        old_top_stmt_idx = self._current_top_stmt_idx
+        self._current_top_stmt_idx = stmt_idx
+        try:
+            if isinstance(stmt, DirtyStatement):
+                self.side_effects_at.add(stmt_idx)
+            return super()._handle_stmt(stmt_idx, stmt, block)
+        finally:
+            self._current_top_stmt_idx = old_top_stmt_idx
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         output_loc = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
@@ -215,6 +244,60 @@ class BlockIOFinder(AILBlockViewer):
                 self._add_or_update_set(args, self._handle_expr(i, arg, stmt_idx, stmt, block, is_memory=is_memory))
 
         return args
+
+    def _handle_DirtyExpression(
+        self,
+        expr_idx: int,
+        expr: DirtyExpression,
+        stmt_idx: int,
+        stmt: Statement,
+        block: Block | None,
+        is_memory=False,
+    ):
+        inputs = set()
+        for i, operand in enumerate(expr.operands):
+            self._add_or_update_set(inputs, self._handle_expr(i, operand, stmt_idx, stmt, block))
+        if expr.guard is not None:
+            self._add_or_update_set(
+                inputs,
+                self._handle_expr(len(expr.operands), expr.guard, stmt_idx, stmt, block),
+            )
+
+        if is_effectful_dirty_expression(expr) and self._current_top_stmt_idx is not None:
+            self.side_effects_at.add(self._current_top_stmt_idx)
+
+        if expr.maddr is not None:
+            memory_loc = self._handle_expr(
+                len(expr.operands) + 1,
+                expr.maddr,
+                stmt_idx,
+                stmt,
+                block,
+                is_memory=True,
+            )
+            if memory_loc is not None:
+                self._add_or_update_dict(self.derefed_at, stmt_idx, memory_loc)
+                if has_dirty_memory_read(expr):
+                    self._add_or_update_set(inputs, memory_loc)
+                if has_dirty_memory_write(expr):
+                    self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, memory_loc)
+
+        return inputs
+
+    def _handle_MultiStatementExpression(
+        self,
+        expr_idx: int,
+        expr: MultiStatementExpression,
+        stmt_idx: int,
+        stmt: Statement,
+        block: Block | None,
+        is_memory=False,
+    ):
+        # Nested statements execute as part of the containing top-level statement, so attribute
+        # their inputs, outputs, and side effects to that statement's index.
+        for nested_stmt in expr.stmts:
+            self._handle_stmt(stmt_idx, nested_stmt, None)
+        return self._handle_expr(0, expr.expr, stmt_idx, stmt, block, is_memory=is_memory)
 
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
