@@ -205,6 +205,12 @@ class TestCfgfastDataReferences(unittest.TestCase):
         # interleaved (value, pointer) tables are detected by the mixed-pointer scan
         assert memory_data[0x401FBC].sort == MemoryDataSort.PointerArray
 
+        # character translation tables (runs of monotonically increasing bytes) are detected by the byte-ramp scan
+        # and must not become code
+        assert memory_data[0x403390].sort == MemoryDataSort.Unknown
+        assert memory_data[0x403390].size == 193
+        assert not [f for f in cfg.kb.functions if 0x4033A0 <= f < 0x403690]
+
     def test_long_printable_ascii_string_without_null_byte(self):
         # suboptimal logic in _scan_for_printable_strings was causing the CFG recovery of this binary to be extremely
         # slow; we were repeatedly trying (and failing) to build a super long ASCII string in this binary.

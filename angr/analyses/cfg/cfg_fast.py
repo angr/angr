@@ -1238,6 +1238,34 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return repeating_length
         return 0
 
+    def _scan_for_monotonic_byte_ramp(self, start_addr: int, threshold: int = 16) -> int:
+        """
+        Scan from a given address for a run of monotonically increasing bytes, where each byte equals the previous
+        byte plus one, modulo 256. Character case-conversion and translation tables are laid out this way.
+
+        :param start_addr:  The address to start scanning from.
+        :param threshold:   The minimum run length.
+        :return:            The length of the run, or 0 if the run is shorter than threshold.
+        """
+
+        addr = start_addr
+        last_byte = None
+        ramp_length = 0
+
+        while self._inside_regions(addr):
+            val = self._load_a_byte_as_int(addr)
+            if val is None:
+                break
+            if last_byte is not None and val != (last_byte + 1) & 0xFF:
+                break
+            last_byte = val
+            ramp_length += 1
+            addr += 1
+
+        if ramp_length >= threshold:
+            return ramp_length
+        return 0
+
     def _scan_for_consecutive_pointers(self, start_addr: int, threshold: int = 2) -> int:
         """
         Scan from a given address and determine if there are at least `threshold` of pointers.
@@ -1437,6 +1465,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     start_addr, repeating_byte_length, MemoryDataSort.Unknown
                 )
                 start_addr += repeating_byte_length
+
+            # a long run of monotonically increasing bytes is a character or translation table, not code
+            ramp_length = self._scan_for_monotonic_byte_ramp(start_addr, threshold=16)
+            if ramp_length:
+                matched_something = True
+                self._seg_list.occupy(start_addr, ramp_length, "nodecode")
+                self.model.memory_data[start_addr] = MemoryData(start_addr, ramp_length, MemoryDataSort.Unknown)
+                start_addr += ramp_length
 
             if not matched_something:
                 # umm now it's probably code
