@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 import archinfo
 import claripy
 import networkx
@@ -7,30 +9,37 @@ import pytest
 
 from angr import ailment, load_shellcode
 from angr.ailment.expression import Const, Extract, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import ConditionalJump, Jump
+from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.decompiler import Decompiler
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 
 
 def _recover_edge_condition_with_internal_side_exits(
     side_exits: tuple[int | None, ...],
     *,
+    false_side_exits: tuple[int | None, ...] | None = None,
     side_exit_target_indices: tuple[int | None, ...] | None = None,
     terminal_target: int | None = 0x5000,
     terminal_target_idx: int | None = None,
     dst_idx: int | None = None,
     internal_jump_target: int | None = None,
+    internal_control: Literal["return", "switch"] | None = None,
 ) -> claripy.ast.Bool:
     arch = archinfo.ArchAMD64()
     manager = ailment.Manager(arch=arch)
     condition_processor = ConditionProcessor(arch, manager)
     src_addr = 0x4000
     dst_addr = 0x5000
+    false_side_exits = false_side_exits if false_side_exits is not None else (None,) * len(side_exits)
     side_exit_target_indices = side_exit_target_indices or (None,) * len(side_exits)
+    assert len(false_side_exits) == len(side_exits)
     assert len(side_exit_target_indices) == len(side_exits)
 
     statements = []
-    for side_exit, side_exit_target_idx in zip(side_exits, side_exit_target_indices, strict=True):
+    for side_exit, false_side_exit, side_exit_target_idx in zip(
+        side_exits, false_side_exits, side_exit_target_indices, strict=True
+    ):
         condition = VirtualVariable(
             manager.next_atom(),
             1,
@@ -49,12 +58,15 @@ def _recover_edge_condition_with_internal_side_exits(
                 oident=arch.registers["rbx"][0],
             )
         )
+        false_side_exit_target = (
+            Const(manager.next_atom(), false_side_exit, arch.bits) if false_side_exit is not None else None
+        )
         statements.append(
             ConditionalJump(
                 manager.next_atom(),
                 condition,
                 side_exit_target,
-                None,
+                false_side_exit_target,
                 true_target_idx=side_exit_target_idx,
                 ins_addr=src_addr,
             )
@@ -65,6 +77,20 @@ def _recover_edge_condition_with_internal_side_exits(
             Jump(
                 manager.next_atom(),
                 Const(manager.next_atom(), internal_jump_target, arch.bits),
+                ins_addr=src_addr + 1,
+            )
+        )
+
+    if internal_control == "return":
+        statements.append(Return(manager.next_atom(), [], ins_addr=src_addr + 1))
+    elif internal_control == "switch":
+        case_block = ailment.Block(0x6000, 4)
+        switch_expr = Const(manager.next_atom(), 0, arch.bits)
+        statements.append(
+            IncompleteSwitchCaseHeadStatement(
+                manager.next_atom(),
+                switch_expr,
+                [(case_block, 0, case_block.addr, case_block.idx, 0x6004)],
                 ins_addr=src_addr + 1,
             )
         )
@@ -150,6 +176,36 @@ def test_convergence_requires_matching_target_indices():
 
 def test_convergence_rejects_internal_jump():
     predicate = _recover_edge_condition_with_internal_side_exits((0x5000,), internal_jump_target=0x6000)
+
+    assert predicate.symbolic
+
+
+@pytest.mark.parametrize("internal_control", ["return", "switch"])
+def test_convergence_rejects_internal_control(internal_control):
+    predicate = _recover_edge_condition_with_internal_side_exits((0x5000,), internal_control=internal_control)
+
+    assert predicate.symbolic
+
+
+def test_explicit_false_side_exit_converges():
+    predicate = _recover_edge_condition_with_internal_side_exits((0x5000,), false_side_exits=(0x5000,))
+
+    assert claripy.is_true(predicate)
+
+
+def test_explicit_false_side_exit_differs():
+    predicate = _recover_edge_condition_with_internal_side_exits((0x5000,), false_side_exits=(0x6000,))
+
+    assert predicate.symbolic
+
+
+def test_convergence_requires_matching_terminal_target_idx():
+    predicate = _recover_edge_condition_with_internal_side_exits(
+        (0x5000,),
+        side_exit_target_indices=(1,),
+        terminal_target_idx=2,
+        dst_idx=1,
+    )
 
     assert predicate.symbolic
 
