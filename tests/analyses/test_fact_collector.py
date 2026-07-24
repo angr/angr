@@ -6,14 +6,14 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
-import angr
 import archinfo
+
+import angr
 from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
     default_cc,
 )
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
