@@ -50,6 +50,7 @@ _EK_TMP = _EK.Tmp
 _EK_PHI = _EK.Phi
 
 DEPHI_VVAR_REG_OFFSET = 4096
+CALL_RESULT_FIXUP_TAG = "call_result_fixup"
 
 
 @overload
@@ -493,6 +494,30 @@ def stmt_is_simple_call(stmt: Statement) -> Call | None:
             src = src.value
         else:
             return None
+
+
+def is_call_result_fixup(stmt: Statement) -> bool:
+    """
+    Return whether ``stmt`` is a synthetic assignment that composes a narrow call result into its full-width SSA
+    destination.
+    """
+    return isinstance(stmt, Assignment) and stmt.tags.get(CALL_RESULT_FIXUP_TAG, False) is True
+
+
+def find_semantic_terminal_call(block: Block) -> tuple[int, Statement, Call] | None:
+    """
+    Find a call that is semantically terminal even when SSA result-fixup assignments physically follow it.
+
+    Only a contiguous suffix of explicitly tagged fixups is skipped. Arbitrary statements after a call remain
+    significant and prevent the call from being considered terminal.
+    """
+    for stmt_idx in range(len(block.statements) - 1, -1, -1):
+        stmt = block.statements[stmt_idx]
+        if (call := stmt_is_simple_call(stmt)) is not None:
+            return stmt_idx, stmt, call
+        if not is_call_result_fixup(stmt):
+            break
+    return None
 
 
 def check_in_between_stmts(

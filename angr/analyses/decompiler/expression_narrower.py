@@ -171,8 +171,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         if stmt.expr.args is not None:
             self._handle_call_args(stmt.expr.args, stmt_idx, stmt, block)
 
-        if stmt.ret_expr is not None:
-            self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)
+        for expr_idx, return_expr in enumerate((stmt.ret_expr, stmt.fp_ret_expr)):
+            if return_expr is not None:
+                self._handle_expr(expr_idx, return_expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -371,31 +372,43 @@ class ExpressionNarrower(AILBlockRewriter):
         new_stmt = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
         assert isinstance(new_stmt, SideEffectStatement)
         changed = new_stmt is not stmt
+        return_exprs = [new_stmt.ret_expr, new_stmt.fp_ret_expr]
+        narrowed_return_expr = False
 
-        if (
-            stmt.ret_expr is not None
-            and isinstance(stmt.ret_expr, VirtualVariable)
-            and stmt.ret_expr.was_reg
-            and stmt.ret_expr.varid in self.new_vvar_sizes
-            and stmt.ret_expr.size != self.new_vvar_sizes[stmt.ret_expr.varid]
-        ):
-            changed = True
+        for idx, return_expr in enumerate((stmt.ret_expr, stmt.fp_ret_expr)):
+            if (
+                isinstance(return_expr, VirtualVariable)
+                and return_expr.was_reg
+                and return_expr.varid in self.new_vvar_sizes
+                and return_expr.size != self.new_vvar_sizes[return_expr.varid]
+            ):
+                changed = True
+                narrowed_return_expr = True
 
-            # update reg name
-            tags = dict(stmt.ret_expr.tags)
-            tags["reg_name"] = self.project.arch.translate_register_name(
-                stmt.ret_expr.reg_offset, size=self.new_vvar_sizes[stmt.ret_expr.varid]
+                # update reg name
+                tags = dict(return_expr.tags)
+                tags["reg_name"] = self.project.arch.translate_register_name(
+                    return_expr.reg_offset, size=self.new_vvar_sizes[return_expr.varid]
+                )
+                new_return_expr = VirtualVariable(
+                    return_expr.idx,
+                    return_expr.varid,
+                    self.new_vvar_sizes[return_expr.varid] * self.project.arch.byte_width,
+                    category=return_expr.category,
+                    oident=return_expr.oident,
+                    **tags,
+                )
+                self.replacement_core_vvars[new_return_expr.varid].append(new_return_expr)
+                return_exprs[idx] = new_return_expr
+
+        if narrowed_return_expr:
+            new_stmt = SideEffectStatement(
+                new_stmt.idx,
+                new_stmt.expr,
+                ret_expr=return_exprs[0],
+                fp_ret_expr=return_exprs[1],
+                **new_stmt.tags,
             )
-            new_ret_expr = VirtualVariable(
-                stmt.ret_expr.idx,
-                stmt.ret_expr.varid,
-                self.new_vvar_sizes[stmt.ret_expr.varid] * self.project.arch.byte_width,
-                category=stmt.ret_expr.category,
-                oident=stmt.ret_expr.oident,
-                **tags,
-            )
-            self.replacement_core_vvars[new_ret_expr.varid].append(new_ret_expr)
-            new_stmt.ret_expr = new_ret_expr
 
         if changed:
             self.narrowed_any = True

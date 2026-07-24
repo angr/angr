@@ -9,7 +9,7 @@ import cle
 from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.utils.funcid import is_function_security_check_cookie
-from angr.utils.ssa import stmt_is_simple_call
+from angr.utils.ssa import find_semantic_terminal_call, stmt_is_simple_call
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -164,11 +164,11 @@ class WinStackCanarySimplifier(OptimizationPass):
             return first_block, r
 
         # if the first block is calling alloca_probe, we may want to take the second block instead
+        terminal_call = find_semantic_terminal_call(first_block)
         if (
-            first_block.statements
+            terminal_call is not None
             and first_block.original_size > 0
-            and (call := stmt_is_simple_call(first_block.statements[-1])) is not None
-            and isinstance(call.target, ailment.expression.Const)
+            and isinstance((call := terminal_call[2]).target, ailment.expression.Const)
         ):
             # check if the target is alloca_probe
             callee_addr = call.target.value

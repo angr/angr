@@ -261,6 +261,18 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(result, claripy.ast.FP)
         return result
 
+    @staticmethod
+    def _symbolic_call_result(name: str, bits: int, *, floating_point: bool) -> claripy.ast.Bits:
+        if not floating_point:
+            return claripy.BVS(name, bits)
+        if bits == 32:
+            return claripy.FPS(name, claripy.FSORT_FLOAT)
+        if bits == 64:
+            return claripy.FPS(name, claripy.FSORT_DOUBLE)
+        # Claripy does not provide sorts for extended floating-point widths. Preserve those results as raw bits so
+        # call emulation remains width-correct and later AIL conversions can interpret them.
+        return claripy.BVS(name, bits)
+
     def _do_call(
         self,
         call: ailment.expression.Call,
@@ -274,15 +286,28 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 # ????? if doing ret emulation and this is an expr (no lvalue expression)
                 # how do I tell if this is a float ret or not?
                 return (claripy.BVS(f"callless_stub_{call.target}", call.bits),)
-            if stmt is not None and stmt.ret_expr is not None:
-                return (claripy.BVS(f"callless_stub_{call.target}", stmt.ret_expr.bits),)
-            if stmt is not None and stmt.fp_ret_expr is not None:
-                return (
-                    claripy.FPS(
-                        f"callless_stub_{call.target}",
-                        claripy.FSORT_FLOAT if stmt.fp_ret_expr.bits == 32 else claripy.FSORT_DOUBLE,
-                    ),
-                )
+            if stmt is not None:
+                dual_return = stmt.ret_expr is not None and stmt.fp_ret_expr is not None
+                results = []
+                if stmt.ret_expr is not None:
+                    suffix = "_ret" if dual_return else ""
+                    results.append(
+                        self._symbolic_call_result(
+                            f"callless_stub_{call.target}{suffix}",
+                            stmt.ret_expr.bits,
+                            floating_point=False,
+                        )
+                    )
+                if stmt.fp_ret_expr is not None:
+                    suffix = "_fp" if dual_return else ""
+                    results.append(
+                        self._symbolic_call_result(
+                            f"callless_stub_{call.target}{suffix}",
+                            stmt.fp_ret_expr.bits,
+                            floating_point=True,
+                        )
+                    )
+                return tuple(results)
             return ()
         target_addr = self._expr_bv(call.target)
         assert target_addr.concrete
@@ -425,13 +450,78 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> bool:
         assert isinstance(stmt.expr, ailment.expression.Call)
         results = self._do_call(stmt.expr, stmt=stmt)
-        ret_expr = stmt.ret_expr or stmt.fp_ret_expr
-        ret_exprs = [] if ret_expr is None else [ret_expr]
-        if len(results) < len(ret_exprs):
+        ret_exprs = tuple(expr for expr in (stmt.ret_expr, stmt.fp_ret_expr) if expr is not None)
+        if ret_exprs and not results:
             raise errors.AngrRuntimeError(
-                f"Call statement expects {len(ret_exprs)} return value(s) but called function provided {len(results)}"
+                f"Call statement expects at least one return value but called function provided {len(results)}"
             )
-        for ret_expr, result in zip(ret_exprs, results):
+
+        if len(ret_exprs) == 2 and len(results) == 1:
+            result = results[0]
+            if isinstance(result, claripy.ast.FP):
+                assignments = (
+                    (
+                        ret_exprs[0],
+                        self._symbolic_call_result(
+                            f"unconstrained_call_result_{stmt.expr.target}_ret",
+                            ret_exprs[0].bits,
+                            floating_point=False,
+                        ),
+                    ),
+                    (ret_exprs[1], result),
+                )
+            elif isinstance(result, claripy.ast.BV):
+                # Extended floating-point values have no Claripy FP sort and therefore arrive as raw BVs. A width
+                # that uniquely matches the FP candidate disambiguates that case; equal-width ABI candidates retain
+                # the conventional BV-to-integer fallback.
+                raw_extended_fp = (
+                    ret_exprs[1].bits not in (32, 64)
+                    and len(result) == ret_exprs[1].bits
+                    and len(result) != ret_exprs[0].bits
+                )
+                if raw_extended_fp:
+                    assignments = (
+                        (
+                            ret_exprs[0],
+                            self._symbolic_call_result(
+                                f"unconstrained_call_result_{stmt.expr.target}_ret",
+                                ret_exprs[0].bits,
+                                floating_point=False,
+                            ),
+                        ),
+                        (ret_exprs[1], result),
+                    )
+                else:
+                    assignments = (
+                        (ret_exprs[0], result),
+                        (
+                            ret_exprs[1],
+                            self._symbolic_call_result(
+                                f"unconstrained_call_result_{stmt.expr.target}_fp",
+                                ret_exprs[1].bits,
+                                floating_point=True,
+                            ),
+                        ),
+                    )
+            else:
+                raise errors.AngrRuntimeError(f"Unsupported call result type {type(result)}")
+        elif len(ret_exprs) == 1 and len(results) > 1:
+            # A prototype-aware pass may have selected one of two provisional ABI return locations after the callee
+            # graph was built. Prefer a result with the expected sort, then use the corresponding ABI slot so raw
+            # extended-precision FP values (which Claripy represents as bitvectors) remain correctly routed.
+            expects_fp = stmt.fp_ret_expr is not None
+            result_type = claripy.ast.FP if expects_fp else claripy.ast.BV
+            result = next(
+                (candidate for candidate in results if isinstance(candidate, result_type)),
+                results[min(1 if expects_fp else 0, len(results) - 1)],
+            )
+            assignments = ((ret_exprs[0], result),)
+        else:
+            assignments = zip(ret_exprs, results)
+
+        for ret_expr, result in assignments:
+            if not isinstance(result, (claripy.ast.BV, claripy.ast.FP)):
+                raise errors.AngrRuntimeError(f"Unsupported call result type {type(result)}")
             # these may be provided by misbehaving simprocedures. truncate the result as needed.
             self._do_assign(ret_expr, result, auto_narrow=True)
         return True
@@ -583,7 +673,10 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return child[expr.bits + offset_bits - 1 : offset_bits]
 
     def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType:
-        value = self._expr_bv(expr.value)
+        value = self._expr_bits(expr.value)
+        if isinstance(value, claripy.ast.FP):
+            value = value.raw_to_bv()
+        assert isinstance(value, claripy.ast.BV)
         offset = self._expr_bv(expr.offset)
         base = self._expr_bv(expr.base)
         assert offset.concrete

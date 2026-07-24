@@ -153,11 +153,12 @@ class SimEngineVRAIL(
     def _handle_stmt_ConditionalJump(self, stmt):
         self._expr(stmt.condition)
 
-    def _handle_expr_Tmp(self, expr):
+    def _handle_expr_Tmp(self, expr) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         try:
             return self.tmps[expr.tmp_idx]
         except KeyError:
-            return self._top(expr.bits)
+            result: RichR[claripy.ast.BV | claripy.ast.FP] = RichR(self.state.top(expr.bits))
+            return result
 
     def _handle_expr_MultiStatementExpression(self, expr):
         for stmt in expr.stmts:
@@ -279,17 +280,10 @@ class SimEngineVRAIL(
                 self._reference_spoffset = False
                 args.append(richr)
 
-        ret_expr_bits = self.state.arch.bits
-        create_variable = True
-
-        # this is a call statement. we need to update the return value register later
-        ret_expr = stmt.ret_expr
-        if ret_expr is not None:
-            if ret_expr.category == ailment.Expr.VirtualVariableCategory.REGISTER:
-                ret_expr_bits = ret_expr.bits
-        else:
-            # the return expression is not used, so we treat this call as not returning anything
-            create_variable = False
+        # These are alternative ABI return candidates until the call prototype or later simplification selects one.
+        return_exprs = tuple(
+            return_expr for return_expr in (stmt.ret_expr, stmt.fp_ret_expr) if return_expr is not None
+        )
 
         if isinstance(target, ailment.Expr.Expression) and not isinstance(
             target, (ailment.Expr.Const, ailment.Expr.DirtyExpression)
@@ -340,26 +334,24 @@ class SimEngineVRAIL(
         # TODO: Expose it as an option
         return_value_use_full_width_reg = True
 
-        # update the return value register
-        if isinstance(ret_expr, ailment.Expr.VirtualVariable):
-            expr_bits = ret_expr_bits
-            self._assign_to_vvar(
-                ret_expr,
-                RichR(self.state.top(expr_bits), typevar=ret_ty),
-                dst=ret_expr,
-                create_variable=create_variable,
-                vvar_id=self._mapped_vvarid(ret_expr.varid),
-            )
-        elif isinstance(ret_expr, ailment.Expr.Register):
-            l.warning("Left-over register found in call.ret_expr.")
-            expr_bits = self.state.arch.bits if return_value_use_full_width_reg else ret_expr_bits
-            self._assign_to_register(
-                ret_expr.reg_offset,
-                RichR(self.state.top(expr_bits), typevar=ret_ty),
-                expr_bits // self.arch.byte_width,
-                dst=ret_expr,
-                create_variable=create_variable,
-            )
+        # Conservatively define every candidate. Scalar call rewriting only happens after one candidate remains.
+        for return_expr in return_exprs:
+            if isinstance(return_expr, ailment.Expr.VirtualVariable):
+                self._assign_to_vvar(
+                    return_expr,
+                    RichR(self.state.top(return_expr.bits), typevar=ret_ty),
+                    dst=return_expr,
+                    vvar_id=self._mapped_vvarid(return_expr.varid),
+                )
+            elif isinstance(return_expr, ailment.Expr.Register):
+                l.warning("Left-over register found in a call return expression.")
+                expr_bits = self.state.arch.bits if return_value_use_full_width_reg else return_expr.bits
+                self._assign_to_register(
+                    return_expr.reg_offset,
+                    RichR(self.state.top(expr_bits), typevar=ret_ty),
+                    expr_bits // self.arch.byte_width,
+                    dst=return_expr,
+                )
 
     def _call_add_arg_based_type_constraints(
         self, prototype: SimTypeFunction, prototype_libname: str | None, args: list, arg_atoms: list

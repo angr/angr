@@ -29,6 +29,9 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
         if not isinstance(stmt.expr, Call):
             return None
 
+        if stmt.ret_expr is not None and stmt.fp_ret_expr is not None:
+            return None
+
         # are we calling a function that we deem as an overridden operator function?
         if isinstance(stmt.expr.target, Const):
             func_addr = stmt.expr.target.value
@@ -74,6 +77,11 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
         return None
 
     def _optimize_operator_add(self, stmt: SideEffectStatement) -> WeakAssignment | None:
+        return_expr = None
+        if stmt.ret_expr is not None and stmt.fp_ret_expr is None:
+            return_expr = stmt.ret_expr
+        elif stmt.fp_ret_expr is not None and stmt.ret_expr is None:
+            return_expr = stmt.fp_ret_expr
         if (
             stmt.expr.args
             and len(stmt.expr.args) == 3
@@ -81,7 +89,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             and stmt.expr.args[1].op == "Reference"
             and isinstance(stmt.expr.args[1].operand, VirtualVariable)
             and isinstance(stmt.expr.args[2], Const)
-            and isinstance(stmt.ret_expr, VirtualVariable)
+            and isinstance(return_expr, VirtualVariable)
         ):
             arg2 = Load(self.manager.next_atom(), stmt.expr.args[2], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
             addition = BinaryOp(self.manager.next_atom(), "Add", [stmt.expr.args[1].operand, arg2], **stmt.tags)
@@ -92,7 +100,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
                 type_ = {"dst": dst_ty, "src": prototype.args[1]}
-            return WeakAssignment(stmt.idx, stmt.ret_expr, addition, type=type_, **stmt.tags)
+            return WeakAssignment(stmt.idx, return_expr, addition, type=type_, **stmt.tags)
         return None
 
     @staticmethod

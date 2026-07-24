@@ -25,6 +25,12 @@ if TYPE_CHECKING:
     from angr.ailment.expression import MultiStatementExpression
 
 
+def _single_side_effect_return_expr(stmt: ailment.Stmt.SideEffectStatement):
+    if (stmt.ret_expr is None) == (stmt.fp_ret_expr is None):
+        return None
+    return stmt.ret_expr if stmt.ret_expr is not None else stmt.fp_ret_expr
+
+
 class LocationBase:
     __slots__ = ()
 
@@ -300,15 +306,14 @@ class ExpressionCounter(SequenceWalker):
                         dependency_finder.has_load,
                     )
                 )
-        if (
-            isinstance(stmt, ailment.Stmt.SideEffectStatement)
-            and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
-            and stmt.ret_expr.was_reg
-        ):
+        return_expr = (
+            _single_side_effect_return_expr(stmt) if isinstance(stmt, ailment.Stmt.SideEffectStatement) else None
+        )
+        if isinstance(return_expr, ailment.Expr.VirtualVariable) and return_expr.was_reg:
             dependency_finder = ExpressionUseFinder()
             dependency_finder.walk_expression(stmt)
             dependencies = tuple(dependency_finder.uses)
-            self.assignments[stmt.ret_expr.varid].add(
+            self.assignments[return_expr.varid].add(
                 (
                     stmt,
                     dependencies,
@@ -504,15 +509,17 @@ class InterferenceChecker(SequenceWalker):
                 # we found this def
                 self._assignment_interferences[stmt.dst.varid] = []
 
+            return_expr = (
+                _single_side_effect_return_expr(stmt) if isinstance(stmt, ailment.Stmt.SideEffectStatement) else None
+            )
             if (
-                isinstance(stmt, ailment.Stmt.SideEffectStatement)
-                and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
-                and stmt.ret_expr.was_reg
-                and self._variable_map.variable(stmt.ret_expr) is not None
-                and stmt.ret_expr.varid in self._assignments
+                isinstance(return_expr, ailment.Expr.VirtualVariable)
+                and return_expr.was_reg
+                and self._variable_map.variable(return_expr) is not None
+                and return_expr.varid in self._assignments
             ):
                 # we found this def
-                self._assignment_interferences[stmt.ret_expr.varid] = []
+                self._assignment_interferences[return_expr.varid] = []
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         spotter = ExpressionSpotter()
@@ -683,12 +690,14 @@ class ExpressionFolder(SequenceWalker):
             ):
                 # remove this statement
                 continue
+            return_expr = (
+                _single_side_effect_return_expr(stmt) if isinstance(stmt, ailment.Stmt.SideEffectStatement) else None
+            )
             if (
-                isinstance(stmt, ailment.Stmt.SideEffectStatement)
-                and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
-                and stmt.ret_expr.was_reg
-                and self._variable_map.variable(stmt.ret_expr) is not None
-                and stmt.ret_expr.varid in self._assignments
+                isinstance(return_expr, ailment.Expr.VirtualVariable)
+                and return_expr.was_reg
+                and self._variable_map.variable(return_expr) is not None
+                and return_expr.varid in self._assignments
             ):
                 # remove this statement
                 continue

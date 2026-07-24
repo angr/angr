@@ -3827,8 +3827,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 args.append(new_arg)
 
         ret_expr = None
-        if not is_expr and stmt.ret_expr is not None:
-            ret_expr = self._handle(stmt.ret_expr)
+        if not is_expr:
+            return_exprs = tuple(
+                return_expr for return_expr in (stmt.ret_expr, stmt.fp_ret_expr) if return_expr is not None
+            )
+            if len(return_exprs) == 1:
+                ret_expr = self._handle(return_exprs[0])
+            # If both ABI return candidates remain unresolved, emit the call once as a standalone statement.
 
         call_expr = CFunctionCall(
             target,

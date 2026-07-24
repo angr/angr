@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.expression import ITE, Call, Const, Phi, VirtualVariable
+from angr.ailment.expression import ITE, Const, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffectStatement, Statement
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from angr.utils.ail import is_phi_assignment
@@ -13,6 +13,12 @@ from angr.utils.graph import subgraph_between_nodes
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(__name__)
+
+
+def _single_side_effect_return_expr(stmt: SideEffectStatement):
+    if (stmt.ret_expr is None) == (stmt.fp_ret_expr is None):
+        return None
+    return stmt.ret_expr if stmt.ret_expr is not None else stmt.fp_ret_expr
 
 
 class ITERegionConverter(OptimizationPass):
@@ -158,10 +164,16 @@ class ITERegionConverter(OptimizationPass):
 
     @staticmethod
     def _has_qualified_phi_assignments(
-        block: Block, block0: Block, stmt0: Assignment | Call, block1: Block, stmt1: Assignment | Call
+        block: Block,
+        block0: Block,
+        stmt0: Assignment | SideEffectStatement,
+        block1: Block,
+        stmt1: Assignment | SideEffectStatement,
     ):
-        vvar0 = stmt0.dst if isinstance(stmt0, Assignment) else stmt0.ret_expr
-        vvar1 = stmt1.dst if isinstance(stmt1, Assignment) else stmt1.ret_expr
+        vvar0 = stmt0.dst if isinstance(stmt0, Assignment) else _single_side_effect_return_expr(stmt0)
+        vvar1 = stmt1.dst if isinstance(stmt1, Assignment) else _single_side_effect_return_expr(stmt1)
+        if not isinstance(vvar0, VirtualVariable) or not isinstance(vvar1, VirtualVariable):
+            return False
 
         addr0 = block0.addr, block0.idx
         addr1 = block1.addr, block1.idx
@@ -188,8 +200,8 @@ class ITERegionConverter(OptimizationPass):
         self,
         region_head,
         region_tail,
-        true_stmt: Assignment | Call,
-        false_stmt: Assignment | Call,
+        true_stmt: Assignment | SideEffectStatement,
+        false_stmt: Assignment | SideEffectStatement,
     ):
         if region_head not in self._graph or region_tail not in self._graph:
             return False
@@ -209,10 +221,16 @@ class ITERegionConverter(OptimizationPass):
         new_region_head = region_head.copy()
         conditional_jump: ConditionalJump = region_head.statements[-1]
 
-        true_stmt_src = true_stmt.src if isinstance(true_stmt, Assignment) else true_stmt
-        true_stmt_dst = true_stmt.dst if isinstance(true_stmt, Assignment) else true_stmt.ret_expr
-        false_stmt_src = false_stmt.src if isinstance(false_stmt, Assignment) else false_stmt
-        false_stmt_dst = false_stmt.dst if isinstance(false_stmt, Assignment) else false_stmt.ret_expr
+        true_stmt_src = true_stmt.src if isinstance(true_stmt, Assignment) else true_stmt.expr
+        true_stmt_dst = (
+            true_stmt.dst if isinstance(true_stmt, Assignment) else _single_side_effect_return_expr(true_stmt)
+        )
+        false_stmt_src = false_stmt.src if isinstance(false_stmt, Assignment) else false_stmt.expr
+        false_stmt_dst = (
+            false_stmt.dst if isinstance(false_stmt, Assignment) else _single_side_effect_return_expr(false_stmt)
+        )
+        assert isinstance(true_stmt_dst, VirtualVariable)
+        assert isinstance(false_stmt_dst, VirtualVariable)
 
         addr_obj = true_stmt_src if "ins_addr" in true_stmt_src.tags else true_stmt
         ternary_expr = ITE(
@@ -336,6 +354,8 @@ class ITERegionConverter(OptimizationPass):
 
     @staticmethod
     def _is_assigning_to_vvar(stmt: Statement) -> bool:
-        return (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)) or (
-            isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable)
-        )
+        if isinstance(stmt, Assignment):
+            return isinstance(stmt.dst, VirtualVariable)
+        if isinstance(stmt, SideEffectStatement):
+            return isinstance(_single_side_effect_return_expr(stmt), VirtualVariable)
+        return False

@@ -9,6 +9,7 @@ from angr.ailment.statement import Assignment, SideEffectStatement, Statement
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 
 WIN64_REG_ARGS = {
     archinfo.ArchAMD64().registers["rcx"][0],
@@ -74,11 +75,14 @@ class StringObfType3Rewriter(OptimizationPass):
         old_stmt: Statement = block.statements[-1]
         str_id = self.kb.custom_strings.allocate(deobf_content)
         if isinstance(old_stmt, Assignment):
-            old_call_expr: Call = old_stmt.src
+            assert isinstance(old_stmt.src, Call)
+            old_call_expr = old_stmt.src
         else:
-            old_call_expr: Call = old_stmt.expr
+            assert isinstance(old_stmt, SideEffectStatement)
+            assert isinstance(old_stmt.expr, Call)
+            old_call_expr = old_stmt.expr
         str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-        self.manager.variable_map.set_custom_string(str_const)
+        variable_map_of(self.manager).set_custom_string(str_const)
         new_call = Call(
             old_call_expr.idx,
             "init_str",
@@ -93,7 +97,13 @@ class StringObfType3Rewriter(OptimizationPass):
         if isinstance(old_stmt, Assignment):
             new_stmt = Assignment(old_stmt.idx, old_stmt.dst, new_call, **old_stmt.tags)
         else:
-            new_stmt = SideEffectStatement(old_stmt.idx, new_call, ret_expr=old_stmt.ret_expr, **old_stmt.tags)
+            new_stmt = SideEffectStatement(
+                old_stmt.idx,
+                new_call,
+                ret_expr=old_stmt.ret_expr,
+                fp_ret_expr=old_stmt.fp_ret_expr,
+                **old_stmt.tags,
+            )
 
         statements = [*block.statements[:-1], new_stmt]
 

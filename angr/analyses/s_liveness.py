@@ -13,6 +13,14 @@ from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
 
 
+def _side_effect_vvar_defs(stmt: SideEffectStatement):
+    return tuple(
+        return_expr.varid
+        for return_expr in (stmt.ret_expr, stmt.fp_ret_expr)
+        if isinstance(return_expr, VirtualVariable)
+    )
+
+
 class SLivenessModel:
     """
     The SLiveness model that stores LiveIn and LiveOut sets for each block in a partial-SSA function.
@@ -117,8 +125,8 @@ class SLivenessAnalysis(Analysis):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     live.discard(stmt.dst.varid)
-                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):
-                    live.discard(stmt.ret_expr.varid)
+                elif isinstance(stmt, SideEffectStatement):
+                    live.difference_update(_side_effect_vvar_defs(stmt))
                 live.difference_update(stmt.tags.get("extra_defs", ()))
 
                 phi_expr = phi_assignment_get_src(stmt)
@@ -200,8 +208,8 @@ class SLivenessAnalysis(Analysis):
                 def_vvars = list(stmt.tags.get("extra_defs", []))
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvars.append(stmt.dst.varid)
-                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):
-                    def_vvars.append(stmt.ret_expr.varid)
+                elif isinstance(stmt, SideEffectStatement):
+                    def_vvars.extend(_side_effect_vvar_defs(stmt))
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector.reset()
@@ -252,8 +260,8 @@ class SLivenessAnalysis(Analysis):
                 def_vvars = list(stmt.tags.get("extra_defs", []))
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvars.append(stmt.dst.varid)
-                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):
-                    def_vvars.append(stmt.ret_expr.varid)
+                elif isinstance(stmt, SideEffectStatement):
+                    def_vvars.extend(_side_effect_vvar_defs(stmt))
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector.reset()

@@ -205,37 +205,48 @@ class SimEngineRDAIL(
         self.state.kill_definitions(ip)
 
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.Stmt.SideEffectStatement):
+        assert isinstance(stmt.expr, ailment.Expr.Call)
         data = self._handle_Call_base(stmt.expr, is_expr=False)
         src = data.ret_values
         if src is None:
             return
 
-        dst = stmt.ret_expr
-        if isinstance(dst, ailment.Tmp):
-            _, defs = self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), src, uses=data.ret_values_deps)
-            self.tmps[dst.tmp_idx] = src
+        defs = set()
+        for dst in (stmt.ret_expr, stmt.fp_ret_expr):
+            if not isinstance(dst, (ailment.Tmp, ailment.Register)):
+                continue
 
-        elif isinstance(dst, ailment.Register):
-            full_reg_offset, full_reg_size = self.arch.registers[
-                self.arch.register_names[RegisterOffset(dst.reg_offset)]
-            ]
-            if dst.size != full_reg_size:
-                # we need to extend the value to overwrite the entire register
-                otv = {}
-                next_off = 0
-                if full_reg_offset < dst.reg_offset:
-                    otv[0] = {claripy.BVV(0, (dst.reg_offset - full_reg_offset) * 8)}
-                    next_off = dst.reg_offset - full_reg_offset
-                for off, items in src.items():
-                    otv[next_off + off] = set(items)
-                next_off += len(src) // 8
-                if next_off < full_reg_size:
-                    otv[next_off] = {claripy.BVV(0, (full_reg_size - next_off) * 8)}
-                src = MultiValues(offset_to_values=otv)
-            reg = Register(full_reg_offset, full_reg_size)
-            _, defs = self.state.kill_and_add_definition(reg, src, uses=data.ret_values_deps)
-        else:
-            defs = set()
+            # A dual-return call models multiple candidate ABI locations, whose declared widths may differ. The
+            # function handler produces one abstract return value, so only reuse it when its width matches this
+            # candidate. Otherwise, preserve the dependency relationship but use a correctly sized conservative TOP.
+            dst_src = src if len(src) == dst.bits else self._top(dst.bits)
+            if isinstance(dst, ailment.Tmp):
+                _, dst_defs = self.state.kill_and_add_definition(
+                    Tmp(dst.tmp_idx, dst.size), dst_src, uses=data.ret_values_deps
+                )
+                self.tmps[dst.tmp_idx] = dst_src
+                defs.update(dst_defs)
+
+            elif isinstance(dst, ailment.Register):
+                full_reg_offset, full_reg_size = self.arch.registers[
+                    self.arch.register_names[RegisterOffset(dst.reg_offset)]
+                ]
+                if dst.size != full_reg_size:
+                    # we need to extend the value to overwrite the entire register
+                    otv = {}
+                    next_off = 0
+                    if full_reg_offset < dst.reg_offset:
+                        otv[0] = {claripy.BVV(0, (dst.reg_offset - full_reg_offset) * 8)}
+                        next_off = dst.reg_offset - full_reg_offset
+                    for off, items in dst_src.items():
+                        otv[next_off + off] = set(items)
+                    next_off += len(dst_src) // 8
+                    if next_off < full_reg_size:
+                        otv[next_off] = {claripy.BVV(0, (full_reg_size - next_off) * 8)}
+                    dst_src = MultiValues(offset_to_values=otv)
+                reg = Register(full_reg_offset, full_reg_size)
+                _, dst_defs = self.state.kill_and_add_definition(reg, dst_src, uses=data.ret_values_deps)
+                defs.update(dst_defs)
 
         if self.state.analysis:
             self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)

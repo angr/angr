@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import networkx
 
@@ -11,10 +11,10 @@ from angr.ailment import Block
 from angr.ailment.expression import Call, Const, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, SideEffectStatement, Statement
 from angr.calling_conventions import SimRegArg, call_clobbered_regs, default_cc
-from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
-from angr.utils.ssa import get_reg_offset_base
+from angr.utils.ssa import get_reg_offset_base, stmt_is_simple_call
 
 from .s_rda_model import SRDAModel
 
@@ -22,6 +22,14 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 log = logging.getLogger(__name__)
+
+_RegDef = tuple[int, int, int]
+_StmtRegEffects = tuple[tuple[_RegDef, ...], frozenset[int]]
+type _SRDAObservationPoint = (
+    tuple[Literal["insn"], int, ObservationPointType]
+    | tuple[Literal["stmt"], tuple[tuple[int, int | None], int], ObservationPointType]
+    | tuple[Literal["node"], tuple[int, int | None], ObservationPointType]
+)
 
 
 def _copy_reg2vvarid(reg2vvarid: dict[int, dict[int, int]]) -> dict[int, dict[int, int]]:
@@ -98,22 +106,25 @@ class RegVVarPredicate:
                 self.vvars.append(stmt.dst)
             return True
         if isinstance(stmt, SideEffectStatement):
-            if (
-                isinstance(stmt.ret_expr, VirtualVariable)
-                and stmt.ret_expr.was_reg
-                and stmt.ret_expr.reg_offset == self.reg_offset
-                and stmt.ret_expr.size >= self.min_size
-            ):
-                if stmt.ret_expr not in self.vvars:
-                    self.vvars.append(stmt.ret_expr)
-                return True
-            if isinstance(stmt.expr, Call):
-                # is it clobbered maybe?
-                clobbered_regs = get_call_clobbered_regs(
-                    stmt.expr, self.variable_map, self.functions, self.arch, self.platform, self.language
-                )
-                if self.reg_offset in clobbered_regs:
+            for return_expr in (stmt.ret_expr, stmt.fp_ret_expr):
+                if (
+                    isinstance(return_expr, VirtualVariable)
+                    and return_expr.was_reg
+                    and return_expr.reg_offset == self.reg_offset
+                    and return_expr.size >= self.min_size
+                ):
+                    if return_expr not in self.vvars:
+                        self.vvars.append(return_expr)
                     return True
+        if (call := stmt_is_simple_call(stmt)) is not None:
+            # A matching explicit result definition above takes precedence because call clobbers happen before result
+            # definitions. Otherwise the call is a barrier for earlier definitions of caller-saved registers,
+            # including when simplification has folded it into an Assignment wrapper.
+            clobbered_regs = get_call_clobbered_regs(
+                call, self.variable_map, self.functions, self.arch, self.platform, self.language
+            )
+            if self.reg_offset in clobbered_regs:
+                return True
         return False
 
 
@@ -151,7 +162,7 @@ class SRDAView:
         self._traversal_order: list[Block] | None = None
         # caches for the dominance-based observe() fast path (func_graph is immutable for this view's lifetime)
         self._idoms: dict[Block, Block] | None = None
-        self._block_reg_defs: dict[tuple[int, int | None], dict[tuple[int, int], int]] | None = None
+        self._block_reg_effects: dict[tuple[int, int | None], tuple[_StmtRegEffects, ...]] = {}
         self._blocks_by_key: dict[tuple[int, int | None], Block] | None = None
 
     def _get_vvar_by_stmt(
@@ -360,7 +371,7 @@ class SRDAView:
                 break
         return None
 
-    def observe(self, observation_points: list[ObservationPoint], entry: Block | None = None):
+    def observe(self, observation_points: list[_SRDAObservationPoint], entry: Block | None = None):
         insn_ops: dict[int, ObservationPointType] = {op[1]: op[2] for op in observation_points if op[0] == "insn"}
         stmt_ops: dict[tuple[tuple[int, int | None], int], ObservationPointType] = {
             op[1]: op[2] for op in observation_points if op[0] == "stmt"
@@ -385,12 +396,12 @@ class SRDAView:
         ``observations`` at this block's node/insn/stmt observation points. Shared by both observe() paths so their
         per-block snapshot semantics are byte-for-byte identical; the paths differ only in how the entry map is seeded.
         """
-        arch = self.model.arch
         block_key = block.addr, block.idx
 
         if block_key in node_ops and node_ops[block_key] == ObservationPointType.OP_BEFORE:
             observations[("node", block_key, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(reg2vvarid)
 
+        block_reg_effects = self._get_block_reg_effects(block)
         last_insn_addr = None
         for stmt_idx, stmt in enumerate(block.statements):
             if last_insn_addr != stmt.tags["ins_addr"]:
@@ -409,20 +420,13 @@ class SRDAView:
             if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
                 observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = _copy_reg2vvarid(reg2vvarid)
 
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
-                base_offset = get_reg_offset_base(stmt.dst.reg_offset, arch)
+            reg_defs, clobbered_regs = block_reg_effects[stmt_idx]
+            for base_offset in clobbered_regs:
+                reg2vvarid.pop(base_offset, None)
+            for base_offset, size, varid in reg_defs:
                 if base_offset not in reg2vvarid:
                     reg2vvarid[base_offset] = {}
-                reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
-            elif (
-                isinstance(stmt, SideEffectStatement)
-                and isinstance(stmt.ret_expr, VirtualVariable)
-                and stmt.ret_expr.was_reg
-            ):
-                base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, arch)
-                if base_offset not in reg2vvarid:
-                    reg2vvarid[base_offset] = {}
-                reg2vvarid[base_offset][stmt.ret_expr.size] = stmt.ret_expr.varid
+                reg2vvarid[base_offset][size] = varid
 
             if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
                 observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = _copy_reg2vvarid(reg2vvarid)
@@ -449,33 +453,64 @@ class SRDAView:
 
         return observations
 
-    def _build_block_reg_defs(self) -> dict[tuple[int, int | None], dict[tuple[int, int], int]]:
+    def _get_block_reg_effects(self, block: Block) -> tuple[_StmtRegEffects, ...]:
         """
-        Per-block index of register-vvar definitions: ``(block addr, idx) -> {(base reg offset, size): vvar id}``,
-        keeping the last (highest stmt_idx) definition per ``(base, size)`` in each block. Derived from the model's
-        definition locations -- no graph traversal. Extern (function-argument) definitions are skipped, matching the
-        forward path which starts the entry block with an empty register map.
+        Return cached register effects for each statement in ``block``.
+
+        Definitions are stored in forward execution order. A call's clobbered base-register offsets are stored
+        separately because forward observation applies the clobber before the statement's explicit return definition,
+        while reverse dominator seeding must consider those definitions before treating the call as a barrier.
         """
         arch = self.model.arch
-        tmp: dict[tuple[int, int | None], dict[tuple[int, int], tuple[int, int]]] = defaultdict(dict)
-        for vid, defloc in self.model.all_vvar_definitions.items():
-            if defloc.is_extern:
-                continue
-            vvar = self.model.varid_to_vvar.get(vid)
-            if vvar is None or not vvar.was_reg:
-                continue
-            key = (get_reg_offset_base(vvar.reg_offset, arch), vvar.size)
-            block_key = defloc.addr, defloc.block_idx
-            cur = tmp[block_key].get(key)
-            if cur is None or defloc.stmt_idx > cur[0]:
-                tmp[block_key][key] = (defloc.stmt_idx, vid)
-        return {bk: {k: v[1] for k, v in d.items()} for bk, d in tmp.items()}
+        block_key = block.addr, block.idx
+        effects = self._block_reg_effects.get(block_key)
+        if effects is not None:
+            return effects
 
-    def _seed_from_dominators(self, block, idoms, block_reg_defs) -> dict[int, dict[int, int]]:
+        stmt_effects = []
+        for stmt in block.statements:
+            reg_defs = []
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+                reg_defs.append((get_reg_offset_base(stmt.dst.reg_offset, arch), stmt.dst.size, stmt.dst.varid))
+            elif isinstance(stmt, SideEffectStatement):
+                for return_expr in (stmt.ret_expr, stmt.fp_ret_expr):
+                    if isinstance(return_expr, VirtualVariable) and return_expr.was_reg:
+                        reg_defs.append(
+                            (
+                                get_reg_offset_base(return_expr.reg_offset, arch),
+                                return_expr.size,
+                                return_expr.varid,
+                            )
+                        )
+
+            call = stmt_is_simple_call(stmt)
+            clobbered_regs = (
+                frozenset(
+                    get_reg_offset_base(reg_offset, arch)
+                    for reg_offset in get_call_clobbered_regs(
+                        call,
+                        self.model.variable_map,
+                        self.model.functions,
+                        arch,
+                        self.model.platform,
+                        self.model.language,
+                    )
+                )
+                if call is not None
+                else frozenset()
+            )
+            stmt_effects.append((tuple(reg_defs), clobbered_regs))
+
+        effects = tuple(stmt_effects)
+        self._block_reg_effects[block_key] = effects
+        return effects
+
+    def _seed_from_dominators(self, block, idoms) -> dict[int, dict[int, int]]:
         """
         The register map reaching ``block``'s entry: for each ``(base register, size)``, the definition in the closest
         strict dominator that defines it. In SSA this is exactly the reaching definition at the block entry (phis are
-        defs in the merge block and so are picked up by the in-block walk, not here).
+        defs in the merge block and so are picked up by the in-block walk, not here). Calls form barriers for all
+        earlier definitions of each clobbered base register; definitions at or after a call remain visible.
         """
         reg2vvarid: dict[int, dict[int, int]] = {}
         d = idoms.get(block)
@@ -483,59 +518,19 @@ class SRDAView:
             # entry block (its immediate dominator is itself) or unreachable node: no strict dominators
             return reg2vvarid
         found: set[tuple[int, int]] = set()
+        blocked_bases: set[int] = set()
         while True:
-            # registers will get clobbered by calls, so we check if the block starts or ends with a call statement
-            # note that we do not yet handle the case where a call is folded into the middle of a block
-            if d.statements:
-                first_stmt = d.statements[0]
-                call_expr = None
-                if isinstance(first_stmt, SideEffectStatement) and isinstance(first_stmt.expr, Call):
-                    call_expr = first_stmt.expr
-                elif isinstance(first_stmt, Assignment) and isinstance(first_stmt.src, Call):
-                    call_expr = first_stmt.src
-                if call_expr is not None:
-                    clobbered_regs = get_call_clobbered_regs(
-                        call_expr,
-                        self.model.variable_map,
-                        self.model.functions,
-                        self.model.arch,
-                        self.model.platform,
-                        self.model.language,
-                    )
-                    for reg_offset in clobbered_regs:
-                        if reg_offset in reg2vvarid:
-                            reg2vvarid.pop(reg_offset)
-
-            defs = block_reg_defs.get((d.addr, d.idx))
-            if defs:
-                for key, vid in defs.items():
-                    if key not in found:
+            for reg_defs, clobbered_regs in reversed(self._get_block_reg_effects(d)):
+                # These definitions occur after the call's clobber in forward execution, so inspect them first while
+                # scanning backward. Do not remove already-found post-call definitions when installing the barrier.
+                for base, size, vid in reversed(reg_defs):
+                    key = base, size
+                    if base not in blocked_bases and key not in found:
                         found.add(key)
-                        base, size = key
                         if base not in reg2vvarid:
                             reg2vvarid[base] = {}
                         reg2vvarid[base][size] = vid
-
-            # register clobbering by calls
-            if d.statements and len(d.statements) > 1:
-                last_stmt = d.statements[-1]
-                call_expr = None
-                if isinstance(last_stmt, SideEffectStatement) and isinstance(last_stmt.expr, Call):
-                    call_expr = last_stmt.expr
-                elif isinstance(last_stmt, Assignment) and isinstance(last_stmt.src, Call):
-                    call_expr = last_stmt.src
-                if call_expr is not None:
-                    clobbered_regs = get_call_clobbered_regs(
-                        call_expr,
-                        self.model.variable_map,
-                        self.model.functions,
-                        self.model.arch,
-                        self.model.platform,
-                        self.model.language,
-                    )
-                    for reg_offset in clobbered_regs:
-                        if reg_offset in reg2vvarid:
-                            reg2vvarid.pop(reg_offset)
+                blocked_bases.update(clobbered_regs)
 
             nd = idoms.get(d)
             if nd is None or nd is d:
@@ -547,9 +542,6 @@ class SRDAView:
         if self._idoms is None:
             self._idoms = networkx.immediate_dominators(self.model.func_graph, entry)
         idoms = self._idoms
-        if self._block_reg_defs is None:
-            self._block_reg_defs = self._build_block_reg_defs()
-        block_reg_defs = self._block_reg_defs
         if self._blocks_by_key is None:
             self._blocks_by_key = {(b.addr, b.idx): b for b in self.model.func_graph}
         blocks_by_key = self._blocks_by_key
@@ -564,6 +556,6 @@ class SRDAView:
             block = blocks_by_key.get(block_key)
             if block is None:
                 continue
-            reg2vvarid = self._seed_from_dominators(block, idoms, block_reg_defs)
+            reg2vvarid = self._seed_from_dominators(block, idoms)
             self._observe_block(block, reg2vvarid, no_insn_ops, stmt_ops, node_ops, observations)
         return observations

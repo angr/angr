@@ -263,8 +263,12 @@ class BlockSimplifier(Analysis):
                         # never replace an l-value with an r-value
                         r = False
                         new_stmt = None
-                    elif isinstance(stmt, SideEffectStatement) and isinstance(new, Call) and old == stmt.ret_expr:
-                        # special case: do not replace the ret_expr of a call statement to another call statement
+                    elif (
+                        isinstance(stmt, SideEffectStatement)
+                        and isinstance(new, Call)
+                        and old in (stmt.ret_expr, stmt.fp_ret_expr)
+                    ):
+                        # special case: do not replace a return definition of a call statement with another call
                         r = False
                         new_stmt = None
                     elif isinstance(stmt, Assignment) and not replace_assignment_dsts:
