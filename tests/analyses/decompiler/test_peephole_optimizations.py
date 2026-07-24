@@ -84,6 +84,83 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
 
+    def test_eager_eval_mul_div_cancellation_requires_integers(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        x = Register(manager.next_atom(), 0, 32)
+
+        def mul_div(multiplier, divisor, *, mul_floating_point=False, div_floating_point=False):
+            mul = BinaryOp(
+                manager.next_atom(),
+                "Mul",
+                [x, Const(manager.next_atom(), multiplier, 32)],
+                False,
+                bits=32,
+                floating_point=mul_floating_point,
+            )
+            return BinaryOp(
+                manager.next_atom(),
+                "Div",
+                [mul, Const(manager.next_atom(), divisor, 32)],
+                False,
+                bits=32,
+                floating_point=div_floating_point,
+            )
+
+        # (x * 6) / 8 -> (x * 3) / 4
+        out = opt.optimize(mul_div(6, 8))
+        assert isinstance(out, BinaryOp) and out.op == "Div"
+        assert isinstance(out.operands[0], BinaryOp) and out.operands[0].op == "Mul"
+        assert out.operands[0].operands[1].value == 3
+        assert out.operands[1].value == 4
+
+        # AIL constants may contain floats. Integer cancellation does not apply to them.
+        for multiplier, divisor in ((6.0, 8), (6, 8.0), (6.0, 8.0)):
+            with self.subTest(multiplier=multiplier, divisor=divisor):
+                assert opt.optimize(mul_div(multiplier, divisor)) is None
+
+        # Integer-valued constants do not make floating-point Mul or Div cancellable by an integer GCD.
+        for mul_floating_point, div_floating_point in ((True, False), (False, True), (True, True)):
+            with self.subTest(
+                mul_floating_point=mul_floating_point,
+                div_floating_point=div_floating_point,
+            ):
+                assert (
+                    opt.optimize(
+                        mul_div(
+                            6,
+                            8,
+                            mul_floating_point=mul_floating_point,
+                            div_floating_point=div_floating_point,
+                        )
+                    )
+                    is None
+                )
+
+    def test_eager_eval_skips_floating_point_binary_operations(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        x = Register(manager.next_atom(), 0, 32)
+
+        for op, operands, bits in (
+            ("Mul", (x, Const(manager.next_atom(), 1, 32)), 32),
+            ("Add", (x, Const(manager.next_atom(), 0, 32)), 32),
+            ("Add", (x, Const(manager.next_atom(), -1, 32)), 32),
+            ("CmpEQ", (x, x), 1),
+        ):
+            with self.subTest(op=op, operands=operands):
+                expr = BinaryOp(
+                    manager.next_atom(),
+                    op,
+                    operands,
+                    False,
+                    bits=bits,
+                    floating_point=True,
+                )
+                assert opt.optimize(expr) is None
+
     def test_cmp_masked_shift(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
         manager = Manager()
