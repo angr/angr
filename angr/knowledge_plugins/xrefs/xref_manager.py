@@ -8,7 +8,7 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import xrefs_pb2
 from angr.serializable import Serializable
 
-from .spilling_xref import SpillingXrefDict
+from .spilling_xref import SpillingXrefDict, SpillingXrefDstIndex
 from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)
@@ -45,11 +45,14 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         else:
             self._xrefs_cache_limit = None
 
-        self.xrefs_by_ins_addr = self._new_index(rtdb, "xrefs_by_ins")
-        self.xrefs_by_dst = self._new_index(rtdb, "xrefs_by_dst")
+        # xrefs_by_ins_addr is the single owner of all XRef objects; xrefs_by_dst only records the
+        # referencing instruction addresses so that evicting an owner entry actually frees its XRefs.
+        self.xrefs_by_ins_addr, self.xrefs_by_dst = self._new_indexes(rtdb)
 
-    def _new_index(self, rtdb, db_name) -> SpillingXrefDict:
-        return SpillingXrefDict(rtdb, cache_limit=self._xrefs_cache_limit, db_name=db_name)
+    def _new_indexes(self, rtdb) -> tuple[SpillingXrefDict, SpillingXrefDstIndex]:
+        owner = SpillingXrefDict(rtdb, cache_limit=self._xrefs_cache_limit, db_name="xrefs_by_ins")
+        dst_index = SpillingXrefDstIndex(rtdb, owner=owner, cache_limit=self._xrefs_cache_limit)
+        return owner, dst_index
 
     def set_kb(self, kb):
         super().set_kb(kb)
@@ -57,17 +60,23 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         rtdb = kb.rtdb
         self.xrefs_by_ins_addr.set_rtdb(rtdb)
         self.xrefs_by_dst.set_rtdb(rtdb)
+        self.xrefs_by_dst.set_owner(self.xrefs_by_ins_addr)
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # the dst index does not pickle its owner reference; re-attach it
+        self.xrefs_by_dst.set_owner(self.xrefs_by_ins_addr)
 
     def copy(self):
         xm = XRefManager(self._kb)
         xm.xrefs_by_ins_addr = self.xrefs_by_ins_addr.copy()
         xm.xrefs_by_dst = self.xrefs_by_dst.copy()
+        xm.xrefs_by_dst.set_owner(xm.xrefs_by_ins_addr)
         return xm
 
     def clear(self):
         rtdb = self._kb.rtdb if self._kb is not None else None
-        self.xrefs_by_ins_addr = self._new_index(rtdb, "xrefs_by_ins")
-        self.xrefs_by_dst = self._new_index(rtdb, "xrefs_by_dst")
+        self.xrefs_by_ins_addr, self.xrefs_by_dst = self._new_indexes(rtdb)
 
     def add_xref(self, xref):
         to_remove = set()
@@ -82,12 +91,11 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
 
         d0 = self.xrefs_by_ins_addr[xref.ins_addr]
         d0.add(xref)
-        d1 = self.xrefs_by_dst[xref.dst]
-        d1.add(xref)
+        self.xrefs_by_dst.add_ref(xref.dst, xref.ins_addr)
 
         for ex in to_remove:
+            # the dst-index entry stays: the replacing xref has the same (ins_addr, dst)
             d0.discard(ex)
-            d1.discard(ex)
 
     def add_xrefs(self, xrefs):
         for xref in xrefs:
