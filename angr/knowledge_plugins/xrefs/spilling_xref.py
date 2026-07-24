@@ -3,10 +3,8 @@ LRU + LMDB spilling container for the ``XRefManager`` indexes (``xrefs_by_ins_ad
 
 Each entry maps an address to a ``set`` of :class:`XRef`. The set is serialized as a pickled list of the
 XRef identity/location fields (``ins_addr``, ``block_addr``, ``stmt_idx``, ``insn_op_idx``, ``dst``,
-``type``). The volatile ``memory_data`` back-reference is intentionally not persisted: it is only consumed
-after CFG recovery (angrdb serialization, code tagging) and is re-derivable from ``dst``; keeping it would
-force each spilled XRef to drag along a private copy of a MemoryData object. The pickled bytes only ever
-live in the ephemeral RuntimeDb.
+``type``), which together fully describe an XRef (the corresponding MemoryData, if any, is the model's
+``memory_data`` entry at ``dst``). The pickled bytes only ever live in the ephemeral RuntimeDb.
 """
 
 from __future__ import annotations

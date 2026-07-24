@@ -961,11 +961,7 @@ class CFGModel(Serializable):
                                 new_mem_data_addrs.add(ptr)
                             if xrefs is not None:
                                 # Make a copy of the old reference
-                                crs = []
-                                for old_cr in old_crs:
-                                    cr = old_cr.copy()
-                                    cr.memory_data = new_md
-                                    crs.append(cr)
+                                crs = [old_cr.copy() for old_cr in old_crs]
                                 xrefs.add_xrefs(crs)
                             new_data_found = True
 
@@ -1024,11 +1020,7 @@ class CFGModel(Serializable):
         if xrefs is not None:
             # Make a copy of all old references
             old_crs = xrefs.get_xrefs_by_dst(memory_data.addr)
-            crs = []
-            for old_cr in old_crs:
-                cr = old_cr.copy()
-                cr.memory_data = new_md
-                crs.append(cr)
+            crs = [old_cr.copy() for old_cr in old_crs]
             xrefs.add_xrefs(crs)
         return new_addr
 

@@ -130,14 +130,24 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def _get_cmsg(cls):
         return xrefs_pb2.XRefs()
 
+    def _lookup_cfg_model(self):
+        """Find the CFG model whose memory_data map describes the xref targets (for serialization)."""
+        if self._kb is not None and "CFGFast" in self._kb.cfgs:
+            return self._kb.cfgs["CFGFast"]
+        return None
+
     def serialize_to_cmessage(self):
         # pylint:disable=no-member
         cmsg = self._get_cmsg()
+        cfg_model = self._lookup_cfg_model()
         # references
         refs = []
         for ref_set in self.xrefs_by_ins_addr.values():
             for ref in ref_set:
-                refs.append(ref.serialize_to_cmessage())
+                md = None
+                if cfg_model is not None and isinstance(ref.dst, int):
+                    md = cfg_model.memory_data.get(ref.dst)
+                refs.append(ref.serialize_to_cmessage(memory_data=md))
         cmsg.xrefs.extend(refs)
         return cmsg
 
@@ -152,8 +162,6 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
                 l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", xref_pb2.ea)
                 continue
             xref = XRef.parse_from_cmessage(xref_pb2, bits=bits)
-            if cfg_model is not None and isinstance(xref.dst, int):
-                xref.memory_data = cfg_model.memory_data.get(xref.dst, None)
             model.add_xref(xref)
 
         return model
