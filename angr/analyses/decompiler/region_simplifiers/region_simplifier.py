@@ -187,12 +187,21 @@ class RegionSimplifier(Analysis):
 
             if isinstance(definition, ailment.Stmt.SideEffectStatement):
                 # clear the existing variable since we no longer write to this variable after expression folding.
-                # deep_copy the ret_expr so it gets a fresh .idx; otherwise clearing its VariableMap entry (which is
-                # idx-keyed) would also clear the variable of the original ret_expr, which shares the same .idx.
-                definition = definition.copy()
-                if definition.ret_expr is not None:
-                    definition.ret_expr = definition.ret_expr.deep_copy(self.ail_manager)
-                    variable_map_of(self.ail_manager).set_variable(definition.ret_expr, None)
+                # Deep-copy each modeled return expression so it gets a fresh .idx; otherwise clearing its VariableMap
+                # entry (which is idx-keyed) would also clear the variable of the original expression.
+                return_exprs = []
+                for return_expr in (definition.ret_expr, definition.fp_ret_expr):
+                    if return_expr is not None:
+                        return_expr = return_expr.deep_copy(self.ail_manager)
+                        variable_map_of(self.ail_manager).set_variable(return_expr, None)
+                    return_exprs.append(return_expr)
+                definition = ailment.Stmt.SideEffectStatement(
+                    definition.idx,
+                    definition.expr,
+                    ret_expr=return_exprs[0],
+                    fp_ret_expr=return_exprs[1],
+                    **definition.tags,
+                )
             variable_assignments[var] = definition, loc
             variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps

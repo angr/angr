@@ -10,6 +10,7 @@ from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin, SRDAMixin
 from angr.rust.utils.ail import find_call, get_terminal_call
 from angr.rust.utils.demangler import demangle
+from angr.utils.ssa import find_semantic_terminal_call
 
 if TYPE_CHECKING:
     from angr.ailment import Manager
@@ -51,8 +52,11 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
         return self.project.is_rust_binary, None
 
     @staticmethod
-    def _is_simple_block(block):
-        stmts = block.statements[:-1] if len(block.statements) > 0 else []
+    def _is_simple_block(block, call_stmt_idx=None):
+        if call_stmt_idx is None:
+            terminal_call = find_semantic_terminal_call(block)
+            call_stmt_idx = terminal_call[0] if terminal_call is not None else max(len(block.statements) - 1, 0)
+        stmts = block.statements[:call_stmt_idx]
         return all(isinstance(stmt, Label) for stmt in stmts)
 
     def _should_remove(self, call):
@@ -75,12 +79,16 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
     def _remove_cleanup_calls(self):
         blocks_to_remove = set()
         for block in self._graph.nodes:
-            call = get_terminal_call(block)
+            terminal_call = find_semantic_terminal_call(block)
+            call = terminal_call[2] if terminal_call is not None else get_terminal_call(block)
             if self._should_remove(call):
                 self._collect_type_hint(call)
                 if isinstance(block.statements[-1], Return):
                     block.statements[-1].ret_exprs = []
-                elif not self._is_simple_block(block):
+                elif terminal_call is not None and not self._is_simple_block(block, terminal_call[0]):
+                    l.debug("Removed the terminal call and result fixups of\n%s", block)
+                    block.statements = block.statements[: terminal_call[0]]
+                elif terminal_call is None and not self._is_simple_block(block):
                     l.debug("Removed the last statement of\n%s", block)
                     block.statements = block.statements[:-1]
                 else:

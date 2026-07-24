@@ -82,7 +82,7 @@ from angr.utils.ail_serialization import (
     simvar_to_bytes_polymorphic,
 )
 from angr.utils.graph import GraphUtils
-from angr.utils.ssa import is_phi_assignment
+from angr.utils.ssa import find_semantic_terminal_call, is_phi_assignment
 from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
@@ -1333,15 +1333,23 @@ class Clinic(Analysis, Serializable):
                             if (
                                 isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
                                 and last_stmt.ret_expr is None
+                                and last_stmt.fp_ret_expr is None
                                 and isinstance(cc.cc.RETURN_VAL, SimRegArg)
                             ):
                                 reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
-                                last_stmt.ret_expr = ailment.Expr.Register(
+                                ret_expr = ailment.Expr.Register(
                                     self._ail_manager.next_atom(),
                                     reg_offset,
                                     reg_size * 8,
                                     ins_addr=callsite_ins_addr,
                                     reg_name=cc.cc.RETURN_VAL.reg_name,
+                                )
+                                callsite_ail_block.statements[-1] = ailment.Stmt.SideEffectStatement(
+                                    last_stmt.idx,
+                                    last_stmt.expr,
+                                    ret_expr=ret_expr,
+                                    fp_ret_expr=last_stmt.fp_ret_expr,
+                                    **last_stmt.tags,
                                 )
 
         # finally, recover the calling convention of the current function
@@ -2643,10 +2651,11 @@ class Clinic(Analysis, Serializable):
 
             elif isinstance(stmt, ailment.Stmt.SideEffectStatement):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.expr)
-                if stmt.ret_expr:
-                    self._link_variables_on_expr(
-                        variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr
-                    )
+                for return_expr in (stmt.ret_expr, stmt.fp_ret_expr):
+                    if return_expr is not None:
+                        self._link_variables_on_expr(
+                            variable_manager, global_variables, block, stmt_idx, stmt, return_expr
+                        )
 
             elif isinstance(stmt, ailment.Stmt.Return):
                 assert isinstance(stmt, ailment.Stmt.Return)
@@ -3902,18 +3911,20 @@ class Clinic(Analysis, Serializable):
         for node in ail_graph:
             if not node.statements or ail_graph.out_degree[node] != 1:
                 continue
-            last_stmt = node.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                last_stmt.expr.target, ailment.Expr.Const
-            ):
+            terminal_call = find_semantic_terminal_call(node)
+            if terminal_call is not None:
+                call_stmt_idx, _, call = terminal_call
+            else:
+                continue
+            if isinstance(call.target, ailment.Expr.Const):
                 func = (
-                    self.project.kb.functions.get_by_addr(last_stmt.expr.target.value)
-                    if self.project.kb.functions.contains_addr(last_stmt.expr.target.value)
+                    self.project.kb.functions.get_by_addr(call.target.value)
+                    if self.project.kb.functions.contains_addr(call.target.value)
                     else None
                 )
                 if func is not None and func.info.get("is_rust_probestack", False) is True:
-                    # get rid of this call
-                    node.statements = node.statements[:-1]
+                    # get rid of this call and its synthetic result fixups
+                    node.statements = node.statements[:call_stmt_idx]
                     if self.project.arch.call_pushes_ret and node.statements:
                         last_stmt = node.statements[-1]
                         succ = next(iter(ail_graph.successors(node)))
@@ -3943,18 +3954,20 @@ class Clinic(Analysis, Serializable):
         for node in ail_graph:
             if not node.statements or ail_graph.out_degree[node] != 1:
                 continue
-            last_stmt = node.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                last_stmt.expr.target, ailment.Expr.Const
-            ):
+            terminal_call = find_semantic_terminal_call(node)
+            if terminal_call is not None:
+                call_stmt_idx, _, call = terminal_call
+            else:
+                continue
+            if isinstance(call.target, ailment.Expr.Const):
                 func = (
-                    self.project.kb.functions.get_by_addr(last_stmt.expr.target.value)
-                    if self.project.kb.functions.contains_addr(last_stmt.expr.target.value)
+                    self.project.kb.functions.get_by_addr(call.target.value)
+                    if self.project.kb.functions.contains_addr(call.target.value)
                     else None
                 )
                 if func is not None and (func.name == "__chkstk" or func.info.get("is_alloca_probe", False) is True):
-                    # get rid of this call
-                    node.statements = node.statements[:-1]
+                    # get rid of this call and its synthetic result fixups
+                    node.statements = node.statements[:call_stmt_idx]
                     if self.project.arch.call_pushes_ret and node.statements:
                         last_stmt = node.statements[-1]
                         succ = next(iter(ail_graph.successors(node)))

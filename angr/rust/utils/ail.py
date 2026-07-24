@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment import AILBlockViewer, BinaryOp, Block, Const, Expression, UnaryOp
 from angr.ailment.expression import Call, FunctionLikeMacro, VirtualVariable
 from angr.ailment.statement import Statement
+from angr.utils.ssa import find_semantic_terminal_call
 
 
 class CallFinder(AILBlockViewer):
@@ -41,11 +42,14 @@ def has_call(obj: Block | Statement | Expression, include_macro=False):
 
 def get_terminal_call(block: Block):
     if block.statements:
+        semantic_call = find_semantic_terminal_call(block)
+        if semantic_call is not None:
+            return semantic_call[2]
         terminal = block.statements[-1]
         if isinstance(terminal, Call):
             return terminal
         finder = CallFinder()
-        finder.walk_statement(terminal)
+        finder.walk_statement(terminal, block)
         return finder.call
     return None
 

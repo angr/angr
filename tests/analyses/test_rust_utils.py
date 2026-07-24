@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import networkx
+
 import angr
 from angr.ailment import Block
 from angr.ailment.expression import (
@@ -10,7 +12,9 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment
+from angr.ailment.statement import Assignment, Return, SideEffectStatement
+from angr.rust.mixins.cfa_mixin import CFAMixin
+from angr.rust.mixins.dfa_mixin import DFAMixin
 from angr.rust.optimization_passes.utils import (
     extract_callee,
     extract_str,
@@ -28,6 +32,7 @@ from angr.rust.utils.ail import (
     unwrap_stack_vvar_reference_with_offset,
 )
 from angr.rust.utils.demangler import _is_rust_hash, demangle, normalize
+from angr.utils.ssa import CALL_RESULT_FIXUP_TAG
 
 
 def _stack_vvar(vvar_id: int = 0, offset: int = 16) -> VirtualVariable:
@@ -142,6 +147,73 @@ def test_get_terminal_call_descends_into_assignment_with_call_rhs():
         statements=[Assignment(0, _stack_vvar(0), inner_call)],
     )
     assert get_terminal_call(block) == inner_call
+
+
+def test_get_terminal_call_skips_tagged_ssa_result_fixup():
+    inner_call = Call(2, "inner_callee", args=[])
+    call_stmt = SideEffectStatement(0, inner_call)
+    fixup = Assignment(
+        1,
+        _reg_vvar(1),
+        _const(0),
+        **{CALL_RESULT_FIXUP_TAG: True},
+    )
+    block = Block(0x4030, 0, statements=[call_stmt, fixup])
+
+    assert get_terminal_call(block) == inner_call
+
+
+def test_get_terminal_call_preserves_nested_call_fallback():
+    inner_call = Call(2, "inner_callee", args=[])
+    block = Block(0x4030, 0, statements=[Return(0, [inner_call])])
+
+    assert get_terminal_call(block) == inner_call
+
+
+def test_rust_mixins_treat_call_before_tagged_fixup_as_terminal():
+    inner_call = Call(2, "inner_callee", args=[])
+    call_stmt = SideEffectStatement(0, inner_call)
+    setup = Assignment(1, _reg_vvar(1), _const(1))
+    fixup = Assignment(
+        2,
+        _reg_vvar(2),
+        _const(0),
+        **{CALL_RESULT_FIXUP_TAG: True},
+    )
+    call_block = Block(0x4030, 0, statements=[setup, call_stmt, fixup])
+    predecessor_setup = Assignment(3, _reg_vvar(3), _const(2))
+    predecessor = Block(0x4020, 0, statements=[predecessor_setup])
+    graph = networkx.DiGraph([(predecessor, call_block)])
+
+    assert CFAMixin(graph, None).terminal_call(call_block) == inner_call
+    assert DFAMixin(graph)._collect_callsite_stmts(call_block) == [  # pylint: disable=protected-access
+        (setup, 0, call_block),
+        (predecessor_setup, 0, predecessor),
+    ]
+
+
+def test_rust_dfa_stops_at_predecessor_call_before_tagged_fixup():
+    target_call = Call(2, "target_callee", args=[])
+    target_setup = Assignment(1, _reg_vvar(1), _const(1))
+    target_block = Block(0x4040, 0, statements=[target_setup, SideEffectStatement(0, target_call)])
+
+    barrier_call = Call(3, "barrier_callee", args=[])
+    barrier_block = Block(
+        0x4030,
+        0,
+        statements=[
+            Assignment(2, _reg_vvar(2), _const(2)),
+            SideEffectStatement(3, barrier_call),
+            Assignment(4, _reg_vvar(3), _const(0), **{CALL_RESULT_FIXUP_TAG: True}),
+        ],
+    )
+    older_setup = Assignment(5, _reg_vvar(4), _const(3))
+    older_block = Block(0x4020, 0, statements=[older_setup])
+    graph = networkx.DiGraph([(older_block, barrier_block), (barrier_block, target_block)])
+
+    assert DFAMixin(graph)._collect_callsite_stmts(target_block) == [  # pylint: disable=protected-access
+        (target_setup, 0, target_block)
+    ]
 
 
 def test_get_terminal_call_returns_none_for_empty_block():

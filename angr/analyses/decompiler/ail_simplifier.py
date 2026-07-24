@@ -53,9 +53,11 @@ from angr.knowledge_plugins.propagations.states import Equivalence
 from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
 from angr.utils.ail import HasExprWalker, is_expr_used_as_reg_base_value, is_phi_assignment
 from angr.utils.ssa import (
+    find_semantic_terminal_call,
     has_call_in_between_stmts,
     has_load_expr_in_between_stmts,
     has_store_stmt_in_between_stmts,
+    is_call_result_fixup,
     is_vvar_eliminatable,
 )
 from angr.utils.timing import timethis
@@ -395,12 +397,12 @@ class AILSimplifier(Analysis):
                     codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                     equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
                 elif isinstance(stmt, SideEffectStatement):
-                    if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
+                    return_exprs = tuple(
+                        expr for expr in (stmt.ret_expr, stmt.fp_ret_expr) if isinstance(expr, (VirtualVariable, Load))
+                    )
+                    if len(return_exprs) == 1 and (stmt.ret_expr is None or stmt.fp_ret_expr is None):
                         codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
-                        equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
-                    elif isinstance(stmt.fp_ret_expr, (VirtualVariable, Load)):
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
-                        equivalence.add(Equivalence(codeloc, stmt.fp_ret_expr, stmt))
+                        equivalence.add(Equivalence(codeloc, return_exprs[0], stmt))
                 elif (
                     isinstance(stmt, Store)
                     and isinstance(stmt.size, int)
@@ -1609,12 +1611,19 @@ class AILSimplifier(Analysis):
         ):
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
+                call_return_bits = None
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, SideEffectStatement):
+                    if (eq.atom1.ret_expr is None) == (eq.atom1.fp_ret_expr is None):
+                        # A call with zero or multiple candidate ABI return locations is not a scalar expression.
+                        continue
                     call: Expression = eq.atom1.expr
+                    return_expr = eq.atom1.ret_expr if eq.atom1.ret_expr is not None else eq.atom1.fp_ret_expr
+                    assert return_expr is not None
+                    call_return_bits = return_expr.bits
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
@@ -1739,11 +1748,8 @@ class AILSimplifier(Analysis):
                     src = used_expr
                     dst: Expression = call.copy()
 
-                    if isinstance(dst, SideEffectStatement):
-                        dst_bits = dst.ret_expr.bits if dst.ret_expr is not None else dst.bits
-                        # extract the Call expression from the SideEffectStatement
-                        dst = dst.expr
-                        dst.bits = dst_bits
+                    if call_return_bits is not None:
+                        dst.bits = call_return_bits
 
                     if src.bits != dst.bits and not eq.is_weakassignment:
                         dst = Convert(
@@ -1809,8 +1815,10 @@ class AILSimplifier(Analysis):
 
         encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
         while True:
-            if terminate_with_calls and b.statements and isinstance(b.statements[-1], SideEffectStatement):
-                return False
+            if terminate_with_calls and (terminal_call := find_semantic_terminal_call(b)) is not None:
+                _, call_stmt, _ = terminal_call
+                if isinstance(call_stmt, SideEffectStatement) or is_call_result_fixup(call_stmt):
+                    return False
 
             encountered_block_addrs.add((b.addr, b.idx))
             successors = list(self.func_graph.successors(b))
@@ -2051,14 +2059,25 @@ class AILSimplifier(Analysis):
                 if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, SideEffectStatement):
                     # this statement declares more than one variable. we should handle it surgically
                     # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
-                    if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
-                        stmt = stmt.copy()
-                        stmt.ret_expr = None
+                    ret_expr = stmt.ret_expr
+                    fp_ret_expr = stmt.fp_ret_expr
+                    return_changed = False
+                    if isinstance(ret_expr, VirtualVariable) and ret_expr.varid in dead_vvar_ids:
+                        ret_expr = None
+                        return_changed = True
                         simplified = True
-                    if isinstance(stmt.fp_ret_expr, VirtualVariable) and stmt.fp_ret_expr.varid in dead_vvar_ids:
-                        stmt = stmt.copy()
-                        stmt.fp_ret_expr = None
+                    if isinstance(fp_ret_expr, VirtualVariable) and fp_ret_expr.varid in dead_vvar_ids:
+                        fp_ret_expr = None
+                        return_changed = True
                         simplified = True
+                    if return_changed:
+                        stmt = SideEffectStatement(
+                            stmt.idx,
+                            stmt.expr,
+                            ret_expr=ret_expr,
+                            fp_ret_expr=fp_ret_expr,
+                            **stmt.tags,
+                        )
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, WeakAssignment, Store)):
@@ -2118,9 +2137,7 @@ class AILSimplifier(Analysis):
                             isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_combo_reg
                         ):
                             # both the return expr and the fp_ret_expr are not used
-                            stmt = stmt.copy()
-                            stmt.ret_expr = None
-                            stmt.fp_ret_expr = None
+                            stmt = SideEffectStatement(stmt.idx, stmt.expr, **stmt.tags)
                             simplified = True
                     else:
                         # Should not happen!

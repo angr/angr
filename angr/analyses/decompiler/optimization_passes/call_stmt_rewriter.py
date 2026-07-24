@@ -34,11 +34,18 @@ class CallStatementRewriter(OptimizationPass):
         for block in self._graph.nodes:
             for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
                 stmt = block.statements[idx]
-                if isinstance(stmt, SideEffectStatement) and stmt.ret_expr is not None and stmt.fp_ret_expr is None:
-                    src = stmt.expr.copy()
-                    new_stmt = Assignment(stmt.idx, stmt.ret_expr, src, **stmt.tags)
-                    block.statements[idx] = new_stmt
-                    changed = True
+                if not isinstance(stmt, SideEffectStatement):
+                    continue
+                if stmt.ret_expr is not None and stmt.fp_ret_expr is None:
+                    dst = stmt.ret_expr
+                elif stmt.fp_ret_expr is not None and stmt.ret_expr is None:
+                    dst = stmt.fp_ret_expr
+                else:
+                    continue
+                src = stmt.expr.copy()
+                new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
+                block.statements[idx] = new_stmt
+                changed = True
 
         if changed:
             self.out_graph = self._graph

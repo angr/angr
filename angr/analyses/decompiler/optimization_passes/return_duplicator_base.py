@@ -30,26 +30,42 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
         self.vvar_mapping = vvar_mapping
         self.new_block = None
 
+    def _fresh_definition(self, vvar: VirtualVariable) -> VirtualVariable:
+        self.vvar_mapping[vvar.varid] = self.vvar_idx
+        self.vvar_idx += 1
+        return VirtualVariable(
+            vvar.idx,
+            self.vvar_mapping[vvar.varid],
+            vvar.bits,
+            vvar.category,
+            vvar.oident,
+            **vvar.tags,
+        )
+
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         new_stmt = super()._handle_Assignment(stmt_idx, stmt, block)
         dst = new_stmt.dst if new_stmt is not None else stmt.dst
         src = new_stmt.src if new_stmt is not None else stmt.src
         if isinstance(dst, VirtualVariable):
-            self.vvar_mapping[dst.varid] = self.vvar_idx
-            self.vvar_idx += 1
-
-            dst = VirtualVariable(
-                dst.idx,
-                self.vvar_mapping[dst.varid],
-                dst.bits,
-                dst.category,
-                dst.oident,
-                **dst.tags,
-            )
-
+            dst = self._fresh_definition(dst)
             return Assignment(stmt.idx, dst, src, **stmt.tags)
 
         return new_stmt
+
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
+        return_exprs = []
+        for return_expr in (stmt.ret_expr, stmt.fp_ret_expr):
+            if isinstance(return_expr, VirtualVariable):
+                return_expr = self._fresh_definition(return_expr)
+            return_exprs.append(return_expr)
+        return SideEffectStatement(
+            stmt.idx,
+            expr,
+            ret_expr=return_exprs[0],
+            fp_ret_expr=return_exprs[1],
+            **stmt.tags,
+        )
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None

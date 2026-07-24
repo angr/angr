@@ -3703,10 +3703,15 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
+        return_exprs = tuple(
+            return_expr for return_expr in (stmt.ret_expr, stmt.fp_ret_expr) if return_expr is not None
+        )
+        # If both ABI return candidates remain unresolved, emit the call once as a standalone statement.
+        returned_expr = return_exprs[0] if len(return_exprs) == 1 else None
         if isinstance(stmt.expr, FunctionLikeMacro):
-            macro = self._handle_FunctionLikeMacro(stmt.expr, is_expr=is_expr or stmt.ret_expr is not None)
-            if not is_expr and stmt.ret_expr is not None:
-                ret_expr = self._handle(stmt.ret_expr)
+            macro = self._handle_FunctionLikeMacro(stmt.expr, is_expr=is_expr or returned_expr is not None)
+            if not is_expr and returned_expr is not None:
+                ret_expr = self._handle(returned_expr)
                 if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
                     ret_expr = ret_expr.operand
                 return RustAssignment(ret_expr, macro, tags=stmt.tags, codegen=self)
@@ -3741,8 +3746,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 args.append(new_arg)
 
         ret_expr = None
-        if not is_expr and stmt.ret_expr is not None:
-            ret_expr = self._handle(stmt.ret_expr)
+        if not is_expr and returned_expr is not None:
+            ret_expr = self._handle(returned_expr)
             if isinstance(ret_expr, RustUnaryOp) and ret_expr.op == "Reference":
                 ret_expr = ret_expr.operand
 

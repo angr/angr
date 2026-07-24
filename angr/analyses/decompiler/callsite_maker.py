@@ -29,6 +29,7 @@ from angr.sim_type import (
     SimTypeFunction,
     SimTypePointer,
 )
+from angr.utils.ssa import VVarUsesCollector, find_semantic_terminal_call, is_call_result_fixup
 from angr.utils.types import dereference_simtype_by_lib
 
 from .stackarg_offset_manager import StackArgOffsetManager
@@ -68,33 +69,12 @@ class CallSiteMaker(Analysis):
         if not self.block.statements:
             return
 
-        last_stmt = self.block.statements[-1]
-
-        if isinstance(last_stmt, Stmt.SideEffectStatement):
-            call_expr = last_stmt.expr
-        elif isinstance(last_stmt, Stmt.Assignment) and isinstance(last_stmt.src, Expr.Call):
-            call_expr = last_stmt.src
-        elif (
-            isinstance(last_stmt, Stmt.Assignment)
-            and isinstance(last_stmt.src, Expr.Convert)
-            and isinstance(last_stmt.src.operand, Expr.Call)
-        ):
-            call_expr = last_stmt.src.operand
-        elif (
-            isinstance(last_stmt, Stmt.Assignment)
-            and isinstance(last_stmt.src, Expr.Insert)
-            and isinstance(last_stmt.src.value, Expr.Call)
-        ):
-            call_expr = last_stmt.src.value
-        elif (
-            isinstance(last_stmt, Stmt.Assignment)
-            and isinstance(last_stmt.src, Expr.Extract)
-            and isinstance(last_stmt.src.base, Expr.Call)
-        ):
-            call_expr = last_stmt.src.base
-        else:
+        terminal_call = find_semantic_terminal_call(self.block)
+        if terminal_call is None:
             self.result_block = self.block
             return
+        call_stmt_idx, last_stmt, call_expr = terminal_call
+        trailing_stmts = self.block.statements[call_stmt_idx + 1 :]
 
         if isinstance(call_expr.target, str):
             # custom function calls
@@ -158,7 +138,7 @@ class CallSiteMaker(Analysis):
                 if prototype.variadic:
                     # determine the number of variadic arguments
                     assert func is not None
-                    variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
+                    variadic_args = self._determine_variadic_arguments(func, cc, call_expr, call_stmt_idx)
                     if variadic_args:
                         callsite_ty = copy.copy(prototype)
                         callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
@@ -184,7 +164,7 @@ class CallSiteMaker(Analysis):
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
-                    value_and_def = self._resolve_register_argument(arg_loc)
+                    value_and_def = self._resolve_register_argument(arg_loc, call_stmt_idx)
                     if value_and_def is not None:
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
@@ -242,7 +222,7 @@ class CallSiteMaker(Analysis):
                         arg_expr = reg
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
-                    _, the_arg = self._resolve_stack_argument(call_expr, arg_loc)
+                    _, the_arg = self._resolve_stack_argument(call_expr, arg_loc, call_stmt_idx)
                     arg_expr = the_arg if the_arg is not None else None
                 elif isinstance(arg_loc, SimStructArg):
                     arg_expr = None
@@ -259,7 +239,7 @@ class CallSiteMaker(Analysis):
                     args.append(arg_expr)
 
         # Remove the old call statement
-        new_stmts = self.block.statements[:-1]
+        new_stmts = self.block.statements[:call_stmt_idx]
 
         # remove the statement that stores the return address
         if self.project.arch.call_pushes_ret:
@@ -358,9 +338,17 @@ class CallSiteMaker(Analysis):
             # we need to determine the return type of this call (ret_expr vs fp_ret_expr)
             is_float = isinstance(prototype.returnty, SimTypeFloat)
             if is_float:
+                discarded_result = ret_expr
                 ret_expr = None
             else:
+                discarded_result = fp_ret_expr
                 fp_ret_expr = None
+            if isinstance(discarded_result, Expr.VirtualVariable):
+                trailing_stmts = [
+                    stmt
+                    for stmt in trailing_stmts
+                    if not self._call_result_fixup_consumes_vvar(stmt, discarded_result.varid)
+                ]
 
         if (
             ret_expr is not None
@@ -392,8 +380,17 @@ class CallSiteMaker(Analysis):
         vm.set_prototype(new_call, prototype)
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_call.bits:
-                new_call.bits = last_stmt.src.bits
-            new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_call, **last_stmt.tags)
+                new_call.bits = (
+                    call_expr.bits
+                    if is_call_result_fixup(last_stmt) and call_expr.bits is not None
+                    else last_stmt.src.bits
+                )
+            if is_call_result_fixup(last_stmt):
+                replaced, new_src = last_stmt.src.replace(call_expr, new_call)
+                assert replaced
+                new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_src, **last_stmt.tags)
+            else:
+                new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_call, **last_stmt.tags)
         else:
             if not new_call.bits:
                 if ret_expr is not None:
@@ -409,10 +406,20 @@ class CallSiteMaker(Analysis):
             )
 
         new_stmts.append(new_stmt)
+        new_stmts.extend(trailing_stmts)
 
         new_block = self.block.copy(statements=new_stmts)
 
         self.result_block = new_block
+
+    @staticmethod
+    def _call_result_fixup_consumes_vvar(stmt: Stmt.Statement, vvar_id: int) -> bool:
+        if not is_call_result_fixup(stmt):
+            return False
+        assert isinstance(stmt, Stmt.Assignment)
+        collector = VVarUsesCollector()
+        collector.walk_expression(stmt.src)
+        return vvar_id in collector.vvars
 
     def _find_variable_from_definition(self, def_: Definition):
         """
@@ -436,7 +443,9 @@ class CallSiteMaker(Analysis):
         )
         return None
 
-    def _resolve_register_argument(self, arg_loc) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
+    def _resolve_register_argument(
+        self, arg_loc, call_stmt_idx: int
+    ) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
         offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:
@@ -447,7 +456,7 @@ class CallSiteMaker(Analysis):
                 arg_loc.size,
                 self.block.addr,
                 self.block.idx,
-                len(self.block.statements) - 1,
+                call_stmt_idx,
                 OP_BEFORE,
             )
 
@@ -459,7 +468,9 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
+    def _resolve_stack_argument(
+        self, call_stmt: Expr.Call, arg_loc: SimStackArg, call_stmt_idx: int
+    ) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
@@ -481,7 +492,7 @@ class CallSiteMaker(Analysis):
                 # find its definition
                 view = SRDAView(self._reaching_definitions)
                 vvar = view.get_stack_vvar_by_stmt(
-                    sp_offset, size, self.block.addr, self.block.idx, len(self.block.statements) - 1, OP_BEFORE
+                    sp_offset, size, self.block.addr, self.block.idx, call_stmt_idx, OP_BEFORE
                 )
                 if vvar is not None:
                     # FIXME: vvar may be larger than that we ask; we may need to chop the correct value of vvar
@@ -556,12 +567,16 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
+    def _determine_variadic_arguments(
+        self, func: Function, cc: SimCC, call_expr: Expr.Call, call_stmt_idx: int
+    ) -> list[SimType]:
         if "printf" in func.name or "scanf" in func.name:
-            return self._determine_variadic_arguments_for_format_strings(func, cc, call_expr)
+            return self._determine_variadic_arguments_for_format_strings(func, cc, call_expr, call_stmt_idx)
         return []
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
+    def _determine_variadic_arguments_for_format_strings(
+        self, func, cc: SimCC, call_expr: Expr.Call, call_stmt_idx: int
+    ) -> list[SimType]:
         proto = func.prototype
         if proto is None:
             # TODO: Support cases where prototypes are not available
@@ -591,12 +606,12 @@ class CallSiteMaker(Analysis):
             arg_loc = arg_locs[fmt_arg_idx]
 
             if isinstance(arg_loc, SimRegArg):
-                value_and_def = self._resolve_register_argument(arg_loc)
+                value_and_def = self._resolve_register_argument(arg_loc, call_stmt_idx)
                 if value_and_def is not None:
                     value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_expr, arg_loc)
+                value, _ = self._resolve_stack_argument(call_expr, arg_loc, call_stmt_idx)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)

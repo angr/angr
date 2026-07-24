@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=protected-access
 """Unit tests for the smaller Rust optimization passes.
 
 The passes targeted here are the ones whose logic is small or whose pure
@@ -15,9 +16,13 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
+import networkx
+import pytest
+
+import angr
 from angr.ailment import Block
-from angr.ailment.expression import Const
-from angr.ailment.statement import Jump, Label
+from angr.ailment.expression import Call, Const, Insert, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Jump, Label, SideEffectStatement, Statement
 from angr.calling_conventions import SimRegArg, SimStructArg
 from angr.rust.optimization_passes.cleanup_code_remover import (
     CLEANUP_FUNCTIONS,
@@ -26,6 +31,7 @@ from angr.rust.optimization_passes.cleanup_code_remover import (
 from angr.rust.optimization_passes.ret_expr_rewriter import RetExprRewriter
 from angr.rust.optimization_passes.security_check_remover import SECURITY_CHECK_FUNCTIONS
 from angr.sim_type import SimStruct, SimTypeLongLong
+from angr.utils.ssa import CALL_RESULT_FIXUP_TAG
 
 
 def _two_field_struct(name: str = "Pair") -> SimStruct:
@@ -84,6 +90,60 @@ def test_cleanup_is_simple_block_treats_single_statement_as_terminator_only():
     # regardless of the statement type.
     block = Block(0x4000, 0, statements=[_jump_stmt()])
     assert CleanupCodeRemover._is_simple_block(block) is True
+
+
+def _reg_vvar(varid: int, reg_offset: int, bits: int = 64) -> VirtualVariable:
+    return VirtualVariable(0, varid, bits, VirtualVariableCategory.REGISTER, oident=reg_offset)
+
+
+@pytest.mark.parametrize("folded_call", (False, True))
+def test_cleanup_remover_drops_semantic_call_and_tagged_result_suffix(folded_call):
+    project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
+    target = 0x2000
+    callee = project.kb.functions.function(addr=target, create=True)
+    assert callee is not None
+    callee.name = "free"
+
+    setup = Assignment(0, _reg_vvar(1, project.arch.registers["rbx"][0]), Const(1, 1, 64))
+    call = Call(2, Const(3, target, 64), args=[], bits=64)
+    raw_result = _reg_vvar(2, project.arch.registers["rax"][0])
+    final_result = _reg_vvar(3, project.arch.registers["rax"][0], bits=128)
+    fixup = Assignment(
+        4,
+        final_result,
+        Insert(
+            5,
+            Const(6, 0, 128),
+            Const(7, 0, 64),
+            call if folded_call else raw_result,
+            project.arch.register_endness,
+        ),
+        **{CALL_RESULT_FIXUP_TAG: True},
+    )
+    trailing_fixup = Assignment(
+        8,
+        _reg_vvar(4, project.arch.registers["xmm0"][0], bits=128),
+        Const(9, 0, 128),
+        **{CALL_RESULT_FIXUP_TAG: True},
+    )
+    statements: list[Statement] = (
+        [setup, fixup, trailing_fixup]
+        if folded_call
+        else [setup, SideEffectStatement(10, call, ret_expr=raw_result), fixup]
+    )
+    block = Block(0x1000, 1, statements=statements)
+    remover = object.__new__(CleanupCodeRemover)
+    remover._project = project
+    func = project.kb.functions.function(addr=block.addr, create=True)
+    assert func is not None
+    remover._func = func
+    remover._graph = networkx.DiGraph()
+    remover._graph.add_node(block)
+
+    remover._remove_cleanup_calls()
+
+    assert len(block.statements) == 1
+    assert block.statements[0].likes(setup)
 
 
 def test_security_check_functions_list_covers_panic_branches():

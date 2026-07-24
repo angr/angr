@@ -7,6 +7,7 @@ from angr.ailment import Assignment, Block, Expression, Statement, UnaryOp
 from angr.ailment.expression import BasePointerOffset, BinaryOp, Const, Load, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Store
 from angr.rust.utils.ail import CallFinder, unwrap_stack_vvar_reference
+from angr.utils.ssa import find_semantic_terminal_call
 
 
 @dataclass
@@ -65,7 +66,13 @@ class DFAMixin:
         found_call = False
         stmts = []
         cur_block = callsite_block
-        while not (found_call and cur_block.statements and self._has_call(cur_block.statements[-1])):
+        while not (
+            found_call
+            and (
+                find_semantic_terminal_call(cur_block) is not None
+                or (cur_block.statements and self._has_call(cur_block.statements[-1]))
+            )
+        ):
             for idx, stmt in enumerate(reversed(cur_block.statements)):
                 idx = len(cur_block.statements) - idx - 1
                 if not found_call:

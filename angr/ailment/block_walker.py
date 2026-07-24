@@ -851,6 +851,13 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             if new_ret_expr is not None and new_ret_expr != ret_expr_in:
                 changed = True
 
+        new_fp_ret_expr = None
+        fp_ret_expr_in = stmt.fp_ret_expr
+        if fp_ret_expr_in is not None:
+            new_fp_ret_expr = self._handle_expr(-2, fp_ret_expr_in, stmt_idx, stmt, block)
+            if new_fp_ret_expr is not None and new_fp_ret_expr != fp_ret_expr_in:
+                changed = True
+
         if changed:
             # ``FunctionLikeMacro`` is included because it is a Call-shaped expression that may legitimately replace a
             # Call inside a SideEffectStatement (e.g. format_macro_simplifier rewrites ``stmt.expr`` from a Call to
@@ -861,7 +868,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
                 stmt.idx,
                 side_effect_expr,
                 ret_expr=new_ret_expr,
-                fp_ret_expr=stmt.fp_ret_expr,
+                fp_ret_expr=new_fp_ret_expr,
                 **stmt.tags,
             )
         return stmt

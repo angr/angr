@@ -11,6 +11,7 @@ from angr.calling_conventions import SimRegArg, default_cc
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+from angr.utils.ssa import stmt_is_simple_call
 
 from .s_rda_model import SRDAModel, populate_model
 from .s_rda_view import SRDAView
@@ -97,15 +98,13 @@ class SReachingDefinitionsAnalysis(Analysis):
             call_stmt_ids = []
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
-                    if (  # pylint:disable=too-many-boolean-expressions
-                        (
-                            isinstance(stmt, SideEffectStatement)
-                            and isinstance(stmt.expr, Call)
-                            and stmt.expr.args is None
-                        )
-                        or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
-                        or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call))
-                    ):
+                    return_call = (
+                        stmt.ret_exprs[0]
+                        if isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call)
+                        else None
+                    )
+                    call = return_call if return_call is not None else stmt_is_simple_call(stmt)
+                    if return_call is not None or (call is not None and call.args is None):
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
             observations = srda_view.observe(
@@ -120,11 +119,9 @@ class SReachingDefinitionsAnalysis(Analysis):
                 assert isinstance(stmt, (SideEffectStatement, Assignment, Return))
 
                 call = (
-                    stmt.expr
-                    if isinstance(stmt, SideEffectStatement)
-                    else stmt.src
-                    if isinstance(stmt, Assignment)
-                    else stmt.ret_exprs[0]
+                    stmt.ret_exprs[0]
+                    if isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call)
+                    else stmt_is_simple_call(stmt)
                 )
                 assert isinstance(call, Call)
 

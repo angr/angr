@@ -22,6 +22,100 @@ from tests.common import bin_location
 test_location = os.path.join(bin_location, "tests")
 
 
+def _execute_dual_return_call(
+    *,
+    callless,
+    result=None,
+    widen_fp=False,
+    selected_return=None,
+    ret_bits=64,
+    fp_bits=64,
+):
+    """Execute one AIL call with unresolved integer and floating-point return candidates."""
+    p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+    options = {angr.options.CALLLESS} if callless else set()
+    state = p.factory.blank_state(add_options=options)
+    state.addr = (0x400000, None)
+
+    bottom_frame = AILCallStack()
+    top_frame = AILCallStack(func_addr=0x400000)
+    top_frame.passed_args = None
+    if result is not None:
+        top_frame.passed_rets = (result if isinstance(result, tuple) else (result,),)
+    state.register_plugin("callstack", bottom_frame)
+    state.callstack.push(top_frame)
+
+    ret_expr = ailment.expression.VirtualVariable(
+        0,
+        100,
+        ret_bits,
+        ailment.expression.VirtualVariableCategory.REGISTER,
+        oident=p.arch.registers["rax"][0],
+    )
+    fp_ret_expr = ailment.expression.VirtualVariable(
+        1,
+        101,
+        fp_bits,
+        ailment.expression.VirtualVariableCategory.REGISTER,
+        oident=p.arch.registers["xmm0"][0],
+    )
+    call_stmt = ailment.statement.SideEffectStatement(
+        0,
+        ailment.expression.Call(
+            2,
+            ailment.expression.Const(None, 0x5000, 64),
+            args=[],
+            bits=64,
+        ),
+        ret_expr=ret_expr if selected_return in (None, "integer") else None,
+        fp_ret_expr=fp_ret_expr if selected_return in (None, "floating_point") else None,
+        ins_addr=0x400000,
+    )
+    statements: list[ailment.Statement] = [call_stmt]
+    fp_final_expr = None
+    if widen_fp:
+        fp_base_expr = ailment.expression.VirtualVariable(
+            3,
+            99,
+            128,
+            ailment.expression.VirtualVariableCategory.REGISTER,
+            oident=p.arch.registers["xmm0"][0],
+        )
+        fp_final_expr = ailment.expression.VirtualVariable(
+            4,
+            102,
+            128,
+            ailment.expression.VirtualVariableCategory.REGISTER,
+            oident=p.arch.registers["xmm0"][0],
+        )
+        state.callstack.vars[fp_base_expr.varid] = claripy.BVV(0x112233445566778899AABBCCDDEEFF00, 128)
+        statements.append(
+            ailment.statement.Assignment(
+                5,
+                fp_final_expr,
+                ailment.expression.Insert(
+                    6,
+                    fp_base_expr,
+                    ailment.expression.Const(None, 0, 64),
+                    fp_ret_expr,
+                    p.arch.register_endness,
+                ),
+                ins_addr=0x400000,
+            )
+        )
+    jump_stmt = ailment.statement.Jump(
+        7,
+        ailment.expression.Const(None, 0x400004, 64),
+        ins_addr=0x400000,
+    )
+    statements.append(jump_stmt)
+    block = ailment.Block(0x400000, 0, statements=statements)
+
+    successors = SimSuccessors(state.addr, state)
+    SimEngineAILSimState(p, successors).process(state, block=block)
+    return state, successors, ret_expr, fp_ret_expr, fp_final_expr
+
+
 class TestAILExec(unittest.TestCase):
     def test_abs_expression_preserves_fp_sort(self):
         class _Engine(SimEngineAILSimState):
@@ -309,6 +403,130 @@ class TestAILExec(unittest.TestCase):
         frame = state.callstack
         assert 217 in frame.vars
         assert 217 in frame.var_refs_rev
+
+    def test_callless_dual_return_defines_distinct_integer_and_fp_stubs(self):
+        state, successors, ret_expr, fp_ret_expr, _ = _execute_dual_return_call(callless=True)
+
+        ret_value = state.callstack.vars[ret_expr.varid]
+        fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+        assert isinstance(ret_value, claripy.ast.BV)
+        assert isinstance(fp_ret_value, claripy.ast.FP)
+        assert ret_value.variables
+        assert fp_ret_value.variables
+        assert ret_value.variables.isdisjoint(fp_ret_value.variables)
+        assert any("_ret" in name for name in ret_value.variables)
+        assert any("_fp" in name for name in fp_ret_value.variables)
+        assert len(successors.successors) == 1
+        assert successors.successors[0].addr == 0x400004
+
+    def test_resumed_dual_return_routes_bv_to_integer_candidate(self):
+        result = claripy.BVV(0x12345678, 64)
+        state, successors, ret_expr, fp_ret_expr, _ = _execute_dual_return_call(callless=False, result=result)
+
+        ret_value = state.callstack.vars[ret_expr.varid]
+        fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+        assert isinstance(ret_value, claripy.ast.BV)
+        assert ret_value.concrete and ret_value.concrete_value == 0x12345678
+        assert isinstance(fp_ret_value, claripy.ast.FP)
+        assert any("unconstrained_call_result" in name for name in fp_ret_value.variables)
+        assert len(successors.successors) == 1
+        assert successors.successors[0].addr == 0x400004
+
+    def test_resumed_dual_return_routes_fp_to_fp_candidate(self):
+        result = claripy.FPV(3.5, claripy.FSORT_DOUBLE)
+        state, successors, ret_expr, fp_ret_expr, _ = _execute_dual_return_call(callless=False, result=result)
+
+        ret_value = state.callstack.vars[ret_expr.varid]
+        fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+        assert isinstance(ret_value, claripy.ast.BV)
+        assert any("unconstrained_call_result" in name for name in ret_value.variables)
+        assert isinstance(fp_ret_value, claripy.ast.FP)
+        assert fp_ret_value.sort == claripy.FSORT_DOUBLE
+        assert fp_ret_value.concrete and fp_ret_value.args[0] == 3.5
+        assert len(successors.successors) == 1
+        assert successors.successors[0].addr == 0x400004
+
+    def test_resumed_selected_fp_return_uses_fp_abi_slot(self):
+        for fp_result in (claripy.FPV(3.5, claripy.FSORT_DOUBLE), claripy.BVV(0x400C000000000000, 64)):
+            with self.subTest(result_type=type(fp_result).__name__):
+                state, successors, ret_expr, fp_ret_expr, _ = _execute_dual_return_call(
+                    callless=False,
+                    result=(claripy.BVV(0x12345678, 64), fp_result),
+                    selected_return="floating_point",
+                )
+
+                assert ret_expr.varid not in state.callstack.vars
+                assert state.callstack.vars[fp_ret_expr.varid] is fp_result
+                assert len(successors.successors) == 1
+                assert successors.successors[0].addr == 0x400004
+
+    def test_callless_extended_fp_return_preserves_raw_width(self):
+        state, successors, _, fp_ret_expr, _ = _execute_dual_return_call(callless=True, fp_bits=80)
+
+        fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+        assert isinstance(fp_ret_value, claripy.ast.BV)
+        assert len(fp_ret_value) == 80
+        assert any("_fp" in name for name in fp_ret_value.variables)
+        assert len(successors.successors) == 1
+        assert successors.successors[0].addr == 0x400004
+
+    def test_resumed_dual_return_routes_uniquely_sized_raw_fp_to_fp_candidate(self):
+        result = claripy.BVV(0x4000C000000000000000, 80)
+        state, successors, ret_expr, fp_ret_expr, _ = _execute_dual_return_call(
+            callless=False,
+            result=result,
+            fp_bits=80,
+        )
+
+        ret_value = state.callstack.vars[ret_expr.varid]
+        fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+        assert isinstance(ret_value, claripy.ast.BV)
+        assert len(ret_value) == 64
+        assert any("unconstrained_call_result" in name for name in ret_value.variables)
+        assert fp_ret_value is result
+        assert len(successors.successors) == 1
+        assert successors.successors[0].addr == 0x400004
+
+    def test_resumed_dual_return_keeps_standard_width_bv_in_integer_candidate(self):
+        result = claripy.BVV(0x123456789ABCDEF0, 64)
+        state, successors, ret_expr, fp_ret_expr, _ = _execute_dual_return_call(
+            callless=False,
+            result=result,
+            ret_bits=32,
+            fp_bits=64,
+        )
+
+        ret_value = state.callstack.vars[ret_expr.varid]
+        fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+        assert isinstance(ret_value, claripy.ast.BV)
+        assert ret_value.concrete and ret_value.concrete_value == 0x9ABCDEF0
+        assert isinstance(fp_ret_value, claripy.ast.FP)
+        assert any("unconstrained_call_result" in name for name in fp_ret_value.variables)
+        assert len(successors.successors) == 1
+        assert successors.successors[0].addr == 0x400004
+
+    def test_dual_return_widened_fp_fixup_reinterprets_result_bits(self):
+        for callless, result in (
+            (True, None),
+            (False, claripy.BVV(0x12345678, 64)),
+            (False, claripy.FPV(3.5, claripy.FSORT_DOUBLE)),
+        ):
+            with self.subTest(callless=callless, result_type=type(result).__name__):
+                state, successors, _, fp_ret_expr, fp_final_expr = _execute_dual_return_call(
+                    callless=callless,
+                    result=result,
+                    widen_fp=True,
+                )
+
+                assert fp_final_expr is not None
+                fp_ret_value = state.callstack.vars[fp_ret_expr.varid]
+                fp_final_value = state.callstack.vars[fp_final_expr.varid]
+                assert isinstance(fp_ret_value, claripy.ast.FP)
+                assert isinstance(fp_final_value, claripy.ast.BV)
+                assert state.solver.is_true(fp_final_value[63:0] == fp_ret_value.raw_to_bv())
+                assert state.solver.is_true(fp_final_value[127:64] == claripy.BVV(0x1122334455667788, 64))
+                assert len(successors.successors) == 1
+                assert successors.successors[0].addr == 0x400004
 
     def test_statement_call_unused_return_is_ignored(self):
         # Regression test for SimEngineAILSimState._handle_stmt_Call: a Call statement may have no ret_expr even if the

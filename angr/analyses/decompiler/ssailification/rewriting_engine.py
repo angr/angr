@@ -47,6 +47,7 @@ from angr.ailment.tagged_object import TaggedObject
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import call_clobbered_regs
 from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.utils.ssa import CALL_RESULT_FIXUP_TAG
 
 from .consts import MAX_STACK_VAR_SIZE
 from .rewriting_state import RewritingState
@@ -56,6 +57,8 @@ if TYPE_CHECKING:
 
 
 _l = logging.getLogger(__name__)
+
+type DefinitionOrigin = TaggedObject | Expression | Statement
 
 
 class SimEngineSSARewriting(
@@ -148,7 +151,7 @@ class SimEngineSSARewriting(
         self._extra_defs = []
         result = super()._stmt(stmt)
         for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
-            if self._extra_defs:
+            if self._extra_defs and (not isinstance(result, tuple) or isinstance(rstmt, SideEffectStatement)):
                 rstmt.tags["extra_defs"] = self._extra_defs
             else:
                 rstmt.tags.pop("extra_defs", None)
@@ -292,7 +295,7 @@ class SimEngineSSARewriting(
                 return None
         return None
 
-    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | tuple[Statement, ...] | None:
         new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
@@ -314,19 +317,44 @@ class SimEngineSSARewriting(
                 for suboff in range(base_off, base_off + base_size):
                     self.state.registers.pop(suboff, None)
 
-        new_stmt = None
-        if stmt.ret_expr is not None:
+        call_expr = new_expr if new_expr is not None else stmt.expr
+        new_stmt: Statement | tuple[Statement, ...] | None = None
+        if stmt.ret_expr is not None and stmt.fp_ret_expr is not None:
             assert isinstance(stmt.ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+            assert isinstance(stmt.fp_ret_expr, Atom)
+            ret_stmt = self._replace_def_expr(stmt.ret_expr, call_expr, stmt)
+            fp_ret_stmt = self._replace_def_expr(stmt.fp_ret_expr, call_expr, stmt)
+            ret_expr, ret_fixup = self._split_call_result(stmt.ret_expr, ret_stmt, call_expr)
+            fp_ret_expr, fp_ret_fixup = self._split_call_result(stmt.fp_ret_expr, fp_ret_stmt, call_expr)
+            call_stmt = SideEffectStatement(
+                self.ail_manager.next_atom(),
+                call_expr,
+                ret_expr=ret_expr,
+                fp_ret_expr=fp_ret_expr,
+                **stmt.tags,
+            )
+            fixups = tuple(fixup for fixup in (ret_fixup, fp_ret_fixup) if fixup is not None)
+            new_stmt = (call_stmt, *fixups) if fixups else call_stmt
+        elif stmt.ret_expr is not None:
+            assert isinstance(stmt.ret_expr, Atom)
+            new_stmt = self._replace_def_expr(stmt.ret_expr, call_expr, stmt)
             # becomes an Assignment
         elif stmt.fp_ret_expr is not None:
             assert isinstance(stmt.fp_ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, call_expr, stmt)
             # becomes an Assignment
 
         if new_stmt is None and new_expr is not None:
-            # only create a new SideEffectStatement if we get a new inner expr
-            new_stmt = SideEffectStatement(self.ail_manager.next_atom(), new_expr, **stmt.tags)
+            # only create a new SideEffectStatement if we get a new inner expr. A later SSA pass can encounter
+            # return definitions that are already in SSA form, in which case _replace_def_expr() does not return
+            # a replacement statement. Keep those definitions attached to the call.
+            new_stmt = SideEffectStatement(
+                self.ail_manager.next_atom(),
+                new_expr,
+                ret_expr=stmt.ret_expr,
+                fp_ret_expr=stmt.fp_ret_expr,
+                **stmt.tags,
+            )
 
         return new_stmt
 
@@ -606,7 +634,61 @@ class SimEngineSSARewriting(
     # Expression replacement
     #
 
-    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: TaggedObject) -> Assignment | None:
+    def _split_call_result(
+        self,
+        return_expr: Atom,
+        return_stmt: Assignment | None,
+        call_expr: Expression,
+    ) -> tuple[Atom, Assignment | None]:
+        """
+        Keep a dual-return call as one side effect while preserving partial-width SSA updates.
+
+        ``_replace_def_expr`` may widen a return definition and produce an assignment such as
+        ``full = Insert(base, offset, call)``. A call cannot appear in both return assignments without being executed
+        twice, so the side effect defines a fresh narrow vvar and a following assignment composes it into the full
+        destination. Exact-width definitions remain direct side-effect outputs.
+        """
+        if return_stmt is None:
+            return return_expr, None
+        if return_stmt.src.likes(call_expr):
+            assert isinstance(return_stmt.dst, Atom)
+            return return_stmt.dst, None
+
+        assert isinstance(return_stmt.dst, VirtualVariable)
+        if isinstance(return_expr, Register):
+            category = VirtualVariableCategory.REGISTER
+            oident = return_expr.reg_offset
+        elif isinstance(return_expr, Tmp):
+            category = VirtualVariableCategory.TMP
+            oident = return_expr.tmp_idx
+        elif isinstance(return_expr, VirtualVariable):
+            category = return_expr.category
+            oident = return_expr.oident
+        else:
+            category = return_stmt.dst.category
+            oident = return_stmt.dst.oident
+
+        result_vvar = VirtualVariable(
+            self.ail_manager.next_atom(),
+            self._current_vvar_id,
+            call_expr.bits,
+            category,
+            oident=oident,
+            **{**return_expr.tags, "ins_addr": self.ins_addr},
+        )
+        self._current_vvar_id += 1
+
+        replaced, fixup_src = return_stmt.src.replace(call_expr, result_vvar)
+        assert replaced, "A non-trivial call-result assignment must contain the call expression"
+        fixup = Assignment(
+            return_stmt.idx,
+            return_stmt.dst,
+            fixup_src,
+            **{**return_stmt.tags, CALL_RESULT_FIXUP_TAG: True},
+        )
+        return result_vvar, fixup
+
+    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: DefinitionOrigin) -> Assignment | None:
         """
         Return a new virtual variable for the given defined expression.
         """
@@ -627,7 +709,7 @@ class SimEngineSSARewriting(
                     self.state.stackvars[suboff] = thing
         return None
 
-    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: DefinitionOrigin) -> Assignment:
         # Create individual register VirtualVariables for each sub-register
         reg_vvars = []
         for reg in expr.registers:
@@ -660,14 +742,14 @@ class SimEngineSSARewriting(
             self._varid_to_combo_reg[reg_vvar.varid] = result
         return Assignment(self.ail_manager.next_atom(), result, value, **orig_tags.tags)
 
-    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: DefinitionOrigin) -> Assignment:
         """
         Return a new virtual variable for the given defined register.
         """
         vvar = self._expr_to_vvar(expr, False)
         return self._vvar_update(vvar, expr.reg_offset - vvar.reg_offset, value, orig_tags)
 
-    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: DefinitionOrigin) -> Assignment:
         if not self.rewrite_tmps:
             return Assignment(orig_tags.idx, expr, value, **orig_tags.tags)
         vvar = self._handle_expr_Tmp(expr)
@@ -739,7 +821,7 @@ class SimEngineSSARewriting(
         return vvar
 
     def _vvar_extract(
-        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
+        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: DefinitionOrigin
     ) -> Extract | VirtualVariable | BinaryOp:
         assert offset >= 0
         if size == vvar.size:
@@ -770,7 +852,7 @@ class SimEngineSSARewriting(
         )
 
     def _vvar_update(
-        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: TaggedObject
+        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: DefinitionOrigin
     ) -> Assignment:
         assert offset >= 0
         if value.bits == vvar.bits:

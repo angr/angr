@@ -12,6 +12,7 @@ import angr.ailment as ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation
+from angr.utils.ssa import find_semantic_terminal_call
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -151,10 +152,11 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 preds = list(self._graph.predecessors(ret_blocks[0]))
                 if len(preds) == 1:
                     pred = preds[0]
-                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.SideEffectStatement):
-                        last_stmt = pred.statements[-1]
-                        if isinstance(last_stmt.expr.target, ailment.Expr.Const):
-                            callee_addr = last_stmt.expr.target.value
+                    terminal_call = find_semantic_terminal_call(pred)
+                    if terminal_call is not None:
+                        call = terminal_call[2]
+                        if isinstance(call.target, ailment.Expr.Const):
+                            callee_addr = call.target.value
                             if self.project.kb.functions.contains_addr(callee_addr):
                                 callee_func = self.project.kb.functions.get_by_addr(callee_addr)
                                 if callee_func.name == "_security_check_cookie":

@@ -153,11 +153,14 @@ class CallResultNaming(ClinicNamingBase):
         """
         Analyze a Call statement for its return value.
         """
-        if call.ret_expr is None:
+        return_exprs = tuple(
+            return_expr for return_expr in (call.ret_expr, call.fp_ret_expr) if return_expr is not None
+        )
+        if len(return_exprs) != 1:
             return
 
         # Get the variable storing the result
-        var = self._get_linked_variable(call.ret_expr)
+        var = self._get_linked_variable(return_exprs[0])
         if var is None:
             return
 

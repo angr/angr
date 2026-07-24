@@ -146,8 +146,15 @@ class BlockIOFinder(AILBlockViewer):
                 input_loc = self._handle_expr(i, arg, stmt_idx, stmt, block)
                 self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
-        out_loc = self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)
-        self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, out_loc)
+        has_return_expr = False
+        for expr_idx, ret_expr in enumerate((stmt.ret_expr, stmt.fp_ret_expr)):
+            if ret_expr is not None:
+                has_return_expr = True
+                out_loc = self._handle_expr(expr_idx, ret_expr, stmt_idx, stmt, block)
+                self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, out_loc)
+        if not has_return_expr:
+            # Preserve the conservative unknown-output marker used for calls without a modeled return location.
+            self._add_or_update_dict(self.outputs_by_stmt, stmt_idx, None)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         out_loc = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block, is_memory=True)

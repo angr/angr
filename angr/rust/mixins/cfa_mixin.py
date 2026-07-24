@@ -5,6 +5,7 @@ from angr.ailment.expression import Call
 from angr.ailment.statement import ConditionalJump, Label, Statement
 from angr.rust.utils.ail import CallFinder
 from angr.rust.utils.demangler import normalize
+from angr.utils.ssa import find_semantic_terminal_call
 
 
 class CFAMixin:
@@ -49,6 +50,10 @@ class CFAMixin:
             block.statements.remove(stmt)
 
     def terminal_call(self, block) -> Call | None:
+        semantic_call = find_semantic_terminal_call(block)
+        if semantic_call is not None:
+            return semantic_call[2]
+
         stmt = self.last_stmt(block)
         if stmt is None:
             return None

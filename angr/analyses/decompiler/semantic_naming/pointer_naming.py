@@ -226,8 +226,12 @@ class PointerNaming(ClinicNamingBase):
                 continue
 
             for stmt in node.statements:
-                if isinstance(stmt, SideEffectStatement):
-                    self._analyze_call_for_pointers(stmt.expr, ret_expr=stmt.ret_expr)
+                if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+                    return_exprs = tuple(
+                        return_expr for return_expr in (stmt.ret_expr, stmt.fp_ret_expr) if return_expr is not None
+                    )
+                    return_expr = return_exprs[0] if len(return_exprs) == 1 else None
+                    self._analyze_call_for_pointers(stmt.expr, ret_expr=return_expr)
                 elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
                     self._analyze_call_for_pointers(stmt.src, ret_expr=stmt.dst)
 
