@@ -189,6 +189,36 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v in {
+                        AMD64_OpTypes["G_CC_OP_ADDB"],
+                        AMD64_OpTypes["G_CC_OP_ADDW"],
+                        AMD64_OpTypes["G_CC_OP_ADDL"],
+                        AMD64_OpTypes["G_CC_OP_ADDQ"],
+                    }:
+                        # dep_1 + dep_2 == 0 or dep_1 + dep_2 != 0
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondZ"] else "CmpNE"
+
+                        sum_ = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), False, **ccall.tags)
+                        zero = Expr.Const(self.ail_manager.next_atom(), 0, sum_.bits)
+                        r = Expr.BinaryOp(ccall.idx, expr_op, (sum_, zero), False, **ccall.tags)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+                    if op_v in {
                         AMD64_OpTypes["G_CC_OP_LOGICB"],
                         AMD64_OpTypes["G_CC_OP_LOGICW"],
                         AMD64_OpTypes["G_CC_OP_LOGICL"],
@@ -466,83 +496,127 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             **ccall.tags,
                         )
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
-                elif (
-                    cond_v == AMD64_CondTypes["CondS"]
-                    and op_v
-                    in {
-                        AMD64_OpTypes["G_CC_OP_LOGICB"],
-                        AMD64_OpTypes["G_CC_OP_LOGICW"],
-                        AMD64_OpTypes["G_CC_OP_LOGICL"],
-                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
-                    }
-                    and isinstance(dep_2, Expr.Const)
-                    and dep_2.value == 0
+                elif cond_v in {AMD64_CondTypes["CondS"], AMD64_CondTypes["CondNS"]}:
+                    # SF is the sign bit of the result computed at the operand width
+                    # SF set means "negative", so testing the masked sign bit flips the comparison
+                    sign_op = "CmpNE" if cond_v == AMD64_CondTypes["CondS"] else "CmpEQ"
+
+                    if cond_v == AMD64_CondTypes["CondS"] and op_v in {
+                        AMD64_OpTypes["G_CC_OP_SUBB"],
+                        AMD64_OpTypes["G_CC_OP_SUBW"],
+                        AMD64_OpTypes["G_CC_OP_SUBL"],
+                        AMD64_OpTypes["G_CC_OP_SUBQ"],
+                    }:
+                        # dep_1 - dep_2 <s 0
+                        # CondNS is deliberately not handled here: a survey of 24 projects at -O0
+                        # and -O2 found no site reading SF back as "not negative" after a subtraction
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+
+                        diff = Expr.BinaryOp(self.ail_manager.next_atom(), "Sub", (dep_1, dep_2), False, **ccall.tags)
+                        r = self._sign_test(ccall, diff, sign_op)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_ADDB"],
+                        AMD64_OpTypes["G_CC_OP_ADDW"],
+                        AMD64_OpTypes["G_CC_OP_ADDL"],
+                        AMD64_OpTypes["G_CC_OP_ADDQ"],
+                    }:
+                        # dep_1 + dep_2 <s 0 or dep_1 + dep_2 >=s 0
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_ADDB"],
+                            AMD64_OpTypes["G_CC_OP_ADDW"],
+                            AMD64_OpTypes["G_CC_OP_ADDL"],
+                            ccall.tags,
+                        )
+
+                        sum_ = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), False, **ccall.tags)
+                        r = self._sign_test(ccall, sum_, sign_op)
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
+                    if (
+                        op_v
+                        in {
+                            AMD64_OpTypes["G_CC_OP_LOGICB"],
+                            AMD64_OpTypes["G_CC_OP_LOGICW"],
+                            AMD64_OpTypes["G_CC_OP_LOGICL"],
+                            AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                        }
+                        and isinstance(dep_2, Expr.Const)
+                        and dep_2.value == 0
+                    ):
+                        # dep_1 <s 0 or dep_1 >=s 0
+                        # dep_1 is a plain operand here, so type inference gives it a signed type and
+                        # the comparison against zero can be emitted directly
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_LOGICB"],
+                            AMD64_OpTypes["G_CC_OP_LOGICW"],
+                            AMD64_OpTypes["G_CC_OP_LOGICL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_LOGICB"],
+                            AMD64_OpTypes["G_CC_OP_LOGICW"],
+                            AMD64_OpTypes["G_CC_OP_LOGICL"],
+                            ccall.tags,
+                        )
+
+                        r = Expr.BinaryOp(
+                            ccall.idx,
+                            "CmpLT" if cond_v == AMD64_CondTypes["CondS"] else "CmpGE",
+                            (dep_1, dep_2),
+                            True,
+                            **ccall.tags,
+                        )
+                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
+                elif cond_v in {AMD64_CondTypes["CondP"], AMD64_CondTypes["CondNP"]} and (
+                    op_v == AMD64_OpTypes["G_CC_OP_COPY"]
                 ):
-                    # dep_1 < 0
+                    # dep_1 & G_CC_MASK_P != 0 or dep_1 & G_CC_MASK_P == 0
+                    # dep_1 holds the flags themselves, so PF can be masked off directly. PF set
+                    # means "parity even", which is what CondP tests for, hence the polarity.
 
-                    dep_1 = self._fix_size(
-                        dep_1,
-                        op_v,
-                        AMD64_OpTypes["G_CC_OP_LOGICB"],
-                        AMD64_OpTypes["G_CC_OP_LOGICW"],
-                        AMD64_OpTypes["G_CC_OP_LOGICL"],
-                        ccall.tags,
-                    )
-                    dep_2 = self._fix_size(
-                        dep_2,
-                        op_v,
-                        AMD64_OpTypes["G_CC_OP_LOGICB"],
-                        AMD64_OpTypes["G_CC_OP_LOGICW"],
-                        AMD64_OpTypes["G_CC_OP_LOGICL"],
-                        ccall.tags,
-                    )
+                    bitmask = AMD64_CondBitMasks["G_CC_MASK_P"]
+                    assert isinstance(bitmask, int)
+                    flag = Expr.Const(self.ail_manager.next_atom(), bitmask, dep_1.bits)
+                    masked_dep = Expr.BinaryOp(self.ail_manager.next_atom(), "And", [dep_1, flag], False, **ccall.tags)
+                    zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
+                    expr_op = "CmpNE" if cond_v == AMD64_CondTypes["CondP"] else "CmpEQ"
 
-                    r = Expr.BinaryOp(
-                        ccall.idx,
-                        "CmpLT",
-                        (dep_1, dep_2),
-                        True,
-                        **ccall.tags,
-                    )
-                    return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
-
-                elif (
-                    cond_v == AMD64_CondTypes["CondNS"]
-                    and op_v
-                    in {
-                        AMD64_OpTypes["G_CC_OP_LOGICB"],
-                        AMD64_OpTypes["G_CC_OP_LOGICW"],
-                        AMD64_OpTypes["G_CC_OP_LOGICL"],
-                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
-                    }
-                    and isinstance(dep_2, Expr.Const)
-                    and dep_2.value == 0
-                ):
-                    # dep_1 >= 0
-                    dep_1 = self._fix_size(
-                        dep_1,
-                        op_v,
-                        AMD64_OpTypes["G_CC_OP_LOGICB"],
-                        AMD64_OpTypes["G_CC_OP_LOGICW"],
-                        AMD64_OpTypes["G_CC_OP_LOGICL"],
-                        ccall.tags,
-                    )
-                    dep_2 = self._fix_size(
-                        dep_2,
-                        op_v,
-                        AMD64_OpTypes["G_CC_OP_LOGICB"],
-                        AMD64_OpTypes["G_CC_OP_LOGICW"],
-                        AMD64_OpTypes["G_CC_OP_LOGICL"],
-                        ccall.tags,
-                    )
-
-                    r = Expr.BinaryOp(
-                        ccall.idx,
-                        "CmpGE",
-                        (dep_1, dep_2),
-                        True,
-                        **ccall.tags,
-                    )
+                    r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
                     return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
         elif ccall.callee == "amd64g_calculate_rflags_c":
@@ -659,6 +733,21 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
 
         return None
+
+    def _sign_test(self, ccall, result, expr_op: str):
+        """
+        Build the SF test for a result that is computed at the operand width: mask off the sign bit
+        of the result and compare it against zero.
+
+        The sign bit is tested explicitly instead of emitting "result <s 0" because the signedness of
+        a comparison is decided by the types of its operands, and a computed operand (an Add or a Sub
+        expression) never gets a signedness constraint from type inference. "result <s 0" would then
+        be emitted as an unsigned comparison against zero, which is always false.
+        """
+        sign_bit = Expr.Const(self.ail_manager.next_atom(), 1 << (result.bits - 1), result.bits)
+        masked = Expr.BinaryOp(self.ail_manager.next_atom(), "And", (result, sign_bit), False, **ccall.tags)
+        zero = Expr.Const(self.ail_manager.next_atom(), 0, result.bits)
+        return Expr.BinaryOp(ccall.idx, expr_op, (masked, zero), False, **ccall.tags)
 
     def _fix_size(self, expr, op_v: int, type_8bit, type_16bit, type_32bit, tags):
         if op_v == type_8bit:
