@@ -957,6 +957,19 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> DataType:
+        assert expr.vector_size is not None
+        extend = claripy.SignExt if expr.signed else claripy.ZeroExt
+        return claripy.Concat(
+            *(
+                (extend(expr.vector_size, a) + extend(expr.vector_size, b))[expr.vector_size : 1]
+                for a, b in zip(
+                    self._expr_bv(expr.operands[0]).chop(expr.vector_size),
+                    self._expr_bv(expr.operands[1]).chop(expr.vector_size),
+                )
+            )
+        )
+
     def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 

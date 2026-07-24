@@ -143,6 +143,37 @@ class TestNonConstRoundingMode(unittest.TestCase):
         assert isinstance(binop.rounding_mode, RoundingMode)
 
 
+class TestVectorSignedness(unittest.TestCase):
+    @staticmethod
+    def _find_haddv(block):
+        return next(
+            stmt.src
+            for stmt in block.statements
+            if isinstance(getattr(stmt, "src", None), ailment.Expr.BinaryOp) and stmt.src.op == "HAddV"
+        )
+
+    def test_haddv_signedness(self):
+        arch = archinfo.arch_from_id("armel")
+
+        for name, block_bytes, expected_signed in (
+            ("sadd8", bytes.fromhex("920f11e6"), True),
+            ("uadd8", bytes.fromhex("920f51e6"), False),
+        ):
+            with self.subTest(instruction=name):
+                irsb = pyvex.IRSB(block_bytes, 0x1000, arch, opt_level=0)
+                from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+                from_lift = VEXIRSBConverter.convert_from_lift(
+                    arch, 0x1000, block_bytes, ailment.Manager(arch=arch), opt_level=0
+                )
+
+                assert from_py == from_lift
+                for block in (from_py, from_lift):
+                    haddv = self._find_haddv(block)
+                    assert haddv.signed is expected_signed
+                    assert haddv.vector_count == 4
+                    assert haddv.vector_size == 8
+
+
 class TestVexConverterAcrossArches(unittest.TestCase):
     """Convert real blocks from test binaries through both the Python-IRSB path
     and the libVEX-lift path, and assert the two agree."""

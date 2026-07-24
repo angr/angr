@@ -23,6 +23,28 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestAILExec(unittest.TestCase):
+    def test_haddv_expression(self):
+        p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
+        state = p.factory.blank_state()
+        successors = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, successors)
+
+        left = ailment.expression.Const(None, 0xFF008877, 32)
+        right = ailment.expression.Const(None, 0x11111111, 32)
+        for signed, expected in ((True, 0x0808CC44), (False, 0x88084C44)):
+            with self.subTest(signed=signed):
+                expr = ailment.expression.BinaryOp(
+                    None,
+                    "HAddV",
+                    (left, right),
+                    signed,
+                    bits=32,
+                    vector_count=4,
+                    vector_size=8,
+                )
+                result = engine._expr_bv(expr)
+                assert result.concrete and result.concrete_value == expected
+
     def test_smoketest(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "true"), auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
