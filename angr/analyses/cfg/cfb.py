@@ -11,6 +11,7 @@ from cle.backends.tls.elf_tls import ELFTLSObject
 from sortedcontainers import SortedDict
 
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.block import Block
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 
 _l = logging.getLogger(name=__name__)
@@ -273,13 +274,87 @@ class CFBlanket(Analysis):
     def __getitem__(self, addr):
         return self._blanket[addr]
 
+    @staticmethod
+    def _obj_size(obj) -> int | None:
+        size = getattr(obj, "size", None)
+        return size if isinstance(size, int) else None
+
     def add_obj(self, addr, obj):
         """
-        Adds an object `obj` to the blanket at the specified address `addr`
+        Add an object `obj` to the blanket at the specified address `addr`, keeping the blanket non-overlapping:
+        existing objects that overlap [addr, addr + obj.size) are removed or trimmed, and the trimmed-off remainders
+        are re-inserted. Objects without an integer size are stored as zero-span entries and never cause trimming.
         """
+        size = self._obj_size(obj)
+        if size is not None and size > 0:
+            self._carve(addr, addr + size)
         self._blanket[addr] = obj
         if self._on_object_added_callback:
             self._on_object_added_callback(addr, obj)
+
+    def _carve(self, start: int, end: int) -> None:
+        """
+        Remove or trim existing objects so that no object in the blanket overlaps [start, end).
+        """
+        overlapping: list[int] = []
+        # the closest entry that starts before `start` may extend into the carved range
+        floor_key = next(self._blanket.irange(maximum=start - 1, reverse=True), None)
+        if floor_key is not None:
+            floor_size = self._obj_size(self._blanket[floor_key])
+            if floor_key + max(floor_size or 1, 1) > start:
+                overlapping.append(floor_key)
+        overlapping.extend(self._blanket.irange(minimum=start, maximum=end - 1))
+
+        for key in overlapping:
+            obj = self._blanket.pop(key)
+            obj_end = key + max(self._obj_size(obj) or 1, 1)
+            if key < start:
+                left = self._trim(obj, key, start)
+                if left is not None:
+                    self._blanket[key] = left
+                    if self._on_object_added_callback:
+                        self._on_object_added_callback(key, left)
+            if obj_end > end:
+                right = self._trim(obj, end, obj_end)
+                if right is not None:
+                    self._blanket[end] = right
+                    if self._on_object_added_callback:
+                        self._on_object_added_callback(end, right)
+
+    def _trim(self, obj, new_start: int, new_end: int):
+        """
+        Create a copy of `obj` trimmed to [new_start, new_end), or None if the object cannot be trimmed.
+        """
+        new_size = new_end - new_start
+        if new_size <= 0:
+            return None
+        if isinstance(obj, Unknown):
+            bytes_ = None
+            if obj._loader is None and obj._bytes is not None:
+                offset = new_start - obj.addr
+                if 0 <= offset < len(obj._bytes):
+                    bytes_ = obj._bytes[offset : offset + new_size]
+            return Unknown(
+                new_start,
+                new_size,
+                bytes_=bytes_,
+                object_=obj.object,
+                segment=obj.segment,
+                section=obj.section,
+                loader=obj._loader,
+            )
+        if isinstance(obj, Block):
+            # constructing a Block with an explicit size does not lift; lifting only happens if the block is ever
+            # rendered or otherwise accessed
+            return self.project.factory.block(new_start, size=new_size, thumb=getattr(obj, "thumb", False))
+        if isinstance(obj, MemoryData):
+            # memory data objects may be shared with the knowledge base; trim a copy, never the original
+            trimmed = obj.copy()
+            trimmed.addr = new_start
+            trimmed.size = new_size
+            trimmed.reference_size = obj.reference_size
+            return trimmed
+        return None
 
     def add_function(self, func):
         """
