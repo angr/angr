@@ -21,6 +21,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ConstantDereferences,
     EagerEvaluation,
     OptimizedDivisionSimplifier,
+    RemoveRedundantConversions,
     RemoveRedundantShifts,
     SimplifyBitwiseInserts,
 )
@@ -160,6 +161,41 @@ class TestPeepholeOptimizations(unittest.TestCase):
                     floating_point=True,
                 )
                 assert opt.optimize(expr) is None
+
+    def test_remove_redundant_conversions_skips_floating_point_comparisons(self):
+        project = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = RemoveRedundantConversions(project, project.kb, manager)
+        value = Register(manager.next_atom(), 0, 32)
+
+        integer_comparison = BinaryOp(
+            manager.next_atom(),
+            "CmpLT",
+            (
+                Convert(manager.next_atom(), 32, 64, False, value),
+                Const(manager.next_atom(), 0, 64),
+            ),
+            False,
+            bits=1,
+        )
+        optimized = opt.optimize(integer_comparison)
+        assert isinstance(optimized, BinaryOp)
+        assert optimized.op == "CmpLT"
+        assert optimized.operands[0].likes(value)
+        assert optimized.operands[1].bits == 32
+
+        floating_comparison = BinaryOp(
+            manager.next_atom(),
+            "CmpLT",
+            (
+                Convert(manager.next_atom(), 32, 64, False, value),
+                Const(manager.next_atom(), 0.0, 64),
+            ),
+            False,
+            bits=1,
+            floating_point=True,
+        )
+        assert opt.optimize(floating_comparison) is None
 
     def test_cmp_masked_shift(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")

@@ -21,6 +21,12 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
         return None
 
     def _optimize_BinaryOp(self, expr: BinaryOp):
+        if expr.floating_point:
+            # The rules below reason about integer extensions, truncations, and constant ranges. Applying them to a
+            # floating-point comparison can change its precision and also drops the comparison's floating-point
+            # semantics when rebuilding it.
+            return None
+
         # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):  # noqa: SIM102
             # check: is the lhs convert an up-cast and is rhs a const?

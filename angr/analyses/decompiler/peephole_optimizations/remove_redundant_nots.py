@@ -19,6 +19,8 @@ class RemoveRedundantNots(PeepholeOptimizationExprBase):
                     return expr.operand.operand
             elif isinstance(expr.operand, BinaryOp) and expr.operand.op in BinaryOp.COMPARISON_NEGATION:
                 inner = expr.operand
+                if inner.floating_point and inner.op not in {"CmpEQ", "CmpNE"}:
+                    return None
                 negated_op = BinaryOp.COMPARISON_NEGATION[expr.operand.op]
                 return BinaryOp(
                     inner.idx,

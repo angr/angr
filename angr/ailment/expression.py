@@ -657,7 +657,11 @@ def negate(expr: Expression, manager) -> Expression:
     """Negate a comparison or boolean expression."""
     if isinstance(expr, UnaryOp) and expr.op == "Not":
         return expr.operand
-    if isinstance(expr, BinaryOp) and expr.op in BinaryOp.COMPARISON_NEGATION:
+    if (
+        isinstance(expr, BinaryOp)
+        and expr.op in BinaryOp.COMPARISON_NEGATION
+        and (not expr.floating_point or expr.op in {"CmpEQ", "CmpNE"})
+    ):
         return BinaryOp(
             expr.idx,
             BinaryOp.COMPARISON_NEGATION[expr.op],

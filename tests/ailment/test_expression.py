@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.expression import (
     Array,
     BasePointerOffset,
@@ -38,6 +38,42 @@ class TestExpression(unittest.TestCase):
         )
         h = hash(phi_expr)  # should not crash
         assert h is not None
+
+    def test_negate_preserves_ordered_floating_point_semantics(self):
+        manager = ailment.Manager()
+        lhs = Register(manager.next_atom(), 0, 32)
+        rhs = Register(manager.next_atom(), 4, 32)
+
+        integer_lt = ailment.expression.BinaryOp(manager.next_atom(), "CmpLT", (lhs, rhs), False, bits=1)
+        negated_integer = ailment.expression.negate(integer_lt, manager)
+        assert isinstance(negated_integer, ailment.expression.BinaryOp)
+        assert negated_integer.op == "CmpGE"
+
+        floating_lt = ailment.expression.BinaryOp(
+            manager.next_atom(),
+            "CmpLT",
+            (lhs, rhs),
+            False,
+            bits=1,
+            floating_point=True,
+        )
+        negated_floating = ailment.expression.negate(floating_lt, manager)
+        assert isinstance(negated_floating, ailment.expression.UnaryOp)
+        assert negated_floating.op == "Not"
+        assert negated_floating.operand.likes(floating_lt)
+
+        floating_eq = ailment.expression.BinaryOp(
+            manager.next_atom(),
+            "CmpEQ",
+            (lhs, rhs),
+            False,
+            bits=1,
+            floating_point=True,
+        )
+        negated_equality = ailment.expression.negate(floating_eq, manager)
+        assert isinstance(negated_equality, ailment.expression.BinaryOp)
+        assert negated_equality.op == "CmpNE"
+        assert negated_equality.floating_point
 
     def test_rust_composite_return_deep_copy(self):
         field = ailment.expression.VirtualVariable(

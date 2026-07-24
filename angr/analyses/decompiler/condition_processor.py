@@ -952,6 +952,27 @@ class ConditionProcessor:
         if isinstance(condition, (claripy.ast.Bits, claripy.ast.Bool)):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
 
+        if (
+            isinstance(condition, ailment.Expr.BinaryOp)
+            and condition.floating_point
+            and condition.op in {"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE"}
+        ):
+            # Claripy comparisons operate on integers or bitvectors. Translating a floating-point comparison into one
+            # would let boolean simplification apply integer complement rules such as !(a > b) == a <= b, which are
+            # invalid for unordered floating-point values. Keep the comparison opaque and recover the original AIL
+            # expression after condition simplification instead.
+            if nobool and not must_bool:
+                return _dummy_bvs(
+                    condition,
+                    self._condition_mapping,
+                    name_suffix=f"-{ins_addr:x}",
+                )
+            return _dummy_bools(
+                condition,
+                self._condition_mapping,
+                name_suffix=f"-{ins_addr:x}",
+            )
+
         if isinstance(
             condition,
             (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE, StringLiteral),
