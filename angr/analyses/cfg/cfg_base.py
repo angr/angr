@@ -3120,6 +3120,8 @@ class CFGBase(Analysis):
         idx: int
         jump: IndirectJump
         for idx, jump in enumerate(self._indirect_jumps_to_resolve):
+            if self.should_abort:
+                break
             if self._low_priority:
                 self._release_gil(idx, 50, 0.000001)
             all_targets |= self._process_one_indirect_jump(jump)
