@@ -4,6 +4,7 @@ from __future__ import annotations
 import enum
 import logging
 from collections import defaultdict
+from collections.abc import Collection
 from contextlib import suppress
 from typing import TYPE_CHECKING
 
@@ -709,18 +710,22 @@ class SimpleSolver:
                         constrained_typevars.add(t)
 
         constraintset2tvs = defaultdict(set)
+        endpoint_to_constraints = self._index_subtype_constraints(constraints) if constrained_typevars else {}
         tvs_seen = set()
         for idx, tv in enumerate(sorted(constrained_typevars, key=lambda x: x.idx)):
             _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
             if tv in tvs_seen:
                 continue
             # build a sub constraint set for the type variable
-            constraint_subset, related_tvs = self._generate_constraint_subset(constraints, {tv})
+            constraint_subset, related_tvs = self._generate_constraint_subset(
+                constraints, {tv}, endpoint_to_constraints=endpoint_to_constraints
+            )
             # drop all type vars outside constrained_typevars
             related_tvs = related_tvs.intersection(constrained_typevars)
             tvs_seen |= related_tvs
             frozen_constraint_subset = frozenset(constraint_subset)
             constraintset2tvs[frozen_constraint_subset] = related_tvs
+        del endpoint_to_constraints
 
         for idx, (constraint_subset, tvs) in enumerate(constraintset2tvs.items()):
             _l.debug(
@@ -1580,38 +1585,57 @@ class SimpleSolver:
     #
 
     @staticmethod
+    def _constraint_endpoint(
+        type_: TypeVariable | TypeConstant,
+    ) -> TypeVariable | TypeConstant | None:
+        """
+        Return the root used to connect subtype constraints. A derived type's root remains an endpoint even when it is
+        a type constant, while a plain type constant does not connect otherwise unrelated constraints.
+        """
+        if isinstance(type_, DerivedTypeVariable):
+            return type_.type_var
+        if isinstance(type_, TypeVariable):
+            return type_
+        return None
+
+    @staticmethod
+    def _index_subtype_constraints(
+        constraints: Collection[TypeConstraint],
+    ) -> dict[TypeVariable | TypeConstant, set[Subtype]]:
+        endpoint_to_constraints: dict[TypeVariable | TypeConstant, set[Subtype]] = defaultdict(set)
+        for constraint in constraints:
+            if not isinstance(constraint, Subtype):
+                continue
+            for type_ in (constraint.sub_type, constraint.super_type):
+                endpoint = SimpleSolver._constraint_endpoint(type_)
+                if endpoint is not None:
+                    endpoint_to_constraints[endpoint].add(constraint)
+        return endpoint_to_constraints
+
+    @staticmethod
     def _generate_constraint_subset(
-        constraints: set[TypeConstraint], typevars: set[TypeVariable]
-    ) -> tuple[set[TypeConstraint], set[TypeVariable]]:
-        subset = set()
+        constraints: Collection[TypeConstraint],
+        typevars: Collection[TypeVariable | TypeConstant],
+        *,
+        endpoint_to_constraints: dict[TypeVariable | TypeConstant, set[Subtype]] | None = None,
+    ) -> tuple[set[TypeConstraint], set[TypeVariable | TypeConstant]]:
+        if endpoint_to_constraints is None:
+            endpoint_to_constraints = SimpleSolver._index_subtype_constraints(constraints)
+
+        subset: set[TypeConstraint] = set()
         related_typevars = set(typevars)
-        while True:
-            new = set()
-            for constraint in constraints:
+        pending_typevars = list(typevars)
+        while pending_typevars:
+            typevar = pending_typevars.pop()
+            for constraint in endpoint_to_constraints.get(typevar, ()):
                 if constraint in subset:
                     continue
-                if isinstance(constraint, Subtype):
-                    if isinstance(constraint.sub_type, DerivedTypeVariable):
-                        subt = constraint.sub_type.type_var
-                    elif isinstance(constraint.sub_type, TypeVariable):
-                        subt = constraint.sub_type
-                    else:
-                        subt = None
-                    if isinstance(constraint.super_type, DerivedTypeVariable):
-                        supert = constraint.super_type.type_var
-                    elif isinstance(constraint.super_type, TypeVariable):
-                        supert = constraint.super_type
-                    else:
-                        supert = None
-                    if subt in related_typevars or supert in related_typevars:
-                        new.add(constraint)
-                        if subt is not None:
-                            related_typevars.add(subt)
-                        if supert is not None:
-                            related_typevars.add(supert)
-            if not new:
-                break
-            subset |= new
+                subset.add(constraint)
+                for type_ in (constraint.sub_type, constraint.super_type):
+                    endpoint = SimpleSolver._constraint_endpoint(type_)
+                    if endpoint is not None and endpoint not in related_typevars:
+                        related_typevars.add(endpoint)
+                        pending_typevars.append(endpoint)
         return subset, related_typevars
 
     def _generate_constraint_graph(
