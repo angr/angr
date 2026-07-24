@@ -15,7 +15,20 @@ import angr
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.typehoon.translator import TypeTranslator
-from angr.analyses.typehoon.typeconsts import Float32, Float64, Int32, Pointer64, Struct
+from angr.analyses.typehoon.typeconsts import (
+    Array,
+    BottomType,
+    Float32,
+    Float64,
+    Int1,
+    Int8,
+    Int32,
+    IntVar,
+    Pointer64,
+    SInt32,
+    SInt64,
+    Struct,
+)
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
     DerivedTypeVariable,
@@ -36,6 +49,7 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
+    SimTypeNum,
     SimTypePointer,
 )
 from tests.common import bin_location, print_decompilation_result
@@ -441,6 +455,79 @@ class TestTypeTranslator(unittest.TestCase):
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
+
+    def test_simtypenum_struct_round_trip(self):
+        arch = archinfo.arch_from_id("amd64")
+        st = SimTypePointer(
+            SimStruct(
+                OrderedDict(
+                    {
+                        "ut_addr_v6": SimTypeArray(SimTypeNum(32, signed=True, label="int32_t"), 4),
+                        "tv_usec": SimTypeNum(64, signed=True, label="int64_t"),
+                    }
+                ),
+                name="utmp",
+            )
+        ).with_arch(arch)
+        tx = TypeTranslator(arch)
+
+        tc = tx.simtype2tc(st)
+        assert isinstance(tc, Pointer64)
+        assert isinstance(tc.basetype, Struct)
+        assert isinstance(tc.basetype.fields[0], Array)
+        assert isinstance(tc.basetype.fields[0].element, SInt32)
+        assert tc.basetype.fields[0].element.name == "int32_t"
+        assert isinstance(tc.basetype.fields[16], SInt64)
+        assert tc.basetype.fields[16].name == "int64_t"
+
+        restored, has_nonexistent_ref = tx.tc2simtype(tc)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimTypePointer)
+        assert isinstance(restored.pts_to, SimStruct)
+        assert restored.pts_to.offsets == {"ut_addr_v6": 0, "tv_usec": 16}
+        assert restored.pts_to.size == 192
+        restored_array = restored.pts_to.fields["ut_addr_v6"]
+        assert isinstance(restored_array, SimTypeArray)
+        assert restored_array.size == 128
+        assert restored_array.elem_type.size == 32
+        assert restored_array.elem_type.signed is True
+
+    def test_unsupported_width_simtypenum(self):
+        arch = archinfo.arch_from_id("amd64")
+        tx = TypeTranslator(arch)
+
+        for bits in (1, 9, 24, 128):
+            for signed in (False, True):
+                with self.subTest(bits=bits, signed=signed):
+                    tc = tx.simtype2tc(SimTypeNum(bits, signed=signed, label=f"int{bits}_t").with_arch(arch))
+                    assert isinstance(tc, BottomType)
+
+        # Int1 and IntVar cannot be converted to equally-sized SimTypes: their sizes use incompatible units. They must
+        # remain unsupported rather than creating zero-alignment or incorrectly laid-out fields in a SimStruct.
+        struct = Struct(fields={0: Int1(), 1: IntVar(9), 2: Int8()})
+        restored, has_nonexistent_ref = tx.tc2simtype(struct)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimStruct)
+        assert restored.offsets == {"field_0": 0, "field_1": 1, "field_2": 2}
+
+    def test_standard_width_simtypenum_round_trip(self):
+        arch = archinfo.arch_from_id("amd64")
+        tx = TypeTranslator(arch)
+
+        for bits in (8, 16, 32, 64):
+            for signed in (False, True):
+                with self.subTest(bits=bits, signed=signed):
+                    label = f"{'u' if not signed else ''}int{bits}_t"
+                    tc = tx.simtype2tc(SimTypeNum(bits, signed=signed, label=label).with_arch(arch))
+                    assert not isinstance(tc, IntVar)
+                    assert tc.size * arch.byte_width == bits
+                    assert tc.name == label
+
+                    restored, has_nonexistent_ref = tx.tc2simtype(tc)
+                    assert not has_nonexistent_ref
+                    assert restored.size == bits
+                    assert restored.signed is signed
+                    assert restored.label == label
 
     def test_lift_recursive_struct(self):
         arch = archinfo.arch_from_id("amd64")
