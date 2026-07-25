@@ -898,6 +898,13 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def reset(self) -> None:
         self.any_update = False
 
+    def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block) -> ailment.Stmt.Statement | None:
+        if getattr(stmt, "peephole_optimized", False):
+            # a previous peephole pass ran this statement (and its expressions) to fixpoint, and the statement has
+            # not been rebuilt since; expression optimizers are context-free, so nothing new can apply
+            return None
+        return super()._handle_stmt(stmt_idx, stmt, block)
+
     def _handle_expr(
         self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expression:
@@ -1018,11 +1025,13 @@ def build_stmt_opts_by_kind(stmt_opts):
     return by_kind
 
 
-def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
+def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None, ctx_stmt_opts_by_kind=None):
     any_update = False
     statements = []
     if stmt_opts_by_kind is None:
         stmt_opts_by_kind = build_stmt_opts_by_kind(stmt_opts)
+    if ctx_stmt_opts_by_kind is None:
+        ctx_stmt_opts_by_kind = build_stmt_opts_by_kind([opt for opt in stmt_opts if opt.NEEDS_BLOCK_CONTEXT])
 
     # run statement optimizers
     # note that an optimizer may optionally edit or remove statements whose statement IDs are greater than stmt_idx
@@ -1036,7 +1045,14 @@ def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
             kind = getattr(stmt, "pykind", None)
             if kind is None:
                 kind = type(stmt).__name__
-            opts_for_kind = stmt_opts_by_kind.get(kind)
+            # statements at peephole fixpoint only need the block-context-sensitive optimizers (whose applicability
+            # may change when *other* statements of the block change); everything else cannot newly apply
+            by_kind = (
+                ctx_stmt_opts_by_kind
+                if stmt is old_stmt and getattr(stmt, "peephole_optimized", False)
+                else stmt_opts_by_kind
+            )
+            opts_for_kind = by_kind.get(kind)
             if not opts_for_kind:
                 break
             for opt in opts_for_kind:

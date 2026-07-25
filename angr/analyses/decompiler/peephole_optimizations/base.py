@@ -35,6 +35,10 @@ class PeepholeOptimizationStmtBase:
     NAME = "Peephole Optimization - Statement"
     DESCRIPTION = "Peephole Optimization - Statement"
     stmt_classes = None
+    # True for optimizers whose applicability depends on *other* statements of the block (e.g. RolRorRewriter reads
+    # the two preceding statements). Such optimizers still run on statements whose ``peephole_optimized`` flag is
+    # set, because a statement at peephole fixpoint may become optimizable when its neighborhood changes.
+    NEEDS_BLOCK_CONTEXT = False
 
     def __init__(
         self,

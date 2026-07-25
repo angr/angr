@@ -16,6 +16,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
 
     NAME = "ROL/ROR rewriter"
     stmt_classes = (Assignment,)
+    NEEDS_BLOCK_CONTEXT = True  # matches against the two preceding statements in the block
 
     def optimize(self, stmt: Assignment, stmt_idx: int | None = None, block=None, **kwargs):
         # Rol example:

@@ -53,7 +53,15 @@ class PeepholeOptimizationBundle:
     updates to ``preserve_vvar_ids`` and ``type_hints`` are visible without a rebuild).
     """
 
-    __slots__ = ("_params", "expr_opts", "expr_walker", "multistmt_opts", "stmt_opts", "stmt_opts_by_kind")
+    __slots__ = (
+        "_params",
+        "ctx_stmt_opts_by_kind",
+        "expr_opts",
+        "expr_walker",
+        "multistmt_opts",
+        "stmt_opts",
+        "stmt_opts_by_kind",
+    )
 
     def __init__(
         self,
@@ -89,6 +97,9 @@ class PeepholeOptimizationBundle:
         self.stmt_opts = [cls(*args) for cls in stmt_classes]
         self.multistmt_opts = [cls(*args) for cls in multistmt_classes]
         self.stmt_opts_by_kind = build_stmt_opts_by_kind(self.stmt_opts)
+        # the subset of statement optimizers that must also run on statements already at peephole fixpoint (see
+        # PeepholeOptimizationStmtBase.NEEDS_BLOCK_CONTEXT)
+        self.ctx_stmt_opts_by_kind = build_stmt_opts_by_kind([opt for opt in self.stmt_opts if opt.NEEDS_BLOCK_CONTEXT])
         self.expr_walker = _PeepholeExprsWalker(expr_opts=self.expr_opts)
         self._params = (project, ail_manager, func_addr, preserve_vvar_ids, type_hints, peephole_optimizations)
 
@@ -181,6 +192,7 @@ class BlockSimplifier:
         self._stmt_peephole_opts = peephole_bundle.stmt_opts
         self._multistmt_peephole_opts = peephole_bundle.multistmt_opts
         self._stmt_peephole_opts_by_kind = peephole_bundle.stmt_opts_by_kind
+        self._ctx_stmt_peephole_opts_by_kind = peephole_bundle.ctx_stmt_opts_by_kind
 
         self.result_block = None
 
@@ -213,6 +225,11 @@ class BlockSimplifier:
             # output of the previous iteration's exit peephole pass, so running peephole again on entry is redundant
             new_block, changed = self._simplify_block_once(block, entry_peephole=ctr == 1)
             if not changed:
+                # peephole fixpoint reached: mark every statement so later peephole passes (of this or any future
+                # BlockSimplifier) can skip it until it is rebuilt. The flag is runtime-only -- never serialized,
+                # invisible to __eq__/__hash__/likes(), and cleared when a statement is cloned.
+                for stmt in new_block.statements:
+                    stmt.peephole_optimized = True
                 break
             # a change was reported, but it may be structurally a no-op (e.g. an expression replaced by an equal
             # expression); ``likes`` (idx-agnostic) catches that and prevents ping-ponging until max_ctr
@@ -513,7 +530,10 @@ class BlockSimplifier:
 
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(
-            block, self._stmt_peephole_opts, stmt_opts_by_kind=self._stmt_peephole_opts_by_kind
+            block,
+            self._stmt_peephole_opts,
+            stmt_opts_by_kind=self._stmt_peephole_opts_by_kind,
+            ctx_stmt_opts_by_kind=self._ctx_stmt_peephole_opts_by_kind,
         )
 
         new_block = block.copy(statements=statements) if stmts_updated else block

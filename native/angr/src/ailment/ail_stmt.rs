@@ -37,6 +37,11 @@ pub struct StmtHeader {
     pub idx: i64,
     pub tags: Tags,
     pub cached_hash: CachedHash,
+    /// Runtime-only marker: true once a peephole-optimization pass has run this statement to
+    /// fixpoint, letting later passes skip it. Never serialized, ignored by
+    /// `Hash`/`PartialEq`/`likes`, and conservatively reset on clone (shared references -- the
+    /// common case, since block copies share statement objects -- keep it).
+    pub peephole_optimized: std::sync::atomic::AtomicBool,
 }
 
 impl Clone for StmtHeader {
@@ -45,6 +50,7 @@ impl Clone for StmtHeader {
             idx: self.idx,
             tags: self.tags.clone(),
             cached_hash: CachedHash::new(),
+            peephole_optimized: std::sync::atomic::AtomicBool::new(false),
         }
     }
 }
@@ -55,6 +61,7 @@ impl StmtHeader {
             idx,
             tags,
             cached_hash: CachedHash::new(),
+            peephole_optimized: std::sync::atomic::AtomicBool::new(false),
         }
     }
 }
@@ -1221,6 +1228,24 @@ impl Statement {
 
     fn clear_hash(&self) {
         self.stmt.header.cached_hash.clear();
+    }
+
+    /// True once a peephole-optimization pass has run this statement to fixpoint, letting later
+    /// passes skip it. Runtime-only: never serialized, ignored by ``__eq__``/``__hash__``/
+    /// ``likes()``, and reset when the statement is cloned.
+    #[getter]
+    fn peephole_optimized(&self) -> bool {
+        self.stmt
+            .header
+            .peephole_optimized
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+    #[setter]
+    fn set_peephole_optimized(&self, value: bool) {
+        self.stmt
+            .header
+            .peephole_optimized
+            .store(value, std::sync::atomic::Ordering::Relaxed);
     }
 
     // --- Per-variant accessors ----------------------------------------
