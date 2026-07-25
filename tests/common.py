@@ -299,3 +299,149 @@ def load_project_with_scoped_cfg(
         proj.analyses.CompleteCallingConventions(show_progressbar=not WORKER, **final_ccc_kwargs)
 
     return proj, cfg
+
+
+def function_extents_from_eh_frame(proj: Project) -> dict[int, int]:
+    """
+    Read exact function extents (``{addr: size}``) out of the ELF ``.eh_frame`` FDE table.
+
+    ``load_project_with_scoped_cfg`` approximates each function's extent with a fixed ``window``.
+    That works when a handful of functions are covered, but it overshoots badly on densely packed
+    binaries: a 0x1000 window around each of a few hundred functions merges into most of ``.text``,
+    which is exactly the whole-binary scan that scoping is trying to avoid. Compilers emit one FDE
+    per function with its exact start and length, so on any binary with unwind tables (all Rust
+    binaries, and anything else built with ``-fasynchronous-unwind-tables``, which is the gcc/clang
+    default on x86-64 Linux) the extents can simply be read off instead of guessed.
+
+    Returns an empty dict if the binary has no usable ``.eh_frame``, in which case callers should
+    fall back to a window.
+    """
+    main_object = proj.loader.main_object
+    if proj.filename is None:
+        return {}
+    try:
+        from elftools.elf.elffile import ELFFile  # pylint:disable=import-outside-toplevel
+    except ImportError:
+        return {}
+
+    extents: dict[int, int] = {}
+    try:
+        with open(proj.filename, "rb") as fp:
+            elf = ELFFile(fp)
+            if elf.get_section_by_name(".eh_frame") is None:
+                return {}
+            # pyelftools resolves pc-relative FDE pointers against the section's *linked* address,
+            # so initial_location lives in linked-address space and needs the load bias applied.
+            bias = main_object.mapped_base - main_object.linked_base
+            for entry in elf.get_dwarf_info().EH_CFI_entries():
+                header = getattr(entry, "header", None)
+                if header is None or "initial_location" not in header or not header.address_range:
+                    continue  # a CIE, or a terminator/zero-length FDE
+                addr = header.initial_location + bias
+                if main_object.contains_addr(addr):
+                    extents[addr] = header.address_range
+    except Exception:  # pylint:disable=broad-exception-caught
+        return {}
+    return extents
+
+
+def recover_call_tree_cfg(
+    proj: Project,
+    roots: Iterable[int],
+    depth: int,
+    window: int = 0x400,
+    cfg_kwargs: dict | None = None,
+) -> angr.analyses.cfg.CFGFast:
+    """
+    Build a CFG covering only ``roots`` and their callees up to ``depth`` call levels.
+
+    Like :func:`load_project_with_scoped_cfg` this exists so a test that decompiles one function
+    does not pay for a whole-binary CFG, but it targets the case where the function under test has
+    a call tree of thousands of functions (typical for a statically linked Rust binary), where
+    expanding the call tree to a fixed point costs more than the unscoped run. Two things make the
+    bounded expansion cheap:
+
+    * regions come from :func:`function_extents_from_eh_frame`, so each round scans the exact bytes
+      of the functions it is expanding and nothing else;
+    * each function is scanned exactly once across all rounds -- callgraph edges accumulate in
+      ``graph`` -- so discovery costs about one pass over the covered functions in total.
+
+    ``depth`` is a correctness knob, not a performance knob: decompilation output stops changing
+    once enough of the callee tree is present for calling-convention/prototype recovery to settle.
+    Pick it by bisecting against the whole-binary result (see the test's docstring) and verify the
+    decompilation text is byte-identical.
+
+    Discovery runs on throwaway knowledge bases so partial results never leak into ``proj.kb``.
+    """
+    main_object = proj.loader.main_object
+    extents = function_extents_from_eh_frame(proj)
+
+    def _regions(addrs: Iterable[int]) -> list[tuple[int, int]]:
+        return _merged_regions_with_sizes([(addr, extents.get(addr, window)) for addr in addrs])
+
+    graph = networkx.DiGraph()
+    roots = sorted(roots)
+    graph.add_nodes_from(roots)
+    scanned: set[int] = set()
+    pending: set[int] = set(roots)
+    known: set[int] = set(roots)
+
+    while pending:
+        tmp_kb = angr.KnowledgeBase(proj)
+        proj.analyses[angr.analyses.CFGFast].prep(kb=tmp_kb)(
+            normalize=True,
+            regions=_regions(pending),
+            start_at_entry=False,
+            function_starts=sorted(pending),
+            symbols=False,
+            force_smart_scan=False,
+        )
+        callgraph = tmp_kb.functions.callgraph
+        for addr in pending:
+            if addr in callgraph:
+                graph.add_edges_from(
+                    (addr, callee) for callee in callgraph.successors(addr) if main_object.contains_addr(callee)
+                )
+        scanned |= pending
+        # Functions at exactly ``depth`` are covered by the final CFG but never expanded, so the
+        # deepest level is never scanned at all.
+        known, pending = _bfs_levels(graph, roots, depth)
+        pending -= scanned
+
+    final_cfg_kwargs = {
+        "normalize": True,
+        "regions": _regions(known),
+        "start_at_entry": False,
+        "function_starts": sorted(known),
+        "symbols": True,
+        "force_smart_scan": False,
+    }
+    final_cfg_kwargs.update(cfg_kwargs or {})
+    return proj.analyses.CFGFast(show_progressbar=not WORKER, **final_cfg_kwargs)
+
+
+def _bfs_levels(graph: networkx.DiGraph, roots: Sequence[int], depth: int) -> tuple[set[int], set[int]]:
+    """Return (nodes within ``depth`` hops of ``roots``, those of them strictly closer than ``depth``)."""
+    reached: set[int] = set(roots)
+    expandable: set[int] = set()
+    frontier: set[int] = set(roots)
+    for _ in range(depth):
+        expandable |= frontier
+        nxt: set[int] = set()
+        for node in frontier:
+            nxt |= set(graph.successors(node)) - reached
+        if not nxt:
+            break
+        reached |= nxt
+        frontier = nxt
+    return reached, expandable
+
+
+def _merged_regions_with_sizes(addr_sizes: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
+    regions: list[tuple[int, int]] = []
+    for addr, size in sorted(addr_sizes):
+        if regions and addr <= regions[-1][1]:
+            regions[-1] = regions[-1][0], max(regions[-1][1], addr + size)
+        else:
+            regions.append((addr, addr + size))
+    return regions
