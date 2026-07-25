@@ -5621,8 +5621,18 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_rust_fmt_build_best_path_no_ref_using_args(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFG(normalize=True)
+        # build_best_path is 0x75 bytes long inside a 9k-function Rust binary: a whole-binary CFG costs ~48 s
+        # while decompiling this function takes 0.2 s. Scope the CFG to the function plus its two direct
+        # callees; those are the only functions whose bodies affect the output, so the call tree (which in a
+        # Rust binary reaches nearly everything) does not need to be expanded.
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4BC130,  # uu_fmt::linebreak::build_best_path
+            extra_func_addrs=(0x4BAE60, 0x4BC1B0),  # Iterator::reduce, build_best_path::{{closure}}
+            expand_call_tree=False,
+            project_kwargs={"auto_load_libs": False},
+            run_ccc=False,
+        )
         func = proj.kb.functions[0x4BC130]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
