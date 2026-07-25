@@ -8,6 +8,7 @@ import logging
 import re
 from collections import ChainMap, OrderedDict, defaultdict
 from collections.abc import Iterable, MutableMapping
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 import claripy
@@ -4425,6 +4426,37 @@ def normalize_cpp_function_name(name: str) -> str:
     return name.removesuffix(";")
 
 
+@lru_cache(maxsize=1024)
+def _parse_cpp_decl(s: str) -> cxxheaderparser.simple.ParsedData | None:
+    """
+    Run cxxheaderparser on a (already normalized) C++ declaration and return its parse tree, or None if it cannot be
+    parsed.
+
+    Lexing and parsing a single prototype costs anywhere between 100 us (a bare C identifier, which fails to parse
+    twice) and 1 ms (a heavily templated Itanium name), and the very same demangled names are re-parsed over and over
+    during decompilation - once per rendered call site, plus once per calling-convention analysis. Memoizing the parse
+    tree here removes the repeated work.
+
+    We deliberately cache cxxheaderparser's ``ParsedData`` rather than the ``SimType`` objects that
+    :func:`parse_cpp_file` derives from it: SimTypes are mutable and end up stored on ``Function.prototype`` /
+    ``SimProcedure.prototype``, so handing out shared instances would alias caller-visible state. ``ParsedData``, in
+    contrast, is only ever read by :func:`_cpp_decl_to_type` (and by cxxheaderparser's own ``format()`` helpers, which
+    are pure), and rebuilding the SimTypes from it costs less than 20 us. Rebuilding also preserves the exact object
+    identity semantics of the uncached implementation, including ``ALL_TYPES`` lookups whose contents may change at
+    runtime via :func:`register_types`.
+    """
+    try:
+        return cxxheaderparser.simple.parse_string(s)
+    except cxxheaderparser.errors.CxxParseError:
+        # GCC-mangled (and thus, demangled) function names do not have return types encoded; let's try to prefix s with
+        # "void" and try again
+        try:
+            return cxxheaderparser.simple.parse_string("void " + s)
+        except cxxheaderparser.errors.CxxParseError:
+            # if it still fails, we give up
+            return None
+
+
 def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable=unused-argument
     #
     # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
@@ -4439,19 +4471,9 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable
     # CppHeaderParser does not like missing function body
     s += "\n\n{}"
 
-    try:
-        h = cxxheaderparser.simple.parse_string(s)
-    except cxxheaderparser.errors.CxxParseError:
-        # GCC-mangled (and thus, demangled) function names do not have return types encoded; let's try to prefix s with
-        # "void" and try again
-        s = "void " + s
-        try:
-            h = cxxheaderparser.simple.parse_string(s)
-        except cxxheaderparser.errors.CxxParseError:
-            # if it still fails, we give up
-            return None, None
+    h = _parse_cpp_decl(s)
 
-    if not h.namespace:
+    if h is None or not h.namespace:
         return None, None
 
     func_decls: dict[str, SimTypeCppFunction | SimTypeFunction] = {}

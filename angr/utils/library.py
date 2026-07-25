@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from angr.sim_type import (
@@ -194,6 +195,28 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
     return parsedcprotos2py(parsed_cprotos, fd_spots=fd_spots, remove_sys_prefix=remove_sys_prefix)
 
 
+@lru_cache(maxsize=4096)
+def _cpp_function_name_and_metadata(demangled_name: str) -> tuple[str, bool, bool]:
+    """
+    The memoizable core of :func:`get_cpp_function_name_and_metadata`.
+
+    Only immutable values (a string and two bools) are cached, so no caller-visible state is ever aliased. This is
+    called once per rendered call site during code generation, which is why it is worth caching on top of the parse
+    cache inside :func:`angr.sim_type.parse_cpp_file`.
+    """
+    func_decls, _ = parse_cpp_file(demangled_name)
+    if func_decls and len(func_decls) == 1:
+        key = next(iter(func_decls))
+        decl = func_decls[key]
+        if isinstance(decl, SimTypeCppFunction):
+            if decl.ctor:
+                return key, True, False
+            if decl.dtor:
+                return key, False, True
+        return key, False, False
+    return normalize_cpp_function_name(demangled_name), False, False
+
+
 def get_cpp_function_name_and_metadata(demangled_name: str) -> tuple[str, dict[str, bool]]:
     """
     Parse a demangled C++ declaration into a function name.
@@ -206,19 +229,9 @@ def get_cpp_function_name_and_metadata(demangled_name: str) -> tuple[str, dict[s
     :return:               The qualified function name, excluding return type and parameters, and a dictionary with
                            keys indicating if the function is a constructor or a destructor.
     """
-    demangled_name = demangled_name.strip()
-    func_decls, _ = parse_cpp_file(demangled_name)
-    d = {"ctor": False, "dtor": False}
-    if func_decls and len(func_decls) == 1:
-        key = next(iter(func_decls))
-        decl = func_decls[key]
-        if isinstance(decl, SimTypeCppFunction):
-            if decl.ctor:
-                d["ctor"] = True
-            elif decl.dtor:
-                d["dtor"] = True
-        return key, d
-    return normalize_cpp_function_name(demangled_name), d
+    name, ctor, dtor = _cpp_function_name_and_metadata(demangled_name.strip())
+    # always hand out a fresh dict: callers are free to mutate it
+    return name, {"ctor": ctor, "dtor": dtor}
 
 
 def get_cpp_function_name(demangled_name: str) -> str:
