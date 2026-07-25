@@ -34,6 +34,13 @@ from angr.rustylib.ailment import ExpressionKind as _EK  # pylint:disable=import
 from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
 from angr.rustylib.ailment import StatementKind as _SK  # pylint:disable=import-error
 
+# Native SSA use/def collectors. Each returns None when the input contains a
+# non-native AIL object, in which case the Python walker below runs instead.
+from angr.rustylib.ailment import collect_tmp_uselocs as _collect_tmp_uselocs  # pylint:disable=import-error
+from angr.rustylib.ailment import collect_uses_defs as _collect_uses_defs  # pylint:disable=import-error
+from angr.rustylib.ailment import collect_vvar_deflocs as _collect_vvar_deflocs  # pylint:disable=import-error
+from angr.rustylib.ailment import collect_vvar_uselocs as _collect_vvar_uselocs  # pylint:disable=import-error
+
 from .combined_uses_collector import VVarAndTmpUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
 from .vvar_extra_defs_collector import FindExtraDefs
@@ -113,9 +120,21 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
     return base_reg_and_size[0]
 
 
+def _materialize_blocks(blocks) -> list[Block]:
+    """The native collectors consume ``blocks`` while scanning it, so a one-shot iterable has to be materialized
+    before the call -- otherwise the Python fallback would see an exhausted iterator."""
+    return blocks if type(blocks) is list else list(blocks)
+
+
 def get_vvar_deflocs(
     blocks, phi_vvars: dict[int, set[int | None]] | None = None, check_extra_defs: bool = True
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
+    blocks = _materialize_blocks(blocks)
+    r = _collect_vvar_deflocs(blocks, phi_vvars, check_extra_defs)
+    if r is not None:
+        return r
+
+    # some block or statement is not a native AIL object; fall back to the Python walker
     vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
     walker = FindExtraDefs()
     walker.found = vvar_to_loc
@@ -159,6 +178,11 @@ def get_vvar_deflocs(
 
 
 def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
+    blocks = _materialize_blocks(blocks)
+    r = _collect_vvar_uselocs(blocks)
+    if r is not None:
+        return defaultdict(list, r)
+    # some block or statement is not a native AIL object; fall back to the Python walker
     collector = VVarUsesCollector()
     for block in blocks:
         collector.walk(block)
@@ -188,6 +212,11 @@ def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, in
 
 
 def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]]:
+    blocks = _materialize_blocks(blocks)
+    r = _collect_tmp_uselocs(blocks)
+    if r is not None:
+        return defaultdict(dict, r)
+    # some block or statement is not a native AIL object; fall back to the Python walker
     tmp_to_loc: dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
     collector = TmpUsesCollector()
     for block in blocks:
@@ -217,6 +246,12 @@ def get_uses_defs(
 
     Return: ``(vvar_deflocs, vvar_uselocs, tmp_deflocs, tmp_uselocs)`` matching the original four-function shapes.
     """
+    blocks = _materialize_blocks(blocks)
+    r = _collect_uses_defs(blocks, phi_vvars, check_extra_defs)
+    if r is not None:
+        return r[0], defaultdict(list, r[1]), defaultdict(dict, r[2]), defaultdict(dict, r[3])
+
+    # some block or statement is not a native AIL object; fall back to the Python walkers
     vvar_deflocs: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
     tmp_deflocs: dict[Address, dict[atoms.Tmp, int]] = defaultdict(dict)
     tmp_uselocs: dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)

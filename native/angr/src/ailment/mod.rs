@@ -16,6 +16,7 @@ pub mod const_value;
 pub mod convert_vex;
 pub mod enums;
 pub mod manager;
+pub mod ssa_collect;
 pub mod tags;
 pub mod vex_ffi;
 pub mod vexop;
@@ -83,6 +84,12 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // VEX -> AIL converter.
     m.add_class::<convert_vex::VEXIRSBConverter>()?;
+
+    // Native SSA use/def collectors.
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_vvar_deflocs, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_vvar_uselocs, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_tmp_uselocs, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_uses_defs, m)?)?;
 
     // Debug helper (vexop classifier parity testing).
     m.add_function(wrap_pyfunction!(_vexop_debug, m)?)?;
