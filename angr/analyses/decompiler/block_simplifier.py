@@ -42,6 +42,83 @@ _l = logging.getLogger(name=__name__)
 _HAS_CALL_EXPR_WALKER = HasCallExprWalker()
 
 
+class PeepholeOptimizationBundle:
+    """
+    Pre-instantiated peephole optimizers plus the dispatch structures derived from them, reusable across many
+    :class:`BlockSimplifier` invocations. Constructing the optimizer instances and dispatch dicts is not free, and
+    a decompilation run creates a BlockSimplifier per block (hundreds to thousands of times), so callers that
+    simplify many blocks with identical parameters should build one bundle and pass it to each BlockSimplifier.
+
+    ``matches`` compares mutable parameters by identity (the optimizer instances keep references, so in-place
+    updates to ``preserve_vvar_ids`` and ``type_hints`` are visible without a rebuild).
+    """
+
+    __slots__ = ("_params", "expr_opts", "expr_walker", "multistmt_opts", "stmt_opts", "stmt_opts_by_kind")
+
+    def __init__(
+        self,
+        project,
+        kb,
+        ail_manager: Manager,
+        func_addr: int | None = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        peephole_optimizations: None
+        | (
+            Iterable[
+                type[PeepholeOptimizationStmtBase]
+                | type[PeepholeOptimizationExprBase]
+                | type[PeepholeOptimizationMultiStmtBase]
+            ]
+        ) = None,
+    ):
+        if peephole_optimizations is None:
+            expr_classes: Iterable = EXPR_OPTS
+            stmt_classes: Iterable = STMT_OPTS
+            multistmt_classes: Iterable = MULTI_STMT_OPTS
+        else:
+            peephole_optimizations = tuple(peephole_optimizations)
+            expr_classes = [cls for cls in peephole_optimizations if issubclass(cls, PeepholeOptimizationExprBase)]
+            stmt_classes = [cls for cls in peephole_optimizations if issubclass(cls, PeepholeOptimizationStmtBase)]
+            multistmt_classes = [
+                cls for cls in peephole_optimizations if issubclass(cls, PeepholeOptimizationMultiStmtBase)
+            ]
+
+        args = (project, kb, ail_manager, func_addr, preserve_vvar_ids, type_hints)
+        self.expr_opts = [cls(*args) for cls in expr_classes]
+        self.stmt_opts = [cls(*args) for cls in stmt_classes]
+        self.multistmt_opts = [cls(*args) for cls in multistmt_classes]
+        self.stmt_opts_by_kind = build_stmt_opts_by_kind(self.stmt_opts)
+        self.expr_walker = _PeepholeExprsWalker(expr_opts=self.expr_opts)
+        self._params = (project, ail_manager, func_addr, preserve_vvar_ids, type_hints, peephole_optimizations)
+
+    def matches(
+        self,
+        project,
+        ail_manager: Manager,
+        func_addr: int | None,
+        preserve_vvar_ids: set[int] | None,
+        type_hints: list | None,
+        peephole_optimizations,
+    ) -> bool:
+        p_project, p_manager, p_func_addr, p_preserve, p_hints, p_opts = self._params
+        return (
+            p_project is project
+            and p_manager is ail_manager
+            and p_func_addr == func_addr
+            and p_preserve is preserve_vvar_ids
+            and p_hints is type_hints
+            and (
+                p_opts is peephole_optimizations
+                or (
+                    p_opts is not None
+                    and peephole_optimizations is not None
+                    and p_opts == tuple(peephole_optimizations)
+                )
+            )
+        )
+
+
 class BlockSimplifier:
     """
     Simplify an AIL block.
@@ -70,10 +147,14 @@ class BlockSimplifier:
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
+        peephole_bundle: PeepholeOptimizationBundle | None = None,
     ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
                         in test cases.
+        :param peephole_bundle: A pre-built PeepholeOptimizationBundle to reuse. Its construction parameters must
+                        match this BlockSimplifier's; callers that simplify many blocks should build one bundle and
+                        pass it to every BlockSimplifier they create.
         """
 
         self.project = project
@@ -86,42 +167,25 @@ class BlockSimplifier:
         self._type_hints = type_hints
         self._ail_manager = ail_manager
 
-        if peephole_optimizations is None:
-            self._expr_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in EXPR_OPTS
-            ]
-            self._stmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in STMT_OPTS
-            ]
-            self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in MULTI_STMT_OPTS
-            ]
-            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
-        else:
-            self._expr_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in peephole_optimizations
-                if issubclass(cls, PeepholeOptimizationExprBase)
-            ]
-            self._stmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in peephole_optimizations
-                if issubclass(cls, PeepholeOptimizationStmtBase)
-            ]
-            self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in peephole_optimizations
-                if issubclass(cls, PeepholeOptimizationMultiStmtBase)
-            ]
-            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
+        if peephole_bundle is None:
+            peephole_bundle = PeepholeOptimizationBundle(
+                self.project,
+                self.kb,
+                ail_manager,
+                func_addr=self.func_addr,
+                preserve_vvar_ids=self._preserve_vvar_ids,
+                type_hints=self._type_hints,
+                peephole_optimizations=peephole_optimizations,
+            )
+        self._expr_peephole_opts = peephole_bundle.expr_opts
+        self._stmt_peephole_opts = peephole_bundle.stmt_opts
+        self._multistmt_peephole_opts = peephole_bundle.multistmt_opts
+        self._stmt_peephole_opts_by_kind = peephole_bundle.stmt_opts_by_kind
 
         self.result_block = None
 
         # cached peephole expression walker
-        self._expr_peephole_walker = _PeepholeExprsWalker(expr_opts=self._expr_peephole_opts)
+        self._expr_peephole_walker = peephole_bundle.expr_walker
 
         # cached Propagator and ReachingDefinitions results. Clear them if the block is updated
         self._propagator = cached_propagator
