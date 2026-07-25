@@ -84,7 +84,7 @@ class Outliner(Analysis):
         Remove all phi assignments whose all source variables are undefined in the graph.
         """
 
-        srda = self.project.analyses[SReachingDefinitionsAnalysis].prep()(func, func_graph=g).model
+        srda = SReachingDefinitionsAnalysis(self.project, func, func_graph=g).model
 
         to_kill = defaultdict(set)
         for phi_var_id, src_var_ids in srda.phivarid_to_varids.items():
@@ -104,7 +104,7 @@ class Outliner(Analysis):
         Recover the interface from a function AIL graph.
         """
 
-        srda = self.project.analyses[SReachingDefinitionsAnalysis].prep()(func, func_graph=g).model
+        srda = SReachingDefinitionsAnalysis(self.project, func, func_graph=g).model
 
         blocks: dict[tuple[int, int | None], Block] = {(node.addr, node.idx): node for node in g}
 
@@ -184,11 +184,7 @@ class Outliner(Analysis):
 
         # build the return statement if needed
         if self.frontier_vars:
-            srda = (
-                self.project.analyses[SReachingDefinitionsAnalysis]
-                .prep()(self.parent_func, func_graph=self.parent_graph)
-                .model
-            )
+            srda = SReachingDefinitionsAnalysis(self.project, self.parent_func, func_graph=self.parent_graph).model
             ret_exprs = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
         else:
             ret_exprs = []

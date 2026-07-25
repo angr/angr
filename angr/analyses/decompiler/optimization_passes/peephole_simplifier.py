@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr import ailment
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
     PeepholeOptimizationExprBase,
@@ -65,8 +66,9 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
         old_block, new_block = None, block
         while old_block != new_block:
             old_block = new_block
-            # Note: AILBlockSimplifier updates expressions in place
-            simp = self.project.analyses.AILBlockSimplifier(
+            # Note: BlockSimplifier updates expressions in place
+            simp = BlockSimplifier(
+                self.project,
                 new_block,
                 func_addr=self._func.addr,
                 peephole_optimizations=self._peephole_optimizations,

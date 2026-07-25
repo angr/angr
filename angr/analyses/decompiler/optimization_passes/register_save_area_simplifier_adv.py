@@ -6,6 +6,7 @@ import logging
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.code_location import CodeLocation
 from angr.utils.ail import is_phi_assignment
 
@@ -36,7 +37,8 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        self._srda = self.project.analyses.SReachingDefinitions(
+        self._srda = SReachingDefinitionsAnalysis(
+            self.project,
             subject=self._func,
             func_graph=self._graph,
             func_args={vvar for vvar, _ in arg_vvars.values()} if (arg_vvars := self._arg_vvars) is not None else set(),

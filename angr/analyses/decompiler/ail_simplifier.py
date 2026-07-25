@@ -341,17 +341,14 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        rd = (
-            self.project.analyses[SReachingDefinitionsAnalysis]
-            .prep()(
-                subject=self.func,
-                func_graph=self.func_graph,
-                func_args=func_args,
-                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-                # track_tmps=True,
-            )
-            .model
-        )
+        rd = SReachingDefinitionsAnalysis(
+            self.project,
+            subject=self.func,
+            func_graph=self.func_graph,
+            func_args=func_args,
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            # track_tmps=True,
+        ).model
         self._reaching_definitions = rd
         return rd
 
@@ -361,7 +358,8 @@ class AILSimplifier(Analysis):
         if self._propagator is not None:
             return self._propagator
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        prop = self.project.analyses[SPropagatorAnalysis].prep(fail_fast=self._fail_fast)(
+        prop = SPropagatorAnalysis(
+            self.project,
             subject=self.func,
             func_graph=self.func_graph,
             func_args=func_args,
@@ -1891,16 +1889,13 @@ class AILSimplifier(Analysis):
         # rebuild on the current (NoOp-containing) graph.
         assert self._reaching_definitions is not None
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        reference = (
-            self.project.analyses[SReachingDefinitionsAnalysis]
-            .prep()(
-                subject=self.func,
-                func_graph=self.func_graph,
-                func_args=func_args,
-                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            )
-            .model
-        )
+        reference = SReachingDefinitionsAnalysis(
+            self.project,
+            subject=self.func,
+            func_graph=self.func_graph,
+            func_args=func_args,
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+        ).model
         if self._reaching_definitions.canonical_form() != reference.canonical_form():
             raise AssertionError("Incremental SRDA update diverged from a full rebuild")
 

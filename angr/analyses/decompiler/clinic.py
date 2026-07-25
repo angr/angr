@@ -19,6 +19,7 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
@@ -1881,11 +1882,11 @@ class Clinic(Analysis, Serializable):
                 cached_rd = cache_item.rd
                 cached_prop = cache_item.prop
 
-        simp = self.project.analyses.AILBlockSimplifier(
+        simp = BlockSimplifier(
+            self.project,
             ail_block,
             self._ail_manager,
             self.function.addr,
-            fail_fast=self._fail_fast,
             stack_pointer_tracker=stack_pointer_tracker,
             peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,
@@ -2327,11 +2328,11 @@ class Clinic(Analysis, Serializable):
                 removed_vvar_ids |= csm.removed_vvar_ids
             if csm.result_block and csm.result_block != block:
                 ail_block = csm.result_block
-                simp = self.project.analyses.AILBlockSimplifier(
+                simp = BlockSimplifier(
+                    self.project,
                     ail_block,
                     self._ail_manager,
                     self.function.addr,
-                    fail_fast=self._fail_fast,
                     stack_pointer_tracker=stack_pointer_tracker,
                     peephole_optimizations=self.peephole_optimizations,
                     preserve_vvar_ids=preserve_vvar_ids,
@@ -4213,16 +4214,13 @@ class Clinic(Analysis, Serializable):
     def _compute_reaching_definitions(self, func_args=None) -> SRDAModel:
         # Computing reaching definitions
         # TODO: Refactor this into a method of the upcoming AILFunctionGraph class.
-        return (
-            self.project.analyses[SReachingDefinitionsAnalysis]
-            .prep(fail_fast=self._fail_fast)(
-                subject=self.function,
-                func_graph=self._ail_graph,
-                func_args=func_args if func_args is not None else self.func_args,
-                use_callee_saved_regs_at_return=not self._register_save_areas_removed,
-            )
-            .model
-        )
+        return SReachingDefinitionsAnalysis(
+            self.project,
+            subject=self.function,
+            func_graph=self._ail_graph,
+            func_args=func_args if func_args is not None else self.func_args,
+            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+        ).model
 
     def resolve_peephole_optimizations(self) -> None:
         """Retry resolving peephole-optimization names that were unresolvable at parse time (their defining module

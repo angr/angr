@@ -1,12 +1,13 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
-from angr.analyses.analysis import Analysis, register_analysis
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -15,14 +16,22 @@ from angr.knowledge_plugins.key_definitions.constants import ObservationPointTyp
 from .s_rda_model import SRDAModel, populate_model
 from .s_rda_view import SRDAView
 
+if TYPE_CHECKING:
+    from angr.project import Project
 
-class SReachingDefinitionsAnalysis(Analysis):
+
+class SReachingDefinitionsAnalysis:
     """
     Constant and expression propagation that only supports SSA AIL graphs.
+
+    Deliberately not an :class:`Analysis`: it is instantiated hundreds of times per decompilation (often once per
+    block), so it skips the analysis-factory ceremony. Instantiate it directly with the project as the first
+    argument; exceptions always propagate.
     """
 
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
+        project: Project,
         subject,
         func_addr: int | None = None,
         func_graph: networkx.DiGraph[Block] | None = None,
@@ -31,6 +40,9 @@ class SReachingDefinitionsAnalysis(Analysis):
         track_tmps: bool = False,
         variable_map=None,
     ):
+        self.project = project
+        self.kb = project.kb
+
         if isinstance(subject, Block):
             self.block = subject
             self.func = None
@@ -202,6 +214,3 @@ class SReachingDefinitionsAnalysis(Analysis):
                                 max_vvar_size = max(reg_to_vvarids[reg_offset])
                                 vvarid = reg_to_vvarids[reg_offset][max_vvar_size]
                                 self.model.add_vvar_use(vvarid, None, codeloc)
-
-
-register_analysis(SReachingDefinitionsAnalysis, "SReachingDefinitions")

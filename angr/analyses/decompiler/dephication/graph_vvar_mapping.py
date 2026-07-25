@@ -9,7 +9,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.analysis import Analysis, register_analysis
-from angr.analyses.s_reaching_definitions import SRDAModel
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
 from angr.utils.ssa import is_phi_assignment
 
@@ -60,8 +60,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         self.vvar_to_vvar_mapping = None
         self.copied_vvar_ids: set[int] = set()
-        self._rd: SRDAModel = self.project.analyses.SReachingDefinitions(
-            subject=self._function, func_graph=self._graph
+        self._rd: SRDAModel = SReachingDefinitionsAnalysis(
+            self.project, subject=self._function, func_graph=self._graph
         ).model
         self._blocks: dict[tuple[int, int | None], Block] = {(block.addr, block.idx): block for block in self._graph}
 
