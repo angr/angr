@@ -11,7 +11,7 @@ import networkx
 
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
-from tests.common import bin_location
+from tests.common import bin_location, recover_call_tree_cfg
 
 RUST_BINARIES_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "coreutils")
 
@@ -99,6 +99,14 @@ class RustDecompilationTarget(unittest.TestCase):
     BINARY: str = ""
     FUNC_ADDRS: dict[str, dict[str, int]] = {}
 
+    #: When set, CFG recovery is scoped to the functions in ``FUNC_ADDRS`` plus this many levels of
+    #: callees instead of scanning the whole binary. Statically linked coreutils binaries carry
+    #: 10k-17k functions, of which only the shallow part of the call tree influences the
+    #: decompilation of the function under test; see :func:`tests.common.recover_call_tree_cfg`.
+    #: Leave as ``None`` (whole-binary CFG) unless the scoped result has been verified to be
+    #: byte-identical to the unscoped one.
+    CALL_TREE_DEPTH: int | None = None
+
     def decompile_functions(self):
         """Decompile every function in ``FUNC_ADDRS`` and return ``{label: {configuration: codegen_text}}``.
 
@@ -112,10 +120,13 @@ class RustDecompilationTarget(unittest.TestCase):
             assert os.path.isfile(path), f"{path} not found"
             proj = angr.Project(path, auto_load_libs=False, cache_limits=UNLIMITED_CACHES)
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
-            proj.analyses.CFGFast(normalize=True)
             func_addrs = {
                 addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
             }
+            if self.CALL_TREE_DEPTH is None:
+                proj.analyses.CFGFast(normalize=True)
+            else:
+                recover_call_tree_cfg(proj, func_addrs, depth=self.CALL_TREE_DEPTH)
             call_tree = set(func_addrs)
             for addr in func_addrs:
                 call_tree |= networkx.descendants(proj.kb.functions.callgraph, addr)
@@ -213,11 +224,18 @@ class TestFmtNightly20250522O3(_FmtTests):
 
 
 class TestFmtNightly20250522O0(_FmtTests):
-    """``fmt`` decompilation feature tests for the nightly-2025-05-22-O0 build."""
+    """``fmt`` decompilation feature tests for the nightly-2025-05-22-O0 build.
+
+    The -O0 build has 16729 functions and a whole-binary CFG costs ~90s, but ``uumain`` only needs
+    the top of its call tree: five levels of callees (865 functions) reproduce the whole-binary
+    decompilation byte for byte, while four levels do not (two callee prototypes lose their
+    struct-return form, so ``format!`` stops yielding a ``String``).
+    """
 
     FUNC_ADDRS = {
         "uumain": {"nightly-2025-05-22-O0": 0x4D42F0},
     }
+    CALL_TREE_DEPTH = 5
 
     def test_uumain_2025052200(self):
         self._check_uumain()
