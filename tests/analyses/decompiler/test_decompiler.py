@@ -3553,8 +3553,18 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_function_pointer_identification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True, normalize=True)
+        # rust_hello_world::main is never called, it is only passed to std::rt::lang_start as a function
+        # pointer; identifying it is exactly what this test asserts, so it must *not* be listed in
+        # extra_func_addrs. It is picked up because the region covering main also covers it.
+        # A small window is required here: with the default 0x2000 window the call-tree expansion snowballs
+        # over this densely packed Rust binary and ends up as slow as a whole-binary CFG.
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x408A50,  # main
+            window=0x400,
+            project_kwargs={"auto_load_libs": False},
+            run_ccc=False,
+        )
 
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
