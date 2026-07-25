@@ -199,13 +199,11 @@ class BlockSimplifier:
         ctr = 0
         max_ctr = 30
 
-        new_block = self._eliminate_self_assignments(block)
+        new_block, changed = self._eliminate_self_assignments(block)
         if self._count_nonconstant_statements(new_block) >= 2 and self._has_propagatable_assignments(new_block):
-            new_block = self._eliminate_dead_assignments(new_block)
-        # Structural ``likes`` (idx-agnostic) instead of ``!=`` which always trips on fresh ``manager.next_atom()``
-        # ids even when nothing changed structurally.
-        # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
-        if not new_block.likes(block):
+            new_block, dead_changed = self._eliminate_dead_assignments(new_block)
+            changed |= dead_changed
+        if changed:
             self._clear_cache()
             block = new_block
 
@@ -213,8 +211,11 @@ class BlockSimplifier:
             ctr += 1
             # the entry peephole pass is only useful on the first iteration: every later iteration receives the
             # output of the previous iteration's exit peephole pass, so running peephole again on entry is redundant
-            new_block = self._simplify_block_once(block, entry_peephole=ctr == 1)
-            # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
+            new_block, changed = self._simplify_block_once(block, entry_peephole=ctr == 1)
+            if not changed:
+                break
+            # a change was reported, but it may be structurally a no-op (e.g. an expression replaced by an equal
+            # expression); ``likes`` (idx-agnostic) catches that and prevents ping-ponging until max_ctr
             if new_block.likes(block):
                 break
             self._clear_cache()
@@ -262,9 +263,16 @@ class BlockSimplifier:
     def _count_nonconstant_statements(block) -> int:
         return sum(1 for stmt in block.statements if not (isinstance(stmt, Jump) and isinstance(stmt.target, Const)))
 
-    def _simplify_block_once(self, block, entry_peephole: bool = True):
+    def _simplify_block_once(self, block, entry_peephole: bool = True) -> tuple[Block, bool]:
+        """
+        Run one round of simplification. Returns the (possibly new) block and whether any step reported a change.
+        In-place expression rewrites by the peephole expression walker are not counted as changes, matching the
+        behavior of the previous ``likes``-based fixpoint check, which could not observe them either.
+        """
+        changed = False
         if entry_peephole:
-            block = self._peephole_optimize(block)
+            block, peephole_changed = self._peephole_optimize(block)
+            changed |= peephole_changed
 
         nonconstant_stmts = self._count_nonconstant_statements(block)
         has_propagatable_assignments = self._has_propagatable_assignments(block)
@@ -276,19 +284,23 @@ class BlockSimplifier:
             if propagator.model is not None:
                 replacements = propagator.model.replacements
                 if replacements:
-                    _, new_block = self._replace_and_build(
+                    replaced, new_block = self._replace_and_build(
                         block, replacements, self._ail_manager, replace_registers=True
                     )
-                    new_block = self._eliminate_self_assignments(new_block)
+                    changed |= replaced
+                    new_block, self_assign_changed = self._eliminate_self_assignments(new_block)
+                    changed |= self_assign_changed
                     self._clear_cache()
         else:
             # Skipped calling Propagator
             new_block = block
 
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
-            new_block = self._eliminate_dead_assignments(new_block)
+            new_block, dead_changed = self._eliminate_dead_assignments(new_block)
+            changed |= dead_changed
 
-        return self._peephole_optimize(new_block)
+        new_block, peephole_changed = self._peephole_optimize(new_block)
+        return new_block, changed | peephole_changed
 
     @staticmethod
     def _replace_and_build(
@@ -381,7 +393,7 @@ class BlockSimplifier:
         return True, new_block
 
     @staticmethod
-    def _eliminate_self_assignments(block):
+    def _eliminate_self_assignments(block) -> tuple[Block, bool]:
         new_statements = []
 
         for stmt in block.statements:
@@ -401,9 +413,12 @@ class BlockSimplifier:
                     continue
             new_statements.append(stmt)
 
-        return block.copy(statements=new_statements)
+        if len(new_statements) == len(block.statements):
+            # nothing was eliminated; keep the original block
+            return block, False
+        return block.copy(statements=new_statements), True
 
-    def _eliminate_dead_assignments(self, block):
+    def _eliminate_dead_assignments(self, block) -> tuple[Block, bool]:
         def _statement_has_calls(stmt: Statement) -> bool:
             """
             Check if a statement has any Call expressions.
@@ -426,7 +441,7 @@ class BlockSimplifier:
 
         new_statements = []
         if not block.statements:
-            return block
+            return block, False
 
         rd = self._compute_reaching_definitions(block)
         block_loc = (block.addr, block.idx)
@@ -454,6 +469,7 @@ class BlockSimplifier:
             used_tmps.add(tmp.tmp_idx)
 
         # Remove dead assignments
+        changed = False
         for idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment):
                 # tmps can't execute new code
@@ -462,24 +478,36 @@ class BlockSimplifier:
 
                     # does .src involve any Call expressions? if so, we cannot remove it
                     if not _expression_has_calls(stmt.src):
+                        changed = True
                         continue
 
                     if isinstance(stmt.dst, Tmp) and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
                         stmt = SideEffectStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags)
+                        changed = True
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
+                    changed = True
                     continue
 
             new_statements.append(stmt)
 
-        return block.copy(statements=new_statements)
+        if not changed:
+            # nothing was eliminated; keep the original block
+            return block, False
+        return block.copy(statements=new_statements), True
 
     #
     # Peephole optimization
     #
 
-    def _peephole_optimize(self, block):
+    def _peephole_optimize(self, block) -> tuple[Block, bool]:
+        """
+        Run all three peephole optimization levels on the block. Returns the (possibly new) block and whether any
+        statement-level or multi-statement-level optimization applied. In-place expression rewrites are not counted:
+        the ``likes``-based fixpoint check they replaced could not observe them either (the same statement objects
+        are mutated on both sides of the comparison).
+        """
         # expressions are updated in place
         peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
@@ -492,6 +520,6 @@ class BlockSimplifier:
 
         statements, multi_stmts_updated = peephole_optimize_multistmts(new_block, self._multistmt_peephole_opts)
 
-        if not multi_stmts_updated:
-            return new_block
-        return new_block.copy(statements=statements)
+        if multi_stmts_updated:
+            new_block = new_block.copy(statements=statements)
+        return new_block, stmts_updated or multi_stmts_updated
