@@ -5974,6 +5974,10 @@ class TestDecompiler(unittest.TestCase):
     def test_x86_ccall_rewriter_condbe_sub_width(self, decompiler_options=None):
         # sub_74d6a1 uses unsigned byte comparisons (cmp cl, ...; jbe/jb ...) whose flags are recovered through
         # x86g_calculate_condition ccalls. This regression test covers a bug found in the x86 ccall rewriter.
+        #
+        # The ccalls under test are produced by sub_74d6a1's own instructions, so the call tree is deliberately
+        # not expanded: this binary is 5.8 MB and the transitive callees of sub_74d6a1 cover essentially all of
+        # .text, which makes the "scoped" CFG more expensive than a whole-binary one (~370s vs ~7s).
         bin_path = os.path.join(
             test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
         )
@@ -5981,14 +5985,24 @@ class TestDecompiler(unittest.TestCase):
         proj, _ = load_project_with_scoped_cfg(
             bin_path,
             func_addr,
-            window=0x5000,
+            window=0x1000,
+            expand_call_tree=False,
             cfg_kwargs={"force_complete_scan": True},
         )
 
         f = proj.kb.functions[func_addr]
+        # guard against the scoped CFG window silently truncating the function under test
+        assert f.size >= 0x3F5, f"sub_74d6a1 was truncated by the scoped CFG: size {f.size:#x}."
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
+
+        # Both SUBB-flavored condition ccalls must have been rewritten (and their operands narrowed to byte
+        # width): "cmp cl, 8; cmovb ..." at 0x74d7ed and "cmp al, byte ptr [esi + 0x142]; jbe" at 0x74d9b9.
+        # Before the fix, the rewriter returned a 1-bit expression for a 32-bit ccall and decompilation crashed.
+        text = dec.codegen.text
+        assert re.search(r"\bv\d+ < 8\b", text), "the CondB SUBB ccall was not rewritten into a byte comparison"
+        assert re.search(r"> \(char\)", text), "the CondBE SUBB ccall operands were not narrowed to byte width"
 
     def test_widening_conversion_signedness(self, decompiler_options=None):
         # A widening integer conversion carries the signedness of its source operand: a sign-extending Convert
