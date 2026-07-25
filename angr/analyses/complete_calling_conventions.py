@@ -17,6 +17,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.calling_convention import CallingConventionAnalysis
 from angr.analyses.cfg import CFGFast
 from angr.analyses.variable_recovery import VariableRecoveryFast
+from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.cfg import CFGModel
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.simos import SimWindows
@@ -33,6 +34,10 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 _mp_context = mp_context()
+
+# How long (in seconds) the result collector keeps polling the results queue after it observes that every worker
+# process has exited.
+DEAD_WORKER_GRACE_PERIOD = 5.0
 
 
 class CallingConventionAnalysisMode(Enum):
@@ -295,6 +300,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self._update_progress(0)
             idx = 0
             assert self._results_lock is not None
+            # the timestamp when we first noticed that all workers had exited.
+            # None while at least one worker is still alive.
+            all_workers_dead_since: float | None = None
             while idx < total_funcs:
                 try:
                     with self._results_lock:
@@ -302,8 +310,25 @@ class CompleteCallingConventionsAnalysis(Analysis):
                             True, timeout=0.01
                         )
                 except queue.Empty:
+                    # No result is available right now.
+                    # If all workers have exited then no result will ever become available, and looping here would
+                    # hang forever (angr #6529). Detect that and fail loudly.
+                    if any(proc.is_alive() for proc in procs):
+                        all_workers_dead_since = None
+                    elif all_workers_dead_since is None:
+                        all_workers_dead_since = time.time()
+                    elif time.time() - all_workers_dead_since >= DEAD_WORKER_GRACE_PERIOD:
+                        exitcodes = ", ".join(f"{proc.name}: {proc.exitcode}" for proc in procs)
+                        raise AngrRuntimeError(
+                            f"All {len(procs)} CompleteCallingConventions worker processes exited before the "
+                            f"analysis finished; only {idx} of {total_funcs} functions were analyzed. Worker exit "
+                            f"codes: {exitcodes}."
+                        ) from None
                     time.sleep(0.1)
                     continue
+
+                # we made progress, so any previously observed all-dead state is no longer interesting
+                all_workers_dead_since = None
 
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
@@ -376,8 +401,13 @@ class CompleteCallingConventionsAnalysis(Analysis):
             except Exception:  # pylint:disable=broad-except
                 _l.error("Worker %d: Exception occurred during _analyze_core().", worker_id, exc_info=True)
                 cc, proto, proto_libname, proto_source, varman = None, None, None, None, None
-            with self._results_lock:
-                self._results.put((func_addr, cc, proto, proto_libname, proto_source, varman))
+            try:
+                with self._results_lock:
+                    self._results.put((func_addr, cc, proto, proto_libname, proto_source, varman))
+            except Exception:  # pylint:disable=broad-except
+                _l.error(
+                    "Worker %d: Failed to report the result for function %#x.", worker_id, func_addr, exc_info=True
+                )
 
     def _analyze_core(
         self, func_addr: int
