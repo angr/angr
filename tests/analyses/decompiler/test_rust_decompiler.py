@@ -27,6 +27,15 @@ def rust_binary_path(configuration: str, binary: str) -> str:
     return os.path.join(RUST_BINARIES_BASE, configuration, binary)
 
 
+def executable_regions(proj: angr.Project) -> list[tuple[int, int]]:
+    """Address ranges of the executable sections of the main object."""
+    return [
+        (sec.vaddr, sec.vaddr + sec.memsize)
+        for sec in proj.loader.main_object.sections
+        if sec.is_executable and sec.memsize > 0
+    ]
+
+
 class TestRustcVersionIdentification(unittest.TestCase):
     """Test that RustcVersionIdentification correctly identifies the rustc version for coreutils binaries."""
 
@@ -107,6 +116,20 @@ class RustDecompilationTarget(unittest.TestCase):
     #: byte-identical to the unscoped one.
     CALL_TREE_DEPTH: int | None = None
 
+    #: Recover the CFG by recursive descent from the functions under test instead of scanning the
+    #: whole binary. Opt-in per subclass: it drops code that is unreachable from those functions,
+    #: which is normally irrelevant to their decompilation but does feed FLIRT matching, so a
+    #: subclass that sets this must check that the decompilation output is unchanged.
+    CFG_FROM_FUNCS_UNDER_TEST: bool = False
+
+    #: Calling conventions are only consumed for the functions under test and the calls they make, so
+    #: CompleteCallingConventions can be restricted to that many levels of the call graph instead of
+    #: the whole (thousands of functions deep) transitive call tree. ``None`` means the whole tree.
+    #: A subclass that sets this must check that the decompilation output is unchanged: prototype
+    #: recovery is order-sensitive, so the cutoff is not monotonic (for fmt/uumain, 2 and >=4 both
+    #: reproduce the full-tree output while 3 does not).
+    CCC_CALL_DEPTH: int | None = None
+
     def decompile_functions(self):
         """Decompile every function in ``FUNC_ADDRS`` and return ``{label: {configuration: codegen_text}}``.
 
@@ -123,14 +146,28 @@ class RustDecompilationTarget(unittest.TestCase):
             func_addrs = {
                 addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
             }
-            if self.CALL_TREE_DEPTH is None:
-                proj.analyses.CFGFast(normalize=True)
-            else:
+            if self.CALL_TREE_DEPTH is not None:
                 recover_call_tree_cfg(proj, func_addrs, depth=self.CALL_TREE_DEPTH)
-            call_tree = set(func_addrs)
+            elif self.CFG_FROM_FUNCS_UNDER_TEST:
+                proj.analyses.CFGFast(
+                    normalize=True,
+                    regions=executable_regions(proj),
+                    start_at_entry=False,
+                    function_starts=sorted(func_addrs),
+                    force_smart_scan=False,
+                )
+            else:
+                proj.analyses.CFGFast(normalize=True)
+            callgraph = proj.kb.functions.callgraph
+            ccc_funcs = set(func_addrs)
             for addr in func_addrs:
-                call_tree |= networkx.descendants(proj.kb.functions.callgraph, addr)
-            proj.analyses.CompleteCallingConventions(prioritize_func_addrs=call_tree, skip_other_funcs=True)
+                if self.CCC_CALL_DEPTH is None:
+                    ccc_funcs |= networkx.descendants(callgraph, addr)
+                else:
+                    ccc_funcs |= set(
+                        networkx.single_source_shortest_path_length(callgraph, addr, cutoff=self.CCC_CALL_DEPTH)
+                    )
+            proj.analyses.CompleteCallingConventions(prioritize_func_addrs=ccc_funcs, skip_other_funcs=True)
             proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS[config]
             proj.analyses.RustSymbolRecovery()
             proj.analyses.TypeDBLoader()
@@ -218,6 +255,11 @@ class TestFmtNightly20250522O3(_FmtTests):
     FUNC_ADDRS = {
         "uumain": {"nightly-2025-05-22-O3": 0x496920},
     }
+    # Both verified to produce byte-identical decompilation output: a whole-binary CFG covers 9,737
+    # functions where descent from uumain covers 5,404, and calling convention recovery over four
+    # levels of call graph covers 400 functions where uumain's full call tree has 3,703.
+    CFG_FROM_FUNCS_UNDER_TEST = True
+    CCC_CALL_DEPTH = 4
 
     def test_uumain_2025052203(self):
         self._check_uumain()
