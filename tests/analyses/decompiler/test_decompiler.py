@@ -1351,9 +1351,24 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_decompiling_newburry_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
-        p = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(data_references=True, normalize=True)
+        # A whole-binary CFG of newbury costs ~9.5s (3004 functions) while decompiling main takes ~1.2s, and
+        # main's call tree covers most of the binary, so expanding it is even slower. Scope the CFG to main
+        # itself plus the two extra functions its decompilation depends on; include_plt keeps the library
+        # call prototypes. This reproduces the whole-binary decompilation byte for byte.
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x40F696,  # main
+            extra_func_addrs=(
+                0x4190E3,  # log_failed_assert: noreturn, must be analyzed or the call is not marked as such
+                0x4388B0,  # plugins_call_handle_request_env: only referenced as a function pointer
+            ),
+            window=0x800,  # main is 0x3ea bytes long
+            expand_call_tree=False,
+            include_plt=True,
+            project_kwargs={"auto_load_libs": False},
+            cfg_kwargs={"data_references": True},
+            run_ccc=False,
+        )
 
         func = cfg.functions["main"]
 
