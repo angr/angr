@@ -561,6 +561,7 @@ class BlockSimplifier:
             self._stmt_peephole_opts,
             stmt_opts_by_kind=self._stmt_peephole_opts_by_kind,
             ctx_stmt_opts_by_kind=self._ctx_stmt_peephole_opts_by_kind,
+            untouched_exprs=self._expr_peephole_walker.untouched_stmts,
         )
 
         new_block = block.copy(statements=statements) if stmts_updated else block

@@ -883,6 +883,11 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
+        # ``id()``s of the statements this pass walked without rewriting anything inside them. Only valid until the
+        # next ``reset()``, and only for statements of the block just walked -- which keeps them alive, so the ids
+        # cannot be recycled while the set is in use.
+        self.untouched_stmts: set[int] = set()
+        self._stmt_touched = False
         self.expr_opts_by_kind: dict[str, list[PeepholeOptimizationExprBase]] = {}
 
         for expr_opt in expr_opts:
@@ -897,13 +902,20 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
 
     def reset(self) -> None:
         self.any_update = False
+        self.untouched_stmts.clear()
 
     def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block) -> ailment.Stmt.Statement | None:
         if getattr(stmt, "peephole_optimized", False):
             # a previous peephole pass ran this statement (and its expressions) to fixpoint, and the statement has
             # not been rebuilt since; expression optimizers are context-free, so nothing new can apply
             return None
-        return super()._handle_stmt(stmt_idx, stmt, block)
+        self._stmt_touched = False
+        new_stmt = super()._handle_stmt(stmt_idx, stmt, block)
+        if not self._stmt_touched and (new_stmt is None or new_stmt is stmt):
+            # this pass rewrote nothing inside the statement: it is at the fixpoint of the expression optimizers,
+            # which are context-free, so no later pass can find anything either until the statement is rebuilt
+            self.untouched_stmts.add(id(stmt))
+        return new_stmt
 
     def _handle_expr(
         self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
@@ -941,6 +953,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
 
         if expr is not old_expr:
             self.any_update = True
+            self._stmt_touched = True
 
         return expr
 
@@ -1025,7 +1038,14 @@ def build_stmt_opts_by_kind(stmt_opts):
     return by_kind
 
 
-def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None, ctx_stmt_opts_by_kind=None):
+def peephole_optimize_stmts(
+    block, stmt_opts, *, stmt_opts_by_kind=None, ctx_stmt_opts_by_kind=None, untouched_exprs=None
+):
+    """
+    :param untouched_exprs: ``id()``s of the statements the preceding expression pass left untouched (see
+                            ``_PeepholeExprsWalker.untouched_stmts``). Statements that both that pass and this one
+                            leave unchanged are marked ``peephole_optimized``, so later passes can skip them.
+    """
     any_update = False
     statements = []
     if stmt_opts_by_kind is None:
@@ -1072,6 +1092,11 @@ def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None, ctx_stm
             any_update = True
         else:
             statements.append(old_stmt)
+            if untouched_exprs is not None and id(old_stmt) in untouched_exprs:
+                # neither the expression pass nor the statement optimizers found anything in this statement; it is
+                # at the peephole fixpoint until it is rebuilt, so later passes can skip it (block-context-sensitive
+                # optimizers keep running -- see PeepholeOptimizationStmtBase.NEEDS_BLOCK_CONTEXT)
+                old_stmt.peephole_optimized = True
         stmt_idx += 1
 
     return statements, any_update
