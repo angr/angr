@@ -547,7 +547,7 @@ class Function(TypeConstant):
 
         params_hash = tuple(param._hash(visited) for param in self.params)
         outputs_hash = tuple(out._hash(visited) for out in self.outputs)
-        return hash((Function, params_hash, outputs_hash))
+        return hash((self.TYPE_HASH, params_hash, outputs_hash))
 
     def __hash__(self):
         return self._hash(set())
