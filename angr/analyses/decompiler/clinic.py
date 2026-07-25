@@ -19,7 +19,7 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
-from angr.analyses.decompiler.block_simplifier import BlockSimplifier
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
@@ -314,6 +314,9 @@ class Clinic(Analysis, Serializable):
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
         self.peephole_optimizations = peephole_optimizations
+        # cached PeepholeOptimizationBundle, shared by every BlockSimplifier this Clinic creates; rebuilt whenever
+        # the construction parameters change (see _get_peephole_bundle)
+        self._peephole_bundle: PeepholeOptimizationBundle | None = None
         # peephole-optimization names that could not be resolved at parse time (their defining module was not
         # imported); resolve_peephole_optimizations() retries them
         self.unresolvable_peephole_optimizations: list[str] = []
@@ -1856,6 +1859,37 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    def _get_peephole_bundle(
+        self,
+        preserve_vvar_ids: set[int] | None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None,
+    ) -> PeepholeOptimizationBundle:
+        """
+        Return the cached PeepholeOptimizationBundle, rebuilding it if any construction parameter changed since the
+        last call. Instantiating the ~40 peephole optimizer classes per block is measurable; sharing one bundle
+        across all BlockSimplifier invocations of a stage removes that cost.
+        """
+        bundle = self._peephole_bundle
+        if bundle is None or not bundle.matches(
+            self.project,
+            self._ail_manager,
+            self.function.addr,
+            preserve_vvar_ids,
+            type_hints,
+            self.peephole_optimizations,
+        ):
+            bundle = PeepholeOptimizationBundle(
+                self.project,
+                self.kb,
+                self._ail_manager,
+                func_addr=self.function.addr,
+                preserve_vvar_ids=preserve_vvar_ids,
+                type_hints=type_hints,
+                peephole_optimizations=self.peephole_optimizations,
+            )
+            self._peephole_bundle = bundle
+        return bundle
+
     def _simplify_block(
         self,
         ail_block,
@@ -1888,11 +1922,11 @@ class Clinic(Analysis, Serializable):
             self._ail_manager,
             self.function.addr,
             stack_pointer_tracker=stack_pointer_tracker,
-            peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
             preserve_vvar_ids=preserve_vvar_ids,
             type_hints=type_hints,
+            peephole_bundle=self._get_peephole_bundle(preserve_vvar_ids, type_hints),
         )
         # update the cache
         if cache is not None:
@@ -2334,8 +2368,8 @@ class Clinic(Analysis, Serializable):
                     self._ail_manager,
                     self.function.addr,
                     stack_pointer_tracker=stack_pointer_tracker,
-                    peephole_optimizations=self.peephole_optimizations,
                     preserve_vvar_ids=preserve_vvar_ids,
+                    peephole_bundle=self._get_peephole_bundle(preserve_vvar_ids, None),
                 )
                 return simp.result_block
             return None

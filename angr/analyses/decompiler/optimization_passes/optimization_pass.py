@@ -14,7 +14,7 @@ import angr
 from angr import ailment
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
-from angr.analyses.decompiler.block_simplifier import BlockSimplifier
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
@@ -380,6 +380,25 @@ class OptimizationPass(BaseOptimizationPass):
 
         return ail_graph
 
+    def _get_peephole_bundle(self) -> PeepholeOptimizationBundle:
+        """
+        Return a PeepholeOptimizationBundle shared across all optimization passes of the same decompilation run
+        (via the shared scratch dict), rebuilding it if any construction parameter differs.
+        """
+        bundle = self._scratch.get("peephole_bundle")
+        if bundle is None or not bundle.matches(
+            self.project, self.manager, self._func.addr, None, None, self._peephole_optimizations
+        ):
+            bundle = PeepholeOptimizationBundle(
+                self.project,
+                self.kb,
+                self.manager,
+                func_addr=self._func.addr,
+                peephole_optimizations=self._peephole_optimizations,
+            )
+            self._scratch["peephole_bundle"] = bundle
+        return bundle
+
     def _simplify_block(self, ail_block, cache=None):
         """
         Simplify a single AIL block.
@@ -403,9 +422,9 @@ class OptimizationPass(BaseOptimizationPass):
             ail_block,
             self.manager,
             self._func.addr,
-            peephole_optimizations=self._peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
+            peephole_bundle=self._get_peephole_bundle(),
         )
         # update the cache
         if cache is not None:
