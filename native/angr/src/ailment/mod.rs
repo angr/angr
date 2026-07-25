@@ -15,6 +15,7 @@ pub mod block;
 pub mod const_value;
 pub mod convert_vex;
 pub mod enums;
+pub mod kind_scan;
 pub mod manager;
 pub mod ssa_collect;
 pub mod tags;
@@ -84,6 +85,9 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // VEX -> AIL converter.
     m.add_class::<convert_vex::VEXIRSBConverter>()?;
+
+    // Native node-kind presence scan.
+    m.add_function(wrap_pyfunction!(kind_scan::block_contains_kinds, m)?)?;
 
     // Native SSA use/def collectors.
     m.add_function(wrap_pyfunction!(ssa_collect::collect_vvar_deflocs, m)?)?;

@@ -50,6 +50,7 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.propagations.states import Equivalence
+from angr.rustylib.ailment import block_contains_kinds as _block_contains_kinds  # pylint:disable=import-error
 from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
 from angr.utils.ail import HasExprWalker, is_expr_used_as_reg_base_value, is_phi_assignment
 from angr.utils.ssa import (
@@ -87,6 +88,12 @@ class HasVVarNotification(Exception):
 
 
 _HAS_CALL_EXPRS_WALKER = HasCallExprWalker()
+
+# Node-kind bitmasks for ``block_contains_kinds``: the ccall / dirty rewriting passes walk every block in the function
+# just to find these, and almost no block has one.
+_CCALL_EXPR_MASK = 1 << int(VEXCCallExpression._kind)
+_DIRTY_EXPR_MASK = 1 << int(DirtyExpression._kind)
+_DIRTY_STMT_MASK = 1 << int(DirtyStatement._kind)
 
 
 class HasRefVVarNotification(Exception):
@@ -2270,6 +2277,9 @@ class AILSimplifier(Analysis):
 
         updated = False
         for block in blocks_by_addr_and_idx.values():
+            if not _block_contains_kinds(block, _CCALL_EXPR_MASK, 0):
+                # no ccall anywhere in the block: the walk below would be a no-op
+                continue
             _any_update.v = False
             old_block = block.copy()
             walker.walk(block)
@@ -2328,6 +2338,9 @@ class AILSimplifier(Analysis):
 
         updated = False
         for block in blocks_by_addr_and_idx.values():
+            if not _block_contains_kinds(block, _DIRTY_EXPR_MASK, _DIRTY_STMT_MASK):
+                # no dirty expression or statement anywhere in the block
+                continue
             _any_update.v = False
             old_block = block.copy()
             walker.walk(block)
