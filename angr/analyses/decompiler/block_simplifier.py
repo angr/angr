@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
-from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
 from angr.code_location import AILCodeLocation
@@ -34,6 +33,7 @@ from .utils import (
 
 if TYPE_CHECKING:
     from angr.ailment.block import Block
+    from angr.project import Project
 
 
 _l = logging.getLogger(name=__name__)
@@ -42,13 +42,18 @@ _l = logging.getLogger(name=__name__)
 _HAS_CALL_EXPR_WALKER = HasCallExprWalker()
 
 
-class BlockSimplifier(Analysis):
+class BlockSimplifier:
     """
     Simplify an AIL block.
+
+    Deliberately not an :class:`Analysis`: it is instantiated once per block, hundreds of times per decompilation,
+    so it skips the analysis-factory ceremony. Instantiate it directly with the project as the first argument;
+    exceptions always propagate.
     """
 
     def __init__(
         self,
+        project: Project,
         block: Block | None,
         ail_manager: Manager,
         func_addr: int | None = None,
@@ -71,6 +76,8 @@ class BlockSimplifier(Analysis):
                         in test cases.
         """
 
+        self.project = project
+        self.kb = project.kb
         self.block = block
         self.func_addr = func_addr
 
@@ -158,7 +165,8 @@ class BlockSimplifier(Analysis):
 
     def _compute_propagation(self, block) -> SPropagatorAnalysis:
         if self._propagator is None:
-            self._propagator = self.project.analyses[SPropagatorAnalysis].prep(fail_fast=self._fail_fast)(
+            self._propagator = SPropagatorAnalysis(
+                self.project,
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
@@ -168,15 +176,12 @@ class BlockSimplifier(Analysis):
 
     def _compute_reaching_definitions(self, block) -> SRDAModel:
         if self._reaching_definitions is None:
-            self._reaching_definitions = (
-                self.project.analyses[SReachingDefinitionsAnalysis]
-                .prep(fail_fast=self._fail_fast)(
-                    subject=block,
-                    track_tmps=True,
-                    func_addr=self.func_addr,
-                )
-                .model
-            )
+            self._reaching_definitions = SReachingDefinitionsAnalysis(
+                self.project,
+                subject=block,
+                track_tmps=True,
+                func_addr=self.func_addr,
+            ).model
         return self._reaching_definitions
 
     def _clear_cache(self):
@@ -423,6 +428,3 @@ class BlockSimplifier(Analysis):
         if not multi_stmts_updated:
             return new_block
         return new_block.copy(statements=statements)
-
-
-register_analysis(BlockSimplifier, "AILBlockSimplifier")

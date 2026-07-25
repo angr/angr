@@ -14,6 +14,7 @@ import angr
 from angr import ailment
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
@@ -397,7 +398,8 @@ class OptimizationPass(BaseOptimizationPass):
                 cached_rd = cache_item.rd
                 cached_prop = cache_item.prop
 
-        simp = self.project.analyses.AILBlockSimplifier(
+        simp = BlockSimplifier(
+            self.project,
             ail_block,
             self.manager,
             self._func.addr,
