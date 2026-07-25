@@ -195,12 +195,26 @@ def _merged_regions(addrs: Iterable[int], window: int) -> list[tuple[int, int]]:
     return regions
 
 
+PLT_SECTION_NAMES = (".plt", ".plt.got", ".plt.sec", ".plt.bnd", ".MIPS.stubs")
+
+
+def _plt_regions(main_object) -> list[tuple[int, int]]:
+    regions = []
+    sections_map = getattr(main_object, "sections_map", None) or {}
+    for name in PLT_SECTION_NAMES:
+        section = sections_map.get(name)
+        if section is not None and section.memsize:
+            regions.append((section.vaddr, section.vaddr + section.memsize))
+    return regions
+
+
 def load_project_with_scoped_cfg(
     bin_path: str,
     func_addr: int,
     extra_func_addrs: Sequence[int] = (),
     window: int = 0x2000,
     expand_call_tree: bool = True,
+    include_plt: bool = False,
     project_kwargs: dict | None = None,
     cfg_kwargs: dict | None = None,
     run_ccc: bool = True,
@@ -225,6 +239,11 @@ def load_project_with_scoped_cfg(
     :param window:            Size in bytes of the region scanned after each function start; must cover
                               the function's full extent.
     :param expand_call_tree:  Also cover the transitive callees of the given functions.
+    :param include_plt:       Also cover the PLT sections. Required for dynamically linked binaries: without
+                              the PLT stubs in the CFG, calls to library functions are not recognized and
+                              lose their SimProcedure prototypes, so the decompilation of the caller changes
+                              (e.g. ``getuid()`` becomes a six-argument call). The PLT sections are tiny, so
+                              this costs almost nothing.
     :param project_kwargs:    Extra keyword arguments for angr.Project.
     :param cfg_kwargs:        Overrides for the final CFGFast call.
     :param run_ccc:           Run CompleteCallingConventions, scoped to the covered functions.
@@ -235,13 +254,14 @@ def load_project_with_scoped_cfg(
     main_object = proj.loader.main_object
     roots = [func_addr, *extra_func_addrs]
     known: set[int] = set(roots)
+    extra_regions = _plt_regions(main_object) if include_plt else []
 
     if expand_call_tree:
         for _ in range(8):
             tmp_kb = angr.KnowledgeBase(proj)
             proj.analyses[angr.analyses.CFGFast].prep(kb=tmp_kb)(
                 normalize=True,
-                regions=_merged_regions(known, window),
+                regions=_merged_regions(known, window) + extra_regions,
                 start_at_entry=False,
                 function_starts=sorted(known),
                 symbols=False,
@@ -259,7 +279,7 @@ def load_project_with_scoped_cfg(
 
     final_cfg_kwargs = {
         "normalize": True,
-        "regions": _merged_regions(known, window),
+        "regions": _merged_regions(known, window) + extra_regions,
         "start_at_entry": False,
         "function_starts": roots,
         "symbols": True,
