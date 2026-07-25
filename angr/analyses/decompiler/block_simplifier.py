@@ -211,7 +211,9 @@ class BlockSimplifier:
 
         while True:
             ctr += 1
-            new_block = self._simplify_block_once(block)
+            # the entry peephole pass is only useful on the first iteration: every later iteration receives the
+            # output of the previous iteration's exit peephole pass, so running peephole again on entry is redundant
+            new_block = self._simplify_block_once(block, entry_peephole=ctr == 1)
             # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
             if new_block.likes(block):
                 break
@@ -260,8 +262,9 @@ class BlockSimplifier:
     def _count_nonconstant_statements(block) -> int:
         return sum(1 for stmt in block.statements if not (isinstance(stmt, Jump) and isinstance(stmt.target, Const)))
 
-    def _simplify_block_once(self, block):
-        block = self._peephole_optimize(block)
+    def _simplify_block_once(self, block, entry_peephole: bool = True):
+        if entry_peephole:
+            block = self._peephole_optimize(block)
 
         nonconstant_stmts = self._count_nonconstant_statements(block)
         has_propagatable_assignments = self._has_propagatable_assignments(block)
