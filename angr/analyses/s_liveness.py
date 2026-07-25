@@ -10,7 +10,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatem
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
-from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
+from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src, stmt_vvar_uses
 
 
 class SLivenessModel:
@@ -146,9 +146,7 @@ class SLivenessAnalysis(Analysis):
                         if src != (block.addr, block.idx) and vvar is not None:
                             live |= {vvar.varid}
                 else:
-                    vvar_use_collector.reset()
-                    vvar_use_collector.walk_statement(stmt)
-                    live |= vvar_use_collector.vvars
+                    live |= stmt_vvar_uses(stmt, vvar_use_collector)
 
             if live_ins[block_key] != live:
                 live_ins[block_key] = live
@@ -204,14 +202,13 @@ class SLivenessAnalysis(Analysis):
                     def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
-                vvar_use_collector.reset()
-                vvar_use_collector.walk_statement(stmt)
+                stmt_uses = stmt_vvar_uses(stmt, vvar_use_collector)
 
                 for def_vvar in def_vvars:
                     for live_vvar in live:
                         graph.add_edge(def_vvar, live_vvar)
                     live.discard(def_vvar)
-                live |= vvar_use_collector.vvars
+                live |= stmt_uses
 
             if block.addr == self.func_addr:
                 # deal with function arguments
@@ -256,8 +253,7 @@ class SLivenessAnalysis(Analysis):
                     def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
-                vvar_use_collector.reset()
-                vvar_use_collector.walk_statement(stmt)
+                stmt_uses = stmt_vvar_uses(stmt, vvar_use_collector)
 
                 live_vars[block_key][stmt_idx] = live.copy()
                 for def_vvar in def_vvars:
@@ -265,7 +261,7 @@ class SLivenessAnalysis(Analysis):
                         live_vars[block_key][stmt_idx].add(live_vvar)
                     live.discard(def_vvar)
 
-                live |= vvar_use_collector.vvars
+                live |= stmt_uses
 
         return live_vars
 

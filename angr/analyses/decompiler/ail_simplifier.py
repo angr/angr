@@ -63,7 +63,7 @@ from angr.utils.timing import timethis
 
 from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
-from .block_walkers import HasCallExprWalker, HasCallNotification
+from .block_walkers import has_call_expr
 from .ccall_rewriters import CCALL_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
@@ -86,8 +86,6 @@ class HasVVarNotification(Exception):
     Notifies the existence of a VirtualVariable.
     """
 
-
-_HAS_CALL_EXPRS_WALKER = HasCallExprWalker()
 
 # Node-kind bitmasks for ``block_contains_kinds``: the ccall / dirty rewriting passes walk every block in the function
 # just to find these, and almost no block has one.
@@ -2356,19 +2354,11 @@ class AILSimplifier(Analysis):
 
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
-        try:
-            _HAS_CALL_EXPRS_WALKER.walk_statement(stmt)
-        except HasCallNotification:
-            return True
-        return False
+        return has_call_expr(stmt)
 
     @staticmethod
     def _expression_has_call_exprs(expr: Expression) -> bool:
-        try:
-            _HAS_CALL_EXPRS_WALKER.walk_expression(expr)
-        except HasCallNotification:
-            return True
-        return False
+        return has_call_expr(expr)
 
     @staticmethod
     def _exprs_contain_vvar(exprs: Iterable[Expression], vvar_ids: set[int]) -> bool:

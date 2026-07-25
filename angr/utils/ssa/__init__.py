@@ -40,6 +40,7 @@ from angr.rustylib.ailment import collect_tmp_uselocs as _collect_tmp_uselocs  #
 from angr.rustylib.ailment import collect_uses_defs as _collect_uses_defs  # pylint:disable=import-error
 from angr.rustylib.ailment import collect_vvar_deflocs as _collect_vvar_deflocs  # pylint:disable=import-error
 from angr.rustylib.ailment import collect_vvar_uselocs as _collect_vvar_uselocs  # pylint:disable=import-error
+from angr.utils import ail_predicates as _pred
 
 from .combined_uses_collector import VVarAndTmpUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
@@ -416,16 +417,25 @@ CONST_VVAR_LOAD_WHITELIST = (*CONST_VVAR_WHITELIST, Load)
 CONST_VVAR_LOAD_DIRTY_WHITELIST = (*CONST_VVAR_WHITELIST, Load, DirtyExpression)
 
 
+def _py_has_nonwhitelisted_exprs(expr: Expression, whitelist: tuple[type, ...]) -> bool:
+    walker = AILWhitelistExprTypeWalker(whitelist)
+    walker.walk_expression(expr)
+    return walker.has_nonwhitelisted_exprs
+
+
 def _check_whitelisted_assignment_src(
     stmt: Statement, whitelist: tuple[type, ...], walker_cached: AILWhitelistExprTypeWalker | None
 ) -> bool:
     if isinstance(stmt, Assignment):
+        src = stmt.src
+        if _pred.NATIVE:
+            return not _pred.has_nonwhitelisted_exprs(src, whitelist, _py_has_nonwhitelisted_exprs)
         if walker_cached is None:
             walker = AILWhitelistExprTypeWalker(whitelist)
         else:
             walker = walker_cached
             walker.reset()
-        walker.walk_expression(stmt.src)
+        walker.walk_expression(src)
         return not walker.has_nonwhitelisted_exprs
     return False
 
@@ -452,10 +462,19 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 
-def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
-    walker = AILBlacklistExprTypeWalker((Load,), skip_if_contains_vvar=skip_if_contains_vvar)
-    walker.walk_statement(stmt)
+def _py_has_blacklisted_exprs(
+    node: Expression | Statement, blacklist: tuple[type, ...], skip_if_contains_vvar: int | None = None
+) -> bool:
+    walker = AILBlacklistExprTypeWalker(blacklist, skip_if_contains_vvar=skip_if_contains_vvar)
+    if isinstance(node, Statement):
+        walker.walk_statement(node)
+    else:
+        walker.walk_expression(node)
     return walker.has_blacklisted_exprs
+
+
+def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
+    return _pred.has_blacklisted_exprs(stmt, (Load,), _py_has_blacklisted_exprs, skip_if_contains_vvar)
 
 
 def phi_assignment_get_src(stmt: Statement) -> Phi | None:
@@ -469,21 +488,15 @@ def is_dephi_vvar(vvar: VirtualVariable) -> bool:
 
 
 def has_ite_expr(expr: Expression) -> bool:
-    walker = AILBlacklistExprTypeWalker((ITE,))
-    walker.walk_expression(expr)
-    return walker.has_blacklisted_exprs
+    return _pred.has_blacklisted_exprs(expr, (ITE,), _py_has_blacklisted_exprs)
 
 
 def has_ite_stmt(stmt: Statement) -> bool:
-    walker = AILBlacklistExprTypeWalker((ITE,))
-    walker.walk_statement(stmt)
-    return walker.has_blacklisted_exprs
+    return _pred.has_blacklisted_exprs(stmt, (ITE,), _py_has_blacklisted_exprs)
 
 
 def has_tmp_expr(expr: Expression) -> bool:
-    walker = AILBlacklistExprTypeWalker((Tmp,))
-    walker.walk_expression(expr)
-    return walker.has_blacklisted_exprs
+    return _pred.has_blacklisted_exprs(expr, (Tmp,), _py_has_blacklisted_exprs)
 
 
 class AILReferenceFinder(AILBlockViewer):
@@ -505,10 +518,35 @@ class AILReferenceFinder(AILBlockViewer):
         return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
-def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
+def stmt_vvar_uses(stmt: Statement, collector: VVarUsesCollector) -> set[int]:
+    """
+    The set of vvar ids used by ``stmt``, with no block context (so no use locations are collected).
+
+    Native fast path; ``collector`` is the reusable Python walker used as the fallback for non-native statements.
+    """
+    if _pred.NATIVE:
+        r = _pred.stmt_vvar_use_ids(stmt)
+        if r is not None:
+            if not _pred.SHADOW:
+                return r
+            collector.reset()
+            collector.walk_statement(stmt)
+            if r != collector.vvars:
+                raise AssertionError(f"native stmt_vvar_use_ids mismatch: native={r} python={collector.vvars}")
+            return collector.vvars
+    collector.reset()
+    collector.walk_statement(stmt)
+    return collector.vvars
+
+
+def _py_has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
     walker = AILReferenceFinder(vvar_id)
     walker.walk_statement(stmt)
     return walker.has_references_to_vvar
+
+
+def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
+    return _pred.has_reference_to_vvar(stmt, vvar_id, _py_has_reference_to_vvar)
 
 
 def stmt_is_simple_call(stmt: Statement) -> Call | None:
@@ -698,4 +736,5 @@ __all__ = (
     "is_phi_assignment",
     "is_vvar_eliminatable",
     "phi_assignment_get_src",
+    "stmt_vvar_uses",
 )
