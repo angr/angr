@@ -215,6 +215,7 @@ def load_project_with_scoped_cfg(
     window: int = 0x2000,
     expand_call_tree: bool = True,
     include_plt: bool = False,
+    call_tree_depth: int = 8,
     project_kwargs: dict | None = None,
     cfg_kwargs: dict | None = None,
     run_ccc: bool = True,
@@ -244,6 +245,10 @@ def load_project_with_scoped_cfg(
                               lose their SimProcedure prototypes, so the decompilation of the caller changes
                               (e.g. ``getuid()`` becomes a six-argument call). The PLT sections are tiny, so
                               this costs almost nothing.
+    :param call_tree_depth:   Maximum number of call-tree discovery rounds. Each round adds one more level
+                              of callees (and everything else found inside the newly covered regions). The
+                              default runs to a fixpoint; lower it when the call tree is huge but only its
+                              top levels influence the decompilation output.
     :param project_kwargs:    Extra keyword arguments for angr.Project.
     :param cfg_kwargs:        Overrides for the final CFGFast call.
     :param run_ccc:           Run CompleteCallingConventions, scoped to the covered functions.
@@ -257,7 +262,7 @@ def load_project_with_scoped_cfg(
     extra_regions = _plt_regions(main_object) if include_plt else []
 
     if expand_call_tree:
-        for _ in range(8):
+        for _ in range(call_tree_depth):
             tmp_kb = angr.KnowledgeBase(proj)
             proj.analyses[angr.analyses.CFGFast].prep(kb=tmp_kb)(
                 normalize=True,
