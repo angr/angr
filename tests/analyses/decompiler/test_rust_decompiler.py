@@ -15,6 +15,13 @@ from tests.common import bin_location
 
 RUST_BINARIES_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "coreutils")
 
+# These coreutils binaries are small (1-3 MB) but statically linked, so CFGFast recovers well over ten thousand
+# functions - roughly six times the size-derived default cache limit, which assumes ~512 bytes of code per function
+# while these average ~50. The knowledge base then spends most of CFG recovery, and most of the FLIRT passes in
+# RustSymbolRecovery, serializing functions and CFG nodes in and out of LMDB. Keeping everything resident costs
+# ~0.6 GB here and is purely a memory/speed trade-off: the recovered CFG and the decompilation are byte-identical.
+UNLIMITED_CACHES: dict[str, int | None] = {"functions": None, "cfg_nodes": None, "cfg_edges": None}
+
 
 def rust_binary_path(configuration: str, binary: str) -> str:
     return os.path.join(RUST_BINARIES_BASE, configuration, binary)
@@ -103,7 +110,7 @@ class RustDecompilationTarget(unittest.TestCase):
         for config in configs_needed:
             path = rust_binary_path(config, self.BINARY)
             assert os.path.isfile(path), f"{path} not found"
-            proj = angr.Project(path, auto_load_libs=False)
+            proj = angr.Project(path, auto_load_libs=False, cache_limits=UNLIMITED_CACHES)
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
             proj.analyses.CFGFast(normalize=True)
             func_addrs = {
