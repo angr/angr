@@ -257,12 +257,14 @@ class SketchNode(SketchNodeBase):
     Represents a node in a sketch graph.
     """
 
-    __slots__ = ("lower_bound", "typevar", "upper_bound")
+    __slots__ = ("_cached_hash", "lower_bound", "typevar", "upper_bound")
 
     def __init__(self, typevar: TypeVariable | DerivedTypeVariable):
         self.typevar: TypeVariable | DerivedTypeVariable = typevar
         self.upper_bound: TypeConstant = TopType()
         self.lower_bound: TypeConstant = BottomType()
+        # only typevar participates in equality and hashing, and it is never reassigned after construction
+        self._cached_hash = hash((_SKETCH_NODE_TAG, typevar))
 
     def __repr__(self):
         return f"{self.lower_bound} <: {self.typevar} <: {self.upper_bound}"
@@ -271,7 +273,7 @@ class SketchNode(SketchNodeBase):
         return isinstance(other, SketchNode) and self.typevar == other.typevar
 
     def __hash__(self):
-        return hash((type_tag(SketchNode), self.typevar))
+        return self._cached_hash
 
     @property
     def size(self) -> int | None:
@@ -290,6 +292,9 @@ class SketchNode(SketchNodeBase):
             with suppress(NotImplementedError):
                 return self.upper_bound.size * 8
         return None
+
+
+_SKETCH_NODE_TAG = type_tag(SketchNode)
 
 
 class RecursiveRefNode(SketchNodeBase):
@@ -448,7 +453,7 @@ class ConstraintGraphTag(enum.Enum):
     UNKNOWN = 2
 
     def __hash__(self):
-        return hash((type_tag(ConstraintGraphTag), self.value))
+        return self._cached_hash
 
 
 class FORGOTTEN(enum.Enum):
@@ -456,11 +461,20 @@ class FORGOTTEN(enum.Enum):
     POST_FORGOTTEN = 1
 
     def __hash__(self):
-        return hash((type_tag(FORGOTTEN), self.value))
+        return self._cached_hash
+
+
+# Enum members are singletons that never change, so their (process-independent) hash can be computed once here
+# instead of on every lookup. See the identical comment in variance.py for why this cannot live in __init__.
+for _member in ConstraintGraphTag:
+    _member._cached_hash = hash((type_tag(ConstraintGraphTag), _member.value))
+for _member in FORGOTTEN:
+    _member._cached_hash = hash((type_tag(FORGOTTEN), _member.value))
+del _member
 
 
 class ConstraintGraphNode:
-    __slots__ = ("forgotten", "tag", "typevar", "variance")
+    __slots__ = ("_cached_hash", "forgotten", "tag", "typevar", "variance")
 
     def __init__(
         self,
@@ -473,6 +487,10 @@ class ConstraintGraphNode:
         self.variance = variance
         self.tag = tag
         self.forgotten = forgotten
+        # All four fields are set here and never mutated afterwards (every transformation -- forget_last_label,
+        # recall, inverse, inverse_wo_tag -- returns a brand new node), so the hash is fixed at construction
+        # time. Nodes are hashed roughly an order of magnitude more often than they are created.
+        self._cached_hash = hash((_CONSTRAINT_GRAPH_NODE_TAG, typevar, variance, tag, forgotten))
 
     def __repr__(self):
         variance_str = "CO" if self.variance == Variance.COVARIANT else "CONTRA"
@@ -499,7 +517,7 @@ class ConstraintGraphNode:
         )
 
     def __hash__(self):
-        return hash((type_tag(ConstraintGraphNode), self.typevar, self.variance, self.tag, self.forgotten))
+        return self._cached_hash
 
     def forget_last_label(self) -> tuple[ConstraintGraphNode, BaseLabel] | None:
         if isinstance(self.typevar, DerivedTypeVariable) and self.typevar.labels:
@@ -553,6 +571,9 @@ class ConstraintGraphNode:
         variance = Variance.CONTRAVARIANT if self.variance == Variance.COVARIANT else Variance.COVARIANT
 
         return ConstraintGraphNode(self.typevar, variance, self.tag, self.forgotten)
+
+
+_CONSTRAINT_GRAPH_NODE_TAG = type_tag(ConstraintGraphNode)
 
 
 #

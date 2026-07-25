@@ -14,4 +14,12 @@ class Variance(enum.Enum):
     CONTRAVARIANT = 1
 
     def __hash__(self):
-        return hash((type_tag(Variance), self.value))
+        return self._cached_hash
+
+
+# Variance members are singletons that never change, so their (process-independent) hash can be computed once
+# here instead of on every lookup. Note that we cannot do this inside __init__: enum member instances are
+# created by EnumType before the class object -- and therefore Variance itself -- exists.
+for _member in Variance:
+    _member._cached_hash = hash((type_tag(Variance), _member.value))
+del _member
