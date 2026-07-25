@@ -5570,7 +5570,17 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_rust_fmt_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        # uumain() reaches about half of this 765 KB Rust binary, so the CFG cannot be scoped: whole-binary CFG
+        # recovery is what this test pays for. The default cache limits are derived from the binary size assuming
+        # ~512 bytes of code per function, which sizes the function/CFG-node/CFG-edge caches for ~3800 functions;
+        # this binary has 9129 of them (~78 bytes each), so recovery spends roughly 40% of its time spilling
+        # functions and CFG nodes to LMDB and reading them back. Keeping everything resident costs ~60 MB of RSS
+        # here and is purely a memory/speed trade-off: the recovered CFG and the decompilation are byte-identical.
+        proj = angr.Project(
+            bin_path,
+            auto_load_libs=False,
+            cache_limits={"functions": None, "cfg_nodes": None, "cfg_edges": None},
+        )
         cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x469200]
         decompiler_options = decompiler_options or []
