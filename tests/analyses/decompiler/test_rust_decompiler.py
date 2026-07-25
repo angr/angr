@@ -29,6 +29,10 @@ class TestRustcVersionIdentification(unittest.TestCase):
         "nightly-2025-05-22-O0": "1.88.0",
     }
 
+    #: How many bytes at the end of each executable section the pre-built CFG covers. See
+    #: :meth:`_check_fmt_version` for why the *end* of the section is the right place to look.
+    CFG_TAIL_BYTES = 128 * 1024
+
     def test_default_sig_dir(self):
         sig_dir = get_default_sig_dir()
         self.assertTrue(sig_dir is not None, "get_default_sig_dir() returned None")
@@ -38,11 +42,19 @@ class TestRustcVersionIdentification(unittest.TestCase):
         assert os.path.isfile(path)
         expected = self.EXPECTED_VERSIONS[configuration]
         p = angr.Project(path)
-        # Pre-build a sampled, region-limited CFG.
-        # FLIRT matching over the first quarter of each executable section is enough to discriminate rustc versions
-        # while being several times cheaper than a whole-binary CFG.
+        # Pre-build a sampled, region-limited CFG so this test does not pay for a whole-binary one.
+        #
+        # rustc ships std/core/alloc as prebuilt rlibs, and the linker emits the crate's own object
+        # files before those rlibs, so the library code the FLIRT signatures actually describe sits
+        # at the *end* of .text. Measured against a whole-binary CFG of these three binaries, every
+        # single core::/std::/alloc:: match in the -O0 build falls in the last 20% of .text (0 in the
+        # first 80%), and in both -O3 builds the trailing deciles hold the largest share. Sampling
+        # the tail therefore hits the code the signatures were built from, whereas sampling the head
+        # mostly scans crate code compiled at whatever level the crate used -- which is why a
+        # head-of-section sample scored the -O0 build 44 vs 43 for the runner-up (a near coin flip),
+        # while the tail sample scores it 149 vs 135.
         regions = [
-            (sec.vaddr, sec.vaddr + max(0x1000, int(sec.memsize * 0.25)))
+            (sec.vaddr + sec.memsize - min(self.CFG_TAIL_BYTES, sec.memsize), sec.vaddr + sec.memsize)
             for sec in p.loader.main_object.sections
             if sec.is_executable and sec.memsize > 0
         ]
