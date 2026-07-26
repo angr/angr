@@ -143,8 +143,62 @@ PRIMITIVE_TYPES = {
 }
 
 
+class TypeLattice:
+    """
+    A lattice of type constants, ordered from the most general (``TopType``) to the most specific (``BottomType``),
+    together with a lazily built all-pairs lowest-common-ancestor table.
+
+    The lattice must not be mutated once it has been queried: :meth:`add_edge` rejects edges added after the
+    lowest-common-ancestor table has been built.
+    """
+
+    __slots__ = ("_lca_table", "g")
+
+    def __init__(self, g: networkx.DiGraph | None = None):
+        self.g: networkx.DiGraph = g if g is not None else networkx.DiGraph()
+        self._lca_table: dict[tuple, Any] | None = None
+
+    def __contains__(self, node) -> bool:
+        return node in self.g
+
+    def add_edge(self, src, dst) -> None:
+        assert self._lca_table is None, "Cannot mutate a TypeLattice after its LCA table has been built"
+        self.g.add_edge(src, dst)
+
+    def inverted(self) -> TypeLattice:
+        """
+        Return a new lattice with every edge reversed, i.e. ordered from the most specific to the most general.
+        """
+
+        inverted = TypeLattice()
+        for src, dst in self.g.edges:
+            inverted.add_edge(dst, src)
+        return inverted
+
+    def lca(self, node_a, node_b):
+        """
+        Return the lowest common ancestor of ``node_a`` and ``node_b``, or None if they have none.
+
+        This is equivalent to ``networkx.lowest_common_ancestor(self.g, node_a, node_b)``, but served out of an
+        all-pairs table that is computed on the first query and memoized afterwards. The type lattices are tiny
+        (21 nodes / 33 edges) and immutable, but :meth:`SimpleSolver._lattice_op` queries them hundreds of times per
+        decompilation. ``networkx.lowest_common_ancestor`` is O(V + E) *per query* (it re-runs the whole all-pairs
+        machinery, including a DAG check and a ``networkx.ancestors`` walk per node), so a single all-pairs pass
+        (~1.4 ms) replaces hundreds of ~100 us queries.
+        """
+
+        if self._lca_table is None:
+            table: dict[tuple, Any] = {}
+            for (a, b), ancestor in networkx.all_pairs_lowest_common_ancestor(self.g):
+                # LCA is symmetric; all_pairs_lowest_common_ancestor only yields one direction of each pair
+                table[(a, b)] = ancestor
+                table[(b, a)] = ancestor
+            self._lca_table = table
+        return self._lca_table.get((node_a, node_b))
+
+
 # lattice for 64-bit binaries
-BASE_LATTICE_64 = networkx.DiGraph()
+BASE_LATTICE_64 = TypeLattice()
 BASE_LATTICE_64.add_edge(Top_, Int_)
 BASE_LATTICE_64.add_edge(Int_, Int512_)
 BASE_LATTICE_64.add_edge(Int_, Int256_)
@@ -184,7 +238,7 @@ BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
 BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
 
 # lattice for 32-bit binaries
-BASE_LATTICE_32 = networkx.DiGraph()
+BASE_LATTICE_32 = TypeLattice()
 BASE_LATTICE_32.add_edge(Top_, Int_)
 BASE_LATTICE_32.add_edge(Int_, Int512_)
 BASE_LATTICE_32.add_edge(Int_, Int256_)
@@ -229,38 +283,7 @@ BASE_LATTICES = {
 }
 
 
-def _invert_lattice(lattice: networkx.DiGraph) -> networkx.DiGraph:
-    inverted = networkx.DiGraph()
-    for src, dst in lattice.edges:
-        inverted.add_edge(dst, src)
-    return inverted
-
-
-BASE_LATTICES_INVERTED = {bits: _invert_lattice(lattice) for bits, lattice in BASE_LATTICES.items()}
-
-
-def _lattice_lca_table(lattice: networkx.DiGraph) -> dict[tuple, Any]:
-    """
-    Return the all-pairs lowest-common-ancestor table of ``lattice``, computing it once and memoizing it on the graph
-    itself (``DiGraph.graph`` is networkx's per-graph attribute dict).
-
-    The type lattices are tiny (21 nodes / 33 edges) and immutable, but :meth:`SimpleSolver._lattice_op` queries them
-    hundreds of times per decompilation. ``networkx.lowest_common_ancestor`` is O(V + E) *per query* (it re-runs the
-    whole all-pairs machinery, including a DAG check and a ``networkx.ancestors`` walk per node), so a single all-pairs
-    pass (~1.4 ms) replaces hundreds of ~100 us queries.
-
-    Do not use this on a lattice that is mutated after its first query.
-    """
-
-    table = lattice.graph.get("_lca_table")
-    if table is None:
-        table = {}
-        for (node_a, node_b), lca in networkx.all_pairs_lowest_common_ancestor(lattice):
-            # LCA is symmetric; all_pairs_lowest_common_ancestor only yields one direction of each pair
-            table[(node_a, node_b)] = lca
-            table[(node_b, node_a)] = lca
-        lattice.graph["_lca_table"] = table
-    return table
+BASE_LATTICES_INVERTED = {bits: lattice.inverted() for bits, lattice in BASE_LATTICES.items()}
 
 
 #
@@ -612,7 +635,7 @@ class SimpleSolver:
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._base_lattice = BASE_LATTICES[bits]
         # share the module-level inverted lattice instead of rebuilding it per solver: it is never mutated, and sharing
-        # lets the memoized LCA table (see _lattice_lca_table) be reused across solver instances
+        # lets the memoized LCA table (see TypeLattice.lca) be reused across solver instances
         self._base_lattice_inverted = BASE_LATTICES_INVERTED[bits]
 
         # statistics
@@ -1869,7 +1892,7 @@ class SimpleSolver:
     def _lattice_op(
         t1: TypeConstant,
         t2: TypeConstant,
-        lattice: networkx.DiGraph,
+        lattice: TypeLattice,
         unit: TypeConstant,
     ) -> TypeConstant:
         """
@@ -1884,9 +1907,7 @@ class SimpleSolver:
         abstract_t1 = SimpleSolver.abstract(t1)
         abstract_t2 = SimpleSolver.abstract(t2)
         if abstract_t1 in lattice and abstract_t2 in lattice:
-            # equivalent to networkx.lowest_common_ancestor(lattice, abstract_t1, abstract_t2) (default None), but
-            # served out of a memoized all-pairs table instead of re-running the algorithm for every query
-            ancestor = _lattice_lca_table(lattice).get((abstract_t1, abstract_t2))
+            ancestor = lattice.lca(abstract_t1, abstract_t2)
 
             if (
                 isinstance(ancestor, Pointer)
@@ -1946,7 +1967,7 @@ class SimpleSolver:
 
     @classmethod
     def _simtype_lattice_op(
-        cls, t1: SimType, t2: SimType, arch: archinfo.Arch, lattices: dict[int, networkx.DiGraph], unit: TypeConstant
+        cls, t1: SimType, t2: SimType, arch: archinfo.Arch, lattices: dict[int, TypeLattice], unit: TypeConstant
     ) -> SimType:
         if arch.bits not in lattices:
             raise ValueError(f"Pointer size {arch.bits} is not supported. Expect 32 or 64.")
