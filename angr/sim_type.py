@@ -4426,24 +4426,12 @@ def normalize_cpp_function_name(name: str) -> str:
     return name.removesuffix(";")
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=32768)
 def _parse_cpp_decl(s: str) -> cxxheaderparser.simple.ParsedData | None:
     """
-    Run cxxheaderparser on a (already normalized) C++ declaration and return its parse tree, or None if it cannot be
-    parsed.
+    Run cxxheaderparser on a normalized C++ declaration and return its parse tree, or None if it cannot be parsed.
 
-    Lexing and parsing a single prototype costs anywhere between 100 us (a bare C identifier, which fails to parse
-    twice) and 1 ms (a heavily templated Itanium name), and the very same demangled names are re-parsed over and over
-    during decompilation - once per rendered call site, plus once per calling-convention analysis. Memoizing the parse
-    tree here removes the repeated work.
-
-    We deliberately cache cxxheaderparser's ``ParsedData`` rather than the ``SimType`` objects that
-    :func:`parse_cpp_file` derives from it: SimTypes are mutable and end up stored on ``Function.prototype`` /
-    ``SimProcedure.prototype``, so handing out shared instances would alias caller-visible state. ``ParsedData``, in
-    contrast, is only ever read by :func:`_cpp_decl_to_type` (and by cxxheaderparser's own ``format()`` helpers, which
-    are pure), and rebuilding the SimTypes from it costs less than 20 us. Rebuilding also preserves the exact object
-    identity semantics of the uncached implementation, including ``ALL_TYPES`` lookups whose contents may change at
-    runtime via :func:`register_types`.
+    This method is cached to avoid re-parsing of the same declaration, which happens a lot during decompilation.
     """
     try:
         return cxxheaderparser.simple.parse_string(s)

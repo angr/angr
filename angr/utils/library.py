@@ -195,14 +195,10 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
     return parsedcprotos2py(parsed_cprotos, fd_spots=fd_spots, remove_sys_prefix=remove_sys_prefix)
 
 
-@lru_cache(maxsize=4096)
+@lru_cache(maxsize=32768)
 def _cpp_function_name_and_metadata(demangled_name: str) -> tuple[str, bool, bool]:
     """
     The memoizable core of :func:`get_cpp_function_name_and_metadata`.
-
-    Only immutable values (a string and two bools) are cached, so no caller-visible state is ever aliased. This is
-    called once per rendered call site during code generation, which is why it is worth caching on top of the parse
-    cache inside :func:`angr.sim_type.parse_cpp_file`.
     """
     func_decls, _ = parse_cpp_file(demangled_name)
     if func_decls and len(func_decls) == 1:
