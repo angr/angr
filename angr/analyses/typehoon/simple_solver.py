@@ -172,14 +172,11 @@ class TypeLattice:
 
     def lca(self, node_a, node_b):
         """
-        Return the lowest common ancestor of ``node_a`` and ``node_b``, or None if they have none.
+        Return the lowest common ancestor of ``node_a`` and ``node_b``, or None if they have none. Initialize the LCA
+        table on the first query and memoize it for subsequent queries. This is critical for performance when the
+        lattice is relatively small (< 100 nodes) and the number of queries is large.
 
-        This is equivalent to ``networkx.lowest_common_ancestor(self.g, node_a, node_b)``, but served out of an
-        all-pairs table that is computed on the first query and memoized afterwards. The type lattices are tiny
-        (21 nodes / 33 edges) and immutable, but :meth:`SimpleSolver._lattice_op` queries them hundreds of times per
-        decompilation. ``networkx.lowest_common_ancestor`` is O(V + E) *per query* (it re-runs the whole all-pairs
-        machinery, including a DAG check and a ``networkx.ancestors`` walk per node), so a single all-pairs pass
-        (~1.4 ms) replaces hundreds of ~100 us queries.
+        Reconsider this implementation when the type lattice is large.
         """
 
         if self._lca_table is None:
