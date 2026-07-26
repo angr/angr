@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Container, Iterator
+from collections.abc import Container, Iterator, Sequence
 from typing import TYPE_CHECKING
 
 import pyvex
@@ -12,6 +12,7 @@ from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
+from angr.errors import SimTranslationError
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.bits import u2s
@@ -321,6 +322,8 @@ class FactCollector(Analysis):
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
         self.extra_pop: int | None = None
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
+        self._stack_canary_retval_writes: set[tuple[BlockNode, int]] | None = None
+        self._stack_chk_fail_successors: dict[BlockNode, set[int]] | None = None
 
         self._analyze()
 
@@ -521,9 +524,30 @@ class FactCollector(Analysis):
         expr = cls._resolve_vex_tmp(expr, tmp_definitions)
         if not isinstance(expr, pyvex.IRExpr.Load):
             return False
-        addr_nodes = tuple(cls._walk_vex_expr(expr.addr, tmp_definitions))
-        return any(isinstance(node, pyvex.IRExpr.Get) and node.offset == tls_reg_offset for node in addr_nodes) and any(
-            isinstance(node, pyvex.IRExpr.Const) and node.con.value == canary_offset for node in addr_nodes
+        address = cls._resolve_vex_tmp(expr.addr, tmp_definitions)
+        if isinstance(address, pyvex.IRExpr.Binop) and address.op in {"Iop_Add32", "Iop_Add64"}:
+            operand_0 = cls._resolve_vex_tmp(address.args[0], tmp_definitions)
+            operand_1 = cls._resolve_vex_tmp(address.args[1], tmp_definitions)
+            if (
+                isinstance(operand_0, pyvex.IRExpr.Get)
+                and operand_0.offset == tls_reg_offset
+                and isinstance(operand_1, pyvex.IRExpr.Const)
+                and operand_1.con.value == canary_offset
+            ) or (
+                isinstance(operand_1, pyvex.IRExpr.Get)
+                and operand_1.offset == tls_reg_offset
+                and isinstance(operand_0, pyvex.IRExpr.Const)
+                and operand_0.con.value == canary_offset
+            ):
+                return True
+        address_nodes = tuple(cls._walk_vex_expr(address, tmp_definitions))
+        return (
+            any(
+                isinstance(node, pyvex.IRExpr.CCall) and node.callee.name == "x86g_use_seg_selector"
+                for node in address_nodes
+            )
+            and any(isinstance(node, pyvex.IRExpr.Get) and node.offset == tls_reg_offset for node in address_nodes)
+            and any(isinstance(node, pyvex.IRExpr.Const) and node.con.value == canary_offset for node in address_nodes)
         )
 
     @classmethod
@@ -541,26 +565,45 @@ class FactCollector(Analysis):
             for node in cls._walk_vex_expr(expr.addr, tmp_definitions)
         )
 
-    def _has_terminal_call_successor(self, node: BlockNode) -> bool:
+    def _find_stack_chk_fail_successors(self) -> dict[BlockNode, set[int]]:
+        if self._stack_chk_fail_successors is not None:
+            return self._stack_chk_fail_successors
+
+        successors = defaultdict(set)
         func_graph = self.function.transition_graph
-        for _, succ, data in func_graph.out_edges(node, data=True):
-            if data.get("type") != "transition" or data.get("outside", False) or not isinstance(succ, BlockNode):
-                continue
-            succ_block = self.project.factory.block(succ.addr, size=succ.size)
-            if succ_block.vex.jumpkind != "Ijk_Call":
-                continue
-            if not any(
-                edge_data.get("type") == "fake_return" for _, _, edge_data in func_graph.out_edges(succ, data=True)
+        for call_node, callee_node, call_data in func_graph.edges(data=True):
+            if (
+                call_data.get("type") != "call"
+                or not isinstance(call_node, BlockNode)
+                or self.function.get_node(call_node.addr) != call_node
+                or not self.kb.functions.contains_addr(callee_node.addr)
             ):
-                return True
-        return False
+                continue
+            callee = self.kb.functions.get_by_addr(callee_node.addr)
+            if callee.name != "__stack_chk_fail" or any(
+                edge_data.get("type") == "fake_return" for _, _, edge_data in func_graph.out_edges(call_node, data=True)
+            ):
+                continue
+            for predecessor, _, predecessor_data in func_graph.in_edges(call_node, data=True):
+                if (
+                    isinstance(predecessor, BlockNode)
+                    and self.function.get_node(predecessor.addr) == predecessor
+                    and predecessor_data.get("type") == "transition"
+                    and not predecessor_data.get("outside", False)
+                ):
+                    successors[predecessor].add(call_node.addr)
+
+        self._stack_chk_fail_successors = dict(successors)
+        return self._stack_chk_fail_successors
 
     def _is_stack_canary_retval_write(
         self,
         node: BlockNode,
-        block: Block,
         expr: pyvex.IRExpr.IRExpr,
         tmp_definitions: dict[int, pyvex.IRExpr.IRExpr],
+        statements: Sequence[pyvex.IRStmt.IRStmt],
+        stmt: pyvex.IRStmt.Put,
+        retreg_offset: int,
     ) -> bool:
         tls_location = self._stack_canary_tls_location()
         if tls_location is None:
@@ -590,18 +633,29 @@ class FactCollector(Analysis):
         ):
             return False
 
-        if not self._has_terminal_call_successor(node):
+        failure_successors = self._find_stack_chk_fail_successors()
+        if node not in failure_successors:
             return False
 
-        for stmt in block.vex.statements:
-            if not isinstance(stmt, pyvex.IRStmt.Exit):
-                continue
-            guard_nodes = tuple(self._walk_vex_expr(stmt.guard, tmp_definitions))
-            if any(
-                self._is_tls_canary_load(node, tmp_definitions, tls_reg_offset, canary_offset) for node in guard_nodes
-            ) and any(self._is_stack_load(node, tmp_definitions, stack_reg_offsets) for node in guard_nodes):
-                return True
-        return False
+        stmt_idx = next((idx for idx, candidate in enumerate(statements) if candidate is stmt), -1)
+        if stmt_idx == -1:
+            return False
+
+        if self._stack_canary_retval_writes is None:
+            from .stack_canary_tracker import _StackCanaryTracker  # pylint: disable=import-outside-toplevel
+
+            try:
+                self._stack_canary_retval_writes = _StackCanaryTracker(
+                    self.project,
+                    self.function,
+                    retreg_offset,
+                    tls_reg_offset,
+                    canary_offset,
+                    failure_successors,
+                ).analyze()
+            except SimTranslationError:
+                self._stack_canary_retval_writes = set()
+        return (node, stmt_idx) in self._stack_canary_retval_writes
 
     def _analyze_endpoints_for_retval_size(self, end_states):
         """
@@ -728,7 +782,8 @@ class FactCollector(Analysis):
                 # (e.g., rax) before returning.
                 block_retval_size = None
                 stack_canary_barrier = False
-                for stmt in reversed(block.vex.statements):
+                statements = block.vex.statements
+                for stmt in reversed(statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
@@ -748,7 +803,7 @@ class FactCollector(Analysis):
 
                         if stmt.offset == retreg_offset:
                             if isinstance(node, BlockNode) and self._is_stack_canary_retval_write(
-                                node, block, stmt.data, tmp_definitions
+                                node, stmt.data, tmp_definitions, statements, stmt, retreg_offset
                             ):
                                 stack_canary_barrier = True
                                 break
