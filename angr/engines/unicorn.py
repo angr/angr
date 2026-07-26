@@ -353,7 +353,7 @@ class SimEngineUnicorn(SuccessorsEngine):
             for offset in range(mem_read_len):
                 page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
                 page_obj = state.memory._get_page(page_num, writing=False)
-                saved_taints.append(page_obj.symbolic_bitmap[page_off])
+                saved_taints.append(page_obj.symbolic_bitmap.get(page_off))
 
             restore_taints = False
             if saved_taints != taint_map:
@@ -363,7 +363,7 @@ class SimEngineUnicorn(SuccessorsEngine):
                     if expected_taint != -1:
                         page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
                         page_obj = state.memory._get_page(page_num, writing=False)
-                        page_obj.symbolic_bitmap[page_off] = expected_taint
+                        page_obj.symbolic_bitmap.set(page_off, expected_taint)
 
             curr_value = state.memory.load(
                 mem_read_addr, mem_read_len, endness=state.arch.memory_endness, inspect=False, disable_actions=True
@@ -372,7 +372,7 @@ class SimEngineUnicorn(SuccessorsEngine):
                 for offset, saved_taint in enumerate(saved_taints):
                     page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
                     page_obj = state.memory._get_page(page_num, writing=False)
-                    page_obj.symbolic_bitmap[page_off] = saved_taint
+                    page_obj.symbolic_bitmap.set(page_off, saved_taint)
 
             if taint_map.count(0) != 0:
                 # Update concrete bytes using values reported by native interface

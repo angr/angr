@@ -104,6 +104,14 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
         """
         raise NotImplementedError
 
+    def concrete_run_length(self, addr, size, **kwargs) -> int:
+        """
+        Return the number of concrete bytes starting at ``addr``, capped at ``size``. Implementations that can answer
+        this without materializing a symbolic-ness byte map should override it.
+        """
+        _, bitmap = self.concrete_load(addr, size, with_bitmap=True, **kwargs)
+        return next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
+
     def erase(self, addr: Addr, size: int | None = None, **kwargs) -> None:
         """
         Set [addr:addr+size) to uninitialized. In many cases this will be faster than overwriting those locations with

@@ -487,7 +487,9 @@ class PagedMemoryMixin[PageType: PageBase](
             return memoryview(bytes(size)), memoryview(b"\x01" * size)
         return memoryview(b"")
 
-    def concrete_load(self, addr, size, writing=False, *, with_bitmap: bool = False, **kwargs):
+    def concrete_load(
+        self, addr, size, writing=False, *, with_bitmap: bool = False, writable_bitmap: bool = False, **kwargs
+    ):
         pageno, offset = self._divide_addr(addr)
         subsize = min(size, self.page_size - offset)
         try:
@@ -503,14 +505,17 @@ class PagedMemoryMixin[PageType: PageBase](
                 return self._load_to_memoryview(addr, size, True)
             return self._load_to_memoryview(addr, size, False)
 
-        data, bitmap = page.concrete_load(offset, subsize, with_bitmap=True, **kwargs)
         if with_bitmap:
-            return data, bitmap
+            return page.concrete_load(offset, subsize, with_bitmap=True, writable_bitmap=writable_bitmap, **kwargs)
 
         # everything from here on out has exactly one goal: to maximize the amount of concrete data
-        # we can return (up to the limit!)
-        i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
+        # we can return (up to the limit!). ask the page how many concrete bytes it has instead of materializing and
+        # scanning its symbolic map.
+        i = page.concrete_run_length(offset, subsize, **kwargs)
+        if i == 0:
+            return memoryview(b"")
 
+        data = page.concrete_load(offset, subsize, **kwargs)
         if i != subsize:
             return data[:i]
 
@@ -526,11 +531,14 @@ class PagedMemoryMixin[PageType: PageBase](
             try:
                 page = self._get_page(pageno, writing, **kwargs)
                 concrete_load = page.concrete_load
+                concrete_run_length = page.concrete_run_length
             except (SimMemoryError, AttributeError):
                 break
             else:
-                newdata, bitmap = concrete_load(offset, subsize, with_bitmap=True, **kwargs)
-                i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
+                i = concrete_run_length(offset, subsize, **kwargs)
+                if i == 0:
+                    break
+                newdata = concrete_load(offset, subsize, **kwargs)
 
                 # magic: check if the memory regions are physically adjacent
                 if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(

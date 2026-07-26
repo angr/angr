@@ -1109,7 +1109,11 @@ class Unicorn(SimStatePlugin):
 
         # this should return two memoryviews
         # if they are writable they are direct references to the state backing store and can be mapped directly
-        data, bitmap = self.state.memory.concrete_load(addr, 0x1000, with_bitmap=True, writing=(perm & 2) != 0)
+        # writable_bitmap: if the page can hand us a writable buffer aliasing its own symbolic map, native unicorn maps
+        # it directly and writes taint back through it
+        data, bitmap = self.state.memory.concrete_load(
+            addr, 0x1000, with_bitmap=True, writable_bitmap=True, writing=(perm & 2) != 0
+        )
 
         if not bitmap:
             raise SimMemoryError("No bytes available in memory? when would this happen...")
