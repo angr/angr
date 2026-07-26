@@ -729,7 +729,7 @@ class SimEngineVRAIL(
     def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
         if isinstance(expr.operand, ailment.Expr.VirtualVariable) and expr.operand.was_stack:
             if expr.tags.get("extra_def", False):
-                self._assign_to_vvar(expr.operand, self._top(expr.operand.bits))
+                self._assign_to_vvar(expr.operand, self._top(expr.operand.bits), dst=expr.operand)
             refbase_typevar = None
             off = expr.operand.stack_offset
 
