@@ -145,35 +145,30 @@ PRIMITIVE_TYPES = {
 
 class TypeLattice:
     """
-    A lattice of type constants, ordered from the most general (``TopType``) to the most specific (``BottomType``),
-    together with a lazily built all-pairs lowest-common-ancestor table.
+    A lattice of type constants with a lowest-common-ancestor table for caching purposes.
 
-    The lattice must not be mutated once it has been queried: :meth:`add_edge` rejects edges added after the
-    lowest-common-ancestor table has been built.
+    The lattice graph (`self.g`) should be treated as read-only, otherwise the cached LCA table will be invalidated
+    once the lattice graph changes.
     """
 
     __slots__ = ("_lca_table", "g")
 
-    def __init__(self, g: networkx.DiGraph | None = None):
-        self.g: networkx.DiGraph = g if g is not None else networkx.DiGraph()
+    def __init__(self, g: networkx.DiGraph):
+        self.g: networkx.DiGraph = g
         self._lca_table: dict[tuple, Any] | None = None
 
     def __contains__(self, node) -> bool:
         return node in self.g
-
-    def add_edge(self, src, dst) -> None:
-        assert self._lca_table is None, "Cannot mutate a TypeLattice after its LCA table has been built"
-        self.g.add_edge(src, dst)
 
     def inverted(self) -> TypeLattice:
         """
         Return a new lattice with every edge reversed, i.e. ordered from the most specific to the most general.
         """
 
-        inverted = TypeLattice()
+        inverted_g = networkx.DiGraph()
         for src, dst in self.g.edges:
-            inverted.add_edge(dst, src)
-        return inverted
+            inverted_g.add_edge(dst, src)
+        return TypeLattice(inverted_g)
 
     def lca(self, node_a, node_b):
         """
@@ -198,84 +193,86 @@ class TypeLattice:
 
 
 # lattice for 64-bit binaries
-BASE_LATTICE_64 = TypeLattice()
-BASE_LATTICE_64.add_edge(Top_, Int_)
-BASE_LATTICE_64.add_edge(Int_, Int512_)
-BASE_LATTICE_64.add_edge(Int_, Int256_)
-BASE_LATTICE_64.add_edge(Int_, Int128_)
-BASE_LATTICE_64.add_edge(Int_, Int64_)
-BASE_LATTICE_64.add_edge(Int_, Int32_)
-BASE_LATTICE_64.add_edge(Int_, Int16_)
-BASE_LATTICE_64.add_edge(Int_, Int8_)
-BASE_LATTICE_64.add_edge(Int512_, Bottom_)
-BASE_LATTICE_64.add_edge(Int256_, Bottom_)
-BASE_LATTICE_64.add_edge(Int128_, Bottom_)
+BASE_LATTICE_64_g = networkx.DiGraph()
+BASE_LATTICE_64_g.add_edge(Top_, Int_)
+BASE_LATTICE_64_g.add_edge(Int_, Int512_)
+BASE_LATTICE_64_g.add_edge(Int_, Int256_)
+BASE_LATTICE_64_g.add_edge(Int_, Int128_)
+BASE_LATTICE_64_g.add_edge(Int_, Int64_)
+BASE_LATTICE_64_g.add_edge(Int_, Int32_)
+BASE_LATTICE_64_g.add_edge(Int_, Int16_)
+BASE_LATTICE_64_g.add_edge(Int_, Int8_)
+BASE_LATTICE_64_g.add_edge(Int512_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int256_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int128_, Bottom_)
 # Int8: signed/unsigned children
-BASE_LATTICE_64.add_edge(Int8_, SInt8_)
-BASE_LATTICE_64.add_edge(Int8_, UInt8_)
-BASE_LATTICE_64.add_edge(SInt8_, Bottom_)
-BASE_LATTICE_64.add_edge(UInt8_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int8_, SInt8_)
+BASE_LATTICE_64_g.add_edge(Int8_, UInt8_)
+BASE_LATTICE_64_g.add_edge(SInt8_, Bottom_)
+BASE_LATTICE_64_g.add_edge(UInt8_, Bottom_)
 # Int16: signed/unsigned children
-BASE_LATTICE_64.add_edge(Int16_, SInt16_)
-BASE_LATTICE_64.add_edge(Int16_, UInt16_)
-BASE_LATTICE_64.add_edge(SInt16_, Bottom_)
-BASE_LATTICE_64.add_edge(UInt16_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int16_, SInt16_)
+BASE_LATTICE_64_g.add_edge(Int16_, UInt16_)
+BASE_LATTICE_64_g.add_edge(SInt16_, Bottom_)
+BASE_LATTICE_64_g.add_edge(UInt16_, Bottom_)
 # Int32: signed/unsigned children + Enum, Fd
-BASE_LATTICE_64.add_edge(Int32_, SInt32_)
-BASE_LATTICE_64.add_edge(Int32_, UInt32_)
-BASE_LATTICE_64.add_edge(SInt32_, Bottom_)
-BASE_LATTICE_64.add_edge(UInt32_, Bottom_)
-BASE_LATTICE_64.add_edge(Int32_, Enum_)
-BASE_LATTICE_64.add_edge(Enum_, Bottom_)
-BASE_LATTICE_64.add_edge(Int32_, Fd_)
-BASE_LATTICE_64.add_edge(Fd_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int32_, SInt32_)
+BASE_LATTICE_64_g.add_edge(Int32_, UInt32_)
+BASE_LATTICE_64_g.add_edge(SInt32_, Bottom_)
+BASE_LATTICE_64_g.add_edge(UInt32_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int32_, Enum_)
+BASE_LATTICE_64_g.add_edge(Enum_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int32_, Fd_)
+BASE_LATTICE_64_g.add_edge(Fd_, Bottom_)
 # Int64: signed/unsigned children + Pointer64
-BASE_LATTICE_64.add_edge(Int64_, SInt64_)
-BASE_LATTICE_64.add_edge(Int64_, UInt64_)
-BASE_LATTICE_64.add_edge(SInt64_, Bottom_)
-BASE_LATTICE_64.add_edge(UInt64_, Bottom_)
-BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
-BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int64_, SInt64_)
+BASE_LATTICE_64_g.add_edge(Int64_, UInt64_)
+BASE_LATTICE_64_g.add_edge(SInt64_, Bottom_)
+BASE_LATTICE_64_g.add_edge(UInt64_, Bottom_)
+BASE_LATTICE_64_g.add_edge(Int64_, Pointer64_)
+BASE_LATTICE_64_g.add_edge(Pointer64_, Bottom_)
+BASE_LATTICE_64 = TypeLattice(BASE_LATTICE_64_g)
 
 # lattice for 32-bit binaries
-BASE_LATTICE_32 = TypeLattice()
-BASE_LATTICE_32.add_edge(Top_, Int_)
-BASE_LATTICE_32.add_edge(Int_, Int512_)
-BASE_LATTICE_32.add_edge(Int_, Int256_)
-BASE_LATTICE_32.add_edge(Int_, Int128_)
-BASE_LATTICE_32.add_edge(Int_, Int64_)
-BASE_LATTICE_32.add_edge(Int_, Int32_)
-BASE_LATTICE_32.add_edge(Int_, Int16_)
-BASE_LATTICE_32.add_edge(Int_, Int8_)
-BASE_LATTICE_32.add_edge(Int512_, Bottom_)
-BASE_LATTICE_32.add_edge(Int256_, Bottom_)
-BASE_LATTICE_32.add_edge(Int128_, Bottom_)
+BASE_LATTICE_32_g = networkx.DiGraph()
+BASE_LATTICE_32_g.add_edge(Top_, Int_)
+BASE_LATTICE_32_g.add_edge(Int_, Int512_)
+BASE_LATTICE_32_g.add_edge(Int_, Int256_)
+BASE_LATTICE_32_g.add_edge(Int_, Int128_)
+BASE_LATTICE_32_g.add_edge(Int_, Int64_)
+BASE_LATTICE_32_g.add_edge(Int_, Int32_)
+BASE_LATTICE_32_g.add_edge(Int_, Int16_)
+BASE_LATTICE_32_g.add_edge(Int_, Int8_)
+BASE_LATTICE_32_g.add_edge(Int512_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int256_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int128_, Bottom_)
 # Int8: signed/unsigned children
-BASE_LATTICE_32.add_edge(Int8_, SInt8_)
-BASE_LATTICE_32.add_edge(Int8_, UInt8_)
-BASE_LATTICE_32.add_edge(SInt8_, Bottom_)
-BASE_LATTICE_32.add_edge(UInt8_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int8_, SInt8_)
+BASE_LATTICE_32_g.add_edge(Int8_, UInt8_)
+BASE_LATTICE_32_g.add_edge(SInt8_, Bottom_)
+BASE_LATTICE_32_g.add_edge(UInt8_, Bottom_)
 # Int16: signed/unsigned children
-BASE_LATTICE_32.add_edge(Int16_, SInt16_)
-BASE_LATTICE_32.add_edge(Int16_, UInt16_)
-BASE_LATTICE_32.add_edge(SInt16_, Bottom_)
-BASE_LATTICE_32.add_edge(UInt16_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int16_, SInt16_)
+BASE_LATTICE_32_g.add_edge(Int16_, UInt16_)
+BASE_LATTICE_32_g.add_edge(SInt16_, Bottom_)
+BASE_LATTICE_32_g.add_edge(UInt16_, Bottom_)
 # Int32: signed/unsigned children + Pointer32, Enum, Fd
-BASE_LATTICE_32.add_edge(Int32_, SInt32_)
-BASE_LATTICE_32.add_edge(Int32_, UInt32_)
-BASE_LATTICE_32.add_edge(SInt32_, Bottom_)
-BASE_LATTICE_32.add_edge(UInt32_, Bottom_)
-BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
-BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
-BASE_LATTICE_32.add_edge(Int32_, Enum_)
-BASE_LATTICE_32.add_edge(Enum_, Bottom_)
-BASE_LATTICE_32.add_edge(Int32_, Fd_)
-BASE_LATTICE_32.add_edge(Fd_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int32_, SInt32_)
+BASE_LATTICE_32_g.add_edge(Int32_, UInt32_)
+BASE_LATTICE_32_g.add_edge(SInt32_, Bottom_)
+BASE_LATTICE_32_g.add_edge(UInt32_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int32_, Pointer32_)
+BASE_LATTICE_32_g.add_edge(Pointer32_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int32_, Enum_)
+BASE_LATTICE_32_g.add_edge(Enum_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int32_, Fd_)
+BASE_LATTICE_32_g.add_edge(Fd_, Bottom_)
 # Int64: signed/unsigned children
-BASE_LATTICE_32.add_edge(Int64_, SInt64_)
-BASE_LATTICE_32.add_edge(Int64_, UInt64_)
-BASE_LATTICE_32.add_edge(SInt64_, Bottom_)
-BASE_LATTICE_32.add_edge(UInt64_, Bottom_)
+BASE_LATTICE_32_g.add_edge(Int64_, SInt64_)
+BASE_LATTICE_32_g.add_edge(Int64_, UInt64_)
+BASE_LATTICE_32_g.add_edge(SInt64_, Bottom_)
+BASE_LATTICE_32_g.add_edge(UInt64_, Bottom_)
+BASE_LATTICE_32 = TypeLattice(BASE_LATTICE_32_g)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,
@@ -634,8 +631,6 @@ class SimpleSolver:
         self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._base_lattice = BASE_LATTICES[bits]
-        # share the module-level inverted lattice instead of rebuilding it per solver: it is never mutated, and sharing
-        # lets the memoized LCA table (see TypeLattice.lca) be reused across solver instances
         self._base_lattice_inverted = BASE_LATTICES_INVERTED[bits]
 
         # statistics
