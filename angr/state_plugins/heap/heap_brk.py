@@ -54,6 +54,9 @@ class SimHeapBrk(SimHeapBase):
             size += 1
         addr = self.state.heap.heap_location
         self.state.heap.heap_location += size
+        # the heap region is mapped lazily, so bumping the break may run past the end of what is mapped. Grow the
+        # mapping before handing the space out; this is the only place in this heap where the break moves up.
+        self.state.heap._ensure_mapped(self.state.heap.heap_location)
         l.debug("Allocating %d bytes at address %#08x", size, addr)
         return addr
 
@@ -61,6 +64,11 @@ class SimHeapBrk(SimHeapBase):
         """
         The memory release primitive for this heap implementation. Decreases the position of the break to deallocate
         space. Guards against releasing beyond the initial heap base.
+
+        The mapped extent of the heap is deliberately *not* shrunk here. Unmapping the released pages would discard
+        their contents, so a release followed by an allocation would hand back blank memory instead of the old
+        bytes, which is a behavior change; and since the extent only ever grows to the high-water mark of the
+        break, keeping it costs nothing beyond what the program already asked for.
 
         :param sim_size: a size specifying how much to decrease the break pointer by (may be symbolic or not)
         """
@@ -122,6 +130,7 @@ class SimHeapBrk(SimHeapBase):
         return addr
 
     def _combine(self, others):
+        self._combine_mapped_end(others)
         new_heap_location = max(o.heap_location for o in others)
         if self.heap_location != new_heap_location:
             self.heap_location = new_heap_location
