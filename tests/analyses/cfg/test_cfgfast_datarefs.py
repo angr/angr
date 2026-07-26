@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-bu
 
 import logging
 import os
+import struct
 import time
 import unittest
 
@@ -204,6 +205,37 @@ class TestCfgfastDataReferences(unittest.TestCase):
 
         # interleaved (value, pointer) tables are detected by the mixed-pointer scan
         assert memory_data[0x401FBC].sort == MemoryDataSort.PointerArray
+
+        # character translation tables (runs of monotonically increasing bytes) are detected by the byte-ramp scan
+        # and must not become code
+        assert memory_data[0x403390].sort == MemoryDataSort.Unknown
+        assert memory_data[0x403390].size == 193
+        assert not [f for f in cfg.kb.functions if 0x4033A0 <= f < 0x403690]
+
+        # double-precision constant tables are detected by the floating-point constant scan
+        assert memory_data[0x406278].sort == MemoryDataSort.FloatingPoint
+        assert memory_data[0x406278].size == 2064
+        assert not [f for f in cfg.kb.functions if 0x406270 <= f < 0x406B00]
+
+    def test_complete_scan_single_precision_fp_table(self):
+        # a run of plausible single-precision floats must be classified as data, not code
+        code = b"\xc3\xcc\xcc\xcc" + struct.pack("<8f", 1.0, 0.5, 3.14, 100.0, 1e-5, 1e5, -2.5, 0.001)
+        proj = angr.load_shellcode(code, "x86")
+        cfg = proj.analyses.CFGFast()
+
+        assert cfg.model.memory_data[4].sort == MemoryDataSort.FloatingPoint
+        assert cfg.model.memory_data[4].size == 32
+        assert list(cfg.kb.functions) == [0]
+
+    def test_complete_scan_cc_filler_is_not_fp(self):
+        # a run of one repeated in-band value (0xCC filler decodes as plausible negative floats) must not be
+        # classified as a floating-point constant table
+        code = b"\xc3" + b"\xcc" * 64
+        proj = angr.load_shellcode(code, "x86")
+        cfg = proj.analyses.CFGFast()
+
+        assert not [d for d in cfg.model.memory_data.values() if d.sort == MemoryDataSort.FloatingPoint]
+        assert list(cfg.kb.functions) == [0]
 
     def test_long_printable_ascii_string_without_null_byte(self):
         # suboptimal logic in _scan_for_printable_strings was causing the CFG recovery of this binary to be extremely
