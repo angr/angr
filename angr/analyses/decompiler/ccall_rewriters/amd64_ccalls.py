@@ -938,6 +938,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
         zero = Expr.Const(self.ail_manager.next_atom(), 0, ccall.bits)
         r = Expr.BinaryOp(self.ail_manager.next_atom(), "CmpEQ", (call, zero), False, **ccall.tags)
         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
     def _sign_test(self, ccall, result, expr_op: str):
         """
         Build the SF test for a result that is computed at the operand width: mask off the sign bit
