@@ -7,6 +7,7 @@ import os
 import unittest
 
 import angr
+from angr.knowledge_plugins.functions.function import Function
 
 try:
     import pysoot
@@ -27,6 +28,7 @@ class TestCfgfastSoot(unittest.TestCase):
         p = angr.Project(binary_path, main_opts={"entry_point": "simple1.Class1.main"}, auto_load_libs=False)
         cfg = p.analyses.CFGFastSoot()
         assert cfg.graph.nodes()
+        assert all(hasattr(function, slot) for function in cfg.kb.functions.values() for slot in Function.__slots__)
 
     def test_simple2(self):
         binary_path = os.path.join(test_location, "java", "simple2.jar")

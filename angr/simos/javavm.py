@@ -32,18 +32,21 @@ class SimJavaVM(SimOS):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, name="JavaVM", **kwargs)
 
-        # is the binary using JNI libraries?
-        self.is_javavm_with_jni_support = self.project.loader.main_object.jni_support
+        # Step 1: find all native libs
+        self.native_libs = [
+            obj for obj in self.project.loader.initial_load_objects if not isinstance(obj.arch, ArchSoot)
+        ]
+
+        # is the binary using JNI libraries that were actually loaded?
+        requested_jni_support = self.project.loader.main_object.jni_support
+        self.is_javavm_with_jni_support = requested_jni_support and bool(self.native_libs)
+
+        if requested_jni_support and not self.native_libs:
+            if self.project.loader.auto_load_libs:
+                raise AngrSimOSError("No JNI lib was loaded. Is the jni_libs_ld_path set correctly?")
+            l.warning("JNI libraries were not loaded because auto_load_libs is disabled; disabling JNI support.")
 
         if self.is_javavm_with_jni_support:
-            # Step 1: find all native libs
-            self.native_libs = [
-                obj for obj in self.project.loader.initial_load_objects if not isinstance(obj.arch, ArchSoot)
-            ]
-
-            if len(self.native_libs) == 0:
-                raise AngrSimOSError("No JNI lib was loaded. Is the jni_libs_ld_path set correctly?")
-
             # Step 2: determine and set the native SimOS
 
             # for each native library get the Arch

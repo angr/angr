@@ -510,7 +510,14 @@ class TestJava(unittest.TestCase):
         loaded_libs = [lib.provides for lib in project.loader.all_elf_objects]
         assert "libmixedjava.so" in loaded_libs
 
-        # Test 2: test loading without load path
+        # Test 2: declaring JNI libraries with dependency loading disabled falls back to pure Java support
+        project = angr.Project(jar_path, main_opts=jni_options, auto_load_libs=False)
+        assert project.loader.main_object.jni_support
+        assert not project.simos.is_javavm_with_jni_support
+        assert not project.loader.all_elf_objects
+        assert project.analyses.CFGFastSoot().graph.nodes()
+
+        # Test 3: test loading without load path
         # => the folder of the JAR is implicitly used as an additional load path
         binary_dir = os.path.join(self.test_location, "misc", "loading2")
         project = self.create_project(binary_dir)
