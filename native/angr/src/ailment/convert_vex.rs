@@ -17,7 +17,6 @@ use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
-use crate::ailment::CachedHash;
 use crate::ailment::ail_expr::{
     AilExpression, CFGTarget, ExprHeader, ExprInner, RoundingModeOrExpr,
 };
@@ -29,6 +28,7 @@ use crate::ailment::manager::Manager;
 use crate::ailment::tags::{TagExtra, TagKey, Tags};
 use crate::ailment::vex_ffi::{self, IRExpr, IRSB};
 use crate::ailment::vexop;
+use crate::ailment::{Addr, CachedHash};
 
 const DEFAULT_STATEMENT: i64 = -2;
 const IRTEMP_INVALID: u32 = 0xFFFF_FFFF;
@@ -141,7 +141,7 @@ enum ExprKind<E> {
 
 enum StmtKind<E> {
     IMark {
-        addr: i64,
+        addr: Addr,
         delta: i64,
     },
     AbiHint,
@@ -217,7 +217,7 @@ enum StmtKind<E> {
 trait IrReader {
     type E: Clone;
 
-    fn block_addr(&self) -> i64;
+    fn block_addr(&self) -> Addr;
     fn block_size(&self) -> Option<i64>;
     fn jumpkind(&self) -> String;
     fn next_expr(&self) -> Self::E;
@@ -289,8 +289,8 @@ struct Conv<'py, 'r, R: IrReader> {
     // The Manager is always the Rust pyclass (the typed `run()` signature
     // enforces it), so no per-atom Python `next_atom()` round-trip is needed.
     atom: i64,
-    ins_addr: Option<i64>,
-    block_addr: i64,
+    ins_addr: Option<Addr>,
+    block_addr: Addr,
     vex_stmt_idx: i64,
 }
 
@@ -1162,11 +1162,12 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let kind = self.reader.stmt_kind(self.py, vex_idx)?;
             match &kind {
                 StmtKind::IMark { addr: a, delta } => {
+                    let ins_addr = a.wrapping_add(*delta as Addr);
                     if first_imark {
-                        addr = a + delta;
+                        addr = ins_addr;
                         first_imark = false;
                     }
-                    self.ins_addr = Some(a + delta);
+                    self.ins_addr = Some(ins_addr);
                     continue;
                 }
                 StmtKind::AbiHint | StmtKind::NoOp => continue,
@@ -1667,10 +1668,10 @@ fn loadg_cvt_name(cvt: u32) -> String {
 impl IrReader for CReader {
     type E = *mut IRExpr;
 
-    fn block_addr(&self) -> i64 {
+    fn block_addr(&self) -> Addr {
         // VEX IRSB has no addr field; the caller supplies it via first IMark.
         // We seed from the lift address stored separately.
-        unsafe { (*self.irsb).offs_ip as i64 } // placeholder; overwritten below
+        unsafe { (*self.irsb).offs_ip as Addr } // placeholder; overwritten below
     }
 
     fn block_size(&self) -> Option<i64> {
@@ -1697,7 +1698,7 @@ impl IrReader for CReader {
         Ok(unsafe {
             match tag {
                 IST_IMARK => StmtKind::IMark {
-                    addr: ist.imark.addr as i64,
+                    addr: ist.imark.addr,
                     delta: ist.imark.delta as i64,
                 },
                 IST_ABIHINT => StmtKind::AbiHint,
@@ -2004,7 +2005,7 @@ impl VEXIRSBConverter {
     fn run<R: IrReader>(
         py: Python<'_>,
         reader: &R,
-        block_addr_override: Option<i64>,
+        block_addr_override: Option<Addr>,
         manager: &Bound<'_, Manager>,
         arch: Bound<'_, PyAny>,
     ) -> PyResult<Block> {
@@ -2164,7 +2165,7 @@ impl VEXIRSBConverter {
         };
         // The C IRSB has no addr; the AIL block addr is the lift address
         // (matches pyvex IRSB.addr / the first IMark).
-        VEXIRSBConverter::run(py, &reader, Some(addr as i64), &manager, arch)
+        VEXIRSBConverter::run(py, &reader, Some(addr), &manager, arch)
     }
 
     /// Fallback: convert a cached pyvex Python `IRSB` object.
@@ -2184,7 +2185,7 @@ impl VEXIRSBConverter {
             }
         };
         let tyenv = irsb.getattr("tyenv")?;
-        let block_addr: i64 = irsb.getattr("addr")?.extract()?;
+        let block_addr: Addr = irsb.getattr("addr")?.extract()?;
         // Keep manager state in sync with the legacy converter.
         {
             let mut m = manager.borrow_mut();
@@ -2229,7 +2230,7 @@ impl<'py> PyReader<'py> {
 impl<'py> IrReader for PyReader<'py> {
     type E = Py<PyAny>;
 
-    fn block_addr(&self) -> i64 {
+    fn block_addr(&self) -> Addr {
         self.irsb
             .getattr("addr")
             .and_then(|a| a.extract())
