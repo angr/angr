@@ -908,10 +908,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         redo = True
         while redo:
             redo = False
-            kind = getattr(expr, "pykind", None)
-            if kind is None:
-                kind = type(expr).__name__
-            expr_opts = self.expr_opts_by_kind.get(kind)
+            expr_opts = self.expr_opts_by_kind.get(expr.pykind)
             if not expr_opts:
                 break
             for expr_opt in expr_opts:
