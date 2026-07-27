@@ -64,11 +64,13 @@ class TestStatementLikes(unittest.TestCase):
 
         # The guard is compared structurally, not by identity: a fresh but
         # structurally identical guard still compares ``likes``/``matches``.
-        # ``__eq__`` is recursively idx-aware, so it legitimately separates
-        # these two -- their guards carry different idx.
+        # ``__eq__`` and ``__hash__`` are recursively idx-aware, so they
+        # legitimately separate these two -- their guards carry different idx.
         same_shape = Store(idx, addr, data, 4, Endness.LE, guard=self._guard(32), **self.tags)
         assert a.likes(same_shape)
         assert a.matches(same_shape)
+        assert a != same_shape
+        assert hash(a) != hash(same_shape)
 
         # Sharing the guard object removes that idx difference, so here both
         # ``__eq__`` and the hash must agree.
