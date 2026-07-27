@@ -113,6 +113,21 @@ class TestStatementMarkers(unittest.TestCase):
         assert a1 == a2
         assert hash(a1) == hash(a2)
 
+    def test_hash_and_eq_distinct_operands(self):
+        """Same as above but with separately constructed operands.
+
+        Sharing ``dst``/``src`` between the two statements makes every
+        descendant ``idx`` match, so the equal-implies-equal-hash contract
+        holds no matter how ``__eq__`` and ``__hash__`` treat ``idx``.
+        Building the operands twice is what actually exercises it -- see
+        ``test_hash_eq_contract.py`` for the full per-variant sweep.
+        """
+        a1 = su.Assignment(0, eu.Register(0, 16, 64), eu.Const(1, 42, 64))
+        a2 = su.Assignment(0, eu.Register(2, 16, 64), eu.Const(3, 42, 64))
+        assert a1.likes(a2), "structurally alike -- only the operand idx differ"
+        if a1 == a2:
+            assert hash(a1) == hash(a2)
+
     def test_roundtrip_all_variants(self):
         """Every Statement variant must round-trip through to_bytes/from_bytes."""
         dst, src, addr = self._atoms()
