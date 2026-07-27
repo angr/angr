@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
+import sys
 from typing import Any
 
 import networkx as nx
 from fastmcp import FastMCP
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.utils.mp import protect_stdio_from_forked_children
 
 from .errors import (
     CFGNotBuiltError,
@@ -29,8 +33,26 @@ from .session import ProjectSession, get_session_manager
 
 l = logging.getLogger(__name__)
 
+
+class StdoutGuardMiddleware(Middleware):
+    """
+    Keep analysis output off of stdout.
+
+    Under the stdio transport, stdout is the JSON-RPC channel. This middleware redirects stdout to
+    stderr to avoid messing with the stdio transport.
+    """
+
+    async def on_message(self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]) -> Any:
+        with contextlib.redirect_stdout(sys.stderr):
+            return await call_next(context)
+
+
+# Worker processes should not inherit stdio.
+protect_stdio_from_forked_children()
+
 # Create the FastMCP server instance
 mcp = FastMCP("angr-mcp", instructions="Binary analysis server powered by angr")
+mcp.add_middleware(StdoutGuardMiddleware())
 
 
 def _get_session(project_id: str) -> ProjectSession:
@@ -135,6 +157,50 @@ def get_cfg(
         "status": "success",
         **serialize_cfg_stats(session.cfg),
         "functions_discovered": len(proj.kb.functions),
+    }
+
+
+@mcp.tool()
+def recover_calling_conventions(
+    project_id: str,
+    workers: int = 0,
+    force: bool = False,
+) -> dict[str, Any]:
+    """
+    Recover calling conventions and prototypes for every function in the binary.
+
+    Requires CFG to be built first via get_cfg. This improves the quality of decompilation output, especially the
+    arguments shown at call sites.
+
+    Args:
+        project_id: The project ID
+        workers: Number of worker processes to use (0 = run in-process, the default)
+        force: Re-analyze functions that already have a calling convention or prototype
+
+    Returns:
+        Number of functions for which a calling convention was recovered
+    """
+    session = _get_session(project_id)
+    _require_cfg(session)
+    proj = session.project
+
+    if workers < 0:
+        raise ValueError("workers must be >= 0")
+
+    analysis = proj.analyses.CompleteCallingConventions(
+        cfg=session.cfg,
+        analyze_callsites=True,
+        workers=workers,
+        force=force,
+    )
+
+    recovered = sum(1 for func in proj.kb.functions.values() if func.calling_convention is not None)
+    return {
+        "project_id": project_id,
+        "workers": workers,
+        "functions_analyzed": len(proj.kb.functions),
+        "functions_with_calling_convention": recovered,
+        "prototype_libnames": sorted(analysis.prototype_libnames),
     }
 
 

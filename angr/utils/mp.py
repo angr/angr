@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import multiprocessing
+import os
 import platform
+import sys
 from collections.abc import Callable
 from typing import Any, NamedTuple
 
@@ -66,3 +70,58 @@ def mp_context():
     }
     spawn_method = spawn_methods.get(system, "fork")  # default to fork on other platforms
     return multiprocessing.get_context(spawn_method)
+
+
+_stdio_fork_hook_installed = False
+
+
+def _detach_child_stdio() -> None:
+    """
+    Give a freshly forked child its own, harmless stdin and stdout.
+    """
+    try:
+        devnull = os.open(os.devnull, os.O_RDONLY)
+        try:
+            os.dup2(devnull, 0)
+        finally:
+            os.close(devnull)
+    except OSError:
+        pass
+
+    # anything the child prints goes to stderr
+    with contextlib.suppress(OSError):
+        os.dup2(2, 1)
+
+    try:
+        sys.stdin = io.TextIOWrapper(
+            io.BufferedReader(io.FileIO(0, "rb", closefd=False)), encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        sys.stdin = None  # type: ignore[assignment]
+
+    try:
+        sys.stdout = io.TextIOWrapper(
+            io.BufferedWriter(io.FileIO(1, "wb", closefd=False)),
+            encoding="utf-8",
+            errors="replace",
+            line_buffering=True,
+        )
+    except OSError:
+        sys.stdout = None  # type: ignore[assignment]
+
+
+def protect_stdio_from_forked_children() -> None:
+    """
+    Make forked worker processes safe to use from a process whose stdin/stdout are a protocol channel.
+    """
+    global _stdio_fork_hook_installed  # pylint:disable=global-statement
+
+    if _stdio_fork_hook_installed:
+        return
+    if not hasattr(os, "register_at_fork"):
+        # Windows; the fork start method is not used there anyway
+        _stdio_fork_hook_installed = True
+        return
+
+    os.register_at_fork(after_in_child=_detach_child_stdio)
+    _stdio_fork_hook_installed = True
