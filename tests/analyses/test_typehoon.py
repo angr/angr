@@ -14,6 +14,8 @@ import archinfo
 import angr
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
+from angr.analyses.typehoon import translator as translator_module
+from angr.analyses.typehoon import typeconsts
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.analyses.typehoon.typeconsts import (
@@ -21,11 +23,9 @@ from angr.analyses.typehoon.typeconsts import (
     BottomType,
     Float32,
     Float64,
-    Function,
     Int1,
     Int8,
     Int32,
-    Int64,
     IntVar,
     Pointer64,
     SInt32,
@@ -615,8 +615,8 @@ class TestTypehoon(unittest.TestCase):
         func_sym = proj.loader.find_symbol("uncompressbuf")
         assert func_sym is not None
         dec = self._decompile_function_scoped(proj, func_sym.rebased_addr, func_sym.size or 0x1000)
-        assert dec.clinic is not None and dec.clinic.variable_kb is not None
-        vm = dec.clinic.variable_kb.variables[func_sym.rebased_addr]
+        assert dec.clinic is not None
+        vm = dec.kb.dec_variables[func_sym.rebased_addr]
         fnptr_stack_locals = [
             v for v in vm.get_variables() if isinstance(v, SimStackVariable) and self._is_fnptr(vm.get_variable_type(v))
         ]
@@ -914,9 +914,6 @@ class TestTypeTranslator(unittest.TestCase):
         # If translating a Function's param/return types raises, the Function must still be
         # removed from the _fn_inprogress cycle-guard set. Otherwise a later translation of a
         # structurally-equal Function is misdetected as a cycle and collapses to void.
-        from angr.analyses.typehoon import translator as translator_module
-        from angr.analyses.typehoon import typeconsts
-
         class PoisonTC(typeconsts.TypeConstant):
             def __repr__(self, memo=None):
                 return "POISON"

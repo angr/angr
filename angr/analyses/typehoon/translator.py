@@ -224,6 +224,9 @@ class TypeTranslator:
             return sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         self._fn_inprogress.add(tc)
 
+        # Clear the in-progress mark in `finally`: if translating a param/return raises, a leftover
+        # mark would make a later, structurally-equal function type be misread as a self-reference
+        # and wrongly translated to `void`.
         try:
             arg_types = []
             for param in tc.params:

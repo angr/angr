@@ -285,17 +285,21 @@ class SimEngineVRAIL(
         the global renders as a function pointer (e.g. ``ret (*g)(...)``), instead of the loaded field
         merely being a function pointer (a struct-with-fnptr-field).
         """
-        # if the call target is loaded from a *global* cell (<cell>.[Load, HasField@0] where the load
-        # address is a constant), use the cell as the function type variable so the cell -- and hence
-        # the global -- becomes the function pointer. a pointer-valued base (e.g. a struct-pointer
-        # parameter whose field at offset 0 is called) produces the same 2-label shape, but there the
-        # base is the *pointer value*, not the cell: redirecting would type the pointer one
-        # indirection too shallow, and discarding the load-access marker would erase the called
-        # field. keep the generic access constraint in that case.
+        # The call target is a pointer-sized value that is loaded and then called. Two different
+        # sources produce the same shape here and must be told apart:
+        #   * a global function pointer -- the target is Load(<constant address>): the loaded-from
+        #     location is the function pointer itself, so we retype that location as the function.
+        #     The global then renders as `ret (*)(...)` instead of a pointer to a one-field struct.
+        #   * a struct-pointer parameter whose field 0 is called (`p->fn()`) -- the target is
+        #     Load(<pointer value>): here the base is the address of the struct, not the function
+        #     pointer. Retyping it would make the parameter one pointer level too shallow (emitting
+        #     the non-compilable `(*(long long *)p)(...)`), and dropping the field access would delete
+        #     the called field from the struct.
+        # Only the global case has a constant load address, so gate the retype on that.
         base_tv = funcaddr_typevar
-        target_is_global_cell = isinstance(target, ailment.Expr.Load) and isinstance(target.addr, ailment.Expr.Const)
+        target_is_global = isinstance(target, ailment.Expr.Load) and isinstance(target.addr, ailment.Expr.Const)
         if (
-            target_is_global_cell
+            target_is_global
             and isinstance(funcaddr_typevar, typevars.DerivedTypeVariable)
             and len(funcaddr_typevar.labels) == 2
             and isinstance(funcaddr_typevar.labels[0], typevars.Load)
@@ -407,12 +411,12 @@ class SimEngineVRAIL(
             ret_ty = self.tv_manager.new_tv()
 
         if computed_funcaddr_typevar is not None:
-            # when the call's return value is unused, do not emit a FuncOut edge so the recovered
-            # function type has no output slot and renders as returning void. the result may land in
-            # either the integer return register (ret_expr) or the floating-point return register
-            # (fp_ret_expr); it is used when either is present. only drop the edge when at least one
-            # argument contributes a FuncIn edge; otherwise the FuncOut edge is the sole evidence
-            # that the callee cell holds a function pointer and must be kept.
+            # If the call's return value is unused, record no return type for the recovered function
+            # so it renders as returning void instead of a phantom int. The result counts as used if
+            # it lands in either the integer return register (ret_expr) or the floating-point return
+            # register (fp_ret_expr). Only drop the return when the call has at least one argument:
+            # with no arguments, the return is the only evidence that the callee is a function
+            # pointer at all, so it must be kept.
             has_arg_evidence = any(arg is not None and arg.typevar is not None for arg in args)
             result_used = ret_expr is not None or stmt.fp_ret_expr is not None
             self._add_computed_call_target_constraints(
