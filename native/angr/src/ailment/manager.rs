@@ -19,10 +19,10 @@ pub struct Manager {
     /// Attached by Clinic so that optimization passes, peephole optimizations,
     /// and region simplifiers can use VariableMap.
     pub variable_map: Option<Py<PyAny>>,
-    pub ins_addr: Option<i64>,
+    pub ins_addr: Option<i128>,
     pub vex_stmt_idx: Option<i64>,
     pub tyenv: Option<Py<PyAny>>,
-    pub block_addr: Option<i64>,
+    pub block_addr: Option<i128>,
 }
 
 impl Manager {
@@ -89,11 +89,11 @@ impl Manager {
     }
 
     #[getter]
-    fn ins_addr(&self) -> Option<i64> {
+    fn ins_addr(&self) -> Option<i128> {
         self.ins_addr
     }
     #[setter]
-    fn set_ins_addr(&mut self, value: Option<i64>) {
+    fn set_ins_addr(&mut self, value: Option<i128>) {
         self.ins_addr = value;
     }
 
@@ -116,11 +116,11 @@ impl Manager {
     }
 
     #[getter]
-    fn block_addr(&self) -> Option<i64> {
+    fn block_addr(&self) -> Option<i128> {
         self.block_addr
     }
     #[setter]
-    fn set_block_addr(&mut self, value: Option<i64>) {
+    fn set_block_addr(&mut self, value: Option<i128>) {
         self.block_addr = value;
     }
 

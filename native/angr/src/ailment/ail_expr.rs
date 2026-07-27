@@ -702,7 +702,7 @@ impl OIdent {
 /// is enforced by ``extract_phi_entries`` at construction time.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhiEntry {
-    pub src_addr: i64,
+    pub src_addr: i128,
     pub src_idx: Option<i64>,
     pub vvar: Option<Arc<AilExpression>>,
 }
@@ -5518,7 +5518,7 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
                 ),
             ));
         }
-        let src_addr: i64 = src_tuple.get_item(0)?.extract().map_err(|_| {
+        let src_addr: i128 = src_tuple.get_item(0)?.extract().map_err(|_| {
             phi_validation_error(
                 py,
                 &format!("Phi.src_and_vvars[{}] src_addr must be int", idx),

@@ -40,7 +40,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub enum TagExtra {
     Bool(bool),
-    Int(i64),
+    Int(i128),
     Float(f64),
     Str(String),
     IntList(Vec<i64>),
@@ -98,7 +98,7 @@ impl<'de> Deserialize<'de> for TagExtra {
         #[derive(Deserialize)]
         enum Helper {
             Bool(bool),
-            Int(i64),
+            Int(i128),
             Float(f64),
             Str(String),
             IntList(Vec<i64>),
@@ -220,7 +220,7 @@ impl TagKey {
 fn extra_from_py(value: &Bound<'_, PyAny>) -> TagExtra {
     if let Ok(b) = value.extract::<bool>() {
         TagExtra::Bool(b)
-    } else if let Ok(i) = value.extract::<i64>() {
+    } else if let Ok(i) = value.extract::<i128>() {
         TagExtra::Int(i)
     } else if let Ok(f) = value.extract::<f64>() {
         TagExtra::Float(f)
@@ -239,8 +239,8 @@ fn extra_from_py(value: &Bound<'_, PyAny>) -> TagExtra {
 /// `extras`. See the module docs.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Tags {
-    pub ins_addr: Option<i64>,
-    pub vex_block_addr: Option<i64>,
+    pub ins_addr: Option<i128>,
+    pub vex_block_addr: Option<i128>,
     pub vex_stmt_idx: Option<i32>,
     pub block_idx: Option<i32>,
     /// Cold known keys and arbitrary custom keys, keyed by [`TagKey`]. Hot

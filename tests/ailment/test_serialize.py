@@ -134,6 +134,11 @@ class TestSerialize(unittest.TestCase):
         assert src2 == (0x500, 0)
         assert v2 is None
 
+    def test_phi_high_address(self):
+        high_addr = 0xFFFFFFFF81000330
+        ph = roundtrip(Phi(7, 64, [((high_addr, None), None)]))
+        assert ph.src_and_vvars == [((high_addr, None), None)]
+
     # --- ops ----------------------------------------------------------------
 
     def test_unary_op(self):
@@ -503,6 +508,20 @@ class TestSerialize(unittest.TestCase):
         block = Block(0x500, statements=[Return(0, [])], idx=3)
         b2 = Block.from_bytes(block.to_bytes())
         assert b2 == block and b2.idx == 3
+
+    def test_block_and_tags_support_full_address_range(self):
+        high_addr = 0xFFFFFFFF81000330
+        dst = Register(0, 0, 64, ins_addr=high_addr, vex_block_addr=high_addr)
+        block = Block(high_addr, statements=[Assignment(1, dst, Const(2, 0, 64), orig_ins_addr=high_addr)])
+
+        b2 = Block.from_bytes(block.to_bytes())
+        assert b2.addr == high_addr
+        assert b2.statements[0].dst.tags["ins_addr"] == high_addr
+        assert b2.statements[0].dst.tags["vex_block_addr"] == high_addr
+        assert b2.statements[0].tags["orig_ins_addr"] == high_addr
+
+        sentinel = Block.from_bytes(Block(-1).to_bytes())
+        assert sentinel.addr == -1
 
     def test_empty_block_to_from_bytes(self):
         b2 = Block.from_bytes(Block(0x600).to_bytes())

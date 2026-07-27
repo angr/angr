@@ -19,7 +19,7 @@ use crate::ailment::{CachedHash, hash_of};
 )]
 #[derive(Debug)]
 pub struct Block {
-    pub addr: i64,
+    pub addr: i128,
     pub original_size: Option<i64>,
     pub statements: Py<PyList>,
     pub idx: Option<i64>,
@@ -56,7 +56,7 @@ impl Block {
     #[pyo3(signature = (addr, original_size=None, statements=None, idx=None))]
     fn new(
         py: Python<'_>,
-        addr: i64,
+        addr: i128,
         original_size: Option<i64>,
         statements: Option<Bound<'_, PyAny>>,
         idx: Option<i64>,
@@ -85,11 +85,11 @@ impl Block {
     }
 
     #[getter]
-    fn addr(&self) -> i64 {
+    fn addr(&self) -> i128 {
         self.addr
     }
     #[setter]
-    fn set_addr(&mut self, value: i64) {
+    fn set_addr(&mut self, value: i128) {
         self.addr = value;
         self.cached_hash.clear();
     }
@@ -177,7 +177,7 @@ impl Block {
     }
 
     #[getter]
-    fn sort_key(&self) -> (i64, i64, i64) {
+    fn sort_key(&self) -> (i128, i64, i64) {
         let idx = self.idx;
         match idx {
             None => (self.addr, 0, 0),
@@ -347,7 +347,7 @@ impl Block {
         py: Python<'py>,
         data: &[u8],
     ) -> PyResult<Py<Block>> {
-        let (addr, original_size, idx, stmts): (i64, Option<i64>, Option<i64>, Vec<AilStatement>) =
+        let (addr, original_size, idx, stmts): (i128, Option<i64>, Option<i64>, Vec<AilStatement>) =
             postcard::from_bytes(data)
                 .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
         let list = PyList::empty(py);
