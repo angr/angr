@@ -18,10 +18,9 @@ import sys
 import angr
 
 project = angr.Project(sys.argv[1], auto_load_libs=False)
-# Scope CFG recovery to sub_4012f5 itself (0x4012f5-0x4015ab is its exact extent); a whole-binary CFG takes ~10s per
-# seed. Callees are still recovered because CFGFast follows call targets out of the scanned region, so the
-# decompilation output is identical to a wider scan -- it just skips lifting the unrelated functions that happen to
-# sit next to the target.
+# Scope CFG recovery to sub_4012f5 itself (0x4012f5-0x4015ab is its exact extent).
+# Callees are still recovered because CFGFast follows call targets out of the scanned region, so the decompilation
+# output is identical to a wider scan.
 project.analyses.CFGFast(
     normalize=True,
     regions=[(0x4012F5, 0x4015AB)],
@@ -55,9 +54,7 @@ def _decompile_with_seed(seed: int, binary_path: str) -> str:
 
 
 def _decompile_with_seeds(seeds: list[int], binary_path: str) -> dict[int, str]:
-    """Decompile once per seed. Each seed needs its own interpreter (PYTHONHASHSEED is fixed at startup), but the runs
-    are independent of each other, so run them concurrently: the wall time is one decompilation, not len(seeds) of
-    them."""
+    """Decompile once per seed."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(seeds)) as pool:
         futures = [pool.submit(_decompile_with_seed, seed, binary_path) for seed in seeds]
         outputs = {seed: future.result() for seed, future in zip(seeds, futures)}

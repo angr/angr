@@ -1351,10 +1351,6 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_decompiling_newburry_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
-        # A whole-binary CFG of newbury costs ~9.5s (3004 functions) while decompiling main takes ~1.2s, and
-        # main's call tree covers most of the binary, so expanding it is even slower. Scope the CFG to main
-        # itself plus the two extra functions its decompilation depends on; include_plt keeps the library
-        # call prototypes. This reproduces the whole-binary decompilation byte for byte.
         p, cfg = load_project_with_scoped_cfg(
             bin_path,
             0x40F696,  # main
@@ -1365,8 +1361,6 @@ class TestDecompiler(unittest.TestCase):
             window=0x800,  # main is 0x3ea bytes long
             expand_call_tree=False,
             include_plt=True,
-            project_kwargs={"auto_load_libs": False},
-            cfg_kwargs={"data_references": True},
             run_ccc=False,
         )
 
@@ -1375,6 +1369,7 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         print_decompilation_result(dec)
+        assert dec.codegen is not None and dec.codegen.text is not None
         code = dec.codegen.text
 
         # return statements should not be wrapped into a for statement
@@ -3562,22 +3557,17 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options_2, optimization_passes=all_optimization_passes
         )
+        assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert dec.codegen.text == saved
 
     @for_all_structuring_algos
     def test_function_pointer_identification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
-        # rust_hello_world::main is never called, it is only passed to std::rt::lang_start as a function
-        # pointer; identifying it is exactly what this test asserts, so it must *not* be listed in
-        # extra_func_addrs. It is picked up because the region covering main also covers it.
-        # A small window is required here: with the default 0x2000 window the call-tree expansion snowballs
-        # over this densely packed Rust binary and ends up as slow as a whole-binary CFG.
         proj, cfg = load_project_with_scoped_cfg(
             bin_path,
             0x408A50,  # main
             window=0x400,
-            project_kwargs={"auto_load_libs": False},
             run_ccc=False,
         )
 
@@ -3585,6 +3575,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         print_decompilation_result(d)
+        assert d.codegen is not None and d.codegen.text is not None
         text = d.codegen.text
         assert "extern" not in text
         assert "std::rt::lang_start(rust_hello_world::main" in text
@@ -5570,15 +5561,9 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_rust_fmt_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        # uumain() reaches about half of this 765 KB Rust binary, so the CFG cannot be scoped: whole-binary CFG
-        # recovery is what this test pays for. The default cache limits are derived from the binary size assuming
-        # ~512 bytes of code per function, which sizes the function/CFG-node/CFG-edge caches for ~3800 functions;
-        # this binary has 9129 of them (~78 bytes each), so recovery spends roughly 40% of its time spilling
-        # functions and CFG nodes to LMDB and reading them back. Keeping everything resident costs ~60 MB of RSS
-        # here and is purely a memory/speed trade-off: the recovered CFG and the decompilation are byte-identical.
+        # turning off cache for better speed
         proj = angr.Project(
             bin_path,
-            auto_load_libs=False,
             cache_limits={"functions": None, "cfg_nodes": None, "cfg_edges": None},
         )
         cfg = proj.analyses.CFG(normalize=True)
@@ -5632,15 +5617,12 @@ class TestDecompiler(unittest.TestCase):
     def test_decompiling_rust_fmt_build_best_path_no_ref_using_args(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
         # build_best_path is 0x75 bytes long inside a 9k-function Rust binary: a whole-binary CFG costs ~48 s
-        # while decompiling this function takes 0.2 s. Scope the CFG to the function plus its two direct
-        # callees; those are the only functions whose bodies affect the output, so the call tree (which in a
-        # Rust binary reaches nearly everything) does not need to be expanded.
+        # while decompiling this function takes 0.2 s.
         proj, cfg = load_project_with_scoped_cfg(
             bin_path,
             0x4BC130,  # uu_fmt::linebreak::build_best_path
             extra_func_addrs=(0x4BAE60, 0x4BC1B0),  # Iterator::reduce, build_best_path::{{closure}}
             expand_call_tree=False,
-            project_kwargs={"auto_load_libs": False},
             run_ccc=False,
         )
         func = proj.kb.functions[0x4BC130]
@@ -5986,8 +5968,7 @@ class TestDecompiler(unittest.TestCase):
         # x86g_calculate_condition ccalls. This regression test covers a bug found in the x86 ccall rewriter.
         #
         # The ccalls under test are produced by sub_74d6a1's own instructions, so the call tree is deliberately
-        # not expanded: this binary is 5.8 MB and the transitive callees of sub_74d6a1 cover essentially all of
-        # .text, which makes the "scoped" CFG more expensive than a whole-binary one (~370s vs ~7s).
+        # not expanded.
         bin_path = os.path.join(
             test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
         )

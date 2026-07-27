@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 from unittest import SkipTest, skip, skipIf, skipUnless
 
 import networkx
+from elftools.elf.elffile import ELFFile
 from rich.console import Console
 from rich.syntax import Syntax
 
@@ -240,15 +241,8 @@ def load_project_with_scoped_cfg(
     :param window:            Size in bytes of the region scanned after each function start; must cover
                               the function's full extent.
     :param expand_call_tree:  Also cover the transitive callees of the given functions.
-    :param include_plt:       Also cover the PLT sections. Required for dynamically linked binaries: without
-                              the PLT stubs in the CFG, calls to library functions are not recognized and
-                              lose their SimProcedure prototypes, so the decompilation of the caller changes
-                              (e.g. ``getuid()`` becomes a six-argument call). The PLT sections are tiny, so
-                              this costs almost nothing.
-    :param call_tree_depth:   Maximum number of call-tree discovery rounds. Each round adds one more level
-                              of callees (and everything else found inside the newly covered regions). The
-                              default runs to a fixpoint; lower it when the call tree is huge but only its
-                              top levels influence the decompilation output.
+    :param include_plt:       Also cover the PLT sections. Required for dynamically linked binaries.
+    :param call_tree_depth:   Maximum number of call-tree discovery rounds. Each round adds one more level of callees.
     :param project_kwargs:    Extra keyword arguments for angr.Project.
     :param cfg_kwargs:        Overrides for the final CFGFast call.
     :param run_ccc:           Run CompleteCallingConventions, scoped to the covered functions.
@@ -303,25 +297,11 @@ def load_project_with_scoped_cfg(
 
 def function_extents_from_eh_frame(proj: Project) -> dict[int, int]:
     """
-    Read exact function extents (``{addr: size}``) out of the ELF ``.eh_frame`` FDE table.
-
-    ``load_project_with_scoped_cfg`` approximates each function's extent with a fixed ``window``.
-    That works when a handful of functions are covered, but it overshoots badly on densely packed
-    binaries: a 0x1000 window around each of a few hundred functions merges into most of ``.text``,
-    which is exactly the whole-binary scan that scoping is trying to avoid. Compilers emit one FDE
-    per function with its exact start and length, so on any binary with unwind tables (all Rust
-    binaries, and anything else built with ``-fasynchronous-unwind-tables``, which is the gcc/clang
-    default on x86-64 Linux) the extents can simply be read off instead of guessed.
-
-    Returns an empty dict if the binary has no usable ``.eh_frame``, in which case callers should
-    fall back to a window.
+    Read exact function extents (``{addr: size}``) out of the ELF ``.eh_frame`` FDE table. Returns an empty dict if the
+    binary has no usable ``.eh_frame``.
     """
     main_object = proj.loader.main_object
     if proj.filename is None:
-        return {}
-    try:
-        from elftools.elf.elffile import ELFFile  # pylint:disable=import-outside-toplevel
-    except ImportError:
         return {}
 
     extents: dict[int, int] = {}
@@ -355,23 +335,8 @@ def recover_call_tree_cfg(
     """
     Build a CFG covering only ``roots`` and their callees up to ``depth`` call levels.
 
-    Like :func:`load_project_with_scoped_cfg` this exists so a test that decompiles one function
-    does not pay for a whole-binary CFG, but it targets the case where the function under test has
-    a call tree of thousands of functions (typical for a statically linked Rust binary), where
-    expanding the call tree to a fixed point costs more than the unscoped run. Two things make the
-    bounded expansion cheap:
-
-    * regions come from :func:`function_extents_from_eh_frame`, so each round scans the exact bytes
-      of the functions it is expanding and nothing else;
-    * each function is scanned exactly once across all rounds -- callgraph edges accumulate in
-      ``graph`` -- so discovery costs about one pass over the covered functions in total.
-
-    ``depth`` is a correctness knob, not a performance knob: decompilation output stops changing
-    once enough of the callee tree is present for calling-convention/prototype recovery to settle.
-    Pick it by bisecting against the whole-binary result (see the test's docstring) and verify the
-    decompilation text is byte-identical.
-
-    Discovery runs on throwaway knowledge bases so partial results never leak into ``proj.kb``.
+    CFG recovery in this method runs on temporary KnowledgeBase so partial results never leak into the global
+    KnowledgeBase.
     """
     main_object = proj.loader.main_object
     extents = function_extents_from_eh_frame(proj)
@@ -403,8 +368,8 @@ def recover_call_tree_cfg(
                     (addr, callee) for callee in callgraph.successors(addr) if main_object.contains_addr(callee)
                 )
         scanned |= pending
-        # Functions at exactly ``depth`` are covered by the final CFG but never expanded, so the
-        # deepest level is never scanned at all.
+        # Functions at exactly ``depth`` are covered by the final CFG but never expanded, so the deepest level is never
+        # scanned.
         known, pending = _bfs_levels(graph, roots, depth)
         pending -= scanned
 
@@ -421,7 +386,7 @@ def recover_call_tree_cfg(
 
 
 def _bfs_levels(graph: networkx.DiGraph, roots: Sequence[int], depth: int) -> tuple[set[int], set[int]]:
-    """Return (nodes within ``depth`` hops of ``roots``, those of them strictly closer than ``depth``)."""
+    """Return (nodes within ``depth`` hops of ``roots``, those strictly closer than ``depth``)."""
     reached: set[int] = set(roots)
     expandable: set[int] = set()
     frontier: set[int] = set(roots)

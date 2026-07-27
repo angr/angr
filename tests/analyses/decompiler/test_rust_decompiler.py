@@ -15,13 +15,6 @@ from tests.common import bin_location, recover_call_tree_cfg
 
 RUST_BINARIES_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "coreutils")
 
-# These coreutils binaries are small (1-3 MB) but statically linked, so CFGFast recovers well over ten thousand
-# functions - roughly six times the size-derived default cache limit, which assumes ~512 bytes of code per function
-# while these average ~50. The knowledge base then spends most of CFG recovery, and most of the FLIRT passes in
-# RustSymbolRecovery, serializing functions and CFG nodes in and out of LMDB. Keeping everything resident costs
-# ~0.6 GB here and is purely a memory/speed trade-off: the recovered CFG and the decompilation are byte-identical.
-UNLIMITED_CACHES: dict[str, int | None] = {"functions": None, "cfg_nodes": None, "cfg_edges": None}
-
 
 def rust_binary_path(configuration: str, binary: str) -> str:
     return os.path.join(RUST_BINARIES_BASE, configuration, binary)
@@ -45,8 +38,7 @@ class TestRustcVersionIdentification(unittest.TestCase):
         "nightly-2025-05-22-O0": "1.88.0",
     }
 
-    #: How many bytes at the end of each executable section the pre-built CFG covers. See
-    #: :meth:`_check_fmt_version` for why the *end* of the section is the right place to look.
+    #: How many bytes at the end of each executable section the pre-built CFG covers.
     CFG_TAIL_BYTES = 128 * 1024
 
     def test_default_sig_dir(self):
@@ -60,15 +52,9 @@ class TestRustcVersionIdentification(unittest.TestCase):
         p = angr.Project(path)
         # Pre-build a sampled, region-limited CFG so this test does not pay for a whole-binary one.
         #
-        # rustc ships std/core/alloc as prebuilt rlibs, and the linker emits the crate's own object
-        # files before those rlibs, so the library code the FLIRT signatures actually describe sits
-        # at the *end* of .text. Measured against a whole-binary CFG of these three binaries, every
-        # single core::/std::/alloc:: match in the -O0 build falls in the last 20% of .text (0 in the
-        # first 80%), and in both -O3 builds the trailing deciles hold the largest share. Sampling
-        # the tail therefore hits the code the signatures were built from, whereas sampling the head
-        # mostly scans crate code compiled at whatever level the crate used -- which is why a
-        # head-of-section sample scored the -O0 build 44 vs 43 for the runner-up (a near coin flip),
-        # while the tail sample scores it 149 vs 135.
+        # rustc ships std/core/alloc as prebuilt rlibs, and the linker emits the crate's own object files before those
+        # rlibs, so the library code the FLIRT signatures actually describe sits at the end of .text. Hence we limit
+        # the CFG to the last 128 KB of each executable section for better speed.
         regions = [
             (sec.vaddr + sec.memsize - min(self.CFG_TAIL_BYTES, sec.memsize), sec.vaddr + sec.memsize)
             for sec in p.loader.main_object.sections
@@ -109,25 +95,15 @@ class RustDecompilationTarget(unittest.TestCase):
     FUNC_ADDRS: dict[str, dict[str, int]] = {}
 
     #: When set, CFG recovery is scoped to the functions in ``FUNC_ADDRS`` plus this many levels of
-    #: callees instead of scanning the whole binary. Statically linked coreutils binaries carry
-    #: 10k-17k functions, of which only the shallow part of the call tree influences the
-    #: decompilation of the function under test; see :func:`tests.common.recover_call_tree_cfg`.
-    #: Leave as ``None`` (whole-binary CFG) unless the scoped result has been verified to be
-    #: byte-identical to the unscoped one.
+    #: callees instead of scanning the whole binary.
     CALL_TREE_DEPTH: int | None = None
 
-    #: Recover the CFG by recursive descent from the functions under test instead of scanning the
-    #: whole binary. Opt-in per subclass: it drops code that is unreachable from those functions,
-    #: which is normally irrelevant to their decompilation but does feed FLIRT matching, so a
-    #: subclass that sets this must check that the decompilation output is unchanged.
+    #: Recover the CFG by recursive descent from the functions under test instead of scanning the whole binary.
     CFG_FROM_FUNCS_UNDER_TEST: bool = False
 
-    #: Calling conventions are only consumed for the functions under test and the calls they make, so
-    #: CompleteCallingConventions can be restricted to that many levels of the call graph instead of
-    #: the whole (thousands of functions deep) transitive call tree. ``None`` means the whole tree.
-    #: A subclass that sets this must check that the decompilation output is unchanged: prototype
-    #: recovery is order-sensitive, so the cutoff is not monotonic (for fmt/uumain, 2 and >=4 both
-    #: reproduce the full-tree output while 3 does not).
+    #: Limit the call depth of complete calling convention analysis. None refers to the entire call tree.
+    #: We manually tuned CCC_CALL_DEPTH for each test case to get equivalent decompilation output to a whole-binary
+    #: run; we may need a different CCC_CALL_DEPTH value in the future when angr decompiler changes substantially.
     CCC_CALL_DEPTH: int | None = None
 
     def decompile_functions(self):
@@ -141,7 +117,7 @@ class RustDecompilationTarget(unittest.TestCase):
         for config in configs_needed:
             path = rust_binary_path(config, self.BINARY)
             assert os.path.isfile(path), f"{path} not found"
-            proj = angr.Project(path, auto_load_libs=False, cache_limits=UNLIMITED_CACHES)
+            proj = angr.Project(path, auto_load_libs=False)
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
             func_addrs = {
                 addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
@@ -255,9 +231,6 @@ class TestFmtNightly20250522O3(_FmtTests):
     FUNC_ADDRS = {
         "uumain": {"nightly-2025-05-22-O3": 0x496920},
     }
-    # Both verified to produce byte-identical decompilation output: a whole-binary CFG covers 9,737
-    # functions where descent from uumain covers 5,404, and calling convention recovery over four
-    # levels of call graph covers 400 functions where uumain's full call tree has 3,703.
     CFG_FROM_FUNCS_UNDER_TEST = True
     CCC_CALL_DEPTH = 4
 
@@ -266,13 +239,7 @@ class TestFmtNightly20250522O3(_FmtTests):
 
 
 class TestFmtNightly20250522O0(_FmtTests):
-    """``fmt`` decompilation feature tests for the nightly-2025-05-22-O0 build.
-
-    The -O0 build has 16729 functions and a whole-binary CFG costs ~90s, but ``uumain`` only needs
-    the top of its call tree: five levels of callees (865 functions) reproduce the whole-binary
-    decompilation byte for byte, while four levels do not (two callee prototypes lose their
-    struct-return form, so ``format!`` stops yielding a ``String``).
-    """
+    """``fmt`` decompilation feature tests for the nightly-2025-05-22-O0 build."""
 
     FUNC_ADDRS = {
         "uumain": {"nightly-2025-05-22-O0": 0x4D42F0},
