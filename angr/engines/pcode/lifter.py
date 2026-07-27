@@ -958,7 +958,9 @@ class PcodeBasicBlockLifter:
             next_block = (fallthru_addr, "Ijk_Boring")
 
         irsb._size = fallthru_addr - irsb.addr
-        const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[irsb.arch.bits]
+        # pyvex has no 24-bit IRConst container. The compatibility IRSB only exposes the target value here; AIL and
+        # p-code execution recover the architecture's actual pointer width separately.
+        const_cls = {8: U8, 16: U16, 24: U32, 32: U32, 64: U64}[irsb.arch.bits]
         irsb.next = Const(const_cls(next_block[0])) if next_block[0] is not None else None
         irsb.jumpkind = next_block[1]
 

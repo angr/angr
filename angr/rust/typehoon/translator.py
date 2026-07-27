@@ -48,11 +48,20 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_Pointer32(self, tc):
         return self._translate_Pointer64(tc)
 
+    def _translate_Pointer16(self, tc):
+        return self._translate_Pointer64(tc)
+
+    def _translate_Pointer24(self, tc):
+        return self._translate_Pointer64(tc)
+
     def _translate_Int8(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=8, signed=False).with_arch(self.arch)
 
     def _translate_Int16(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=16, signed=False).with_arch(self.arch)
+
+    def _translate_Int24(self, tc):
+        return RustSimTypeInt(size=24, signed=False).with_arch(self.arch)
 
     def _translate_Int32(self, tc):
         return RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
@@ -187,6 +196,8 @@ class RustTypeTranslator(TypeTranslator):
             return typeconsts.Int8()
         if ty.size == 16:
             return typeconsts.Int16()
+        if ty.size == 24:
+            return typeconsts.Int24()
         if ty.size == 32:
             return typeconsts.Int32()
         if ty.size == 64:
@@ -229,6 +240,10 @@ class RustTypeTranslator(TypeTranslator):
 
     def _translate_RustSimTypeReference(self, ty: RustSimTypeReference):
         base = self._simtype2tc(ty.pts_to)
+        if self.arch.bits == 16:
+            return typeconsts.Pointer16(base)
+        if self.arch.bits == 24:
+            return typeconsts.Pointer24(base)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base)
         return typeconsts.Pointer64(base)
@@ -253,10 +268,13 @@ class RustTypeTranslator(TypeTranslator):
 RustTypeConstHandlers = {
     typeconsts.Pointer64: RustTypeTranslator._translate_Pointer64,
     typeconsts.Pointer32: RustTypeTranslator._translate_Pointer32,
+    typeconsts.Pointer24: RustTypeTranslator._translate_Pointer24,
+    typeconsts.Pointer16: RustTypeTranslator._translate_Pointer16,
     typeconsts.Array: RustTypeTranslator._translate_Array,
     typeconsts.Struct: RustTypeTranslator._translate_Struct,
     typeconsts.Int8: RustTypeTranslator._translate_Int8,
     typeconsts.Int16: RustTypeTranslator._translate_Int16,
+    typeconsts.Int24: RustTypeTranslator._translate_Int24,
     typeconsts.Int32: RustTypeTranslator._translate_Int32,
     typeconsts.Int64: RustTypeTranslator._translate_Int64,
     typeconsts.Int128: RustTypeTranslator._translate_Int128,

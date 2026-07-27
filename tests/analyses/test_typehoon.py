@@ -24,6 +24,8 @@ from angr.analyses.typehoon.typeconsts import (
     Int8,
     Int32,
     IntVar,
+    Pointer16,
+    Pointer24,
     Pointer64,
     SInt32,
     SInt64,
@@ -456,6 +458,32 @@ class TestTypeTranslator(unittest.TestCase):
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
 
+    def test_16bit_pointer_round_trip(self):
+        arch = archinfo.ArchPcode("8051:BE:16:default")
+        tx = TypeTranslator(arch)
+
+        tc = tx.simtype2tc(SimTypePointer(SimTypeChar()).with_arch(arch))
+        assert isinstance(tc, Pointer16)
+        assert tc.size == 2
+
+        restored, has_nonexistent_ref = tx.tc2simtype(tc)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimTypePointer)
+        assert restored.size == 16
+
+    def test_24bit_pointer_round_trip(self):
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")
+        tx = TypeTranslator(arch)
+
+        tc = tx.simtype2tc(SimTypePointer(SimTypeChar()).with_arch(arch))
+        assert isinstance(tc, Pointer24)
+        assert tc.size == 3
+
+        restored, has_nonexistent_ref = tx.tc2simtype(tc)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimTypePointer)
+        assert restored.size == 24
+
     def test_simtypenum_struct_round_trip(self):
         arch = archinfo.arch_from_id("amd64")
         st = SimTypePointer(
@@ -496,7 +524,7 @@ class TestTypeTranslator(unittest.TestCase):
         arch = archinfo.arch_from_id("amd64")
         tx = TypeTranslator(arch)
 
-        for bits in (1, 9, 24, 128):
+        for bits in (1, 9, 128):
             for signed in (False, True):
                 with self.subTest(bits=bits, signed=signed):
                     tc = tx.simtype2tc(SimTypeNum(bits, signed=signed, label=f"int{bits}_t").with_arch(arch))
@@ -514,7 +542,7 @@ class TestTypeTranslator(unittest.TestCase):
         arch = archinfo.arch_from_id("amd64")
         tx = TypeTranslator(arch)
 
-        for bits in (8, 16, 32, 64):
+        for bits in (8, 16, 24, 32, 64):
             for signed in (False, True):
                 with self.subTest(bits=bits, signed=signed):
                     label = f"{'u' if not signed else ''}int{bits}_t"
@@ -567,6 +595,17 @@ class TestSimpleSolverLatticeOps(unittest.TestCase):
             self.arch,
         )
         assert isinstance(joined, SimTypePointer)
+        assert isinstance(joined.pts_to, SimTypeChar)
+
+    def test_join_same_pointer_24bit(self):
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            arch,
+        )
+        assert isinstance(joined, SimTypePointer)
+        assert joined.size == 24
         assert isinstance(joined.pts_to, SimTypeChar)
 
     def test_join_same_struct_pointer_preserves_struct(self):
