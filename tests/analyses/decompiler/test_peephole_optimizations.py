@@ -572,6 +572,7 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         result = simp.result_block
         assert result is not None
 
+        assert isinstance(result.statements[1], Assignment)
         src = result.statements[1].src
         assert isinstance(src, Convert), f"Concat was not simplified:\n{result.dbg_repr()}"
         assert src.from_bits == 32
@@ -617,6 +618,7 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         result = simp.result_block
         assert result is not None
 
+        assert isinstance(result.statements[1], Assignment)
         src = result.statements[1].src
         assert isinstance(src, BinaryOp) and src.op == "Div", f"Sar was not rewritten:\n{result.dbg_repr()}"
         assert src.signed is True

@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING
 
 import networkx
 
 from angr.ailment import Address, Block
-from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
@@ -15,9 +14,6 @@ from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
 from angr.utils.ssa import is_phi_assignment
-
-if TYPE_CHECKING:
-    from angr.ailment.expression import Phi
 
 _l = logging.getLogger(__name__)
 

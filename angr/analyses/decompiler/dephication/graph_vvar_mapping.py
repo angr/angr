@@ -235,7 +235,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     if src not in stmt_appended_locs:
                         # we have not yet appended a statement to this block
                         the_block = self._blocks[src]
-                        ins_addr = the_block.addr + the_block.original_size - 1
+                        ins_addr = (
+                            the_block.addr + (the_block.original_size if the_block.original_size is not None else 1) - 1
+                        )
                         new_category = phi_stmt.dst.category
                         new_oident = phi_stmt.dst.oident
                         new_vvar = VirtualVariable(
