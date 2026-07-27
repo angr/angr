@@ -172,8 +172,7 @@ class SymbolicBitmap:
         window = 64
         while pos < stop:
             end = pos + window
-            if end > stop:
-                end = stop
+            end = min(end, stop)
             n = end - pos
             fb = pos >> 3
             off = pos & 7
@@ -200,8 +199,7 @@ class SymbolicBitmap:
         window = 64
         while pos < stop:
             end = pos + window
-            if end > stop:
-                end = stop
+            end = min(end, stop)
             n = end - pos
             fb = pos >> 3
             off = pos & 7
@@ -270,10 +268,10 @@ class SymbolicBitmap:
         o = SymbolicBitmap.__new__(SymbolicBitmap)
         o.size = self.size
         bits = self._bits
-        o._bits = None if bits is None else bytearray(bits)
-        o._uniform = self._uniform
+        o._bits = None if bits is None else bytearray(bits)  # pylint:disable=protected-access
+        o._uniform = self._uniform  # pylint:disable=protected-access
         # the copy is a fresh buffer that nobody holds a pointer into
-        o._pinned = False
+        o._pinned = False  # pylint:disable=protected-access
         return o
 
 

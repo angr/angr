@@ -228,6 +228,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         memory=None,
         changed_offsets: set[int] | None = None,
     ):
+        assert page_addr is not None
         all_pages = [self, *others]
         merged_to = None
         merged_objects = set()
@@ -253,7 +254,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # all memories that don't have those bytes
             for pg, fv in zip(all_pages, merge_conditions):
                 if pg.symbolic_bitmap.get(b):
-                    mo = pg._get_object(b, page_addr)
+                    mo = pg._get_object(b, page_addr)  # pylint: disable=protected-access
                     if mo is not None:
                         l.debug("... MO present in %s", fv)
                         memory_objects.append((mo, fv))
@@ -264,7 +265,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                         unconstrained_in.append((pg, fv))
                 else:
                     # concrete data
-                    concretes.append((pg._concrete()[b], fv))
+                    concretes.append((pg._concrete()[b], fv))  # pylint: disable=protected-access
 
             # fast path: no memory objects, no unconstrained positions, and only one concrete value
             if not memory_objects and not unconstrained_in and len({cv for cv, _ in concretes}) == 1:
@@ -316,7 +317,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
                 for um, _ in unconstrained_in:
                     for i in range(min_size):
-                        if um._contains(b + i, page_addr):
+                        if um._contains(b + i, page_addr):  # pylint: disable=protected-access
                             min_size = i
                             break
                 merged_to = b + min_size
@@ -388,7 +389,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if bool(self_sym) != bool(other_bitmap.get(addr)):
                 changes.add(addr)
             elif not self_sym:
-                if self._concrete()[addr] != other._concrete()[addr]:
+                if self._concrete()[addr] != other._concrete()[addr]:  # pylint: disable=protected-access
                     changes.add(addr)
             else:
                 try:
@@ -471,21 +472,19 @@ class UltraPage(MemoryObjectMixin, PageBase):
             place = next(self.symbolic_data.irange(maximum=start, reverse=True))
         except StopIteration:
             return None
-        else:
-            obj = self.symbolic_data[place]
-            if obj.includes(start + page_addr) or (
-                memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
-            ):
-                return obj
-            return None
+        obj = self.symbolic_data[place]
+        if obj.includes(start + page_addr) or (
+            memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
+        ):
+            return obj
+        return None
 
     def _get_next_place(self, start):
         try:
             place = next(self.symbolic_data.irange(minimum=start, reverse=False))
         except StopIteration:
             return None
-        else:
-            return place
+        return place
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
         memory_objects = set()
@@ -533,7 +532,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
         ) != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
-        new = SimMemoryObject(new_content, old.base, old.endness, byte_width=old._byte_width)
+        new = SimMemoryObject(
+            new_content,
+            old.base,
+            old.endness,
+            byte_width=old._byte_width,  # pylint: disable=protected-access
+        )
         for k in list(self.symbolic_data):
             if self.symbolic_data[k] is old:
                 self.symbolic_data[k] = new
