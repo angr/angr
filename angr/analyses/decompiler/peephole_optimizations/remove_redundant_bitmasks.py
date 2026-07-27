@@ -139,8 +139,17 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 new_op0 = op0.operands[0]
                 replaced, new_operand_expr = operand_expr.replace(op0, new_op0)
                 if replaced:
-                    expr.operand = new_operand_expr
-                    return expr
+                    return Convert(
+                        self.manager.next_atom(),
+                        expr.from_bits,
+                        expr.to_bits,
+                        expr.is_signed,
+                        new_operand_expr,
+                        from_type=expr.from_type,
+                        to_type=expr.to_type,
+                        rounding_mode=expr.rounding_mode,
+                        **expr.tags,
+                    )
         # Conv(64->32, (expr) - (expr) & 0xffffffff<64>)))
         # => Conv(64->32, (expr - expr))
         elif (
