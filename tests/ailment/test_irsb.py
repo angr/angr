@@ -68,6 +68,20 @@ class TestIrsb(unittest.TestCase):
         assert store.addr.value == 0x5678
         assert store.size == 1
 
+    def test_convert_pcode_processor_memory_spaces(self):
+        arch = archinfo.ArchPcode("8051:BE:16:default")
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        irsb = angr.engines.pcode.lifter.IRSB(bytes.fromhex("75812b1213c6"), 0x49, arch)
+        irsb.behaviors = angr.engines.pcode.behavior.BehaviorFactory()
+
+        ablock = ailment.IRSBConverter.convert(irsb, manager)
+
+        stores = [stmt for stmt in ablock.statements if isinstance(stmt, ailment.Stmt.Store)]
+        assert len(stores) == 3
+        spaces = [stmt.tags["pcode_space"] for stmt in stores]
+        assert spaces.count("INTMEM") == 2
+        assert spaces.count("SFR") == 1
+
     def test_lift_path_matches_python_path(self):
         """The direct libVEX-lift fast path must produce the same AIL block as
         converting a cached pyvex Python IRSB."""
