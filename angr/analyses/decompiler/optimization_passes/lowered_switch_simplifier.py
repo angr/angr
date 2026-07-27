@@ -230,6 +230,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
         node_to_heads = defaultdict(set)
+        modified = False
 
         for _, caselists in variablehash_to_cases.items():
             for cases, redundant_nodes in caselists:
@@ -346,6 +347,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 new_head.statements[-1] = switch_stmt
                 # update the block
                 self._update_block(original_head, new_head)
+                modified = True
 
                 # sanity check that no switch head points to either itself
                 # or to any if-head that was merged into the new switch head; this
@@ -412,6 +414,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         else:
                             graph_copy.add_edge(node_copy, succ)
 
+        if not modified:
+            # the graph is not modified
+            self.out_graph = None
+            return False
         return True
 
     def _find_cascading_switch_variable_comparisons(self):
