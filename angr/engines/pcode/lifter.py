@@ -42,6 +42,10 @@ IRSB_MAX_INST = 99
 MAX_INSTRUCTIONS = 99999
 MAX_BYTES = 5000
 
+# pyvex only has power-of-two integer constants, so an address of a p-code architecture with a narrower width rides
+# in the next larger container. Only the numeric value of irsb.next is ever read back, so the padding is harmless.
+_JUMP_TARGET_CONST_CLASSES = {8: U8, 16: U16, 24: U32, 32: U32, 64: U64}
+
 
 class ExitStatement:
     """
@@ -474,7 +478,7 @@ class IRSB:
         # pylint: disable=unused-argument
         self._statements = statements if statements is not None else []
         if isinstance(nxt, int):
-            const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[self.arch.bits]
+            const_cls = _JUMP_TARGET_CONST_CLASSES[self.arch.bits]
             self.next = Const(const_cls(nxt))
         else:
             self.next = nxt
@@ -808,7 +812,7 @@ def lift(
             # We have no more bytes left. Mark the jumpkind of the IRSB as Ijk_Boring
             if final_irsb.size > 0 and final_irsb.jumpkind == "Ijk_NoDecode":
                 final_irsb.jumpkind = "Ijk_Boring"
-                const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[arch.bits]
+                const_cls = _JUMP_TARGET_CONST_CLASSES[arch.bits]
                 final_irsb.next = Const(const_cls(final_irsb.addr + final_irsb.size))
 
     return final_irsb
@@ -958,7 +962,7 @@ class PcodeBasicBlockLifter:
             next_block = (fallthru_addr, "Ijk_Boring")
 
         irsb._size = fallthru_addr - irsb.addr
-        const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[irsb.arch.bits]
+        const_cls = _JUMP_TARGET_CONST_CLASSES[irsb.arch.bits]
         irsb.next = Const(const_cls(next_block[0])) if next_block[0] is not None else None
         irsb.jumpkind = next_block[1]
 

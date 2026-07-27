@@ -5,6 +5,7 @@ import os
 from unittest import TestCase, main
 
 import archinfo
+from pyvex.expr import Const
 
 import angr
 
@@ -74,6 +75,48 @@ class TestPcodeEngine(TestCase):
 
         deny_paths = [s for s in simgr.deadended if b"Go away!" in s.posix.dumps(1)]
         assert len(deny_paths) == 1
+
+    def test_narrow_arch_jump_targets(self):
+        """
+        Test that an architecture whose addresses are not a pyvex constant width still lifts.
+        """
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")  # 24-bit addresses
+        assert arch.bits == 24
+
+        p = angr.load_shellcode(
+            bytes.fromhex("01e00895"),  # ldi r16, 1 ; ret
+            arch=arch,
+            load_address=0x100,
+            engine=angr.engines.UberEnginePcode,
+        )
+        assert p.factory.block(0x100).vex.jumpkind == "Ijk_Ret"
+
+        # an undecodable block builds its jump target through a different path, which used to be missed
+        undecodable = angr.load_shellcode(
+            b"\xff\xff", arch=arch, load_address=0x100, engine=angr.engines.UberEnginePcode
+        )
+        block = undecodable.factory.block(0x100).vex
+        assert block.jumpkind == "Ijk_NoDecode"
+        assert isinstance(block.next, Const)
+        assert block.next.con.value == 0x100
+
+        # a 24-bit target rides in a 32-bit constant, so check the padding does not leak into execution: the
+        # instruction pointer the engine derives from it must still be 24 bits wide
+        fallthrough = angr.load_shellcode(
+            bytes.fromhex("01e012e00895"),  # ldi r16, 1 ; ldi r17, 2 ; ret
+            arch=arch,
+            load_address=0x100,
+            engine=angr.engines.UberEnginePcode,
+        )
+        block = fallthrough.factory.block(0x100, num_inst=1).vex
+        assert block.jumpkind == "Ijk_Boring"
+        assert isinstance(block.next, Const)
+        assert block.next.con.value == 0x102
+        assert block.next.con.size == 32
+
+        state = fallthrough.factory.blank_state(addr=0x100)
+        successors = fallthrough.factory.successors(state, num_inst=1).successors
+        assert [(s.solver.eval(s.regs.ip), s.regs.ip.size()) for s in successors] == [(0x102, 24)]
 
     def test_riscv64_int_right_behavior(self):
         """
