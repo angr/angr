@@ -8,9 +8,16 @@ import angr
 
 class TestLoadShellcode(unittest.TestCase):
     def test_simos(self):
-        for os in "windows", "linux":
-            p = angr.load_shellcode(b"\xc3", arch="x86", simos=os)
-            p.factory.entry_state()
+        for simos, arch in (
+            ("linux", "x86"),
+            ("windows", "x86"),
+            ("windows", "amd64"),
+            ("windows", "armel"),
+            ("windows", "aarch64"),
+        ):
+            with self.subTest(simos=simos, arch=arch):
+                project = angr.load_shellcode(b"\xc3", arch=arch, simos=simos)
+                project.factory.entry_state()
 
 
 if __name__ == "__main__":

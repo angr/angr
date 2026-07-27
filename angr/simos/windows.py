@@ -55,7 +55,9 @@ class SimWindows(SimOS):
 
         self.fastfail = L["ntoskrnl.exe"][0].get("__fastfail", self.arch)
         self.fastfail.addr = self._find_or_make(self.fastfail.display_name)
-        self.fastfail.cc = SYSCALL_CC[self.arch.name]["Win32"](self.arch)
+        fastfail_cc = SYSCALL_CC.get(self.arch.name, {}).get(self.name)
+        if fastfail_cc is not None:
+            self.fastfail.cc = fastfail_cc(self.arch)
         self._syscall_handlers = {self.fastfail.addr: self.fastfail}
 
     def configure_project(self):
