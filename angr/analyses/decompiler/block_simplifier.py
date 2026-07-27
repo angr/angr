@@ -44,13 +44,9 @@ _HAS_CALL_EXPR_WALKER = HasCallExprWalker()
 
 class PeepholeOptimizationBundle:
     """
-    Pre-instantiated peephole optimizers plus the dispatch structures derived from them, reusable across many
-    :class:`BlockSimplifier` invocations. Constructing the optimizer instances and dispatch dicts is not free, and
-    a decompilation run creates a BlockSimplifier per block (hundreds to thousands of times), so callers that
-    simplify many blocks with identical parameters should build one bundle and pass it to each BlockSimplifier.
-
-    ``matches`` compares mutable parameters by identity (the optimizer instances keep references, so in-place
-    updates to ``preserve_vvar_ids`` and ``type_hints`` are visible without a rebuild).
+    PeepholeOptimizationBundle describes a set of initialized peephole optimizer instances and the dispatch structures
+    derived from them. This bundle of peephole optimizations is reusable across `BlockSimplifier` invocations (so we
+    avoid rebuilding the same optimizer instances).
     """
 
     __slots__ = (
@@ -97,8 +93,8 @@ class PeepholeOptimizationBundle:
         self.stmt_opts = [cls(*args) for cls in stmt_classes]
         self.multistmt_opts = [cls(*args) for cls in multistmt_classes]
         self.stmt_opts_by_kind = build_stmt_opts_by_kind(self.stmt_opts)
-        # the subset of statement optimizers that must also run on statements already at peephole fixpoint (see
-        # PeepholeOptimizationStmtBase.NEEDS_BLOCK_CONTEXT)
+        # the subset of statement peephole optimizers that depend on the context of a statement.
+        # They must always run on statements that are already at peephole fixpoint.
         self.ctx_stmt_opts_by_kind = build_stmt_opts_by_kind([opt for opt in self.stmt_opts if opt.NEEDS_BLOCK_CONTEXT])
         self.expr_walker = _PeepholeExprsWalker(expr_opts=self.expr_opts)
         self._params = (project, ail_manager, func_addr, preserve_vvar_ids, type_hints, peephole_optimizations)

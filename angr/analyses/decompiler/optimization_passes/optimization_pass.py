@@ -382,11 +382,7 @@ class OptimizationPass(BaseOptimizationPass):
         return ail_graph
 
     def _get_peephole_bundle(self) -> PeepholeOptimizationBundle:
-        """
-        Return a PeepholeOptimizationBundle shared across all optimization passes of the same decompilation run
-        (via the shared scratch dict), rebuilding it if any construction parameter differs.
-        """
-        bundle = self._scratch.get("peephole_bundle")
+        bundle: None | PeepholeOptimizationBundle = self._scratch.get("peephole_bundle")
         if bundle is None or not bundle.matches(
             self.project, self.manager, self._func.addr, None, None, self._peephole_optimizations
         ):

@@ -8,6 +8,7 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
+from angr.analyses import Analysis, register_analysis
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -214,3 +215,34 @@ class SReachingDefinitionsAnalysis:
                                 max_vvar_size = max(reg_to_vvarids[reg_offset])
                                 vvarid = reg_to_vvarids[reg_offset][max_vvar_size]
                                 self.model.add_vvar_use(vvarid, None, codeloc)
+
+
+class SReachingDefinitionAnalysisWrapper(Analysis, SReachingDefinitionsAnalysis):
+    """
+    A wrapper around SReachingDefinitionsAnalysis to make it usable as an :class:`Analysis` and registered in the
+    analysis hub.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        subject,
+        func_addr: int | None = None,
+        func_graph: networkx.DiGraph[Block] | None = None,
+        func_args: set[VirtualVariable] | None = None,
+        use_callee_saved_regs_at_return: bool = False,
+        track_tmps: bool = False,
+        variable_map=None,
+    ):
+        super().__init__(
+            self.project,
+            subject,
+            func_addr=func_addr,
+            func_graph=func_graph,
+            func_args=func_args,
+            use_callee_saved_regs_at_return=use_callee_saved_regs_at_return,
+            track_tmps=track_tmps,
+            variable_map=variable_map,
+        )
+
+
+register_analysis(SReachingDefinitionAnalysisWrapper, "SReachingDefinitions")
