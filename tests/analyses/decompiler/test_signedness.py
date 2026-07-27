@@ -139,70 +139,70 @@ class TestLattice(unittest.TestCase):
 
     def test_lattice_64_edges_int32(self):
         """Int32 should have SInt32 and UInt32 as children in 64-bit lattice."""
-        assert BASE_LATTICE_64.has_edge(Int32_, SInt32_)
-        assert BASE_LATTICE_64.has_edge(Int32_, UInt32_)
-        assert BASE_LATTICE_64.has_edge(SInt32_, Bottom_)
-        assert BASE_LATTICE_64.has_edge(UInt32_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(Int32_, SInt32_)
+        assert BASE_LATTICE_64.g.has_edge(Int32_, UInt32_)
+        assert BASE_LATTICE_64.g.has_edge(SInt32_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(UInt32_, Bottom_)
 
     def test_lattice_64_edges_int64(self):
         """Int64 should have SInt64 and UInt64 as children in 64-bit lattice."""
-        assert BASE_LATTICE_64.has_edge(Int64_, SInt64_)
-        assert BASE_LATTICE_64.has_edge(Int64_, UInt64_)
-        assert BASE_LATTICE_64.has_edge(SInt64_, Bottom_)
-        assert BASE_LATTICE_64.has_edge(UInt64_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(Int64_, SInt64_)
+        assert BASE_LATTICE_64.g.has_edge(Int64_, UInt64_)
+        assert BASE_LATTICE_64.g.has_edge(SInt64_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(UInt64_, Bottom_)
 
     def test_lattice_64_edges_int8(self):
         """Int8 should have SInt8 and UInt8 as children in 64-bit lattice."""
-        assert BASE_LATTICE_64.has_edge(Int8_, SInt8_)
-        assert BASE_LATTICE_64.has_edge(Int8_, UInt8_)
-        assert BASE_LATTICE_64.has_edge(SInt8_, Bottom_)
-        assert BASE_LATTICE_64.has_edge(UInt8_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(Int8_, SInt8_)
+        assert BASE_LATTICE_64.g.has_edge(Int8_, UInt8_)
+        assert BASE_LATTICE_64.g.has_edge(SInt8_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(UInt8_, Bottom_)
 
     def test_lattice_64_edges_int16(self):
         """Int16 should have SInt16 and UInt16 as children in 64-bit lattice."""
-        assert BASE_LATTICE_64.has_edge(Int16_, SInt16_)
-        assert BASE_LATTICE_64.has_edge(Int16_, UInt16_)
-        assert BASE_LATTICE_64.has_edge(SInt16_, Bottom_)
-        assert BASE_LATTICE_64.has_edge(UInt16_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(Int16_, SInt16_)
+        assert BASE_LATTICE_64.g.has_edge(Int16_, UInt16_)
+        assert BASE_LATTICE_64.g.has_edge(SInt16_, Bottom_)
+        assert BASE_LATTICE_64.g.has_edge(UInt16_, Bottom_)
 
     def test_lattice_32_edges(self):
         """32-bit lattice should also have signed/unsigned children."""
-        assert BASE_LATTICE_32.has_edge(Int32_, SInt32_)
-        assert BASE_LATTICE_32.has_edge(Int32_, UInt32_)
-        assert BASE_LATTICE_32.has_edge(Int64_, SInt64_)
-        assert BASE_LATTICE_32.has_edge(Int64_, UInt64_)
-        assert BASE_LATTICE_32.has_edge(Int8_, SInt8_)
-        assert BASE_LATTICE_32.has_edge(Int8_, UInt8_)
-        assert BASE_LATTICE_32.has_edge(Int16_, SInt16_)
-        assert BASE_LATTICE_32.has_edge(Int16_, UInt16_)
+        assert BASE_LATTICE_32.g.has_edge(Int32_, SInt32_)
+        assert BASE_LATTICE_32.g.has_edge(Int32_, UInt32_)
+        assert BASE_LATTICE_32.g.has_edge(Int64_, SInt64_)
+        assert BASE_LATTICE_32.g.has_edge(Int64_, UInt64_)
+        assert BASE_LATTICE_32.g.has_edge(Int8_, SInt8_)
+        assert BASE_LATTICE_32.g.has_edge(Int8_, UInt8_)
+        assert BASE_LATTICE_32.g.has_edge(Int16_, SInt16_)
+        assert BASE_LATTICE_32.g.has_edge(Int16_, UInt16_)
 
     def test_lattice_no_direct_intN_to_bottom_64(self):
         """In 64-bit lattice, IntN should NOT have a direct edge to Bottom (goes through signed/unsigned)."""
-        assert not BASE_LATTICE_64.has_edge(Int8_, Bottom_)
-        assert not BASE_LATTICE_64.has_edge(Int16_, Bottom_)
-        assert not BASE_LATTICE_64.has_edge(Int32_, Bottom_)
+        assert not BASE_LATTICE_64.g.has_edge(Int8_, Bottom_)
+        assert not BASE_LATTICE_64.g.has_edge(Int16_, Bottom_)
+        assert not BASE_LATTICE_64.g.has_edge(Int32_, Bottom_)
         # Int64 still has edge to Pointer64 which goes to Bottom, but no direct edge
-        assert not BASE_LATTICE_64.has_edge(Int64_, Bottom_)
+        assert not BASE_LATTICE_64.g.has_edge(Int64_, Bottom_)
 
     def test_lattice_no_direct_intN_to_bottom_32(self):
         """In 32-bit lattice, IntN should NOT have a direct edge to Bottom."""
-        assert not BASE_LATTICE_32.has_edge(Int8_, Bottom_)
-        assert not BASE_LATTICE_32.has_edge(Int16_, Bottom_)
-        assert not BASE_LATTICE_32.has_edge(Int64_, Bottom_)
+        assert not BASE_LATTICE_32.g.has_edge(Int8_, Bottom_)
+        assert not BASE_LATTICE_32.g.has_edge(Int16_, Bottom_)
+        assert not BASE_LATTICE_32.g.has_edge(Int64_, Bottom_)
 
     def test_lattice_join_signed_unsigned(self):
         """The LCA (join) of SInt32 and UInt32 should be Int32."""
         # In the lattice, both SInt32 and UInt32 are children of Int32
         # so their common ancestor is Int32
-        ancestors_s = networkx.ancestors(BASE_LATTICE_64, SInt32_) | {SInt32_}
-        ancestors_u = networkx.ancestors(BASE_LATTICE_64, UInt32_) | {UInt32_}
+        ancestors_s = networkx.ancestors(BASE_LATTICE_64.g, SInt32_) | {SInt32_}
+        ancestors_u = networkx.ancestors(BASE_LATTICE_64.g, UInt32_) | {UInt32_}
         common = ancestors_s & ancestors_u
         assert Int32_ in common
 
     def test_lattice_meet_int_signed(self):
         """SInt32 is reachable from Int32 (meet of Int32 and SInt32 is SInt32)."""
-        assert networkx.has_path(BASE_LATTICE_64, Int32_, SInt32_)
-        assert networkx.has_path(BASE_LATTICE_64, Int32_, UInt32_)
+        assert networkx.has_path(BASE_LATTICE_64.g, Int32_, SInt32_)
+        assert networkx.has_path(BASE_LATTICE_64.g, Int32_, UInt32_)
 
 
 class TestTranslator(unittest.TestCase):
