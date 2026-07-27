@@ -6,7 +6,7 @@ import os
 from collections import OrderedDict
 from typing import TYPE_CHECKING
 
-import lmdb
+from angr.utils.lmdb import lmdb, lmdb_available
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -17,7 +17,11 @@ l = logging.getLogger(name=__name__)
 
 # The default number of per-function decompilation variable managers to keep in memory when spilling is enabled.
 DECVARS_CACHE_LIMIT = 1000
-USE_SPILLING_DVARS = os.environ.get("USE_SPILLING_DVARS", "True").lower() not in ("0", "false", "no")
+USE_SPILLING_DVARS = lmdb_available and os.environ.get("USE_SPILLING_DVARS", "True").lower() not in (
+    "0",
+    "false",
+    "no",
+)
 
 
 class SpillingVariableInternalDict(collections.abc.MutableMapping):

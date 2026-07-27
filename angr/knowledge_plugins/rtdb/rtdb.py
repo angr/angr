@@ -14,12 +14,13 @@ import weakref
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-import lmdb
-
 from angr.errors import AngrRuntimeDbError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.utils.lmdb import lmdb, lmdb_available
 
 if TYPE_CHECKING:
+    import lmdb as lmdb_types
+
     from angr.knowledge_base import KnowledgeBase
 
 RTDB_BASEDIR: str | None = os.environ.get("RTDB_BASE")
@@ -137,7 +138,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         super().__init__(kb)
 
         self._lmdb_path: str | None = lmdb_path
-        self._lmdb_env: lmdb.Environment | None = None
+        self._lmdb_env: lmdb_types.Environment | None = None
         self._lmdb_mapsize: int = 1024 * 1024 * 10
         self._dbnames: defaultdict[str, int] = defaultdict(int)
         self._dbs: dict[str, Any] = {}
@@ -174,6 +175,9 @@ class RuntimeDb(KnowledgeBasePlugin):
         _live_rtdbs[next(_rtdb_counter)] = self
 
     def _init_lmdb(self):
+        if not lmdb_available:
+            raise AngrRuntimeDbError("LMDB is not available on this platform.")
+
         if self._lmdb_env is not None:
             return
 
@@ -189,7 +193,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         self._pin_lmdb_dir()
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
 
-    def _init_lmdb_attempt_multiple_locations(self) -> tuple[str, lmdb.Environment] | None:
+    def _init_lmdb_attempt_multiple_locations(self) -> tuple[str, lmdb_types.Environment] | None:
         if self._lmdb_env is not None:
             return None
 
