@@ -91,6 +91,29 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 // ---------------------------------------------------------------------------
+// Comparison modes
+// ---------------------------------------------------------------------------
+
+/// The AIL comparison relations, threaded through
+/// ``AilExpression::cmp_ail`` / ``AilStatement::cmp_ail`` as a const
+/// generic so each is monomorphized into its own specialized function --
+/// one source of truth, zero per-node branching in the hot path.
+///
+/// * [`CMP_LIKES`] -- structural-with-identity. ``idx`` is ignored;
+///   SSA identifying info (``VirtualVariable::varid``) is significant.
+/// * [`CMP_MATCHES`] -- structural-only. Also drops the SSA identifying
+///   info, so the same source expression compiled into two different SSA
+///   numberings compares equal.
+///
+/// Only two arms actually branch on the mode (``VirtualVariable`` and
+/// ``Phi``); every other variant is mode-independent and simply passes
+/// ``MODE`` down to its children, which is what makes the relaxation
+/// propagate uniformly.
+pub const CMP_LIKES: u8 = 1;
+/// Structural-only comparison. See [`CMP_LIKES`].
+pub const CMP_MATCHES: u8 = 2;
+
+// ---------------------------------------------------------------------------
 // Cross-module hashing utilities: the ``CachedHash`` slot used by the
 // ``ExprHeader`` / ``StmtHeader`` structs in ``ail_expr`` / ``ail_stmt``,
 // and the ``hash_of`` entry point that turns a ``Hash`` impl into the
