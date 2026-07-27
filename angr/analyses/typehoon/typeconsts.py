@@ -28,11 +28,6 @@ def memoize(f):
 class TypeConstant:
     SIZE = None
 
-    #: A stable, process-independent hash tag for the exact class of an instance. It is filled in for every
-    #: subclass by :meth:`__init_subclass__` (and for ``TypeConstant`` itself right after the class body), so
-    #: ``self.TYPE_HASH`` is always equivalent to ``type_tag(type(self))`` -- just without the per-call
-    #: function call and dict lookup. It is derived from the class' qualified name, so it stays identical
-    #: across processes and ``PYTHONHASHSEED`` values.
     TYPE_HASH: int = 0
 
     def __init_subclass__(cls, **kwargs):
