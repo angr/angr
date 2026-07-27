@@ -798,7 +798,6 @@ impl Hash for AilExpression {
                 is_signed,
                 from_type,
                 to_type,
-                rounding_mode,
                 ..
             } => {
                 operand.cached_hash_or_compute().hash(h);
@@ -808,7 +807,12 @@ impl Hash for AilExpression {
                 is_signed.hash(h);
                 from_type.hash(h);
                 to_type.hash(h);
-                rounding_mode.hash(h);
+                // ``rounding_mode`` is deliberately NOT hashed: it is a
+                // payload, not an operand, and ``cmp_ail`` ignores it in
+                // every mode (as the legacy Python AIL always did). Hashing
+                // it made the hash finer than equality -- two Converts
+                // differing only in rounding mode compared equal but landed
+                // in different buckets.
             }
             ExprInner::Reinterpret {
                 operand,
@@ -892,7 +896,13 @@ impl Hash for AilExpression {
                     name.hash(h);
                     off.hash(h);
                 }
-                bits.hash(h);
+                // ``bits`` is deliberately NOT hashed: it is an explicit
+                // constructor argument that ``cmp_ail`` does not compare
+                // for this variant, so hashing it made the hash finer than
+                // equality. (Unlike StringLiteral this one is not a port
+                // regression -- legacy Python's ``Struct._hash_core``
+                // hashed ``bits`` while ``Struct.likes`` ignored it, so the
+                // mismatch dates back to the pure-Python AIL.)
             }
             ExprInner::RustEnum { name, fields } => {
                 name.hash(h);
@@ -972,8 +982,12 @@ impl Hash for AilExpression {
                 endness.hash(h);
             }
             ExprInner::StringLiteral { data } => {
+                // ``data`` only -- ``cmp_ail`` compares nothing else for
+                // this variant, and ``bits`` is an explicit constructor
+                // argument, so hashing it made the hash finer than
+                // equality. The legacy Python ``_hash_core`` likewise
+                // hashed ``self.data`` alone; the Rust port added ``bits``.
                 data.hash(h);
-                bits.hash(h);
             }
             ExprInner::BasePointerOffset { base, offset, .. } => {
                 bits.hash(h);
