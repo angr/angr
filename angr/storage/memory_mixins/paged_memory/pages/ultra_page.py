@@ -17,6 +17,8 @@ from .symbolic_bitmap import SymbolicBitmap
 
 l = logging.getLogger(name=__name__)
 
+DEFAULT_PAGE_SIZE = 4096
+
 
 class UltraPage(MemoryObjectMixin, PageBase):
     """
@@ -28,15 +30,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def __init__(self, memory=None, init_zero=False, **kwargs):
         super().__init__(**kwargs)
 
-        if memory is not None:
-            # both the concrete backing store and the symbolic map are allocated lazily: a page that is entirely
-            # symbolic (the overwhelmingly common case) never reads concrete_data, and SymbolicBitmap keeps a uniform
-            # page as a single flag
-            self.concrete_data = None
-            self.symbolic_bitmap = SymbolicBitmap(memory.page_size, 0 if init_zero else 1)
-        else:
-            self.concrete_data = None
-            self.symbolic_bitmap = None
+        self.concrete_data = None
+        self.symbolic_bitmap = SymbolicBitmap(
+            memory.page_size if memory is not None else DEFAULT_PAGE_SIZE, 0 if init_zero else 1
+        )
 
         self.symbolic_data = SortedDict()
 
@@ -44,7 +41,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def new_from_shared(cls, data, memory=None, **kwargs):
         o = cls(**kwargs)
         o.concrete_data = data
-        o.symbolic_bitmap = SymbolicBitmap(memory.page_size, 0)
+        o.symbolic_bitmap = SymbolicBitmap(memory.page_size if memory is not None else DEFAULT_PAGE_SIZE, 0)
         o.refcount = 2  # pylint: disable=attribute-defined-outside-init
         return o
 
@@ -353,8 +350,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def concrete_run_length(self, addr, size, **kwargs) -> int:  # pylint: disable=unused-argument
         """
-        Return the number of concrete bytes at ``addr``, capped at ``size``. This is what callers that only want
-        concrete data need, and answering it from the bitmap directly avoids expanding it to a byte map.
+        Return the number of concrete bytes at ``addr``, capped at ``size``.
         """
         assert self.symbolic_bitmap is not None
         return self.symbolic_bitmap.next_set(addr, addr + size) - addr

@@ -106,8 +106,7 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
 
     def concrete_run_length(self, addr, size, **kwargs) -> int:
         """
-        Return the number of concrete bytes starting at ``addr``, capped at ``size``. Implementations that can answer
-        this without scanning a symbolic-ness bitmap should override it.
+        Return the number of concrete bytes starting at ``addr``, capped at ``size``.
         """
         _, bitmap = self.concrete_load(addr, size, with_bitmap=True, **kwargs)
         # the bitmap is packed: one bit per byte, least-significant bit first

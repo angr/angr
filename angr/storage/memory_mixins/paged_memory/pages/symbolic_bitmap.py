@@ -3,18 +3,13 @@ from __future__ import annotations
 
 class SymbolicBitmap:
     """
-    Tracks, for every byte of an :class:`UltraPage`, whether that byte is symbolic.
+    Tracks, for every byte of an :class:`UltraPage`, whether that byte is symbolic or not.
 
-    The map is stored as a real bitmap -- one *bit* per byte of the page, so a 4096-byte page needs 512 bytes instead
-    of the 4096 bytes that a byte-per-byte map would need. Bit ``i`` of the map lives in bit ``i & 7`` of byte
-    ``i >> 3`` (least-significant bit first), which makes ``int.from_bytes(..., "little")`` a direct view of the map as
-    a big integer and lets range scans be done with ``bit_length()`` instead of a Python-level loop. This is also the
-    layout the native interfaces consume, so :meth:`view` can hand them the backing store as-is.
+    The map is stored as a bitmap where the i-th bit of the map lives in bit ``i & 7`` of byte ``i >> 3``
+    (least-significant bit first). This makes ``int.from_bytes(..., "little")`` a direct view of the map as
+    a big integer and lets range scans be done with ``bit_length()`` instead of a Python-level loop.
 
-    On top of that, a page whose map is *uniform* -- every byte symbolic, or every byte concrete -- stores no per-byte
-    metadata at all: ``_bits`` is ``None`` and ``_uniform`` holds the single value. The backing store is only
-    materialized when a write actually makes the page non-uniform, and a range write that covers the whole page drops
-    back to the uniform representation. Freshly created pages are uniform, so in practice most pages never allocate.
+    A page whose map is uniform (all bytes are symbolic or concrete) does not store any map.
 
     All ranges are half-open ``[start, stop)`` and are assumed to lie within ``[0, size]``.
     """
@@ -25,8 +20,7 @@ class SymbolicBitmap:
         self.size = size
         self._bits: bytearray | None = None
         self._uniform: int = 1 if value else 0
-        # set once :meth:`view` hands out an aliasing buffer; see there for why the backing store may not be dropped
-        # afterwards
+        # set once :meth:`view` hands out an aliasing buffer; the backing store may not be dropped afterwards.
         self._pinned: bool = False
 
     #
@@ -40,13 +34,14 @@ class SymbolicBitmap:
         """
         return 0 if self._bits is None else len(self._bits)
 
+    @property
     def uniform_value(self) -> int | None:
         """
         Return 0/1 if every byte of the page has that symbolic-ness, or None if the map is mixed.
         """
         return self._uniform if self._bits is None else None
 
-    def _materialize(self) -> bytearray:
+    def _concretize(self) -> bytearray:
         n = (self.size + 7) >> 3
         bits = bytearray(b"\xff" * n) if self._uniform else bytearray(n)
         self._bits = bits
@@ -73,7 +68,7 @@ class SymbolicBitmap:
         if bits is None:
             if bool(value) == bool(self._uniform):
                 return
-            bits = self._materialize()
+            bits = self._concretize()
         if value:
             bits[i >> 3] |= 1 << (i & 7)
         else:
@@ -92,7 +87,7 @@ class SymbolicBitmap:
         bits = self._bits
         if start <= 0 and stop >= self.size:
             # the whole page: collapse to the uniform representation and drop the backing store, unless someone is
-            # holding a pointer into it, in which case fill it in place
+            # holding a pointer into it.
             if self._pinned:
                 assert bits is not None
                 bits[:] = b"\xff" * len(bits)
@@ -103,7 +98,7 @@ class SymbolicBitmap:
         if bits is None:
             if self._uniform:
                 return
-            bits = self._materialize()
+            bits = self._concretize()
 
         fb, fo = start >> 3, start & 7
         lb, lo = stop >> 3, stop & 7
@@ -136,7 +131,7 @@ class SymbolicBitmap:
         if bits is None:
             if not self._uniform:
                 return
-            bits = self._materialize()
+            bits = self._concretize()
 
         fb, fo = start >> 3, start & 7
         lb, lo = stop >> 3, stop & 7
@@ -160,8 +155,7 @@ class SymbolicBitmap:
         Return the smallest ``i`` in ``[start, stop)`` whose byte is symbolic, or ``stop`` if there is none.
 
         A whole range is turned into one big integer and located with ``(w & -w).bit_length()`` rather than being
-        walked bit by bit. Long ranges are probed 64 bits at a time first, so that a hit near ``start`` -- the usual
-        case -- does not pay for converting the rest of the page.
+        walked bit by bit. Long ranges are probed 64 bits at a time first.
         """
         if start >= stop:
             return stop
@@ -237,19 +231,18 @@ class SymbolicBitmap:
         """
         Return the packed bits covering ``[start, stop)``: bit ``i`` of the result is byte ``start + i`` of the page.
 
-        When ``start`` is byte-aligned the result is a *writable* view of this map's own backing store, so a native
-        consumer can update the page's symbolic-ness in place -- native unicorn maps whole pages this way and writes
-        taint straight back through the view. Handing out such a view pins the backing store: it may no longer be
-        dropped in favor of the uniform representation while someone might still hold a pointer into it.
+        When ``start`` is byte-aligned, the result is a writable view of this map's own backing store, so a native
+        consumer (e.g., unicorn engine) can update the page's symbolic-ness in place. Returning such a view pins the
+        backing store: it may no longer be dropped in favor of the uniform representation.
 
         An unaligned ``start`` cannot be expressed as a view of the backing store, so the bits are shifted into place
-        and returned read-only.
+        and returned read-only. Consumers like unicorn engine should not use this view for writing!
         """
         if start & 7:
             return memoryview(self._shifted(start, stop))
         bits = self._bits
         if bits is None:
-            bits = self._materialize()
+            bits = self._concretize()
         self._pinned = True
         return memoryview(bits)[start >> 3 : (stop + 7) >> 3]
 
@@ -270,7 +263,6 @@ class SymbolicBitmap:
         bits = self._bits
         o._bits = None if bits is None else bytearray(bits)  # pylint:disable=protected-access
         o._uniform = self._uniform  # pylint:disable=protected-access
-        # the copy is a fresh buffer that nobody holds a pointer into
         o._pinned = False  # pylint:disable=protected-access
         return o
 

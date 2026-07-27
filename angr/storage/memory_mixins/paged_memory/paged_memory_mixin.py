@@ -418,8 +418,6 @@ class PagedMemoryMixin[PageType: PageBase](
     def _load_to_memoryview(self, addr, size, with_bitmap: Literal[False]) -> memoryview: ...
 
     def _load_to_memoryview(self, addr, size, with_bitmap):
-        # the bitmap is packed: one *bit* per byte of the region, least-significant bit first, matching the layout
-        # UltraPage stores natively and the native interfaces consume
         bitmap_size = (size + 7) // 8
         result = self.load(addr, size, endness="Iend_BE")
         if result.op == "BVV":
@@ -518,8 +516,7 @@ class PagedMemoryMixin[PageType: PageBase](
             return page.concrete_load(offset, subsize, with_bitmap=True, **kwargs)
 
         # everything from here on out has exactly one goal: to maximize the amount of concrete data
-        # we can return (up to the limit!). ask the page how many concrete bytes it has instead of materializing and
-        # scanning its symbolic map.
+        # we can return (up to the limit!).
         i = page.concrete_run_length(offset, subsize, **kwargs)
         if i == 0:
             return memoryview(b"")
