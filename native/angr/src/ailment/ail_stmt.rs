@@ -204,11 +204,14 @@ impl Hash for AilStatement {
                 condition,
                 true_target,
                 false_target,
-                ..
+                true_target_idx,
+                false_target_idx,
             } => {
                 condition.cached_hash_or_compute().hash(h);
                 true_target.hash(h);
                 false_target.hash(h);
+                true_target_idx.hash(h);
+                false_target_idx.hash(h);
             }
             StmtInner::SideEffectStatement { expr, .. } => {
                 expr.cached_hash_or_compute().hash(h);
@@ -692,15 +695,20 @@ impl AilStatement {
                     condition: a_c,
                     true_target: a_t,
                     false_target: a_f,
-                    ..
+                    true_target_idx: a_ti,
+                    false_target_idx: a_fi,
                 },
                 StmtInner::ConditionalJump {
                     condition: b_c,
                     true_target: b_t,
                     false_target: b_f,
-                    ..
+                    true_target_idx: b_ti,
+                    false_target_idx: b_fi,
                 },
             ) => {
+                if a_ti != b_ti || a_fi != b_fi {
+                    return false;
+                }
                 if !a_c.cmp_ail::<MODE>(b_c) {
                     return false;
                 }

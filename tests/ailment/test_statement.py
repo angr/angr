@@ -2,10 +2,12 @@
 """Structural-comparison tests for ``angr.ailment.statement``.
 
 These lock in that every field of a statement variant participates in
-``likes`` / ``matches`` / ``__eq__`` / ``__hash__``. ``Store.guard`` used
-to be silently elided, which let a rewriting pass land a real change and
-then report "unchanged": ``replace`` does rewrite ``Store.guard``, so a
-propagated guard compared ``likes``-equal to the statement it replaced.
+``likes`` / ``matches`` / ``__eq__`` / ``__hash__``. Two fields used to
+be silently elided -- ``Store.guard`` and ``ConditionalJump``'s
+``true_target_idx`` / ``false_target_idx`` -- which let a rewriting pass
+land a real change and then report "unchanged" (``replace`` does rewrite
+``Store.guard``, so a propagated guard compared ``likes``-equal to the
+statement it replaced).
 """
 
 from __future__ import annotations
@@ -16,11 +18,11 @@ from archinfo import Endness
 
 from angr.ailment.expression import BinaryOp, Const, Register
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Store
+from angr.ailment.statement import ConditionalJump, Store
 
 
 class TestStatementLikes(unittest.TestCase):
-    """``Store.guard`` participates in structural comparison."""
+    """``Store.guard`` and ``ConditionalJump.*_target_idx`` are compared."""
 
     def setUp(self):
         self.m = Manager(arch=None)
@@ -102,6 +104,36 @@ class TestStatementLikes(unittest.TestCase):
         replaced, rewritten = stmt.replace(old, new)
         assert replaced
         assert not rewritten.likes(stmt)
+
+    def test_conditional_jump_target_idx_is_compared(self):
+        cond = self._guard(16)
+        true_target = Const(self.m.next_atom(), 0x400010, 32, **self.tags)
+        false_target = Const(self.m.next_atom(), 0x400020, 32, **self.tags)
+
+        idx = self.m.next_atom()
+        both = ConditionalJump(idx, cond, true_target, false_target, true_target_idx=1, false_target_idx=2, **self.tags)
+        neither = ConditionalJump(
+            idx, cond, true_target, false_target, true_target_idx=None, false_target_idx=None, **self.tags
+        )
+        true_only = ConditionalJump(
+            idx, cond, true_target, false_target, true_target_idx=1, false_target_idx=None, **self.tags
+        )
+        other_true = ConditionalJump(
+            idx, cond, true_target, false_target, true_target_idx=9, false_target_idx=2, **self.tags
+        )
+
+        for other in (neither, true_only, other_true):
+            assert not both.likes(other)
+            assert not both.matches(other)
+            assert both != other
+
+        same = ConditionalJump(idx, cond, true_target, false_target, true_target_idx=1, false_target_idx=2, **self.tags)
+        assert both.likes(same)
+        assert both.matches(same)
+        assert both == same
+        assert hash(both) == hash(same)
+
+        assert len({both, neither, true_only, other_true}) == 4
 
 
 if __name__ == "__main__":
