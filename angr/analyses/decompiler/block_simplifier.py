@@ -222,8 +222,6 @@ class BlockSimplifier:
                 block, entry_peephole=ctr == 1, dead_assignments_clean=dead_assignments_clean
             )
             if not changed:
-                # No blanket peephole_optimized marking here: only peephole_optimize_stmts() knows which statements
-                # every optimizer reported fixpoint_reached on, and it has already marked them.
                 break
 
             assert block is not None

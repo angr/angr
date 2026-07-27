@@ -17,10 +17,13 @@ class PeepholeOptimizationStmtBase:
     """
     The base class for all peephole optimizations that are applied on AIL statements.
 
-    ``fixpoint_reached`` tells the caller whether this optimizer could still apply if the rest of the block changes.
-    Callers set it to True before every :meth:`optimize` call, so only block-context-sensitive optimizers need to
-    clear it -- on the paths where they consulted the block and produced no rewrite. A statement is flagged
-    ``Statement.peephole_optimized``, and skipped by later passes, only when every optimizer reported True.
+    ``fixpoint_reached`` is an output parameter; it tells the caller whether this optimizer should run on this
+    statement again (e.g., when statements prior to the current statement are optimized and changed). The caller sets
+    ``fixpoint_reached`` to True before every :meth:`optimize` call; the optimizer optionally sets it to False if it
+    wants to be invoked again on the same statement.
+
+    So, ``fixpoint_reached`` should be set to (or kept) True if (a) the optimizer has optimized the statement and does
+    not expect to optimize it ever again, or (b) the optimizer cannot ever optimize the statement.
     """
 
     __slots__ = (
@@ -68,8 +71,8 @@ class PeepholeOptimizationMultiStmtBase:
     """
     The base class for all peephole optimizations that are applied on multiple AIL statements at once.
 
-    ``fixpoint_reached`` exists for uniformity but is unused: ``peephole_optimize_multistmts()`` never consults
-    ``Statement.peephole_optimized``, so multi-statement optimizers always run.
+    ``fixpoint_reached`` exists for uniformity but is unused. Multi-statement optimizers always run regardless of
+    whether the statements have reached fixed points or not.
     """
 
     __slots__ = (
@@ -115,9 +118,8 @@ class PeepholeOptimizationMultiStmtBase:
 
 class PeepholeOptimizationExprBase:
     """
-    The base class for all peephole optimizations that are applied on AIL expressions.
-
-    See :class:`PeepholeOptimizationStmtBase` for the ``fixpoint_reached`` contract.
+    The base class for all peephole optimizations that are applied on AIL expressions. Please refer to
+    :class:`PeepholeOptimizationStmtBase` for the ``fixpoint_reached`` contract.
     """
 
     __slots__ = (
