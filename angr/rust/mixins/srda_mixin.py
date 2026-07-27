@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import Assignment, Expression
 from angr.ailment.expression import Call, FunctionLikeMacro, Phi, VirtualVariable
-from angr.analyses.s_reaching_definitions import SRDAView
+from angr.analyses.s_reaching_definitions import SRDAView, SReachingDefinitions
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.rust.sim_type import RustSimType, RustSimTypeFunction
 
@@ -17,7 +17,7 @@ class SRDAMixin:
 
     def __init__(self, subject, graph, project, variable_map: VariableMap):
         self._graph = graph
-        self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph, variable_map=variable_map)
+        self.srda = SReachingDefinitions(project, subject=subject, func_graph=graph, variable_map=variable_map)
         self.srda_view = SRDAView(self.srda.model)
         self._gtv_cache = {}  # varid -> terminal VirtualVariable
 

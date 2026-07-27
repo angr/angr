@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
-from angr.analyses.analysis import Analysis, register_analysis
-from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
+from angr.analyses.s_propagator import SPropagator
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.utils.ssa import has_reference_to_vvar
@@ -34,6 +33,7 @@ from .utils import (
 
 if TYPE_CHECKING:
     from angr.ailment.block import Block
+    from angr.project import Project
 
 
 _l = logging.getLogger(name=__name__)
@@ -42,13 +42,98 @@ _l = logging.getLogger(name=__name__)
 _HAS_CALL_EXPR_WALKER = HasCallExprWalker()
 
 
-class BlockSimplifier(Analysis):
+class PeepholeOptimizationBundle:
+    """
+    PeepholeOptimizationBundle describes a set of initialized peephole optimizer instances and the dispatch structures
+    derived from them. This bundle of peephole optimizations is reusable across `BlockSimplifier` invocations (so we
+    avoid rebuilding the same optimizer instances).
+    """
+
+    __slots__ = (
+        "_params",
+        "expr_opts",
+        "expr_walker",
+        "multistmt_opts",
+        "stmt_opts",
+        "stmt_opts_by_kind",
+    )
+
+    def __init__(
+        self,
+        project,
+        kb,
+        ail_manager: Manager,
+        func_addr: int | None = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        peephole_optimizations: None
+        | (
+            Iterable[
+                type[PeepholeOptimizationStmtBase]
+                | type[PeepholeOptimizationExprBase]
+                | type[PeepholeOptimizationMultiStmtBase]
+            ]
+        ) = None,
+    ):
+        if peephole_optimizations is None:
+            expr_classes: Iterable = EXPR_OPTS
+            stmt_classes: Iterable = STMT_OPTS
+            multistmt_classes: Iterable = MULTI_STMT_OPTS
+        else:
+            peephole_optimizations = tuple(peephole_optimizations)
+            expr_classes = [cls for cls in peephole_optimizations if issubclass(cls, PeepholeOptimizationExprBase)]
+            stmt_classes = [cls for cls in peephole_optimizations if issubclass(cls, PeepholeOptimizationStmtBase)]
+            multistmt_classes = [
+                cls for cls in peephole_optimizations if issubclass(cls, PeepholeOptimizationMultiStmtBase)
+            ]
+
+        args = (project, kb, ail_manager, func_addr, preserve_vvar_ids, type_hints)
+        self.expr_opts = [cls(*args) for cls in expr_classes]
+        self.stmt_opts = [cls(*args) for cls in stmt_classes]
+        self.multistmt_opts = [cls(*args) for cls in multistmt_classes]
+        self.stmt_opts_by_kind = build_stmt_opts_by_kind(self.stmt_opts)
+        self.expr_walker = _PeepholeExprsWalker(expr_opts=self.expr_opts)
+        self._params = (project, ail_manager, func_addr, preserve_vvar_ids, type_hints, peephole_optimizations)
+
+    def matches(
+        self,
+        project,
+        ail_manager: Manager,
+        func_addr: int | None,
+        preserve_vvar_ids: set[int] | None,
+        type_hints: list | None,
+        peephole_optimizations,
+    ) -> bool:
+        p_project, p_manager, p_func_addr, p_preserve, p_hints, p_opts = self._params
+        return (
+            p_project is project
+            and p_manager is ail_manager
+            and p_func_addr == func_addr
+            and p_preserve is preserve_vvar_ids
+            and p_hints is type_hints
+            and (
+                p_opts is peephole_optimizations
+                or (
+                    p_opts is not None
+                    and peephole_optimizations is not None
+                    and p_opts == tuple(peephole_optimizations)
+                )
+            )
+        )
+
+
+class BlockSimplifier:
     """
     Simplify an AIL block.
+
+    Deliberately not an :class:`Analysis`: it is instantiated once per block, hundreds of times per decompilation,
+    so it skips the analysis-factory ceremony. Instantiate it directly with the project as the first argument;
+    exceptions always propagate.
     """
 
     def __init__(
         self,
+        project: Project,
         block: Block | None,
         ail_manager: Manager,
         func_addr: int | None = None,
@@ -65,12 +150,18 @@ class BlockSimplifier(Analysis):
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
+        peephole_bundle: PeepholeOptimizationBundle | None = None,
     ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
                         in test cases.
+        :param peephole_bundle: A pre-built PeepholeOptimizationBundle to reuse. Its construction parameters must
+                        match this BlockSimplifier's; callers that simplify many blocks should build one bundle and
+                        pass it to every BlockSimplifier they create.
         """
 
+        self.project = project
+        self.kb = project.kb
         self.block = block
         self.func_addr = func_addr
 
@@ -79,42 +170,25 @@ class BlockSimplifier(Analysis):
         self._type_hints = type_hints
         self._ail_manager = ail_manager
 
-        if peephole_optimizations is None:
-            self._expr_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in EXPR_OPTS
-            ]
-            self._stmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in STMT_OPTS
-            ]
-            self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in MULTI_STMT_OPTS
-            ]
-            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
-        else:
-            self._expr_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in peephole_optimizations
-                if issubclass(cls, PeepholeOptimizationExprBase)
-            ]
-            self._stmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in peephole_optimizations
-                if issubclass(cls, PeepholeOptimizationStmtBase)
-            ]
-            self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
-                for cls in peephole_optimizations
-                if issubclass(cls, PeepholeOptimizationMultiStmtBase)
-            ]
-            self._stmt_peephole_opts_by_kind = build_stmt_opts_by_kind(self._stmt_peephole_opts)
+        if peephole_bundle is None:
+            peephole_bundle = PeepholeOptimizationBundle(
+                self.project,
+                self.kb,
+                ail_manager,
+                func_addr=self.func_addr,
+                preserve_vvar_ids=self._preserve_vvar_ids,
+                type_hints=self._type_hints,
+                peephole_optimizations=peephole_optimizations,
+            )
+        self._expr_peephole_opts = peephole_bundle.expr_opts
+        self._stmt_peephole_opts = peephole_bundle.stmt_opts
+        self._multistmt_peephole_opts = peephole_bundle.multistmt_opts
+        self._stmt_peephole_opts_by_kind = peephole_bundle.stmt_opts_by_kind
 
         self.result_block = None
 
         # cached peephole expression walker
-        self._expr_peephole_walker = _PeepholeExprsWalker(expr_opts=self._expr_peephole_opts)
+        self._expr_peephole_walker = peephole_bundle.expr_walker
 
         # cached Propagator and ReachingDefinitions results. Clear them if the block is updated
         self._propagator = cached_propagator
@@ -128,22 +202,29 @@ class BlockSimplifier(Analysis):
         ctr = 0
         max_ctr = 30
 
-        new_block = self._eliminate_self_assignments(block)
+        new_block, changed = self._eliminate_self_assignments(block)
+        # True once dead-assignment elimination is known to have nothing to do on the block the loop below starts
+        # from -- either because it just ran over it without a change, or because its gate is off for that block.
+        dead_assignments_clean = True
         if self._count_nonconstant_statements(new_block) >= 2 and self._has_propagatable_assignments(new_block):
-            new_block = self._eliminate_dead_assignments(new_block)
-        # Structural ``likes`` (idx-agnostic) instead of ``!=`` which always trips on fresh ``manager.next_atom()``
-        # ids even when nothing changed structurally.
-        # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
-        if not new_block.likes(block):
+            new_block, dead_changed = self._eliminate_dead_assignments(new_block)
+            changed |= dead_changed
+            dead_assignments_clean = not dead_changed
+        if changed:
             self._clear_cache()
             block = new_block
 
         while True:
             ctr += 1
-            new_block = self._simplify_block_once(block)
-            # TODO: Keep track of changes and skip .likes(); .likes() is expensive.
-            if new_block.likes(block):
+            # the entry peephole pass is only useful on the first iteration: every later iteration receives the
+            # output of the previous iteration's exit peephole pass, so running peephole again on entry is redundant.
+            new_block, changed = self._simplify_block_once(
+                block, entry_peephole=ctr == 1, dead_assignments_clean=dead_assignments_clean
+            )
+            if not changed:
                 break
+
+            assert block is not None
             self._clear_cache()
             block = new_block
             if ctr >= max_ctr:
@@ -156,9 +237,10 @@ class BlockSimplifier(Analysis):
 
         self.result_block = block
 
-    def _compute_propagation(self, block) -> SPropagatorAnalysis:
+    def _compute_propagation(self, block) -> SPropagator:
         if self._propagator is None:
-            self._propagator = self.project.analyses[SPropagatorAnalysis].prep(fail_fast=self._fail_fast)(
+            self._propagator = SPropagator(
+                self.project,
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
@@ -168,15 +250,12 @@ class BlockSimplifier(Analysis):
 
     def _compute_reaching_definitions(self, block) -> SRDAModel:
         if self._reaching_definitions is None:
-            self._reaching_definitions = (
-                self.project.analyses[SReachingDefinitionsAnalysis]
-                .prep(fail_fast=self._fail_fast)(
-                    subject=block,
-                    track_tmps=True,
-                    func_addr=self.func_addr,
-                )
-                .model
-            )
+            self._reaching_definitions = SReachingDefinitions(
+                self.project,
+                subject=block,
+                track_tmps=True,
+                func_addr=self.func_addr,
+            ).model
         return self._reaching_definitions
 
     def _clear_cache(self):
@@ -191,35 +270,56 @@ class BlockSimplifier(Analysis):
     def _count_nonconstant_statements(block) -> int:
         return sum(1 for stmt in block.statements if not (isinstance(stmt, Jump) and isinstance(stmt.target, Const)))
 
-    def _simplify_block_once(self, block):
-        block = self._peephole_optimize(block)
+    def _simplify_block_once(
+        self, block, entry_peephole: bool = True, dead_assignments_clean: bool = False
+    ) -> tuple[Block, bool]:
+        """
+        Run one round of simplification. Returns the new block and if any step reported a change.
+
+        :param dead_assignments_clean:  True if dead-assignment elimination is known to have nothing to do on
+                                        ``block`` as passed in. Only meaningful together with ``entry_peephole``.
+        """
+        changed = False
+        # True once we know ``block`` is untouched and already at the fixpoint of every pass that has run over it:
+        # re-running those passes on it cannot report a change.
+        clean = False
+        if entry_peephole:
+            block, peephole_changed, exprs_updated = self._peephole_optimize(block)
+            changed |= peephole_changed
+            clean = dead_assignments_clean and not peephole_changed and not exprs_updated
 
         nonconstant_stmts = self._count_nonconstant_statements(block)
         has_propagatable_assignments = self._has_propagatable_assignments(block)
 
-        # propagator
+        # only call propagation if something is potentially propagatable
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             propagator = self._compute_propagation(block)
             new_block = block
             if propagator.model is not None:
                 replacements = propagator.model.replacements
                 if replacements:
-                    _, new_block = self._replace_and_build(
+                    replaced, new_block = self.replace_and_build(
                         block, replacements, self._ail_manager, replace_registers=True
                     )
-                    new_block = self._eliminate_self_assignments(new_block)
+                    changed |= replaced
+                    new_block, self_assign_changed = self._eliminate_self_assignments(new_block)
+                    changed |= self_assign_changed
                     self._clear_cache()
         else:
-            # Skipped calling Propagator
             new_block = block
 
-        if nonconstant_stmts >= 2 and has_propagatable_assignments:
-            new_block = self._eliminate_dead_assignments(new_block)
+        if clean and new_block is block:
+            return block, False
 
-        return self._peephole_optimize(new_block)
+        if nonconstant_stmts >= 2 and has_propagatable_assignments:
+            new_block, dead_changed = self._eliminate_dead_assignments(new_block)
+            changed |= dead_changed
+
+        new_block, peephole_changed, _ = self._peephole_optimize(new_block)
+        return new_block, changed | peephole_changed
 
     @staticmethod
-    def _replace_and_build(
+    def replace_and_build(
         block: Block,
         replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
         ail_manager: Manager,
@@ -309,7 +409,7 @@ class BlockSimplifier(Analysis):
         return True, new_block
 
     @staticmethod
-    def _eliminate_self_assignments(block):
+    def _eliminate_self_assignments(block) -> tuple[Block, bool]:
         new_statements = []
 
         for stmt in block.statements:
@@ -329,9 +429,12 @@ class BlockSimplifier(Analysis):
                     continue
             new_statements.append(stmt)
 
-        return block.copy(statements=new_statements)
+        if len(new_statements) == len(block.statements):
+            # nothing was eliminated; keep the original block
+            return block, False
+        return block.copy(statements=new_statements), True
 
-    def _eliminate_dead_assignments(self, block):
+    def _eliminate_dead_assignments(self, block) -> tuple[Block, bool]:
         def _statement_has_calls(stmt: Statement) -> bool:
             """
             Check if a statement has any Call expressions.
@@ -354,7 +457,7 @@ class BlockSimplifier(Analysis):
 
         new_statements = []
         if not block.statements:
-            return block
+            return block, False
 
         rd = self._compute_reaching_definitions(block)
         block_loc = (block.addr, block.idx)
@@ -382,6 +485,7 @@ class BlockSimplifier(Analysis):
             used_tmps.add(tmp.tmp_idx)
 
         # Remove dead assignments
+        changed = False
         for idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment):
                 # tmps can't execute new code
@@ -390,39 +494,50 @@ class BlockSimplifier(Analysis):
 
                     # does .src involve any Call expressions? if so, we cannot remove it
                     if not _expression_has_calls(stmt.src):
+                        changed = True
                         continue
 
                     if isinstance(stmt.dst, Tmp) and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
                         stmt = SideEffectStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags)
+                        changed = True
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
+                    changed = True
                     continue
 
             new_statements.append(stmt)
 
-        return block.copy(statements=new_statements)
+        if not changed:
+            # nothing was eliminated; keep the original block
+            return block, False
+        return block.copy(statements=new_statements), True
 
     #
     # Peephole optimization
     #
 
-    def _peephole_optimize(self, block):
-        # expressions are updated in place
-        peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
+    def _peephole_optimize(self, block) -> tuple[Block, bool, bool]:
+        """
+        Run all three peephole optimization levels on the block.
+
+        :return:    (block, changed, exprs_updated), where ``changed`` is True if any optimization applied and
+                    ``exprs_updated`` is True if the expression walker rewrote any expression.
+        """
+        exprs_updated = peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(
-            block, self._stmt_peephole_opts, stmt_opts_by_kind=self._stmt_peephole_opts_by_kind
+            block,
+            self._stmt_peephole_opts,
+            stmt_opts_by_kind=self._stmt_peephole_opts_by_kind,
+            fixpoint_exprs=self._expr_peephole_walker.fixpoint_stmts,
         )
 
         new_block = block.copy(statements=statements) if stmts_updated else block
 
         statements, multi_stmts_updated = peephole_optimize_multistmts(new_block, self._multistmt_peephole_opts)
 
-        if not multi_stmts_updated:
-            return new_block
-        return new_block.copy(statements=statements)
-
-
-register_analysis(BlockSimplifier, "AILBlockSimplifier")
+        if multi_stmts_updated:
+            new_block = new_block.copy(statements=statements)
+        return new_block, stmts_updated or multi_stmts_updated, exprs_updated

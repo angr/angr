@@ -391,6 +391,9 @@ class Statement:
     @property
     def depth(self) -> int:
         """Assignment/WeakAssignment/Store/CJump/SES/Return/CAS/Dirty depth"""
+    peephole_optimized: bool
+    """True once a peephole-optimization pass has run this statement to fixpoint, letting later passes skip it.
+    Runtime-only: never serialized, ignored by ``__eq__``/``__hash__``/``likes()``, and reset on clone."""
     def clear_hash(self) -> None: ...
     # Utility query available on any statement (true only for Assignments
     # whose source is a ``Phi``); kept on the base.
@@ -517,6 +520,12 @@ class Block:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_bytes(cls, data: bytes) -> Block: ...
+    def likes(self, other: Block) -> bool: ...
+    """
+    Check structural equality of two Blocks ignoring `idx` and `tags` on statements and expressions.
+    """
+
+    def deep_copy(self, manager: Manager) -> Block: ...
 
 # ---------------------------------------------------------------------------
 # Manager + VEX -> AIL converter

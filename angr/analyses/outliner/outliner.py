@@ -6,11 +6,11 @@ from collections import defaultdict
 import networkx
 
 from angr.ailment import Address, Block
-from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
 from angr.utils.ssa import is_phi_assignment
@@ -84,7 +84,7 @@ class Outliner(Analysis):
         Remove all phi assignments whose all source variables are undefined in the graph.
         """
 
-        srda = self.project.analyses[SReachingDefinitionsAnalysis].prep()(func, func_graph=g).model
+        srda = SReachingDefinitions(self.project, func, func_graph=g).model
 
         to_kill = defaultdict(set)
         for phi_var_id, src_var_ids in srda.phivarid_to_varids.items():
@@ -104,7 +104,7 @@ class Outliner(Analysis):
         Recover the interface from a function AIL graph.
         """
 
-        srda = self.project.analyses[SReachingDefinitionsAnalysis].prep()(func, func_graph=g).model
+        srda = SReachingDefinitions(self.project, func, func_graph=g).model
 
         blocks: dict[tuple[int, int | None], Block] = {(node.addr, node.idx): node for node in g}
 
@@ -178,17 +178,13 @@ class Outliner(Analysis):
             None, vvar_id, self.project.arch.bits, VirtualVariableCategory.REGISTER, oident=self.project.arch.ret_offset
         )
         call_stmt = Assignment(None, switch_vvar, call_expr, ins_addr=src_node.addr)
-        new_src_node = Block(src_node.addr, src_node.original_size, [call_stmt], idx=src_node.idx)
+        new_src_node = Block(src_node.addr, src_node.original_size, statements=[call_stmt], idx=src_node.idx)
         for pred, _ in in_edges:
             self.parent_graph.add_edge(pred, new_src_node)
 
         # build the return statement if needed
         if self.frontier_vars:
-            srda = (
-                self.project.analyses[SReachingDefinitionsAnalysis]
-                .prep()(self.parent_func, func_graph=self.parent_graph)
-                .model
-            )
+            srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
             ret_exprs = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
         else:
             ret_exprs = []
@@ -216,13 +212,14 @@ class Outliner(Analysis):
                 ret_node.statements.append(ret_stmt)
             else:
                 # we will have to create a new node and act as the successor of ret_node
-                new_ret_node = Block(self._next_block_addr(), 0, [ret_stmt])
+                new_ret_node = Block(self._next_block_addr(), 0, statements=[ret_stmt])
                 if ret_node.statements and isinstance(ret_node.statements[-1], ConditionalJump):
                     cond_jump = ret_node.statements[-1]
                     if isinstance(cond_jump.true_target, Const) and cond_jump.true_target.value == frontier_node.addr:
                         _, cond_jump = cond_jump.replace(
                             cond_jump.true_target, Const(None, new_ret_node.addr, self.project.arch.bits)
                         )
+                    assert isinstance(cond_jump, ConditionalJump)
                     if isinstance(cond_jump.false_target, Const) and cond_jump.false_target.value == frontier_node.addr:
                         _, cond_jump = cond_jump.replace(
                             cond_jump.false_target, Const(None, new_ret_node.addr, self.project.arch.bits)
@@ -252,7 +249,7 @@ class Outliner(Analysis):
                         false_target_idx=next_dispatcher_node_addr[1],
                         ins_addr=dispatcher_node_addr[0],
                     )
-                    dispatcher_node = Block(dispatcher_node_addr[0], 0, [stmt], dispatcher_node_addr[1])
+                    dispatcher_node = Block(dispatcher_node_addr[0], 0, statements=[stmt], idx=dispatcher_node_addr[1])
                     self.parent_graph.add_edge(parent, dispatcher_node)
                     self.parent_graph.add_edge(dispatcher_node, node_dict[jump_target])
 
@@ -279,6 +276,7 @@ class Outliner(Analysis):
         src_addrs = [(src.addr, src.idx) for src in srcs]
         for stmt in block.statements:
             if is_phi_assignment(stmt):
+                assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
                 all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
                 new_addrs = set(src_addrs) - set(all_stmt_srcs)
                 old_addrs = set(all_stmt_srcs) - set(src_addrs)

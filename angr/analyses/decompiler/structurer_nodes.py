@@ -433,7 +433,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     Describes a switch-case head. This is only created by LoweredSwitchSimplifier.
     """
 
-    __slots__ = ("_case_addrs_str", "addr", "case_addrs", "switch_variable")
+    __slots__ = ("_case_addrs_str", "addr", "case_addrs", "peephole_optimized", "switch_variable")
 
     # Mirror the rustlib ``Statement.kind`` slot so downstream code that
     # dispatches on ``stmt.kind`` doesn't have to fall back to
@@ -441,8 +441,9 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     # every rustlib variant so the kind-keyed dispatch sites land in
     # their default branch.
     kind = "IncompleteSwitchCaseHead"
+    pykind = "IncompleteSwitchCaseHead"
 
-    def __init__(self, idx, switch_variable, case_addrs, **kwargs):
+    def __init__(self, idx, switch_variable, case_addrs, peephole_optimized: bool = False, **kwargs):
         super().__init__(idx, **kwargs)
         self.switch_variable = switch_variable
         # original cmp node, case value | "default", address of the case node, idx of the case node,
@@ -450,6 +451,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
         self.case_addrs: list[tuple[ailment.Block, int | str, int, int | None, int]] = case_addrs
         # a string representation of the addresses of all cases, used for hashing
         self._case_addrs_str = str(sorted([c[0].addr for c in self.case_addrs if c[0] is not None]))
+        self.peephole_optimized = peephole_optimized
 
     def __repr__(self):
         return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"

@@ -11,17 +11,33 @@ import archinfo
 
 import angr
 from angr import ailment
-from angr.ailment.expression import BinaryOp, Call, Const, Convert, Extract, Insert, Register
+from angr.ailment.block import Block
+from angr.ailment.expression import (
+    ITE,
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    Extract,
+    Insert,
+    Register,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
     Bswap,
     CmpMaskedShift,
     CmpSubConst,
+    ConcatSimplifier,
     ConstantDereferences,
     EagerEvaluation,
     OptimizedDivisionSimplifier,
     RemoveRedundantShifts,
+    SarToSignedDiv,
     SimplifyBitwiseInserts,
 )
 from angr.analyses.decompiler.utils import peephole_optimize_expr
@@ -504,6 +520,110 @@ class TestPeepholeOptimizations(unittest.TestCase):
             Register(manager.next_atom(), 0, 8)
         )
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
+
+
+class TestPeepholeBlockContextFixpoint(unittest.TestCase):
+    """
+    Statements that BlockSimplifier judged to be at peephole fixpoint get flagged (``Statement.peephole_optimized``)
+    and are skipped by later peephole passes. Expression optimizers that look at *other* statements of the block
+    (via ``PeepholeOptimizationExprBase.find_definition``) may start matching once their neighborhood changes, so
+    flagging a statement they did not match is only correct if they are re-run afterwards.
+    """
+
+    @staticmethod
+    def _vvar(varid: int, bits: int) -> VirtualVariable:
+        return VirtualVariable(varid, varid, bits, VirtualVariableCategory.REGISTER, oident=varid * 8)
+
+    @staticmethod
+    def _unfolded_31(manager: Manager) -> BinaryOp:
+        # 0x10 + 0xf, which EagerEvaluation folds to 0x1f. The expression walker writes its rewrites back to the
+        # block only when the whole block has been walked, so the *consumer* statement still sees the unfolded
+        # definition during the first pass and only sees the folded one on the second pass.
+        return BinaryOp(
+            manager.next_atom(),
+            "Add",
+            [Const(manager.next_atom(), 0x10, 8), Const(manager.next_atom(), 0xF, 8)],
+            False,
+        )
+
+    def test_concat_simplifier_reruns_after_its_definition_changes(self):
+        # vvar_10 = vvar_5 >>s 0x1f
+        # vvar_11 = vvar_10 CONCAT vvar_5   =>   vvar_11 = Conv(32->s64, vvar_5)
+        manager = Manager()
+        v5 = self._vvar(5, 32)
+        v10 = self._vvar(10, 32)
+        v11 = self._vvar(11, 64)
+        stmt0 = Assignment(
+            manager.next_atom(),
+            v10,
+            BinaryOp(manager.next_atom(), "Sar", [v5, self._unfolded_31(manager)], False, bits=32),
+            ins_addr=0x400000,
+        )
+        stmt1 = Assignment(
+            manager.next_atom(),
+            v11,
+            BinaryOp(manager.next_atom(), "Concat", [v10, v5], False, bits=64),
+            ins_addr=0x400004,
+        )
+        block = Block(0x400000, 8, statements=[stmt0, stmt1])
+
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        simp = BlockSimplifier(proj, block, manager, peephole_optimizations=[ConcatSimplifier, EagerEvaluation])
+        result = simp.result_block
+        assert result is not None
+
+        assert isinstance(result.statements[1], Assignment)
+        src = result.statements[1].src
+        assert isinstance(src, Convert), f"Concat was not simplified:\n{result.dbg_repr()}"
+        assert src.from_bits == 32
+        assert src.to_bits == 64
+        assert src.is_signed is True
+        assert src.operand.likes(v5)
+
+    def test_sar_to_signed_div_reruns_after_its_definition_changes(self):
+        # vvar_10 = ((vvar_5 >> 0x1f) == 1) ? (vvar_5 + 3) : vvar_5
+        # vvar_11 = vvar_10 >>s 2   =>   vvar_11 = vvar_5 /s 4
+        manager = Manager()
+        v5 = self._vvar(5, 32)
+        v10 = self._vvar(10, 32)
+        v11 = self._vvar(11, 32)
+        cond = BinaryOp(
+            manager.next_atom(),
+            "CmpEQ",
+            [
+                BinaryOp(manager.next_atom(), "Shr", [v5, self._unfolded_31(manager)], False, bits=32),
+                Const(manager.next_atom(), 1, 32),
+            ],
+            False,
+            bits=1,
+        )
+        ite = ITE(
+            manager.next_atom(),
+            cond,
+            v5,  # iffalse
+            BinaryOp(manager.next_atom(), "Add", [v5, Const(manager.next_atom(), 3, 32)], False, bits=32),  # iftrue
+            bits=32,
+        )
+        stmt0 = Assignment(manager.next_atom(), v10, ite, ins_addr=0x400000)
+        stmt1 = Assignment(
+            manager.next_atom(),
+            v11,
+            BinaryOp(manager.next_atom(), "Sar", [v10, Const(manager.next_atom(), 2, 8)], False, bits=32),
+            ins_addr=0x400004,
+        )
+        block = Block(0x400000, 8, statements=[stmt0, stmt1])
+
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        simp = BlockSimplifier(proj, block, manager, peephole_optimizations=[SarToSignedDiv, EagerEvaluation])
+        result = simp.result_block
+        assert result is not None
+
+        assert isinstance(result.statements[1], Assignment)
+        src = result.statements[1].src
+        assert isinstance(src, BinaryOp) and src.op == "Div", f"Sar was not rewritten:\n{result.dbg_repr()}"
+        assert src.signed is True
+        assert src.operands[0].likes(v5)
+        assert isinstance(src.operands[1], Const) and src.operands[1].value == 4
 
 
 if __name__ == "__main__":

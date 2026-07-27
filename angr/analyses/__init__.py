@@ -37,8 +37,8 @@ from .proximity_graph import ProximityGraphAnalysis
 from .reaching_definitions import ReachingDefinitionsAnalysis
 from .reassembler import Reassembler
 from .s_liveness import SLivenessAnalysis
-from .s_propagator import SPropagatorAnalysis
-from .s_reaching_definitions import SReachingDefinitionsAnalysis
+from .s_propagator import SPropagator, SPropagatorAnalysis
+from .s_reaching_definitions import SReachingDefinitions, SReachingDefinitionsAnalysis
 from .smc import SelfModifyingCodeAnalysis
 from .soot_class_hierarchy import SootClassHierarchy
 from .stack_pointer_tracker import StackPointerTracker
@@ -97,7 +97,9 @@ __all__ = (
     "ReachingDefinitionsAnalysis",
     "Reassembler",
     "SLivenessAnalysis",
+    "SPropagator",
     "SPropagatorAnalysis",
+    "SReachingDefinitions",
     "SReachingDefinitionsAnalysis",
     "SelfModifyingCodeAnalysis",
     "SootClassHierarchy",

@@ -9,7 +9,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.analysis import Analysis, register_analysis
-from angr.analyses.s_reaching_definitions import SRDAModel
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
 from angr.knowledge_plugins.functions import Function
 from angr.utils.ssa import is_phi_assignment
 
@@ -60,9 +60,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         self.vvar_to_vvar_mapping = None
         self.copied_vvar_ids: set[int] = set()
-        self._rd: SRDAModel = self.project.analyses.SReachingDefinitions(
-            subject=self._function, func_graph=self._graph
-        ).model
+        self._rd: SRDAModel = SReachingDefinitions(self.project, subject=self._function, func_graph=self._graph).model
         self._blocks: dict[tuple[int, int | None], Block] = {(block.addr, block.idx): block for block in self._graph}
 
         self._analyze()
@@ -237,7 +235,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     if src not in stmt_appended_locs:
                         # we have not yet appended a statement to this block
                         the_block = self._blocks[src]
-                        ins_addr = the_block.addr + the_block.original_size - 1
+                        ins_addr = (
+                            the_block.addr + (the_block.original_size if the_block.original_size is not None else 1) - 1
+                        )
                         new_category = phi_stmt.dst.category
                         new_oident = phi_stmt.dst.oident
                         new_vvar = VirtualVariable(

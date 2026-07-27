@@ -19,10 +19,11 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
@@ -179,6 +180,7 @@ class ComboRegReferenceWalker(AILBlockRewriter):
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if expr.was_combo_reg:
+            assert expr.reg_vvars is not None
             for reg_vvar in expr.reg_vvars:
                 self.varid_to_combo_reg[reg_vvar.varid] = expr
         elif expr.was_reg and expr.varid in self.varid_to_combo_reg:
@@ -312,7 +314,10 @@ class Clinic(Analysis, Serializable):
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
-        self.peephole_optimizations = peephole_optimizations
+        self.peephole_optimizations = list(peephole_optimizations) if peephole_optimizations is not None else None
+        # cached PeepholeOptimizationBundle, shared by every BlockSimplifier this Clinic creates; rebuilt whenever
+        # the construction parameters change (see _get_peephole_bundle)
+        self._peephole_bundle: PeepholeOptimizationBundle | None = None
         # peephole-optimization names that could not be resolved at parse time (their defining module was not
         # imported); resolve_peephole_optimizations() retries them
         self.unresolvable_peephole_optimizations: list[str] = []
@@ -726,7 +731,7 @@ class Clinic(Analysis, Serializable):
             walker.walk(block)
         return ail_graph
 
-    def _rewrite_combo_reg_param_references(self, ail_graph):
+    def _rewrite_combo_reg_param_references(self, ail_graph) -> networkx.DiGraph:
         """
         Rewrite reads of the constituent registers of combo-register arguments into loads from the arguments.
 
@@ -736,6 +741,8 @@ class Clinic(Analysis, Serializable):
         linked to the recovered argument variables.
         """
 
+        if self.arg_vvars is None:
+            return ail_graph
         combo_arg_vvars = [
             arg_vvar
             for arg_vvar, _ in self.arg_vvars.values()
@@ -746,6 +753,7 @@ class Clinic(Analysis, Serializable):
 
         walker = ComboRegReferenceWalker(self.project, self._ail_manager)
         for arg_vvar in combo_arg_vvars:
+            assert arg_vvar.reg_vvars is not None
             for reg_vvar in arg_vvar.reg_vvars:
                 walker.varid_to_combo_reg[reg_vvar.varid] = arg_vvar
         for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
@@ -1336,12 +1344,19 @@ class Clinic(Analysis, Serializable):
                                 and isinstance(cc.cc.RETURN_VAL, SimRegArg)
                             ):
                                 reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
-                                last_stmt.ret_expr = ailment.Expr.Register(
+                                ret_expr = ailment.Expr.Register(
                                     self._ail_manager.next_atom(),
                                     reg_offset,
                                     reg_size * 8,
                                     ins_addr=callsite_ins_addr,
                                     reg_name=cc.cc.RETURN_VAL.reg_name,
+                                )
+                                last_stmt = ailment.Stmt.SideEffectStatement(
+                                    self._ail_manager.next_atom(),
+                                    last_stmt.expr,
+                                    ret_expr=ret_expr,
+                                    fp_ret_expr=last_stmt.fp_ret_expr,
+                                    **last_stmt.tags,
                                 )
 
         # finally, recover the calling convention of the current function
@@ -1551,8 +1566,10 @@ class Clinic(Analysis, Serializable):
             if not block.statements:
                 continue
             last_stmt = block.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and not isinstance(
-                last_stmt.expr.target, ailment.Expr.Const
+            if (
+                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+                and not isinstance(last_stmt.expr.target, ailment.Expr.Const)
             ):
                 # indirect call
                 # consult CFG to see if this is a call with a single successor
@@ -1571,9 +1588,8 @@ class Clinic(Analysis, Serializable):
                     ):
                         # found a single successor - replace the last statement.
                         assert isinstance(last_stmt.expr.target, ailment.Expr.Expression)  # not a string
-                        new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
-                        old_call = new_last_stmt.expr
+                        old_call = last_stmt.expr
                         old_cc = self.variable_map.calling_convention(old_call)
                         old_proto = self.variable_map.prototype(old_call)
                         new_call = ailment.Expr.Call(
@@ -1583,11 +1599,17 @@ class Clinic(Analysis, Serializable):
                             bits=old_call.bits,
                             **old_call.tags,
                         )
+                        new_last_stmt = ailment.Stmt.SideEffectStatement(
+                            self._ail_manager.next_atom(),
+                            new_call,
+                            ret_expr=last_stmt.ret_expr,
+                            fp_ret_expr=last_stmt.fp_ret_expr,
+                            **last_stmt.tags,
+                        )
                         if old_cc is not None:
                             self.variable_map.set_calling_convention(new_call, old_cc)
                         if old_proto is not None:
                             self.variable_map.set_prototype(new_call, old_proto)
-                        new_last_stmt.expr = new_call
                         block.statements[-1] = new_last_stmt
 
             elif isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
@@ -1691,8 +1713,10 @@ class Clinic(Analysis, Serializable):
         """
         for block in list(ail_graph.nodes()):
             last_stmt = block.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                last_stmt.expr.target, ailment.Expr.Const
+            if (
+                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+                and isinstance(last_stmt.expr.target, ailment.Expr.Const)
             ):
                 target = last_stmt.expr.target.value
             else:
@@ -1739,7 +1763,10 @@ class Clinic(Analysis, Serializable):
                 continue
 
             last_stmt = block.statements[-1]
-            if not isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
+            if not (
+                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+            ):
                 continue
 
             cc = self.variable_map.calling_convention(last_stmt.expr)
@@ -1841,8 +1868,9 @@ class Clinic(Analysis, Serializable):
                 preserve_vvar_ids=preserve_vvar_ids,
                 type_hints=type_hints,
             )
-            key = ail_block.addr, ail_block.idx
-            blocks_by_addr_and_idx[key] = simplified
+            if simplified is not None:
+                key = ail_block.addr, ail_block.idx
+                blocks_by_addr_and_idx[key] = simplified
 
         # update blocks_map to allow node_addr to node lookup
         def _replace_node_handler(node):
@@ -1855,6 +1883,35 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    def _get_peephole_bundle(
+        self,
+        preserve_vvar_ids: set[int] | None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None,
+    ) -> PeepholeOptimizationBundle:
+        """
+        Return the cached PeepholeOptimizationBundle, rebuilding if any construction parameter changed.
+        """
+        bundle = self._peephole_bundle
+        if bundle is None or not bundle.matches(
+            self.project,
+            self._ail_manager,
+            self.function.addr,
+            preserve_vvar_ids,
+            type_hints,
+            self.peephole_optimizations,
+        ):
+            bundle = PeepholeOptimizationBundle(
+                self.project,
+                self.kb,
+                self._ail_manager,
+                func_addr=self.function.addr,
+                preserve_vvar_ids=preserve_vvar_ids,
+                type_hints=type_hints,
+                peephole_optimizations=self.peephole_optimizations,
+            )
+            self._peephole_bundle = bundle
+        return bundle
+
     def _simplify_block(
         self,
         ail_block,
@@ -1862,7 +1919,7 @@ class Clinic(Analysis, Serializable):
         cache=None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
-    ):
+    ) -> ailment.Block | None:
         """
         Simplify a single AIL block.
 
@@ -1881,17 +1938,17 @@ class Clinic(Analysis, Serializable):
                 cached_rd = cache_item.rd
                 cached_prop = cache_item.prop
 
-        simp = self.project.analyses.AILBlockSimplifier(
+        simp = BlockSimplifier(
+            self.project,
             ail_block,
             self._ail_manager,
             self.function.addr,
-            fail_fast=self._fail_fast,
             stack_pointer_tracker=stack_pointer_tracker,
-            peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
             preserve_vvar_ids=preserve_vvar_ids,
             type_hints=type_hints,
+            peephole_bundle=self._get_peephole_bundle(preserve_vvar_ids, type_hints),
         )
         # update the cache
         if cache is not None:
@@ -2327,14 +2384,14 @@ class Clinic(Analysis, Serializable):
                 removed_vvar_ids |= csm.removed_vvar_ids
             if csm.result_block and csm.result_block != block:
                 ail_block = csm.result_block
-                simp = self.project.analyses.AILBlockSimplifier(
+                simp = BlockSimplifier(
+                    self.project,
                     ail_block,
                     self._ail_manager,
                     self.function.addr,
-                    fail_fast=self._fail_fast,
                     stack_pointer_tracker=stack_pointer_tracker,
-                    peephole_optimizations=self.peephole_optimizations,
                     preserve_vvar_ids=preserve_vvar_ids,
+                    peephole_bundle=self._get_peephole_bundle(preserve_vvar_ids, None),
                 )
                 return simp.result_block
             return None
@@ -2960,7 +3017,9 @@ class Clinic(Analysis, Serializable):
                 continue
             assert block.addr is not None
             last_stmt = block.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                last_stmt.expr, ailment.Expr.Call
+            ):
                 # we can't examine the call target at this point because constant propagation hasn't run yet; we consult
                 # the CFG instead
                 callsite_node = self._cfg.get_any_node(block.addr, anyaddr=True)
@@ -2974,7 +3033,7 @@ class Clinic(Analysis, Serializable):
                     callee_func = self.kb.functions.get_by_addr(callee)
                     if callee_func.info.get("jmp_rax", False) is True:
                         call_stmt = last_stmt.copy()
-                        old_call = call_stmt.expr
+                        old_call = last_stmt.expr
                         new_target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
                             self.project.arch.registers["rax"][0],
@@ -3098,7 +3157,7 @@ class Clinic(Analysis, Serializable):
                 break
         if ite_expr_stmt_idx is None:
             return None
-        assert ite_expr_stmt is not None
+        assert ite_expr_stmt is not None and isinstance(ite_expr_stmt.src, ailment.Expr.ITE)
 
         true_block_ail.statements[ite_expr_stmt_idx] = ailment.Stmt.Assignment(
             ite_expr_stmt.idx, ite_expr_stmt.dst, ite_expr_stmt.src.iftrue, **ite_expr_stmt.tags
@@ -3118,7 +3177,7 @@ class Clinic(Analysis, Serializable):
                 break
         if ite_expr_stmt_idx is None:
             return None
-        assert ite_expr_stmt is not None
+        assert ite_expr_stmt is not None and isinstance(ite_expr_stmt.src, ailment.Expr.ITE)
 
         false_block_ail.statements[ite_expr_stmt_idx] = ailment.Stmt.Assignment(
             ite_expr_stmt.idx, ite_expr_stmt.dst, ite_expr_stmt.src.iffalse, **ite_expr_stmt.tags
@@ -3903,8 +3962,10 @@ class Clinic(Analysis, Serializable):
             if not node.statements or ail_graph.out_degree[node] != 1:
                 continue
             last_stmt = node.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                last_stmt.expr.target, ailment.Expr.Const
+            if (
+                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+                and isinstance(last_stmt.expr.target, ailment.Expr.Const)
             ):
                 func = (
                     self.project.kb.functions.get_by_addr(last_stmt.expr.target.value)
@@ -3926,6 +3987,7 @@ class Clinic(Analysis, Serializable):
                             and last_stmt.data.value == succ.addr
                         ) or (
                             isinstance(last_stmt, ailment.Stmt.Assignment)
+                            and isinstance(last_stmt.dst, ailment.Expr.VirtualVariable)
                             and last_stmt.dst.was_stack
                             and last_stmt.dst.stack_offset < 0
                             and isinstance(last_stmt.src, ailment.Expr.Const)
@@ -3944,8 +4006,10 @@ class Clinic(Analysis, Serializable):
             if not node.statements or ail_graph.out_degree[node] != 1:
                 continue
             last_stmt = node.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
-                last_stmt.expr.target, ailment.Expr.Const
+            if (
+                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+                and isinstance(last_stmt.expr.target, ailment.Expr.Const)
             ):
                 func = (
                     self.project.kb.functions.get_by_addr(last_stmt.expr.target.value)
@@ -3967,6 +4031,7 @@ class Clinic(Analysis, Serializable):
                             and last_stmt.data.value == succ.addr
                         ) or (
                             isinstance(last_stmt, ailment.Stmt.Assignment)
+                            and isinstance(last_stmt.dst, ailment.Expr.VirtualVariable)
                             and last_stmt.dst.was_stack
                             and last_stmt.dst.stack_offset < 0
                             and isinstance(last_stmt.src, ailment.Expr.Const)
@@ -4213,16 +4278,13 @@ class Clinic(Analysis, Serializable):
     def _compute_reaching_definitions(self, func_args=None) -> SRDAModel:
         # Computing reaching definitions
         # TODO: Refactor this into a method of the upcoming AILFunctionGraph class.
-        return (
-            self.project.analyses[SReachingDefinitionsAnalysis]
-            .prep(fail_fast=self._fail_fast)(
-                subject=self.function,
-                func_graph=self._ail_graph,
-                func_args=func_args if func_args is not None else self.func_args,
-                use_callee_saved_regs_at_return=not self._register_save_areas_removed,
-            )
-            .model
-        )
+        return SReachingDefinitions(
+            self.project,
+            subject=self.function,
+            func_graph=self._ail_graph,
+            func_args=func_args if func_args is not None else self.func_args,
+            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+        ).model
 
     def resolve_peephole_optimizations(self) -> None:
         """Retry resolving peephole-optimization names that were unresolvable at parse time (their defining module

@@ -1,6 +1,8 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import networkx
 
 from angr.ailment.block import Block
@@ -15,14 +17,22 @@ from angr.knowledge_plugins.key_definitions.constants import ObservationPointTyp
 from .s_rda_model import SRDAModel, populate_model
 from .s_rda_view import SRDAView
 
+if TYPE_CHECKING:
+    from angr.project import Project
 
-class SReachingDefinitionsAnalysis(Analysis):
+
+class SReachingDefinitions:
     """
     Constant and expression propagation that only supports SSA AIL graphs.
+
+    Deliberately not an :class:`Analysis`: it is instantiated hundreds of times per decompilation (often once per
+    block), so it skips the analysis-factory ceremony. Instantiate it directly with the project as the first
+    argument; exceptions always propagate.
     """
 
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
+        project: Project,
         subject,
         func_addr: int | None = None,
         func_graph: networkx.DiGraph[Block] | None = None,
@@ -31,6 +41,9 @@ class SReachingDefinitionsAnalysis(Analysis):
         track_tmps: bool = False,
         variable_map=None,
     ):
+        self.project = project
+        self.kb = project.kb
+
         if isinstance(subject, Block):
             self.block = subject
             self.func = None
@@ -202,6 +215,34 @@ class SReachingDefinitionsAnalysis(Analysis):
                                 max_vvar_size = max(reg_to_vvarids[reg_offset])
                                 vvarid = reg_to_vvarids[reg_offset][max_vvar_size]
                                 self.model.add_vvar_use(vvarid, None, codeloc)
+
+
+class SReachingDefinitionsAnalysis(Analysis, SReachingDefinitions):
+    """
+    A wrapper around SReachingDefinitions to make it usable as an :class:`Analysis` and registered in the
+    analysis hub.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        subject,
+        func_addr: int | None = None,
+        func_graph: networkx.DiGraph[Block] | None = None,
+        func_args: set[VirtualVariable] | None = None,
+        use_callee_saved_regs_at_return: bool = False,
+        track_tmps: bool = False,
+        variable_map=None,
+    ):
+        super().__init__(
+            self.project,
+            subject,
+            func_addr=func_addr,
+            func_graph=func_graph,
+            func_args=func_args,
+            use_callee_saved_regs_at_return=use_callee_saved_regs_at_return,
+            track_tmps=track_tmps,
+            variable_map=variable_map,
+        )
 
 
 register_analysis(SReachingDefinitionsAnalysis, "SReachingDefinitions")

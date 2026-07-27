@@ -540,7 +540,8 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     if new_node.statements and isinstance(new_node.statements[-1], ailment.Stmt.Jump):
         new_node.statements = new_node.statements[:-1]
     new_node.statements += old_node.statements
-    new_node.original_size += old_node.original_size
+    if new_node.original_size is not None and old_node.original_size is not None:
+        new_node.original_size += old_node.original_size
 
     graph.remove_node(node_a)
     graph.remove_node(node_b)
@@ -864,7 +865,11 @@ def structured_node_is_simple_return_strict(node: BaseNode | SequenceNode | Mult
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
     if isinstance(stmt, ailment.Stmt.Return):
         return True
-    if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.expr.target, ailment.Expr.Const):
+    if (
+        isinstance(stmt, ailment.Stmt.SideEffectStatement)
+        and isinstance(stmt.expr, ailment.Expr.Call)
+        and isinstance(stmt.expr.target, ailment.Expr.Const)
+    ):
         # is it calling a non-returning function?
         target_func_addr = stmt.expr.target.value
         try:
@@ -883,6 +888,11 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
+        # IDs of the statements this pass left untouched and whose expr optimizers all reported fixpoint_reached.
+        # Only valid until the next ``reset()``, and only for statements of the block just walked.
+        self.fixpoint_stmts: set[int] = set()
+        self._stmt_touched = False
+        self._stmt_fixpoint = True
         self.expr_opts_by_kind: dict[str, list[PeepholeOptimizationExprBase]] = {}
 
         for expr_opt in expr_opts:
@@ -897,6 +907,22 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
 
     def reset(self) -> None:
         self.any_update = False
+        self.fixpoint_stmts.clear()
+
+    def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block) -> ailment.Stmt.Statement:
+        if stmt.peephole_optimized is True:
+            # a previous peephole pass ran this statement (and its expressions) to fixpoint
+            return stmt
+        # MultiStatementExpression re-enters _handle_stmt() mid-statement; losing the enclosing False here would
+        # wrongly mark the enclosing statement as being at its fixpoint.
+        outer_fixpoint = self._stmt_fixpoint
+        self._stmt_touched = False
+        self._stmt_fixpoint = True
+        new_stmt = super()._handle_stmt(stmt_idx, stmt, block)
+        if not self._stmt_touched and new_stmt is stmt and self._stmt_fixpoint:
+            self.fixpoint_stmts.add(id(stmt))
+        self._stmt_fixpoint &= outer_fixpoint
+        return new_stmt
 
     def _handle_expr(
         self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
@@ -912,7 +938,10 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
             if not expr_opts:
                 break
             for expr_opt in expr_opts:
+                # context-insensitive optimizers never touch the flag, so default it to True here.
+                expr_opt.fixpoint_reached = True
                 r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
+                self._stmt_fixpoint &= expr_opt.fixpoint_reached
                 if r is not None and r is not expr:
                     if expr.bits != r.bits:
                         # A few optimizers don't preserve bits;
@@ -931,6 +960,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
 
         if expr is not old_expr:
             self.any_update = True
+            self._stmt_touched = True
 
         return expr
 
@@ -1015,7 +1045,11 @@ def build_stmt_opts_by_kind(stmt_opts):
     return by_kind
 
 
-def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
+def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None, fixpoint_exprs=None):
+    """
+    :param fixpoint_exprs:  IDs of the statements the preceding expression pass left untouched *and* whose
+                            expression optimizers all reported ``fixpoint_reached``.
+    """
     any_update = False
     statements = []
     if stmt_opts_by_kind is None:
@@ -1027,17 +1061,23 @@ def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
     while stmt_idx < len(block.statements):
         stmt = block.statements[stmt_idx]
         old_stmt = stmt
+        if stmt.peephole_optimized is True:
+            # a previous peephole pass ran this statement to fixpoint
+            statements.append(stmt)
+            stmt_idx += 1
+            continue
+        stmt_fixpoint = True
         redo = True
         while redo:
             redo = False
-            kind = getattr(stmt, "pykind", None)
-            if kind is None:
-                kind = type(stmt).__name__
-            opts_for_kind = stmt_opts_by_kind.get(kind)
+            opts_for_kind = stmt_opts_by_kind.get(stmt.pykind)
             if not opts_for_kind:
                 break
             for opt in opts_for_kind:
+                # context-insensitive optimizers never touch the flag, so default it to True here.
+                opt.fixpoint_reached = True
                 r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
+                stmt_fixpoint &= opt.fixpoint_reached
                 if r is not None and r != stmt:
                     stmt = r
                     if r == ():
@@ -1053,6 +1093,10 @@ def peephole_optimize_stmts(block, stmt_opts, *, stmt_opts_by_kind=None):
             any_update = True
         else:
             statements.append(old_stmt)
+            if stmt_fixpoint and fixpoint_exprs is not None and id(old_stmt) in fixpoint_exprs:
+                # nothing matched and nothing may start matching if the block changes: at the peephole
+                # fixpoint until this statement is rebuilt.
+                old_stmt.peephole_optimized = True
         stmt_idx += 1
 
     return statements, any_update

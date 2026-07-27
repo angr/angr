@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from angr import ailment
-from angr.analyses.decompiler.peephole_optimizations import (
-    EXPR_OPTS,
-    PeepholeOptimizationExprBase,
-)
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import (
     peephole_optimize_expr,
@@ -40,11 +37,15 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
     def __init__(self, *args, peephole_optimizations=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._peephole_optimizations = peephole_optimizations
-        self._expr_peephole_opts = [
-            cls(self.project, self.kb, ail_manager=self.manager, func_addr=self._func.addr)
-            for cls in (self._peephole_optimizations or EXPR_OPTS)
-            if issubclass(cls, PeepholeOptimizationExprBase)
-        ]
+        # one bundle for all BlockSimplifier invocations of this pass
+        self._peephole_bundle = PeepholeOptimizationBundle(
+            self.project,
+            self.kb,
+            self.manager,
+            func_addr=self._func.addr,
+            peephole_optimizations=self._peephole_optimizations,
+        )
+        self._expr_peephole_opts = self._peephole_bundle.expr_opts
         self.analyze()
 
     def _check(self):
@@ -65,12 +66,13 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
         old_block, new_block = None, block
         while old_block != new_block:
             old_block = new_block
-            # Note: AILBlockSimplifier updates expressions in place
-            simp = self.project.analyses.AILBlockSimplifier(
+            # Note: BlockSimplifier updates expressions in place
+            simp = BlockSimplifier(
+                self.project,
                 new_block,
                 func_addr=self._func.addr,
-                peephole_optimizations=self._peephole_optimizations,
                 ail_manager=self.manager,
+                peephole_bundle=self._peephole_bundle,
             )
             assert simp.result_block is not None
             new_block = simp.result_block

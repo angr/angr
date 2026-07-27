@@ -16,9 +16,18 @@ if TYPE_CHECKING:
 class PeepholeOptimizationStmtBase:
     """
     The base class for all peephole optimizations that are applied on AIL statements.
+
+    ``fixpoint_reached`` is an output parameter; it tells the caller whether this optimizer should run on this
+    statement again (e.g., when statements prior to the current statement are optimized and changed). The caller sets
+    ``fixpoint_reached`` to True before every :meth:`optimize` call; the optimizer optionally sets it to False if it
+    wants to be invoked again on the same statement.
+
+    So, ``fixpoint_reached`` should be set to (or kept) True if (a) the optimizer has optimized the statement and does
+    not expect to optimize it ever again, or (b) the optimizer cannot ever optimize the statement.
     """
 
     __slots__ = (
+        "fixpoint_reached",
         "func_addr",
         "kb",
         "manager",
@@ -31,6 +40,7 @@ class PeepholeOptimizationStmtBase:
     func_addr: int | None
     preserve_vvar_ids: set[int]
     type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
+    fixpoint_reached: bool
 
     NAME = "Peephole Optimization - Statement"
     DESCRIPTION = "Peephole Optimization - Statement"
@@ -51,6 +61,7 @@ class PeepholeOptimizationStmtBase:
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints
+        self.fixpoint_reached = False
 
     def optimize(self, stmt, stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
@@ -59,9 +70,13 @@ class PeepholeOptimizationStmtBase:
 class PeepholeOptimizationMultiStmtBase:
     """
     The base class for all peephole optimizations that are applied on multiple AIL statements at once.
+
+    ``fixpoint_reached`` exists for uniformity but is unused. Multi-statement optimizers always run regardless of
+    whether the statements have reached fixed points or not.
     """
 
     __slots__ = (
+        "fixpoint_reached",
         "func_addr",
         "kb",
         "manager",
@@ -74,6 +89,7 @@ class PeepholeOptimizationMultiStmtBase:
     func_addr: int | None
     preserve_vvar_ids: set[int]
     type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
+    fixpoint_reached: bool
 
     NAME = "Peephole Optimization - Multi-statement"
     DESCRIPTION = "Peephole Optimization - Multi-statement"
@@ -94,6 +110,7 @@ class PeepholeOptimizationMultiStmtBase:
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints
+        self.fixpoint_reached = False
 
     def optimize(self, stmts: list[Statement], stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
@@ -101,10 +118,12 @@ class PeepholeOptimizationMultiStmtBase:
 
 class PeepholeOptimizationExprBase:
     """
-    The base class for all peephole optimizations that are applied on AIL expressions.
+    The base class for all peephole optimizations that are applied on AIL expressions. Please refer to
+    :class:`PeepholeOptimizationStmtBase` for the ``fixpoint_reached`` contract.
     """
 
     __slots__ = (
+        "fixpoint_reached",
         "func_addr",
         "kb",
         "manager",
@@ -117,6 +136,7 @@ class PeepholeOptimizationExprBase:
     func_addr: int | None
     preserve_vvar_ids: set[int]
     type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
+    fixpoint_reached: bool
 
     NAME = "Peephole Optimization - Expression"
     DESCRIPTION = "Peephole Optimization - Expression"
@@ -137,6 +157,7 @@ class PeepholeOptimizationExprBase:
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints
+        self.fixpoint_reached = False
 
     def optimize(self, expr, *, stmt_idx: int | None = None, block=None, **kwargs) -> Expression | None:
         raise NotImplementedError("_optimize() is not implemented.")

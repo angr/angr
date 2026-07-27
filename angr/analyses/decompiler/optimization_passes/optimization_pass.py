@@ -14,6 +14,7 @@ import angr
 from angr import ailment
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
@@ -365,8 +366,9 @@ class OptimizationPass(BaseOptimizationPass):
                 ail_block,
                 cache=cache,
             )
-            key = ail_block.addr, ail_block.idx
-            blocks_by_addr_and_idx[key] = simplified
+            if simplified is not None:
+                key = ail_block.addr, ail_block.idx
+                blocks_by_addr_and_idx[key] = simplified
 
         # update blocks_map to allow node_addr to node lookup
         def _replace_node_handler(node):
@@ -378,6 +380,21 @@ class OptimizationPass(BaseOptimizationPass):
         AILGraphWalker(ail_graph, _replace_node_handler, replace_nodes=True).walk()
 
         return ail_graph
+
+    def _get_peephole_bundle(self) -> PeepholeOptimizationBundle:
+        bundle: None | PeepholeOptimizationBundle = self._scratch.get("peephole_bundle")
+        if bundle is None or not bundle.matches(
+            self.project, self.manager, self._func.addr, None, None, self._peephole_optimizations
+        ):
+            bundle = PeepholeOptimizationBundle(
+                self.project,
+                self.kb,
+                self.manager,
+                func_addr=self._func.addr,
+                peephole_optimizations=self._peephole_optimizations,
+            )
+            self._scratch["peephole_bundle"] = bundle
+        return bundle
 
     def _simplify_block(self, ail_block, cache=None):
         """
@@ -397,13 +414,14 @@ class OptimizationPass(BaseOptimizationPass):
                 cached_rd = cache_item.rd
                 cached_prop = cache_item.prop
 
-        simp = self.project.analyses.AILBlockSimplifier(
+        simp = BlockSimplifier(
+            self.project,
             ail_block,
             self.manager,
             self._func.addr,
-            peephole_optimizations=self._peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
+            peephole_bundle=self._get_peephole_bundle(),
         )
         # update the cache
         if cache is not None:

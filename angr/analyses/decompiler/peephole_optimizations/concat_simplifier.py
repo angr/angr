@@ -106,6 +106,8 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
                     low,
                     **expr.tags,
                 )
+            # we may start matching once the block changes
+            self.fixpoint_reached = False
 
         return None
 

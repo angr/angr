@@ -4,6 +4,7 @@ import contextlib
 import threading
 from collections import defaultdict
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 import networkx
 
@@ -44,6 +45,9 @@ from angr.utils.ssa import (
     is_phi_assignment,
     is_vvar_propagatable,
 )
+
+if TYPE_CHECKING:
+    from angr.project import Project
 
 # The cache of reusable AILBlockWalker instances, which are used by is_const_*(). The cache dict itself is
 # owned by the corresponding Decompiler instance (so it is released when the Decompiler is gone). This thread-local
@@ -89,13 +93,16 @@ class SPropagatorModel:
         self.dead_vvar_ids: set[int] = set()
 
 
-class SPropagatorAnalysis(Analysis):
+class SPropagator:
     """
     Constant and expression propagation that only supports SSA AIL graphs.
+
+    Deliberately not an :class:`Analysis` for better speed.
     """
 
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
+        project: Project,
         subject: Block | Function,
         *,
         ail_manager: Manager,
@@ -106,6 +113,9 @@ class SPropagatorAnalysis(Analysis):
         func_addr: int | None = None,
         stack_arg_offsets: set[int] | None = None,
     ):
+        self.project = project
+        self.kb = project.kb
+
         if isinstance(subject, Block):
             self.block = subject
             self.func = None
@@ -654,6 +664,15 @@ class SPropagatorAnalysis(Analysis):
             seen.add(varid)
             queue.extend(vid for vid in phivar_to_srcvarids[varid] if vid is not None and vid not in seen)
         return result
+
+
+class SPropagatorAnalysis(Analysis, SPropagator):
+    """
+    A wrapper around SPropagator to make it an Analysis.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 register_analysis(SPropagatorAnalysis, "SPropagator")
