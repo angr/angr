@@ -298,12 +298,13 @@ class SketchNode(SketchNodeBase):
     Represents a node in a sketch graph.
     """
 
-    __slots__ = ("lower_bound", "typevar", "upper_bound")
+    __slots__ = ("_hash", "lower_bound", "typevar", "upper_bound")
 
     def __init__(self, typevar: TypeVariable | DerivedTypeVariable):
         self.typevar: TypeVariable | DerivedTypeVariable = typevar
         self.upper_bound: TypeConstant = TopType()
         self.lower_bound: TypeConstant = BottomType()
+        self._hash = hash((_SKETCH_NODE_TAG, typevar))
 
     def __repr__(self):
         return f"{self.lower_bound} <: {self.typevar} <: {self.upper_bound}"
@@ -312,7 +313,7 @@ class SketchNode(SketchNodeBase):
         return isinstance(other, SketchNode) and self.typevar == other.typevar
 
     def __hash__(self):
-        return hash((type_tag(SketchNode), self.typevar))
+        return self._hash
 
     @property
     def size(self) -> int | None:
@@ -331,6 +332,9 @@ class SketchNode(SketchNodeBase):
             with suppress(NotImplementedError):
                 return self.upper_bound.size * 8
         return None
+
+
+_SKETCH_NODE_TAG = type_tag(SketchNode)
 
 
 class RecursiveRefNode(SketchNodeBase):
@@ -484,24 +488,30 @@ class Sketch:
 
 
 class ConstraintGraphTag(enum.Enum):
+    def __init__(self, n):
+        self._hash = hash(("ConstraintGraphTag", n))
+
+    def __hash__(self):
+        return self._hash
+
     LEFT = 0
     RIGHT = 1
     UNKNOWN = 2
 
-    def __hash__(self):
-        return hash((type_tag(ConstraintGraphTag), self.value))
-
 
 class FORGOTTEN(enum.Enum):
+    def __init__(self, n):
+        self._hash = hash(("FORGOTTEN", n))
+
+    def __hash__(self):
+        return self._hash
+
     PRE_FORGOTTEN = 0
     POST_FORGOTTEN = 1
 
-    def __hash__(self):
-        return hash((type_tag(FORGOTTEN), self.value))
-
 
 class ConstraintGraphNode:
-    __slots__ = ("forgotten", "tag", "typevar", "variance")
+    __slots__ = ("_hash", "forgotten", "tag", "typevar", "variance")
 
     def __init__(
         self,
@@ -514,6 +524,7 @@ class ConstraintGraphNode:
         self.variance = variance
         self.tag = tag
         self.forgotten = forgotten
+        self._hash = hash(("ConstraintGraphNode", typevar, variance, tag, forgotten))
 
     def __repr__(self):
         variance_str = "CO" if self.variance == Variance.COVARIANT else "CONTRA"
@@ -540,7 +551,7 @@ class ConstraintGraphNode:
         )
 
     def __hash__(self):
-        return hash((type_tag(ConstraintGraphNode), self.typevar, self.variance, self.tag, self.forgotten))
+        return self._hash
 
     def forget_last_label(self) -> tuple[ConstraintGraphNode, BaseLabel] | None:
         if isinstance(self.typevar, DerivedTypeVariable) and self.typevar.labels:

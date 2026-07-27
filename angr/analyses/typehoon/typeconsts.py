@@ -28,6 +28,12 @@ def memoize(f):
 class TypeConstant:
     SIZE = None
 
+    TYPE_HASH: int = 0
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.TYPE_HASH = type_tag(cls)
+
     def __init__(self, name: str | None = None):
         self.name = name
 
@@ -35,13 +41,15 @@ class TypeConstant:
         return repr(self)
 
     def _hash(self, visited: set[int]):  # pylint:disable=unused-argument
-        return type_tag(type(self))
+        return self.TYPE_HASH
 
     def __eq__(self, other):
         return type(self) is type(other)
 
     def __hash__(self):
-        return self._hash(set())
+        # the hash of a plain type constant is fully determined by its class, so there is nothing to
+        # recompute here -- see TYPE_HASH above
+        return self.TYPE_HASH
 
     @property
     def size(self) -> int:
@@ -58,6 +66,9 @@ class TypeConstant:
         memo: set[TypeConstant] | None = None,  # pylint:disable=unused-argument
     ) -> TypeConstant:
         return mapping.get(id(self), self)
+
+
+TypeConstant.TYPE_HASH = type_tag(TypeConstant)
 
 
 class TopType(TypeConstant):
@@ -221,8 +232,8 @@ class Pointer(TypeConstant):
 
     def _hash(self, visited: set[int]):
         if self.basetype is None:
-            return type_tag(type(self))
-        return hash((type_tag(type(self)), self.basetype._hash(visited)))
+            return self.TYPE_HASH
+        return hash((self.TYPE_HASH, self.basetype._hash(visited)))
 
     def new(self, basetype, name: str | None = None):
         return self.__class__(basetype, name=name)
@@ -302,7 +313,7 @@ class Array(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type_tag(type(self)), self.element, self.count))
+        return hash((self.TYPE_HASH, self.element, self.count))
 
     def __hash__(self):
         return self._hash(set())
@@ -333,7 +344,7 @@ class Struct(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type_tag(type(self)), self.idx, self._hash_fields(visited)))
+        return hash((self.TYPE_HASH, self.idx, self._hash_fields(visited)))
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
@@ -402,7 +413,7 @@ class RustEnum(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type_tag(type(self)), self._hash_fields(visited)))
+        return hash((self.TYPE_HASH, self._hash_fields(visited)))
 
     def _hash_fields(self, visited: set[int]):  # pylint:disable=unused-argument
         tpl = tuple(hash(variant) for variant in self.variants)
@@ -466,6 +477,7 @@ class Enum(TypeConstant):
         self.members: dict[str, int] = members if members is not None else {}
         self.base_type = base_type
         self.idx = idx if idx != -1 else next(_ENUM_ID)
+        self._cached_hash = hash((self.TYPE_HASH, self.idx, tuple(sorted(self.members.items()))))
 
     @property
     def size(self) -> int:
@@ -487,10 +499,10 @@ class Enum(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type_tag(type(self)), self.idx, tuple(sorted(self.members.items()))))
+        return self._cached_hash
 
     def __hash__(self):
-        return self._hash(set())
+        return self._cached_hash
 
     def replace(
         self,
@@ -527,7 +539,7 @@ class Function(TypeConstant):
 
         params_hash = tuple(param._hash(visited) for param in self.params)
         outputs_hash = tuple(out._hash(visited) for out in self.outputs)
-        return hash((Function, params_hash, outputs_hash))
+        return hash((self.TYPE_HASH, params_hash, outputs_hash))
 
     def __hash__(self):
         return self._hash(set())
@@ -571,7 +583,7 @@ class TypeVariableReference(TypeConstant):
         return type(other) is type(self) and self.typevar == other.typevar
 
     def __hash__(self):
-        return hash((type_tag(type(self)), self.typevar))
+        return hash((self.TYPE_HASH, self.typevar))
 
 
 #
