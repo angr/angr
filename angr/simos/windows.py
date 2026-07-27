@@ -55,7 +55,11 @@ class SimWindows(SimOS):
 
         self.fastfail = L["ntoskrnl.exe"][0].get("__fastfail", self.arch)
         self.fastfail.addr = self._find_or_make(self.fastfail.display_name)
-        self.fastfail.cc = SYSCALL_CC[self.arch.name]["Win32"](self.arch)
+        # __fastfail is delivered as a trap, so its handler takes the Windows syscall convention. cle labels every
+        # PE os="windows", so machine types Windows has no syscall ABI for arrive here too and keep the convention
+        # the procedure library assigned above.
+        if windows_syscall_cc := SYSCALL_CC.get(self.arch.name, {}).get("Win32"):
+            self.fastfail.cc = windows_syscall_cc(self.arch)
         self._syscall_handlers = {self.fastfail.addr: self.fastfail}
 
     def configure_project(self):
