@@ -164,18 +164,26 @@ class TestHashEqContract(unittest.TestCase):
         _assert_contract("Convert/rounding_mode", a, b)
 
     def test_string_literal_bits(self):
-        """``StringLiteral.likes`` compares ``data`` only."""
+        """``bits`` is significant for ``StringLiteral``, and is hashed."""
         a, b = eu.StringLiteral(ROOT, "abc", 32), eu.StringLiteral(ROOT, "abc", 64)
-        assert a == b
+        assert not a.likes(b), "differing bits must not be alike"
+        assert a != b
         _assert_contract("StringLiteral/bits", a, b)
 
+        same = eu.StringLiteral(ROOT, "abc", 32)
+        assert a == same and hash(a) == hash(same)
+
     def test_struct_bits(self):
-        """``Struct.likes`` compares name/fields/field_offsets, not ``bits``."""
+        """``bits`` is significant for ``Struct``, and is hashed."""
         fields = {0: eu.Const(1, 7, 32)}
         a = eu.Struct(ROOT, "S", fields, {"a": 0}, 32)
         b = eu.Struct(ROOT, "S", fields, {"a": 0}, 64)
-        assert a == b
+        assert not a.likes(b), "differing bits must not be alike"
+        assert a != b
         _assert_contract("Struct/bits", a, b)
+
+        same = eu.Struct(ROOT, "S", fields, {"a": 0}, 32)
+        assert a == same and hash(a) == hash(same)
 
 
 class TestMatchesPropagation(unittest.TestCase):

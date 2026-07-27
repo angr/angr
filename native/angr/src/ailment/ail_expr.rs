@@ -896,13 +896,7 @@ impl Hash for AilExpression {
                     name.hash(h);
                     off.hash(h);
                 }
-                // ``bits`` is deliberately NOT hashed: it is an explicit
-                // constructor argument that ``cmp_ail`` does not compare
-                // for this variant, so hashing it made the hash finer than
-                // equality. (Unlike StringLiteral this one is not a port
-                // regression -- legacy Python's ``Struct._hash_core``
-                // hashed ``bits`` while ``Struct.likes`` ignored it, so the
-                // mismatch dates back to the pure-Python AIL.)
+                bits.hash(h);
             }
             ExprInner::RustEnum { name, fields } => {
                 name.hash(h);
@@ -982,12 +976,8 @@ impl Hash for AilExpression {
                 endness.hash(h);
             }
             ExprInner::StringLiteral { data } => {
-                // ``data`` only -- ``cmp_ail`` compares nothing else for
-                // this variant, and ``bits`` is an explicit constructor
-                // argument, so hashing it made the hash finer than
-                // equality. The legacy Python ``_hash_core`` likewise
-                // hashed ``self.data`` alone; the Rust port added ``bits``.
                 data.hash(h);
+                bits.hash(h);
             }
             ExprInner::BasePointerOffset { base, offset, .. } => {
                 bits.hash(h);
@@ -2172,7 +2162,11 @@ impl AilExpression {
                     ..
                 },
             ) => {
-                if a_n != b_n || a_f.len() != b_f.len() || a_o != b_o {
+                if a_n != b_n
+                    || a_f.len() != b_f.len()
+                    || a_o != b_o
+                    || self.header.bits != other.header.bits
+                {
                     return false;
                 }
                 for (off, e) in a_f {
@@ -2378,7 +2372,9 @@ impl AilExpression {
                     endness: be,
                 },
             ) => ae == be && ab.cmp_ail::<MODE>(bb) && ao.cmp_ail::<MODE>(bo) && av.cmp_ail::<MODE>(bv),
-            (ExprInner::StringLiteral { data: a }, ExprInner::StringLiteral { data: b }) => a == b,
+            (ExprInner::StringLiteral { data: a }, ExprInner::StringLiteral { data: b }) => {
+                a == b && self.header.bits == other.header.bits
+            }
             (
                 ExprInner::BasePointerOffset {
                     base: a_b,
