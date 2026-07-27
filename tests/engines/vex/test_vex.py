@@ -616,8 +616,8 @@ class TestVex(unittest.TestCase):
         assert das(0x01, 1, 0) == 1
         assert das(0x05, 1, 0) == 1
         # unaffected cases stay correct
-        assert das(0x10, 0, 0) == 0     # no adjust
-        assert das(0x9A, 0, 0) == 1     # high-nibble adjust sets CF
+        assert das(0x10, 0, 0) == 0  # no adjust
+        assert das(0x9A, 0, 0) == 1  # high-nibble adjust sets CF
 
     def test_cmpltsd(self):
         p = load_shellcode(bytes.fromhex("f20fc2c101c3"), arch="amd64")
