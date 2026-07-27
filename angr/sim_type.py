@@ -8,6 +8,7 @@ import logging
 import re
 from collections import ChainMap, OrderedDict, defaultdict
 from collections.abc import Iterable, MutableMapping
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 import claripy
@@ -4425,6 +4426,25 @@ def normalize_cpp_function_name(name: str) -> str:
     return name.removesuffix(";")
 
 
+@lru_cache(maxsize=32768)
+def _parse_cpp_decl(s: str) -> cxxheaderparser.simple.ParsedData | None:
+    """
+    Run cxxheaderparser on a normalized C++ declaration and return its parse tree, or None if it cannot be parsed.
+
+    This method is cached to avoid re-parsing of the same declaration, which happens a lot during decompilation.
+    """
+    try:
+        return cxxheaderparser.simple.parse_string(s)
+    except cxxheaderparser.errors.CxxParseError:
+        # GCC-mangled (and thus, demangled) function names do not have return types encoded; let's try to prefix s with
+        # "void" and try again
+        try:
+            return cxxheaderparser.simple.parse_string("void " + s)
+        except cxxheaderparser.errors.CxxParseError:
+            # if it still fails, we give up
+            return None
+
+
 def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable=unused-argument
     #
     # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
@@ -4439,19 +4459,9 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable
     # CppHeaderParser does not like missing function body
     s += "\n\n{}"
 
-    try:
-        h = cxxheaderparser.simple.parse_string(s)
-    except cxxheaderparser.errors.CxxParseError:
-        # GCC-mangled (and thus, demangled) function names do not have return types encoded; let's try to prefix s with
-        # "void" and try again
-        s = "void " + s
-        try:
-            h = cxxheaderparser.simple.parse_string(s)
-        except cxxheaderparser.errors.CxxParseError:
-            # if it still fails, we give up
-            return None, None
+    h = _parse_cpp_decl(s)
 
-    if not h.namespace:
+    if h is None or not h.namespace:
         return None, None
 
     func_decls: dict[str, SimTypeCppFunction | SimTypeFunction] = {}
