@@ -51,7 +51,6 @@ class PeepholeOptimizationBundle:
 
     __slots__ = (
         "_params",
-        "ctx_stmt_opts_by_kind",
         "expr_opts",
         "expr_walker",
         "multistmt_opts",
@@ -93,9 +92,6 @@ class PeepholeOptimizationBundle:
         self.stmt_opts = [cls(*args) for cls in stmt_classes]
         self.multistmt_opts = [cls(*args) for cls in multistmt_classes]
         self.stmt_opts_by_kind = build_stmt_opts_by_kind(self.stmt_opts)
-        # the subset of statement peephole optimizers that depend on the context of a statement.
-        # They must always run on statements that are already at peephole fixpoint.
-        self.ctx_stmt_opts_by_kind = build_stmt_opts_by_kind([opt for opt in self.stmt_opts if opt.NEEDS_BLOCK_CONTEXT])
         self.expr_walker = _PeepholeExprsWalker(expr_opts=self.expr_opts)
         self._params = (project, ail_manager, func_addr, preserve_vvar_ids, type_hints, peephole_optimizations)
 
@@ -188,7 +184,6 @@ class BlockSimplifier:
         self._stmt_peephole_opts = peephole_bundle.stmt_opts
         self._multistmt_peephole_opts = peephole_bundle.multistmt_opts
         self._stmt_peephole_opts_by_kind = peephole_bundle.stmt_opts_by_kind
-        self._ctx_stmt_peephole_opts_by_kind = peephole_bundle.ctx_stmt_opts_by_kind
 
         self.result_block = None
 
@@ -227,9 +222,8 @@ class BlockSimplifier:
                 block, entry_peephole=ctr == 1, dead_assignments_clean=dead_assignments_clean
             )
             if not changed:
-                # peephole fixpoint reached: mark every statement so later peephole passes can skip it.
-                for stmt in new_block.statements:
-                    stmt.peephole_optimized = True
+                # No blanket peephole_optimized marking here: only peephole_optimize_stmts() knows which statements
+                # every optimizer reported fixpoint_reached on, and it has already marked them.
                 break
 
             assert block is not None
@@ -543,8 +537,7 @@ class BlockSimplifier:
             block,
             self._stmt_peephole_opts,
             stmt_opts_by_kind=self._stmt_peephole_opts_by_kind,
-            ctx_stmt_opts_by_kind=self._ctx_stmt_peephole_opts_by_kind,
-            untouched_exprs=self._expr_peephole_walker.untouched_stmts,
+            fixpoint_exprs=self._expr_peephole_walker.fixpoint_stmts,
         )
 
         new_block = block.copy(statements=statements) if stmts_updated else block

@@ -441,6 +441,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     # every rustlib variant so the kind-keyed dispatch sites land in
     # their default branch.
     kind = "IncompleteSwitchCaseHead"
+    pykind = "IncompleteSwitchCaseHead"
 
     def __init__(self, idx, switch_variable, case_addrs, peephole_optimized: bool = False, **kwargs):
         super().__init__(idx, **kwargs)

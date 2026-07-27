@@ -19,10 +19,13 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
         if expr.op == "Sar" and isinstance(expr.operands[1], Const):
             op0, const = expr.operands
 
-            if isinstance(op0, VirtualVariable) and op0.was_reg and stmt_idx is not None and block is not None:
-                # look back by one statement to find its definition
-                op0 = self.find_definition(op0, stmt_idx, block)
-                # TODO: Ensure the new op0 does not have any expressions that overlap with the old op0 (a register)
+            if isinstance(op0, VirtualVariable) and op0.was_reg:
+                # depends on the preceding statement, so it may start matching once the block changes
+                self.fixpoint_reached = False
+                if stmt_idx is not None and block is not None:
+                    # look back by one statement to find its definition
+                    op0 = self.find_definition(op0, stmt_idx, block)
+                    # TODO: Ensure the new op0 does not have any expressions that overlap with the old op0 (a register)
 
             const_value = const.value
             conv = None
@@ -75,6 +78,8 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
                         if conv is not None:
                             # wrap it up with a Convert again
                             r = Convert(conv.idx, conv.from_bits, conv.to_bits, conv.is_signed, r, **conv.tags)
+                        # rewritten: the result no longer depends on the block context
+                        self.fixpoint_reached = True
                         return r
 
         return None

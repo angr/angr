@@ -16,7 +16,6 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
 
     NAME = "ROL/ROR rewriter"
     stmt_classes = (Assignment,)
-    NEEDS_BLOCK_CONTEXT = True  # matches against the two preceding statements in the block
 
     def optimize(self, stmt: Assignment, stmt_idx: int | None = None, block=None, **kwargs):
         # Rol example:
@@ -36,6 +35,9 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
 
         op0, op1 = stmt.src.operands
         if isinstance(op0, Tmp) and isinstance(op1, Tmp):
+            # matches against the two preceding statements, so it may start matching once the block changes
+            self.fixpoint_reached = False
+
             if stmt_idx < 2:
                 return None
 
@@ -71,6 +73,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 and shiftleft_amount + stmt2_op1.value == stmt.dst.bits
             ):
                 rol_amount = Const(self.manager.next_atom(), shiftleft_amount, 8, **stmt1_op1.tags)
+                self.fixpoint_reached = True
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
@@ -90,6 +93,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
                 and (shiftleft_amount := get_expr_shift_left_amount(stmt_2.src)) is not None
                 and stmt1_op1.value + shiftleft_amount == stmt.dst.bits
             ):
+                self.fixpoint_reached = True
                 return Assignment(
                     stmt.idx,
                     stmt.dst,
