@@ -23,7 +23,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CMP_LIKES, CMP_MATCHES, CachedHash, hash_of};
+use crate::ailment::{CMP_EQ, CMP_LIKES, CMP_MATCHES, CachedHash, hash_of};
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -615,10 +615,9 @@ impl AilStatement {
         }
     }
 
-    /// The single comparison walk backing ``likes`` /
+    /// The single comparison walk backing ``__eq__`` / ``likes`` /
     /// ``matches`` on statements -- the statement-level counterpart of
-    /// [`AilExpression::cmp_ail`]. See [`CMP_LIKES`] for the mode
-    /// hierarchy.
+    /// [`AilExpression::cmp_ail`]. See [`CMP_EQ`] for the mode hierarchy.
     ///
     /// No arm here branches on `MODE`: statements carry no SSA
     /// identifying info of their own, so the three relations differ only
@@ -626,6 +625,11 @@ impl AilStatement {
     /// passes through to [`AilExpression::cmp_ail`].
     pub fn cmp_ail<const MODE: u8>(&self, other: &AilStatement) -> bool {
         if self.kind() != other.kind() {
+            return false;
+        }
+        // Same uniform idx guard as the expression side -- see
+        // ``AilExpression::cmp_ail``.
+        if MODE == CMP_EQ && self.header.idx != other.header.idx {
             return false;
         }
         if self.kind() != other.kind() {
@@ -796,6 +800,14 @@ impl AilStatement {
     /// merge candidates.
     pub fn matches(&self, other: &AilStatement) -> bool {
         self.cmp_ail::<CMP_MATCHES>(other)
+    }
+
+    /// ``__eq__`` semantics: ``likes`` plus ``idx`` equality at every
+    /// node of the statement and of its operand subtrees. Backs Python
+    /// ``Statement.__eq__``. See [`AilExpression::eq_ail`] for why the
+    /// idx-awareness has to be recursive rather than root-only.
+    pub fn eq_ail(&self, other: &AilStatement) -> bool {
+        self.cmp_ail::<CMP_EQ>(other)
     }
 }
 
@@ -1741,13 +1753,7 @@ impl Statement {
         };
         let s = slf.borrow();
         let o = o.borrow();
-        if s.stmt.kind() != o.stmt.kind() {
-            return Ok(false);
-        }
-        if s.stmt.header.idx != o.stmt.header.idx {
-            return Ok(false);
-        }
-        Ok(s.stmt.likes(&o.stmt))
+        Ok(s.stmt.eq_ail(&o.stmt))
     }
 
     // --- Repr ---------------------------------------------------------

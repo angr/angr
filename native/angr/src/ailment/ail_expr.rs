@@ -28,7 +28,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CMP_LIKES, CMP_MATCHES, CachedHash, hash_of};
+use crate::ailment::{CMP_EQ, CMP_LIKES, CMP_MATCHES, CachedHash, hash_of};
 use indexmap::IndexMap;
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
@@ -1080,14 +1080,22 @@ impl AilExpression {
         e
     }
 
-    /// ``__eq__`` semantics: same kind, same ``idx``, and structurally
-    /// ``likes``. This is what the Python ``Expression.__eq__`` computes
-    /// (idx-first short-circuit, then ``likes``). ``replace`` matches on
-    /// this, NOT on bare ``likes``: two distinct SSA occurrences of the
-    /// same value share a shape (``likes``) but have different ``idx``,
-    /// and a replace targeting one must not rewrite the other.
+    /// ``__eq__`` semantics: same kind and structurally ``likes``, with
+    /// ``idx`` equality required at **every** node -- not just the root.
+    /// This is what the Python ``Expression.__eq__`` computes.
+    /// ``replace`` matches on this, NOT on bare ``likes``: two distinct
+    /// SSA occurrences of the same value share a shape (``likes``) but
+    /// have different ``idx``, and a replace targeting one must not
+    /// rewrite the other.
+    ///
+    /// The idx-awareness has to reach the whole subtree because the
+    /// ``Hash`` impl folds every descendant's ``idx`` in (operands
+    /// contribute via ``cached_hash_or_compute``). Checking ``idx`` only
+    /// at the root -- as this did before -- left ``a == b`` true while
+    /// ``hash(a) != hash(b)`` for any node with children, so ``==``
+    /// duplicates could coexist in a set and dict lookups missed.
     pub fn eq_ail(&self, other: &AilExpression) -> bool {
-        self.header.idx == other.header.idx && self.likes(other)
+        self.cmp_ail::<CMP_EQ>(other)
     }
 
     /// Recursive ``replace`` -- walk the operand subtrees, substituting
@@ -1923,8 +1931,8 @@ impl AilExpression {
         h
     }
 
-    /// The single comparison walk backing ``likes`` / ``matches``.
-    /// See [`CMP_LIKES`] for the mode hierarchy.
+    /// The single comparison walk backing ``__eq__`` / ``likes`` /
+    /// ``matches``. See [`CMP_EQ`] for the mode hierarchy.
     ///
     /// `MODE` is a const generic, so each relation monomorphizes into its
     /// own specialized function and every ``MODE ==`` test below folds
@@ -1940,6 +1948,14 @@ impl AilExpression {
     /// container boundaries.
     pub fn cmp_ail<const MODE: u8>(&self, other: &AilExpression) -> bool {
         if self.kind() != other.kind() {
+            return false;
+        }
+        // ``__eq__`` is ``likes`` plus ``idx`` equality at *every* node,
+        // enforced here -- once, uniformly, so a new variant cannot forget
+        // it. This is what keeps ``__eq__`` consistent with the ``Hash``
+        // impl, which likewise folds ``header.idx`` in at every node: two
+        // expressions that compare equal must hash equal.
+        if MODE == CMP_EQ && self.header.idx != other.header.idx {
             return false;
         }
         if self.kind() != other.kind() {
@@ -4865,13 +4881,7 @@ impl Expression {
         };
         let s = slf.borrow();
         let o = o.borrow();
-        if s.expr.kind() != o.expr.kind() {
-            return Ok(false);
-        }
-        if s.expr.header.idx != o.expr.header.idx {
-            return Ok(false);
-        }
-        Ok(s.expr.likes(&o.expr))
+        Ok(s.expr.eq_ail(&o.expr))
     }
 
     // --- Repr ---------------------------------------------------------

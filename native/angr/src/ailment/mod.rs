@@ -94,11 +94,17 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 // Comparison modes
 // ---------------------------------------------------------------------------
 
-/// The AIL comparison relations, threaded through
+/// The three AIL comparison relations, threaded through
 /// ``AilExpression::cmp_ail`` / ``AilStatement::cmp_ail`` as a const
 /// generic so each is monomorphized into its own specialized function --
 /// one source of truth, zero per-node branching in the hot path.
 ///
+/// They form a strict hierarchy, from most to least discriminating:
+///
+/// * [`CMP_EQ`] -- ``likes`` plus ``idx`` equality at **every** node.
+///   Backs Python ``__eq__``. Must stay consistent with the ``Hash``
+///   impls, which fold ``idx`` in at every node: two values that compare
+///   equal have to hash equal.
 /// * [`CMP_LIKES`] -- structural-with-identity. ``idx`` is ignored;
 ///   SSA identifying info (``VirtualVariable::varid``) is significant.
 /// * [`CMP_MATCHES`] -- structural-only. Also drops the SSA identifying
@@ -109,8 +115,10 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 /// ``Phi``); every other variant is mode-independent and simply passes
 /// ``MODE`` down to its children, which is what makes the relaxation
 /// propagate uniformly.
+pub const CMP_EQ: u8 = 0;
+/// Structural-with-identity comparison. See [`CMP_EQ`].
 pub const CMP_LIKES: u8 = 1;
-/// Structural-only comparison. See [`CMP_LIKES`].
+/// Structural-only comparison. See [`CMP_EQ`].
 pub const CMP_MATCHES: u8 = 2;
 
 // ---------------------------------------------------------------------------
