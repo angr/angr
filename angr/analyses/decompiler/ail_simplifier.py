@@ -41,8 +41,8 @@ from angr.ailment.statement import (
     WeakAssignment,
 )
 from angr.analyses.analysis import AnalysesHub, Analysis
-from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
+from angr.analyses.s_propagator import SPropagator
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
 from angr.code_location import AILCodeLocation
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
@@ -189,7 +189,7 @@ class AILSimplifier(Analysis):
         self.func = func
         self.func_graph = func_graph
         self._reaching_definitions: SRDAModel | None = None
-        self._propagator: SPropagatorAnalysis | None = None
+        self._propagator: SPropagator | None = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stackarg_offset_manager = stackarg_offset_manager
@@ -341,7 +341,7 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        rd = SReachingDefinitionsAnalysis(
+        rd = SReachingDefinitions(
             self.project,
             subject=self.func,
             func_graph=self.func_graph,
@@ -353,12 +353,12 @@ class AILSimplifier(Analysis):
         return rd
 
     @timethis
-    def _compute_propagation(self) -> SPropagatorAnalysis:
+    def _compute_propagation(self) -> SPropagator:
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        prop = SPropagatorAnalysis(
+        prop = SPropagator(
             self.project,
             subject=self.func,
             func_graph=self.func_graph,
@@ -1882,7 +1882,7 @@ class AILSimplifier(Analysis):
         # rebuild on the current (NoOp-containing) graph.
         assert self._reaching_definitions is not None
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        reference = SReachingDefinitionsAnalysis(
+        reference = SReachingDefinitions(
             self.project,
             subject=self.func,
             func_graph=self.func_graph,

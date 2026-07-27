@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.utils.ail import is_phi_assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -41,7 +41,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        self._srda = SReachingDefinitionsAnalysis(
+        self._srda = SReachingDefinitions(
             self.project,
             subject=self._func,
             func_graph=self._graph,

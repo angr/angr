@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
-from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
+from angr.analyses.s_propagator import SPropagator
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.utils.ssa import has_reference_to_vvar
@@ -222,19 +222,19 @@ class BlockSimplifier:
         while True:
             ctr += 1
             # the entry peephole pass is only useful on the first iteration: every later iteration receives the
-            # output of the previous iteration's exit peephole pass, so running peephole again on entry is redundant
+            # output of the previous iteration's exit peephole pass, so running peephole again on entry is redundant.
             new_block, changed = self._simplify_block_once(
                 block, entry_peephole=ctr == 1, dead_assignments_clean=dead_assignments_clean
             )
             if not changed:
-                # peephole fixpoint reached: mark every statement so later peephole passes (of this or any future
-                # BlockSimplifier) can skip it until it is rebuilt. The flag is runtime-only -- never serialized,
-                # invisible to __eq__/__hash__/likes(), and cleared when a statement is cloned.
+                # peephole fixpoint reached: mark every statement so later peephole passes can skip it.
                 for stmt in new_block.statements:
                     stmt.peephole_optimized = True
                 break
 
             assert block is not None
+            # TODO: We should be able to get rid of this check if we rely on Block.likes() to determine whether the
+            # block has changed or not.
             if new_block.likes(block):
                 break
             self._clear_cache()
@@ -249,9 +249,9 @@ class BlockSimplifier:
 
         self.result_block = block
 
-    def _compute_propagation(self, block) -> SPropagatorAnalysis:
+    def _compute_propagation(self, block) -> SPropagator:
         if self._propagator is None:
-            self._propagator = SPropagatorAnalysis(
+            self._propagator = SPropagator(
                 self.project,
                 subject=block,
                 func_addr=self.func_addr,
@@ -262,7 +262,7 @@ class BlockSimplifier:
 
     def _compute_reaching_definitions(self, block) -> SRDAModel:
         if self._reaching_definitions is None:
-            self._reaching_definitions = SReachingDefinitionsAnalysis(
+            self._reaching_definitions = SReachingDefinitions(
                 self.project,
                 subject=block,
                 track_tmps=True,
@@ -286,9 +286,7 @@ class BlockSimplifier:
         self, block, entry_peephole: bool = True, dead_assignments_clean: bool = False
     ) -> tuple[Block, bool]:
         """
-        Run one round of simplification. Returns the (possibly new) block and whether any step reported a change.
-        In-place expression rewrites by the peephole expression walker are not counted as changes, matching the
-        behavior of the previous ``likes``-based fixpoint check, which could not observe them either.
+        Run one round of simplification. Returns the new block and if any step reported a change.
 
         :param dead_assignments_clean:  True if dead-assignment elimination is known to have nothing to do on
                                         ``block`` as passed in. Only meaningful together with ``entry_peephole``.
@@ -305,7 +303,7 @@ class BlockSimplifier:
         nonconstant_stmts = self._count_nonconstant_statements(block)
         has_propagatable_assignments = self._has_propagatable_assignments(block)
 
-        # propagator
+        # only call propagation if something is potentially propagatable
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             propagator = self._compute_propagation(block)
             new_block = block
@@ -320,15 +318,9 @@ class BlockSimplifier:
                     changed |= self_assign_changed
                     self._clear_cache()
         else:
-            # Skipped calling Propagator
             new_block = block
 
         if clean and new_block is block:
-            # The entry peephole pass ran this exact block object to its own fixpoint, dead-assignment elimination
-            # had already run over the same statements without a change, and propagation produced no replacement --
-            # nothing has touched the block since. Dead-assignment elimination and the exit peephole pass would both
-            # re-derive the same "no change" verdict from identical input, so stop the round here. This is the whole
-            # cost of a BlockSimplifier invocation that ends up changing nothing, which is the common case.
             return block, False
 
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
@@ -539,16 +531,11 @@ class BlockSimplifier:
 
     def _peephole_optimize(self, block) -> tuple[Block, bool, bool]:
         """
-        Run all three peephole optimization levels on the block. Returns ``(block, changed, exprs_updated)``, where
-        ``changed`` is True if any statement-level or multi-statement-level optimization applied and
-        ``exprs_updated`` is True if the expression walker rewrote any expression.
+        Run all three peephole optimization levels on the block.
 
-        ``changed`` deliberately excludes in-place expression rewrites, matching the ``likes``-based fixpoint check
-        it replaced (which could not observe them either -- the same statement objects are mutated on both sides of
-        the comparison). ``exprs_updated`` is reported separately so callers can tell a pass that did *nothing* from
-        one that only rewrote expressions; only the former leaves the block provably at peephole fixpoint.
+        :return:    (block, changed, exprs_updated), where ``changed`` is True if any optimization applied and
+                    ``exprs_updated`` is True if the expression walker rewrote any expression.
         """
-        # expressions are updated in place
         exprs_updated = peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
 
         # run statement-level optimizations

@@ -8,7 +8,7 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from angr.project import Project
 
 
-class SReachingDefinitionsAnalysis:
+class SReachingDefinitions:
     """
     Constant and expression propagation that only supports SSA AIL graphs.
 
@@ -217,9 +217,9 @@ class SReachingDefinitionsAnalysis:
                                 self.model.add_vvar_use(vvarid, None, codeloc)
 
 
-class SReachingDefinitionAnalysisWrapper(Analysis, SReachingDefinitionsAnalysis):
+class SReachingDefinitionsAnalysis(Analysis, SReachingDefinitions):
     """
-    A wrapper around SReachingDefinitionsAnalysis to make it usable as an :class:`Analysis` and registered in the
+    A wrapper around SReachingDefinitions to make it usable as an :class:`Analysis` and registered in the
     analysis hub.
     """
 
@@ -245,4 +245,4 @@ class SReachingDefinitionAnalysisWrapper(Analysis, SReachingDefinitionsAnalysis)
         )
 
 
-register_analysis(SReachingDefinitionAnalysisWrapper, "SReachingDefinitions")
+register_analysis(SReachingDefinitionsAnalysis, "SReachingDefinitions")

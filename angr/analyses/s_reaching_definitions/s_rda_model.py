@@ -291,7 +291,7 @@ def populate_model(
 ) -> None:
     """Populate the scan-derived part of an SRDAModel (vvar/tmp definitions and uses, phi bookkeeping) with a linear
     scan over ``blocks``. An SRDAModel is never serialized; it is always rebuilt from an AIL graph through this
-    function (via :class:`SReachingDefinitionsAnalysis` or directly)."""
+    function (via :class:`SReachingDefinitions` or directly)."""
 
     phi_vvars: dict[int, set[int | None]] = {}
     # find all vvar definitions

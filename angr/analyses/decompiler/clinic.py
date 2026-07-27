@@ -23,7 +23,7 @@ from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeO
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
@@ -1889,9 +1889,7 @@ class Clinic(Analysis, Serializable):
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None,
     ) -> PeepholeOptimizationBundle:
         """
-        Return the cached PeepholeOptimizationBundle, rebuilding it if any construction parameter changed since the
-        last call. Instantiating the ~40 peephole optimizer classes per block is measurable; sharing one bundle
-        across all BlockSimplifier invocations of a stage removes that cost.
+        Return the cached PeepholeOptimizationBundle, rebuilding if any construction parameter changed.
         """
         bundle = self._peephole_bundle
         if bundle is None or not bundle.matches(
@@ -4280,7 +4278,7 @@ class Clinic(Analysis, Serializable):
     def _compute_reaching_definitions(self, func_args=None) -> SRDAModel:
         # Computing reaching definitions
         # TODO: Refactor this into a method of the upcoming AILFunctionGraph class.
-        return SReachingDefinitionsAnalysis(
+        return SReachingDefinitions(
             self.project,
             subject=self.function,
             func_graph=self._ail_graph,

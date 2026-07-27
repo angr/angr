@@ -20,7 +20,7 @@ from angr.analyses import (
     CFGFast,
     CompleteCallingConventionsAnalysis,
     Decompiler,
-    SReachingDefinitionsAnalysis,
+    SReachingDefinitions,
     VariableRecoveryFast,
 )
 from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
@@ -4181,7 +4181,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert d.codegen is not None and d.clinic is not None
 
-        rd = SReachingDefinitionsAnalysis(proj, subject=f, func_graph=d.ail_graph, func_args=set()).model
+        rd = SReachingDefinitions(proj, subject=f, func_graph=d.ail_graph, func_args=set()).model
         used_but_undefined_stack_vars = [
             str(rd.varid_to_vvar[vid])
             for vid, loc in rd.all_vvar_definitions.items()

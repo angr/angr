@@ -11,7 +11,7 @@ from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, Virt
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
-from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
 from angr.utils.ssa import is_phi_assignment
@@ -88,7 +88,7 @@ class Outliner(Analysis):
         Remove all phi assignments whose all source variables are undefined in the graph.
         """
 
-        srda = SReachingDefinitionsAnalysis(self.project, func, func_graph=g).model
+        srda = SReachingDefinitions(self.project, func, func_graph=g).model
 
         to_kill = defaultdict(set)
         for phi_var_id, src_var_ids in srda.phivarid_to_varids.items():
@@ -108,7 +108,7 @@ class Outliner(Analysis):
         Recover the interface from a function AIL graph.
         """
 
-        srda = SReachingDefinitionsAnalysis(self.project, func, func_graph=g).model
+        srda = SReachingDefinitions(self.project, func, func_graph=g).model
 
         blocks: dict[tuple[int, int | None], Block] = {(node.addr, node.idx): node for node in g}
 
@@ -188,7 +188,7 @@ class Outliner(Analysis):
 
         # build the return statement if needed
         if self.frontier_vars:
-            srda = SReachingDefinitionsAnalysis(self.project, self.parent_func, func_graph=self.parent_graph).model
+            srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
             ret_exprs = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
         else:
             ret_exprs = []

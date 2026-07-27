@@ -23,6 +23,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.utils.ssa import (
@@ -92,13 +93,11 @@ class SPropagatorModel:
         self.dead_vvar_ids: set[int] = set()
 
 
-class SPropagatorAnalysis:
+class SPropagator:
     """
     Constant and expression propagation that only supports SSA AIL graphs.
 
-    Deliberately not an :class:`Analysis`: it is instantiated hundreds of times per decompilation (often once per
-    block), so it skips the analysis-factory ceremony. Instantiate it directly with the project as the first
-    argument; exceptions always propagate.
+    Deliberately not an :class:`Analysis` for better speed.
     """
 
     def __init__(  # pylint: disable=too-many-positional-arguments
@@ -665,3 +664,15 @@ class SPropagatorAnalysis:
             seen.add(varid)
             queue.extend(vid for vid in phivar_to_srcvarids[varid] if vid is not None and vid not in seen)
         return result
+
+
+class SPropagatorAnalysis(Analysis, SPropagator):
+    """
+    A wrapper around SPropagator to make it an Analysis.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+register_analysis(SPropagatorAnalysis, "SPropagator")
