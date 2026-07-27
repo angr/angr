@@ -1351,15 +1351,25 @@ class TestDecompiler(unittest.TestCase):
     @for_all_structuring_algos
     def test_decompiling_newburry_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
-        p = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(data_references=True, normalize=True)
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x40F696,  # main
+            extra_func_addrs=(
+                0x4190E3,  # log_failed_assert: noreturn, must be analyzed or the call is not marked as such
+                0x4388B0,  # plugins_call_handle_request_env: only referenced as a function pointer
+            ),
+            window=0x800,  # main is 0x3ea bytes long
+            expand_call_tree=False,
+            include_plt=True,
+            run_ccc=False,
+        )
 
         func = cfg.functions["main"]
 
         dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         print_decompilation_result(dec)
+        assert dec.codegen is not None and dec.codegen.text is not None
         code = dec.codegen.text
 
         # return statements should not be wrapped into a for statement
@@ -3547,19 +3557,25 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options_2, optimization_passes=all_optimization_passes
         )
+        assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert dec.codegen.text == saved
 
     @for_all_structuring_algos
     def test_function_pointer_identification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x408A50,  # main
+            window=0x400,
+            run_ccc=False,
+        )
 
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         print_decompilation_result(d)
+        assert d.codegen is not None and d.codegen.text is not None
         text = d.codegen.text
         assert "extern" not in text
         assert "std::rt::lang_start(rust_hello_world::main" in text
@@ -5545,7 +5561,11 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_rust_fmt_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        # turning off cache for better speed
+        proj = angr.Project(
+            bin_path,
+            cache_limits={"functions": None, "cfg_nodes": None, "cfg_edges": None},
+        )
         cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x469200]
         decompiler_options = decompiler_options or []
@@ -5596,8 +5616,15 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_rust_fmt_build_best_path_no_ref_using_args(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFG(normalize=True)
+        # build_best_path is 0x75 bytes long inside a 9k-function Rust binary: a whole-binary CFG costs ~48 s
+        # while decompiling this function takes 0.2 s.
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4BC130,  # uu_fmt::linebreak::build_best_path
+            extra_func_addrs=(0x4BAE60, 0x4BC1B0),  # Iterator::reduce, build_best_path::{{closure}}
+            expand_call_tree=False,
+            run_ccc=False,
+        )
         func = proj.kb.functions[0x4BC130]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
@@ -5939,6 +5966,9 @@ class TestDecompiler(unittest.TestCase):
     def test_x86_ccall_rewriter_condbe_sub_width(self, decompiler_options=None):
         # sub_74d6a1 uses unsigned byte comparisons (cmp cl, ...; jbe/jb ...) whose flags are recovered through
         # x86g_calculate_condition ccalls. This regression test covers a bug found in the x86 ccall rewriter.
+        #
+        # The ccalls under test are produced by sub_74d6a1's own instructions, so the call tree is deliberately
+        # not expanded.
         bin_path = os.path.join(
             test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
         )
@@ -5946,14 +5976,24 @@ class TestDecompiler(unittest.TestCase):
         proj, _ = load_project_with_scoped_cfg(
             bin_path,
             func_addr,
-            window=0x5000,
+            window=0x1000,
+            expand_call_tree=False,
             cfg_kwargs={"force_complete_scan": True},
         )
 
         f = proj.kb.functions[func_addr]
+        # guard against the scoped CFG window silently truncating the function under test
+        assert f.size >= 0x3F5, f"sub_74d6a1 was truncated by the scoped CFG: size {f.size:#x}."
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
+
+        # Both SUBB-flavored condition ccalls must have been rewritten (and their operands narrowed to byte
+        # width): "cmp cl, 8; cmovb ..." at 0x74d7ed and "cmp al, byte ptr [esi + 0x142]; jbe" at 0x74d9b9.
+        # Before the fix, the rewriter returned a 1-bit expression for a 32-bit ccall and decompilation crashed.
+        text = dec.codegen.text
+        assert re.search(r"\bv\d+ < 8\b", text), "the CondB SUBB ccall was not rewritten into a byte comparison"
+        assert re.search(r"> \(char\)", text), "the CondBE SUBB ccall operands were not narrowed to byte width"
 
     def test_widening_conversion_signedness(self, decompiler_options=None):
         # A widening integer conversion carries the signedness of its source operand: a sign-extending Convert

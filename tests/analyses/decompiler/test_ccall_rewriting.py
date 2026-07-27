@@ -13,7 +13,7 @@ import angr
 from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
 from angr.engines.vex.claripy.ccall import data
-from tests.common import bin_location, print_decompilation_result
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -264,8 +264,7 @@ class TestAMD64CondOverflowBinary(unittest.TestCase):
         # This function also keeps ccalls from cc_op families outside this rewrite,
         # so only the OF conditions are asserted -- the rewrite must be surgical.
         bin_path = os.path.join(test_location, "x86_64", "tar_gcc17_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x53F6C0, run_ccc=False)
         dec = proj.analyses.Decompiler(cfg.functions[0x53F6C0], cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "__OFUMUL__" in dec.codegen.text
@@ -291,8 +290,7 @@ class TestAMD64CondOverflowBinary(unittest.TestCase):
         #   fillbuf    @ 0x40cc10 -- CondO x ADDQ (4), 2 sites
         #   xstrtoimax @ 0x4888a0 -- CondO x SMULQ (52), 14 sites
         bin_path = os.path.join(test_location, "x86_64", "grep_gcc17.0.0_O2")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x40CC10, extra_func_addrs=[0x4888A0], run_ccc=False)
 
         dec = proj.analyses.Decompiler(cfg.functions[0x40CC10], cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None

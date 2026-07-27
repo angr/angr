@@ -11,13 +11,22 @@ import networkx
 
 import angr
 from angr.rust.utils.rust_sigs import get_default_sig_dir
-from tests.common import bin_location
+from tests.common import bin_location, recover_call_tree_cfg
 
 RUST_BINARIES_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "coreutils")
 
 
 def rust_binary_path(configuration: str, binary: str) -> str:
     return os.path.join(RUST_BINARIES_BASE, configuration, binary)
+
+
+def executable_regions(proj: angr.Project) -> list[tuple[int, int]]:
+    """Address ranges of the executable sections of the main object."""
+    return [
+        (sec.vaddr, sec.vaddr + sec.memsize)
+        for sec in proj.loader.main_object.sections
+        if sec.is_executable and sec.memsize > 0
+    ]
 
 
 class TestRustcVersionIdentification(unittest.TestCase):
@@ -29,6 +38,9 @@ class TestRustcVersionIdentification(unittest.TestCase):
         "nightly-2025-05-22-O0": "1.88.0",
     }
 
+    #: How many bytes at the end of each executable section the pre-built CFG covers.
+    CFG_TAIL_BYTES = 128 * 1024
+
     def test_default_sig_dir(self):
         sig_dir = get_default_sig_dir()
         self.assertTrue(sig_dir is not None, "get_default_sig_dir() returned None")
@@ -38,11 +50,13 @@ class TestRustcVersionIdentification(unittest.TestCase):
         assert os.path.isfile(path)
         expected = self.EXPECTED_VERSIONS[configuration]
         p = angr.Project(path)
-        # Pre-build a sampled, region-limited CFG.
-        # FLIRT matching over the first quarter of each executable section is enough to discriminate rustc versions
-        # while being several times cheaper than a whole-binary CFG.
+        # Pre-build a sampled, region-limited CFG so this test does not pay for a whole-binary one.
+        #
+        # rustc ships std/core/alloc as prebuilt rlibs, and the linker emits the crate's own object files before those
+        # rlibs, so the library code the FLIRT signatures actually describe sits at the end of .text. Hence we limit
+        # the CFG to the last 128 KB of each executable section for better speed.
         regions = [
-            (sec.vaddr, sec.vaddr + max(0x1000, int(sec.memsize * 0.25)))
+            (sec.vaddr + sec.memsize - min(self.CFG_TAIL_BYTES, sec.memsize), sec.vaddr + sec.memsize)
             for sec in p.loader.main_object.sections
             if sec.is_executable and sec.memsize > 0
         ]
@@ -80,6 +94,18 @@ class RustDecompilationTarget(unittest.TestCase):
     BINARY: str = ""
     FUNC_ADDRS: dict[str, dict[str, int]] = {}
 
+    #: When set, CFG recovery is scoped to the functions in ``FUNC_ADDRS`` plus this many levels of
+    #: callees instead of scanning the whole binary.
+    CALL_TREE_DEPTH: int | None = None
+
+    #: Recover the CFG by recursive descent from the functions under test instead of scanning the whole binary.
+    CFG_FROM_FUNCS_UNDER_TEST: bool = False
+
+    #: Limit the call depth of complete calling convention analysis. None refers to the entire call tree.
+    #: We manually tuned CCC_CALL_DEPTH for each test case to get equivalent decompilation output to a whole-binary
+    #: run; we may need a different CCC_CALL_DEPTH value in the future when angr decompiler changes substantially.
+    CCC_CALL_DEPTH: int | None = None
+
     def decompile_functions(self):
         """Decompile every function in ``FUNC_ADDRS`` and return ``{label: {configuration: codegen_text}}``.
 
@@ -93,14 +119,31 @@ class RustDecompilationTarget(unittest.TestCase):
             assert os.path.isfile(path), f"{path} not found"
             proj = angr.Project(path, auto_load_libs=False)
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
-            proj.analyses.CFGFast(normalize=True)
             func_addrs = {
                 addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
             }
-            call_tree = set(func_addrs)
+            if self.CALL_TREE_DEPTH is not None:
+                recover_call_tree_cfg(proj, func_addrs, depth=self.CALL_TREE_DEPTH)
+            elif self.CFG_FROM_FUNCS_UNDER_TEST:
+                proj.analyses.CFGFast(
+                    normalize=True,
+                    regions=executable_regions(proj),
+                    start_at_entry=False,
+                    function_starts=sorted(func_addrs),
+                    force_smart_scan=False,
+                )
+            else:
+                proj.analyses.CFGFast(normalize=True)
+            callgraph = proj.kb.functions.callgraph
+            ccc_funcs = set(func_addrs)
             for addr in func_addrs:
-                call_tree |= networkx.descendants(proj.kb.functions.callgraph, addr)
-            proj.analyses.CompleteCallingConventions(prioritize_func_addrs=call_tree, skip_other_funcs=True)
+                if self.CCC_CALL_DEPTH is None:
+                    ccc_funcs |= networkx.descendants(callgraph, addr)
+                else:
+                    ccc_funcs |= set(
+                        networkx.single_source_shortest_path_length(callgraph, addr, cutoff=self.CCC_CALL_DEPTH)
+                    )
+            proj.analyses.CompleteCallingConventions(prioritize_func_addrs=ccc_funcs, skip_other_funcs=True)
             proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS[config]
             proj.analyses.RustSymbolRecovery()
             proj.analyses.TypeDBLoader()
@@ -188,6 +231,8 @@ class TestFmtNightly20250522O3(_FmtTests):
     FUNC_ADDRS = {
         "uumain": {"nightly-2025-05-22-O3": 0x496920},
     }
+    CFG_FROM_FUNCS_UNDER_TEST = True
+    CCC_CALL_DEPTH = 4
 
     def test_uumain_2025052203(self):
         self._check_uumain()
@@ -199,6 +244,7 @@ class TestFmtNightly20250522O0(_FmtTests):
     FUNC_ADDRS = {
         "uumain": {"nightly-2025-05-22-O0": 0x4D42F0},
     }
+    CALL_TREE_DEPTH = 5
 
     def test_uumain_2025052200(self):
         self._check_uumain()

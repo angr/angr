@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import concurrent.futures
 import difflib
 import os
 import subprocess
@@ -17,10 +18,12 @@ import sys
 import angr
 
 project = angr.Project(sys.argv[1], auto_load_libs=False)
-# scope CFG recovery to the region of sub_4012f5; a whole-binary CFG takes ~10s per seed
+# Scope CFG recovery to sub_4012f5 itself (0x4012f5-0x4015ab is its exact extent).
+# Callees are still recovered because CFGFast follows call targets out of the scanned region, so the decompilation
+# output is identical to a wider scan.
 project.analyses.CFGFast(
     normalize=True,
-    regions=[(0x4012F5, 0x4022F5)],
+    regions=[(0x4012F5, 0x4015AB)],
     start_at_entry=False,
     function_starts=[0x4012F5],
     force_smart_scan=False,
@@ -44,12 +47,21 @@ def _decompile_with_seed(seed: int, binary_path: str) -> str:
         capture_output=True,
         text=True,
         env=env,
-        timeout=10,
+        timeout=300,
     )
     assert result.returncode == 0, f"Decompilation failed (seed={seed}):\n{result.stderr}"
-    if not is_testing:
-        print(result.stdout)
     return result.stdout
+
+
+def _decompile_with_seeds(seeds: list[int], binary_path: str) -> dict[int, str]:
+    """Decompile once per seed."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(seeds)) as pool:
+        futures = [pool.submit(_decompile_with_seed, seed, binary_path) for seed in seeds]
+        outputs = {seed: future.result() for seed, future in zip(seeds, futures)}
+    if not is_testing:
+        for seed in seeds:
+            print(outputs[seed])
+    return outputs
 
 
 class TestVariableNondeterminism(unittest.TestCase):
@@ -68,7 +80,7 @@ class TestVariableNondeterminism(unittest.TestCase):
             "4a00ae5dacc4d7ab43d1da71db43c7df837053a4ed86846fd2d7fcf02a3f861c",
         )
         seeds = list(range(10))
-        outputs = {seed: _decompile_with_seed(seed, binary_path) for seed in seeds}
+        outputs = _decompile_with_seeds(seeds, binary_path)
         baseline = outputs[seeds[0]]
         for seed in seeds[1:]:
             if outputs[seed] != baseline:
