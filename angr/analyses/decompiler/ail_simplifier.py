@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import networkx
 
-from angr.ailment import Address, AILBlockRewriter, AILBlockViewer
+from angr.ailment import INVALID_ADDR, Address, AILBlockRewriter, AILBlockViewer
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     BinaryOp,
@@ -2141,14 +2141,14 @@ class AILSimplifier(Analysis):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
-                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", INVALID_ADDR)))
                             simplified = True
                             continue
 
                         if self._statement_has_call_exprs(stmt):
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
-                                new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
+                                new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", INVALID_ADDR)))
                                 simplified = True
                                 continue
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -2167,14 +2167,14 @@ class AILSimplifier(Analysis):
                                     pass
                         else:
                             # no calls. remove it
-                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", INVALID_ADDR)))
                             simplified = True
                             continue
                     elif isinstance(stmt, SideEffectStatement):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
-                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
+                            new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", INVALID_ADDR)))
                             simplified = True
                             continue
 
