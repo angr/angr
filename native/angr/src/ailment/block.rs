@@ -255,34 +255,24 @@ impl Block {
         s.statements.bind(py).as_any().eq(o.statements.bind(py))
     }
 
-    fn likes(slf: Bound<'_, Self>, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+    fn likes(slf: Bound<'_, Self>, other: &Bound<'_, Self>) -> PyResult<bool> {
         let py = slf.py();
-        if !py.get_type::<Block>().is(other.get_type()) {
-            return Ok(false);
-        }
         let s = slf.borrow();
-        let o = other.cast::<Block>()?.borrow();
+        let o = other.borrow();
         let sa = s.statements.bind(py);
         let ob = o.statements.bind(py);
         if sa.len() != ob.len() {
             return Ok(false);
         }
         for (xa, xb) in sa.iter().zip(ob.iter()) {
-            // Fast path: both elements are AIL Statements -- compare via the
-            // native `AilStatement::likes` instead of dispatching through the
-            // Python `likes` method. Falls back to Python dispatch for any
-            // non-Statement element so behavior stays identical.
-            match (xa.cast::<Statement>(), xb.cast::<Statement>()) {
-                (Ok(a), Ok(b)) => {
-                    if !a.borrow().stmt.likes(&b.borrow().stmt) {
-                        return Ok(false);
-                    }
-                }
-                _ => {
-                    if !xa.call_method1("likes", (&xb,))?.is_truthy()? {
-                        return Ok(false);
-                    }
-                }
+            // `Block.statements` only holds AIL Statements; compare via the native `AilStatement::likes` directly.
+            if !xa
+                .cast::<Statement>()?
+                .borrow()
+                .stmt
+                .likes(&xb.cast::<Statement>()?.borrow().stmt)
+            {
+                return Ok(false);
             }
         }
         Ok(true)
