@@ -41,12 +41,11 @@ class ChainMapCOW[K, V](ChainMap):
     Tracks logically deleted keys via a _deleted set so that pop() and del work correctly even when keys live in parent
     maps.
 
-    Performance note: the lookup methods below deliberately re-implement the ``ChainMap`` walk instead of delegating to
-    ``super()``. Chains here routinely reach depths of 20-40 layers, and the stdlib implementation is tuned for shallow
-    chains: ``ChainMap.__getitem__`` raises (and catches) a ``KeyError`` for every layer that misses, and
-    ``ChainMap.get`` walks the whole chain twice (once through ``__contains__``, once through ``__getitem__``). An
-    inlined ``if key in mapping`` walk avoids both. This is safe because every layer this class ever creates is a plain
-    ``dict`` (the caveat in the stdlib comment about ``defaultdict`` layers does not apply).
+    Performance note: We deliberately re-implement the ChainMap walk for better performance. ``ChainMap.__getitem__``
+    raises a ``KeyError`` for every layer that misses, and ``ChainMap.get`` walks the whole chain twice
+    (``__contains__`` and ``__getitem__``). We avoid both by inlining ``if key in mapping``.
+
+    We may revisit the implementation in the future when the performance of ChainMap improves.
     """
 
     __slots__ = ("_deleted", "collapse_threshold", "dirty", "maps")
