@@ -225,10 +225,6 @@ class BlockSimplifier:
                 break
 
             assert block is not None
-            # TODO: We should be able to get rid of this check if we rely on Block.likes() to determine whether the
-            # block has changed or not.
-            if new_block.likes(block):
-                break
             self._clear_cache()
             block = new_block
             if ctr >= max_ctr:
