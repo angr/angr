@@ -477,9 +477,6 @@ class Enum(TypeConstant):
         self.members: dict[str, int] = members if members is not None else {}
         self.base_type = base_type
         self.idx = idx if idx != -1 else next(_ENUM_ID)
-        # An Enum carries no nested type constants in its hash and neither idx nor members is ever mutated
-        # after construction, so the hash (which would otherwise re-sort the member dict on every lookup) is
-        # fixed here.
         self._cached_hash = hash((self.TYPE_HASH, self.idx, tuple(sorted(self.members.items()))))
 
     @property
