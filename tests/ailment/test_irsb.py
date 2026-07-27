@@ -69,6 +69,8 @@ class TestIrsb(unittest.TestCase):
         assert isinstance(store.addr, ailment.Expr.Const)
         assert store.addr.value == 0x5678
         assert store.size == 1
+        # The space tag keeps the name the specification chose, case included.
+        assert load.tags["pcode_space"] == store.tags["pcode_space"] == "RAM"
 
     def test_lift_path_matches_python_path(self):
         """The direct libVEX-lift fast path must produce the same AIL block as
@@ -81,6 +83,97 @@ class TestIrsb(unittest.TestCase):
         )
         assert from_py == from_lift
         assert from_py.statements  # non-empty
+
+
+class _LoadCollector(ailment.AILBlockWalker[None, None, list]):
+    """Collect every Load expression in a block, at any nesting depth."""
+
+    def __init__(self):
+        super().__init__()
+        self.loads = []
+
+    def _top(self, expr_idx, expr, stmt_idx, stmt, block):
+        del expr_idx, stmt_idx, stmt, block
+        if isinstance(expr, ailment.Expr.Load):
+            self.loads.append(expr)
+
+    def _stmt_top(self, stmt_idx, stmt, block):
+        del stmt_idx, stmt, block
+
+    def _handle_block_end(self, stmt_results, block):
+        del stmt_results, block
+        return self.loads
+
+
+class TestPcodeProcessorMemorySpaces(unittest.TestCase):
+    """A SLEIGH specification names its own address spaces, and most processors have more than one
+    addressable space: RISC-V puts control/status registers in ``csreg``, Z80 port I/O in ``io``, and
+    classic BPF packet reads in ``packet``. Every one of them has to convert to a Load or a Store
+    that records which space it came from."""
+
+    # (language, block bytes, block address, load spaces in order, store spaces in order)
+    CASES = [
+        (
+            # csrrw t0, mstatus, t1 ; ret
+            # The CSR is a csreg varnode operand, so the space reaches the converter on the varnode
+            # itself rather than on a p-code LOAD/STORE.
+            "RISCV:LE:64:default",
+            "f312033067800000",
+            0x1000,
+            ["csreg"],
+            ["csreg"],
+        ),
+        (
+            # in a,(0x10) ; out (0x10),a ; ret
+            # Port I/O becomes a p-code LOAD and STORE against the io space. The trailing ret pops
+            # from ram, so the ordinary memory space still has to convert alongside it.
+            "z80:LE:16:default",
+            "db10d310c9",
+            0x1000,
+            ["io", "ram"],
+            ["io"],
+        ),
+        (
+            # ld [0] ; ret
+            "BPF:LE:32:default",
+            "20000000000000000600000000000000",
+            0x0,
+            ["packet", "ram"],
+            [],
+        ),
+    ]
+
+    @staticmethod
+    def _convert(language, block_bytes, addr):
+        arch = archinfo.ArchPcode(language)
+        proj = angr.load_shellcode(block_bytes, arch, addr, addr, engine=angr.engines.UberEnginePcode)
+        return ailment.IRSBConverter.convert(
+            proj.factory.block(addr).vex,
+            ailment.Manager(arch=arch),  # pyright: ignore[reportArgumentType]
+        )
+
+    def test_processor_spaces_convert_to_tagged_loads_and_stores(self):
+        for language, block_hex, addr, load_spaces, store_spaces in self.CASES:
+            with self.subTest(language=language):
+                block = self._convert(language, bytes.fromhex(block_hex), addr)
+                loads = _LoadCollector().walk(block)
+                stores = [stmt for stmt in block.statements if isinstance(stmt, ailment.Stmt.Store)]
+                assert [load.tags["pcode_space"] for load in loads] == load_spaces
+                assert [store.tags["pcode_space"] for store in stores] == store_spaces
+
+    def test_identical_addresses_carry_different_space_tags(self):
+        # `in a,(0x10)` and `ld a,(0x10)` both become a one-byte load of address 0x10, from the io
+        # space and from ram respectively. Nothing in the two Loads other than the tag says which
+        # space each one reads.
+        io_loads = _LoadCollector().walk(self._convert("z80:LE:16:default", bytes.fromhex("db10"), 0x1000))
+        ram_loads = _LoadCollector().walk(self._convert("z80:LE:16:default", bytes.fromhex("3a1000"), 0x1000))
+        assert len(io_loads) == 1
+        assert len(ram_loads) == 1
+        io_load, ram_load = io_loads[0], ram_loads[0]
+
+        assert io_load.addr == ram_load.addr
+        assert io_load.tags["pcode_space"] == "io"
+        assert ram_load.tags["pcode_space"] == "ram"
 
 
 class TestNonConstRoundingMode(unittest.TestCase):

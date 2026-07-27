@@ -18,6 +18,28 @@ from .statement import Assignment, ConditionalJump, Jump, Return, SideEffectStat
 
 log = logging.getLogger(name=__name__)
 
+# P-code address spaces this converter renders as something other than addressable memory: `const`
+# becomes a Const, `register` a Register, and `unique` a Tmp. `join` holds SLEIGH's pieced-together
+# varnodes, and `fspec` and `iop` are Ghidra decompiler internals; an offset in any of the three
+# indexes a side table rather than memory, so they are named here to keep the catch-all below from
+# turning one into an address.
+#
+# Every other space is one a processor's SLEIGH specification declares, and every such declaration
+# is a ram_space whatever its name. `ram` and `mem` are the common names, but a Harvard or
+# memory-mapped-I/O architecture declares several: `csreg` on RISC-V, `io` on Z80, `packet` on BPF,
+# `CODE`/`INTMEM`/`SFR` on 8051. Those become AIL Loads and Stores carrying a `pcode_space` tag,
+# because an AIL address alone cannot tell Z80 io[0x10] apart from ram[0x10]. The tag holds the name
+# as the specification spells it, and specifications differ on case, so read it case-insensitively.
+_NON_MEMORY_SPACES = frozenset({"const", "fspec", "iop", "join", "register", "unique"})
+
+
+def _is_memory_space(space_name: str) -> bool:
+    """
+    Whether a p-code address space is processor memory, i.e. reachable through an AIL Load or Store.
+    """
+    return space_name.lower() not in _NON_MEMORY_SPACES
+
+
 # FIXME: Not all ops are mapped to AIL expressions!
 opcode_to_generic_name = {
     # OpCode.MULTIEQUAL        : '',
@@ -329,7 +351,7 @@ class PCodeIRSBConverter(Converter):
                 return Convert(self._manager.next_atom(), t.bits, size, False, t, ins_addr=self._manager.ins_addr)
 
             return Tmp(self._manager.next_atom(), offset, size)
-        if space_name.lower() in ["ram", "mem"]:
+        if _is_memory_space(space_name):
             assert not is_write
             addr = Const(self._manager.next_atom(), varnode.offset, self._irsb.arch.bits)
             # Note: Load takes bytes, not bits, for size
@@ -339,15 +361,17 @@ class PCodeIRSBConverter(Converter):
                 varnode.size,
                 self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
+                pcode_space=space_name,
             )
-        raise NotImplementedError
+        raise NotImplementedError(f"read of a varnode in non-memory address space {space_name!r}")
 
     def _set_value(self, varnode: Varnode, value: Expression) -> Statement:
         """
         Create the appropriate assignment statement to store to a varnode
 
-        This method stores to the appropriate register, or unique space,
-        depending on the space indicated by the varnode.
+        This method stores to the register or unique space, or to any of the
+        processor's memory spaces, depending on the space indicated by the
+        varnode.
 
         :param varnode: Varnode to store into
         :param value:   Value to store
@@ -359,7 +383,7 @@ class PCodeIRSBConverter(Converter):
             return Assignment(
                 self._statement_idx, self._convert_varnode(varnode, True), value, ins_addr=self._manager.ins_addr
             )
-        if space_name.lower() in ["ram", "mem"]:
+        if _is_memory_space(space_name):
             addr = Const(self._manager.next_atom(), varnode.offset, self._irsb.arch.bits)
             return Store(
                 self._statement_idx,
@@ -368,15 +392,17 @@ class PCodeIRSBConverter(Converter):
                 varnode.size,
                 self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
+                pcode_space=space_name,
             )
-        raise NotImplementedError
+        raise NotImplementedError(f"write to a varnode in non-memory address space {space_name!r}")
 
     def _get_value(self, varnode: Varnode) -> Expression:
         """
         Create the appropriate expression to load from a varnode
 
-        This method loads from the appropriate const, register, unique, or RAM
-        space, depending on the space indicated by the varnode.
+        This method loads from the const, register, or unique space, or from any
+        of the processor's memory spaces, depending on the space indicated by the
+        varnode.
 
         :param varnode: Varnode to load from.
         :return:        Value loaded
@@ -443,12 +469,11 @@ class PCodeIRSBConverter(Converter):
         spc = self._current_op.inputs[0].getSpaceFromConst()
         out = self._current_op.output
         spc_name = spc.name.lower()
-        assert spc_name in {"ram", "mem", "register"}
         if spc_name == "register":
             # load from register
             res = self._get_value(self._current_op.inputs[1])
             stmt = self._set_value(out, res)
-        else:
+        elif _is_memory_space(spc_name):
             # load from memory
             off = self._get_value(self._current_op.inputs[1])
             res = Load(
@@ -457,8 +482,11 @@ class PCodeIRSBConverter(Converter):
                 self._current_op.output.size,
                 self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
+                pcode_space=spc.name,
             )
             stmt = self._set_value(out, res)
+        else:
+            raise NotImplementedError(f"load from non-memory address space {spc.name!r}")
         self._statements.append(stmt)
 
     def _convert_store(self) -> None:
@@ -467,13 +495,12 @@ class PCodeIRSBConverter(Converter):
         """
         spc = self._current_op.inputs[0].getSpaceFromConst()
         spc_name = spc.name.lower()
-        assert spc_name in {"ram", "mem", "register"}
         if spc_name == "register":
             # store to register
             out = self._current_op.inputs[2]
             res = self._get_value(self._current_op.inputs[1])
             stmt = self._set_value(out, res)
-        else:
+        elif _is_memory_space(spc_name):
             # store to memory
             off = self._get_value(self._current_op.inputs[1])
             data = self._get_value(self._current_op.inputs[2])
@@ -486,7 +513,10 @@ class PCodeIRSBConverter(Converter):
                 self._current_op.inputs[2].size,
                 self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
+                pcode_space=spc.name,
             )
+        else:
+            raise NotImplementedError(f"store to non-memory address space {spc.name!r}")
         self._statements.append(stmt)
 
     def _convert_branch(self) -> None:
