@@ -366,8 +366,9 @@ class OptimizationPass(BaseOptimizationPass):
                 ail_block,
                 cache=cache,
             )
-            key = ail_block.addr, ail_block.idx
-            blocks_by_addr_and_idx[key] = simplified
+            if simplified is not None:
+                key = ail_block.addr, ail_block.idx
+                blocks_by_addr_and_idx[key] = simplified
 
         # update blocks_map to allow node_addr to node lookup
         def _replace_node_handler(node):

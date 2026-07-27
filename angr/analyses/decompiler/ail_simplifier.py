@@ -525,8 +525,8 @@ class AILSimplifier(Analysis):
                         vvar, simvar = self._arg_vvars[func_arg_idx]
                         if vvar.varid == new_vvar.varid:
                             simvar_new = simvar.copy()
-                            simvar_new._hash = None
                             simvar_new.size = new_vvar.size
+                            simvar_new.clear_hash()
                             self._arg_vvars[func_arg_idx] = new_vvar, simvar_new
 
         return narrowed
@@ -931,7 +931,7 @@ class AILSimplifier(Analysis):
                     }
                 reps = filtered_reps
 
-            r, new_block = BlockSimplifier._replace_and_build(
+            r, new_block = BlockSimplifier.replace_and_build(
                 block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads
             )
             replaced |= r
@@ -1736,13 +1736,6 @@ class AILSimplifier(Analysis):
                 if isinstance(eq.atom0, VirtualVariable):
                     src = used_expr
                     dst: Expression = call.copy()
-
-                    if isinstance(dst, SideEffectStatement):
-                        dst_bits = dst.ret_expr.bits if dst.ret_expr is not None else dst.bits
-                        # extract the Call expression from the SideEffectStatement
-                        dst = dst.expr
-                        dst.bits = dst_bits
-
                     if src.bits != dst.bits and not eq.is_weakassignment:
                         dst = Convert(
                             self._ail_manager.next_atom(),
@@ -1933,7 +1926,7 @@ class AILSimplifier(Analysis):
 
                 if uses is None:
                     vvar = rd.varid_to_vvar[vvar_id]
-                    def_codeloc = rd.all_vvar_definitions[vvar_id]
+                    def_codeloc = codeloc
                     if def_codeloc.is_extern:
                         def_stmt = None
                     else:
@@ -2047,12 +2040,22 @@ class AILSimplifier(Analysis):
                     # this statement declares more than one variable. we should handle it surgically
                     # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
                     if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
-                        stmt = stmt.copy()
-                        stmt.ret_expr = None
+                        stmt = SideEffectStatement(
+                            self._ail_manager.next_atom(),
+                            stmt.expr,
+                            ret_expr=None,
+                            fp_ret_expr=stmt.fp_ret_expr,
+                            **stmt.tags,
+                        )
                         simplified = True
                     if isinstance(stmt.fp_ret_expr, VirtualVariable) and stmt.fp_ret_expr.varid in dead_vvar_ids:
-                        stmt = stmt.copy()
-                        stmt.fp_ret_expr = None
+                        stmt = SideEffectStatement(
+                            self._ail_manager.next_atom(),
+                            stmt.expr,
+                            ret_expr=stmt.ret_expr,
+                            fp_ret_expr=None,
+                            **stmt.tags,
+                        )
                         simplified = True
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
@@ -2113,9 +2116,9 @@ class AILSimplifier(Analysis):
                             isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_combo_reg
                         ):
                             # both the return expr and the fp_ret_expr are not used
-                            stmt = stmt.copy()
-                            stmt.ret_expr = None
-                            stmt.fp_ret_expr = None
+                            stmt = SideEffectStatement(
+                                self._ail_manager.next_atom(), stmt.expr, ret_expr=None, fp_ret_expr=None, **stmt.tags
+                            )
                             simplified = True
                     else:
                         # Should not happen!
@@ -2253,7 +2256,14 @@ class AILSimplifier(Analysis):
         def _handle_VEXCCallExpression(
             expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ) -> Expression:
-            r_expr = AILBlockRewriter._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
+            r_expr = AILBlockRewriter._handle_VEXCCallExpression(  # pylint:disable=protected-access
+                walker,
+                expr_idx,
+                expr,
+                stmt_idx,
+                stmt,
+                block,
+            )
             rewriter = rewriter_cls(r_expr, self.project, self._ail_manager, rename_ccalls=self._should_rename_ccalls)
             if rewriter.result is not None:
                 _any_update.v = True
@@ -2299,7 +2309,7 @@ class AILSimplifier(Analysis):
             rewriter = rewriter_cls(stmt, self.project.arch, self._ail_manager)
             if rewriter.result is not None:
                 _any_update.v = True
-                if walker._update_block and block is not None:
+                if walker._update_block and block is not None:  # pylint:disable=protected-access
                     block.statements[stmt_idx] = rewriter.result  # type: ignore
                 assert isinstance(rewriter.result, Statement)
                 return rewriter.result
@@ -2308,7 +2318,14 @@ class AILSimplifier(Analysis):
         def _handle_DirtyExpression(
             expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ):
-            r_expr = AILBlockRewriter._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
+            r_expr = AILBlockRewriter._handle_DirtyExpression(  # pylint:disable=protected-access
+                walker,
+                expr_idx,
+                expr,
+                stmt_idx,
+                stmt,
+                block,
+            )
             assert isinstance(r_expr, DirtyExpression)
             rewriter = rewriter_cls(r_expr, self.project.arch, self._ail_manager)
             if rewriter.result is not None:

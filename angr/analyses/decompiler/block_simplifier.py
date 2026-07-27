@@ -237,8 +237,8 @@ class BlockSimplifier:
                 for stmt in new_block.statements:
                     stmt.peephole_optimized = True
                 break
-            # a change was reported, but it may be structurally a no-op (e.g. an expression replaced by an equal
-            # expression); ``likes`` (idx-agnostic) catches that and prevents ping-ponging until max_ctr
+
+            assert block is not None
             if new_block.likes(block):
                 break
             self._clear_cache()
@@ -316,7 +316,7 @@ class BlockSimplifier:
             if propagator.model is not None:
                 replacements = propagator.model.replacements
                 if replacements:
-                    replaced, new_block = self._replace_and_build(
+                    replaced, new_block = self.replace_and_build(
                         block, replacements, self._ail_manager, replace_registers=True
                     )
                     changed |= replaced
@@ -343,7 +343,7 @@ class BlockSimplifier:
         return new_block, changed | peephole_changed
 
     @staticmethod
-    def _replace_and_build(
+    def replace_and_build(
         block: Block,
         replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
         ail_manager: Manager,

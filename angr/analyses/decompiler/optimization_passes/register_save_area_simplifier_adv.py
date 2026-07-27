@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
-from angr.code_location import CodeLocation
 from angr.utils.ail import is_phi_assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from angr.analyses.s_reaching_definitions import SRDAModel
+    from angr.code_location import AILCodeLocation
 
 _l = logging.getLogger(name=__name__)
 
@@ -62,7 +66,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         if cache is None:
             return
 
-        info: list[tuple[list[CodeLocation], int]] = cache["info"]
+        info: list[tuple[list[AILCodeLocation], int]] = cache["info"]
         updated_blocks = {}
 
         for locs, _ in info:
@@ -86,13 +90,13 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
                     stack_offset, self.project.arch.bytes, "regs", StackItemType.SAVED_REGS
                 )
 
-    def _find_reg_store_and_restore_locations(self) -> list[tuple[list[CodeLocation], int]]:
-        results: list[tuple[list[CodeLocation], int]] = []
+    def _find_reg_store_and_restore_locations(self) -> list[tuple[list[AILCodeLocation], int]]:
+        results: list[tuple[list[AILCodeLocation], int]] = []
 
         assert self._srda is not None
-        srda_model = self._srda.model
+        srda_model: SRDAModel = self._srda.model
         # find all registers that are defined externally and used exactly once
-        saved_vvars: set[tuple[int, CodeLocation]] = set()
+        saved_vvars: set[tuple[int, AILCodeLocation]] = set()
         for vvar_id, loc in srda_model.all_vvar_definitions.items():
             # SReachingDefinitions records externally-defined (function live-in) vvars via
             # AILCodeLocation.make_extern(). These are AILCodeLocation instances (not ExternalCodeLocation), so the
@@ -133,7 +137,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
             all_stack_vvar_uses = srda_model.all_vvar_uses.get(stack_vvar.varid, [])
             # partition the uses into phi uses and non-phi uses
             stack_vvar_uses = set()
-            phi_use_locs: list[CodeLocation] = []
+            phi_use_locs: list[AILCodeLocation] = []
             for vvar_, loc_ in all_stack_vvar_uses:
                 use_block = self._get_block(loc_.block_addr, idx=loc_.block_idx)
                 if use_block is None or loc_.stmt_idx is None:
@@ -169,7 +173,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
 
         return results
 
-    def _phi_uses_are_dead(self, srda_model, phi_use_locs: list[CodeLocation]) -> bool:
+    def _phi_uses_are_dead(self, srda_model, phi_use_locs: list[AILCodeLocation]) -> bool:
         """Return True iff every phi statement at ``phi_use_locs`` defines a virtual variable that has no uses. Such a
         phi is dead and can be removed together with the store that feeds it."""
 

@@ -540,7 +540,8 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     if new_node.statements and isinstance(new_node.statements[-1], ailment.Stmt.Jump):
         new_node.statements = new_node.statements[:-1]
     new_node.statements += old_node.statements
-    new_node.original_size += old_node.original_size
+    if new_node.original_size is not None and old_node.original_size is not None:
+        new_node.original_size += old_node.original_size
 
     graph.remove_node(node_a)
     graph.remove_node(node_b)
@@ -864,7 +865,11 @@ def structured_node_is_simple_return_strict(node: BaseNode | SequenceNode | Mult
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
     if isinstance(stmt, ailment.Stmt.Return):
         return True
-    if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.expr.target, ailment.Expr.Const):
+    if (
+        isinstance(stmt, ailment.Stmt.SideEffectStatement)
+        and isinstance(stmt.expr, ailment.Expr.Call)
+        and isinstance(stmt.expr.target, ailment.Expr.Const)
+    ):
         # is it calling a non-returning function?
         target_func_addr = stmt.expr.target.value
         try:
@@ -904,14 +909,14 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         self.any_update = False
         self.untouched_stmts.clear()
 
-    def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block) -> ailment.Stmt.Statement | None:
+    def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block) -> ailment.Stmt.Statement:
         if getattr(stmt, "peephole_optimized", False):
             # a previous peephole pass ran this statement (and its expressions) to fixpoint, and the statement has
             # not been rebuilt since; expression optimizers are context-free, so nothing new can apply
-            return None
+            return stmt
         self._stmt_touched = False
         new_stmt = super()._handle_stmt(stmt_idx, stmt, block)
-        if not self._stmt_touched and (new_stmt is None or new_stmt is stmt):
+        if not self._stmt_touched and new_stmt is stmt:
             # this pass rewrote nothing inside the statement: it is at the fixpoint of the expression optimizers,
             # which are context-free, so no later pass can find anything either until the statement is rebuilt
             self.untouched_stmts.add(id(stmt))
