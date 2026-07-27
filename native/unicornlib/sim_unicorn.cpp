@@ -407,12 +407,15 @@ void State::rollback() {
 			break;
 		}
 		auto page = page_lookup(rit->address);
-		taint_t *bitmap = page.first;
 
 		uint64_t start = rit->address & 0xFFF;
 		int size = rit->size;
 		for (auto i = 0; i < size; i++) {
-			bitmap[start + i] = rit->previous_taint[i];
+			taint_t previous = rit->previous_taint[i];
+			bitmap_set(page.symbolic, start + i, previous == TAINT_SYMBOLIC);
+			if (page.dirty != NULL) {
+				bitmap_set(page.dirty, start + i, previous == TAINT_DIRTY);
+			}
 		}
 	}
 	mem_writes.clear();
@@ -425,14 +428,15 @@ void State::rollback() {
 }
 
 /*
- * return the PageBitmap only if the page is remapped for writing,
- * or initialized with symbolic variable, otherwise return NULL.
+ * return the taint bitmaps only if the page is remapped for writing,
+ * or initialized with symbolic variable, otherwise return NULLs.
  */
-std::pair<taint_t *, uint8_t *> State::page_lookup(address_t address) const {
+page_taint_t State::page_lookup(address_t address) const {
 	address &= ~0xFFFULL;
 	auto it = active_pages.find(address);
 	if (it == active_pages.end()) {
-		return std::pair<taint_t *, uint8_t *>(NULL, NULL);
+		page_taint_t missing = {NULL, NULL, NULL};
+		return missing;
 	}
 	return it->second;
 }
@@ -441,17 +445,21 @@ void State::page_activate(address_t address, uint8_t *taint, uint8_t *data) {
 	address &= ~0xFFFULL;
 	auto it = active_pages.find(address);
 	if (it == active_pages.end()) {
+		page_taint_t page;
+		page.data = data;
 		if (data == NULL) {
-			// We need to copy the taint bitmap
-			taint_t *bitmap = new PageBitmap;
-			memcpy(bitmap, taint, sizeof(PageBitmap));
-
-			active_pages.insert(std::pair<address_t, std::pair<taint_t*, uint8_t*>>(address, std::pair<taint_t*, uint8_t*>(bitmap, NULL)));
+			// The page is copied into unicorn: we need our own copy of the symbolic bitmap, plus a dirty bitmap to
+			// remember which bytes have to be synced back to angr.
+			page.symbolic = new PageBitmap;
+			memcpy(page.symbolic, taint, sizeof(PageBitmap));
+			page.dirty = new uint8_t[ANGR_PAGE_BITMAP_SIZE]();
 		} else {
-			// We can directly use the passed taint and data
-			taint_t *bitmap = (taint_t*)taint;
-			active_pages.insert(std::pair<uint64_t, std::pair<taint_t*, uint8_t*>>(address, std::pair<taint_t*, uint8_t*>(bitmap, data)));
+			// The page is direct-mapped: angr's symbolic bitmap is ours to update in place, and concrete writes go
+			// straight into angr's backing store, so nothing ever needs syncing.
+			page.symbolic = taint;
+			page.dirty = NULL;
 		}
+		active_pages.insert(std::pair<address_t, page_taint_t>(address, page));
 	} else {
 		// TODO: un-hardcode this address, or at least do this warning from python land
 		if (address == 0x4000) {
@@ -492,25 +500,23 @@ void State::page_activate(address_t address, uint8_t *taint, uint8_t *data) {
 
 mem_update_t *State::sync() {
 	for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
-		uint8_t *data = it->second.second;
-		if (data != NULL) {
+		uint8_t *dirty = it->second.dirty;
+		if (dirty == NULL) {
 			// nothing to sync, direct mapped :)
 			continue;
 		}
-		taint_t *start = it->second.first;
-		taint_t *end = &it->second.first[0x1000];
-		//LOG_D("found active page %#lx (%p)", it->first, start);
-		for (taint_t *i = start; i < end; i++)
-			if ((*i) == TAINT_DIRTY) {
-				taint_t *j = i;
-				while (j < end && (*j) == TAINT_DIRTY) j++;
+		//LOG_D("found active page %#lx (%p)", it->first, dirty);
+		for (uint64_t i = 0; i < ANGR_PAGE_SIZE; i++)
+			if (bitmap_get(dirty, i)) {
+				uint64_t j = i;
+				while (j < ANGR_PAGE_SIZE && bitmap_get(dirty, j)) j++;
 
-				char buf[0x1000];
-				uc_mem_read(uc, it->first + (i - start), buf, j - i);
-				//LOG_D("sync [%#lx, %#lx] = %#lx", it->first + (i - start), it->first + (j - start), *(uint64_t *)buf);
+				char buf[ANGR_PAGE_SIZE];
+				uc_mem_read(uc, it->first + i, buf, j - i);
+				//LOG_D("sync [%#lx, %#lx] = %#lx", it->first + i, it->first + j, *(uint64_t *)buf);
 
 				mem_update_t *range = new mem_update_t;
-				range->address = it->first + (i - start);
+				range->address = it->first + i;
 				range->length = j - i;
 				range->next = mem_updates_head;
 				mem_updates_head = range;
@@ -632,7 +638,7 @@ bool State::in_cache(address_t address) const {
 // Finds tainted data in the provided range and returns the address.
 // Returns -1 if no tainted data is present.
 int64_t State::find_tainted(address_t address, int size) {
-	taint_t *bitmap = page_lookup(address).first;
+	uint8_t *bitmap = page_lookup(address).symbolic;
 
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
@@ -640,7 +646,7 @@ int64_t State::find_tainted(address_t address, int size) {
 	if (end >= start) {
 		if (bitmap) {
 			for (auto i = start; i <= end; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
+				if (bitmap_get(bitmap, i)) {
 					return (address & ~0xFFF) + i;
 				}
 			}
@@ -650,16 +656,16 @@ int64_t State::find_tainted(address_t address, int size) {
 		// cross page boundary
 		if (bitmap) {
 			for (auto i = start; i <= 0xFFF; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
+				if (bitmap_get(bitmap, i)) {
 					return (address & ~0xFFF) + i;
 				}
 			}
 		}
 
-		bitmap = page_lookup(address + size - 1).first;
+		bitmap = page_lookup(address + size - 1).symbolic;
 		if (bitmap) {
 			for (auto i = 0; i <= end; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
+				if (bitmap_get(bitmap, i)) {
 					return ((address + size - 1) & ~0xFFF) + i;
 				}
 			}
@@ -697,9 +703,10 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		return;
 	}
 
-	auto pair = page_lookup(address);
-	taint_t *bitmap = pair.first;
-	uint8_t *data = pair.second;
+	auto page = page_lookup(address);
+	uint8_t *bitmap = page.symbolic;
+	uint8_t *dirty = page.dirty;
+	uint8_t *data = page.data;
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
 	short clean;
@@ -864,32 +871,28 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	}
 	if (data == NULL) {
 		for (auto i = start; i <= end; i++) {
-			record.previous_taint.push_back(bitmap[i]);
-			if (is_dst_symbolic) {
-				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
-				// Also, no need to set clean: rollback will set it to TAINT_NONE which
-				// is fine for symbolic bytes and rollback is called when exiting unicorn
-				// due to an error encountered
-				bitmap[i] = TAINT_SYMBOLIC;
+			// a byte is never both symbolic and dirty, so the two bitmaps recover the previous taint between them
+			taint_t previous = TAINT_NONE;
+			if (bitmap_get(bitmap, i)) {
+				previous = TAINT_SYMBOLIC;
 			}
-			else if (bitmap[i] != TAINT_DIRTY) {
-				bitmap[i] = TAINT_DIRTY;
+			else if (bitmap_get(dirty, i)) {
+				previous = TAINT_DIRTY;
 			}
+			record.previous_taint.push_back(previous);
+			// Don't mark a symbolic write as TAINT_DIRTY since we don't want to sync it back to angr
+			// Also, no need to set clean: rollback will set it to TAINT_NONE which
+			// is fine for symbolic bytes and rollback is called when exiting unicorn
+			// due to an error encountered
+			bitmap_set(bitmap, i, is_dst_symbolic);
+			bitmap_set(dirty, i, !is_dst_symbolic);
 		}
 	}
 	else {
 		for (auto i = start; i <= end; i++) {
-			record.previous_taint.push_back(bitmap[i]);
-			if (is_dst_symbolic) {
-				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
-				// Also, no need to set clean: rollback will set it to TAINT_NONE which
-				// is fine for symbolic bytes and rollback is called when exiting unicorn
-				// due to an error encountered
-				bitmap[i] = TAINT_SYMBOLIC;
-			}
-			else if (bitmap[i] != TAINT_NONE) {
-				bitmap[i] = TAINT_NONE;
-			}
+			// the page is direct-mapped, so concrete writes need no syncing and there is no dirty bitmap to update
+			record.previous_taint.push_back(bitmap_get(bitmap, i) ? TAINT_SYMBOLIC : TAINT_NONE);
+			bitmap_set(bitmap, i, is_dst_symbolic);
 		}
 	}
 	mem_writes.push_back(record);

@@ -177,8 +177,9 @@ class IcicleEngine(SuccessorsEngine):
         """
         page_size = state.memory.page_size
         addr = page_num * page_size
-        memory, bitmap = state.memory.concrete_load(addr, page_size, with_bitmap=True)
-        if any(bitmap):
+        # concrete_load stops at the first symbolic byte, so a short result means the page is not fully concrete
+        memory = state.memory.concrete_load(addr, page_size)
+        if len(memory) != page_size:
             memory = state.solver.eval(state.memory.load(addr, page_size), cast_to=bytes)
         emu.mem_write(addr, memory)
 

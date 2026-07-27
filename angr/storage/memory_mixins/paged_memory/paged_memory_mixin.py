@@ -418,14 +418,21 @@ class PagedMemoryMixin[PageType: PageBase](
     def _load_to_memoryview(self, addr, size, with_bitmap: Literal[False]) -> memoryview: ...
 
     def _load_to_memoryview(self, addr, size, with_bitmap):
+        # the bitmap is packed: one *bit* per byte of the region, least-significant bit first, matching the layout
+        # UltraPage stores natively and the native interfaces consume
+        bitmap_size = (size + 7) // 8
         result = self.load(addr, size, endness="Iend_BE")
         if result.op == "BVV":
             if with_bitmap:
-                return memoryview(result.args[0].to_bytes(size, "big")), memoryview(bytes(size))
+                return memoryview(result.args[0].to_bytes(size, "big")), memoryview(bytes(bitmap_size))
             return memoryview(result.args[0].to_bytes(size, "big"))
         if result.op == "Concat":
             bytes_out = bytearray(size)
-            bitmap_out = bytearray(size)
+            bitmap_out = bytearray(bitmap_size)
+
+            def mark_symbolic(i):
+                bitmap_out[i >> 3] |= 1 << (i & 7)
+
             bit_idx = 0
             byte_width = self.state.arch.byte_width
             for element in result.args:
@@ -438,7 +445,7 @@ class PagedMemoryMixin[PageType: PageBase](
                     bit_idx += len(element)
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
-                    bitmap_out[byte_idx] = 1
+                    mark_symbolic(byte_idx)
                     continue
 
                 # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
@@ -453,11 +460,11 @@ class PagedMemoryMixin[PageType: PageBase](
                     bit_idx += len(element)
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
-                    bitmap_out[byte_idx] = 1
+                    mark_symbolic(byte_idx)
                     continue
 
                 if hi_chop:
-                    bitmap_out[byte_idx] = 1
+                    mark_symbolic(byte_idx)
                     byte_idx += 1
 
                 if element.op == "BVV":
@@ -473,23 +480,25 @@ class PagedMemoryMixin[PageType: PageBase](
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
                     for byte_i in range(byte_idx, byte_idx + byte_size):
-                        bitmap_out[byte_i] = 1
+                        mark_symbolic(byte_i)
 
                 bit_idx += len(element)
                 if bit_idx % byte_width != 0:
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[: bit_idx // byte_width]
-                    bitmap_out[bit_idx // byte_width] = 1
+                    mark_symbolic(bit_idx // byte_width)
             if with_bitmap:
                 return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
             return memoryview(bytes(bytes_out))
         if with_bitmap:
-            return memoryview(bytes(size)), memoryview(b"\x01" * size)
+            # every byte is symbolic; leave the bits past the end of the region clear
+            bitmap_out = bytearray(b"\xff" * bitmap_size)
+            if size & 7:
+                bitmap_out[-1] = (1 << (size & 7)) - 1
+            return memoryview(bytes(size)), memoryview(bytes(bitmap_out))
         return memoryview(b"")
 
-    def concrete_load(
-        self, addr, size, writing=False, *, with_bitmap: bool = False, writable_bitmap: bool = False, **kwargs
-    ):
+    def concrete_load(self, addr, size, writing=False, *, with_bitmap: bool = False, **kwargs):
         pageno, offset = self._divide_addr(addr)
         subsize = min(size, self.page_size - offset)
         try:
@@ -506,7 +515,7 @@ class PagedMemoryMixin[PageType: PageBase](
             return self._load_to_memoryview(addr, size, False)
 
         if with_bitmap:
-            return page.concrete_load(offset, subsize, with_bitmap=True, writable_bitmap=writable_bitmap, **kwargs)
+            return page.concrete_load(offset, subsize, with_bitmap=True, **kwargs)
 
         # everything from here on out has exactly one goal: to maximize the amount of concrete data
         # we can return (up to the limit!). ask the page how many concrete bytes it has instead of materializing and

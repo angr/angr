@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-# Expansion table: a byte value -> eight bytes, one per bit, least-significant bit first. Used to turn a slice of the
-# packed representation back into the one-byte-per-byte form that the native interfaces expect.
-_EXPAND: tuple[bytes, ...] = tuple(bytes((v >> i) & 1 for i in range(8)) for v in range(256))
-
 
 class SymbolicBitmap:
     """
@@ -12,7 +8,8 @@ class SymbolicBitmap:
     The map is stored as a real bitmap -- one *bit* per byte of the page, so a 4096-byte page needs 512 bytes instead
     of the 4096 bytes that a byte-per-byte map would need. Bit ``i`` of the map lives in bit ``i & 7`` of byte
     ``i >> 3`` (least-significant bit first), which makes ``int.from_bytes(..., "little")`` a direct view of the map as
-    a big integer and lets range scans be done with ``bit_length()`` instead of a Python-level loop.
+    a big integer and lets range scans be done with ``bit_length()`` instead of a Python-level loop. This is also the
+    layout the native interfaces consume, so :meth:`view` can hand them the backing store as-is.
 
     On top of that, a page whose map is *uniform* -- every byte symbolic, or every byte concrete -- stores no per-byte
     metadata at all: ``_bits`` is ``None`` and ``_uniform`` holds the single value. The backing store is only
@@ -22,12 +19,15 @@ class SymbolicBitmap:
     All ranges are half-open ``[start, stop)`` and are assumed to lie within ``[0, size]``.
     """
 
-    __slots__ = ("_bits", "_uniform", "size")
+    __slots__ = ("_bits", "_pinned", "_uniform", "size")
 
     def __init__(self, size: int, value: int = 0):
         self.size = size
         self._bits: bytearray | None = None
         self._uniform: int = 1 if value else 0
+        # set once :meth:`view` hands out an aliasing buffer; see there for why the backing store may not be dropped
+        # afterwards
+        self._pinned: bool = False
 
     #
     # Introspection
@@ -91,9 +91,14 @@ class SymbolicBitmap:
             return
         bits = self._bits
         if start <= 0 and stop >= self.size:
-            # the whole page: collapse to the uniform representation and drop the backing store
-            self._bits = None
-            self._uniform = 1
+            # the whole page: collapse to the uniform representation and drop the backing store, unless someone is
+            # holding a pointer into it, in which case fill it in place
+            if self._pinned:
+                assert bits is not None
+                bits[:] = b"\xff" * len(bits)
+            else:
+                self._bits = None
+                self._uniform = 1
             return
         if bits is None:
             if self._uniform:
@@ -121,8 +126,12 @@ class SymbolicBitmap:
             return
         bits = self._bits
         if start <= 0 and stop >= self.size:
-            self._bits = None
-            self._uniform = 0
+            if self._pinned:
+                assert bits is not None
+                bits[:] = bytes(len(bits))
+            else:
+                self._bits = None
+                self._uniform = 0
             return
         if bits is None:
             if not self._uniform:
@@ -223,30 +232,39 @@ class SymbolicBitmap:
         return self.next_set(start, stop) != stop
 
     #
-    # Conversion
+    # Buffer access
     #
 
-    def to_bytemap(self, start: int, stop: int) -> bytes:
+    def view(self, start: int, stop: int) -> memoryview:
         """
-        Return ``[start, stop)`` expanded to one byte per byte of the page -- the representation the native unicorn
-        and icicle interfaces consume.
+        Return the packed bits covering ``[start, stop)``: bit ``i`` of the result is byte ``start + i`` of the page.
+
+        When ``start`` is byte-aligned the result is a *writable* view of this map's own backing store, so a native
+        consumer can update the page's symbolic-ness in place -- native unicorn maps whole pages this way and writes
+        taint straight back through the view. Handing out such a view pins the backing store: it may no longer be
+        dropped in favor of the uniform representation while someone might still hold a pointer into it.
+
+        An unaligned ``start`` cannot be expressed as a view of the backing store, so the bits are shifted into place
+        and returned read-only.
         """
+        if start & 7:
+            return memoryview(self._shifted(start, stop))
+        bits = self._bits
+        if bits is None:
+            bits = self._materialize()
+        self._pinned = True
+        return memoryview(bits)[start >> 3 : (stop + 7) >> 3]
+
+    def _shifted(self, start: int, stop: int) -> bytes:
         n = stop - start
         if n <= 0:
             return b""
         bits = self._bits
         if bits is None:
-            return (b"\x01" if self._uniform else b"\x00") * n
-        off = start & 7
-        raw = bits[start >> 3 : (stop + 7) >> 3]
-        return b"".join([_EXPAND[c] for c in raw])[off : off + n]
-
-    def expanded(self) -> ByteSymbolicBitmap:
-        """
-        Return a byte-per-byte map with the same contents. Used when a caller needs a *writable* buffer aliasing this
-        page (native unicorn's direct page mapping writes taint values back through it).
-        """
-        return ByteSymbolicBitmap(self.size, bytearray(self.to_bytemap(0, self.size)))
+            w = ((1 << n) - 1) if self._uniform else 0
+        else:
+            w = (int.from_bytes(bits[start >> 3 : (stop + 7) >> 3], "little") >> (start & 7)) & ((1 << n) - 1)
+        return w.to_bytes((n + 7) >> 3, "little")
 
     def copy(self) -> SymbolicBitmap:
         o = SymbolicBitmap.__new__(SymbolicBitmap)
@@ -254,83 +272,9 @@ class SymbolicBitmap:
         bits = self._bits
         o._bits = None if bits is None else bytearray(bits)
         o._uniform = self._uniform
+        # the copy is a fresh buffer that nobody holds a pointer into
+        o._pinned = False
         return o
 
 
-class ByteSymbolicBitmap:
-    """
-    The legacy one-byte-per-byte representation of :class:`SymbolicBitmap`.
-
-    A page only switches to this representation when something asks for a writable buffer that aliases the page's map
-    -- in practice only native unicorn's direct page mapping, which writes ``taint_t`` values (including
-    ``TAINT_DIRTY``, which does not fit in one bit) straight into it. Everything else uses the packed representation.
-    """
-
-    __slots__ = ("_bytes", "size")
-
-    def __init__(self, size: int, data: bytearray | None = None):
-        self.size = size
-        self._bytes = bytearray(size) if data is None else data
-
-    @property
-    def nbytes(self) -> int:
-        return len(self._bytes)
-
-    def uniform_value(self) -> int | None:
-        b = self._bytes
-        if not b:
-            return None
-        first = 1 if b[0] else 0
-        for v in b:
-            if bool(v) != bool(first):
-                return None
-        return first
-
-    def get(self, i: int) -> int:
-        return self._bytes[i]
-
-    def set(self, i: int, value: int) -> None:
-        self._bytes[i] = value
-
-    def set_range(self, start: int, stop: int) -> None:
-        if start < stop:
-            self._bytes[start:stop] = b"\1" * (stop - start)
-
-    def clear_range(self, start: int, stop: int) -> None:
-        if start < stop:
-            self._bytes[start:stop] = bytes(stop - start)
-
-    def next_set(self, start: int, stop: int) -> int:
-        b = self._bytes
-        i = start
-        while i < stop and not b[i]:
-            i += 1
-        return i
-
-    def next_clear(self, start: int, stop: int) -> int:
-        b = self._bytes
-        i = start
-        while i < stop and b[i]:
-            i += 1
-        return i
-
-    def all_set(self, start: int, stop: int) -> bool:
-        return self.next_clear(start, stop) == stop
-
-    def any_set(self, start: int, stop: int) -> bool:
-        return self.next_set(start, stop) != stop
-
-    def to_bytemap(self, start: int, stop: int) -> bytes:
-        return bytes(self._bytes[start:stop])
-
-    def writable_view(self, start: int, stop: int) -> memoryview:
-        return memoryview(self._bytes)[start:stop]
-
-    def expanded(self) -> ByteSymbolicBitmap:
-        return self
-
-    def copy(self) -> ByteSymbolicBitmap:
-        return ByteSymbolicBitmap(self.size, bytearray(self._bytes))
-
-
-__all__ = ("ByteSymbolicBitmap", "SymbolicBitmap")
+__all__ = ("SymbolicBitmap",)

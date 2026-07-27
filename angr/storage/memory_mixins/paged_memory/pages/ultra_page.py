@@ -358,7 +358,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         assert self.symbolic_bitmap is not None
         return self.symbolic_bitmap.next_set(addr, addr + size) - addr
 
-    def concrete_load(self, addr, size, writing=False, with_bitmap=False, writable_bitmap=False, **kwargs):  # pylint: disable=arguments-differ
+    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):  # pylint: disable=arguments-differ
         assert self.symbolic_bitmap is not None
         concrete_data = self._concrete()
         mv_data = (
@@ -372,16 +372,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         data = mv_data[addr : addr + size]
         if not with_bitmap:
             return data
-
-        if writable_bitmap:
-            # the caller wants a buffer that aliases this page's map and that it may write through (native unicorn's
-            # direct page mapping does exactly that). Switch the page over to the byte-per-byte representation.
-            bitmap = self.symbolic_bitmap
-            expanded = bitmap.expanded()
-            if expanded is not bitmap:
-                self.symbolic_bitmap = expanded
-            return data, expanded.writable_view(addr, addr + size)
-        return data, memoryview(self.symbolic_bitmap.to_bytemap(addr, addr + size))
+        return data, self.symbolic_bitmap.view(addr, addr + size)
 
     def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)

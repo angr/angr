@@ -28,6 +28,9 @@ static const uint8_t MAX_REGISTER_BYTE_SIZE = 32;
 static const uint16_t ANGR_PAGE_SIZE = 0x1000;
 static const uint8_t PAGE_SHIFT = 12;
 
+// A page's taint maps are packed bitmaps: one bit per page byte, so a page needs ANGR_PAGE_SIZE / 8 bytes.
+static const uint16_t ANGR_PAGE_BITMAP_SIZE = ANGR_PAGE_SIZE / 8;
+
 typedef uint64_t address_t;
 typedef uint64_t unicorn_reg_id_t;
 typedef int64_t vex_reg_offset_t;
@@ -41,7 +44,7 @@ enum simos_t: uint8_t {
 
 enum taint_t: uint8_t {
 	TAINT_NONE = 0,
-	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
+	TAINT_SYMBOLIC = 1, // this should be 1 to match the taint values angr passes in for file descriptor bytes
 	TAINT_DIRTY = 2,
 };
 
@@ -490,7 +493,41 @@ struct caches_t {
 	PageCache *page_cache;
 };
 
-typedef taint_t PageBitmap[ANGR_PAGE_SIZE];
+/*
+ * A packed bitmap over the bytes of a page: bit i of byte i >> 3, least significant bit first. This is the exact
+ * layout angr's UltraPage keeps its symbolic map in, so the map of a direct-mapped page can be aliased rather than
+ * expanded and copied.
+ */
+typedef uint8_t PageBitmap[ANGR_PAGE_BITMAP_SIZE];
+
+static inline bool bitmap_get(const uint8_t *bitmap, uint64_t idx) {
+	return (bitmap[idx >> 3] >> (idx & 7)) & 1;
+}
+
+static inline void bitmap_set(uint8_t *bitmap, uint64_t idx, bool value) {
+	if (value) {
+		bitmap[idx >> 3] |= (uint8_t)(1u << (idx & 7));
+	}
+	else {
+		bitmap[idx >> 3] &= (uint8_t)~(1u << (idx & 7));
+	}
+}
+
+/*
+ * The taint state of an active page. Symbolic-ness and dirtiness are tracked in separate bitmaps because a byte can
+ * only be one or the other, and because the symbolic map has to match angr's own layout exactly when it is aliased.
+ */
+struct page_taint_t {
+	// Bytes holding symbolic values. Aliases the UltraPage's own map when the page is direct-mapped, in which case
+	// updates here are immediately visible to angr; otherwise it is a copy owned by us.
+	uint8_t *symbolic;
+	// Bytes unicorn wrote concretely that have to be synced back to angr. NULL for direct-mapped pages: their writes
+	// land in angr's backing store already, so there is nothing to sync.
+	uint8_t *dirty;
+	// The direct-mapped page data, or NULL if the page was copied into unicorn.
+	uint8_t *data;
+};
+
 typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 extern std::map<uint64_t, caches_t> global_cache;
 
@@ -583,9 +620,7 @@ class State {
 	// List of instructions that should be executed symbolically
 	std::vector<block_details_t> blocks_with_symbolic_stmts;
 
-	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
-	std::map<address_t, std::pair<taint_t *, uint8_t *>> active_pages;
-	//std::map<uint64_t, taint_t *> active_pages;
+	std::map<address_t, page_taint_t> active_pages;
 	std::set<uint64_t> stop_points;
 
 	address_t trace_last_block_addr;
@@ -641,7 +676,7 @@ class State {
 
 	// Private functions
 
-	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
+	page_taint_t page_lookup(address_t address) const;
 
 	void compute_slice_of_stmt(vex_stmt_details_t &instr);
 	vex_stmt_details_t compute_vex_stmt_details(const vex_stmt_taint_entry_t &vex_stmt_taint_entry);
@@ -833,11 +868,12 @@ class State {
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
-				// only delete if not direct-mapped
-				if (!it->second.second) {
-					// delete should use the bracket operator since PageBitmap is an array typedef
-					delete[] it->second.first;
+				// the symbolic map of a direct-mapped page belongs to angr; only a copied page's is ours to free
+				// delete should use the bracket operator since PageBitmap is an array typedef
+				if (!it->second.data) {
+					delete[] it->second.symbolic;
 				}
+				delete[] it->second.dirty;
 			}
 			mem_update_t *next;
 			for (mem_update_t *cur = mem_updates_head; cur; cur = next) {
@@ -870,7 +906,8 @@ class State {
 		void rollback();
 
 		/*
-		 * allocate a new PageBitmap and put into active_pages.
+		 * record the taint bitmaps of a page in active_pages. `taint` is a packed symbolic bitmap of
+		 * ANGR_PAGE_BITMAP_SIZE bytes, aliased if `data` is non-NULL and copied otherwise.
 		 */
 		void page_activate(address_t address, uint8_t *taint, uint8_t *data);
 
