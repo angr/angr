@@ -15,11 +15,15 @@ pub mod block;
 pub mod const_value;
 pub mod convert_vex;
 pub mod enums;
+pub mod kind_scan;
 pub mod manager;
+pub mod predicates;
+pub mod ssa_collect;
 pub mod tags;
 pub mod vex_ffi;
 pub mod vexop;
 pub mod vexop_names;
+pub mod walk_bench;
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
@@ -83,6 +87,25 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // VEX -> AIL converter.
     m.add_class::<convert_vex::VEXIRSBConverter>()?;
+
+    // Native node-kind presence scan.
+    m.add_function(wrap_pyfunction!(kind_scan::block_contains_kinds, m)?)?;
+
+    // Native pure-predicate walkers.
+    m.add_function(wrap_pyfunction!(predicates::has_nonwhitelisted_exprs, m)?)?;
+    m.add_function(wrap_pyfunction!(predicates::has_blacklisted_exprs, m)?)?;
+    m.add_function(wrap_pyfunction!(predicates::has_call_expr, m)?)?;
+    m.add_function(wrap_pyfunction!(predicates::has_reference_to_vvar, m)?)?;
+    m.add_function(wrap_pyfunction!(predicates::stmt_vvar_use_ids, m)?)?;
+
+    // Native SSA use/def collectors.
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_vvar_deflocs, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_vvar_uselocs, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_tmp_uselocs, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa_collect::collect_uses_defs, m)?)?;
+
+    // Walker-port feasibility microbenchmark (not public API).
+    m.add_function(wrap_pyfunction!(walk_bench::_bench_walk, m)?)?;
 
     // Debug helper (vexop classifier parity testing).
     m.add_function(wrap_pyfunction!(_vexop_debug, m)?)?;
