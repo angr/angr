@@ -66,7 +66,11 @@ class GDB(SimStatePlugin):
         """
         # We set the heap at the same addresses as the gdb session to avoid pointer corruption.
         data = self._read_data(heap_dump)
-        self.state.heap.heap_location = heap_base + len(data)
+        if hasattr(self.state.heap, "heap_location"):
+            self.state.heap.heap_location = heap_base + len(data)  # type: ignore[assignment]
+        # the heap region is mapped lazily; moving the break by hand has to grow it too. This is a no-op unless
+        # the dump was taken at the same base as the heap plugin is configured for.
+        self.state.heap._ensure_mapped(heap_base + len(data))  # pylint: disable=protected-access
         addr = heap_base
         l.info("Set heap from 0x%x to %#x", addr, addr + len(data))
         # FIXME: we should probably make we don't overwrite other stuff loaded there

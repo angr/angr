@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from angr.simos.javavm import SimJavaVM
 
     from .state_plugins.callstack import CallStack
+    from .state_plugins.heap.heap_base import SimHeapBase
     from .state_plugins.history import SimStateHistory
     from .state_plugins.inspect import SimInspector
     from .state_plugins.jni_references import SimStateJNIReferences
@@ -90,6 +91,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     inspect: SimInspector
     jni_references: SimStateJNIReferences
     scratch: SimStateScratch
+    heap: SimHeapBase
 
     def __init__(
         self,
