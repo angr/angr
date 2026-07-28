@@ -14,16 +14,10 @@ l = logging.getLogger("angr.state_plugins.heap.heap_base")
 DEFAULT_HEAP_LOCATION = 0xC0000000
 DEFAULT_HEAP_SIZE = 0x00800000
 
-# How much of the heap region ``init_state`` maps up front. ``heap_size`` is the *maximum* extent of the heap, not
-# the amount of it that is mapped: mapping the whole thing eagerly costs one page object per page of heap (an
-# UltraPage is roughly 8 KB of Python-side storage per 4 KB of address space, so ~17 MB for the default 8 MB heap),
-# which is pure waste for the overwhelming majority of states, none of which ever allocate anything at all. Two
-# pages are enough for the first handful of allocations; past that the mapped extent grows on demand.
+# The number of bytes the heap region ``init_state`` maps up front.
 HEAP_INITIAL_MAPPED_SIZE = 0x2000
 
-# The factor by which the mapped extent of the heap grows every time an allocation runs past its end. Growing
-# geometrically keeps the number of ``map_region`` calls logarithmic in the amount of heap that is actually used, so
-# a program that really does allocate megabytes maps the same pages it always did, in a handful of calls.
+# The factor by which the mapped extent of the heap grows every time an allocation runs past its end.
 HEAP_MAPPING_GROWTH_FACTOR = 2
 
 
@@ -48,9 +42,7 @@ class SimHeapBase(SimStatePlugin):
         self.mmap_base = self.heap_base + self.heap_size * 2
 
         # The exclusive end address of the part of the heap region that this plugin has mapped into the memory
-        # plugin. ``None`` means that this plugin does not manage the heap mapping at all - either because the
-        # state uses abstract memory or because the region was already mapped by somebody else - in which case
-        # nothing is ever mapped or grown here, exactly as was the case before the mapping became lazy.
+        # plugin. ``None`` means that this plugin does not manage the heap mapping.
         self._mapped_end: int | None = None
 
     def copy(self, memo) -> Self:
@@ -58,8 +50,6 @@ class SimHeapBase(SimStatePlugin):
         o.heap_base = self.heap_base
         o.heap_size = self.heap_size
         o.mmap_base = self.mmap_base
-        # the copy shares (a copy of) the memory plugin, and therefore its mapped pages, so the mapped extent
-        # carries over verbatim. Forgetting this would desynchronize the extent from the memory object.
         o._mapped_end = self._mapped_end  # pylint:disable=protected-access
         return o
 
@@ -73,11 +63,7 @@ class SimHeapBase(SimStatePlugin):
 
     def _combine_mapped_end(self, others):
         """
-        Reconcile the mapped extent of this heap with the heaps it is being merged with. The result is deliberately
-        conservative: understating the mapped extent is always safe, because growing it skips pages that already
-        exist, while overstating it could leave a hole that nothing would ever map.
-
-        This is bookkeeping, not program state, so it never counts as a merge having occurred.
+        Reconcile the mapped extent of this heap with the heaps it is being merged with.
         """
         ends = [self._mapped_end, *(o._mapped_end for o in others)]  # pylint: disable=protected-access
         self._mapped_end = None if any(e is None for e in ends) else min(ends)
@@ -110,11 +96,7 @@ class SimHeapBase(SimStatePlugin):
     def _ensure_mapped(self, addr):
         """
         Make sure every byte of the heap region below ``addr`` is backed by a mapped page, growing the mapped
-        extent geometrically (see ``HEAP_MAPPING_GROWTH_FACTOR``) so that the number of mapping operations stays
-        logarithmic in the amount of heap in use.
-
-        Nothing past ``heap_base + heap_size`` is ever mapped: as before, ``heap_size`` bounds the region the heap
-        plugin is responsible for, and allocations that run past it behave exactly as they used to.
+        extent geometrically.
 
         :param addr:    the exclusive end of the heap range that is about to be used
         """

@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import Self
 
 import claripy
 
 from angr.errors import SimSolverError
 from angr.sim_state import SimState
+from angr.state_plugins.libc import SimStateLibc
 from angr.state_plugins.plugin import SimStatePlugin
 
 from . import SimHeapBase
 
 l = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from angr.state_plugins.libc import SimStateLibc
 
 
 class SimHeapBrk(SimHeapBase):
@@ -70,7 +68,7 @@ class SimHeapBrk(SimHeapBase):
         The memory release primitive for this heap implementation. Decreases the position of the break to deallocate
         space. Guards against releasing beyond the initial heap base.
 
-        The mapped extent of the heap is deliberately *not* shrunk here. Unmapping the released pages would discard
+        The mapped extent of the heap is deliberately not shrunk here. Unmapping the released pages would discard
         their contents, so a release followed by an allocation would hand back blank memory instead of the old
         bytes, which is a behavior change; and since the extent only ever grows to the high-water mark of the
         break, keeping it costs nothing beyond what the program already asked for.
