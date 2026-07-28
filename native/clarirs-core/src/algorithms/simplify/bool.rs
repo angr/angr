@@ -320,6 +320,14 @@ pub(crate) fn simplify_bool<'c>(
                     (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
                     (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc == arc1)?),
 
+                    // Equality is commutative, so canonicalize a lone constant onto the
+                    // right, the way commutative arithmetic ops already order their args.
+                    // Without this, `0 == x` and `x == 0` are distinct nodes and every
+                    // consumer that expects the constant on the right (angr's C codegen
+                    // renders `x == 0` as `!x`, peepholes match on `operands[1]`) misses.
+                    // The arm above consumed the BVV/BVV case, so this cannot loop.
+                    (AstOp::BVV(_), _) => state.rerun(ctx.eq_(&early_rhs, &early_lhs)?),
+
                     // If on one side there is an AND where one of the operands is a mask, and on the
                     // other side, there is a BVV which matches the masked part of the AND, we can
                     // extract the AND operand directly, and extract the other side and rerun
@@ -359,7 +367,6 @@ pub(crate) fn simplify_bool<'c>(
                     // If one side is a = ZeroExt and the other side is a BVV with those bits set to zero,
                     // we can extract the relevant bits and compare directly
                     (AstOp::ZeroExt(innner, ext_size), AstOp::BVV(outer))
-                    | (AstOp::BVV(outer), AstOp::ZeroExt(innner, ext_size))
                         if outer.leading_zeros() as u32 >= *ext_size =>
                     {
                         state.rerun(ctx.eq_(
@@ -374,10 +381,7 @@ pub(crate) fn simplify_bool<'c>(
                     }
 
                     // (ite cond 1 0) == 0  ==>  !cond
-                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::ITE(cond, then_val, else_val))
-                        if val.is_zero() =>
-                    {
+                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val)) if val.is_zero() => {
                         if let (AstOp::BVV(then_bvv), AstOp::BVV(else_bvv)) =
                             (then_val.op(), else_val.op())
                         {
@@ -396,10 +400,7 @@ pub(crate) fn simplify_bool<'c>(
                     }
 
                     // (ite cond 1 0) == 1  ==>  cond
-                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::ITE(cond, then_val, else_val))
-                        if val.is_one() =>
-                    {
+                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val)) if val.is_one() => {
                         if let (AstOp::BVV(then_bvv), AstOp::BVV(else_bvv)) =
                             (then_val.op(), else_val.op())
                         {
@@ -419,7 +420,6 @@ pub(crate) fn simplify_bool<'c>(
 
                     // (x - C) == 0  ==>  x == C
                     (AstOp::Sub(lhs_sub, rhs_sub), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::Sub(lhs_sub, rhs_sub))
                         if val.is_zero() && matches!(rhs_sub.op(), AstOp::BVV(..)) =>
                     {
                         state.rerun(ctx.eq_(lhs_sub.clone(), rhs_sub.clone())?)
@@ -427,7 +427,6 @@ pub(crate) fn simplify_bool<'c>(
 
                     // (sum + C) == 0  ==>  sum == -C
                     (AstOp::Add(add_args), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::Add(add_args))
                         if val.is_zero()
                             && add_args.iter().any(|a| matches!(a.op(), AstOp::BVV(..))) =>
                     {
@@ -514,6 +513,14 @@ pub(crate) fn simplify_bool<'c>(
                     (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc != arc1)?),
                     (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
 
+                    // Disequality is commutative, so canonicalize a lone constant onto the
+                    // right, the way commutative arithmetic ops already order their args.
+                    // Without this, `0 != x` and `x != 0` are distinct nodes and every
+                    // consumer that expects the constant on the right (angr's C codegen
+                    // renders `x != 0` as bare `x`, peepholes match on `operands[1]`) misses.
+                    // The arm above consumed the BVV/BVV case, so this cannot loop.
+                    (AstOp::BVV(_), _) => state.rerun(ctx.neq(&early_rhs, &early_lhs)?),
+
                     // If on one side there is an AND where one of the operands is a mask, and on the
                     // other side, there is a BVV which matches the masked part of the AND, we can
                     // extract the AND operand directly, and extract the other side and rerun
@@ -553,7 +560,6 @@ pub(crate) fn simplify_bool<'c>(
                     // If one side is a = ZeroExt and the other side is a BVV with those bits set to zero,
                     // we can extract the relevant bits and compare directly
                     (AstOp::ZeroExt(innner, ext_size), AstOp::BVV(outer))
-                    | (AstOp::BVV(outer), AstOp::ZeroExt(innner, ext_size))
                         if outer.leading_zeros() as u32 >= *ext_size =>
                     {
                         state.rerun(ctx.neq(
@@ -568,10 +574,7 @@ pub(crate) fn simplify_bool<'c>(
                     }
 
                     // (ite cond 1 0) != 0  ==>  cond
-                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::ITE(cond, then_val, else_val))
-                        if val.is_zero() =>
-                    {
+                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val)) if val.is_zero() => {
                         if let (AstOp::BVV(then_bvv), AstOp::BVV(else_bvv)) =
                             (then_val.op(), else_val.op())
                         {
@@ -590,10 +593,7 @@ pub(crate) fn simplify_bool<'c>(
                     }
 
                     // (ite cond 1 0) != 1  ==>  !cond
-                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::ITE(cond, then_val, else_val))
-                        if val.is_one() =>
-                    {
+                    (AstOp::ITE(cond, then_val, else_val), AstOp::BVV(val)) if val.is_one() => {
                         if let (AstOp::BVV(then_bvv), AstOp::BVV(else_bvv)) =
                             (then_val.op(), else_val.op())
                         {
@@ -613,7 +613,6 @@ pub(crate) fn simplify_bool<'c>(
 
                     // (x - C) != 0  ==>  x != C
                     (AstOp::Sub(lhs_sub, rhs_sub), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::Sub(lhs_sub, rhs_sub))
                         if val.is_zero() && matches!(rhs_sub.op(), AstOp::BVV(..)) =>
                     {
                         state.rerun(ctx.neq(lhs_sub.clone(), rhs_sub.clone())?)
@@ -621,7 +620,6 @@ pub(crate) fn simplify_bool<'c>(
 
                     // (sum + C) != 0  ==>  sum != -C
                     (AstOp::Add(add_args), AstOp::BVV(val))
-                    | (AstOp::BVV(val), AstOp::Add(add_args))
                         if val.is_zero()
                             && add_args.iter().any(|a| matches!(a.op(), AstOp::BVV(..))) =>
                     {
