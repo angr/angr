@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from typing import Self
 
 import angr.sim_options as opts
 from angr.errors import SimMemoryError
@@ -52,14 +53,14 @@ class SimHeapBase(SimStatePlugin):
         # nothing is ever mapped or grown here, exactly as was the case before the mapping became lazy.
         self._mapped_end: int | None = None
 
-    def copy(self, memo):
-        o = super().copy(memo)
+    def copy(self, memo) -> Self:
+        o: SimHeapBase = super().copy(memo)
         o.heap_base = self.heap_base
         o.heap_size = self.heap_size
         o.mmap_base = self.mmap_base
         # the copy shares (a copy of) the memory plugin, and therefore its mapped pages, so the mapped extent
         # carries over verbatim. Forgetting this would desynchronize the extent from the memory object.
-        o._mapped_end = self._mapped_end
+        o._mapped_end = self._mapped_end  # pylint:disable=protected-access
         return o
 
     def __setstate__(self, state):
@@ -78,7 +79,7 @@ class SimHeapBase(SimStatePlugin):
 
         This is bookkeeping, not program state, so it never counts as a merge having occurred.
         """
-        ends = [self._mapped_end, *(o._mapped_end for o in others)]
+        ends = [self._mapped_end, *(o._mapped_end for o in others)]  # pylint: disable=protected-access
         self._mapped_end = None if any(e is None for e in ends) else min(ends)
 
     def _map_range(self, start, end):
