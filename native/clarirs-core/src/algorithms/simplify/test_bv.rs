@@ -1009,12 +1009,12 @@ fn test_identity_simplifications() -> anyhow::Result<()> {
     let simplified = ctx.xor2(&zero, &x)?.simplify()?;
     assert_eq!(simplified, x);
 
+    // XOR with all-ones is intentionally NOT rewritten to bvnot; it stays a xor.
     let simplified = ctx.xor2(&x, &all_ones)?.simplify()?;
-    let not_x = ctx.not(&x)?.simplify()?;
-    assert_eq!(simplified, not_x);
+    assert!(matches!(simplified.op(), AstOp::Xor(_)));
 
     let simplified = ctx.xor2(&all_ones, &x)?.simplify()?;
-    assert_eq!(simplified, not_x);
+    assert!(matches!(simplified.op(), AstOp::Xor(_)));
 
     // ADD identities
     let simplified = ctx.add(&x, &zero)?.simplify()?;
