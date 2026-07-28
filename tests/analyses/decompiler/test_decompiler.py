@@ -5671,7 +5671,9 @@ class TestDecompiler(unittest.TestCase):
         assert from_matches_line_no is not None
         from_matches_line = lines[from_matches_line_no]
         v = from_matches_line[: from_matches_line.index(".from_matches(")]
-        for i in range(2):
+        # the assignments between from_matches() and the if are copies inserted to keep phi congruence classes
+        # conventional; how many there are depends on how the classes get split, so allow a little slack here
+        for i in range(3):
             if (
                 lines[from_matches_line_no + i + 1] == f"if ({v} != 9223372036854775809)"
                 and lines[from_matches_line_no + i + 2] == "{"
