@@ -63,6 +63,47 @@ impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
 #[derive(Debug, Default)]
 pub struct AstCache<'c>(RwLock<HashMap<u64, Weak<AstNode<'c>>>>);
 
+impl AstCache<'_> {
+    /// Remove `key` if its entry is expired (no strong refs left). Called from
+    /// `AstNode::drop` so dead nodes don't leave entries (and their pinned
+    /// `ArcInner` allocations) behind.
+    ///
+    /// The liveness check makes this safe against two races:
+    /// - `intern_ast` constructs a throwaway `AstNode` even on a cache hit;
+    ///   its drop must not evict the live entry it duplicated.
+    /// - Another thread can re-intern the same hash between our strong count
+    ///   reaching zero and this call taking the lock.
+    ///
+    /// The hot path (entry still live, e.g. the throwaway-duplicate drop) is
+    /// served with only the read lock; the write lock is taken just when the
+    /// entry actually looks dead, and the check is repeated under it.
+    pub(crate) fn remove_if_expired(&self, key: u64) {
+        {
+            let inner = self.0.read().unwrap();
+            match inner.get(&key) {
+                Some(weak) if weak.strong_count() == 0 => {}
+                _ => return,
+            }
+        }
+        let mut inner = self.0.write().unwrap();
+        if let Some(weak) = inner.get(&key)
+            && weak.strong_count() == 0
+        {
+            inner.remove(&key);
+        }
+    }
+
+    /// Number of entries currently in the cache (live or expired). For tests
+    /// and diagnostics.
+    pub fn len(&self) -> usize {
+        self.0.read().unwrap().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     fn get(&self, key: &u64) -> Option<AstRef<'c>> {
         self.0.read().unwrap().get(key).and_then(Weak::upgrade)
@@ -254,6 +295,52 @@ mod tests {
             computed,
             "Should always compute in collision detection mode"
         );
+    }
+
+    #[test]
+    fn test_ast_cache_entry_removed_on_drop() -> Result<(), ClarirsError> {
+        let ctx = crate::context::Context::new();
+        let baseline = ctx.ast_cache.len();
+        {
+            let _ast = ctx.bvv(BitVec::from((0xdead, 64)))?;
+            assert_eq!(ctx.ast_cache.len(), baseline + 1);
+        }
+        // Dropping the last strong ref must evict the interning entry.
+        assert_eq!(ctx.ast_cache.len(), baseline);
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_cache_hit_duplicate_drop_keeps_entry() -> Result<(), ClarirsError> {
+        let ctx = crate::context::Context::new();
+        let a = ctx.bvv(BitVec::from((7, 64)))?;
+        let n = ctx.ast_cache.len();
+        // Cache hit: intern_ast constructs and drops a throwaway duplicate
+        // node; that drop must not evict the live entry.
+        let b = ctx.bvv(BitVec::from((7, 64)))?;
+        assert_eq!(ctx.ast_cache.len(), n);
+        assert!(Arc::ptr_eq(&a, &b));
+        Ok(())
+    }
+
+    #[test]
+    fn test_ast_cache_concurrent_churn() {
+        // Hammer the same small set of hashes from several threads so drops
+        // race with re-interns; the liveness check in remove_if_expired must
+        // never evict a just-re-created live entry or corrupt the map.
+        let ctx = crate::context::Context::new();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    for i in 0..10_000u64 {
+                        let ast = ctx.bvv(BitVec::from((i % 512, 64))).unwrap();
+                        drop(ast);
+                    }
+                });
+            }
+        });
+        // Every node is dead by now, so every entry must have been evicted.
+        assert_eq!(ctx.ast_cache.len(), 0);
     }
 
     #[test]
