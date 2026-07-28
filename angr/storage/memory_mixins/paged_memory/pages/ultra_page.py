@@ -13,8 +13,11 @@ from angr.errors import SimMemoryError
 
 from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
+from .symbolic_bitmap import SymbolicBitmap
 
 l = logging.getLogger(name=__name__)
+
+DEFAULT_PAGE_SIZE = 4096
 
 
 class UltraPage(MemoryObjectMixin, PageBase):
@@ -27,15 +30,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def __init__(self, memory=None, init_zero=False, **kwargs):
         super().__init__(**kwargs)
 
-        if memory is not None:
-            self.concrete_data = bytearray(memory.page_size)
-            if init_zero:
-                self.symbolic_bitmap = bytearray(memory.page_size)
-            else:
-                self.symbolic_bitmap = bytearray(b"\1" * memory.page_size)
-        else:
-            self.concrete_data = None
-            self.symbolic_bitmap = None
+        self.concrete_data = None
+        self.symbolic_bitmap = SymbolicBitmap(
+            memory.page_size if memory is not None else DEFAULT_PAGE_SIZE, 0 if init_zero else 1
+        )
 
         self.symbolic_data = SortedDict()
 
@@ -43,16 +41,26 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def new_from_shared(cls, data, memory=None, **kwargs):
         o = cls(**kwargs)
         o.concrete_data = data
-        o.symbolic_bitmap = bytearray(memory.page_size)
+        o.symbolic_bitmap = SymbolicBitmap(memory.page_size if memory is not None else DEFAULT_PAGE_SIZE, 0)
         o.refcount = 2  # pylint: disable=attribute-defined-outside-init
         return o
 
     def copy(self, memo):
         o = super().copy(memo)
-        o.concrete_data = bytearray(self.concrete_data)
-        o.symbolic_bitmap = bytearray(self.symbolic_bitmap)
+        o.concrete_data = None if self.concrete_data is None else bytearray(self.concrete_data)
+        o.symbolic_bitmap = self.symbolic_bitmap.copy()
         o.symbolic_data = SortedDict(self.symbolic_data)
         return o
+
+    def _concrete(self):
+        """
+        Return the concrete backing store, allocating it (zero-filled) on first use.
+        """
+        data = self.concrete_data
+        if data is None:
+            data = bytearray(self.symbolic_bitmap.size)
+            self.concrete_data = data
+        return data
 
     def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):  # pylint: disable=arguments-differ
         concrete_run = []
@@ -86,9 +94,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         subaddr = addr
         end = addr + size
+        bitmap = self.symbolic_bitmap
         while subaddr < end:
             realaddr = subaddr + page_addr
-            if self.symbolic_bitmap[subaddr]:
+            if bitmap.get(subaddr):
                 cur_val = self._get_object(subaddr, page_addr, memory=memory)
                 # it must be a different object
                 cycle(realaddr)
@@ -101,25 +110,20 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     obj_end = subaddr + cur_val.length
                     obj_end = min(end, obj_end)
 
-                # determine how many bytes come from this object
-                # loop until: end of object or not symbolic or until next object
-                next_place = None
-                while next_addr < obj_end and self.symbolic_bitmap[next_addr]:
-                    if next_addr == subaddr + 1:  # first loop
-                        next_place = self._get_next_place(next_addr)
-                    if next_place is not None and next_place <= next_addr:
-                        break
-                    next_addr += 1
+                # determine how many bytes come from this object: scan forward until the end of the object, the first
+                # non-symbolic byte, or the start of the next object, whichever comes first
+                if next_addr < obj_end and bitmap.get(next_addr):
+                    next_place = self._get_next_place(next_addr)
+                    limit = obj_end if next_place is None or next_place > obj_end else next_place
+                    next_addr = bitmap.next_clear(next_addr, limit)
 
                 subaddr = next_addr
                 last_run = symbolic_run = cur_val
                 result.append((realaddr, cur_val))
 
             else:
-                max_concrete_read = subaddr
-                while max_concrete_read < end and not self.symbolic_bitmap[max_concrete_read]:
-                    max_concrete_read += 1
-                cur_val = self.concrete_data[subaddr:max_concrete_read]
+                max_concrete_read = bitmap.next_set(subaddr, end)
+                cur_val = self._concrete()[subaddr:max_concrete_read]
                 subaddr = max_concrete_read
                 # we know the last run was not a concrete one
                 cycle(realaddr)
@@ -178,7 +182,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         if type(data) is int or (data.object.op == "BVV" and not data.object.annotations):
             # mark range as not symbolic
-            self.symbolic_bitmap[addr : addr + size] = b"\0" * size
+            self.symbolic_bitmap.clear_range(addr, addr + size)
 
             # store
             arange = range(addr, addr + size)
@@ -188,12 +192,13 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             assert memory.state.arch.byte_width == 8
             # TODO: Make UltraPage support architectures with greater byte_widths (but are still multiples of 8)
+            concrete_data = self._concrete()
             for subaddr in arange:
-                self.concrete_data[subaddr] = ival & 0xFF
+                concrete_data[subaddr] = ival & 0xFF
                 ival >>= 8
         else:
             # mark range as symbolic
-            self.symbolic_bitmap[addr : addr + size] = b"\1" * size
+            self.symbolic_bitmap.set_range(addr, addr + size)
 
             # set ending object
             try:
@@ -220,6 +225,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         memory=None,
         changed_offsets: set[int] | None = None,
     ):
+        assert page_addr is not None
         all_pages = [self, *others]
         merged_to = None
         merged_objects = set()
@@ -244,8 +250,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
             for pg, fv in zip(all_pages, merge_conditions):
-                if pg.symbolic_bitmap[b]:
-                    mo = pg._get_object(b, page_addr)
+                if pg.symbolic_bitmap.get(b):
+                    mo = pg._get_object(b, page_addr)  # pylint: disable=protected-access
                     if mo is not None:
                         l.debug("... MO present in %s", fv)
                         memory_objects.append((mo, fv))
@@ -256,7 +262,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                         unconstrained_in.append((pg, fv))
                 else:
                     # concrete data
-                    concretes.append((pg.concrete_data[b], fv))
+                    concretes.append((pg._concrete()[b], fv))  # pylint: disable=protected-access
 
             # fast path: no memory objects, no unconstrained positions, and only one concrete value
             if not memory_objects and not unconstrained_in and len({cv for cv, _ in concretes}) == 1:
@@ -308,7 +314,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
                 for um, _ in unconstrained_in:
                     for i in range(min_size):
-                        if um._contains(b + i, page_addr):
+                        if um._contains(b + i, page_addr):  # pylint: disable=protected-access
                             min_size = i
                             break
                 merged_to = b + min_size
@@ -342,32 +348,28 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         return merged_offsets
 
-    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):  # pylint: disable=arguments-differ
-        assert self.concrete_data is not None
+    def concrete_run_length(self, addr, size, **kwargs) -> int:  # pylint: disable=unused-argument
+        """
+        Return the number of concrete bytes at ``addr``, capped at ``size``.
+        """
         assert self.symbolic_bitmap is not None
+        return self.symbolic_bitmap.next_set(addr, addr + size) - addr
+
+    def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):  # pylint: disable=arguments-differ
+        assert self.symbolic_bitmap is not None
+        concrete_data = self._concrete()
         mv_data = (
-            self.concrete_data
+            concrete_data
             if isinstance(
-                self.concrete_data,
+                concrete_data,
                 (memoryview, angr.storage.memory_mixins.paged_memory.page_backer_mixins.NotMemoryview),
             )
-            else memoryview(self.concrete_data)
+            else memoryview(concrete_data)
         )
-        mv_bitm = (
-            self.symbolic_bitmap
-            if isinstance(
-                self.symbolic_bitmap,
-                (memoryview, angr.storage.memory_mixins.paged_memory.page_backer_mixins.NotMemoryview),
-            )
-            else memoryview(self.symbolic_bitmap)
-        )
-        result = (
-            mv_data[addr : addr + size],
-            mv_bitm[addr : addr + size],
-        )
-        if with_bitmap:
-            return result
-        return result[0]
+        data = mv_data[addr : addr + size]
+        if not with_bitmap:
+            return data
+        return data, self.symbolic_bitmap.view(addr, addr + size)
 
     def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
@@ -375,12 +377,15 @@ class UltraPage(MemoryObjectMixin, PageBase):
             changed_candidates = self._ultra_changed_candidates(other)
 
         changes: set[int] = set()
+        self_bitmap = self.symbolic_bitmap
+        other_bitmap = other.symbolic_bitmap
 
         for addr in changed_candidates:
-            if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
+            self_sym = self_bitmap.get(addr)
+            if bool(self_sym) != bool(other_bitmap.get(addr)):
                 changes.add(addr)
-            elif self.symbolic_bitmap[addr] == 0:
-                if self.concrete_data[addr] != other.concrete_data[addr]:
+            elif not self_sym:
+                if self._concrete()[addr] != other._concrete()[addr]:  # pylint: disable=protected-access
                     changes.add(addr)
             else:
                 try:
@@ -439,16 +444,20 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         # calculate concrete offsets
         CHUNK_SIZE = 128
-        FULLY_SYMBOLIC = b"\1" * CHUNK_SIZE
-        for i in range(0, len(self.symbolic_bitmap), CHUNK_SIZE):
-            chunk_self = self.symbolic_bitmap[i : i + CHUNK_SIZE]
-            chunk_other = other.symbolic_bitmap[i : i + CHUNK_SIZE]
-            if not chunk_self == chunk_other == FULLY_SYMBOLIC:
-                candidate_offsets |= set(range(i, i + CHUNK_SIZE))
+        self_bitmap = self.symbolic_bitmap
+        other_bitmap = other.symbolic_bitmap
+        size = self_bitmap.size
+        if size % CHUNK_SIZE == 0 and self_bitmap.all_set(0, size) and other_bitmap.all_set(0, size):
+            # both pages are entirely symbolic; no concrete offsets are candidates
+            return candidate_offsets
+        for i in range(0, size, CHUNK_SIZE):
+            end = i + CHUNK_SIZE
+            if end > size or not (self_bitmap.all_set(i, end) and other_bitmap.all_set(i, end)):
+                candidate_offsets |= set(range(i, end))
         return candidate_offsets
 
     def _contains(self, start: int, page_addr: int):
-        if not self.symbolic_bitmap[start]:
+        if not self.symbolic_bitmap.get(start):
             # concrete data
             return True
         # symbolic data or does not exist
@@ -459,21 +468,19 @@ class UltraPage(MemoryObjectMixin, PageBase):
             place = next(self.symbolic_data.irange(maximum=start, reverse=True))
         except StopIteration:
             return None
-        else:
-            obj = self.symbolic_data[place]
-            if obj.includes(start + page_addr) or (
-                memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
-            ):
-                return obj
-            return None
+        obj = self.symbolic_data[place]
+        if obj.includes(start + page_addr) or (
+            memory is not None and obj.includes(start + page_addr + (1 << memory.state.arch.bits))
+        ):
+            return obj
+        return None
 
     def _get_next_place(self, start):
         try:
             place = next(self.symbolic_data.irange(minimum=start, reverse=False))
         except StopIteration:
             return None
-        else:
-            return place
+        return place
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
         memory_objects = set()
@@ -521,7 +528,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
         ) != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
-        new = SimMemoryObject(new_content, old.base, old.endness, byte_width=old._byte_width)
+        new = SimMemoryObject(
+            new_content,
+            old.base,
+            old.endness,
+            byte_width=old._byte_width,  # pylint: disable=protected-access
+        )
         for k in list(self.symbolic_data):
             if self.symbolic_data[k] is old:
                 self.symbolic_data[k] = new

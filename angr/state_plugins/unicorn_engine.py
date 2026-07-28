@@ -1107,8 +1107,9 @@ class Unicorn(SimStatePlugin):
         else:
             perm = perm.args[0]
 
-        # this should return two memoryviews
-        # if they are writable they are direct references to the state backing store and can be mapped directly
+        # this should return two memoryviews: the page data and its symbolic-ness bitmap, one bit per byte
+        # if they are writable they are direct references to the state backing store and can be mapped directly --
+        # native unicorn then writes taint straight back through the bitmap
         data, bitmap = self.state.memory.concrete_load(addr, 0x1000, with_bitmap=True, writing=(perm & 2) != 0)
 
         if not bitmap:
@@ -1311,7 +1312,8 @@ class Unicorn(SimStatePlugin):
 
         # activate gdt page, which was written/mapped during set_regs
         if self.gdt is not None:
-            _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
+            # the taint bitmap holds one bit per page byte; the GDT page is entirely concrete
+            _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000 // 8), None)
 
         # Pass all concrete fd bytes to native interface so that it can handle relevant syscalls
         if fd_bytes is not None:

@@ -418,14 +418,19 @@ class PagedMemoryMixin[PageType: PageBase](
     def _load_to_memoryview(self, addr, size, with_bitmap: Literal[False]) -> memoryview: ...
 
     def _load_to_memoryview(self, addr, size, with_bitmap):
+        bitmap_size = (size + 7) // 8
         result = self.load(addr, size, endness="Iend_BE")
         if result.op == "BVV":
             if with_bitmap:
-                return memoryview(result.args[0].to_bytes(size, "big")), memoryview(bytes(size))
+                return memoryview(result.args[0].to_bytes(size, "big")), memoryview(bytes(bitmap_size))
             return memoryview(result.args[0].to_bytes(size, "big"))
         if result.op == "Concat":
             bytes_out = bytearray(size)
-            bitmap_out = bytearray(size)
+            bitmap_out = bytearray(bitmap_size)
+
+            def mark_symbolic(i):
+                bitmap_out[i >> 3] |= 1 << (i & 7)
+
             bit_idx = 0
             byte_width = self.state.arch.byte_width
             for element in result.args:
@@ -438,7 +443,7 @@ class PagedMemoryMixin[PageType: PageBase](
                     bit_idx += len(element)
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
-                    bitmap_out[byte_idx] = 1
+                    mark_symbolic(byte_idx)
                     continue
 
                 # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
@@ -453,11 +458,11 @@ class PagedMemoryMixin[PageType: PageBase](
                     bit_idx += len(element)
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
-                    bitmap_out[byte_idx] = 1
+                    mark_symbolic(byte_idx)
                     continue
 
                 if hi_chop:
-                    bitmap_out[byte_idx] = 1
+                    mark_symbolic(byte_idx)
                     byte_idx += 1
 
                 if element.op == "BVV":
@@ -473,18 +478,22 @@ class PagedMemoryMixin[PageType: PageBase](
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
                     for byte_i in range(byte_idx, byte_idx + byte_size):
-                        bitmap_out[byte_i] = 1
+                        mark_symbolic(byte_i)
 
                 bit_idx += len(element)
                 if bit_idx % byte_width != 0:
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[: bit_idx // byte_width]
-                    bitmap_out[bit_idx // byte_width] = 1
+                    mark_symbolic(bit_idx // byte_width)
             if with_bitmap:
                 return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
             return memoryview(bytes(bytes_out))
         if with_bitmap:
-            return memoryview(bytes(size)), memoryview(b"\x01" * size)
+            # every byte is symbolic; leave the bits past the end of the region clear
+            bitmap_out = bytearray(b"\xff" * bitmap_size)
+            if size & 7:
+                bitmap_out[-1] = (1 << (size & 7)) - 1
+            return memoryview(bytes(size)), memoryview(bytes(bitmap_out))
         return memoryview(b"")
 
     def concrete_load(self, addr, size, writing=False, *, with_bitmap: bool = False, **kwargs):
@@ -503,14 +512,16 @@ class PagedMemoryMixin[PageType: PageBase](
                 return self._load_to_memoryview(addr, size, True)
             return self._load_to_memoryview(addr, size, False)
 
-        data, bitmap = page.concrete_load(offset, subsize, with_bitmap=True, **kwargs)
         if with_bitmap:
-            return data, bitmap
+            return page.concrete_load(offset, subsize, with_bitmap=True, **kwargs)
 
         # everything from here on out has exactly one goal: to maximize the amount of concrete data
-        # we can return (up to the limit!)
-        i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
+        # we can return (up to the limit!).
+        i = page.concrete_run_length(offset, subsize, **kwargs)
+        if i == 0:
+            return memoryview(b"")
 
+        data = page.concrete_load(offset, subsize, **kwargs)
         if i != subsize:
             return data[:i]
 
@@ -526,11 +537,14 @@ class PagedMemoryMixin[PageType: PageBase](
             try:
                 page = self._get_page(pageno, writing, **kwargs)
                 concrete_load = page.concrete_load
+                concrete_run_length = page.concrete_run_length
             except (SimMemoryError, AttributeError):
                 break
             else:
-                newdata, bitmap = concrete_load(offset, subsize, with_bitmap=True, **kwargs)
-                i = next((i for i, byte in enumerate(bitmap) if byte != 0), len(bitmap))
+                i = concrete_run_length(offset, subsize, **kwargs)
+                if i == 0:
+                    break
+                newdata = concrete_load(offset, subsize, **kwargs)
 
                 # magic: check if the memory regions are physically adjacent
                 if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(

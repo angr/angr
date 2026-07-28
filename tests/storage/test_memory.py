@@ -23,6 +23,7 @@ from angr.storage.memory_mixins import (
     UltraPagesMixin,
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.storage.memory_mixins.paged_memory.pages.symbolic_bitmap import SymbolicBitmap
 
 
 class UltraPageMemory(
@@ -816,25 +817,29 @@ class TestMemory(unittest.TestCase):
         )
 
     def test_concrete_load(self):
+        # concrete_load's bitmap is packed: one bit per byte, least significant bit first
+        def is_symbolic(bitmap, i):
+            return bool(bitmap[i >> 3] >> (i & 7) & 1)
+
+        def concrete_bytes(data, bitmap):
+            return bytes(0 if is_symbolic(bitmap, i) else d for i, d in enumerate(data))
+
         for memcls in [UltraPageMemory, ListPageMemory]:
             state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": memcls()})
             state.memory.store(0x20000, b"aaaabbbbccccdddd")
 
             data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"aaaa"
-            assert bitmap.tobytes() == b"\x00\x00\x00\x00"
+            assert concrete_bytes(data, bitmap) == b"aaaa"
+            assert bitmap.tobytes() == b"\x00"
 
             data, bitmap = state.memory.concrete_load(0x20004, 8, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"bbbbcccc"
-            assert bitmap.tobytes() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
+            assert concrete_bytes(data, bitmap) == b"bbbbcccc"
+            assert bitmap.tobytes() == b"\x00"
 
             state.memory.store(0x20001, claripy.BVS("flag", 8))
             data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"a\x00aa"
-            assert bitmap.tobytes() == b"\x00\x01\x00\x00"
+            assert concrete_bytes(data, bitmap) == b"a\x00aa"
+            assert bitmap.tobytes() == b"\x02"
 
             expr = claripy.Concat(
                 claripy.BVS("flag_0", 1),
@@ -845,9 +850,8 @@ class TestMemory(unittest.TestCase):
             )
             state.memory.store(0x20001, expr)
             data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"a\x00\x00a"
-            assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+            assert concrete_bytes(data, bitmap) == b"a\x00\x00a"
+            assert bitmap.tobytes() == b"\x06"
 
             expr = claripy.Concat(
                 claripy.BVS("flag_0", 1),
@@ -858,9 +862,8 @@ class TestMemory(unittest.TestCase):
             )
             state.memory.store(0x20005, expr)
             data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"b\x00\x00b"
-            assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+            assert concrete_bytes(data, bitmap) == b"b\x00\x00b"
+            assert bitmap.tobytes() == b"\x06"
 
             expr = claripy.Concat(
                 claripy.BVV(7, 7),
@@ -869,9 +872,8 @@ class TestMemory(unittest.TestCase):
             )
             state.memory.store(0x20005, expr)
             data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"b\x00\x00b"
-            assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+            assert concrete_bytes(data, bitmap) == b"b\x00\x00b"
+            assert bitmap.tobytes() == b"\x06"
 
             expr = claripy.Concat(
                 claripy.BVV(1, 1),
@@ -880,9 +882,8 @@ class TestMemory(unittest.TestCase):
             )
             state.memory.store(0x20005, expr)
             data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
-            data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
-            assert data_bytes == b"b\x00\x00b"
-            assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+            assert concrete_bytes(data, bitmap) == b"b\x00\x00b"
+            assert bitmap.tobytes() == b"\x06"
 
     def test_multivalued_list_page(self):
         state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": MultiValuedMemory()})
@@ -916,6 +917,62 @@ class TestMemory(unittest.TestCase):
         val = state.memory.load(addr, size=4, condition=cond, endness=state.arch.memory_endness)
         assert set(state.solver.eval_upto(cond, 2)) == {True, False}
         assert (val == 0x12345678).is_true()
+
+
+class TestSymbolicBitmap(unittest.TestCase):
+    def test_view_is_packed(self):
+        bm = SymbolicBitmap(64)
+        bm.set_range(1, 3)
+        bm.set(9, 1)
+        assert bm.view(0, 64).tobytes() == b"\x06\x02" + bytes(6)
+
+    def test_view_of_uniform_map(self):
+        assert SymbolicBitmap(64, 0).view(0, 64).tobytes() == bytes(8)
+        assert SymbolicBitmap(64, 1).view(0, 64).tobytes() == b"\xff" * 8
+
+    def test_unaligned_view_is_shifted_and_readonly(self):
+        bm = SymbolicBitmap(64)
+        bm.set_range(5, 8)
+        view = bm.view(4, 12)
+        assert view.readonly
+        # bytes 5..7 of the page are bits 1..3 of a view starting at byte 4
+        assert view.tobytes() == b"\x0e"
+
+    def test_aligned_view_aliases_the_map(self):
+        bm = SymbolicBitmap(64)
+        view = bm.view(0, 64)
+        assert not view.readonly
+
+        # writes through the view are visible to the map...
+        view[0] = 0x05
+        assert [bm.get(i) for i in range(4)] == [1, 0, 1, 0]
+
+        # ...and writes to the map are visible through the view
+        bm.set(3, 1)
+        assert view[0] == 0x0D
+
+    def test_whole_page_write_keeps_an_aliased_buffer(self):
+        # native unicorn holds a pointer into the map of a page it direct-mapped, so a write covering the whole page
+        # must fill the backing store in place rather than drop it for the uniform representation
+        bm = SymbolicBitmap(64)
+        view = bm.view(0, 64)
+
+        bm.set_range(0, 64)
+        assert view.tobytes() == b"\xff" * 8
+        assert all(bm.get(i) for i in range(64))
+
+        bm.clear_range(0, 64)
+        assert view.tobytes() == bytes(8)
+        assert not any(bm.get(i) for i in range(64))
+
+    def test_copy_is_not_aliased(self):
+        bm = SymbolicBitmap(64)
+        view = bm.view(0, 64)
+        other = bm.copy()
+
+        other.set_range(0, 64)
+        assert view.tobytes() == bytes(8)
+        assert not any(bm.get(i) for i in range(64))
 
 
 if __name__ == "__main__":

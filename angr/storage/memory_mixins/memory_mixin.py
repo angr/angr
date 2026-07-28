@@ -104,6 +104,15 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
         """
         raise NotImplementedError
 
+    def concrete_run_length(self, addr, size, **kwargs) -> int:
+        """
+        Return the number of concrete bytes starting at ``addr``, capped at ``size``.
+        """
+        _, bitmap = self.concrete_load(addr, size, with_bitmap=True, **kwargs)
+        # the bitmap is packed: one bit per byte, least-significant bit first
+        n = min(size, len(bitmap) * 8)
+        return next((i for i in range(n) if bitmap[i >> 3] >> (i & 7) & 1), n)
+
     def erase(self, addr: Addr, size: int | None = None, **kwargs) -> None:
         """
         Set [addr:addr+size) to uninitialized. In many cases this will be faster than overwriting those locations with
