@@ -5,19 +5,25 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 
 import logging
 import os
+import time
 import unittest
 from functools import wraps
 
 import archinfo
 
 import angr
-from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
+from angr.analyses.complete_calling_conventions import (
+    DEAD_WORKER_GRACE_PERIOD,
+    CallingConventionAnalysisMode,
+    CompleteCallingConventionsAnalysis,
+)
 from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
     SimRegArg,
     SimStackArg,
 )
+from angr.errors import AngrRuntimeError
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from tests.common import bin_location, requires_binaries_private
 
@@ -338,6 +344,36 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             for func in proj.kb.functions.values()
             if not (func.is_alignment or func.is_simprocedure or func.is_plt)
         )
+
+    def test_dead_workers_raise_instead_of_hanging(self):
+        """
+        Regression test for angr issue #6529.
+
+        If every worker process dies, the result-collection loop used to spin forever waiting for results that could
+        never arrive - the analysis "hung forever" with no error. It must now fail loudly instead. Workers can die
+        for reasons entirely outside this analysis (an unpicklable analysis under the "spawn" start method, an OOM
+        kill, a segfault in a native lifter), so we simply make the worker routine die on purpose.
+        """
+        binary_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+        cfg = proj.analyses.CFG(normalize=True)
+
+        def _dying_worker_routine(self, worker_id, initializer):  # pylint:disable=unused-argument
+            raise RuntimeError(f"simulated worker {worker_id} crash")
+
+        original = CompleteCallingConventionsAnalysis._worker_routine
+        CompleteCallingConventionsAnalysis._worker_routine = _dying_worker_routine
+        try:
+            start = time.time()
+            with self.assertRaises(AngrRuntimeError) as ctx:
+                proj.analyses.CompleteCallingConventions(cfg=cfg.model, workers=2)
+            elapsed = time.time() - start
+        finally:
+            CompleteCallingConventionsAnalysis._worker_routine = original
+
+        assert "worker processes exited" in str(ctx.exception)
+        # it must give up promptly rather than hang; the grace period is the only intentional delay
+        assert elapsed < DEAD_WORKER_GRACE_PERIOD + 60, f"took {elapsed:.1f}s to notice that all workers had died"
 
     @cca_mode("fast,variables")
     def test_tail_calls(self, *, mode):
