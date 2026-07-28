@@ -3399,7 +3399,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     )
                 result = piece if result is None else CBinaryOp(op, result, piece, codegen=self)
             if o_constant != 0:
-                result = CBinaryOp("Add", CConstant(o_constant, SimTypeInt(), codegen=self), result, codegen=self)
+                if o_constant < 0:
+                    result = CBinaryOp("Sub", result, CConstant(-o_constant, SimTypeInt(), codegen=self), codegen=self)
+                else:
+                    result = CBinaryOp("Add", result, CConstant(o_constant, SimTypeInt(), codegen=self), codegen=self)
 
             return CUnaryOp(
                 "Dereference", CTypeCast(result.type, SimTypePointer(data_type), result, codegen=self), codegen=self
@@ -3410,7 +3413,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         # also identify the "kernel", the root of the expression
         constant, terms = o_constant, list(o_terms)
         if constant < 0:
-            constant = -constant  # TODO: This may not be correct. investigate later
+            return bail_out()
 
         i = 0
         kernel = None

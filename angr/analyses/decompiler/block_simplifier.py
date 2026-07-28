@@ -199,6 +199,7 @@ class BlockSimplifier:
 
     def _analyze(self):
         block = self.block
+        assert block is not None
         ctr = 0
         max_ctr = 30
 
@@ -224,7 +225,7 @@ class BlockSimplifier:
             if not changed:
                 break
 
-            assert block is not None
+            assert new_block is not None
             self._clear_cache()
             block = new_block
             if ctr >= max_ctr:

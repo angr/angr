@@ -2979,6 +2979,21 @@ class TestDecompiler(unittest.TestCase):
         assert "case 51:" not in d.codegen.text
         assert "case 52:" not in d.codegen.text
 
+    @structuring_algo("sailr")
+    def test_codegen_accessing_negative_offsets(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
+        proj = angr.Project(bin_path)
+        _ = proj.analyses.CFGFast(normalize=True, regions=[(0x410FC0, 0x410FC0 + 1000)])
+        f = proj.kb.functions[0x410FC0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        # Find `iter = (char *)iter - 1;``
+        m = re.search(r"([\S]+) = \(char \*\)([\S]+) \- 1;", d.codegen.text)
+        assert m is not None
+        assert m.group(1) == m.group(2)
+
     @for_all_structuring_algos
     def test_df_add_uint_with_neg_flag_ite_expressions(self, decompiler_options=None):
         # properly handling cmovz and cmovnz in amd64 binaries
