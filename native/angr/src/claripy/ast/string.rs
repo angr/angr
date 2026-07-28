@@ -58,6 +58,20 @@ impl PyAstString {
     }
 }
 
+impl Drop for PyAstString {
+    fn drop(&mut self) {
+        // Evict this wrapper's cache entry so dead hashes don't accumulate.
+        // Our own weakref is already cleared by the time Drop runs, so a dead
+        // upgrade means the entry is stale; a live upgrade means the entry was
+        // re-populated with a new wrapper and must stay.
+        Python::attach(|py| {
+            PY_STRING_CACHE.remove_if(&self.inner.hash(), |_, weakref| {
+                weakref.bind(py).upgrade().is_none()
+            });
+        });
+    }
+}
+
 #[pymethods]
 impl PyAstString {
     #[new]

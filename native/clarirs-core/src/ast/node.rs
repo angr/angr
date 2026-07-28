@@ -250,6 +250,18 @@ impl<'c> AstNode<'c> {
     }
 }
 
+impl Drop for AstNode<'_> {
+    fn drop(&mut self) {
+        // Evict this node's (now expired) interning entry so the cache doesn't
+        // accumulate dead hashes and pinned allocations. `remove_if_expired`
+        // verifies liveness, so the throwaway duplicate that `intern_ast`
+        // drops on a cache hit leaves the live entry untouched. This body runs
+        // before `op`'s child references drop, so the cache lock is never held
+        // across the recursive child drops.
+        self.ctx.ast_cache.remove_if_expired(self.hash);
+    }
+}
+
 /// A reference-counted handle to an [`AstNode`]. This is the single, universal
 /// AST type for every sort; the node's cached [`AstType`] distinguishes sorts
 /// at runtime.
