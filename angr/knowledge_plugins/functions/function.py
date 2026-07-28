@@ -2067,6 +2067,8 @@ class Function(Serializable):
         assert isinstance(ty, SimTypeFunction)
         self.name = name
         self.prototype = ty.with_arch(self.project.arch)
+        self.prototype_libname = None
+        self.prototype_source = PrototypeSource.USER
         # setup the calling convention
         # If a SimCC object is passed assume that this is sane and just use it
         if isinstance(calling_convention, SimCC):
@@ -2143,6 +2145,8 @@ class Function(Serializable):
         func.sp_delta = self.sp_delta
         func._calling_convention = self.calling_convention
         func.prototype = self.prototype
+        func._prototype_libname = self.prototype_libname
+        func._prototype_source = self.prototype_source
         func._returning = self._returning
         func._is_alignment = self.is_alignment
         func.startpoint = self.startpoint

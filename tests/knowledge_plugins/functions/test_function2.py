@@ -62,16 +62,36 @@ class TestFunction(unittest.TestCase):
 
         # Check prototype of function
         assert func_main.prototype is not None
+        assert func_main.prototype_source is angr.knowledge_plugins.functions.PrototypeSource.USER
         assert func_main.prototype.args == (
             angr.types.SimTypeInt().with_arch(p.arch),
             angr.types.SimTypePointer(angr.types.SimTypePointer(angr.types.SimTypeChar()).with_arch(p.arch)).with_arch(
                 p.arch
             ),
         )
+        assert func_main.copy().prototype_source is angr.knowledge_plugins.functions.PrototypeSource.USER
         # Check that the default calling convention of the architecture was applied
         assert isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]["Linux"])
 
         func_main.apply_definition("int main(int argc, char** argv)")
+
+    def test_function_copy_preserves_prototype_provenance(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFG()
+        func_main: angr.knowledge_plugins.Function = cfg.kb.functions["main"]
+        func_main.apply_definition("int main(int argc, char** argv)")
+        func_main.prototype_libname = "testlib"
+        func_main.prototype_source = angr.knowledge_plugins.functions.PrototypeSource.SIGNATURES
+
+        copied = func_main.copy()
+
+        assert copied.prototype == func_main.prototype
+        assert copied.prototype_libname == "testlib"
+        assert copied.prototype_source is angr.knowledge_plugins.functions.PrototypeSource.SIGNATURES
+
+        func_main.apply_definition("long renamed(void)")
+        assert func_main.prototype_libname is None
+        assert func_main.prototype_source is angr.knowledge_plugins.functions.PrototypeSource.USER
 
     def test_function_instruction_addr_from_any_addr(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)

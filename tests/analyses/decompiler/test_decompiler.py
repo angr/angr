@@ -131,6 +131,21 @@ def structuring_algo(algo: str):
 
 
 class TestDecompiler(unittest.TestCase):
+    def test_apply_definition_prototype_survives_decompilation(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        func = proj.kb.functions["main"]
+        func.apply_definition("long main(long only_user_arg)")
+        user_prototype = func.prototype
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+
+        assert dec.codegen is not None
+        assert func.prototype == user_prototype
+        assert func.prototype_source is PrototypeSource.USER
+
     @for_all_structuring_algos
     def test_decompiling_all_x86_64(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "all")
