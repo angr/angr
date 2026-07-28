@@ -65,21 +65,22 @@ pub fn and<'py>(
         return Bool::new(py, &GLOBAL_CONTEXT.and(bool_args)?.simplify()?)
             .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
-    if args.len() == 2
-        && let Some(lhs) = args[0].extract::<CoerceBV>().ok()
-        && let Some(rhs) = args[1].extract::<CoerceBV>().ok()
+    if let Ok(bv_args) = args
+        .iter()
+        .map(|arg| arg.extract::<CoerceBV>())
+        .collect::<Result<Vec<_>, _>>()
     {
-        let (lhs, rhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+        let bv_args = CoerceBV::unpack_many(py, &bv_args)?;
         return BV::new(
             py,
             &GLOBAL_CONTEXT
-                .and2(&lhs.get().inner, &rhs.get().inner)?
+                .and(bv_args.iter().map(|a| a.get().inner.clone()))?
                 .simplify_ext(true, true)?,
         )
         .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     Err(ClaripyError::TypeError(
-        "And: expected Bools or exactly two BVs".to_string(),
+        "And: expected Bools or BVs".to_string(),
     ))
 }
 
@@ -109,65 +110,68 @@ pub fn or<'py>(
         return Bool::new(py, &GLOBAL_CONTEXT.or(bool_args)?.simplify()?)
             .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
-    if args.len() == 2
-        && let Some(lhs) = args[0].extract::<CoerceBV>().ok()
-        && let Some(rhs) = args[1].extract::<CoerceBV>().ok()
+    if let Ok(bv_args) = args
+        .iter()
+        .map(|arg| arg.extract::<CoerceBV>())
+        .collect::<Result<Vec<_>, _>>()
     {
-        let (lhs, rhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+        let bv_args = CoerceBV::unpack_many(py, &bv_args)?;
         return BV::new(
             py,
             &GLOBAL_CONTEXT
-                .or2(&lhs.get().inner, &rhs.get().inner)?
+                .or(bv_args.iter().map(|a| a.get().inner.clone()))?
                 .simplify_ext(true, true)?,
         )
         .map(|b| b.into_any().cast_into::<Base>().unwrap());
     }
     Err(ClaripyError::TypeError(
-        "Or: expected Bools or exactly two BVs".to_string(),
+        "Or: expected Bools or BVs".to_string(),
     ))
 }
 
-#[pyfunction]
+#[pyfunction(signature = (a, b, *rest))]
 #[allow(non_snake_case)]
 pub fn xor<'py>(
     py: Python<'py>,
     a: Bound<'py, PyAny>,
     b: Bound<'py, PyAny>,
+    rest: Vec<Bound<'py, PyAny>>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(a_bool) = a.cast::<Bool>() {
-        if let Ok(b_bool) = b.cast::<Bool>() {
-            return Bool::new(
-                py,
-                &GLOBAL_CONTEXT
-                    .xor2(&a_bool.get().inner, &b_bool.get().inner)?
-                    .simplify()?,
-            )
+    let mut args = vec![a, b];
+    args.extend(rest);
+    // Same policy as And/Or: prefer the Bool path whenever every arg is a Bool.
+    let all_bools = args
+        .iter()
+        .all(|arg| arg.cast::<Bool>().is_ok() || arg.extract::<bool>().is_ok());
+    if all_bools {
+        let bool_args = args
+            .into_iter()
+            .map(|arg| {
+                arg.extract::<CoerceBool>()
+                    .map(|b| b.0.get().inner.clone())
+                    .map_err(|_| ClaripyError::TypeError("Xor arguments must be Bool".to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Bool::new(py, &GLOBAL_CONTEXT.xor(bool_args)?.simplify()?)
             .map(|b| b.into_any().cast_into::<Base>().unwrap());
-        } else {
-            Err(ClaripyError::TypeError(format!(
-                "Xor: mismatched types, expected Bool but got {b:?}"
-            )))
-        }
-    } else if let Ok(a_bv) = a.extract::<CoerceBV>() {
-        if let Ok(b_bv) = b.extract::<CoerceBV>() {
-            let (a_bv, b_bv) = CoerceBV::unpack_pair(py, &a_bv, &b_bv)?;
-            return BV::new(
-                py,
-                &GLOBAL_CONTEXT
-                    .xor2(&a_bv.get().inner, &b_bv.get().inner)?
-                    .simplify_ext(true, true)?,
-            )
-            .map(|b| b.into_any().cast_into::<Base>().unwrap());
-        } else {
-            Err(ClaripyError::TypeError(format!(
-                "Xor: mismatched types, expected BV but got {b:?}"
-            )))
-        }
-    } else {
-        Err(ClaripyError::TypeError(format!(
-            "Xor: unsupported types {a:?} and {b:?}"
-        )))
     }
+    if let Ok(bv_args) = args
+        .iter()
+        .map(|arg| arg.extract::<CoerceBV>())
+        .collect::<Result<Vec<_>, _>>()
+    {
+        let bv_args = CoerceBV::unpack_many(py, &bv_args)?;
+        return BV::new(
+            py,
+            &GLOBAL_CONTEXT
+                .xor(bv_args.iter().map(|a| a.get().inner.clone()))?
+                .simplify_ext(true, true)?,
+        )
+        .map(|b| b.into_any().cast_into::<Base>().unwrap());
+    }
+    Err(ClaripyError::TypeError(
+        "Xor: expected Bools or BVs".to_string(),
+    ))
 }
 
 #[pyfunction(name = "If")]

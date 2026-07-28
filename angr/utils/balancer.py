@@ -12,15 +12,16 @@ from angr.errors import AngrError
 
 log = logging.getLogger(__name__)
 
+# maps each commutative operation to an n-ary constructor that can rebuild it
 commutative_operations = {
-    "__and__",
-    "__or__",
-    "__xor__",
-    "__add__",
-    "__mul__",
-    "And",
-    "Or",
-    "Xor",
+    "__and__": claripy.And,
+    "__or__": claripy.Or,
+    "__xor__": claripy.xor,
+    "__add__": claripy.Add,
+    "__mul__": claripy.Mul,
+    "And": claripy.And,
+    "Or": claripy.Or,
+    "Xor": claripy.xor,
 }
 
 
@@ -226,7 +227,7 @@ class Balancer:
     @staticmethod
     def _align_bv(a: BV) -> BV:
         if a.op in commutative_operations:
-            return BV(a.op, tuple(sorted(cast(tuple[BV, ...], a.args), key=lambda v: -v.cardinality)))
+            return commutative_operations[a.op](*sorted(cast(tuple[BV, ...], a.args), key=lambda v: -v.cardinality))
 
         match a.op:
             case "__sub__":
@@ -242,7 +243,7 @@ class Balancer:
         if max(cardinalities) == cardinalities[0]:
             return a
         adjusted = tuple(-v for v in args[1:]) + args[:1]
-        return BV("__add__", tuple(sorted(adjusted, key=lambda v: -v.cardinality)))
+        return claripy.Add(*sorted(adjusted, key=lambda v: -v.cardinality))
 
     #
     # Find bounds
@@ -441,10 +442,9 @@ class Balancer:
     @staticmethod
     def _balance_reverse(truism: Bool) -> Bool:
         if truism.op in ["__eq__", "__ne__"]:
-            return BV(
-                truism.op,
-                (cast(BV, truism.args[0]).args[0], cast(BV, truism.args[1]).reversed),
-            )
+            inner = cast(BV, cast(BV, truism.args[0]).args[0])
+            rhs_reversed = cast(BV, truism.args[1]).reversed
+            return inner == rhs_reversed if truism.op == "__eq__" else inner != rhs_reversed
         return truism
 
     @staticmethod
@@ -461,11 +461,11 @@ class Balancer:
             new_lhs = tuple(a for a in lhs_args if a.symbolic)
             if not new_lhs:
                 return truism
-            new_lhs = new_lhs[0] if len(new_lhs) == 1 else BV("__add__", new_lhs)
+            new_lhs = new_lhs[0] if len(new_lhs) == 1 else claripy.Add(*new_lhs)
             other_adds = tuple(a for a in lhs_args if a.concrete)
             if not other_adds:
                 return truism
-        new_rhs = BV("__sub__", (old_rhs, *other_adds))
+        new_rhs = claripy.Sub(old_rhs, *other_adds)
         return Bool(truism.op, (new_lhs, new_rhs))
 
     @staticmethod
@@ -476,7 +476,7 @@ class Balancer:
         new_lhs = cast(BV, old_lhs.args[0])
         old_rhs = cast(BV, truism.args[1])
         other_adds = old_lhs.args[1:]
-        new_rhs = BV("__add__", (old_rhs, *other_adds))
+        new_rhs = claripy.Add(old_rhs, *other_adds)
         return Bool(truism.op, (new_lhs, new_rhs))
 
     @staticmethod
@@ -580,7 +580,7 @@ class Balancer:
                 v >>= 1
             if low_ones == 0:
                 # this should probably never happen
-                new_left = BV("BVV", (0, op0.size()))
+                new_left = claripy.BVV(0, op0.size())
                 return Bool(truism.op, (new_left, truism.args[1]))
 
             if op0.op == "ZeroExt" and cast(int, op0.args[0]) + low_ones == op0.size():

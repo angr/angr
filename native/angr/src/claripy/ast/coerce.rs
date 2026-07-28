@@ -147,6 +147,34 @@ impl<'py> CoerceBV<'py> {
         }
     }
 
+    /// Strict n-ary version of `unpack_pair`: every operand with a known width
+    /// must agree on it, and unknown-width operands (ints/bools) are coerced to
+    /// that width.
+    pub fn unpack_many(
+        py: Python<'py>,
+        vals: &[CoerceBV<'py>],
+    ) -> Result<Vec<Bound<'py, BV>>, ClaripyError> {
+        let mut size: Option<u32> = None;
+        for val in vals {
+            if let Some(s) = val.get_size() {
+                match size {
+                    Some(prev) if prev != s => {
+                        return Err(ClaripyError::TypeError(format!(
+                            "BV size mismatch: operands have {prev} bits and {s} bits"
+                        )));
+                    }
+                    _ => size = Some(s),
+                }
+            }
+        }
+        let size = size.ok_or_else(|| {
+            ClaripyError::InvalidArgumentType(
+                "Cannot determine BV width: no operand has a known size".to_string(),
+            )
+        })?;
+        vals.iter().map(|val| val.unpack(py, size, false)).collect()
+    }
+
     pub fn unpack_vec(
         py: Python<'py>,
         vals: &[CoerceBV<'py>],

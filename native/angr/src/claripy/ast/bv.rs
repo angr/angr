@@ -1247,9 +1247,29 @@ macro_rules! binop {
     };
 }
 
-binop!(Add, add, BV);
-binop!(Sub, sub, BV);
-binop!(Mul, mul, BV);
+macro_rules! nary_op {
+    ($name:ident, $context_method:ident) => {
+        #[pyfunction(signature = (lhs, rhs, *rest))]
+        pub fn $name<'py>(
+            py: Python<'py>,
+            lhs: CoerceBV<'py>,
+            rhs: CoerceBV<'py>,
+            rest: Vec<CoerceBV<'py>>,
+        ) -> Result<Bound<'py, BV>, ClaripyError> {
+            let (elhs, erhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+            let mut acc = GLOBAL_CONTEXT.$context_method(&elhs.get().inner, &erhs.get().inner)?;
+            for arg in &rest {
+                let earg = arg.unpack_like(py, elhs.get())?;
+                acc = GLOBAL_CONTEXT.$context_method(&acc, &earg.get().inner)?;
+            }
+            BV::new(py, &acc.simplify_ext(true, true)?)
+        }
+    };
+}
+
+nary_op!(Add, add);
+nary_op!(Sub, sub);
+nary_op!(Mul, mul);
 binop!(UDiv, udiv, BV);
 binop!(SDiv, sdiv, BV);
 binop!(UMod, urem, BV);
