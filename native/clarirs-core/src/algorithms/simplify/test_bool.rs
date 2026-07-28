@@ -5,6 +5,7 @@ use crate::{
     ast::{
         AstFactory,
         annotation::{Annotation, AnnotationType},
+        op::AstOp,
     },
     context::Context,
 };
@@ -266,6 +267,36 @@ fn test_neq() -> Result<()> {
             "lhs: {lhs:?}, rhs: {rhs:?}"
         );
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_bv_eq_neq_constant_canonicalized_to_right() -> Result<()> {
+    let ctx = Context::new();
+
+    let x = ctx.bvs("x", 64)?;
+    let zero = ctx.bvv(BitVec::from((0u64, 64)))?;
+    let five = ctx.bvv(BitVec::from((5u64, 64)))?;
+
+    // A lone constant is moved to the right so `C op x` and `x op C` intern to
+    // the same node; consumers may then rely on the constant being args[1].
+    for c in [&zero, &five] {
+        assert_eq!(ctx.neq(c, &x)?.simplify()?, ctx.neq(&x, c)?.simplify()?);
+        assert_eq!(ctx.eq_(c, &x)?.simplify()?, ctx.eq_(&x, c)?.simplify()?);
+
+        let simplified = ctx.neq(c, &x)?.simplify()?;
+        let AstOp::Neq(lhs, rhs) = simplified.op() else {
+            panic!("expected Neq, got {:?}", simplified.op())
+        };
+        assert!(matches!(rhs.op(), AstOp::BVV(_)), "constant should be rhs");
+        assert!(matches!(lhs.op(), AstOp::BVS(..)), "symbol should be lhs");
+    }
+
+    // Two symbols keep their order (nothing to canonicalize).
+    let y = ctx.bvs("y", 64)?;
+    let simplified = ctx.neq(&x, &y)?.simplify()?;
+    assert!(matches!(simplified.op(), AstOp::Neq(..)));
 
     Ok(())
 }
