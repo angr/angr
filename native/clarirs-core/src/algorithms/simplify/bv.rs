@@ -435,9 +435,6 @@ pub(crate) fn simplify_bv<'c>(
                             parts.reverse();
                             state.rerun(ctx.concat(parts)?)
                         }
-                        // XOR with all-ones = NOT
-                        (AstOp::BVV(v), _) if v.is_all_ones() => state.rerun(ctx.not(b.clone())?),
-                        (_, AstOp::BVV(v)) if v.is_all_ones() => state.rerun(ctx.not(a.clone())?),
                         _ => {
                             if changed {
                                 state.rerun(ctx.xor(sym_args)?)
