@@ -322,7 +322,7 @@ class VariableManagerInternal(Serializable):
         cmsg.comboregvars.extend(combo_register_variables)
         cmsg.stackvars.extend(stack_variables)
         cmsg.memvars.extend(memory_variables)
-        cmsg.tmpvars.extend(tmp_variables)
+        cmsg.tempvars.extend(tmp_variables)
         cmsg.constvars.extend(const_variables)
 
         # accesses
@@ -360,7 +360,7 @@ class VariableManagerInternal(Serializable):
         cmsg.unified_comboregvars.extend(unified_combo_register_variables)
         cmsg.unified_stackvars.extend(unified_stack_variables)
         cmsg.unified_memvars.extend(unified_memory_variables)
-        cmsg.unified_tmpvars.extend(unified_tmp_variables)
+        cmsg.unified_tempvars.extend(unified_tmp_variables)
 
         relations = []
         for variable, unified in self._variables_to_unified_variables.items():
@@ -472,7 +472,7 @@ class VariableManagerInternal(Serializable):
                     SimMemoryVariable.parse_from_cmessage(memvar_pb2),
                 )
             )
-        for memvar_pb2 in cmsg.tmpvars:
+        for memvar_pb2 in cmsg.tempvars:
             all_vars.append(
                 (
                     memvar_pb2.base.is_phi,  # type: ignore[reportAttributeAccessIssue]
@@ -544,7 +544,7 @@ class VariableManagerInternal(Serializable):
             memvar = SimMemoryVariable.parse_from_cmessage(memvar_pb2)
             unified_variable_by_ident[memvar.ident] = memvar
             model._unified_variables.add(memvar)
-        for memvar_pb2 in cmsg.unified_tmpvars:
+        for memvar_pb2 in cmsg.unified_tempvars:
             tmpvar = SimTemporaryVariable.parse_from_cmessage(memvar_pb2)
             unified_variable_by_ident[tmpvar.ident] = tmpvar
             model._unified_variables.add(tmpvar)
