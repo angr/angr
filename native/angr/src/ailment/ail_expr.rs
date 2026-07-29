@@ -70,13 +70,44 @@ impl ExprHeader {
 /// expression -- VEX sometimes carries the rounding mode in a tmp, which only
 /// becomes a constant later in the decompilation pipeline.
 ///
-/// The expression form is a payload, not an operand: ``likes`` / ``matches``
-/// / ``__eq__`` ignore the rounding mode entirely (as they always have), and
-/// the operand walks (``replace`` / recursive maps) do not descend into it.
+/// The rounding mode is significant to every comparison relation --
+/// ``__eq__`` / ``likes`` / ``matches`` all observe it, as the legacy
+/// Python AIL did (``Convert.likes`` and ``BinaryOp.likes`` both compared
+/// ``self.rounding_mode``). Two float conversions that round differently
+/// compute different values and are not the same expression.
+///
+/// It remains a payload rather than an operand in one narrow sense: the
+/// operand walks (``replace`` / recursive maps) still do not descend into
+/// the expression form.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum RoundingModeOrExpr {
     Mode(RoundingMode),
     Expr(Arc<AilExpression>),
+}
+
+impl RoundingModeOrExpr {
+    /// Compare two payloads under `MODE`. The expression form recurses
+    /// through [`AilExpression::cmp_ail`], so a rounding mode still held
+    /// in a tmp observes the same idx-awareness and SSA relaxations as
+    /// any other subtree.
+    pub fn cmp_ail<const MODE: u8>(&self, other: &RoundingModeOrExpr) -> bool {
+        match (self, other) {
+            (RoundingModeOrExpr::Mode(a), RoundingModeOrExpr::Mode(b)) => a == b,
+            (RoundingModeOrExpr::Expr(a), RoundingModeOrExpr::Expr(b)) => a.cmp_ail::<MODE>(b),
+            // A resolved mode and an unresolved tmp are not interchangeable
+            // even when the tmp would later resolve to that mode.
+            _ => false,
+        }
+    }
+
+    /// [`Self::cmp_ail`] lifted over the ``Option`` the variants store.
+    pub fn opt_cmp_ail<const MODE: u8>(a: &Option<Self>, b: &Option<Self>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
+            _ => false,
+        }
+    }
 }
 
 impl Hash for RoundingModeOrExpr {
@@ -798,7 +829,7 @@ impl Hash for AilExpression {
                 is_signed,
                 from_type,
                 to_type,
-                ..
+                rounding_mode,
             } => {
                 operand.cached_hash_or_compute().hash(h);
                 from_bits.hash(h);
@@ -807,12 +838,7 @@ impl Hash for AilExpression {
                 is_signed.hash(h);
                 from_type.hash(h);
                 to_type.hash(h);
-                // ``rounding_mode`` is deliberately NOT hashed: it is a
-                // payload, not an operand, and ``cmp_ail`` ignores it in
-                // every mode (as the legacy Python AIL always did). Hashing
-                // it made the hash finer than equality -- two Converts
-                // differing only in rounding mode compared equal but landed
-                // in different buckets.
+                rounding_mode.hash(h);
             }
             ExprInner::Reinterpret {
                 operand,
@@ -833,6 +859,7 @@ impl Hash for AilExpression {
                 operands,
                 signed,
                 floating_point,
+                rounding_mode,
                 ..
             } => {
                 op.hash(h);
@@ -841,6 +868,7 @@ impl Hash for AilExpression {
                 bits.hash(h);
                 signed.hash(h);
                 floating_point.hash(h);
+                rounding_mode.hash(h);
             }
             ExprInner::Load {
                 addr,
@@ -2078,7 +2106,7 @@ impl AilExpression {
                     is_signed: a_s,
                     from_type: a_ft,
                     to_type: a_tt,
-                    ..
+                    rounding_mode: a_rm,
                 },
                 ExprInner::Convert {
                     operand: b_o,
@@ -2087,7 +2115,7 @@ impl AilExpression {
                     is_signed: b_s,
                     from_type: b_ft,
                     to_type: b_tt,
-                    ..
+                    rounding_mode: b_rm,
                 },
             ) => {
                 a_fb == b_fb
@@ -2096,6 +2124,7 @@ impl AilExpression {
                     && a_ft == b_ft
                     && a_tt == b_tt
                     && self.header.bits == other.header.bits
+                    && RoundingModeOrExpr::opt_cmp_ail::<MODE>(a_rm, b_rm)
                     && a_o.cmp_ail::<MODE>(b_o)
             }
             (
@@ -2128,6 +2157,7 @@ impl AilExpression {
                     operands: ops_a,
                     signed: s_a,
                     floating_point: fp_a,
+                    rounding_mode: rm_a,
                     ..
                 },
                 ExprInner::BinaryOp {
@@ -2135,6 +2165,7 @@ impl AilExpression {
                     operands: ops_b,
                     signed: s_b,
                     floating_point: fp_b,
+                    rounding_mode: rm_b,
                     ..
                 },
             ) => {
@@ -2142,6 +2173,7 @@ impl AilExpression {
                     && s_a == s_b
                     && fp_a == fp_b
                     && self.header.bits == other.header.bits
+                    && RoundingModeOrExpr::opt_cmp_ail::<MODE>(rm_a, rm_b)
                     && ops_a[0].cmp_ail::<MODE>(&ops_b[0])
                     && ops_a[1].cmp_ail::<MODE>(&ops_b[1])
             }

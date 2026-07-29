@@ -8,10 +8,14 @@ broke this in two ways, both regression-tested here:
 * **Recursively** -- ``__eq__`` compared ``idx`` only at the root while
   the ``Hash`` impls fold ``idx`` in at every node, so any composite
   whose children had different ``idx`` compared equal and hashed apart.
-* **Node-locally** -- a handful of variants hashed a field that
-  ``likes`` never compares (``Convert.rounding_mode``,
-  ``StringLiteral.bits``, ``Struct.bits``, and ``Const``'s ``NaN`` /
-  signed-zero bit patterns).
+* **Node-locally** -- a handful of variants hashed a field the
+  comparison never looked at. Those split two ways once examined:
+  ``Const``'s ``NaN`` and signed-zero bit patterns were genuinely
+  hash-side bugs (the values really are equal, so they must hash
+  alike), while ``Convert.rounding_mode``, ``BinaryOp.rounding_mode``,
+  ``StringLiteral.bits`` and ``Struct.bits`` were comparison-side bugs
+  -- those fields are significant, and equality was wrong to ignore
+  them.
 
 The important discipline for the per-variant sweeps below is that the
 two instances get **separately constructed** children. Reusing the same
@@ -156,12 +160,60 @@ class TestHashEqContract(unittest.TestCase):
         _assert_contract("Const/signed-zero", a, b)
 
     def test_convert_rounding_mode(self):
-        """``rounding_mode`` is a payload that no comparison mode observes."""
+        """Rounding differently means computing a different value."""
         op = eu.Const(1, 5, 32)
         a = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=RoundingMode.RM_NearestTiesEven)
         b = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=RoundingMode.RM_TowardsZero)
-        assert a == b
+        assert not a.likes(b) and not a.matches(b), "differing rounding modes are not alike"
+        assert a != b
         _assert_contract("Convert/rounding_mode", a, b)
+
+        same = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=RoundingMode.RM_NearestTiesEven)
+        assert a == same and hash(a) == hash(same)
+
+        # a resolved mode and an absent one are also distinguishable
+        none_rm = eu.Convert(ROOT, 32, 64, True, op)
+        assert a != none_rm
+        _assert_contract("Convert/rounding_mode-none", a, none_rm)
+
+    def test_binop_rounding_mode(self):
+        """``BinaryOp`` carries a rounding mode too, and it is significant."""
+        x, y = eu.Const(1, 5, 32), eu.Const(2, 7, 32)
+        a = eu.BinaryOp(
+            ROOT, "Add", (x, y), False, bits=32, floating_point=True, rounding_mode=RoundingMode.RM_NearestTiesEven
+        )
+        b = eu.BinaryOp(
+            ROOT, "Add", (x, y), False, bits=32, floating_point=True, rounding_mode=RoundingMode.RM_TowardsZero
+        )
+        assert not a.likes(b) and not a.matches(b), "differing rounding modes are not alike"
+        assert a != b
+        _assert_contract("BinaryOp/rounding_mode", a, b)
+
+        same = eu.BinaryOp(
+            ROOT, "Add", (x, y), False, bits=32, floating_point=True, rounding_mode=RoundingMode.RM_NearestTiesEven
+        )
+        assert a == same and hash(a) == hash(same)
+
+    def test_rounding_mode_as_expression(self):
+        """An unresolved rounding mode held in an expression still compares.
+
+        VEX sometimes carries the mode in a tmp. That form recurses through
+        ``cmp_ail``, so it observes the same idx-awareness as any subtree --
+        and a resolved mode is never interchangeable with an unresolved one.
+        """
+        op = eu.Const(1, 5, 32)
+        t1, t2 = eu.Tmp(2, 3, 32), eu.Tmp(2, 4, 32)
+        a = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=t1)
+        b = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=t2)
+        assert a != b, "different tmps carry different modes"
+        _assert_contract("Convert/rounding_mode-expr", a, b)
+
+        same = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=eu.Tmp(2, 3, 32))
+        assert a == same and hash(a) == hash(same)
+
+        resolved = eu.Convert(ROOT, 32, 64, True, op, rounding_mode=RoundingMode.RM_TowardsZero)
+        assert a != resolved, "a tmp is not interchangeable with a resolved mode"
+        _assert_contract("Convert/rounding_mode-mixed", a, resolved)
 
     def test_string_literal_bits(self):
         """``bits`` is significant for ``StringLiteral``, and is hashed."""
