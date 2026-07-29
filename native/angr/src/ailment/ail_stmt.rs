@@ -23,7 +23,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CMP_EQ, CMP_LIKES, CMP_MATCHES, CachedHash, hash_of};
+use crate::ailment::{CachedHash, CmpMode, hash_of};
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -617,22 +617,20 @@ impl AilStatement {
 
     /// The single comparison walk backing ``__eq__`` / ``likes`` /
     /// ``matches`` on statements -- the statement-level counterpart of
-    /// [`AilExpression::cmp_ail`]. See [`CMP_EQ`] for the mode hierarchy.
+    /// [`AilExpression::cmp_ail`]. See [`CmpMode`] for the mode hierarchy.
     ///
     /// No arm here branches on `MODE`: statements carry no SSA
     /// identifying info of their own, so the three relations differ only
     /// in how their sub-expressions are compared, and `MODE` simply
     /// passes through to [`AilExpression::cmp_ail`].
     pub fn cmp_ail<const MODE: u8>(&self, other: &AilStatement) -> bool {
+        let mode = CmpMode::from_u8(MODE);
         if self.kind() != other.kind() {
             return false;
         }
         // Same uniform idx guard as the expression side -- see
         // ``AilExpression::cmp_ail``.
-        if MODE == CMP_EQ && self.header.idx != other.header.idx {
-            return false;
-        }
-        if self.kind() != other.kind() {
+        if mode == CmpMode::Eq && self.header.idx != other.header.idx {
             return false;
         }
         match (&self.inner, &other.inner) {
@@ -776,7 +774,7 @@ impl AilStatement {
     /// SSA-equivalent one. For the structural-only variant that dedup /
     /// similarity passes want, see ``matches`` below.
     pub fn likes(&self, other: &AilStatement) -> bool {
-        self.cmp_ail::<CMP_LIKES>(other)
+        self.cmp_ail::<{ CmpMode::Likes.as_u8() }>(other)
     }
 
     /// Structural-only equality on statements. The statement-level
@@ -799,7 +797,7 @@ impl AilStatement {
     /// ``varid``s. Without this relaxation those passes never find
     /// merge candidates.
     pub fn matches(&self, other: &AilStatement) -> bool {
-        self.cmp_ail::<CMP_MATCHES>(other)
+        self.cmp_ail::<{ CmpMode::Matches.as_u8() }>(other)
     }
 
     /// ``__eq__`` semantics: ``likes`` plus ``idx`` equality at every
@@ -807,7 +805,7 @@ impl AilStatement {
     /// ``Statement.__eq__``. See [`AilExpression::eq_ail`] for why the
     /// idx-awareness has to be recursive rather than root-only.
     pub fn eq_ail(&self, other: &AilStatement) -> bool {
-        self.cmp_ail::<CMP_EQ>(other)
+        self.cmp_ail::<{ CmpMode::Eq.as_u8() }>(other)
     }
 }
 

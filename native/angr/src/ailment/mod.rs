@@ -95,31 +95,68 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
 // ---------------------------------------------------------------------------
 
 /// The three AIL comparison relations, threaded through
-/// ``AilExpression::cmp_ail`` / ``AilStatement::cmp_ail`` as a const
-/// generic so each is monomorphized into its own specialized function --
-/// one source of truth, zero per-node branching in the hot path.
+/// ``AilExpression::cmp_ail`` / ``AilStatement::cmp_ail`` so each is
+/// monomorphized into its own specialized function -- one source of
+/// truth, zero per-node branching in the hot path.
 ///
 /// They form a strict hierarchy, from most to least discriminating:
 ///
-/// * [`CMP_EQ`] -- ``likes`` plus ``idx`` equality at **every** node.
-///   Backs Python ``__eq__``. Must stay consistent with the ``Hash``
-///   impls, which fold ``idx`` in at every node: two values that compare
-///   equal have to hash equal.
-/// * [`CMP_LIKES`] -- structural-with-identity. ``idx`` is ignored;
+/// * [`CmpMode::Eq`] -- ``likes`` plus ``idx`` equality at **every**
+///   node. Backs Python ``__eq__``. Must stay consistent with the
+///   ``Hash`` impls, which fold ``idx`` in at every node: two values
+///   that compare equal have to hash equal.
+/// * [`CmpMode::Likes`] -- structural-with-identity. ``idx`` is ignored;
 ///   SSA identifying info (``VirtualVariable::varid``) is significant.
-/// * [`CMP_MATCHES`] -- structural-only. Also drops the SSA identifying
-///   info, so the same source expression compiled into two different SSA
-///   numberings compares equal.
+/// * [`CmpMode::Matches`] -- structural-only. Also drops the SSA
+///   identifying info, so the same source expression compiled into two
+///   different SSA numberings compares equal.
 ///
 /// Only two arms actually branch on the mode (``VirtualVariable`` and
 /// ``Phi``); every other variant is mode-independent and simply passes
-/// ``MODE`` down to its children, which is what makes the relaxation
+/// the mode down to its children, which is what makes the relaxation
 /// propagate uniformly.
-pub const CMP_EQ: u8 = 0;
-/// Structural-with-identity comparison. See [`CMP_EQ`].
-pub const CMP_LIKES: u8 = 1;
-/// Structural-only comparison. See [`CMP_EQ`].
-pub const CMP_MATCHES: u8 = 2;
+///
+/// # Why the const generic is a ``u8`` and not this enum
+///
+/// Const-generic parameters may only be integers, ``bool`` or ``char``
+/// on stable Rust -- using an enum needs the unstable
+/// ``adt_const_params`` feature, and this crate is pinned to a stable
+/// toolchain. So ``cmp_ail`` is generic over ``const MODE: u8`` and
+/// recovers the enum with [`CmpMode::from_u8`]. Because ``MODE`` is a
+/// compile-time constant in every instantiation, that conversion and
+/// the comparisons against it fold away entirely.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum CmpMode {
+    /// ``__eq__``: [`CmpMode::Likes`] plus ``idx`` equality at every node.
+    Eq = 0,
+    /// Structural-with-identity comparison.
+    Likes = 1,
+    /// Structural-only comparison.
+    Matches = 2,
+}
+
+impl CmpMode {
+    /// Recover the mode from a ``cmp_ail`` ``MODE`` const parameter.
+    ///
+    /// Total over the three valid discriminants; anything else is a bug
+    /// at the call site, and since callers pass ``CmpMode::X as u8`` the
+    /// panic arm is unreachable and optimized out.
+    pub const fn from_u8(v: u8) -> Self {
+        match v {
+            0 => Self::Eq,
+            1 => Self::Likes,
+            2 => Self::Matches,
+            _ => panic!("invalid CmpMode discriminant"),
+        }
+    }
+
+    /// The ``MODE`` const-parameter value for this mode. Lets call sites
+    /// read ``cmp_ail::<{ CmpMode::Likes.as_u8() }>(..)``.
+    pub const fn as_u8(self) -> u8 {
+        self as u8
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Cross-module hashing utilities: the ``CachedHash`` slot used by the

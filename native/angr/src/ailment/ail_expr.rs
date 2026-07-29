@@ -28,7 +28,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CMP_EQ, CMP_LIKES, CMP_MATCHES, CachedHash, hash_of};
+use crate::ailment::{CachedHash, CmpMode, hash_of};
 use indexmap::IndexMap;
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
@@ -434,7 +434,7 @@ impl CFGTarget {
     /// Structural-with-identity equality (idx-strict via inner
     /// ``AilExpression::likes``).
     pub fn likes(&self, other: &CFGTarget) -> bool {
-        self.cmp_ail::<CMP_LIKES>(other)
+        self.cmp_ail::<{ CmpMode::Likes.as_u8() }>(other)
     }
 
     /// Compare two targets under `MODE`, deferring to the inner
@@ -451,7 +451,7 @@ impl CFGTarget {
     /// Structural-only equality (idx-agnostic via inner
     /// ``AilExpression::matches``).
     pub fn matches(&self, other: &CFGTarget) -> bool {
-        self.cmp_ail::<CMP_MATCHES>(other)
+        self.cmp_ail::<{ CmpMode::Matches.as_u8() }>(other)
     }
 
     /// Recursively substitute ``old`` with ``new`` inside an ``Expr``
@@ -1099,7 +1099,7 @@ impl AilExpression {
     /// ``hash(a) != hash(b)`` for any node with children, so ``==``
     /// duplicates could coexist in a set and dict lookups missed.
     pub fn eq_ail(&self, other: &AilExpression) -> bool {
-        self.cmp_ail::<CMP_EQ>(other)
+        self.cmp_ail::<{ CmpMode::Eq.as_u8() }>(other)
     }
 
     /// Recursive ``replace`` -- walk the operand subtrees, substituting
@@ -1936,12 +1936,15 @@ impl AilExpression {
     }
 
     /// The single comparison walk backing ``__eq__`` / ``likes`` /
-    /// ``matches``. See [`CMP_EQ`] for the mode hierarchy.
+    /// ``matches``. See [`CmpMode`] for the mode hierarchy.
     ///
     /// `MODE` is a const generic, so each relation monomorphizes into its
-    /// own specialized function and every ``MODE ==`` test below folds
+    /// own specialized function and every ``mode ==`` test below folds
     /// away at compile time -- one source of truth, no per-node branch in
-    /// a walk that runs millions of times per decompile.
+    /// a walk that runs millions of times per decompile. It is a ``u8``
+    /// rather than a [`CmpMode`] only because stable Rust does not allow
+    /// enum const-generic parameters; ``mode`` below recovers the enum,
+    /// and being a compile-time constant it costs nothing.
     ///
     /// Children are compared under the *same* `MODE`. That is what makes
     /// a relaxation propagate through every container variant instead of
@@ -1951,6 +1954,7 @@ impl AilExpression {
     /// ``FunctionLikeMacro``, so the relaxation stopped dead at those
     /// container boundaries.
     pub fn cmp_ail<const MODE: u8>(&self, other: &AilExpression) -> bool {
+        let mode = CmpMode::from_u8(MODE);
         if self.kind() != other.kind() {
             return false;
         }
@@ -1959,10 +1963,7 @@ impl AilExpression {
         // it. This is what keeps ``__eq__`` consistent with the ``Hash``
         // impl, which likewise folds ``header.idx`` in at every node: two
         // expressions that compare equal must hash equal.
-        if MODE == CMP_EQ && self.header.idx != other.header.idx {
-            return false;
-        }
-        if self.kind() != other.kind() {
+        if mode == CmpMode::Eq && self.header.idx != other.header.idx {
             return false;
         }
         // Treat ``NaN`` as equal to ``NaN`` to mirror the legacy Python
@@ -2005,7 +2006,7 @@ impl AilExpression {
                 if self.header.bits != other.header.bits || a.len() != b.len() {
                     return false;
                 }
-                if MODE == CMP_MATCHES {
+                if mode == CmpMode::Matches {
                     // Order-insensitive: every ``src`` (src_addr, src_idx)
                     // in ``a`` must appear in ``b``. The ``vvar`` payloads
                     // are intentionally ignored (mirrors master's
@@ -2048,7 +2049,7 @@ impl AilExpression {
                 // ``matches`` drops ``varid`` -- the single most important
                 // relaxation. It lets the dedup passes recognize the same
                 // source-level read across two SSA branches.
-                (MODE == CMP_MATCHES || a_id == b_id)
+                (mode == CmpMode::Matches || a_id == b_id)
                     && self.header.bits == other.header.bits
                     && a_c == b_c
                     && a_o == b_o
@@ -2416,7 +2417,7 @@ impl AilExpression {
     ///   that the same source expression compiled into two different
     ///   SSA-numbered occurrences should be treated as identical.
     pub fn likes(&self, other: &AilExpression) -> bool {
-        self.cmp_ail::<CMP_LIKES>(other)
+        self.cmp_ail::<{ CmpMode::Likes.as_u8() }>(other)
     }
 
     /// Structural-only equality. Unlike ``likes``, ``matches`` ignores
@@ -2444,7 +2445,7 @@ impl AilExpression {
     /// duplicates even though SSA renumbering gave their values
     /// different ``varid``s.
     pub fn matches(&self, other: &AilExpression) -> bool {
-        self.cmp_ail::<CMP_MATCHES>(other)
+        self.cmp_ail::<{ CmpMode::Matches.as_u8() }>(other)
     }
 }
 
