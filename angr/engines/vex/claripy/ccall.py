@@ -1902,11 +1902,11 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_ADC32, ARM64G_CC_OP_ADC64):
         res = cc_dep1 + cc_dep2 + cc_dep3
         flag = claripy.If(
-            cc_dep2 != 0, boolean_extend(claripy.ULE, res, cc_dep1, 64), boolean_extend(claripy.ULT, res, cc_dep1, 64)
+            cc_dep3 != 0, boolean_extend(claripy.ULE, res, cc_dep1, 64), boolean_extend(claripy.ULT, res, cc_dep1, 64)
         )
     elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
         flag = claripy.If(
-            cc_dep2 != 0,
+            cc_dep3 != 0,
             boolean_extend(claripy.UGE, cc_dep1, cc_dep2, 64),
             boolean_extend(claripy.UGT, cc_dep1, cc_dep2, 64),
         )
