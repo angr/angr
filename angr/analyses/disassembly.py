@@ -744,10 +744,7 @@ class MemoryOperand(Operand):
 
     def _parse_memop_squarebracket(self):
         if self.children[0] != "[":
-            try:
-                square_bracket_pos = self.children.index("[")
-            except ValueError:  # pylint: disable=try-except-raise
-                raise
+            square_bracket_pos = self.children.index("[")
 
             self.prefix = self.children[:square_bracket_pos]
 
@@ -801,10 +798,7 @@ class MemoryOperand(Operand):
         self.values_style = "paren"
 
         if self.children[0] != "(":
-            try:
-                paren_pos = self.children.index("(")
-            except ValueError:  # pylint: disable=try-except-raise
-                raise
+            paren_pos = self.children.index("(")
 
             if all(isinstance(item, str) for item in self.children[:paren_pos]):
                 # parse prefix
@@ -883,11 +877,11 @@ class MemoryOperand(Operand):
 
                 # combine values and offsets according to self.offset_location
                 if self.offset_location == "prefix":
-                    value_str = "".join([offset_str, left_paren, value_str, right_paren])
+                    value_str = f"{offset_str}{left_paren}{value_str}{right_paren}"
                 elif self.offset_location == "before_value":
-                    value_str = "".join([left_paren, offset_str, value_str, right_paren])
+                    value_str = f"{left_paren}{offset_str}{value_str}{right_paren}"
                 else:  # after_value
-                    value_str = "".join([left_paren, value_str, offset_str, right_paren])
+                    value_str = f"{left_paren}{value_str}{offset_str}{right_paren}"
             else:
                 value_str = left_paren + value_str + right_paren
 
@@ -943,7 +937,7 @@ class Value(OperandPiece):
                     if labeloffset == 0:
                         lbl = self.project.kb.labels[self.val]
                         return [lbl]
-                    s = "{}{}{:#+x}".format(
+                    s = "{}{}+{:#x}".format(
                         "+" if self.render_with_sign else "",
                         self.project.kb.labels[self.val + labeloffset],
                         labeloffset,

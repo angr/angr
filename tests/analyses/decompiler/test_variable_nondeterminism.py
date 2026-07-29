@@ -48,6 +48,7 @@ def _decompile_with_seed(seed: int, binary_path: str) -> str:
         text=True,
         env=env,
         timeout=300,
+        check=True,
     )
     assert result.returncode == 0, f"Decompilation failed (seed={seed}):\n{result.stderr}"
     return result.stdout

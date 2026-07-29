@@ -203,11 +203,11 @@ class Project:
                 "Incompatible options selected for this project, please disable auto_load_libs if "
                 "you want to use a concrete target."
             )
-            raise Exception("Incompatible options for the project")
+            raise ValueError("Incompatible options for the project")
 
         if self.concrete_target and self.arch.name not in ["X86", "AMD64", "ARMHF", "ARMEL", "MIPS32"]:
             l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
-            raise Exception("Incompatible options for the project")
+            raise ValueError("Incompatible options for the project")
 
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
@@ -437,7 +437,7 @@ class Project:
             # we still want to try as hard as we can to figure out where it comes from
             # so we can get the calling convention as close to right as possible.
             elif reloc.resolvewith is not None and reloc.resolvewith in SIM_LIBRARIES:
-                sim_lib = sorted(SIM_LIBRARIES[reloc.resolvewith], key=lambda lib: lib.has_prototype(export.name))[-1]
+                sim_lib = max(SIM_LIBRARIES[reloc.resolvewith], key=lambda lib: lib.has_prototype(export.name))
                 if self._check_user_blacklists(export.name):
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
@@ -667,7 +667,7 @@ class Project:
                 for reloc in self.loader.find_relevant_relocations(symbol_name):
                     assert reloc.symbol is not None
                     if not reloc.symbol.is_weak:
-                        raise Exception("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
+                        raise ValueError("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
                     if new_sym is None:
                         new_sym = self.loader.extern_object.make_extern(symbol_name)
                     reloc.resolve(new_sym)

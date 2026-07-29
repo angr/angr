@@ -382,7 +382,7 @@ class OptimizationPass(BaseOptimizationPass):
         return ail_graph
 
     def _get_peephole_bundle(self) -> PeepholeOptimizationBundle:
-        bundle: None | PeepholeOptimizationBundle = self._scratch.get("peephole_bundle")
+        bundle: PeepholeOptimizationBundle | None = self._scratch.get("peephole_bundle")
         if bundle is None or not bundle.matches(
             self.project, self.manager, self._func.addr, None, None, self._peephole_optimizations
         ):

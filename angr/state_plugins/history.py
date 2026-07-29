@@ -504,9 +504,9 @@ class TreeIter:
 
     def __getitem__(self, k):
         if isinstance(k, slice):
-            raise ValueError("Please use .hardcopy to use slices")
+            raise TypeError("Please use .hardcopy to use slices")
         if k >= 0:
-            raise ValueError("Please use .hardcopy to use nonnegative indexes")
+            raise TypeError("Please use .hardcopy to use nonnegative indexes")
         i = 0
         for item in reversed(self):
             i -= 1

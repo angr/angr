@@ -1,7 +1,7 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
 
-import angr.ailment as ailment
+from angr import ailment
 
 from .sequence_walker import SequenceWalker
 from .structurer_nodes import SequenceNode

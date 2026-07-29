@@ -422,7 +422,7 @@ def _serialize_position_mappings(pos_to_node, pos_to_addr, ctx: SerializeContext
     for pm, slot in ((pos_to_node, 0), (pos_to_addr, 1)):
         if pm is None:
             continue
-        for _, elem in pm.items():
+        for elem in pm.values():
             obj = elem.obj
             if obj is None or type(obj) not in _SERIALIZE_KIND_BY_CLASS:
                 continue
@@ -452,7 +452,7 @@ def _parse_position_mappings(pm_msg, ctx: ParseContext):
 def _serialize_instruction_mapping(im, out_msg) -> None:
     if im is None:
         return
-    for _, elem in im.items():
+    for elem in im.values():
         entry = out_msg.entries.add()
         entry.ins_addr = elem.ins_addr
         entry.posmap_pos = elem.posmap_pos

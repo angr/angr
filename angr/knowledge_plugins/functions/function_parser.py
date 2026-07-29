@@ -116,7 +116,7 @@ class FunctionParser:
 
         # blocks
         blocks_list = []
-        for _, b in function.code_nodes.items():
+        for b in function.code_nodes.values():
             block = primitives_pb2.Block()
             block.ea = b.addr
             block.size = b.size

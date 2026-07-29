@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment.expression import BinaryOp, Const, UnaryOp
@@ -18,9 +17,6 @@ from angr.ailment.statement import Assignment, ConditionalJump
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
-
-if TYPE_CHECKING:
-    pass
 
 l = logging.getLogger(name=__name__)
 

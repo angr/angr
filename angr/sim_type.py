@@ -1747,7 +1747,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
-        for _, ty in out.fields.items():
+        for ty in out.fields.values():
             if isinstance(ty, SimTypeNumOffset):
                 out._pack = True
                 ty.offset = offset_so_far % arch.byte_width
@@ -2467,7 +2467,7 @@ class SimCppClass(SimStruct):
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
-        for _, ty in out.members.items():
+        for ty in out.members.values():
             if isinstance(ty, SimTypeNumOffset):
                 out._pack = True
                 ty.offset = offset_so_far % arch.byte_width
@@ -3820,7 +3820,7 @@ def parse_file(
     # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, c_ast.FileAST):
-        raise ValueError("Something went horribly wrong using pycparser")
+        raise TypeError("Something went horribly wrong using pycparser")
     out = {}
     out_types = {}
     extra_types = ChainMap(side_effect_types if side_effect_types is not None else out_types, predefined_types or {})
@@ -3838,7 +3838,7 @@ def parse_file(
             if isinstance(ty_real, (SimStruct, SimUnion)) and ty_real.name != "<anon>":
                 if piece.name is None:
                     out_types[("struct " if isinstance(ty, SimStruct) else "union ") + ty_real.name] = ty_real
-                for _, i in out_types.items():
+                for i in out_types.values():
                     if isinstance(i, type(ty_real)) and i.name == ty_real.name:
                         if isinstance(ty_real, SimStruct):
                             assert isinstance(i, SimStruct)

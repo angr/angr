@@ -342,7 +342,7 @@ class RustCallingConventionAnalysis(Analysis):
                 ).with_arch(self.project.arch)
             candidates.append(struct_ty)
 
-        final_ty = sorted(candidates, key=lambda candidate: candidate.size, reverse=True)[0] if candidates else None
+        final_ty = max(candidates, key=lambda candidate: candidate.size) if candidates else None
 
         # Filter out register-size structs
         if final_ty and final_ty.size <= self.project.arch.bits:

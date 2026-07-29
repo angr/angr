@@ -88,7 +88,7 @@ class SimRegNameView(SimStatePlugin):
             if isinstance(self.state.arch, ArchSoot):
                 pass
             else:
-                raise AttributeError(k) from err
+                raise TypeError(k) from err
 
     def __dir__(self):
         if self.state.arch.name in ("X86", "AMD64"):

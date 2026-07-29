@@ -16,6 +16,8 @@ from angr.errors import AngrMissingTypeError
 from angr.procedures.definitions import SimTypeCollection
 from angr.sim_type import PointerDisposition, SimTypeBottom, SimTypeFunction, SimTypeInt, SimTypeLong, SimTypePointer
 
+log = logging.getLogger(__name__)
+
 # The win32json marks some outparams as inout. fix this
 OVERRIDE_OUTPARAMS = {
     ("RtlInitUnicodeString", 0),
@@ -225,11 +227,11 @@ def do_it(in_dir):
     files = p.glob("*.json")
 
     for file in files:
-        logging.info("Found file %s", file)
+        log.info("Found file %s", file)
         with open(file, encoding="utf-8-sig") as f:
             api_namespaces[file.stem] = json.load(f)
 
-    logging.info("Making a bunch of types...")
+    log.info("Making a bunch of types...")
     missing_types_last_round = set()
     while True:
         nosuchtype = 0
@@ -243,22 +245,22 @@ def do_it(in_dir):
                     # skip this type for now
                     nosuchtype += 1
                     missing_types.add(t["Name"])
-        logging.info("... missing %d types", nosuchtype)
+        log.info("... missing %d types", nosuchtype)
         if nosuchtype == 0 or missing_types == missing_types_last_round:
             break
         missing_types_last_round = missing_types
 
     if missing_types_last_round:
-        logging.info("Missing types: %s", missing_types_last_round)
+        log.info("Missing types: %s", missing_types_last_round)
     else:
-        logging.info("All referenced types have been created")
-    logging.info("Alright, now let's do some functions")
+        log.info("All referenced types have been created")
+    log.info("Alright, now let's do some functions")
 
     i = 1
     func_count = 0
     parsed_cprotos = defaultdict(list)
     for namespace, metadata in api_namespaces.items():
-        logging.debug("+++ %d/%d: Processing namespace %s", i, len(api_namespaces), namespace)
+        log.debug("+++ %d/%d: Processing namespace %s", i, len(api_namespaces), namespace)
         i += 1
         funcs = metadata["Functions"]
         if namespace.startswith("Windows.Win32"):
@@ -2519,7 +2521,7 @@ def do_it(in_dir):
                     exists = True
                     break
             if exists:
-                logging.warning("Declaration for function %s in %s.%s already exists. Skipping...", func, lib, suffix)
+                log.warning("Declaration for function %s in %s.%s already exists. Skipping...", func, lib, suffix)
                 continue
 
             parsed_cprotos[(prefix, lib, suffix)].append((func, proto, ""))
@@ -2534,7 +2536,7 @@ def do_it(in_dir):
         full_prefix = dump_root / prefix
         filename = libname.replace(".", "_") + ".json"
         os.makedirs(full_prefix, exist_ok=True)
-        logging.debug("Writing to file %s...", filename)
+        log.debug("Writing to file %s...", filename)
         non_returning = []
         d = {
             "_t": "lib",
@@ -2557,7 +2559,7 @@ def do_it(in_dir):
 
     # Dump the type collection to a JSON file
     with open(dump_root / "win32/_types_win32.json", "w", encoding="utf-8") as f:
-        logging.debug("Writing to file win32/win32_types.json...")
+        log.debug("Writing to file win32/win32_types.json...")
         f.write(json.dumps(typelib.to_json(types_as_string=True), indent="\t"))
 
 
@@ -2567,10 +2569,9 @@ def main():
     _args.add_argument("-v", action="count", help="Increase logging verbosity. Can specify multiple times.")
     args = _args.parse_args()
     if args.v is not None:
-        logging.root.setLevel(level=max(30 - (args.v * 10), 0))
+        log.root.setLevel(level=max(30 - (args.v * 10), 0))
     do_it(args.win32json_api_directory)
 
 
 if __name__ == "__main__":
-    logging.root.setLevel("DEBUG")
     main()

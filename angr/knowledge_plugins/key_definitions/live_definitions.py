@@ -834,7 +834,7 @@ class LiveDefinitions:
     def get_concrete_value(
         self,
         spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
-        cast_to: type[int] | type[bytes] = int,
+        cast_to: type[int | bytes] = int,
     ) -> int | bytes | None:
         r = self.get_one_value(spec, strip_annotations=True)
         if r is None:

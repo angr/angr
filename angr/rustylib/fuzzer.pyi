@@ -1,93 +1,51 @@
 from collections.abc import Callable
 from datetime import timedelta
+from typing import Self
 
 from angr.sim_state import SimState
 
 class InMemoryCorpus:
-    def __new__(cls) -> InMemoryCorpus:
-        pass
-
+    def __new__(cls) -> Self: ...
     @staticmethod
-    def from_list(inputs: list[bytes]) -> InMemoryCorpus:
-        pass
-
-    def to_bytes_list(self) -> list[bytes]:
-        pass
-
-    def __getitem__(self, idx: int) -> bytes:
-        pass
-
-    def __len__(self) -> int:
-        pass
+    def from_list(inputs: list[bytes]) -> InMemoryCorpus: ...
+    def to_bytes_list(self) -> list[bytes]: ...
+    def __getitem__(self, idx: int) -> bytes: ...
+    def __len__(self) -> int: ...
 
 class OnDiskCorpus:
-    def __new__(cls, dir_path: str) -> OnDiskCorpus:
-        pass
-
-    def add(self, input: bytes) -> int:
-        pass
-
-    def to_bytes_list(self) -> list[bytes]:
-        pass
-
-    def __getitem__(self, idx: int) -> bytes:
-        pass
-
-    def __len__(self) -> int:
-        pass
+    def __new__(cls, dir_path: str) -> Self: ...
+    def add(self, input: bytes) -> int: ...
+    def to_bytes_list(self) -> list[bytes]: ...
+    def __getitem__(self, idx: int) -> bytes: ...
+    def __len__(self) -> int: ...
 
 class ClientStats:
     @property
-    def enabled(self) -> bool:
-        pass
-
+    def enabled(self) -> bool: ...
     @property
-    def corpus_size(self) -> int:
-        pass
-
+    def corpus_size(self) -> int: ...
     @property
-    def last_corpus_time(self) -> timedelta:
-        pass
-
+    def last_corpus_time(self) -> timedelta: ...
     @property
-    def executions(self) -> int:
-        pass
-
+    def executions(self) -> int: ...
     @property
-    def prev_state_executions(self) -> int:
-        pass
-
+    def prev_state_executions(self) -> int: ...
     @property
-    def objective_size(self) -> int:
-        pass
-
+    def objective_size(self) -> int: ...
     @property
-    def last_objective_time(self) -> timedelta:
-        pass
-
+    def last_objective_time(self) -> timedelta: ...
     @property
-    def last_window_time(self) -> timedelta:
-        pass
-
+    def last_window_time(self) -> timedelta: ...
     @property
-    def start_time(self) -> timedelta:
-        pass
-
+    def start_time(self) -> timedelta: ...
     @property
-    def execs_per_sec(self) -> float:
-        pass
-
+    def execs_per_sec(self) -> float: ...
     @property
-    def execs_per_sec_pretty(self) -> str:
-        pass
-
+    def execs_per_sec_pretty(self) -> str: ...
     @property
-    def edges_hit(self) -> int | None:
-        pass
-
+    def edges_hit(self) -> int | None: ...
     @property
-    def edges_total(self) -> int | None:
-        pass
+    def edges_total(self) -> int | None: ...
 
 class HavocMutator:
     def __init__(self, max_stack_pow: int | None = None):

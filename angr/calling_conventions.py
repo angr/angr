@@ -2270,10 +2270,7 @@ class SimCCRISCV64(SimCC):
         if isinstance(arg_type, (SimStruct, SimTypeFixedSizeArray)):
             flat_map = self._flatten(arg_type)
             if flat_map is not None:
-                all_types = []
-                for tys in flat_map.values():
-                    for t in tys:
-                        all_types.append(t)
+                all_types = [t for tys in flat_map.values() for t in tys]
 
                 if 1 <= len(all_types) <= 2 and any(isinstance(t, (SimTypeFloat, SimTypeDouble)) for t in all_types):
                     res = []

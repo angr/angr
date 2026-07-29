@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Generator
 from itertools import count
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import claripy
 from claripy.annotation import RegionAnnotation
@@ -49,7 +49,7 @@ class RegionedMemoryMixin(MemoryMixin):
         stack_region_map: RegionMap | None = None,
         generic_region_map: RegionMap | None = None,
         stack_size: int = 65536,
-        cle_memory_backer: Optional | None = None,
+        cle_memory_backer: None = None,
         dict_memory_backer: dict | None = None,
         regioned_memory_cls: type | None = None,
         **kwargs,
@@ -240,7 +240,7 @@ class RegionedMemoryMixin(MemoryMixin):
         state: SimState,
         related_function_addr: int,
         endness,
-        cle_memory_backer: Optional | None = None,
+        cle_memory_backer: None = None,
         dict_memory_backer: dict | None = None,
     ):
         """

@@ -32,7 +32,7 @@ bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "
 bin_priv_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries-private")
 
 WORKER = is_testing or bool(
-    os.environ.get("WORKER", False)
+    os.environ.get("WORKER", None)
 )  # this variable controls whether we print the decompilation code or not
 
 if not os.path.isdir(bin_location) and not os.getenv("CI", "") == "true":

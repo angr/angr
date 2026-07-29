@@ -14,7 +14,6 @@ class _kuser_helper_version(angr.SimProcedure):
     def run(self):
         # hardcoded version number extracted from QEMU
         self.state.regs.r0 = 0x884C0
-        return
 
 
 class _kuser_helper_get_tls(angr.SimProcedure):
@@ -23,7 +22,6 @@ class _kuser_helper_get_tls(angr.SimProcedure):
 
     def run(self):
         self.state.regs.r0 = self.project.loader.tls.threads[0].user_thread_pointer
-        return
 
 
 class _kuser_cmpxchg(angr.SimProcedure):

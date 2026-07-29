@@ -12,7 +12,7 @@ from angr.rust.mixins import CFAMixin, SRDAMixin
 from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import RustSimStruct
 
-l = logging.getLogger(__file__)
+l = logging.getLogger(__name__)
 
 STR_CMP_NE_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::ne"
 STR_CMP_EQ_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::eq"

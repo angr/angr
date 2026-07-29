@@ -101,9 +101,7 @@ class RegionSimplifier(Analysis):
         # Remove unnecessary else branches if the if branch will always return
         if self._should_simplify_ifelses:
             r = self._simplify_ifelses(r)
-        #
         r = self._simplify_cascading_ifs(r)
-        #
         r = self._simplify_loops(r)
         # Apply loop counter naming after loop simplification (when iterators are identified)
         if self._apply_loop_counter_naming and self._variable_manager is not None:

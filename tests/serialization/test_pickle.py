@@ -61,9 +61,9 @@ class TestPickle(unittest.TestCase):
 
         # If you do not have a state you cannot write
         _ = p.factory.entry_state(fs=fs)
-        for f in fs:  # pylint:disable=consider-using-dict-items
+        for f, fo in fs.items():
             mem = mem_bvv[f]
-            fs[f].write(0, mem, MEM_SIZE)
+            fo.write(0, mem, MEM_SIZE)
 
         with open("pickletest_bad", "wb") as f:
             pickle.dump(mem_bvv, f, -1)

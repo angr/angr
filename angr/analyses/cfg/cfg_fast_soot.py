@@ -341,7 +341,6 @@ class CFGFastSoot(CFGFast):
             addr = cfg_node.addr
             stmts_count = cfg_node.size
         else:
-            addr = addr
             stmts_count = size
 
         if addr is None:

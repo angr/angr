@@ -147,8 +147,10 @@ The pytest framework is also extended with a --binary option which allows the pa
 ### in conftest.py
 import pytest
 
+
 def pytest_addoption(parser):
     parser.addoption("--binary", action="store", default="")
+
 
 @pytest.fixture
 def binary(request):

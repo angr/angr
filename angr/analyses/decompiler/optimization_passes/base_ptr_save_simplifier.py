@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage

@@ -7,7 +7,7 @@ from unittest import mock
 import networkx
 from archinfo.arch_x86 import ArchX86
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.forward_analysis.visitors import FunctionGraphVisitor
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
 from angr.block import Block
