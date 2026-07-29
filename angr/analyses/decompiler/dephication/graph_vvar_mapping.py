@@ -81,13 +81,12 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         live_outs = liveness.model.live_outs
         interference = liveness.interference_graph()
 
-        # Phi congruence classes, maintained incrementally in a union-find structure. Each class keeps the set of its
-        # members and the set of vvars interfering with *any* of its members, which lets us test interference between
-        # two whole classes instead of between two individual vvars. This matters because a congruence class is the
-        # transitive closure over phi statements: two vvars that never appear together in a single phi statement can
-        # still land in the same class through a chain of phi statements, and if they interfere the class is not
-        # conventional-SSA -- the naive coalescing performed later when the SSA form is destroyed would then merge two
-        # simultaneously live values into one variable.
+        # A phi congruence class is the transitive closure over phi statements. This means two vvars that never appear
+        # together in a single phi statement can still land in the same phi congruence class through a chain of phi
+        # statements.
+        #
+        # The following code maintains phi congruence classes in a union-find structure.
+        # Each congruence class records its members and the set of vvars interfering with any of its members.
         parent: dict[int, int] = {}
         members: dict[int, set[int]] = {}
         interferes_with: dict[int, set[int]] = {}
