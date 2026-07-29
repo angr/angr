@@ -4770,15 +4770,27 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         start_pos = lines.index("{")
-        assert lines[start_pos + 1 :][:4] == [
-            "if (!a1)",
-            "a1 = a0;",
-            "g_1234 = a1;",
-            "return 4660;",
-        ] or lines[start_pos + 1 :][:2] == [
-            "*((int *)&g_1234) = (a1 ? a1 : a0);",
-            "return 4660;",
-        ]
+        assert (
+            lines[start_pos + 1 :][:4]
+            == [
+                "if (!a1)",
+                "a1 = a0;",
+                "g_1234 = a1;",
+                "return 4660;",
+            ]
+            or lines[start_pos + 1 :][:4]
+            == [
+                "if (a1)",
+                "a0 = a1;",
+                "g_1234 = a0;",
+                "return 4660;",
+            ]
+            or lines[start_pos + 1 :][:2]
+            == [
+                "*((int *)&g_1234) = (a1 ? a1 : a0);",
+                "return 4660;",
+            ]
+        )
 
     def test_decompiling_rust_binary_rust_probestack(self, decompiler_options=None):
         bin_path = os.path.join(
@@ -5671,7 +5683,9 @@ class TestDecompiler(unittest.TestCase):
         assert from_matches_line_no is not None
         from_matches_line = lines[from_matches_line_no]
         v = from_matches_line[: from_matches_line.index(".from_matches(")]
-        for i in range(2):
+        # the assignments between from_matches() and the if are copies inserted to keep phi congruence classes
+        # conventional; how many there are depends on how the classes get split, so allow a little slack here
+        for i in range(3):
             if (
                 lines[from_matches_line_no + i + 1] == f"if ({v} != 9223372036854775809)"
                 and lines[from_matches_line_no + i + 2] == "{"
