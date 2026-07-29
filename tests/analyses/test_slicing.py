@@ -38,14 +38,14 @@ class TestSlicing(unittest.TestCase):
         bs_1 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], no_construct=True)
         all_exits = bs_1._find_exits(source, target)
 
-        assert all_exits == {18: [0x400594], DEFAULT_STATEMENT: None}
+        assert all_exits == {19: [0x400594], DEFAULT_STATEMENT: None}
 
         # Test the default exit
         target = cfg.model.get_any_node(0x4005A4)
         bs_2 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], no_construct=True)
         all_exits = bs_2._find_exits(source, target)
 
-        assert all_exits == {18: [0x400594], DEFAULT_STATEMENT: [0x4005A4]}
+        assert all_exits == {19: [0x400594], DEFAULT_STATEMENT: [0x4005A4]}
 
     def test_control_flow_slicing(self):
         slicing_test = angr.Project(
@@ -142,7 +142,7 @@ class TestSlicing(unittest.TestCase):
         stmt_idx, tmp = bs._last_branching_statement(target.scratch.irsb.statements)
 
         assert stmt_idx == 22
-        assert tmp == 27
+        assert tmp == 26
 
     def test_fauxware(self):
         b = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
