@@ -42,10 +42,60 @@ class TestIrsb(unittest.TestCase):
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
 
-    def test_convert_pcode_unsupported_output_preserves_dataflow(self):
+    def test_convert_pcode_real_mode_segment_userop(self):
         arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
         manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
-        project = angr.load_shellcode(b"\x1e", arch, 0, 0, engine=angr.engines.UberEnginePcode, rebase_granularity=0x10)
+        project = angr.load_shellcode(
+            bytes.fromhex("a10010"),
+            arch,
+            0,
+            0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        irsb = project.factory.block(0, size=3).vex
+        block = ailment.IRSBConverter.convert(irsb, manager)
+
+        segment = next(
+            statement.src
+            for statement in block.statements
+            if isinstance(statement, ailment.Stmt.Assignment)
+            and isinstance(statement.src, ailment.Expr.BinaryOp)
+            and statement.src.op == "And"
+        )
+        linear_address, address_mask = segment.operands
+        assert segment.bits == 32
+        assert isinstance(address_mask, ailment.Expr.Const)
+        assert address_mask.value == 0xFFFFF
+        assert isinstance(linear_address, ailment.Expr.BinaryOp)
+        assert linear_address.op == "Add"
+
+        shifted_segment, offset = linear_address.operands
+        assert isinstance(shifted_segment, ailment.Expr.BinaryOp)
+        assert shifted_segment.op == "Shl"
+        segment_value, shift = shifted_segment.operands
+        assert isinstance(segment_value, ailment.Expr.Convert)
+        assert (segment_value.from_bits, segment_value.to_bits, segment_value.is_signed) == (16, 32, False)
+        assert isinstance(segment_value.operand, ailment.Expr.Register)
+        assert segment_value.operand.reg_offset == arch.get_register_offset("ds")
+        assert segment_value.operand.bits == 16
+        assert isinstance(shift, ailment.Expr.Const)
+        assert shift.value == 4
+        assert isinstance(offset, ailment.Expr.Convert)
+        assert (offset.from_bits, offset.to_bits, offset.is_signed) == (16, 32, False)
+
+        assert not any(
+            isinstance(statement, ailment.Stmt.Assignment)
+            and isinstance(statement.src, ailment.Expr.DirtyExpression)
+            and statement.src.callee == "CALLOTHER"
+            for statement in block.statements
+        )
+
+    def test_convert_pcode_unknown_userop_preserves_dataflow(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        project = angr.load_shellcode(b"\xec", arch, 0, 0, engine=angr.engines.UberEnginePcode, rebase_granularity=0x10)
 
         irsb = project.factory.block(0, size=1).vex
         block = ailment.IRSBConverter.convert(irsb, manager)
@@ -56,13 +106,12 @@ class TestIrsb(unittest.TestCase):
             if isinstance(statement, ailment.Stmt.Assignment)
             and isinstance(statement.src, ailment.Expr.DirtyExpression)
         )
-        store = next(statement for statement in block.statements if isinstance(statement, ailment.Stmt.Store))
         assert getattr(unsupported.src, "callee", None) == "CALLOTHER"
-        assert unsupported.src.bits == 32
-        assert len(getattr(unsupported.src, "operands", ())) == 3
-        assert isinstance(unsupported.dst, ailment.Expr.Tmp)
-        assert isinstance(store.addr, ailment.Expr.Tmp)
-        assert unsupported.dst.tmp_idx == store.addr.tmp_idx
+        assert unsupported.src.bits == 8
+        assert len(getattr(unsupported.src, "operands", ())) == 2
+        assert isinstance(unsupported.dst, ailment.Expr.Register)
+        assert unsupported.dst.reg_offset == arch.get_register_offset("al")
+        assert unsupported.dst.bits == 8
 
         reaching_definitions = project.analyses.ReachingDefinitions(subject=block)
         assert block in reaching_definitions.visited_blocks
@@ -175,10 +224,12 @@ class TestIrsb(unittest.TestCase):
 
         assert decompilation.codegen is not None
         assert not any("Unsupported bits 16" in str(error) for error in decompilation.errors)
-        assert any(
+        assert not any(
             construct.kind == "dirty_expression" and construct.operation == "CALLOTHER"
             for construct in decompilation.codegen.unsupported_constructs
         )
+        assert decompilation.codegen.text is not None
+        assert "CALLOTHER" not in decompilation.codegen.text
 
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import claripy
 from claripy.ast.bv import BV
@@ -13,6 +14,12 @@ from angr.utils.constants import DEFAULT_STATEMENT
 
 from .behavior import OpBehavior
 from .lifter import IRSB
+from .userop import (
+    X86_REAL_MODE_ADDRESS_MASK,
+    X86_REAL_MODE_SEGMENT_USEROP_KEY,
+    get_named_userop_key,
+    get_x86_real_mode_segment_varnodes,
+)
 
 l = logging.getLogger(__name__)
 
@@ -422,8 +429,37 @@ class PcodeEmulatorMixin(SimEngine):
 
         self.state.scratch.exit_handled = True
 
-    def _execute_callother(self) -> None:  # pylint:disable=no-self-use
-        raise AngrError("CALLOTHER emulation not currently supported")
+    def _execute_callother(self) -> None:
+        op = self._current_op
+        assert op is not None
+        try:
+            key = get_named_userop_key(self.project.arch.name, op)
+        except ValueError as ex:
+            raise AngrError(f"Invalid CALLOTHER operation: {ex}") from ex
+
+        handlers: dict[tuple[str, str], Callable[[], None]] = {
+            X86_REAL_MODE_SEGMENT_USEROP_KEY: self._execute_x86_real_mode_segment,
+        }
+        handler = handlers.get(key)
+        if handler is None:
+            language_id, name = key
+            raise AngrError(f"CALLOTHER userop {name!r} is not supported for p-code language {language_id!r}")
+        handler()
+
+    def _execute_x86_real_mode_segment(self) -> None:
+        op = self._current_op
+        assert op is not None
+        try:
+            output, segment_varnode, offset_varnode = get_x86_real_mode_segment_varnodes(op)
+        except ValueError as ex:
+            raise AngrError(f"Invalid x86 real-mode segment userop: {ex}") from ex
+
+        output_bits = output.size * 8
+        segment = self._get_value(segment_varnode).zero_extend(output_bits - segment_varnode.size * 8)
+        offset = self._get_value(offset_varnode).zero_extend(output_bits - offset_varnode.size * 8)
+        linear_address = (segment << 4) + offset
+        address = linear_address & claripy.BVV(X86_REAL_MODE_ADDRESS_MASK, output_bits)
+        self._set_value(output, address)
 
     def _execute_multiequal(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("MULTIEQUAL appearing in unheritaged code?")

@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import pypcode
 from pypcode import OpCode, PcodeOp, Varnode
 
 from angr.engines.pcode.lifter import IRSB
+from angr.engines.pcode.userop import (
+    X86_REAL_MODE_ADDRESS_MASK,
+    X86_REAL_MODE_SEGMENT_USEROP_KEY,
+    get_named_userop_key,
+    get_x86_real_mode_segment_varnodes,
+)
 from angr.utils.constants import DEFAULT_STATEMENT
 
 from .block import Block
@@ -686,7 +693,73 @@ class PCodeIRSBConverter(Converter):
         self._statements.append(stmt)
 
     def _convert_callother(self) -> None:
-        raise NotImplementedError("CALLOTHER emulation not currently supported")
+        try:
+            key = get_named_userop_key(self._irsb.arch.name, self._current_op)
+        except ValueError as ex:
+            raise NotImplementedError(f"Invalid CALLOTHER operation: {ex}") from ex
+
+        handlers: dict[tuple[str, str], Callable[[], None]] = {
+            X86_REAL_MODE_SEGMENT_USEROP_KEY: self._convert_x86_real_mode_segment,
+        }
+        handler = handlers.get(key)
+        if handler is None:
+            language_id, name = key
+            raise NotImplementedError(f"CALLOTHER userop {name!r} is not supported for p-code language {language_id!r}")
+        handler()
+
+    def _convert_x86_real_mode_segment(self) -> None:
+        try:
+            output, segment_varnode, offset_varnode = get_x86_real_mode_segment_varnodes(self._current_op)
+        except ValueError as ex:
+            raise NotImplementedError(f"Invalid x86 real-mode segment userop: {ex}") from ex
+
+        output_bits = output.size * 8
+        tags = {
+            "ins_addr": self._manager.ins_addr,
+            "vex_block_addr": self._manager.block_addr,
+            "vex_stmt_idx": self._statement_idx,
+        }
+        segment = Convert(
+            self._manager.next_atom(),
+            segment_varnode.size * 8,
+            output_bits,
+            False,
+            self._get_value(segment_varnode),
+            **tags,
+        )
+        offset = Convert(
+            self._manager.next_atom(),
+            offset_varnode.size * 8,
+            output_bits,
+            False,
+            self._get_value(offset_varnode),
+            **tags,
+        )
+        shifted_segment = BinaryOp(
+            self._manager.next_atom(),
+            "Shl",
+            [segment, Const(self._manager.next_atom(), 4, output_bits)],
+            signed=False,
+            bits=output_bits,
+            **tags,
+        )
+        linear_address = BinaryOp(
+            self._manager.next_atom(),
+            "Add",
+            [shifted_segment, offset],
+            signed=False,
+            bits=output_bits,
+            **tags,
+        )
+        address = BinaryOp(
+            self._manager.next_atom(),
+            "And",
+            [linear_address, Const(self._manager.next_atom(), X86_REAL_MODE_ADDRESS_MASK, output_bits)],
+            signed=False,
+            bits=output_bits,
+            **tags,
+        )
+        self._statements.append(self._set_value(output, address))
 
     def _convert_multiequal(self) -> None:
         raise NotImplementedError("MULTIEQUAL appearing in unheritaged code?")

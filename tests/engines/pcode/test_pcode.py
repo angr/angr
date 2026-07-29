@@ -5,6 +5,7 @@ import os
 from unittest import TestCase, main
 
 import archinfo
+from pypcode import OpCode
 
 import angr
 
@@ -14,6 +15,46 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestPcodeEngine(TestCase):
+    def test_x86_real_mode_segment_userop(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("a10010"),  # mov ax, word ptr ds:[0x1000]
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        irsb = project.factory.block(0, size=3).vex
+        segment_op = next(op for op in irsb._ops if op.opcode == OpCode.CALLOTHER)
+        assert segment_op.inputs[0].getUserDefinedOpName() == "segment"
+
+        state = project.factory.blank_state(addr=0)
+        state.regs.ds = 0xFFFF
+        state.memory.store(0x0FF0, b"\x34\x12")
+        state.memory.store(0x100FF0, b"\x78\x56")
+
+        successors = project.factory.successors(state, num_inst=1)
+
+        assert len(successors.successors) == 1
+        successor = successors.successors[0]
+        assert successor.solver.eval(successor.regs.ax) == 0x1234
+        assert successor.solver.eval(successor.regs.pc) == 3
+
+    def test_x86_real_mode_unknown_userop_fails_closed(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("cd21"),  # int 0x21
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        state = project.factory.blank_state(addr=0)
+        with self.assertRaisesRegex(angr.errors.AngrError, "swi"):
+            project.factory.successors(state, num_inst=1)
+
     def test_shellcode(self):
         """
         Test basic CFG recovery and symbolic/concrete execution paths.
