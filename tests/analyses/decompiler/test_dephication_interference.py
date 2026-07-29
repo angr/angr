@@ -103,10 +103,14 @@ class TestDephicationInterference(unittest.TestCase):
 
         # check for incorrect branch conditions, which was a result of the bug in the original implementation of
         # Dephication.
+        all_findings = []
         for m in re.finditer(r"!(v\d+) & (v\d+)", dec.codegen.text):
             vvar1, vvar2 = m.group(1), m.group(2)
             if vvar1 == vvar2:
                 assert False, f"Found an always-false branch condition (!{vvar1} & {vvar2}) in the decompiled code."
+            all_findings.append((vvar1, vvar2))
+        if not all_findings:
+            assert False, "Did not find any expression of the form !vvar & vvar. Maybe the decompilation is incorrect?"
 
 
 if __name__ == "__main__":
