@@ -317,6 +317,19 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
         cont_state.add_constraints(cont_condition)
         cont_state.scratch.guard = claripy.And(cont_state.scratch.guard, cont_condition)
 
+        # Same hazard as the guard check in _handle_vex_stmt_IMark, but for
+        # statements that follow the exit inside the *same* instruction: a
+        # branch-likely delay slot is lifted under the branch's own IMark, so
+        # its (possibly faulting) statements must not run once the guard is
+        # known false. Restricted to delay-slot architectures so that ordinary
+        # side exits (zero-division checks, for one) keep executing the rest of
+        # the instruction.
+        if self.state.arch.branch_delay_slot and cont_state.scratch.guard.is_false():
+            self.successors.add_successor(
+                cont_state, cont_state.scratch.ins_addr, cont_state.scratch.guard, "Ijk_Boring"
+            )
+            raise VEXEarlyExit
+
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
         if func is None:
             try:
