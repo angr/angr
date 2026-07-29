@@ -156,6 +156,13 @@ class TestSerialization(unittest.TestCase):
         assert cmsg.value == 0xFFFF_FFFF_FFFF_FFF0
         assert cmsg.is_negative is False
 
+    def test_simconstantvariable_negative_value(self):
+        v1 = SimConstantVariable(8, value=-1, ident="c_1")
+        cmsg = v1.serialize_to_cmessage()
+        assert cmsg.size == 8
+        assert cmsg.value == 1
+        assert cmsg.is_negative is True
+
 
 if __name__ == "__main__":
     unittest.main()
