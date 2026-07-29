@@ -52,6 +52,9 @@ class PositionMapping:
     def items(self):
         return self._posmap.items()
 
+    def values(self):
+        return self._posmap.values()
+
     #
     # Public methods
     #
@@ -108,6 +111,9 @@ class InstructionMapping:
 
     def items(self):
         return self._insmap.items()
+
+    def values(self):
+        return self._insmap.values()
 
     def add_mapping(self, ins_addr, posmap_pos):
         if ins_addr in self._insmap:
