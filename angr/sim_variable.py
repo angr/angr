@@ -118,7 +118,7 @@ class SimConstantVariable(SimVariable):
 
     def __init__(self, size: int, *, value: int | float, region: int | None = None, ident=None):
         super().__init__(ident=ident, region=region, size=size)
-        self.value = value
+        self.value = value & ((1 << (size * 8)) - 1) if isinstance(value, int) else value
 
     def __repr__(self):
         return f"<{self.region}|const {self.value}>"

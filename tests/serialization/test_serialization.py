@@ -149,6 +149,13 @@ class TestSerialization(unittest.TestCase):
         assert cmsg.value == 0x8000_0000_0000_0000
         assert cmsg.is_negative is True
 
+    def test_simconstantvariable_value_too_long(self):
+        v2 = SimConstantVariable(8, value=0x1_FFFF_FFFF_FFFF_FFF0, ident="c_2")
+        cmsg = v2.serialize_to_cmessage()
+        assert cmsg.size == 8
+        assert cmsg.value == 0xFFFF_FFFF_FFFF_FFF0
+        assert cmsg.is_negative is False
+
 
 if __name__ == "__main__":
     unittest.main()
