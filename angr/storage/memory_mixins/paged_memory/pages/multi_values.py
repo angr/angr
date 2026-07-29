@@ -29,7 +29,7 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
 
     def __init__(
         self,
-        v: MVType | MultiValues[MVType] | None | dict[int, set[MVType]] = None,
+        v: MVType | MultiValues[MVType] | dict[int, set[MVType]] | None = None,
         offset_to_values: dict[int, set[MVType]] | None = None,
     ):
         if v is not None and offset_to_values is not None:

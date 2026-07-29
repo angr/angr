@@ -4,6 +4,12 @@ from __future__ import annotations
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
+class MissingMemoryError(Exception):
+    """
+    Raised when a memory kwarg is not passed to a stateless object.
+    """
+
+
 class ISPOMixin(MemoryMixin):
     """
     An implementation of the International Stateless Persons Organisation, a mixin which should be applied as a bottom

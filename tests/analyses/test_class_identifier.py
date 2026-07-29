@@ -22,8 +22,7 @@ class TestClassIdentifier(unittest.TestCase):
         class_labels = []
         vtable_ptr_c = [0x403CB0, 0x403CD8]
 
-        for class_str in classes_found:
-            class_labels.append(class_str)
+        class_labels.extend(classes_found.keys())
 
         assert "A" in class_labels
         assert "B" in class_labels

@@ -12,7 +12,7 @@ class Redirect(angr.SimProcedure):
 
     def run(self, redirect_to=None):
         if redirect_to is None:
-            raise Exception("Please specify where you wanna jump to.")
+            raise ValueError("Please specify where you wanna jump to.")
 
         self._custom_name = f"Redirect to 0x{redirect_to:08x}"
         # There is definitely no refs

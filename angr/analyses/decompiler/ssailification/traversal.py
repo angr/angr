@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.utils.ssa import get_reg_offset_base_and_size
 

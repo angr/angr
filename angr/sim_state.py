@@ -297,12 +297,8 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             addr = self.addr
             if type(addr) is int:
                 ip_str = f"{addr:#x}"
-                try:
-                    scratch = self.scratch
-                    if scratch.is_ail and scratch.ail_block_idx is not None:
-                        ip_str = f"{addr:#x}.{scratch.ail_block_idx}"
-                except Exception:
-                    pass
+                if self.scratch.is_ail and self.scratch.ail_block_idx is not None:
+                    ip_str = f"{addr:#x}.{self.scratch.ail_block_idx}"
             else:
                 ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):

@@ -23,7 +23,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CachedHash, hash_of};
+use crate::ailment::{CachedHash, CmpMode, hash_of};
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -622,21 +622,22 @@ impl AilStatement {
         }
     }
 
-    /// Structural-with-identity equality on statements. ``likes`` is the
-    /// statement-level analogue of ``AilExpression::likes``: two statements
-    /// like each other when they are the same variant, every sub-expression
-    /// like-matches, and every plain-Python slot (Jump targets,
-    /// SimCC/SimType payloads, etc.) compares equal via Python ``==``.
-    /// Sub-expressions are compared via ``AilExpression::likes``, so SSA
-    /// ``varid`` differences propagate up and cause two structurally
-    /// identical statements to not ``likes`` each other.
+    /// The single comparison walk backing ``__eq__`` / ``likes`` /
+    /// ``matches`` on statements -- the statement-level counterpart of
+    /// [`AilExpression::cmp_ail`]. See [`CmpMode`] for the mode hierarchy.
     ///
-    /// Backs Python ``Statement.__eq__`` (after an idx-first short-circuit)
-    /// and is used by rewriting passes that replace one statement with an
-    /// SSA-equivalent one. For the structural-only variant that dedup /
-    /// similarity passes want, see ``matches`` below.
-    pub fn likes(&self, other: &AilStatement) -> bool {
+    /// No arm here branches on `MODE`: statements carry no SSA
+    /// identifying info of their own, so the three relations differ only
+    /// in how their sub-expressions are compared, and `MODE` simply
+    /// passes through to [`AilExpression::cmp_ail`].
+    pub fn cmp_ail<const MODE: u8>(&self, other: &AilStatement) -> bool {
+        let mode = CmpMode::from_u8(MODE);
         if self.kind() != other.kind() {
+            return false;
+        }
+        // Same uniform idx guard as the expression side -- see
+        // ``AilExpression::cmp_ail``.
+        if mode == CmpMode::Eq && self.header.idx != other.header.idx {
             return false;
         }
         match (&self.inner, &other.inner) {
@@ -647,7 +648,7 @@ impl AilStatement {
             | (
                 StmtInner::WeakAssignment { dst: a_d, src: a_s },
                 StmtInner::WeakAssignment { dst: b_d, src: b_s },
-            ) => a_d.likes(b_d) && a_s.likes(b_s),
+            ) => a_d.cmp_ail::<MODE>(b_d) && a_s.cmp_ail::<MODE>(b_s),
             (StmtInner::Label { name: a }, StmtInner::Label { name: b }) => a == b,
             (
                 StmtInner::Store {
@@ -664,7 +665,7 @@ impl AilStatement {
                     endness: b_e,
                     ..
                 },
-            ) => a_s == b_s && a_e == b_e && a_a.likes(b_a) && a_d.likes(b_d),
+            ) => a_s == b_s && a_e == b_e && a_a.cmp_ail::<MODE>(b_a) && a_d.cmp_ail::<MODE>(b_d),
             (
                 StmtInner::Jump {
                     target: a_t,
@@ -674,7 +675,7 @@ impl AilStatement {
                     target: b_t,
                     target_idx: b_ti,
                 },
-            ) => a_ti == b_ti && a_t.likes(b_t),
+            ) => a_ti == b_ti && a_t.cmp_ail::<MODE>(b_t),
             (
                 StmtInner::ConditionalJump {
                     condition: a_c,
@@ -689,15 +690,15 @@ impl AilStatement {
                     ..
                 },
             ) => {
-                if !a_c.likes(b_c) {
+                if !a_c.cmp_ail::<MODE>(b_c) {
                     return false;
                 }
-                let opt_likes = |a: &Option<CFGTarget>, b: &Option<CFGTarget>| match (a, b) {
+                let opt_cmp = |a: &Option<CFGTarget>, b: &Option<CFGTarget>| match (a, b) {
                     (None, None) => true,
-                    (Some(x), Some(y)) => x.likes(y),
+                    (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
                     _ => false,
                 };
-                opt_likes(a_t, b_t) && opt_likes(a_f, b_f)
+                opt_cmp(a_t, b_t) && opt_cmp(a_f, b_f)
             }
             (
                 StmtInner::SideEffectStatement {
@@ -711,16 +712,16 @@ impl AilStatement {
                     fp_ret_expr: b_f,
                 },
             ) => {
-                let opt_likes =
+                let opt_cmp =
                     |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
-                        (Some(x), Some(y)) => x.likes(y),
+                        (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
                         _ => false,
                     };
-                a_e.likes(b_e) && opt_likes(a_r, b_r) && opt_likes(a_f, b_f)
+                a_e.cmp_ail::<MODE>(b_e) && opt_cmp(a_r, b_r) && opt_cmp(a_f, b_f)
             }
             (StmtInner::Return { ret_exprs: a }, StmtInner::Return { ret_exprs: b }) => {
-                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y))
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
             }
             (
                 StmtInner::CAS {
@@ -744,26 +745,43 @@ impl AilStatement {
                     endness: b_e,
                 },
             ) => {
-                let opt_likes =
+                let opt_cmp =
                     |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
-                        (Some(x), Some(y)) => x.likes(y),
+                        (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
                         _ => false,
                     };
                 a_e == b_e
-                    && a_a.likes(b_a)
-                    && a_dl.likes(b_dl)
-                    && opt_likes(a_dh, b_dh)
-                    && a_el.likes(b_el)
-                    && opt_likes(a_eh, b_eh)
-                    && a_ol.likes(b_ol)
-                    && opt_likes(a_oh, b_oh)
+                    && a_a.cmp_ail::<MODE>(b_a)
+                    && a_dl.cmp_ail::<MODE>(b_dl)
+                    && opt_cmp(a_dh, b_dh)
+                    && a_el.cmp_ail::<MODE>(b_el)
+                    && opt_cmp(a_eh, b_eh)
+                    && a_ol.cmp_ail::<MODE>(b_ol)
+                    && opt_cmp(a_oh, b_oh)
             }
             (StmtInner::DirtyStatement { dirty: a }, StmtInner::DirtyStatement { dirty: b }) => {
-                a.likes(b)
+                a.cmp_ail::<MODE>(b)
             }
             _ => false,
         }
+    }
+
+    /// Structural-with-identity equality on statements. ``likes`` is the
+    /// statement-level analogue of ``AilExpression::likes``: two statements
+    /// like each other when they are the same variant, every sub-expression
+    /// like-matches, and every plain-Python slot (Jump targets,
+    /// SimCC/SimType payloads, etc.) compares equal via Python ``==``.
+    /// Sub-expressions are compared via ``AilExpression::likes``, so SSA
+    /// ``varid`` differences propagate up and cause two structurally
+    /// identical statements to not ``likes`` each other.
+    ///
+    /// Backs Python ``Statement.__eq__`` (after an idx-first short-circuit)
+    /// and is used by rewriting passes that replace one statement with an
+    /// SSA-equivalent one. For the structural-only variant that dedup /
+    /// similarity passes want, see ``matches`` below.
+    pub fn likes(&self, other: &AilStatement) -> bool {
+        self.cmp_ail::<{ CmpMode::Likes.as_u8() }>(other)
     }
 
     /// Structural-only equality on statements. The statement-level
@@ -786,134 +804,15 @@ impl AilStatement {
     /// ``varid``s. Without this relaxation those passes never find
     /// merge candidates.
     pub fn matches(&self, other: &AilStatement) -> bool {
-        if self.kind() != other.kind() {
-            return false;
-        }
-        match (&self.inner, &other.inner) {
-            (
-                StmtInner::Assignment { dst: a_d, src: a_s },
-                StmtInner::Assignment { dst: b_d, src: b_s },
-            )
-            | (
-                StmtInner::WeakAssignment { dst: a_d, src: a_s },
-                StmtInner::WeakAssignment { dst: b_d, src: b_s },
-            ) => a_d.matches(b_d) && a_s.matches(b_s),
-            (StmtInner::Label { name: a }, StmtInner::Label { name: b }) => a == b,
-            (
-                StmtInner::Store {
-                    addr: a_a,
-                    data: a_d,
-                    size: a_s,
-                    endness: a_e,
-                    ..
-                },
-                StmtInner::Store {
-                    addr: b_a,
-                    data: b_d,
-                    size: b_s,
-                    endness: b_e,
-                    ..
-                },
-            ) => a_s == b_s && a_e == b_e && a_a.matches(b_a) && a_d.matches(b_d),
-            (
-                StmtInner::Jump {
-                    target: a_t,
-                    target_idx: a_ti,
-                },
-                StmtInner::Jump {
-                    target: b_t,
-                    target_idx: b_ti,
-                },
-            ) => a_ti == b_ti && a_t.matches(b_t),
-            (
-                StmtInner::ConditionalJump {
-                    condition: a_c,
-                    true_target: a_t,
-                    false_target: a_f,
-                    ..
-                },
-                StmtInner::ConditionalJump {
-                    condition: b_c,
-                    true_target: b_t,
-                    false_target: b_f,
-                    ..
-                },
-            ) => {
-                if !a_c.matches(b_c) {
-                    return false;
-                }
-                let opt_matches = |a: &Option<CFGTarget>, b: &Option<CFGTarget>| match (a, b) {
-                    (None, None) => true,
-                    (Some(x), Some(y)) => x.matches(y),
-                    _ => false,
-                };
-                opt_matches(a_t, b_t) && opt_matches(a_f, b_f)
-            }
-            (
-                StmtInner::SideEffectStatement {
-                    expr: a_e,
-                    ret_expr: a_r,
-                    fp_ret_expr: a_f,
-                },
-                StmtInner::SideEffectStatement {
-                    expr: b_e,
-                    ret_expr: b_r,
-                    fp_ret_expr: b_f,
-                },
-            ) => {
-                let opt_matches =
-                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => x.matches(y),
-                        _ => false,
-                    };
-                a_e.matches(b_e) && opt_matches(a_r, b_r) && opt_matches(a_f, b_f)
-            }
-            (StmtInner::Return { ret_exprs: a }, StmtInner::Return { ret_exprs: b }) => {
-                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y))
-            }
-            (
-                StmtInner::CAS {
-                    addr: a_a,
-                    data_lo: a_dl,
-                    data_hi: a_dh,
-                    expd_lo: a_el,
-                    expd_hi: a_eh,
-                    old_lo: a_ol,
-                    old_hi: a_oh,
-                    endness: a_e,
-                },
-                StmtInner::CAS {
-                    addr: b_a,
-                    data_lo: b_dl,
-                    data_hi: b_dh,
-                    expd_lo: b_el,
-                    expd_hi: b_eh,
-                    old_lo: b_ol,
-                    old_hi: b_oh,
-                    endness: b_e,
-                },
-            ) => {
-                let opt_matches =
-                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => x.matches(y),
-                        _ => false,
-                    };
-                a_e == b_e
-                    && a_a.matches(b_a)
-                    && a_dl.matches(b_dl)
-                    && opt_matches(a_dh, b_dh)
-                    && a_el.matches(b_el)
-                    && opt_matches(a_eh, b_eh)
-                    && a_ol.matches(b_ol)
-                    && opt_matches(a_oh, b_oh)
-            }
-            (StmtInner::DirtyStatement { dirty: a }, StmtInner::DirtyStatement { dirty: b }) => {
-                a.matches(b)
-            }
-            _ => false,
-        }
+        self.cmp_ail::<{ CmpMode::Matches.as_u8() }>(other)
+    }
+
+    /// ``__eq__`` semantics: ``likes`` plus ``idx`` equality at every
+    /// node of the statement and of its operand subtrees. Backs Python
+    /// ``Statement.__eq__``. See [`AilExpression::eq_ail`] for why the
+    /// idx-awareness has to be recursive rather than root-only.
+    pub fn eq_ail(&self, other: &AilStatement) -> bool {
+        self.cmp_ail::<{ CmpMode::Eq.as_u8() }>(other)
     }
 }
 
@@ -1877,13 +1776,7 @@ impl Statement {
         };
         let s = slf.borrow();
         let o = o.borrow();
-        if s.stmt.kind() != o.stmt.kind() {
-            return Ok(false);
-        }
-        if s.stmt.header.idx != o.stmt.header.idx {
-            return Ok(false);
-        }
-        Ok(s.stmt.likes(&o.stmt))
+        Ok(s.stmt.eq_ail(&o.stmt))
     }
 
     // --- Repr ---------------------------------------------------------

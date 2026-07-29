@@ -392,7 +392,6 @@ class SimFileStream(SimFile):
 
     def write(self, _, data, size=None, **kwargs):
         self.pos = super().write(self.pos, data, size, **kwargs)
-        return
 
     @SimStatePlugin.memo
     def copy(self, memo):
@@ -684,7 +683,6 @@ class SimPacketsStream(SimPackets):
 
     def write(self, _, data, size=None, **kwargs):
         self.pos = super().write(self.pos, data, size, **kwargs)
-        return
 
     @SimStatePlugin.memo
     def copy(self, memo):

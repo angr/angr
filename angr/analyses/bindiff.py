@@ -747,8 +747,7 @@ class FunctionDiff:
                     ordered_succ.append(x)
 
             # add the rest (sorting might be better than no order)
-            for s in sorted(succ - set(ordered_succ), key=lambda x: x.addr):
-                ordered_succ.append(s)
+            ordered_succ.extend(sorted(succ - set(ordered_succ), key=lambda x: x.addr))
             return ordered_succ
         except (SimMemoryError, SimEngineError):
             return sorted(succ, key=lambda x: x.addr)

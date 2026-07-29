@@ -9,7 +9,6 @@ based on the called function (e.g., malloc result -> ptr, strlen result -> len).
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment.expression import Call
@@ -17,9 +16,6 @@ from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
-
-if TYPE_CHECKING:
-    pass
 
 l = logging.getLogger(name=__name__)
 

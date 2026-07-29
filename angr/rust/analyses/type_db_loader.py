@@ -296,7 +296,7 @@ class TypeDBLoader(Analysis):
             return
         type_db_json = json.loads(type_db_path.read_text(encoding="utf-8"))
         self._struct_db = {struct_data["name"]: struct_data for struct_data in type_db_json["structs"]}
-        for _, struct_data in self._struct_db.items():
+        for struct_data in self._struct_db.values():
             self._parse_type(struct_data)
         l.info("Loaded %d structs from type database.", len(self._structs))
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import networkx
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.block import Block
 
 from .utils import find_block_by_addr

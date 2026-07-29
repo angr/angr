@@ -306,7 +306,7 @@ class FunctionHandler:
         return self
 
     def make_function_codeloc(
-        self, target: None | int | MultiValues, callsite: CodeLocation, callsite_func_addr: int | None
+        self, target: int | MultiValues | None, callsite: CodeLocation, callsite_func_addr: int | None
     ):
         """
         The RDA engine will call this function to transform a callsite CodeLocation into a callee CodeLocation.

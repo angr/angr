@@ -38,7 +38,7 @@ class SimDebugVariable:
     @property
     def mem_untyped(self) -> SimMemView:
         if self.addr is None:
-            raise Exception("Cannot view a variable without an address")
+            raise ValueError("Cannot view a variable without an address")
         return self.state.mem[self.addr]
 
     @property
@@ -114,7 +114,7 @@ class SimDebugVariable:
                 addr = self.state.memory.load(self.addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
             el_type = self.type.referenced_type
         else:
-            raise Exception(f"{self.type} object cannot be dereferenced")
+            raise TypeError(f"{self.type} object cannot be dereferenced")
 
         if i == 0:
             new_addr = addr

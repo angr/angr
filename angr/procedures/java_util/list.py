@@ -23,8 +23,6 @@ class ListInit(JavaSimProcedure):
         this_ref.store_field(self.state, ELEMS, "java.lang.Object[]", array_ref)
         this_ref.store_field(self.state, SIZE, "int", claripy.BVV(0, 32))
 
-        return
-
 
 class ListAdd(JavaSimProcedure):
     __provides__ = (("java.util.List", "add(java.lang.Object)"), ("java.util.LinkedList", "add(java.lang.Object)"))

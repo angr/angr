@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import claripy
 import networkx
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter

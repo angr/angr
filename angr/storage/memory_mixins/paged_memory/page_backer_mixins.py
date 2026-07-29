@@ -30,7 +30,7 @@ class NotMemoryview:
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
-    def __init__(self, cle_memory_backer: None | cle.Loader | cle.Clemory = None, **kwargs):
+    def __init__(self, cle_memory_backer: cle.Loader | cle.Clemory | None = None, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(cle_memory_backer, cle.Loader):

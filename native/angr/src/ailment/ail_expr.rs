@@ -28,7 +28,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CachedHash, hash_of};
+use crate::ailment::{CachedHash, CmpMode, hash_of};
 use indexmap::IndexMap;
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
@@ -70,13 +70,44 @@ impl ExprHeader {
 /// expression -- VEX sometimes carries the rounding mode in a tmp, which only
 /// becomes a constant later in the decompilation pipeline.
 ///
-/// The expression form is a payload, not an operand: ``likes`` / ``matches``
-/// / ``__eq__`` ignore the rounding mode entirely (as they always have), and
-/// the operand walks (``replace`` / recursive maps) do not descend into it.
+/// The rounding mode is significant to every comparison relation --
+/// ``__eq__`` / ``likes`` / ``matches`` all observe it, as the legacy
+/// Python AIL did (``Convert.likes`` and ``BinaryOp.likes`` both compared
+/// ``self.rounding_mode``). Two float conversions that round differently
+/// compute different values and are not the same expression.
+///
+/// It remains a payload rather than an operand in one narrow sense: the
+/// operand walks (``replace`` / recursive maps) still do not descend into
+/// the expression form.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum RoundingModeOrExpr {
     Mode(RoundingMode),
     Expr(Arc<AilExpression>),
+}
+
+impl RoundingModeOrExpr {
+    /// Compare two payloads under `MODE`. The expression form recurses
+    /// through [`AilExpression::cmp_ail`], so a rounding mode still held
+    /// in a tmp observes the same idx-awareness and SSA relaxations as
+    /// any other subtree.
+    pub fn cmp_ail<const MODE: u8>(&self, other: &RoundingModeOrExpr) -> bool {
+        match (self, other) {
+            (RoundingModeOrExpr::Mode(a), RoundingModeOrExpr::Mode(b)) => a == b,
+            (RoundingModeOrExpr::Expr(a), RoundingModeOrExpr::Expr(b)) => a.cmp_ail::<MODE>(b),
+            // A resolved mode and an unresolved tmp are not interchangeable
+            // even when the tmp would later resolve to that mode.
+            _ => false,
+        }
+    }
+
+    /// [`Self::cmp_ail`] lifted over the ``Option`` the variants store.
+    pub fn opt_cmp_ail<const MODE: u8>(a: &Option<Self>, b: &Option<Self>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
+            _ => false,
+        }
+    }
 }
 
 impl Hash for RoundingModeOrExpr {
@@ -434,8 +465,15 @@ impl CFGTarget {
     /// Structural-with-identity equality (idx-strict via inner
     /// ``AilExpression::likes``).
     pub fn likes(&self, other: &CFGTarget) -> bool {
+        self.cmp_ail::<{ CmpMode::Likes.as_u8() }>(other)
+    }
+
+    /// Compare two targets under `MODE`, deferring to the inner
+    /// expression's [`AilExpression::cmp_ail`]. Symbol targets are leaves
+    /// and compare by name in every mode.
+    pub fn cmp_ail<const MODE: u8>(&self, other: &CFGTarget) -> bool {
         match (self, other) {
-            (CFGTarget::Expr(a), CFGTarget::Expr(b)) => a.likes(b),
+            (CFGTarget::Expr(a), CFGTarget::Expr(b)) => a.cmp_ail::<MODE>(b),
             (CFGTarget::Symbol(a), CFGTarget::Symbol(b)) => a == b,
             _ => false,
         }
@@ -444,11 +482,7 @@ impl CFGTarget {
     /// Structural-only equality (idx-agnostic via inner
     /// ``AilExpression::matches``).
     pub fn matches(&self, other: &CFGTarget) -> bool {
-        match (self, other) {
-            (CFGTarget::Expr(a), CFGTarget::Expr(b)) => a.matches(b),
-            (CFGTarget::Symbol(a), CFGTarget::Symbol(b)) => a == b,
-            _ => false,
-        }
+        self.cmp_ail::<{ CmpMode::Matches.as_u8() }>(other)
     }
 
     /// Recursively substitute ``old`` with ``new`` inside an ``Expr``
@@ -796,7 +830,6 @@ impl Hash for AilExpression {
                 from_type,
                 to_type,
                 rounding_mode,
-                ..
             } => {
                 operand.cached_hash_or_compute().hash(h);
                 from_bits.hash(h);
@@ -826,6 +859,7 @@ impl Hash for AilExpression {
                 operands,
                 signed,
                 floating_point,
+                rounding_mode,
                 ..
             } => {
                 op.hash(h);
@@ -834,6 +868,7 @@ impl Hash for AilExpression {
                 bits.hash(h);
                 signed.hash(h);
                 floating_point.hash(h);
+                rounding_mode.hash(h);
             }
             ExprInner::Load {
                 addr,
@@ -1077,14 +1112,22 @@ impl AilExpression {
         e
     }
 
-    /// ``__eq__`` semantics: same kind, same ``idx``, and structurally
-    /// ``likes``. This is what the Python ``Expression.__eq__`` computes
-    /// (idx-first short-circuit, then ``likes``). ``replace`` matches on
-    /// this, NOT on bare ``likes``: two distinct SSA occurrences of the
-    /// same value share a shape (``likes``) but have different ``idx``,
-    /// and a replace targeting one must not rewrite the other.
+    /// ``__eq__`` semantics: same kind and structurally ``likes``, with
+    /// ``idx`` equality required at **every** node -- not just the root.
+    /// This is what the Python ``Expression.__eq__`` computes.
+    /// ``replace`` matches on this, NOT on bare ``likes``: two distinct
+    /// SSA occurrences of the same value share a shape (``likes``) but
+    /// have different ``idx``, and a replace targeting one must not
+    /// rewrite the other.
+    ///
+    /// The idx-awareness has to reach the whole subtree because the
+    /// ``Hash`` impl folds every descendant's ``idx`` in (operands
+    /// contribute via ``cached_hash_or_compute``). Checking ``idx`` only
+    /// at the root -- as this did before -- left ``a == b`` true while
+    /// ``hash(a) != hash(b)`` for any node with children, so ``==``
+    /// duplicates could coexist in a set and dict lookups missed.
     pub fn eq_ail(&self, other: &AilExpression) -> bool {
-        self.header.idx == other.header.idx && self.likes(other)
+        self.cmp_ail::<{ CmpMode::Eq.as_u8() }>(other)
     }
 
     /// Recursive ``replace`` -- walk the operand subtrees, substituting
@@ -1920,28 +1963,35 @@ impl AilExpression {
         h
     }
 
-    /// Structural-with-identity equality. Two expressions ``likes`` each
-    /// other when they are the same variant carrying the same identifying
-    /// information AND their operands transitively ``likes`` each other.
+    /// The single comparison walk backing ``__eq__`` / ``likes`` /
+    /// ``matches``. See [`CmpMode`] for the mode hierarchy.
     ///
-    /// For SSA atoms ``VirtualVariable`` this means the ``varid`` must
-    /// agree -- ``likes`` will distinguish two structurally identical
-    /// reads of the same register that come from different definitions.
-    /// Contrast with ``matches``: ``matches`` is the structural-only
-    /// sibling that ignores ``varid`` (and other identifying fields) and
-    /// only requires the *shape* of the expression to be the same.
+    /// `MODE` is a const generic, so each relation monomorphizes into its
+    /// own specialized function and every ``mode ==`` test below folds
+    /// away at compile time -- one source of truth, no per-node branch in
+    /// a walk that runs millions of times per decompile. It is a ``u8``
+    /// rather than a [`CmpMode`] only because stable Rust does not allow
+    /// enum const-generic parameters; ``mode`` below recovers the enum,
+    /// and being a compile-time constant it costs nothing.
     ///
-    /// Rule of thumb:
-    /// * ``likes`` = "is this the same value at the AIL level" -- used
-    ///   by Python ``__eq__`` (after the idx-first short-circuit), by
-    ///   rewriting passes that replace one node with an equivalent one,
-    ///   and anywhere identity within the SSA-numbered IR matters.
-    /// * ``matches`` = "do these two expressions have the same shape" --
-    ///   used by deduplication / similarity passes that need to recognize
-    ///   that the same source expression compiled into two different
-    ///   SSA-numbered occurrences should be treated as identical.
-    pub fn likes(&self, other: &AilExpression) -> bool {
+    /// Children are compared under the *same* `MODE`. That is what makes
+    /// a relaxation propagate through every container variant instead of
+    /// only the ones someone remembered to override: the hand-maintained
+    /// ``matches`` override table this replaced silently fell back to
+    /// ``likes`` for ``Struct`` / ``Array`` / ``RustEnum`` / ``Let`` /
+    /// ``FunctionLikeMacro``, so the relaxation stopped dead at those
+    /// container boundaries.
+    pub fn cmp_ail<const MODE: u8>(&self, other: &AilExpression) -> bool {
+        let mode = CmpMode::from_u8(MODE);
         if self.kind() != other.kind() {
+            return false;
+        }
+        // ``__eq__`` is ``likes`` plus ``idx`` equality at *every* node,
+        // enforced here -- once, uniformly, so a new variant cannot forget
+        // it. This is what keeps ``__eq__`` consistent with the ``Hash``
+        // impl, which likewise folds ``header.idx`` in at every node: two
+        // expressions that compare equal must hash equal.
+        if mode == CmpMode::Eq && self.header.idx != other.header.idx {
             return false;
         }
         // Treat ``NaN`` as equal to ``NaN`` to mirror the legacy Python
@@ -1972,7 +2022,7 @@ impl AilExpression {
             (
                 ExprInner::ComboRegister { registers: a, .. },
                 ExprInner::ComboRegister { registers: b, .. },
-            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y)),
+            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y)),
             (
                 ExprInner::Phi {
                     src_and_vvars: a, ..
@@ -1984,13 +2034,28 @@ impl AilExpression {
                 if self.header.bits != other.header.bits || a.len() != b.len() {
                     return false;
                 }
+                if mode == CmpMode::Matches {
+                    // Order-insensitive: every ``src`` (src_addr, src_idx)
+                    // in ``a`` must appear in ``b``. The ``vvar`` payloads
+                    // are intentionally ignored (mirrors master's
+                    // ``Phi.matches``).
+                    'outer: for ea in a.iter() {
+                        for eb in b.iter() {
+                            if ea.src_addr == eb.src_addr && ea.src_idx == eb.src_idx {
+                                continue 'outer;
+                            }
+                        }
+                        return false;
+                    }
+                    return true;
+                }
                 a.iter().zip(b.iter()).all(|(x, y)| {
                     if x.src_addr != y.src_addr || x.src_idx != y.src_idx {
                         return false;
                     }
                     match (&x.vvar, &y.vvar) {
                         (None, None) => true,
-                        (Some(xv), Some(yv)) => xv.likes(yv),
+                        (Some(xv), Some(yv)) => xv.cmp_ail::<MODE>(yv),
                         _ => false,
                     }
                 })
@@ -2008,7 +2073,15 @@ impl AilExpression {
                     oident: b_o,
                     ..
                 },
-            ) => a_id == b_id && self.header.bits == other.header.bits && a_c == b_c && a_o == b_o,
+            ) => {
+                // ``matches`` drops ``varid`` -- the single most important
+                // relaxation. It lets the dedup passes recognize the same
+                // source-level read across two SSA branches.
+                (mode == CmpMode::Matches || a_id == b_id)
+                    && self.header.bits == other.header.bits
+                    && a_c == b_c
+                    && a_o == b_o
+            }
             (
                 ExprInner::UnaryOp {
                     op: a_op,
@@ -2020,7 +2093,11 @@ impl AilExpression {
                     operand: b_op_,
                     ..
                 },
-            ) => a_op == b_op && self.header.bits == other.header.bits && a_op_.likes(b_op_),
+            ) => {
+                a_op == b_op
+                    && self.header.bits == other.header.bits
+                    && a_op_.cmp_ail::<MODE>(b_op_)
+            }
             (
                 ExprInner::Convert {
                     operand: a_o,
@@ -2029,7 +2106,7 @@ impl AilExpression {
                     is_signed: a_s,
                     from_type: a_ft,
                     to_type: a_tt,
-                    ..
+                    rounding_mode: a_rm,
                 },
                 ExprInner::Convert {
                     operand: b_o,
@@ -2038,7 +2115,7 @@ impl AilExpression {
                     is_signed: b_s,
                     from_type: b_ft,
                     to_type: b_tt,
-                    ..
+                    rounding_mode: b_rm,
                 },
             ) => {
                 a_fb == b_fb
@@ -2047,7 +2124,8 @@ impl AilExpression {
                     && a_ft == b_ft
                     && a_tt == b_tt
                     && self.header.bits == other.header.bits
-                    && a_o.likes(b_o)
+                    && RoundingModeOrExpr::opt_cmp_ail::<MODE>(a_rm, b_rm)
+                    && a_o.cmp_ail::<MODE>(b_o)
             }
             (
                 ExprInner::Reinterpret {
@@ -2066,13 +2144,20 @@ impl AilExpression {
                     to_type: b_tt,
                     ..
                 },
-            ) => a_fb == b_fb && a_tb == b_tb && a_ft == b_ft && a_tt == b_tt && a_o.likes(b_o),
+            ) => {
+                a_fb == b_fb
+                    && a_tb == b_tb
+                    && a_ft == b_ft
+                    && a_tt == b_tt
+                    && a_o.cmp_ail::<MODE>(b_o)
+            }
             (
                 ExprInner::BinaryOp {
                     op: op_a,
                     operands: ops_a,
                     signed: s_a,
                     floating_point: fp_a,
+                    rounding_mode: rm_a,
                     ..
                 },
                 ExprInner::BinaryOp {
@@ -2080,6 +2165,7 @@ impl AilExpression {
                     operands: ops_b,
                     signed: s_b,
                     floating_point: fp_b,
+                    rounding_mode: rm_b,
                     ..
                 },
             ) => {
@@ -2087,8 +2173,9 @@ impl AilExpression {
                     && s_a == s_b
                     && fp_a == fp_b
                     && self.header.bits == other.header.bits
-                    && ops_a[0].likes(&ops_b[0])
-                    && ops_a[1].likes(&ops_b[1])
+                    && RoundingModeOrExpr::opt_cmp_ail::<MODE>(rm_a, rm_b)
+                    && ops_a[0].cmp_ail::<MODE>(&ops_b[0])
+                    && ops_a[1].cmp_ail::<MODE>(&ops_b[1])
             }
             (
                 ExprInner::Load {
@@ -2103,7 +2190,7 @@ impl AilExpression {
                     endness: b_end,
                     ..
                 },
-            ) => a_size == b_size && a_end == b_end && a_addr.likes(b_addr),
+            ) => a_size == b_size && a_end == b_end && a_addr.cmp_ail::<MODE>(b_addr),
             (
                 ExprInner::Struct {
                     name: a_n,
@@ -2118,14 +2205,18 @@ impl AilExpression {
                     ..
                 },
             ) => {
-                if a_n != b_n || a_f.len() != b_f.len() || a_o != b_o {
+                if a_n != b_n
+                    || a_f.len() != b_f.len()
+                    || a_o != b_o
+                    || self.header.bits != other.header.bits
+                {
                     return false;
                 }
                 for (off, e) in a_f {
                     let Some(other_e) = b_f.get(off) else {
                         return false;
                     };
-                    if !e.likes(other_e) {
+                    if !e.cmp_ail::<MODE>(other_e) {
                         return false;
                     }
                 }
@@ -2144,14 +2235,22 @@ impl AilExpression {
                 a_n == b_n
                     && self.header.bits == other.header.bits
                     && a_f.len() == b_f.len()
-                    && a_f.iter().zip(b_f.iter()).all(|(a, b)| a.likes(b))
+                    && a_f
+                        .iter()
+                        .zip(b_f.iter())
+                        .all(|(a, b)| a.cmp_ail::<MODE>(b))
             }
             (ExprInner::Array { elements: a_e }, ExprInner::Array { elements: b_e }) => {
                 self.header.bits == other.header.bits
                     && a_e.len() == b_e.len()
-                    && a_e.iter().zip(b_e.iter()).all(|(a, b)| a.likes(b))
+                    && a_e
+                        .iter()
+                        .zip(b_e.iter())
+                        .all(|(a, b)| a.cmp_ail::<MODE>(b))
             }
-            (ExprInner::Let { src: a_s, .. }, ExprInner::Let { src: b_s, .. }) => a_s.likes(b_s),
+            (ExprInner::Let { src: a_s, .. }, ExprInner::Let { src: b_s, .. }) => {
+                a_s.cmp_ail::<MODE>(b_s)
+            }
             (
                 ExprInner::Macro {
                     name: a_n,
@@ -2184,7 +2283,8 @@ impl AilExpression {
                 match (a_a, b_a) {
                     (None, None) => true,
                     (Some(x), Some(y)) => {
-                        x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| a.likes(b))
+                        x.len() == y.len()
+                            && x.iter().zip(y.iter()).all(|(a, b)| a.cmp_ail::<MODE>(b))
                     }
                     _ => false,
                 }
@@ -2217,13 +2317,16 @@ impl AilExpression {
                 let opt_likes =
                     |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
                         (None, None) => true,
-                        (Some(x), Some(y)) => x.likes(y),
+                        (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
                         _ => false,
                     };
                 opt_likes(a_g, b_g)
                     && opt_likes(a_ma, b_ma)
                     && a_ops.len() == b_ops.len()
-                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.likes(y))
+                    && a_ops
+                        .iter()
+                        .zip(b_ops.iter())
+                        .all(|(x, y)| x.cmp_ail::<MODE>(y))
             }
             (
                 ExprInner::VEXCCallExpression {
@@ -2238,7 +2341,10 @@ impl AilExpression {
                 a_c == b_c
                     && self.header.bits == other.header.bits
                     && a_ops.len() == b_ops.len()
-                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.likes(y))
+                    && a_ops
+                        .iter()
+                        .zip(b_ops.iter())
+                        .all(|(x, y)| x.cmp_ail::<MODE>(y))
             }
             (
                 ExprInner::MultiStatementExpression {
@@ -2251,8 +2357,11 @@ impl AilExpression {
                 },
             ) => {
                 a_s.len() == b_s.len()
-                    && a_s.iter().zip(b_s.iter()).all(|(x, y)| x.likes(y))
-                    && a_e.likes(b_e)
+                    && a_s
+                        .iter()
+                        .zip(b_s.iter())
+                        .all(|(x, y)| x.cmp_ail::<MODE>(y))
+                    && a_e.cmp_ail::<MODE>(b_e)
             }
             (
                 ExprInner::Call {
@@ -2268,13 +2377,14 @@ impl AilExpression {
             ) => {
                 // ``CFGTarget::likes`` already dispatches structurally;
                 // for the Expr arm it routes through ``AilExpression::likes``.
-                if !a_t.likes(b_t) {
+                if !a_t.cmp_ail::<MODE>(b_t) {
                     return false;
                 }
                 match (a_args, b_args) {
                     (None, None) => true,
                     (Some(a), Some(b)) => {
-                        a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.likes(y))
+                        a.len() == b.len()
+                            && a.iter().zip(b.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
                     }
                     _ => false,
                 }
@@ -2294,9 +2404,9 @@ impl AilExpression {
                 },
             ) => {
                 self.header.bits == other.header.bits
-                    && ac.likes(bc)
-                    && af.likes(bf)
-                    && at.likes(bt)
+                    && ac.cmp_ail::<MODE>(bc)
+                    && af.cmp_ail::<MODE>(bf)
+                    && at.cmp_ail::<MODE>(bt)
             }
             (
                 ExprInner::Extract {
@@ -2309,7 +2419,12 @@ impl AilExpression {
                     offset: bo,
                     endness: be,
                 },
-            ) => self.header.bits == other.header.bits && ae == be && ab.likes(bb) && ao.likes(bo),
+            ) => {
+                self.header.bits == other.header.bits
+                    && ae == be
+                    && ab.cmp_ail::<MODE>(bb)
+                    && ao.cmp_ail::<MODE>(bo)
+            }
             (
                 ExprInner::Insert {
                     base: ab,
@@ -2323,8 +2438,15 @@ impl AilExpression {
                     value: bv,
                     endness: be,
                 },
-            ) => ae == be && ab.likes(bb) && ao.likes(bo) && av.likes(bv),
-            (ExprInner::StringLiteral { data: a }, ExprInner::StringLiteral { data: b }) => a == b,
+            ) => {
+                ae == be
+                    && ab.cmp_ail::<MODE>(bb)
+                    && ao.cmp_ail::<MODE>(bo)
+                    && av.cmp_ail::<MODE>(bv)
+            }
+            (ExprInner::StringLiteral { data: a }, ExprInner::StringLiteral { data: b }) => {
+                a == b && self.header.bits == other.header.bits
+            }
             (
                 ExprInner::BasePointerOffset {
                     base: a_b,
@@ -2343,6 +2465,30 @@ impl AilExpression {
             ) => a == b && self.header.bits == other.header.bits,
             _ => false,
         }
+    }
+
+    /// Structural-with-identity equality. Two expressions ``likes`` each
+    /// other when they are the same variant carrying the same identifying
+    /// information AND their operands transitively ``likes`` each other.
+    ///
+    /// For SSA atoms ``VirtualVariable`` this means the ``varid`` must
+    /// agree -- ``likes`` will distinguish two structurally identical
+    /// reads of the same register that come from different definitions.
+    /// Contrast with ``matches``: ``matches`` is the structural-only
+    /// sibling that ignores ``varid`` (and other identifying fields) and
+    /// only requires the *shape* of the expression to be the same.
+    ///
+    /// Rule of thumb:
+    /// * ``likes`` = "is this the same value at the AIL level" -- used
+    ///   by Python ``__eq__`` (after the idx-first short-circuit), by
+    ///   rewriting passes that replace one node with an equivalent one,
+    ///   and anywhere identity within the SSA-numbered IR matters.
+    /// * ``matches`` = "do these two expressions have the same shape" --
+    ///   used by deduplication / similarity passes that need to recognize
+    ///   that the same source expression compiled into two different
+    ///   SSA-numbered occurrences should be treated as identical.
+    pub fn likes(&self, other: &AilExpression) -> bool {
+        self.cmp_ail::<{ CmpMode::Likes.as_u8() }>(other)
     }
 
     /// Structural-only equality. Unlike ``likes``, ``matches`` ignores
@@ -2370,303 +2516,7 @@ impl AilExpression {
     /// duplicates even though SSA renumbering gave their values
     /// different ``varid``s.
     pub fn matches(&self, other: &AilExpression) -> bool {
-        if self.kind() != other.kind() {
-            return false;
-        }
-        match (&self.inner, &other.inner) {
-            // -- VirtualVariable: matches ignores ``varid``. This is the
-            // -- single most important relaxation -- it lets the dedup
-            // -- passes recognize the same source-level read across two
-            // -- SSA branches.
-            (
-                ExprInner::VirtualVariable {
-                    category: a_c,
-                    oident: a_o,
-                    ..
-                },
-                ExprInner::VirtualVariable {
-                    category: b_c,
-                    oident: b_o,
-                    ..
-                },
-            ) => self.header.bits == other.header.bits && a_c == b_c && a_o == b_o,
-            // -- Phi: same shape, but per-source pairs only require the
-            // -- *source* to match; the vvar id is ignored (per master's
-            // -- ``Phi.matches``). The legacy contract walks the dicts
-            // -- and only verifies the keys (sources) line up.
-            (
-                ExprInner::Phi {
-                    src_and_vvars: a, ..
-                },
-                ExprInner::Phi {
-                    src_and_vvars: b, ..
-                },
-            ) => {
-                if self.header.bits != other.header.bits || a.len() != b.len() {
-                    return false;
-                }
-                // Order-insensitive: every ``src`` (src_addr, src_idx)
-                // in ``a`` must appear in ``b``. ``vvar_id`` payloads
-                // are intentionally ignored (mirrors master's
-                // ``Phi.matches``).
-                'outer: for ea in a.iter() {
-                    for eb in b.iter() {
-                        if ea.src_addr == eb.src_addr && ea.src_idx == eb.src_idx {
-                            continue 'outer;
-                        }
-                    }
-                    return false;
-                }
-                true
-            }
-            // -- Recursive variants: descend via ``matches`` so the
-            // -- relaxation propagates.
-            (
-                ExprInner::UnaryOp {
-                    op: a_op,
-                    operand: a_o,
-                    ..
-                },
-                ExprInner::UnaryOp {
-                    op: b_op,
-                    operand: b_o,
-                    ..
-                },
-            ) => a_op == b_op && self.header.bits == other.header.bits && a_o.matches(b_o),
-            (
-                ExprInner::Convert {
-                    operand: a_o,
-                    from_bits: a_fb,
-                    to_bits: a_tb,
-                    is_signed: a_s,
-                    from_type: a_ft,
-                    to_type: a_tt,
-                    ..
-                },
-                ExprInner::Convert {
-                    operand: b_o,
-                    from_bits: b_fb,
-                    to_bits: b_tb,
-                    is_signed: b_s,
-                    from_type: b_ft,
-                    to_type: b_tt,
-                    ..
-                },
-            ) => {
-                a_fb == b_fb
-                    && a_tb == b_tb
-                    && a_s == b_s
-                    && a_ft == b_ft
-                    && a_tt == b_tt
-                    && self.header.bits == other.header.bits
-                    && a_o.matches(b_o)
-            }
-            (
-                ExprInner::Reinterpret {
-                    operand: a_o,
-                    from_bits: a_fb,
-                    from_type: a_ft,
-                    to_bits: a_tb,
-                    to_type: a_tt,
-                    ..
-                },
-                ExprInner::Reinterpret {
-                    operand: b_o,
-                    from_bits: b_fb,
-                    from_type: b_ft,
-                    to_bits: b_tb,
-                    to_type: b_tt,
-                    ..
-                },
-            ) => a_fb == b_fb && a_tb == b_tb && a_ft == b_ft && a_tt == b_tt && a_o.matches(b_o),
-            (
-                ExprInner::BinaryOp {
-                    op: op_a,
-                    operands: ops_a,
-                    signed: s_a,
-                    floating_point: fp_a,
-                    ..
-                },
-                ExprInner::BinaryOp {
-                    op: op_b,
-                    operands: ops_b,
-                    signed: s_b,
-                    floating_point: fp_b,
-                    ..
-                },
-            ) => {
-                op_a == op_b
-                    && s_a == s_b
-                    && fp_a == fp_b
-                    && self.header.bits == other.header.bits
-                    && ops_a[0].matches(&ops_b[0])
-                    && ops_a[1].matches(&ops_b[1])
-            }
-            (
-                ExprInner::Load {
-                    addr: a_addr,
-                    size: a_size,
-                    endness: a_end,
-                    ..
-                },
-                ExprInner::Load {
-                    addr: b_addr,
-                    size: b_size,
-                    endness: b_end,
-                    ..
-                },
-            ) => a_size == b_size && a_end == b_end && a_addr.matches(b_addr),
-            (
-                ExprInner::ITE {
-                    cond: ac,
-                    iffalse: af,
-                    iftrue: at,
-                    ..
-                },
-                ExprInner::ITE {
-                    cond: bc,
-                    iffalse: bf,
-                    iftrue: bt,
-                    ..
-                },
-            ) => {
-                self.header.bits == other.header.bits
-                    && ac.matches(bc)
-                    && af.matches(bf)
-                    && at.matches(bt)
-            }
-            (
-                ExprInner::Extract {
-                    base: ab,
-                    offset: ao,
-                    endness: ae,
-                },
-                ExprInner::Extract {
-                    base: bb,
-                    offset: bo,
-                    endness: be,
-                },
-            ) => {
-                self.header.bits == other.header.bits
-                    && ae == be
-                    && ab.matches(bb)
-                    && ao.matches(bo)
-            }
-            (
-                ExprInner::Insert {
-                    base: ab,
-                    offset: ao,
-                    value: av,
-                    endness: ae,
-                },
-                ExprInner::Insert {
-                    base: bb,
-                    offset: bo,
-                    value: bv,
-                    endness: be,
-                },
-            ) => ae == be && ab.matches(bb) && ao.matches(bo) && av.matches(bv),
-            (
-                ExprInner::Call {
-                    target: a_t,
-                    args: a_args,
-                    ..
-                },
-                ExprInner::Call {
-                    target: b_t,
-                    args: b_args,
-                    ..
-                },
-            ) => {
-                if !a_t.matches(b_t) {
-                    return false;
-                }
-                match (a_args, b_args) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => {
-                        a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y))
-                    }
-                    _ => false,
-                }
-            }
-            (
-                ExprInner::DirtyExpression {
-                    callee: a_c,
-                    operands: a_ops,
-                    guard: a_g,
-                    mfx: a_mfx,
-                    maddr: a_ma,
-                    msize: a_ms,
-                },
-                ExprInner::DirtyExpression {
-                    callee: b_c,
-                    operands: b_ops,
-                    guard: b_g,
-                    mfx: b_mfx,
-                    maddr: b_ma,
-                    msize: b_ms,
-                },
-            ) => {
-                if a_c != b_c
-                    || a_mfx != b_mfx
-                    || a_ms != b_ms
-                    || self.header.bits != other.header.bits
-                {
-                    return false;
-                }
-                let opt_matches =
-                    |a: &Option<Arc<AilExpression>>, b: &Option<Arc<AilExpression>>| match (a, b) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => x.matches(y),
-                        _ => false,
-                    };
-                opt_matches(a_g, b_g)
-                    && opt_matches(a_ma, b_ma)
-                    && a_ops.len() == b_ops.len()
-                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.matches(y))
-            }
-            (
-                ExprInner::VEXCCallExpression {
-                    callee: a_c,
-                    operands: a_ops,
-                },
-                ExprInner::VEXCCallExpression {
-                    callee: b_c,
-                    operands: b_ops,
-                },
-            ) => {
-                a_c == b_c
-                    && self.header.bits == other.header.bits
-                    && a_ops.len() == b_ops.len()
-                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.matches(y))
-            }
-            (
-                ExprInner::MultiStatementExpression {
-                    stmts: a_s,
-                    expr: a_e,
-                },
-                ExprInner::MultiStatementExpression {
-                    stmts: b_s,
-                    expr: b_e,
-                },
-            ) => {
-                a_s.len() == b_s.len()
-                    && a_s.iter().zip(b_s.iter()).all(|(x, y)| x.matches(y))
-                    && a_e.matches(b_e)
-            }
-            // -- ComboRegister: recurses via matches but Python defines
-            // -- ``matches = likes`` for it. Since likes already recurses
-            // -- via ``likes`` and there's no varid in plain Register, the
-            // -- two are equivalent. Keep the recursion explicit for
-            // -- forward-consistency.
-            (
-                ExprInner::ComboRegister { registers: a, .. },
-                ExprInner::ComboRegister { registers: b, .. },
-            ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y)),
-            // -- All other variants: no identifying info distinguishes
-            // -- ``matches`` from ``likes``. Defer to ``likes``.
-            _ => self.likes(other),
-        }
+        self.cmp_ail::<{ CmpMode::Matches.as_u8() }>(other)
     }
 }
 
@@ -5113,13 +4963,7 @@ impl Expression {
         };
         let s = slf.borrow();
         let o = o.borrow();
-        if s.expr.kind() != o.expr.kind() {
-            return Ok(false);
-        }
-        if s.expr.header.idx != o.expr.header.idx {
-            return Ok(false);
-        }
-        Ok(s.expr.likes(&o.expr))
+        Ok(s.expr.eq_ail(&o.expr))
     }
 
     // --- Repr ---------------------------------------------------------

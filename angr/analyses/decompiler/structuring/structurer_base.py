@@ -179,7 +179,7 @@ class StructurerBase(Analysis):
             top = {a: times for a, times in goto_addrs.items() if times == max_votes}
             top_in_region = {a: times for a, times in top.items() if a in region_node_addrs}
             goto_addrs = top_in_region or top
-        return sorted(goto_addrs.items(), key=lambda x: (-x[1], x[0]))[0][0]
+        return min(goto_addrs.items(), key=lambda x: (-x[1], x[0]))[0]
 
     def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
         """
@@ -193,8 +193,7 @@ class StructurerBase(Analysis):
 
         # ensure every case node ends with a control-flow transition statement
         # FIXME: The following logic only handles one case. are there other cases?
-        for case_addr in cases:
-            case_node = cases[case_addr]
+        for case_node in cases.values():
             if (
                 isinstance(case_node, SequenceNode)
                 and case_node.nodes

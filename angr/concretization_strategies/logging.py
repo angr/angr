@@ -4,6 +4,8 @@ import logging
 
 from .base import SimConcretizationStrategy
 
+log = logging.getLogger(name=__name__)
+
 
 class SimConcretizationStrategyLogging(SimConcretizationStrategy):
     """
@@ -19,14 +21,14 @@ class SimConcretizationStrategyLogging(SimConcretizationStrategy):
         answers = self._strategy._concretize(memory, addr, **kwargs)
         if answers is not None:
             if self._is_read_strategy:
-                logging.debug(
+                log.debug(
                     "Read strategy %s on %s gave [%s]",
                     type(self._strategy).__name__,
                     addr,
                     ", ".join([hex(answer) for answer in answers]),
                 )
             else:
-                logging.debug(
+                log.debug(
                     "Write strategy %s on %s gave [%s]",
                     type(self._strategy).__name__,
                     addr,

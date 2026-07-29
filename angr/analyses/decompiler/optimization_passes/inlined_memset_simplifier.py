@@ -104,7 +104,7 @@ class InlinedMemsetSimplifier(OptimizationPass):
             replaced_indices: set[int] = set()
             replacements: dict[int, SideEffectStatement] = {}
 
-            for _kind, lst in info_by_kind.items():
+            for lst in info_by_kind.values():
                 if len(lst) <= 1:
                     continue
                 candidates = self._find_memset_candidates(lst)

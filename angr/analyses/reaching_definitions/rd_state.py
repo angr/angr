@@ -520,7 +520,7 @@ class ReachingDefinitionsState:
     ) -> bytes | None: ...
 
     def get_concrete_value(
-        self, spec: Atom | Definition[Atom, CodeLoc] | Iterable[Atom], cast_to: type[int] | type[bytes] = int
+        self, spec: Atom | Definition[Atom, CodeLoc] | Iterable[Atom], cast_to: type[int | bytes] = int
     ) -> int | bytes | None:
         return self.live_definitions.get_concrete_value(spec, cast_to)
 

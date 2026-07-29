@@ -10,7 +10,7 @@ from unittest import TestCase, main
 import claripy
 
 import angr
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses import CFGFast, CompleteCallingConventionsAnalysis, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.function_handler_library import LibcHandlers

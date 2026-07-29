@@ -260,8 +260,8 @@ class Clinic(Analysis, Serializable):
         insert_labels=True,
         optimization_passes=None,
         cfg=None,
-        peephole_optimizations: None
-        | (Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]) = None,  # pylint:disable=line-too-long
+        peephole_optimizations: Iterable[type[PeepholeOptimizationStmtBase | PeepholeOptimizationExprBase]]
+        | None = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,

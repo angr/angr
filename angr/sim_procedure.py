@@ -179,7 +179,7 @@ class SimProcedure:
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
-        self.arg_session: None | ArgSession | int = None
+        self.arg_session: ArgSession | int | None = None
 
     def __repr__(self):
         return "<SimProcedure {}{}{}{}{}>".format(*self._describe_me())

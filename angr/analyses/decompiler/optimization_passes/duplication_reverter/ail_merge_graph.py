@@ -343,7 +343,7 @@ class AILMergeGraph:
             self.original_ends = start_blocks
 
         # moved here
-        for _, pair in merge_to_end_pair.items():
+        for pair in merge_to_end_pair.values():
             for block in pair:
                 other_block = pair[0] if pair[1] is block else pair[1]
                 while True:
@@ -390,7 +390,7 @@ class AILMergeGraph:
     #
 
     def _find_block_pair_in_originals(self, block: Block):
-        for _, originals in self.merge_blocks_to_originals.items():
+        for originals in self.merge_blocks_to_originals.values():
             # need at least 2 for a pair
             if len(originals) < 2:
                 continue
@@ -454,7 +454,7 @@ class AILMergeGraph:
         return None
 
     def _find_split_block_by_original(self, block: Block) -> AILBlockSplit | None:
-        for _, split_blocks in self.original_split_blocks.items():
+        for split_blocks in self.original_split_blocks.values():
             for split_block in split_blocks:
                 if split_block.original == block:
                     return split_block

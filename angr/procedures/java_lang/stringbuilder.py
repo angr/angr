@@ -18,7 +18,6 @@ class StringBuilderInit(JavaSimProcedure):
 
         str_ref = SimSootValue_StringRef.new_string(self.state, claripy.StringV(""))
         this_ref.store_field(self.state, "str", "java.lang.String", str_ref)
-        return
 
 
 class StringBuilderAppend(JavaSimProcedure):

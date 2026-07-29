@@ -1,5 +1,3 @@
-from typing import override
-
 from . import ailment, automaton, fuzzer, icicle
 
 class Segment:
@@ -34,9 +32,6 @@ class Segment:
 
         :returns: Size of the Segment
         """
-
-    @override
-    def __repr__(self) -> str: ...
 
 class SegmentList:
     """

@@ -232,7 +232,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         node_to_heads = defaultdict(set)
         modified = False
 
-        for _, caselists in variablehash_to_cases.items():
+        for caselists in variablehash_to_cases.values():
             for cases, redundant_nodes in caselists:
                 real_cases = [case for case in cases if case.value != "default"]
                 max_continuous_cases = self._count_max_continuous_cases(real_cases)
