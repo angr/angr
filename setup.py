@@ -37,10 +37,11 @@ def build_unicornlib():
         ("PYVEX_LIB_FILE", "pyvex", "lib\\pyvex.lib"),
     )
     for var, pkg, fnm in env_data:
-        base = importlib.resources.files(pkg)
-        for child in fnm.split("\\"):
-            base = base.joinpath(child)
-        env[var] = str(base)
+        # importlib.resources.files() returns a MultiplexedPath for editable
+        # installs, whose str() is not a filesystem path; resolve via the
+        # imported package's location instead.
+        base = os.path.dirname(importlib.import_module(pkg).__file__)
+        env[var] = os.path.join(base, *fnm.split("\\"))
 
     if sys.platform == "win32":
         cmd = ["nmake", "/f", "Makefile-win"]
