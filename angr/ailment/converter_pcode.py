@@ -206,6 +206,8 @@ class PCodeIRSBConverter(Converter):
             operands,
             bits=output.size * 8,
             ins_addr=self._manager.ins_addr,
+            vex_block_addr=self._manager.block_addr,
+            vex_stmt_idx=self._statement_idx,
         )
         self._statements.append(self._set_value(output, value))
 
@@ -222,8 +224,11 @@ class PCodeIRSBConverter(Converter):
             out = DirtyExpression(
                 self._manager.next_atom(),
                 opcode.__name__,
-                [],
+                [in1],
                 bits=self._current_op.output.size * 8 if self._current_op.output is not None else 1,
+                ins_addr=self._manager.ins_addr,
+                vex_block_addr=self._manager.block_addr,
+                vex_stmt_idx=self._statement_idx,
             )
         else:
             out = UnaryOp(self._manager.next_atom(), op, in1, ins_addr=self._manager.ins_addr)
@@ -244,8 +249,11 @@ class PCodeIRSBConverter(Converter):
             out = DirtyExpression(
                 self._manager.next_atom(),
                 opcode.__name__,
-                [],
+                [in1, in2],
                 bits=self._current_op.output.size * 8 if self._current_op.output is not None else 1,
+                ins_addr=self._manager.ins_addr,
+                vex_block_addr=self._manager.block_addr,
+                vex_stmt_idx=self._statement_idx,
             )
         else:
             # fix op name for signed comparisons

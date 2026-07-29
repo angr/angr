@@ -6,6 +6,8 @@ from .base import (
     InstructionMappingElement,
     PositionMapping,
     PositionMappingElement,
+    UnsupportedConstruct,
+    UnsupportedConstructLocation,
 )
 from .c import CStructuredCodeGenerator, CStructuredCodeWalker
 from .dummy import DummyStructuredCodeGenerator
@@ -23,4 +25,6 @@ __all__ = (
     "PositionMapping",
     "PositionMappingElement",
     "RustStructuredCodeGenerator",
+    "UnsupportedConstruct",
+    "UnsupportedConstructLocation",
 )

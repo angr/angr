@@ -14,7 +14,13 @@ from .region_identifier import RegionIdentifier
 from .region_overlay import RegionOverlay
 from .region_simplifiers import RegionSimplifier
 from .ssailification import Ssailification
-from .structured_codegen import BaseStructuredCodeGenerator, CStructuredCodeGenerator, ImportSourceCode
+from .structured_codegen import (
+    BaseStructuredCodeGenerator,
+    CStructuredCodeGenerator,
+    ImportSourceCode,
+    UnsupportedConstruct,
+    UnsupportedConstructLocation,
+)
 from .variable_map import VariableMap
 
 StructuredCodeGenerator = CStructuredCodeGenerator
@@ -39,6 +45,8 @@ __all__ = (
     "SeqNodeDephication",
     "Ssailification",
     "StructuredCodeGenerator",
+    "UnsupportedConstruct",
+    "UnsupportedConstructLocation",
     "VariableMap",
     "optimization_passes",
     "options",

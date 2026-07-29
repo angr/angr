@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, cast
 
 from angr.ailment import Block, Expr, Stmt, Tmp
-from angr.ailment.block_walker import _dispatch_key
+from angr.ailment.block_walker import AILBlockViewer, _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 from angr.analyses.analysis import Analysis, register_analysis
@@ -81,6 +81,8 @@ from .base import (
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
+    UnsupportedConstruct,
+    UnsupportedConstructLocation,
 )
 
 if TYPE_CHECKING:
@@ -1949,6 +1951,15 @@ class CUnaryOp(CExpression):
         "operand",
     )
 
+    _OPERATION_HANDLERS = {
+        "Not": "_c_repr_chunks_not",
+        "Neg": "_c_repr_chunks_neg",
+        "BitwiseNeg": "_c_repr_chunks_bitwiseneg",
+        "Reference": "_c_repr_chunks_reference",
+        "Dereference": "_c_repr_chunks_dereference",
+        "Clz": "_c_repr_chunks_clz",
+    }
+
     def __init__(self, op, operand: CExpression, **kwargs):
         super().__init__(**kwargs)
 
@@ -1976,18 +1987,9 @@ class CUnaryOp(CExpression):
             yield "...", self
             return
 
-        OP_MAP = {
-            "Not": self._c_repr_chunks_not,
-            "Neg": self._c_repr_chunks_neg,
-            "BitwiseNeg": self._c_repr_chunks_bitwiseneg,
-            "Reference": self._c_repr_chunks_reference,
-            "Dereference": self._c_repr_chunks_dereference,
-            "Clz": self._c_repr_chunks_clz,
-        }
-
-        handler = OP_MAP.get(self.op)
-        if handler is not None:
-            yield from handler()
+        handler_name = self._OPERATION_HANDLERS.get(self.op)
+        if handler_name is not None:
+            yield from getattr(self, handler_name)()
         else:
             yield f"UnaryOp {self.op}", self
 
@@ -2047,6 +2049,37 @@ class CBinaryOp(CExpression):
     """
 
     __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
+
+    _OPERATION_HANDLERS = {
+        "Add": "_c_repr_chunks_add",
+        "Sub": "_c_repr_chunks_sub",
+        "Mul": "_c_repr_chunks_mul",
+        "Mull": "_c_repr_chunks_mull",
+        "Div": "_c_repr_chunks_div",
+        "Mod": "_c_repr_chunks_mod",
+        "And": "_c_repr_chunks_and",
+        "Xor": "_c_repr_chunks_xor",
+        "Or": "_c_repr_chunks_or",
+        "Shr": "_c_repr_chunks_shr",
+        "Shl": "_c_repr_chunks_shl",
+        "Sar": "_c_repr_chunks_sar",
+        "LogicalAnd": "_c_repr_chunks_logicaland",
+        "LogicalOr": "_c_repr_chunks_logicalor",
+        "LogicalXor": "_c_repr_chunks_logicalxor",
+        "CmpLE": "_c_repr_chunks_cmple",
+        "CmpLEs": "_c_repr_chunks_cmple",
+        "CmpLT": "_c_repr_chunks_cmplt",
+        "CmpLTs": "_c_repr_chunks_cmplt",
+        "CmpGT": "_c_repr_chunks_cmpgt",
+        "CmpGTs": "_c_repr_chunks_cmpgt",
+        "CmpGE": "_c_repr_chunks_cmpge",
+        "CmpGEs": "_c_repr_chunks_cmpge",
+        "CmpEQ": "_c_repr_chunks_cmpeq",
+        "CmpNE": "_c_repr_chunks_cmpne",
+        "Concat": "_c_repr_chunks_concat",
+        "Rol": "_c_repr_chunks_rol",
+        "Ror": "_c_repr_chunks_ror",
+    }
 
     def __init__(self, op, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
@@ -2150,40 +2183,9 @@ class CBinaryOp(CExpression):
             yield "...", self
             return
 
-        OP_MAP = {
-            "Add": self._c_repr_chunks_add,
-            "Sub": self._c_repr_chunks_sub,
-            "Mul": self._c_repr_chunks_mul,
-            "Mull": self._c_repr_chunks_mull,
-            "Div": self._c_repr_chunks_div,
-            "Mod": self._c_repr_chunks_mod,
-            "And": self._c_repr_chunks_and,
-            "Xor": self._c_repr_chunks_xor,
-            "Or": self._c_repr_chunks_or,
-            "Shr": self._c_repr_chunks_shr,
-            "Shl": self._c_repr_chunks_shl,
-            "Sar": self._c_repr_chunks_sar,
-            "LogicalAnd": self._c_repr_chunks_logicaland,
-            "LogicalOr": self._c_repr_chunks_logicalor,
-            "LogicalXor": self._c_repr_chunks_logicalxor,
-            "CmpLE": self._c_repr_chunks_cmple,
-            "CmpLEs": self._c_repr_chunks_cmple,
-            "CmpLT": self._c_repr_chunks_cmplt,
-            "CmpLTs": self._c_repr_chunks_cmplt,
-            "CmpGT": self._c_repr_chunks_cmpgt,
-            "CmpGTs": self._c_repr_chunks_cmpgt,
-            "CmpGE": self._c_repr_chunks_cmpge,
-            "CmpGEs": self._c_repr_chunks_cmpge,
-            "CmpEQ": self._c_repr_chunks_cmpeq,
-            "CmpNE": self._c_repr_chunks_cmpne,
-            "Concat": self._c_repr_chunks_concat,
-            "Rol": self._c_repr_chunks_rol,
-            "Ror": self._c_repr_chunks_ror,
-        }
-
-        handler = OP_MAP.get(self.op)
-        if handler is not None:
-            yield from handler()
+        handler_name = self._OPERATION_HANDLERS.get(self.op)
+        if handler_name is not None:
+            yield from getattr(self, handler_name)()
         else:
             yield from self._c_repr_chunks_opfirst(self.op)
 
@@ -2940,6 +2942,21 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.indent_delta = indent_size
 
         self._analyze()
+
+    @property
+    def unsupported_constructs(self) -> tuple[UnsupportedConstruct, ...]:
+        """
+        Unsupported AIL constructs that survived into this structured C result.
+
+        Records are aggregated by construct kind and operation, sorted deterministically, and include the best source
+        coordinates retained by AIL. The property is derived from the C AST, so it is also available on deserialized
+        code-generation results.
+        """
+        if self.cfunc is None:
+            return ()
+        collector = _UnsupportedConstructCollector()
+        collector.handle(self.cfunc)
+        return collector.result
 
     def reapply_options(self, options):
         for option, value in options:
@@ -4518,6 +4535,158 @@ class CStructuredCodeWalker:
         obj.iftrue = self.handle(obj.iftrue)
         obj.iffalse = self.handle(obj.iffalse)
         return obj
+
+
+class _UnsupportedAILExpressionCollector(AILBlockViewer):
+    def __init__(self, record, cnode: CConstruct, root: Expr.Expression):
+        super().__init__()
+        self._record = record
+        self._cnode = cnode
+        self._root = root
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr is not self._root:
+            operation = getattr(expr, "callee", None)
+            if operation is None:
+                operation = getattr(expr, "kind", None)
+            self._record(
+                "dirty_expression",
+                operation,
+                self._cnode,
+                source=expr,
+                fallback_source=self._root,
+            )
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op not in CUnaryOp._OPERATION_HANDLERS:
+            self._record(
+                "unary_operation",
+                expr.op,
+                self._cnode,
+                source=expr,
+                fallback_source=self._root,
+            )
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op not in CBinaryOp._OPERATION_HANDLERS:
+            self._record(
+                "binary_operation",
+                expr.op,
+                self._cnode,
+                source=expr,
+                fallback_source=self._root,
+            )
+        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _UnsupportedConstructCollector:
+    def __init__(self):
+        self._occurrences: dict[
+            tuple[str, str],
+            list[UnsupportedConstructLocation],
+        ] = defaultdict(list)
+
+    def handle(self, obj) -> None:
+        if not isinstance(obj, CConstruct):
+            return
+
+        if isinstance(obj, CAILBlock):
+            self._record("ail_block", "Block", obj, source=obj.block)
+        elif isinstance(obj, CUnsupportedStatement):
+            self._record("unsupported_statement", getattr(obj.stmt, "kind", None), obj, source=obj.stmt)
+        elif isinstance(obj, CDirtyExpression):
+            operation = getattr(obj.dirty, "callee", None)
+            if operation is None:
+                operation = getattr(obj.dirty, "kind", None)
+            self._record("dirty_expression", operation, obj, source=obj.dirty)
+            _UnsupportedAILExpressionCollector(self._record, obj, obj.dirty).walk_expression(obj.dirty)
+        elif isinstance(obj, CUnaryOp) and obj.op not in CUnaryOp._OPERATION_HANDLERS:
+            self._record("unary_operation", obj.op, obj)
+        elif isinstance(obj, CBinaryOp) and obj.op not in CBinaryOp._OPERATION_HANDLERS:
+            self._record("binary_operation", obj.op, obj)
+
+        for cls in type(obj).__mro__:
+            slots = cls.__dict__.get("__slots__", ())
+            if isinstance(slots, str):
+                slots = (slots,)
+            for slot in slots:
+                if slot in {"codegen", "ident", "idx", "tags"}:
+                    continue
+                self._visit_value(getattr(obj, slot, None))
+
+    def _visit_value(self, value) -> None:
+        if isinstance(value, CConstruct):
+            self.handle(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                self._visit_value(item)
+        elif isinstance(value, (list, tuple, set, frozenset)):
+            for item in value:
+                self._visit_value(item)
+
+    @property
+    def result(self) -> tuple[UnsupportedConstruct, ...]:
+        result = []
+        for (kind, operation), locations in sorted(self._occurrences.items()):
+            ordered_locations = tuple(sorted(locations, key=self._location_sort_key))
+            result.append(
+                UnsupportedConstruct(
+                    kind=kind,
+                    operation=operation,
+                    count=len(ordered_locations),
+                    locations=ordered_locations,
+                )
+            )
+        return tuple(result)
+
+    @staticmethod
+    def _location_sort_key(location: UnsupportedConstructLocation) -> tuple[tuple[bool, int], ...]:
+        return tuple(
+            (value is None, value if value is not None else 0)
+            for value in (location.instruction_address, location.block_address, location.statement_index)
+        )
+
+    @staticmethod
+    def _operation_name(value) -> str:
+        if isinstance(value, str) and value:
+            return value
+        name = getattr(value, "name", None)
+        if isinstance(name, str) and name:
+            return name
+        return type(value).__name__ if value is not None else "unknown"
+
+    @staticmethod
+    def _location(obj, source=None, fallback_source=None) -> UnsupportedConstructLocation:
+        tags = {}
+        if fallback_source is not None:
+            tags.update(getattr(fallback_source, "tags", None) or {})
+        if source is not None:
+            tags.update(getattr(source, "tags", None) or {})
+        tags.update(getattr(obj, "tags", None) or {})
+
+        def int_tag(*names):
+            for name in names:
+                value = tags.get(name)
+                if type(value) is int:
+                    return value
+            return None
+
+        block_address = int_tag("vex_block_addr", "block_addr")
+        if block_address is None and isinstance(obj, CAILBlock):
+            value = getattr(obj.block, "addr", None)
+            block_address = value if type(value) is int else None
+
+        return UnsupportedConstructLocation(
+            instruction_address=int_tag("ins_addr"),
+            block_address=block_address,
+            statement_index=int_tag("vex_stmt_idx", "stmt_idx"),
+        )
+
+    def _record(self, kind: str, operation, obj, source=None, fallback_source=None) -> None:
+        key = kind, self._operation_name(operation)
+        self._occurrences[key].append(self._location(obj, source=source, fallback_source=fallback_source))
 
 
 class MakeTypecastsImplicit(CStructuredCodeWalker):

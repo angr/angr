@@ -67,6 +67,60 @@ class TestIrsb(unittest.TestCase):
         reaching_definitions = project.analyses.ReachingDefinitions(subject=block)
         assert block in reaching_definitions.visited_blocks
 
+    def test_convert_pcode_unsupported_unary_preserves_operand_and_location(self):
+        arch = archinfo.ArchPcode("x86:LE:32:default")
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        project = angr.load_shellcode(
+            bytes.fromhex("f30fb8c1"),
+            arch,
+            0x100,
+            0x100,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        block = ailment.IRSBConverter.convert(project.factory.block(0x100, size=4).vex, manager)
+        unsupported = next(
+            statement.src
+            for statement in block.statements
+            if isinstance(statement, ailment.Stmt.Assignment)
+            and isinstance(statement.src, ailment.Expr.DirtyExpression)
+            and statement.src.callee == "POPCOUNT"
+        )
+
+        assert len(unsupported.operands) == 1
+        assert isinstance(unsupported.operands[0], ailment.Expr.Register)
+        assert unsupported.tags["ins_addr"] == 0x100
+        assert unsupported.tags["vex_block_addr"] == 0x100
+        assert type(unsupported.tags["vex_stmt_idx"]) is int
+
+    def test_convert_pcode_unsupported_binary_preserves_operands_and_location(self):
+        arch = archinfo.ArchPcode("x86:LE:32:default")
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        project = angr.load_shellcode(
+            bytes.fromhex("d8c1"),
+            arch,
+            0x200,
+            0x200,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        block = ailment.IRSBConverter.convert(project.factory.block(0x200, size=2).vex, manager)
+        unsupported = next(
+            statement.src
+            for statement in block.statements
+            if isinstance(statement, ailment.Stmt.Assignment)
+            and isinstance(statement.src, ailment.Expr.DirtyExpression)
+            and statement.src.callee == "FLOAT_ADD"
+        )
+
+        assert len(unsupported.operands) == 2
+        assert all(isinstance(operand, ailment.Expr.Register) for operand in unsupported.operands)
+        assert unsupported.tags["ins_addr"] == 0x200
+        assert unsupported.tags["vex_block_addr"] == 0x200
+        assert type(unsupported.tags["vex_stmt_idx"]) is int
+
     def test_convert_pcode_call_return_expressions_are_unique(self):
         arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
         manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
@@ -121,6 +175,10 @@ class TestIrsb(unittest.TestCase):
 
         assert decompilation.codegen is not None
         assert not any("Unsupported bits 16" in str(error) for error in decompilation.errors)
+        assert any(
+            construct.kind == "dirty_expression" and construct.operation == "CALLOTHER"
+            for construct in decompilation.codegen.unsupported_constructs
+        )
 
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")

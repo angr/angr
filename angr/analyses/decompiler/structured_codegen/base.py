@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 from itertools import count
 
@@ -9,6 +10,34 @@ from sortedcontainers import SortedDict
 from angr.sim_variable import SimVariable
 
 IdentType = tuple[int, int, str]
+
+
+@dataclass(frozen=True, slots=True)
+class UnsupportedConstructLocation:
+    """
+    The source coordinates retained for one unsupported construct occurrence.
+
+    A coordinate is ``None`` when the AIL conversion pipeline did not retain it.
+    """
+
+    instruction_address: int | None
+    block_address: int | None
+    statement_index: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class UnsupportedConstruct:
+    """
+    A deterministic aggregate of equivalent unsupported constructs in structured code output.
+
+    ``count`` is the number of rendered occurrences. ``locations`` contains one best-effort source location for each
+    occurrence, including entries whose coordinates are all ``None``.
+    """
+
+    kind: str
+    operation: str
+    count: int
+    locations: tuple[UnsupportedConstructLocation, ...]
 
 
 class CConstantType(Enum):
