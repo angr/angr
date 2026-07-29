@@ -1417,23 +1417,28 @@ class TestDecompiler(unittest.TestCase):
         stmts = dw.body.statements
         assert len(stmts) == 5
         # Current decompilation output:
-        #   do
-        #   {
-        #       v1 = v0 + 1;
-        #       v3 = v2 + 1;
-        #       *(v2) = *(v0);
-        #       v0 = v1;
-        #       v2 = v3;
-        #   } while (*(v2))
-        # We can improve it by re-arranging the first three statements; we leave it as future work
-        assert stmts[0].lhs.unified_variable == stmts[3].rhs.unified_variable
+        # do
+        # {
+        #     v3 = v2;
+        #     v1 = v0 + 1;
+        #     v2 = v3 + 1;
+        #     *(v3) = *(v0);
+        #     v0 = v1;
+        # } while (*(v3));
+        # We can improve it by re-arranging these statements or control what to propagate; we leave it as future work
+        assert stmts[0].lhs.unified_variable == stmts[2].rhs.lhs.unified_variable
+        assert stmts[0].rhs.unified_variable == stmts[2].lhs.unified_variable
         assert stmts[1].lhs.unified_variable == stmts[4].rhs.unified_variable
-        assert stmts[2].lhs.operand.variable == stmts[4].lhs.variable
-        assert stmts[2].rhs.operand.variable == stmts[3].lhs.variable
+        # *v3 = *v0;
+        assert stmts[3].lhs.operand.variable == stmts[2].rhs.lhs.variable
+        assert stmts[3].rhs.operand.variable == stmts[1].rhs.lhs.variable
         # v0 = v0; is incorrect
-        assert stmts[3].lhs.unified_variable != stmts[3].rhs.unified_variable, "Variable unification went wrong."
+        assert stmts[3].lhs.operand.unified_variable != stmts[3].rhs.operand.unified_variable, (
+            "Variable unification went wrong."
+        )
         assert stmts[4].lhs.unified_variable != stmts[4].rhs.unified_variable, "Variable unification went wrong."
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
+        # condition should be based on the value of *v3
+        assert dw.condition.lhs.operand.variable == stmts[3].lhs.operand.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -2993,6 +2998,69 @@ class TestDecompiler(unittest.TestCase):
         m = re.search(r"([\S]+) = \(char \*\)([\S]+) \- 1;", d.codegen.text)
         assert m is not None
         assert m.group(1) == m.group(2)
+
+    @structuring_algo("sailr")
+    def test_cssa_incorrect_loop_condition(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
+        proj = angr.Project(bin_path)
+        _ = proj.analyses.CFGFast(normalize=True, regions=[(0x416C60, 0x416C60 + 1000)])
+        f = proj.kb.functions["_obstack_memory_used"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        # there is a loop in this function. if the loop is discovered as `do { } while (cond);`, the condition must be
+        # v3->field_8 where v3 = v1. Incorrect CSSA translation may result in v3 being assigned to v1->field_8.
+        #
+        # Correct:
+        #
+        # v1 = a0->field_8;
+        # v2 = 0;
+        # if (a0->field_8)
+        # {
+        #     do
+        #     {
+        #         v3 = v1;
+        #         v4 = v3->field_8;
+        #         v2 = v2 + v3->field_0 - (char *)v3;
+        #         v1 = v4;
+        #     } while (v3->field_8);
+        # }
+        #
+        # Incorrect:
+        #
+        # v1 = a0->field_8;
+        # v2 = 0;
+        # if (a0->field_8)
+        # {
+        #     do
+        #     {
+        #         v3 = v1->field_8;
+        #         v2 = v2 + v1->field_0 - (char *)v1;
+        #         v1 = v3;
+        #     } while (v1->field_8);
+        # }
+        #
+        # We may do better in the future by not propagating the memory read into the loop condition, in which case the
+        # loop body will be shorter.
+
+        # find the loop
+        loop_match = re.search(r"do\s*\{([^}]*)\}\s*while\s*\(([^)]*)\);", d.codegen.text, re.MULTILINE)
+        assert loop_match is not None, "Cannot find the do-while loop in the decompilation output."
+        loop_body = loop_match.group(1)
+        loop_condition = loop_match.group(2)
+        # extract the variable used in the loop condition
+        condition_var_match = re.search(r"([\w\d_]+)->field_8", loop_condition)
+        assert condition_var_match is not None, "Cannot find the variable used in the loop condition."
+        condition_var = condition_var_match.group(1)
+        # find all assignments in the loop body
+        assignments = re.findall(r"([\w\d_]+)\s*=\s*([^;]+);", loop_body)
+        # find the assignment to the condition var
+        condition_var_assignment = next(i for i, (var, expr) in enumerate(assignments) if var == condition_var)
+        assert condition_var_assignment is not None, f"Cannot find the assignment to {condition_var} in the loop body."
+        assert condition_var_assignment == 0, (
+            f"The assignment to {condition_var} should be the first assignment in the loop body."
+        )
 
     @for_all_structuring_algos
     def test_df_add_uint_with_neg_flag_ite_expressions(self, decompiler_options=None):
@@ -4702,12 +4770,10 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         start_pos = lines.index("{")
-        assert lines[start_pos + 3 :][:6] == [
-            "if (a1)",
-            "v1 = a1;",
-            "else",
-            "v1 = a0;",
-            "g_1234 = v1;",
+        assert lines[start_pos + 1 :][:4] == [
+            "if (!a1)",
+            "a1 = a0;",
+            "g_1234 = a1;",
             "return 4660;",
         ] or lines[start_pos + 1 :][:2] == [
             "*((int *)&g_1234) = (a1 ? a1 : a0);",

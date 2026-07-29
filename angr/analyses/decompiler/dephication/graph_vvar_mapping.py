@@ -110,8 +110,17 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         continue
 
                     if interference.has_edge(var1, var2):
-                        intersection_1 = phi_congruence_class[var1].intersection(live_outs[src1])
-                        intersection_2 = phi_congruence_class[var2].intersection(live_outs[src2])
+                        # the intersection considers both liveouts and the vvars used in the last statement of the
+                        # block if it is a jump or a conditional jump because we cannot insert a vvar copy statement
+                        # after the jump. this is a special case that is not covered in Sreedhar et al.'s paper. It is
+                        # documented in "Revisiting Out-of-SSA Translation for Correctness, Code Quality, and
+                        # Efficiency" (Section II.A) by Boissinot et. al.
+                        intersection_1 = phi_congruence_class[var1].intersection(
+                            live_outs[src2] | liveness.model.block_end_vvars.get(src2, set())
+                        )
+                        intersection_2 = phi_congruence_class[var2].intersection(
+                            live_outs[src1] | liveness.model.block_end_vvars.get(src1, set())
+                        )
                         if intersection_1 and not intersection_2:
                             # case 1
                             candidate_vvar_set.add(var1)
