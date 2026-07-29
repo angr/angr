@@ -2065,7 +2065,11 @@ impl AilExpression {
                     operand: b_op_,
                     ..
                 },
-            ) => a_op == b_op && self.header.bits == other.header.bits && a_op_.cmp_ail::<MODE>(b_op_),
+            ) => {
+                a_op == b_op
+                    && self.header.bits == other.header.bits
+                    && a_op_.cmp_ail::<MODE>(b_op_)
+            }
             (
                 ExprInner::Convert {
                     operand: a_o,
@@ -2111,7 +2115,13 @@ impl AilExpression {
                     to_type: b_tt,
                     ..
                 },
-            ) => a_fb == b_fb && a_tb == b_tb && a_ft == b_ft && a_tt == b_tt && a_o.cmp_ail::<MODE>(b_o),
+            ) => {
+                a_fb == b_fb
+                    && a_tb == b_tb
+                    && a_ft == b_ft
+                    && a_tt == b_tt
+                    && a_o.cmp_ail::<MODE>(b_o)
+            }
             (
                 ExprInner::BinaryOp {
                     op: op_a,
@@ -2193,14 +2203,22 @@ impl AilExpression {
                 a_n == b_n
                     && self.header.bits == other.header.bits
                     && a_f.len() == b_f.len()
-                    && a_f.iter().zip(b_f.iter()).all(|(a, b)| a.cmp_ail::<MODE>(b))
+                    && a_f
+                        .iter()
+                        .zip(b_f.iter())
+                        .all(|(a, b)| a.cmp_ail::<MODE>(b))
             }
             (ExprInner::Array { elements: a_e }, ExprInner::Array { elements: b_e }) => {
                 self.header.bits == other.header.bits
                     && a_e.len() == b_e.len()
-                    && a_e.iter().zip(b_e.iter()).all(|(a, b)| a.cmp_ail::<MODE>(b))
+                    && a_e
+                        .iter()
+                        .zip(b_e.iter())
+                        .all(|(a, b)| a.cmp_ail::<MODE>(b))
             }
-            (ExprInner::Let { src: a_s, .. }, ExprInner::Let { src: b_s, .. }) => a_s.cmp_ail::<MODE>(b_s),
+            (ExprInner::Let { src: a_s, .. }, ExprInner::Let { src: b_s, .. }) => {
+                a_s.cmp_ail::<MODE>(b_s)
+            }
             (
                 ExprInner::Macro {
                     name: a_n,
@@ -2233,7 +2251,8 @@ impl AilExpression {
                 match (a_a, b_a) {
                     (None, None) => true,
                     (Some(x), Some(y)) => {
-                        x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| a.cmp_ail::<MODE>(b))
+                        x.len() == y.len()
+                            && x.iter().zip(y.iter()).all(|(a, b)| a.cmp_ail::<MODE>(b))
                     }
                     _ => false,
                 }
@@ -2272,7 +2291,10 @@ impl AilExpression {
                 opt_likes(a_g, b_g)
                     && opt_likes(a_ma, b_ma)
                     && a_ops.len() == b_ops.len()
-                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
+                    && a_ops
+                        .iter()
+                        .zip(b_ops.iter())
+                        .all(|(x, y)| x.cmp_ail::<MODE>(y))
             }
             (
                 ExprInner::VEXCCallExpression {
@@ -2287,7 +2309,10 @@ impl AilExpression {
                 a_c == b_c
                     && self.header.bits == other.header.bits
                     && a_ops.len() == b_ops.len()
-                    && a_ops.iter().zip(b_ops.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
+                    && a_ops
+                        .iter()
+                        .zip(b_ops.iter())
+                        .all(|(x, y)| x.cmp_ail::<MODE>(y))
             }
             (
                 ExprInner::MultiStatementExpression {
@@ -2300,7 +2325,10 @@ impl AilExpression {
                 },
             ) => {
                 a_s.len() == b_s.len()
-                    && a_s.iter().zip(b_s.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
+                    && a_s
+                        .iter()
+                        .zip(b_s.iter())
+                        .all(|(x, y)| x.cmp_ail::<MODE>(y))
                     && a_e.cmp_ail::<MODE>(b_e)
             }
             (
@@ -2323,7 +2351,8 @@ impl AilExpression {
                 match (a_args, b_args) {
                     (None, None) => true,
                     (Some(a), Some(b)) => {
-                        a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
+                        a.len() == b.len()
+                            && a.iter().zip(b.iter()).all(|(x, y)| x.cmp_ail::<MODE>(y))
                     }
                     _ => false,
                 }
@@ -2358,7 +2387,12 @@ impl AilExpression {
                     offset: bo,
                     endness: be,
                 },
-            ) => self.header.bits == other.header.bits && ae == be && ab.cmp_ail::<MODE>(bb) && ao.cmp_ail::<MODE>(bo),
+            ) => {
+                self.header.bits == other.header.bits
+                    && ae == be
+                    && ab.cmp_ail::<MODE>(bb)
+                    && ao.cmp_ail::<MODE>(bo)
+            }
             (
                 ExprInner::Insert {
                     base: ab,
@@ -2372,7 +2406,12 @@ impl AilExpression {
                     value: bv,
                     endness: be,
                 },
-            ) => ae == be && ab.cmp_ail::<MODE>(bb) && ao.cmp_ail::<MODE>(bo) && av.cmp_ail::<MODE>(bv),
+            ) => {
+                ae == be
+                    && ab.cmp_ail::<MODE>(bb)
+                    && ao.cmp_ail::<MODE>(bo)
+                    && av.cmp_ail::<MODE>(bv)
+            }
             (ExprInner::StringLiteral { data: a }, ExprInner::StringLiteral { data: b }) => {
                 a == b && self.header.bits == other.header.bits
             }
