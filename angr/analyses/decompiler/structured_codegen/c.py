@@ -915,6 +915,11 @@ class CStatements(CStatement):
             yield from stmt.c_repr_chunks(indent=indent, asexpr=asexpr)
             if asexpr:
                 yield ", ", None
+        if not asexpr and self.statements and isinstance(self.statements[-1], CLabel):
+            # A C label prefixes a statement; it is not a complete statement itself. Finish a trailing label run
+            # locally so that the next statement in an outer sequence cannot become its labeled statement.
+            yield indent_str, None
+            yield ";\n", None
 
 
 class CAILBlock(CStatement):
