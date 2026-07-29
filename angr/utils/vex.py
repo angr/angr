@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pyvex import IRSB
 from pyvex.stmt import WrTmp
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import archinfo
 
 
 def get_tmp_def_stmt(vex_block: IRSB, tmp_idx: int) -> int | None:
@@ -9,3 +16,37 @@ def get_tmp_def_stmt(vex_block: IRSB, tmp_idx: int) -> int | None:
         if isinstance(stmt, WrTmp) and stmt.tmp == tmp_idx:
             return i
     return None
+
+
+def block_branch_ins_addr(
+    ins_addrs: Sequence[int], block_addr: int, block_size: int, arch: archinfo.Arch
+) -> int | None:
+    """
+    Determine the address of the control-transfer instruction that ends a block.
+
+    On architectures without delay slots, this is the last instruction of the block. On delay-slot
+    architectures (MIPS), the block ends with the delay slot and the branch precedes it; depending
+    on the lifter, the branch and its delay slot are recorded either as two IMarks (libVEX forks
+    before Valgrind 3.27.1, pcode) or as a single IMark spanning both instructions (Valgrind
+    3.27.1+), in which case the last recorded instruction address is the branch itself.
+
+    :param ins_addrs:   Instruction addresses of the block (IMark start addresses).
+    :param block_addr:  Address of the block.
+    :param block_size:  Size of the block in bytes.
+    :param arch:        The architecture.
+    :return:            The branch instruction address, or None if ins_addrs is empty.
+    """
+    if not ins_addrs:
+        return None
+    last_ins_addr = ins_addrs[-1]
+    if not arch.branch_delay_slot or len(ins_addrs) == 1:
+        # without delay slots the last instruction ends the block; with delay slots, a
+        # single-entry block is either a merged branch + delay-slot IMark (whose address is the
+        # branch) or a lone instruction -- the only recorded address is correct either way
+        return last_ins_addr
+    if block_addr + block_size - last_ins_addr > last_ins_addr - ins_addrs[-2]:
+        # the last IMark spans more bytes than a single instruction: the lifter merged the branch
+        # and its delay slot into one IMark, whose address is the branch itself
+        return last_ins_addr
+    # the delay slot has its own IMark; the branch is the previous instruction
+    return ins_addrs[-2]

@@ -10,6 +10,7 @@ from archinfo.arch_arm import is_arm_arch
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.errors import AngrRuntimeError
+from angr.utils.vex import block_branch_ins_addr
 
 from .flirt_function import FlirtFunction
 from .flirt_matcher import FlirtMatcher
@@ -210,10 +211,12 @@ class FlirtAnalysis(Analysis):
     ) -> str | None:
         for block_addr, (call_target, _) in func._call_sites.items():
             block = func.get_block(block_addr)
-            call_ins_addr = (
-                block.instruction_addrs[-2] if self.project.arch.branch_delay_slot else block.instruction_addrs[-1]
-            )
-            if block_addr <= call_addr < block_addr + block.size and call_ins_addr <= call_addr:
+            call_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, self.project.arch)
+            if (
+                call_ins_addr is not None
+                and block_addr <= call_addr < block_addr + block.size
+                and call_ins_addr <= call_addr
+            ):
                 if call_target is None or not self.kb.functions.contains_addr(call_target):
                     return None
                 return self.kb.functions.get_func_name(call_target)
