@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from math import gcd
 
+from angr.ailment import ExpressionKind
 from angr.ailment.expression import BinaryOp, Const, Convert, StackBaseOffset, UnaryOp
 from angr.utils.bits import sign_extend
 
@@ -216,7 +217,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 # constant multiplication
                 mask = (1 << expr.bits) - 1
                 return Const(expr.idx, (op0.value * op1.value) & mask, expr.bits, **expr.tags)
-            if {type(op0), type(op1)} == {BinaryOp, Const}:
+            if {op0.pykind, op1.pykind} == {ExpressionKind.BinaryOp, ExpressionKind.Const}:
                 op0, op1 = expr.operands
                 const_, x0 = (op0, op1) if isinstance(op0, Const) else (op1, op0)
                 if x0.op == "Mul" and (isinstance(x0.operands[0], Const) or isinstance(x0.operands[1], Const)):
