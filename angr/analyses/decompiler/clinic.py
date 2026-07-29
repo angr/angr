@@ -8,7 +8,7 @@ import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard
 
 import capstone
 import networkx
@@ -4213,7 +4213,8 @@ class Clinic(Analysis, Serializable):
         # expressions are re-wrapped by intermediate passes, so we track the owning varid during the walk
         # rather than matching the Load object by identity afterwards.
         seen = set()
-        stack = [(expr, None)]  # (sub-expression, id of the vvar it was reached through)
+        # (sub-expression, id of the vvar it was reached through)
+        stack: list[tuple[Any, int | None]] = [(expr, None)]
         while stack:
             e, owner = stack.pop()
             if isinstance(e, ailment.Expr.Load):
@@ -4229,7 +4230,7 @@ class Clinic(Analysis, Serializable):
                     stack.append((operand, owner))
         return None, None
 
-    def _is_sp_vvar(self, vv) -> bool:
+    def _is_sp_vvar(self, vv) -> TypeGuard[ailment.Expr.VirtualVariable]:
         return (
             isinstance(vv, ailment.Expr.VirtualVariable) and vv.was_reg and vv.reg_offset == self.project.arch.sp_offset
         )

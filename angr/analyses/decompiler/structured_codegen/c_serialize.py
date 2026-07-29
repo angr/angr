@@ -505,10 +505,13 @@ def _parse_const_formats(entries):
 
 # Display-option attribute names round-tripped on Codegen, derived from the descriptor so the proto stays the
 # single source of truth. Display options are the trailing field block in the Codegen message (see codegen.proto):
-# every field from ``indent`` onward is a display option.
+# every optional scalar field from ``indent`` onward is a display option (repeated and message-typed fields with
+# higher numbers, e.g. vla_dims, are data fields, not display options).
 _DISPLAY_OPTION_FIELD_FIRST = codegen_pb2.Codegen.DESCRIPTOR.fields_by_name["indent"].number
 _DISPLAY_OPTION_ATTRS = tuple(
-    f.name for f in codegen_pb2.Codegen.DESCRIPTOR.fields if f.number >= _DISPLAY_OPTION_FIELD_FIRST
+    f.name
+    for f in codegen_pb2.Codegen.DESCRIPTOR.fields
+    if f.number >= _DISPLAY_OPTION_FIELD_FIRST and not f.is_repeated and f.message_type is None
 )
 # Constructor defaults for the display options, so a deserialized codegen has the same values a fresh one would for
 # options that were not serialized (an option whose value is None, e.g. max_str_len, is skipped on serialize).
@@ -547,6 +550,12 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     if codegen.cexterns:
         for v in codegen.cexterns:
             msg.cexterns_ids.append(ctx.serialize(v))
+
+    # VLA runtime dimensions (SimVariable -> CExpression), so ``uint8_t <name>[<dim>];`` re-renders after reload.
+    for var, dim_cexpr in (getattr(codegen, "_array_length_cexprs", None) or {}).items():
+        entry = msg.vla_dims.add()
+        entry.simvar_ref = ctx.intern_simvar(var)
+        entry.node_id = ctx.serialize(dim_cexpr)
 
     if codegen.expr_comments:
         for k, v in codegen.expr_comments.items():
@@ -639,6 +648,13 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
         cg.map_addr_to_label[(entry.addr, idx)] = ctx.resolve(entry.label_id)
 
     cg.cexterns = {ctx.resolve(i) for i in msg.cexterns_ids} if msg.cexterns_ids else None
+
+    # VLA runtime dimensions; keys are value-equal to the unified variables used at render time.
+    cg._array_length_cexprs = {}
+    for entry in msg.vla_dims:
+        var = ctx.resolve_simvar(entry.simvar_ref)
+        if var is not None:
+            cg._array_length_cexprs[var] = ctx.resolve(entry.node_id)
 
     # Display options: those present in the cmessage override the constructor defaults; options that were not
     # serialized (a None value, e.g. max_str_len) fall back to the constructor default so the attribute exists.
@@ -1117,12 +1133,21 @@ def _parse_cvarfield(pb, ctx):
 # -----------------------------------------------------------------------------------------------------------------
 # CConstant (heterogeneous value + reference_values).
 # -----------------------------------------------------------------------------------------------------------------
+def _set_const_int(body, v: int) -> None:
+    """Store an int into a message with ``int64 int_value`` / ``bytes big_int_value`` oneof arms. Values outside
+    the int64 range (e.g. the u64 page mask 0xfffffffffffff000) go into big_int_value as signed little-endian."""
+    if -(1 << 63) <= v < (1 << 63):
+        body.int_value = v
+    else:
+        body.big_int_value = v.to_bytes((v.bit_length() + 8) // 8, "little", signed=True)
+
+
 def _ser_cconst(node, pb, ctx):
     body = pb.cconst
     if isinstance(node.value, bool):
         body.int_value = int(node.value)
     elif isinstance(node.value, int):
-        body.int_value = node.value
+        _set_const_int(body, node.value)
     elif isinstance(node.value, float):
         body.float_value = node.value
     elif isinstance(node.value, str):
@@ -1135,7 +1160,7 @@ def _ser_cconst(node, pb, ctx):
             if isinstance(val, bool):
                 entry.int_value = int(val)
             elif isinstance(val, int):
-                entry.int_value = val
+                _set_const_int(entry, val)
             elif isinstance(val, bytes):
                 entry.raw_bytes = val
             elif isinstance(val, str):
@@ -1151,6 +1176,8 @@ def _parse_cconst(pb, ctx):
     which = body.WhichOneof("value")
     if which == "int_value":
         obj.value = body.int_value
+    elif which == "big_int_value":
+        obj.value = int.from_bytes(body.big_int_value, "little", signed=True)
     elif which == "float_value":
         obj.value = body.float_value
     elif which == "str_value":
@@ -1165,6 +1192,8 @@ def _parse_cconst(pb, ctx):
             w = entry.WhichOneof("value")
             if w == "int_value":
                 refs[key] = entry.int_value
+            elif w == "big_int_value":
+                refs[key] = int.from_bytes(entry.big_int_value, "little", signed=True)
             elif w == "raw_bytes":
                 refs[key] = entry.raw_bytes
             elif w == "str_value":

@@ -299,6 +299,7 @@ message CConstantReferenceValue {
         bytes raw_bytes = 3;
         string str_value = 4;
         bytes memory_data = 5;                    // serialized MemoryData via its existing Serializable
+        bytes big_int_value = 6;                  // ints outside int64 range: two's-complement little-endian, signed
     }
 }
 message CConstantMsg {
@@ -306,6 +307,7 @@ message CConstantMsg {
         int64 int_value = 1;
         double float_value = 2;
         string str_value = 3;
+        bytes big_int_value = 6;                  // ints outside int64 range: two's-complement little-endian, signed
     }
     uint32 type_ref = 4;
     repeated CConstantReferenceValue reference_values = 5;
@@ -475,9 +477,15 @@ message Codegen {
     // Out-of-line per-node display config; a node only appears here if it deviates from the defaults.
     NodeConfigMsg node_config = 17;
 
+    // Runtime dimensions of variable-length arrays: SimVariable (simvar_pool ref) -> CExpression (node_id),
+    // rendered as ``uint8_t <name>[<dim>];``. Field number 39 lives after the display-option block below, but
+    // repeated/message fields are excluded from the display-option scan, so this is safe.
+    repeated VlaDimEntry vla_dims = 39;
+
     // Display options (round-tripped but not strictly part of the result). This block must stay last:
-    // c_serialize treats every field from ``indent`` onward as a display option, so a new display option only
-    // needs an optional scalar field appended here whose name matches the attribute on CStructuredCodeGenerator.
+    // c_serialize treats every optional scalar field from ``indent`` onward as a display option, so a new
+    // display option only needs an optional scalar field appended here whose name matches the attribute on
+    // CStructuredCodeGenerator. (Repeated and message-typed fields are not considered display options.)
     optional int32 indent = 18;
     optional bool show_casts = 19;
     optional bool comment_gotos = 20;
@@ -499,6 +507,11 @@ message Codegen {
     optional int32 binop_depth_cutoff = 36;
     optional uint64 min_data_addr = 37;
     optional int32 max_str_len = 38;
+}
+
+message VlaDimEntry {
+    uint32 simvar_ref = 1;  // index+1 into Codegen.simvar_pool (the VLA buffer variable)
+    uint32 node_id = 2;     // node_id of the CExpression rendering the runtime dimension
 }
 
 message ConstFormatEntry {
