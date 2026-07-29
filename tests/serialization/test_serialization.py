@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 import angr
-from angr.sim_variable import SimStackVariable
+from angr.sim_variable import SimConstantVariable, SimStackVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -134,6 +134,20 @@ class TestSerialization(unittest.TestCase):
         v1.offset = 0x8000_0000  # we gotta force it
         cmsg = v1.serialize_to_cmessage()
         assert cmsg.offset == 0x7FFF_DEAD
+
+    def test_simconstantvariable_value_overflow(self):
+        v0 = SimConstantVariable(16, value=0x8000_0000_0000_0000_0000_0001, ident="c_0")
+        cmsg = v0.serialize_to_cmessage()
+        assert cmsg.size == 16
+        assert cmsg.long_value == (0x8000_0000_0000_0000_0000_0001).to_bytes(16, byteorder="little")
+        assert cmsg.is_negative is False
+
+    def test_simconstantvariable_value_out_of_range(self):
+        v1 = SimConstantVariable(8, value=-0x8000_0000_0000_0000, ident="c_1")
+        cmsg = v1.serialize_to_cmessage()
+        assert cmsg.size == 8
+        assert cmsg.value == 0x8000_0000_0000_0000
+        assert cmsg.is_negative is True
 
 
 if __name__ == "__main__":

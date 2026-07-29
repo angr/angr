@@ -23,8 +23,9 @@ message TemporaryVariable {
 message ConstantVariable {
     VariableBase    base = 1;
     uint32          size = 2;
-    uint64          value = 3;
+    uint64          value = 3;  // the absolute value
     optional bytes  long_value = 4;  // for large constants over 64 bits
+    bool            is_negative = 5;
 }
 
 
