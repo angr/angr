@@ -57,6 +57,32 @@ def test_trailing_label_run_has_one_null_statement():
     assert _render(statements, indent=4) == "LABEL_400000:\nLABEL_400010:\n    ;\n"
 
 
+def test_nested_trailing_label_prefixes_next_outer_statement():
+    codegen = _codegen()
+    statements = CStatements(
+        [
+            CStatements([CLabel("LABEL_400000", codegen=codegen)], codegen=codegen),
+            CReturn(None, codegen=codegen),
+        ],
+        codegen=codegen,
+    )
+
+    assert _render(statements) == "LABEL_400000:\nreturn;\n"
+
+
+def test_nested_terminal_label_has_null_statement():
+    codegen = _codegen()
+    statements = CStatements(
+        [
+            CStatements([CLabel("LABEL_400000", codegen=codegen)], codegen=codegen),
+            CStatements([], codegen=codegen),
+        ],
+        codegen=codegen,
+    )
+
+    assert _render(statements, indent=4) == "LABEL_400000:\n    ;\n"
+
+
 def test_trailing_label_does_not_capture_outer_statement():
     codegen = _codegen()
     conditional = CIfElse(
