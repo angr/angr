@@ -2340,18 +2340,18 @@ checksum = "985eec839aaf2a1270af8f4ebcf63cf9401cfd90f0902f97c28d9f104ffbde72"
 
 [[package]]
 name = "z3-src"
-version = "416.0.2"
+version = "500.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2af0c6527de39877cf55cb87f233016573eeeb7cf77afdc1469e4b32faef832"
+checksum = "cf6100f1870aed4684e564ebcb86a9daa09e84ba95ee594d72b844c1f4363b63"
 dependencies = [
  "cmake",
 ]
 
 [[package]]
 name = "z3-sys"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c18b0a91a13522d21b3414847667de2b2056a721a3edcb5b6ee6858352d58db4"
+checksum = "8ee055ba9ea6fdb01bb4e6c3bbb493cdd89b5a90976b2e5b8a6bd0f033c3c502"
 dependencies = [
  "pkg-config",
  "z3-src",
