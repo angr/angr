@@ -100,6 +100,7 @@ const GENERIC_OPS: &[&str] = &[
     "MulHi",
     "Mull",
     "Perm",
+    "PermOrZero",
     "PopCount",
     "QAdd",
     "QNarrowBin",
