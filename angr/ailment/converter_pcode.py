@@ -180,10 +180,34 @@ class PCodeIRSBConverter(Converter):
                 self._special_op_handlers[self._current_behavior.opcode]()
             except NotImplementedError as ex:
                 log.warning("Unsupported opcode: %s", ex)
+                self._preserve_unsupported_output()
         elif self._current_behavior.is_unary:
             self._convert_unary()
         else:
             self._convert_binary()
+
+    def _preserve_unsupported_output(self) -> None:
+        """
+        Preserve the data flow of an unsupported p-code operation.
+
+        Unsupported operations with an output may feed later operations in the
+        same block. Represent the unknown result as a dirty expression so the
+        output varnode is still defined and its inputs remain visible to AIL
+        analyses.
+        """
+        output = self._current_op.output
+        if output is None:
+            return
+
+        operands = [self._get_value(varnode) for varnode in self._current_op.inputs]
+        value = DirtyExpression(
+            self._manager.next_atom(),
+            self._current_op.opcode.name,
+            operands,
+            bits=output.size * 8,
+            ins_addr=self._manager.ins_addr,
+        )
+        self._statements.append(self._set_value(output, value))
 
     def _convert_unary(self) -> None:
         """
@@ -562,7 +586,12 @@ class PCodeIRSBConverter(Converter):
         ret_expr = (
             None
             if ret_reg_offset is None
-            else Register(None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)
+            else Register(
+                self._manager.next_atom(),
+                ret_reg_offset,
+                self._manager.arch.bits,
+                ins_addr=self._manager.ins_addr,
+            )
         )  # ???
         if self._irsb.next is not None:
             dest = Const(self._manager.next_atom(), self._irsb.next.con.value, self._manager.arch.bits)
@@ -590,7 +619,12 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code indirect call operation
         """
         ret_reg_offset = self._manager.arch.ret_offset
-        ret_expr = Register(None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)  # ???
+        ret_expr = Register(
+            self._manager.next_atom(),
+            ret_reg_offset,
+            self._manager.arch.bits,
+            ins_addr=self._manager.ins_addr,
+        )  # ???
         dest = self._get_value(self._current_op.inputs[0])
         call_expr = Call(
             self._manager.next_atom(),

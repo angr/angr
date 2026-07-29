@@ -42,6 +42,86 @@ class TestIrsb(unittest.TestCase):
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
 
+    def test_convert_pcode_unsupported_output_preserves_dataflow(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        project = angr.load_shellcode(b"\x1e", arch, 0, 0, engine=angr.engines.UberEnginePcode, rebase_granularity=0x10)
+
+        irsb = project.factory.block(0, size=1).vex
+        block = ailment.IRSBConverter.convert(irsb, manager)
+
+        unsupported = next(
+            statement
+            for statement in block.statements
+            if isinstance(statement, ailment.Stmt.Assignment)
+            and isinstance(statement.src, ailment.Expr.DirtyExpression)
+        )
+        store = next(statement for statement in block.statements if isinstance(statement, ailment.Stmt.Store))
+        assert getattr(unsupported.src, "callee", None) == "CALLOTHER"
+        assert unsupported.src.bits == 32
+        assert len(getattr(unsupported.src, "operands", ())) == 3
+        assert isinstance(unsupported.dst, ailment.Expr.Tmp)
+        assert isinstance(store.addr, ailment.Expr.Tmp)
+        assert unsupported.dst.tmp_idx == store.addr.tmp_idx
+
+        reaching_definitions = project.analyses.ReachingDefinitions(subject=block)
+        assert block in reaching_definitions.visited_blocks
+
+    def test_convert_pcode_call_return_expressions_are_unique(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
+        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        project = angr.load_shellcode(
+            bytes.fromhex("e80900 90 e80500 9090909090 c3"),
+            arch,
+            0,
+            0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        ret_exprs = []
+        for addr in (0, 4):
+            irsb = project.factory.block(addr, size=3).vex
+            block = ailment.IRSBConverter.convert(irsb, manager)
+            call = next(
+                statement for statement in block.statements if isinstance(statement, ailment.Stmt.SideEffectStatement)
+            )
+            assert isinstance(call.ret_expr, ailment.Expr.Register)
+            ret_exprs.append(call.ret_expr)
+
+        assert ret_exprs[0].idx != ret_exprs[1].idx
+        assert ret_exprs[0] != ret_exprs[1]
+
+    def test_decompile_pcode_real_mode_stack_operations(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
+        project = angr.load_shellcode(
+            b"\x1e\xc3",
+            arch,
+            0,
+            0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        cfg = project.analyses.CFGFast(
+            function_starts=[0],
+            regions=[(0, 2)],
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+
+        decompilation = project.analyses.Decompiler(
+            cfg.kb.functions[0],
+            cfg=cfg.model,
+            fail_fast=False,
+            use_cache=False,
+            update_cache=False,
+        )
+
+        assert decompilation.codegen is not None
+        assert not any("Unsupported bits 16" in str(error) for error in decompilation.errors)
+
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")
         manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]

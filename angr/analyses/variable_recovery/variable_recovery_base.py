@@ -366,7 +366,10 @@ class VariableRecoveryStateBase:
         return None
 
     def stack_addr_from_offset(self, offset: int) -> int:
-        if self.arch.bits == 32:
+        if self.arch.bits == 16:
+            base = 0x7E00
+            mask = 0xFFFF
+        elif self.arch.bits == 32:
             base = 0x7FFF_FE00
             mask = 0xFFFF_FFFF
         elif self.arch.bits == 64:
