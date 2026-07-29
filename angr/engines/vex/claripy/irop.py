@@ -1557,6 +1557,12 @@ _bind_evex_handlers()
 
 def vexop_to_simop(op, extended=True, fp=True):
     res = operations.get(op)
+    if res is None and op in unsupported:
+        # Already classified as unsupported at import time. Re-deriving it here
+        # would raise SimOperationError, which is the "this op errored"
+        # signal; these ops are simply not implemented, so say so -- that is
+        # what BYPASS_UNSUPPORTED_IROP keys off.
+        raise UnsupportedIROpError(f"Operation {op} is not supported")
     if res is None and extended:
         attrs = op_attrs(op)
         if attrs is None:
