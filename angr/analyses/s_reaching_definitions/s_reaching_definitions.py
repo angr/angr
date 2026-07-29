@@ -234,6 +234,8 @@ class SReachingDefinitionsAnalysis(Analysis, SReachingDefinitions):
         func_graph: networkx.DiGraph[Block] | None = None,
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
+        allow_phi_loops: bool = True,
+        track_implicit_call_uses: bool = True,
         track_tmps: bool = False,
         variable_map=None,
     ):
@@ -244,6 +246,8 @@ class SReachingDefinitionsAnalysis(Analysis, SReachingDefinitions):
             func_graph=func_graph,
             func_args=func_args,
             use_callee_saved_regs_at_return=use_callee_saved_regs_at_return,
+            allow_phi_loops=allow_phi_loops,
+            track_implicit_call_uses=track_implicit_call_uses,
             track_tmps=track_tmps,
             variable_map=variable_map,
         )
