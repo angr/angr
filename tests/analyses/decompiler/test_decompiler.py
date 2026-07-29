@@ -5694,7 +5694,7 @@ class TestDecompiler(unittest.TestCase):
         # we expect two comparisons against v3[1] and 7 (== or != depending on structuring)
         var_ids = []
         for line in lines:
-            m = re.search(r"v(\d+)\[1] [!=]= 7", line)
+            m = re.search(r"\*\(\(char \*\)v(\d+) - 1\) [!=]= 7", line)
             if m is not None:
                 var_ids.append(m.group(1))
         assert len(var_ids) == 2, f"Expected two comparisons with [1] and 7, found {len(var_ids)}: {var_ids}"
