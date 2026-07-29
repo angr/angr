@@ -1417,23 +1417,28 @@ class TestDecompiler(unittest.TestCase):
         stmts = dw.body.statements
         assert len(stmts) == 5
         # Current decompilation output:
-        #   do
-        #   {
-        #       v1 = v0 + 1;
-        #       v3 = v2 + 1;
-        #       *(v2) = *(v0);
-        #       v0 = v1;
-        #       v2 = v3;
-        #   } while (*(v2))
-        # We can improve it by re-arranging the first three statements; we leave it as future work
-        assert stmts[0].lhs.unified_variable == stmts[3].rhs.unified_variable
+        # do
+        # {
+        #     v3 = v2;
+        #     v1 = v0 + 1;
+        #     v2 = v3 + 1;
+        #     *(v3) = *(v0);
+        #     v0 = v1;
+        # } while (*(v3));
+        # We can improve it by re-arranging these statements or control what to propagate; we leave it as future work
+        assert stmts[0].lhs.unified_variable == stmts[2].rhs.lhs.unified_variable
+        assert stmts[0].rhs.unified_variable == stmts[2].lhs.unified_variable
         assert stmts[1].lhs.unified_variable == stmts[4].rhs.unified_variable
-        assert stmts[2].lhs.operand.variable == stmts[4].lhs.variable
-        assert stmts[2].rhs.operand.variable == stmts[3].lhs.variable
+        # *v3 = *v0;
+        assert stmts[3].lhs.operand.variable == stmts[2].rhs.lhs.variable
+        assert stmts[3].rhs.operand.variable == stmts[1].rhs.lhs.variable
         # v0 = v0; is incorrect
-        assert stmts[3].lhs.unified_variable != stmts[3].rhs.unified_variable, "Variable unification went wrong."
+        assert stmts[3].lhs.operand.unified_variable != stmts[3].rhs.operand.unified_variable, (
+            "Variable unification went wrong."
+        )
         assert stmts[4].lhs.unified_variable != stmts[4].rhs.unified_variable, "Variable unification went wrong."
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
+        # condition should be based on the value of *v3
+        assert dw.condition.lhs.operand.variable == stmts[3].lhs.operand.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -4765,12 +4770,10 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         start_pos = lines.index("{")
-        assert lines[start_pos + 3 :][:6] == [
-            "if (a1)",
-            "v1 = a1;",
-            "else",
-            "v1 = a0;",
-            "g_1234 = v1;",
+        assert lines[start_pos + 1 :][:4] == [
+            "if (!a1)",
+            "a1 = a0;",
+            "g_1234 = a1;",
             "return 4660;",
         ] or lines[start_pos + 1 :][:2] == [
             "*((int *)&g_1234) = (a1 ? a1 : a0);",
