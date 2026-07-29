@@ -2097,7 +2097,7 @@ class SimpleSolver:
                 elif isinstance(last_label, FuncOut):
                     func_outputs[last_label.loc].add(succ)
                 else:
-                    raise RuntimeError("Unreachable")
+                    raise TypeError("Unreachable")
 
             input_args = []
             output_values = []
@@ -2330,7 +2330,7 @@ class SimpleSolver:
 
         return paths
 
-    def _pointer_class(self) -> type[Pointer32] | type[Pointer64]:
+    def _pointer_class(self) -> type[Pointer32 | Pointer64]:
         if self.bits == 32:
             return Pointer32
         if self.bits == 64:

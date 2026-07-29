@@ -786,10 +786,10 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._arg_registers = kb._project.arch.argument_registers
 
         # local PLT dictionary cache
-        self._rplt_cache_ranges: None | list[tuple[int, int]] = None
-        self._rplt_cache: None | set[int] = None
+        self._rplt_cache_ranges: list[tuple[int, int]] | None = None
+        self._rplt_cache: set[int] | None = None
         # local binary name cache: min_addr -> (max_addr, binary_name)
-        self._binname_cache: None | SortedDict[int, tuple[int, str | None]] = None
+        self._binname_cache: SortedDict[int, tuple[int, str | None]] | None = None
 
         # non-returning functions cache
         self._non_returning_func_addrs: set[K] = set()
@@ -1181,7 +1181,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self._function_map[k] = v
             self._function_added(v)
         else:
-            raise ValueError("FunctionManager.__setitem__ keys must be an int")
+            raise TypeError("FunctionManager.__setitem__ keys must be an int")
 
     def __delitem__(self, k):
         if isinstance(k, self.function_address_types):
@@ -1201,7 +1201,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 for old_name in func_meta.previous_names:
                     self._old_func_name_to_addrs.get(old_name, set()).discard(k)
         else:
-            raise ValueError(
+            raise TypeError(
                 f"FunctionManager.__delitem__ only accepts the following address types: {self.function_address_types}"
             )
 

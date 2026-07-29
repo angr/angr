@@ -2285,7 +2285,6 @@ class Reassembler(Analysis):
             "__dso_handle",
             "__init_array_start",
             "__init_array_end",
-            #
             "stdout",
             "stderr",
             "stdin",

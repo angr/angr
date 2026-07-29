@@ -36,8 +36,6 @@ class MapInit(JavaSimProcedure):
         array_ref = SimSootExpr_NewArray.new_array(self.state, "java.lang.Object", claripy.BVV(1000, 32))
         this_ref.store_field(self.state, MAP_KEYS, "java.lang.Object[]", array_ref)
 
-        return
-
 
 class MapPut(JavaSimProcedure):
     __provides__ = (

@@ -8,7 +8,7 @@ from typing import Any
 
 import pyvex
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.analysis import Analysis
 from angr.analyses.forward_analysis import ForwardAnalysis
 from angr.analyses.forward_analysis.visitors.graph import NodeType

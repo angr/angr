@@ -15,7 +15,7 @@ l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
 
 
-def value(ty: str, val: int | float, size: int | None = None):
+def value(ty: str, val: float, size: int | None = None):
     if ty == "Ity_F32":
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
     if ty == "Ity_F64":
@@ -129,7 +129,7 @@ class ClaripyDataMixin(VEXMixin):
             return func(self.state, *args)
         except ccall.CCallMultivaluedException as e:
             cases, to_replace = e.args
-            for i, arg in enumerate(args):  # noqa: B007
+            for i, arg in enumerate(args):
                 if arg is to_replace:
                     break
             else:

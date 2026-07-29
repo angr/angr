@@ -1765,7 +1765,7 @@ ARM64G_CC_OP_SBC32 = 7  # /* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = 
 ARM64G_CC_OP_SBC64 = 8  # /* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = oldC (in LSB) */
 ARM64G_CC_OP_LOGIC32 = 9  # /* DEP1 = result, DEP2 = 0, DEP3 = 0 */
 ARM64G_CC_OP_LOGIC64 = 10  # /* DEP1 = result, DEP2 = 0, DEP3 = 0 */
-ARM64G_CC_OP_NUMBER = 11  #
+ARM64G_CC_OP_NUMBER = 11
 
 ARM64CondEQ = 0  # /* equal                         : Z=1 */
 ARM64CondNE = 1  # /* not equal                     : Z=0 */

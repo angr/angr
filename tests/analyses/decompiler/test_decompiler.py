@@ -14,7 +14,7 @@ from functools import wraps
 import networkx
 
 import angr
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses import (
     CallingConventionAnalysis,
     CFGFast,
@@ -66,7 +66,7 @@ from tests.common import (
 
 test_location = os.path.join(bin_location, "tests")
 
-l = logging.Logger(__name__)
+l = logging.getLogger(__name__)
 
 
 def normalize_whitespace(s: str) -> str:

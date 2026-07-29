@@ -42,7 +42,7 @@ class SimplifyBitwiseInserts(PeepholeOptimizationExprBase):
                     # I don't know if 0 is right here
                     pb2l.append((0, potential_base.operand, other_base))
 
-        for (pb1o, pb1), (pb2o, pb2, pb2x) in itertools.product(pb1l, pb2l):  # noqa: B007
+        for (pb1o, pb1), (pb2o, pb2, pb2x) in itertools.product(pb1l, pb2l):
             if pb1o == pb2o and pb1.bits == pb2.bits and pb1.likes(pb2):
                 break
         else:

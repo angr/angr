@@ -115,7 +115,7 @@ class ResultType:
                 pure_functions is None or loc.callee_return_name not in pure_functions
             ):
                 return False
-        for (_, _, _, func, _), _ in self.call_args.items():
+        for _, _, _, func, _ in self.call_args:
             if pure_functions is None:
                 return False
             if isinstance(func, Function) and func.name not in pure_functions:

@@ -5,7 +5,7 @@ from typing import Any
 
 import claripy
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.knowledge_plugins.functions.function import Function
 from angr.serializable import Serializable
 

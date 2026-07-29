@@ -108,11 +108,8 @@ class BinaryOptimizer(Analysis):
 
     BLOCKS_THRESHOLD = 500  # do not optimize a function if it has more than this number of blocks
 
-    def __init__(self, cfg, techniques):
+    def __init__(self, cfg, techniques: set[str]):
         self.cfg = cfg
-
-        if techniques is None:
-            raise Exception("At least one optimization technique must be specified.")
 
         supported_techniques = {
             "constant_propagation",
@@ -122,7 +119,7 @@ class BinaryOptimizer(Analysis):
         }
 
         if techniques - supported_techniques:
-            raise Exception("At least one optimization technique specified is not supported.")
+            raise ValueError("At least one optimization technique specified is not supported.")
 
         self._techniques = techniques.copy()
 

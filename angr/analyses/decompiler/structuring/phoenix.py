@@ -2195,9 +2195,9 @@ class PhoenixStructurer(StructurerBase):
                     elif o in full_graph:
                         if o not in out_dst_succs_fullgraph:
                             out_dst_succs_fullgraph.append(o)
-                out_dst_succ = sorted(out_dst_succs, key=lambda o: o.addr)[0] if out_dst_succs else None
+                out_dst_succ = min(out_dst_succs, key=lambda o: o.addr) if out_dst_succs else None
                 out_dst_succ_fullgraph = (
-                    sorted(out_dst_succs_fullgraph, key=lambda o: o.addr)[0] if out_dst_succs_fullgraph else None
+                    min(out_dst_succs_fullgraph, key=lambda o: o.addr) if out_dst_succs_fullgraph else None
                 )
                 if len(out_dst_succs) > 1:
                     if self.dowhile_known_tail_nodes:

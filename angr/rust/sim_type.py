@@ -353,7 +353,7 @@ class RustSimStruct(RustSimType, SimStruct):
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
-        for _name, ty in out.fields.items():
+        for ty in out.fields.values():
             if isinstance(ty, RustSimTypeNumOffset):
                 out._pack = True
                 ty.offset = offset_so_far % arch.byte_width
@@ -778,7 +778,7 @@ class RustSimEnum(RustSimType, SimType):
         return len(self.variants)
 
     def as_struct_ty(self):
-        largest = sorted(self.variants, key=lambda variant: variant.bits)[-1]
+        largest = max(self.variants, key=lambda variant: variant.bits)
         struct_ty = largest.as_struct_ty()
         struct_ty.name = self.name
         return struct_ty

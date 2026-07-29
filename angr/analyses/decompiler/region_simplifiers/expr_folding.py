@@ -174,7 +174,6 @@ class LoopNodeFinder(SequenceWalker):
     def _handle_Loop(self, node: LoopNode, **kwargs):
         super()._handle_Loop(node, **kwargs)
         self.loop_nodes.append(node)
-        return None
 
 
 class MultiStatementExpressionAssignmentFinder(AILBlockRewriter):
@@ -386,8 +385,6 @@ class ExpressionCounter(SequenceWalker):
         self._outer_scope = False
         super()._handle_Loop(node, **kwargs)
         self._outer_scope = outer_scope
-
-        return None
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
         self._collect_uses(node.switch_expr, ConditionLocation(node.addr))
@@ -744,7 +741,6 @@ class ExpressionFolder(SequenceWalker):
                 node.condition = r
 
         # again, do not replace into the loop body
-        return None
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
         replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_map)

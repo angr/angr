@@ -10,7 +10,7 @@ from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
-l = logging.Logger(__name__)
+l = logging.getLogger(__name__)
 
 
 class TestJumpkindIntrinsics(unittest.TestCase):

@@ -39,7 +39,7 @@ class DefinitionMatchPredicate:
     bbl_addr: int | None = None
     ins_addr: int | None = None
     variable: SimVariable | None = None
-    variable_manager: VariableManagerInternal | None | Literal[False] = None
+    variable_manager: VariableManagerInternal | Literal[False] | None = None
     stack_offset: int | None = None
     reg_name: str | int | None = None
     heap_offset: int | None = None

@@ -14,10 +14,6 @@ from __future__ import annotations
 
 import logging
 import struct
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
 
 log = logging.getLogger(__name__)
 

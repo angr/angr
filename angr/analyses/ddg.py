@@ -756,7 +756,7 @@ class DDG(Analysis):
                             matched = True
                     except (SimUnsatError, SimSolverModeError, ZeroDivisionError):
                         # ignore
-                        matched = matched
+                        pass
                 if not matched:
                     break
 
@@ -1017,7 +1017,7 @@ class DDG(Analysis):
             self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype="mem_addr")
             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
             prev_defs = self._def_lookup(reg_variable)
-            for loc, _ in prev_defs.items():
+            for loc in prev_defs:
                 v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                 self._data_graph_add_edge(v, prog_var, type="mem_addr")
 
@@ -1039,7 +1039,7 @@ class DDG(Analysis):
                 self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype="mem_data")
                 reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
                 prev_defs = self._def_lookup(reg_variable)
-                for loc, _ in prev_defs.items():
+                for loc in prev_defs:
                     v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                     self._data_graph_add_edge(v, prog_var, type="mem_data")
 
@@ -1497,7 +1497,7 @@ class DDG(Analysis):
         # Group all dependencies first
 
         block_addr_to_func = {}
-        for _, func in self.kb.functions.items():
+        for func in self.kb.functions.values():
             for block in func.blocks:
                 block_addr_to_func[block.addr] = func
 

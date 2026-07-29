@@ -7,7 +7,7 @@ import os.path
 import unittest
 
 import angr
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.optimization_passes.base_ptr_save_simplifier import (
     BasePointerSaveSimplifier,
 )

@@ -22,8 +22,6 @@ class strcmp(Func):
         l = 5
         rand_str(l, strcmp.non_null)  # s
 
-        return
-
     def can_call_other_funcs(self):
         return False
 

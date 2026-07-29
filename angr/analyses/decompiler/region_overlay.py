@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Set
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import networkx
@@ -293,7 +293,7 @@ class RegionOverlay[T: RegionBound]:
         return self._mgr
 
     @property
-    def members(self) -> Set[Tx[T]]:
+    def members(self) -> set[Tx[T]]:
         return self._members
 
     def ancestors(self) -> set[RegionOverlay]:
@@ -305,12 +305,12 @@ class RegionOverlay[T: RegionBound]:
             node = node.parent
         return result
 
-    def underlying_nodes(self) -> Set[T]:
+    def underlying_nodes(self) -> set[T]:
         """All shared-graph nodes inside this region (including nodes of nested regions)."""
         return self._under
 
     @staticmethod
-    def _underlying(x) -> Set[T]:
+    def _underlying(x) -> set[T]:
         return x._under if isinstance(x, RegionOverlay) else {x}
 
     def create_subregion(
@@ -396,7 +396,7 @@ class RegionOverlay[T: RegionBound]:
     def _is_hidden(self, src: Tx[T], dst: Tx[T]) -> bool:
         return (src, dst) in self._hidden
 
-    def _hidden_context_head_under(self) -> Set[Tx[T]]:
+    def _hidden_context_head_under(self) -> set[Tx[T]]:
         """
         Crossing edges that target the head of the region's processing context (the nearest cyclic ancestor, or
         the root region) were invisible during region identification: in-edges of the head are stripped before
@@ -430,7 +430,7 @@ class RegionOverlay[T: RegionBound]:
     def _in_loop(self) -> bool:
         return self.cyclic or self.cyclic_ancestor
 
-    def successor_nodes(self) -> Set[Tx[T]]:
+    def successor_nodes(self) -> set[Tx[T]]:
         """
         The derived successor set of this region: representatives of all shared-graph nodes targeted by edges
         leaving the region.
@@ -669,7 +669,7 @@ class RegionOverlay[T: RegionBound]:
         return self.view_with_successors()
 
     @property
-    def successors(self) -> Set[Tx[T]]:
+    def successors(self) -> set[Tx[T]]:
         return self.successor_nodes()
 
     @property

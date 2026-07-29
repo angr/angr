@@ -7,7 +7,7 @@ import os
 import unittest
 
 import angr
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from tests.common import bin_location
 

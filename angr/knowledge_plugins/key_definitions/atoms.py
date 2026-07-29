@@ -5,7 +5,7 @@ from enum import Enum, auto
 import claripy
 from archinfo import Arch, Endness, RegisterOffset
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from angr.engines.light import SpOffset
 

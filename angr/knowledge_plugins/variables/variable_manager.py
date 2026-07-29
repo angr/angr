@@ -455,7 +455,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(var, SimConstantVariable):
                 continue
             else:
-                raise ValueError(f"Unsupported sort {type(var)} in parse_from_cmessage().")
+                raise TypeError(f"Unsupported sort {type(var)} in parse_from_cmessage().")
 
             region.add_variable(offset, var)
 
@@ -667,7 +667,7 @@ class VariableManagerInternal(Serializable):
                     return phi
 
         # allocate a new phi variable
-        repre = sorted(variables, key=lambda val: val.key)[0]
+        repre = min(variables, key=lambda val: val.key)
         repre_type = type(repre)
         repre_size = max(var.size for var in variables)
         if repre_type is SimRegisterVariable:
@@ -821,9 +821,7 @@ class VariableManagerInternal(Serializable):
     @overload
     def get_variables(self, sort: Literal["reg"], collapse_same_ident: bool = False) -> list[SimRegisterVariable]: ...
     @overload
-    def get_variables(
-        self, sort: None = None, collapse_same_ident: bool = False
-    ) -> list[SimRegisterVariable | SimRegisterVariable]: ...
+    def get_variables(self, sort: None = None, collapse_same_ident: bool = False) -> list[SimRegisterVariable]: ...
 
     def get_variables(self, sort=None, collapse_same_ident=False):
         """
@@ -853,7 +851,7 @@ class VariableManagerInternal(Serializable):
     @overload
     def get_unified_variables(self, sort: Literal["reg"]) -> list[SimRegisterVariable]: ...
     @overload
-    def get_unified_variables(self, sort: None) -> list[SimRegisterVariable | SimRegisterVariable]: ...
+    def get_unified_variables(self, sort: None) -> list[SimRegisterVariable]: ...
 
     def get_unified_variables(self, sort=None):
         """

@@ -134,8 +134,6 @@ exclude = [
 
 [tool.ruff.lint]
 extend-select = [
-    "B",
-    "C4",
     "FURB",
     "I",
     "PIE",
@@ -147,20 +145,29 @@ extend-select = [
     "UP",
 ]
 ignore = [
-    "B011",   # Asserts
+    "BLE001", # Catching Exception
+    "DTZ",    # timezones
     "E741",   # Variable names
+    "EXE",
+    "RET501", # rewrites "return None" to "return" if it's the only return statement; pylint then removes the return
     "RUF012", # FIXME: Annotate class variables
     "RUF007", # Prefer `itertools.pairwise()` over `zip()` when iterating over successive pairs
-    "B905",   # Zip calls without an explicit strict parameter
-    "RET501", # rewrites "return None" to "return" if it's the only return statement; pylint then removes the return
+    "S112",   # Blind exception handlers
+    "TRY002", # Create your own Exceptions
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "angr/__init__.py" = [
     "E402", # Package root: bootstrap code is interleaved with imports and the import order is load-bearing
 ]
+"angr/engines/soot/expressions/*" = [
+    "N999",
+]
 "angr/misc/bug_report.py" = [
     "F821", # name not found
+]
+"angr/procedures/**" = [
+    "N999",
 ]
 "angr/procedures/definitions/*" = [ # TODO: Move to exclude
     "F601", # TODO: BUG! This hides bugs! See: https://github.com/angr/angr/issues/3685

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import string
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import claripy
 import networkx
@@ -27,9 +27,6 @@ from angr.sim_variable import SimMemoryVariable
 
 from .api_obf_type2_finder import APIObfuscationType2Finder
 from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
-
-if TYPE_CHECKING:
-    pass
 
 _l = logging.getLogger(name=__name__)
 

@@ -67,7 +67,7 @@ class RustcVersionIdentification(Analysis):
             fa = self.project.analyses.Flirt(sig_path, dry_run=True, match_named_functions=True)
             matched = fa.matched_suggestions["Temporary"][1]  # {addr: name}
             count = 0
-            for _addr, name in matched.items():
+            for name in matched.values():
                 name = demangle(name)
                 if not name.startswith(("core::", "std::", "alloc::")):
                     continue

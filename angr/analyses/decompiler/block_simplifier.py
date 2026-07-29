@@ -66,14 +66,10 @@ class PeepholeOptimizationBundle:
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
-        peephole_optimizations: None
-        | (
-            Iterable[
-                type[PeepholeOptimizationStmtBase]
-                | type[PeepholeOptimizationExprBase]
-                | type[PeepholeOptimizationMultiStmtBase]
-            ]
-        ) = None,
+        peephole_optimizations: Iterable[
+            type[PeepholeOptimizationStmtBase | PeepholeOptimizationExprBase | PeepholeOptimizationMultiStmtBase]
+        ]
+        | None = None,
     ):
         if peephole_optimizations is None:
             expr_classes: Iterable = EXPR_OPTS
@@ -138,14 +134,10 @@ class BlockSimplifier:
         ail_manager: Manager,
         func_addr: int | None = None,
         stack_pointer_tracker=None,
-        peephole_optimizations: None
-        | (
-            Iterable[
-                type[PeepholeOptimizationStmtBase]
-                | type[PeepholeOptimizationExprBase]
-                | type[PeepholeOptimizationMultiStmtBase]
-            ]
-        ) = None,
+        peephole_optimizations: Iterable[
+            type[PeepholeOptimizationStmtBase | PeepholeOptimizationExprBase | PeepholeOptimizationMultiStmtBase]
+        ]
+        | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
         cached_reaching_definitions=None,

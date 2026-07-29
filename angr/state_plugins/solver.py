@@ -81,12 +81,12 @@ def disable_timing():
     _timing_enabled = False
 
 
-if os.environ.get("SOLVER_TIMING", False):
+if os.environ.get("SOLVER_TIMING", None):
     enable_timing()
 else:
     disable_timing()
 
-break_time = float(os.environ.get("SOLVER_BREAK_TIME", -1))
+break_time = float(os.environ.get("SOLVER_BREAK_TIME", "-1"))
 
 #
 # Various over-engineered crap
@@ -752,7 +752,7 @@ class SimSolver(SimStatePlugin):
     @staticmethod
     def _cast_to(
         e: claripy.ast.Bool | claripy.ast.BV | claripy.ast.FP,
-        solution: bool | float | int,
+        solution: bool | float,
         cast_to: type[CastType] | None,
     ) -> CastType:
         """

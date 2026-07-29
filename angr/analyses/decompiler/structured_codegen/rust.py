@@ -78,8 +78,6 @@ from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
-    import archinfo
-
     import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
@@ -190,7 +188,7 @@ def is_machine_word_size_type(type_: SimType, arch: archinfo.Arch) -> bool:
     return isinstance(type_, SimTypeReg) and type_.size == arch.bits
 
 
-def guess_value_type(value: int | float, project: angr.Project) -> SimType | None:
+def guess_value_type(value: float, project: angr.Project) -> SimType | None:
     if not isinstance(value, int):
         return None
     if project.kb.functions.contains_addr(value):
@@ -2480,7 +2478,7 @@ class RustConstant(RustExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
+            for v in self.reference_values.values():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String and v.content is not None:
                     yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return

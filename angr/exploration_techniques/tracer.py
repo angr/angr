@@ -679,7 +679,7 @@ class Tracer(ExplorationTechnique):
 
     def _translate_trace_addr(self, trace_addr, obj=None):
         if obj is None:
-            for obj, slide in self._aslr_slides.items():  # pylint: disable=redefined-argument-from-local
+            for obj, slide in self._aslr_slides.items():  # noqa: PLR1704  # pylint: disable=redefined-argument-from-local
                 if obj.contains_addr(trace_addr - slide):
                     break
             else:

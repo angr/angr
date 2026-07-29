@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.utils.bits import s2u
 
@@ -78,9 +78,7 @@ class StackCanarySimplifier(OptimizationPass):
                 pred_addr_to_endpoint_addrs[pred.addr].add(node_addr)
 
         found_endpoints = False
-        for pred_addr in pred_addr_to_endpoint_addrs:
-            endpoint_addrs = pred_addr_to_endpoint_addrs[pred_addr]
-
+        for endpoint_addrs in pred_addr_to_endpoint_addrs.values():
             if len(endpoint_addrs) != 2:
                 # we expect there to be only two nodes: one for canary-check-success, and the other for
                 # canary-check-failure. if not, we check the next predecessor
