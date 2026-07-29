@@ -1201,6 +1201,10 @@ class SimIROp:
 
         return claripy.Concat(*reversed(res))
 
+    # libVEX split the zeroing behavior out of Perm into its own op; pshufb
+    # emits PermOrZero, which is what _op_generic_Perm already implements.
+    _op_generic_PermOrZero = _op_generic_Perm
+
     @supports_vector
     def _op_generic_CatEvenLanes(self, args):
         vec_0 = args[0].chop(self._vector_size)
