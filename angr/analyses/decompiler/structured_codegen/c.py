@@ -4292,7 +4292,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             field = next((name for name, off in child_type.offsets.items() if off == offset), None)
             if field is not None and expr.bits == child_type.fields[field].size:
                 return CVariableField(child, CStructField(child_type, offset, field, codegen=self), codegen=self)
-        if isinstance(child_type, SimTypeInt) and offset == 0:  # TODO not big-endian safe
+        if isinstance(child_type, (SimTypeInt, SimTypePointer)) and offset == 0:  # TODO not big-endian safe
+            # A pointer is already a scalar value. Taking its address and loading the
+            # requested integer width would reinterpret the pointee instead of
+            # extracting bits from the pointer, and creates invalid C when the
+            # pointer is itself an address expression (for example ``&&local``).
             return CTypeCast(child_type, target_type, child, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)

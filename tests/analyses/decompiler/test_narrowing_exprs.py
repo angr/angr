@@ -20,6 +20,39 @@ l = logging.Logger(__name__)
 
 
 class TestNarrowingExpressions(unittest.TestCase):
+    def test_extract_from_stack_address_does_not_emit_label_reference(self):
+        base = 0x400000
+        caller = bytes.fromhex(
+            "55 "  # push rbp
+            "48 89 e5 "  # mov rbp, rsp
+            "48 83 ec 10 "  # sub rsp, 0x10
+            "c6 45 f0 00 "  # mov byte ptr [rbp-0x10], 0
+            "48 8d 7d f0 "  # lea rdi, [rbp-0x10]
+            "e8 0b 00 00 00 "  # call 0x400020
+            "c9 "  # leave
+            "c3"  # ret
+        )
+        code = caller + b"\x90" * 9 + b"\xc3"
+        project = angr.load_shellcode(code, arch="amd64", load_address=base)
+        cfg = project.analyses.CFGFast(
+            function_starts=[base, base + 0x20],
+            normalize=True,
+            data_references=True,
+        )
+        callee = cfg.functions.function(addr=base + 0x20)
+        callee.name = "consume_low_word"
+        callee.apply_definition("void consume_low_word(unsigned int value)")
+
+        dec = project.analyses.Decompiler(
+            cfg.functions.function(addr=base),
+            cfg=cfg.model,
+            fail_fast=True,
+        )
+
+        assert dec.codegen is not None
+        assert "consume_low_word((unsigned int)&v0);" in dec.codegen.text
+        assert "&&v0" not in dec.codegen.text
+
     def test_insert_base_is_a_full_width_use(self):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is
         # preserved into the result. EffectiveSizeExtractor used to skip the base entirely, so a vvar
