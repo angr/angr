@@ -6123,7 +6123,7 @@ class TestDecompiler(unittest.TestCase):
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses[CFGFast].prep()(normalize=True)
-        p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        p.analyses[CompleteCallingConventionsAnalysis].prep()()
         f = cfg.functions[0x4051D0]
         dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
@@ -6131,16 +6131,18 @@ class TestDecompiler(unittest.TestCase):
 
         text = dec.codegen.text
         assert text is not None
-        # the VLA is recovered as an array declaration with a runtime dimension, tagged `// alloca`
-        m = re.search(r"uint8_t (\w+)\[[^\]]+\];\s*// alloca", text)
+        # the VLA is recovered as an array declaration with a runtime dimension, tagged `// alloca`.
+        # the dimension may itself contain brackets or parens (e.g. `(int)v8[4]`), so match to end of line.
+        m = re.search(r"uint8_t (\w+)\[(.+)\];\s*// alloca", text)
         assert m is not None, "expected a recovered VLA declaration `uint8_t <name>[<dim>];  // alloca`"
         name = m.group(1)
+        assert m.group(2).strip(), "expected a non-empty runtime dimension"
         # no raw stack-pointer virtual variables leak into the output
         assert "{r48" not in text and "vvar_" not in text
         # the page-probe loop and its `*(p) = *(p)` no-op touches are gone
         assert re.search(r"do\s*\{\s*\}\s*while", text) is None
-        # the pread call addresses the recovered buffer by name
-        assert re.search(rf"pread\([^)]*\b{name}\b", text) is not None
+        # the pread call addresses the recovered buffer by name (earlier args may contain parens)
+        assert re.search(rf"pread\(.*?\b{name}\b", text) is not None
 
 
 if __name__ == "__main__":
