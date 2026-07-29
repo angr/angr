@@ -284,6 +284,10 @@ class SimIROp:
         # pylint:disable=no-member
         self._output_type = pyvex.get_op_retty(name)
         # pylint:enable=no-member
+        if self._output_type == "Ity_INVALID":
+            # libVEX has no type signature for this op (e.g. an enum member the
+            # lifter never emits); it cannot be executed
+            raise SimOperationError(f"libVEX reports no type for op {name}")
         self._output_size_bits = pyvex.const.get_type_size(self._output_type)
 
         size_check = (
@@ -336,6 +340,9 @@ class SimIROp:
             # this concatenates the args into the high and low halves of the result
             elif self._from_side == "HL":
                 self._calculate = self._op_concat
+
+            elif self._from_size is None or self._to_size is None:
+                raise SimOperationError(f"unsupported conversion signature {name}")
 
             # this just returns the high half of the first arg
             elif self._from_size > self._to_size and self._from_side == "HI":

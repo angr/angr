@@ -85,7 +85,8 @@ class RegisterValue(ctypes.Structure):
     struct register_value_t
     """
 
-    _MAX_REGISTER_BYTE_SIZE = 32
+    # Must match MAX_REGISTER_BYTE_SIZE in native/unicornlib/sim_unicorn.hpp
+    _MAX_REGISTER_BYTE_SIZE = 64
 
     _fields_ = [
         ("offset", ctypes.c_uint64),
