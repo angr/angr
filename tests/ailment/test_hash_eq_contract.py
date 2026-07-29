@@ -1,27 +1,15 @@
 # pylint: disable=missing-class-docstring,no-self-use
 """The ``a == b  =>  hash(a) == hash(b)`` contract for AIL nodes.
 
-Python requires that objects comparing equal hash equal; otherwise a
-``set`` can hold ``==`` duplicates and ``x in some_dict`` misses. AIL
-broke this in two ways, both regression-tested here:
+Python requires that objects comparing equal hash equal. The Rust version of AIL broke this in two ways, both
+regression-tested here:
 
-* **Recursively** -- ``__eq__`` compared ``idx`` only at the root while
-  the ``Hash`` impls fold ``idx`` in at every node, so any composite
-  whose children had different ``idx`` compared equal and hashed apart.
-* **Node-locally** -- a handful of variants hashed a field the
-  comparison never looked at. Those split two ways once examined:
-  ``Const``'s ``NaN`` and signed-zero bit patterns were genuinely
-  hash-side bugs (the values really are equal, so they must hash
-  alike), while ``Convert.rounding_mode``, ``BinaryOp.rounding_mode``,
-  ``StringLiteral.bits`` and ``Struct.bits`` were comparison-side bugs
-  -- those fields are significant, and equality was wrong to ignore
-  them.
-
-The important discipline for the per-variant sweeps below is that the
-two instances get **separately constructed** children. Reusing the same
-child objects is what let this defect sit unnoticed: with shared
-children every descendant ``idx`` matches, and the contract holds
-vacuously.
+* ``__eq__`` compared ``idx`` only at the root while the ``Hash`` impls fold ``idx`` in at every node, so any
+  composite whose children had different ``idx`` compared equal and hashed apart.
+* A handful of variants hashed a field the comparison never looked at. Those split two ways once examined:
+  ``Const``'s ``NaN`` and signed-zero bit patterns were hash-side bugs (the values are equal, so they must hash
+  the same), while ``Convert.rounding_mode``, ``BinaryOp.rounding_mode``, ``StringLiteral.bits`` and
+  ``Struct.bits`` were comparison-side bugs (these fields were ignored in __eq__).
 """
 
 from __future__ import annotations
