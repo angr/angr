@@ -1989,6 +1989,8 @@ fn build_archinfo(arch: &Bound<'_, PyAny>) -> PyResult<vex_ffi::VexArchInfo> {
         ppc_dcbzl_sz_b: geti("ppc_dcbzl_szB").unwrap_or(0) as u32,
         arm64_d_min_line_lg2_sz_b: geti("arm64_dMinLine_lg2_szB").unwrap_or(0) as u32,
         arm64_i_min_line_lg2_sz_b: geti("arm64_iMinLine_lg2_szB").unwrap_or(0) as u32,
+        arm64_cache_block_size: geti("arm64_cache_block_size").unwrap_or(0) as u8,
+        arm64_requires_fallback_llsc: geti("arm64_requires_fallback_LLSC").unwrap_or(0) as u8,
         x86_cr0: geti("x86_cr0").unwrap_or(0) as u32,
     })
 }

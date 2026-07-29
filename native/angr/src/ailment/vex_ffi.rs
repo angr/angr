@@ -473,6 +473,8 @@ pub struct VexArchInfo {
     pub ppc_dcbzl_sz_b: u32,
     pub arm64_d_min_line_lg2_sz_b: u32,
     pub arm64_i_min_line_lg2_sz_b: u32,
+    pub arm64_cache_block_size: u8,
+    pub arm64_requires_fallback_llsc: u8,
     pub x86_cr0: u32,
 }
 
