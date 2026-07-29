@@ -394,6 +394,8 @@ class _VexArchInfo(ctypes.Structure):
         ("ppc_dcbzl_szB", ctypes.c_uint),
         ("arm64_dMinLine_lg2_szB", ctypes.c_uint),
         ("arm64_iMinLine_lg2_szB", ctypes.c_uint),
+        ("arm64_cache_block_size", ctypes.c_ubyte),
+        ("arm64_requires_fallback_LLSC", ctypes.c_ubyte),
         ("x86_cr0", ctypes.c_uint),
     ]
 
