@@ -470,6 +470,7 @@ pub struct VexArchInfo {
     pub hwcache_info: VexCacheInfo,
     pub ppc_icache_line_sz_b: c_int,
     pub ppc_dcbz_sz_b: u32,
+    pub ppc_scv_supported: u8,
     pub ppc_dcbzl_sz_b: u32,
     pub arm64_d_min_line_lg2_sz_b: u32,
     pub arm64_i_min_line_lg2_sz_b: u32,

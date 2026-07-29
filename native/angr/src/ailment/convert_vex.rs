@@ -1986,6 +1986,7 @@ fn build_archinfo(arch: &Bound<'_, PyAny>) -> PyResult<vex_ffi::VexArchInfo> {
         },
         ppc_icache_line_sz_b: geti("ppc_icache_line_szB").unwrap_or(0) as std::ffi::c_int,
         ppc_dcbz_sz_b: geti("ppc_dcbz_szB").unwrap_or(0) as u32,
+        ppc_scv_supported: geti("ppc_scv_supported").unwrap_or(0) as u8,
         ppc_dcbzl_sz_b: geti("ppc_dcbzl_szB").unwrap_or(0) as u32,
         arm64_d_min_line_lg2_sz_b: geti("arm64_dMinLine_lg2_szB").unwrap_or(0) as u32,
         arm64_i_min_line_lg2_sz_b: geti("arm64_iMinLine_lg2_szB").unwrap_or(0) as u32,
