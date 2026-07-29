@@ -86,14 +86,14 @@ class TestLifter(unittest.TestCase):
 
         # No optimization
         block = p.factory.block(0x4020F8, size=len(b), opt_level=0)
-        assert len(block.vex.statements) == 32
+        assert len(block.vex.statements) == 33
         # Full level-1 optimization
         block = p.factory.block(0x4020F8, size=len(b), opt_level=1, cross_insn_opt=True)
-        assert len(block.vex.statements) == 20
+        assert len(block.vex.statements) == 21
         # Level-1 optimization within each instruction
         block = p.factory.block(0x4020F8, size=len(b), opt_level=1, cross_insn_opt=False)
         stmts = block.vex.statements
-        assert len(stmts) == 22
+        assert len(stmts) == 23
         # 09 | ------ IMark(0x402103, 3, 0) ------
         assert isinstance(stmts[9], pyvex.IRStmt.IMark)
         assert stmts[9].addr == 0x402103
@@ -114,14 +114,17 @@ class TestLifter(unittest.TestCase):
         assert stmts[13].offset == archinfo.arch_from_id("amd64").registers["cc_dep2"][0]
         assert isinstance(stmts[13].data, pyvex.IRExpr.Const)
         assert stmts[13].data.con.value == 0
-        # 14 | PUT(rip) = 0x0000000000402106
+        # 14 | PUT(cc_ndep) = 0x0000000000000000
         assert isinstance(stmts[14], pyvex.IRStmt.Put)
-        assert stmts[14].offset == archinfo.arch_from_id("amd64").registers["rip"][0]
-        assert isinstance(stmts[14].data, pyvex.IRExpr.Const)
-        assert stmts[14].data.con.value == 0x402106
-        # 15 | ------ IMark(0x402106, 2, 0) ------
-        assert isinstance(stmts[15], pyvex.IRStmt.IMark)
-        assert stmts[15].addr == 0x402106
+        assert stmts[14].offset == archinfo.arch_from_id("amd64").registers["cc_ndep"][0]
+        # 15 | PUT(rip) = 0x0000000000402106
+        assert isinstance(stmts[15], pyvex.IRStmt.Put)
+        assert stmts[15].offset == archinfo.arch_from_id("amd64").registers["rip"][0]
+        assert isinstance(stmts[15].data, pyvex.IRExpr.Const)
+        assert stmts[15].data.con.value == 0x402106
+        # 16 | ------ IMark(0x402106, 2, 0) ------
+        assert isinstance(stmts[16], pyvex.IRStmt.IMark)
+        assert stmts[16].addr == 0x402106
 
     def test_arm_thumb_itstate_optimization(self):
         # ensure that we optimize away itstate updates when possible
