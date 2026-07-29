@@ -482,3 +482,18 @@ amd64g_dirtyhelper_XGETBV = x86g_dirtyhelper_XGETBV
 def arm64g_dirtyhelper_MRS_DCZID_EL0(state):  # pylint:disable=unused-argument
     # DCZID_EL0 = 0x4: DC ZVA permitted with a 64-byte block size
     return claripy.BVV(0x4, 64), []
+
+
+def mips_dirtyhelper_rdhwr(state, rd):
+    # hardware registers: 0 = CPUNum, 1 = SYNCI_Step, 2 = CC, 3 = CCRes, 31 = Cavium cycle count
+    size = state.arch.bits
+    rd = state.solver.eval_one(rd)
+    if rd == 0:
+        val = claripy.BVV(0, size)
+    elif rd == 1:
+        val = claripy.BVV(0x20, size)
+    elif rd == 3:
+        val = claripy.BVV(1, size)
+    else:
+        val = state.solver.BVS(f"rdhwr_{rd}", size, key=("hardware", "rdhwr", rd))
+    return val, []
