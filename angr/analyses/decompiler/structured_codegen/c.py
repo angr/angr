@@ -2997,7 +2997,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         # regular expression handler, so the field name/type match the rest of the output
         self._array_length_cexprs = {
             var: self._handle(dim_expr)
-            for var, dim_expr in self._variable_kb.variables[self._func.addr].array_length_exprs.items()
+            for var, dim_expr in self.kb.dec_variables[self._func.addr].array_length_exprs.items()
         }
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
