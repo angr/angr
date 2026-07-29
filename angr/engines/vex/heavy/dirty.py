@@ -83,8 +83,15 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
     return None, []
 
 
-amd64g_dirtyhelper_CPUID_avx_and_cx16 = amd64g_dirtyhelper_CPUID_baseline
-amd64g_dirtyhelper_CPUID_avx2 = amd64g_dirtyhelper_CPUID_baseline
+# Since Valgrind 3.27, these helpers take three extra args (hasF16C, hasRDRAND, hasRDSEED). Our faked
+# CPUID reports these features as absent, so the args are accepted but ignored.
+def amd64g_dirtyhelper_CPUID_avx_and_cx16(
+    state, _, hasF16C=None, hasRDRAND=None, hasRDSEED=None
+):  # pylint:disable=unused-argument
+    return amd64g_dirtyhelper_CPUID_baseline(state, _)
+
+
+amd64g_dirtyhelper_CPUID_avx2 = amd64g_dirtyhelper_CPUID_avx_and_cx16
 
 
 def amd64g_create_mxcsr(_, sseround):
@@ -150,7 +157,7 @@ def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
     return warnXMM, []
 
 
-def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
+def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _, hasF16C=None, hasRDRAND=None, hasRDSEED=None):
     if "CPUID_SYMBOLIC" in state.options:
         state.regs.rax = claripy.BVS("cpuid_a", 32).zero_extend(32)
         state.regs.rbx = claripy.BVS("cpuid_b", 32).zero_extend(32)
@@ -182,9 +189,17 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
             state.registers.store("rcx", c, size=8, condition=cond)
             state.registers.store("rdx", d, size=8, condition=cond)
 
+    # mirror the C helper: hasF16C/hasRDRAND patch leaf-1 ECX, hasRDSEED patches leaf-7 EBX
+    ecx_extra = 0
+    if hasF16C is not None and state.solver.is_true(hasF16C != 0):
+        ecx_extra |= 1 << 29
+    if hasRDRAND is not None and state.solver.is_true(hasRDRAND != 0):
+        ecx_extra |= 1 << 30
+    ebx_extra = (1 << 18) if hasRDSEED is not None and state.solver.is_true(hasRDSEED != 0) else 0
+
     SET_ABCD(0x00000007, 0x00000340, 0x00000340, 0x00000000)
     SET_ABCD(0x0000000D, 0x756E6547, 0x6C65746E, 0x49656E69, 0x00000000)
-    SET_ABCD(0x000206A7, 0x00100800, 0x1F9AE3BF, 0xBFEBFBFF, 0x00000001)
+    SET_ABCD(0x000206A7, 0x00100800, 0x1F9AE3BF | ecx_extra, 0xBFEBFBFF, 0x00000001)
     SET_ABCD(0x76035A01, 0x00F0B0FF, 0x00000000, 0x00CA0000, 0x00000002)
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000003)
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000004)
@@ -194,7 +209,7 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
     SET_ABCD(0x1C03C163, 0x02C0003F, 0x00001FFF, 0x00000006, 0x00000004, 0x00000003)
     SET_ABCD(0x00000040, 0x00000040, 0x00000003, 0x00001120, 0x00000005)
     SET_ABCD(0x00000077, 0x00000002, 0x00000009, 0x00000000, 0x00000006)
-    SET_ABCD(0x00000000, 0x00000800, 0x00000000, 0x00000000, 0x00000007)
+    SET_ABCD(0x00000000, 0x00000800 | ebx_extra, 0x00000000, 0x00000000, 0x00000007)
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000008)
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000009)
     SET_ABCD(0x07300803, 0x00000000, 0x00000000, 0x00000603, 0x0000000A)
