@@ -715,6 +715,18 @@ class SimIROp:
             wtf_expr = claripy.If(bit == 1, claripy.BVV(a, piece_size), wtf_expr)
         return wtf_expr
 
+    # Valgrind 3.27 renamed the scalar Clz/Ctz ops to ClzNat/CtzNat (result at zero is undefined either way)
+    _op_generic_ClzNat = _op_generic_Clz
+    _op_generic_CtzNat = _op_generic_Ctz
+
+    def _op_generic_PopCount(self, args):
+        """Count the set bits"""
+        piece_size = len(args[0])
+        res = claripy.BVV(0, piece_size)
+        for a in range(piece_size):
+            res += claripy.Extract(a, a, args[0]).zero_extend(piece_size - 1)
+        return res
+
     def generic_minmax(self, args, cmp_op):
         res_comps = []
         for i in reversed(range(self._vector_count)):
