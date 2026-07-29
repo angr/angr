@@ -2045,6 +2045,51 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     raise SimCCallError(f"Unrecognized condition {concrete_cond} in arm64g_calculate_condition")
 
 
+#####################
+### RISCV64 Flags ###
+#####################
+
+RISCV64G_FFLAG_NV = 0x10  # invalid operation
+
+
+def _riscv64g_fflags_fcmp(a1, a2, quiet):
+    # NV is raised for any NaN operand on signaling compares (flt/fle), and only for sNaN operands on feq
+    a1 = a1.raw_to_bv()
+    a2 = a2.raw_to_bv()
+    frac_bits = 52 if len(a1) == 64 else 23
+    exp_msb = len(a1) - 2
+
+    def is_bad(x):
+        nan = claripy.And(x[exp_msb:frac_bits] == -1, x[frac_bits - 1 : 0] != 0)
+        return claripy.And(nan, x[frac_bits - 1] == 0) if quiet else nan
+
+    return claripy.If(claripy.Or(is_bad(a1), is_bad(a2)), claripy.BVV(RISCV64G_FFLAG_NV, 32), claripy.BVV(0, 32))
+
+
+def riscv64g_calculate_fflags_feq_s(state, a1, a2):  # pylint:disable=unused-argument
+    return _riscv64g_fflags_fcmp(a1, a2, True)
+
+
+def riscv64g_calculate_fflags_flt_s(state, a1, a2):  # pylint:disable=unused-argument
+    return _riscv64g_fflags_fcmp(a1, a2, False)
+
+
+def riscv64g_calculate_fflags_fle_s(state, a1, a2):  # pylint:disable=unused-argument
+    return _riscv64g_fflags_fcmp(a1, a2, False)
+
+
+def riscv64g_calculate_fflags_feq_d(state, a1, a2):  # pylint:disable=unused-argument
+    return _riscv64g_fflags_fcmp(a1, a2, True)
+
+
+def riscv64g_calculate_fflags_flt_d(state, a1, a2):  # pylint:disable=unused-argument
+    return _riscv64g_fflags_fcmp(a1, a2, False)
+
+
+def riscv64g_calculate_fflags_fle_d(state, a1, a2):  # pylint:disable=unused-argument
+    return _riscv64g_fflags_fcmp(a1, a2, False)
+
+
 #
 # Some helpers
 #
