@@ -128,6 +128,21 @@ explicit_attrs = {
         "generic_name": "slice",
         "to_size": 128,
     },
+    # AVX-512: the trailing _N stops these matching the generic pattern
+    **{
+        f"Iop_V512to64_{_i}": {
+            "generic_name": "unpack",
+            "to_size": 64,
+        }
+        for _i in range(8)
+    },
+    **{
+        f"Iop_V512toV256_{_i}": {
+            "generic_name": "unpack",
+            "to_size": 256,
+        }
+        for _i in range(2)
+    },
     "Iop_Reverse32sIn64_x2": {
         "generic_name": "reverse",
         "to_size": 128,
@@ -216,6 +231,26 @@ fp_ops = set()
 common_unsupported_generics = collections.Counter()
 
 
+# AVX-512 ops that parse into something the generic machinery would happily
+# execute, but with the wrong semantics. Blocking them here turns a silently
+# wrong result into an UnsupportedIROpError (which BYPASS_UNSUPPORTED_IROP can
+# still turn into a fresh symbol).
+UNSUPPORTED_EVEX_OPS = frozenset(
+    # Float compares returning an opmask. The generic float-compare handler
+    # produces a full-width vector, not the mask libVEX declares, and the
+    # 32 AVX predicates have NaN behaviour the generic path does not model.
+    [f"Iop_Cmp32Fx{n}" for n in (4, 8, 16)]
+    + [f"Iop_Cmp64Fx{n}" for n in (2, 4, 8)]
+    # Two-source permutes (VPERMI2*/VPERMT2*): the generic Perm handler
+    # implements AltiVec semantics over a single source.
+    + [
+        f"Iop_PermI{w}x{c}"
+        for w, counts in ((8, (16, 32, 64)), (16, (8, 16, 32)), (32, (4, 8, 16)), (64, (2, 4, 8)))
+        for c in counts
+    ]
+)
+
+
 def supports_vector(f):
     f.supports_vector = True
     return f
@@ -253,6 +288,8 @@ class SimIROp:
     )
 
     def __init__(self, name, **attrs):
+        if name in UNSUPPORTED_EVEX_OPS:
+            raise SimOperationError(f"{name} is not implemented")
         self.name = name
         self.op_attrs = attrs
 
@@ -1165,6 +1202,167 @@ class SimIROp:
     def _op_Iop_V256toV128_1(args):
         return args[0][255:128]
 
+    # ------------------------------------------------------------------
+    # AVX-512 (EVEX) operations
+    #
+    # These ops come from the AVX-512 lifter and are not expressible with
+    # the generic machinery: several return an opmask (a bit per vector
+    # element, in an I64) rather than a vector, and several take the
+    # incoming writemask as their first argument.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _op_Iop_V256HLtoV512(args):
+        return claripy.Concat(args[0], args[1])
+
+    @staticmethod
+    def _op_Iop_V512toV256_0(args):
+        return args[0][255:0]
+
+    @staticmethod
+    def _op_Iop_V512toV256_1(args):
+        return args[0][511:256]
+
+    def _op_evex_expand_bits(self, args):
+        """ExpandBitsTo{V128,V256,V512,Int}: widen each mask bit to a whole element.
+
+        args: (mask:I64, element width code:I8), where the width code is
+        log2(width in bytes): 0 -> 8 bits, 1 -> 16, 2 -> 32, 3 -> 64.
+        """
+        mask, width_code = args
+        if not isinstance(width_code, claripy.ast.Base) or width_code.op != "BVV":
+            raise SimOperationError(f"{self.name} requires a concrete element width")
+        elem_bits = 8 << (width_code.args[0] & 3)
+        count = self._output_size_bits // elem_bits
+        # lane 0 is the least significant, so build most-significant first
+        lanes = [
+            claripy.If(
+                claripy.Extract(i, i, mask) == 1,
+                claripy.BVV(-1, elem_bits),
+                claripy.BVV(0, elem_bits),
+            )
+            for i in reversed(range(count))
+        ]
+        return claripy.Concat(*lanes)
+
+    def _op_evex_mask_cmp(self, args):
+        """Cmp<size><sign>x<count>: integer compare producing an opmask.
+
+        args: (destination opmask, src1, src2, imm8 predicate). The first
+        argument is the destination register read back as a source -- an
+        artefact of how the instruction table lists operands. libVEX's own
+        implementation ignores it, and the lifter applies the EVEX writemask
+        with a separate And64, so it is ignored here too.
+
+        Predicates (imm8 & 7): 0 EQ, 1 LT, 2 LE, 3 FALSE, 4 NEQ, 5 GE,
+        6 GT, 7 TRUE -- all with the op's own signedness.
+        """
+        _dst, src1, src2, imm8 = args
+        if not isinstance(imm8, claripy.ast.Base) or imm8.op != "BVV":
+            raise SimOperationError(f"{self.name} requires a concrete predicate")
+        pred = imm8.args[0] & 7
+        signed = self._vector_signed == "S"
+        elem_bits = self._vector_size
+        count = self._vector_count
+        assert elem_bits is not None and count is not None
+
+        bits = []
+        for i in range(count):
+            a = src1[(i + 1) * elem_bits - 1 : i * elem_bits]
+            b = src2[(i + 1) * elem_bits - 1 : i * elem_bits]
+            if pred == 0:
+                cond = a == b
+            elif pred == 1:
+                cond = a.SLT(b) if signed else a.ULT(b)
+            elif pred == 2:
+                cond = a.SLE(b) if signed else a.ULE(b)
+            elif pred == 3:
+                cond = claripy.false()
+            elif pred == 4:
+                cond = a != b
+            elif pred == 5:
+                cond = a.SGE(b) if signed else a.UGE(b)
+            elif pred == 6:
+                cond = a.SGT(b) if signed else a.UGT(b)
+            else:
+                cond = claripy.true()
+            bits.append(claripy.If(cond, claripy.BVV(1, 1), claripy.BVV(0, 1)))
+
+        return claripy.ZeroExt(64 - count, claripy.Concat(*reversed(bits)))
+
+    def _op_evex_mask_test(self, args):
+        """Test/TestN<size>x<count>: opmask from a bitwise AND of two vectors.
+
+        args: (destination opmask, src1, src2). As with the compares, the
+        first argument is the destination read back as a source and is not
+        part of the operation; the EVEX writemask is applied separately by
+        the lifter.
+        """
+        _dst, src1, src2 = args
+        negate = self._generic_name == "TestN"
+        elem_bits = self._vector_size
+        count = self._vector_count
+        assert elem_bits is not None and count is not None
+
+        bits = []
+        for i in range(count):
+            a = src1[(i + 1) * elem_bits - 1 : i * elem_bits]
+            b = src2[(i + 1) * elem_bits - 1 : i * elem_bits]
+            zero = claripy.BVV(0, elem_bits)
+            cond = (a & b) == zero if negate else (a & b) != zero
+            bits.append(claripy.If(cond, claripy.BVV(1, 1), claripy.BVV(0, 1)))
+
+        return claripy.ZeroExt(64 - count, claripy.Concat(*reversed(bits)))
+
+    def _op_evex_ternlog(self, args):
+        """Ternlog32x16/64x8: bitwise ternary logic from an 8-bit truth table.
+
+        For each bit position, index the imm8 truth table with
+        (a << 2) | (b << 1) | c, matching _mm512_ternarylogic_epi32.
+        """
+        a, b, c, imm8 = args
+        if not isinstance(imm8, claripy.ast.Base) or imm8.op != "BVV":
+            raise SimOperationError(f"{self.name} requires a concrete truth table")
+        table = imm8.args[0] & 0xFF
+
+        # OR together the minterms the table selects; each minterm is the
+        # bitwise AND of the three sources in their true or complemented form.
+        width = self._output_size_bits
+        result = claripy.BVV(0, width)
+        for idx in range(8):
+            if not (table >> idx) & 1:
+                continue
+            term = ~a if not (idx >> 2) & 1 else a
+            term = term & (~b if not (idx >> 1) & 1 else b)
+            term = term & (~c if not idx & 1 else c)
+            result = result | term
+        return result
+
+    def _op_evex_perm(self, args):
+        """Perm<size>x<count>: full-vector variable permute (VPERM*).
+
+        args: (index vector, value vector). Lane i of the result is the
+        lane of the value vector selected by the low bits of index lane i.
+        """
+        index, value = args
+        elem_bits = self._vector_size
+        count = self._vector_count
+        assert elem_bits is not None and count is not None
+        sel_bits = count.bit_length() - 1
+
+        lanes = []
+        for i in range(count):
+            sel = index[(i + 1) * elem_bits - 1 : i * elem_bits][sel_bits - 1 : 0]
+            lane = value[elem_bits - 1 : 0]
+            for j in range(1, count):
+                lane = claripy.If(
+                    sel == j,
+                    value[(j + 1) * elem_bits - 1 : j * elem_bits],
+                    lane,
+                )
+            lanes.append(lane)
+        return claripy.Concat(*reversed(lanes))
+
     @staticmethod
     def _op_Iop_MAddF64(args):
         """
@@ -1299,6 +1497,62 @@ class SimIROp:
 #
 # Op Handler
 #
+
+
+def _bind_evex_handlers():
+    """Point the AVX-512 op families at their explicit implementations.
+
+    SimIROp dispatches on ``_op_<name>`` before anything else, so binding the
+    shared implementation under each concrete op name is enough to claim it.
+    """
+    # pylint:disable=protected-access
+    families = [
+        (
+            ["Iop_ExpandBitsToV128", "Iop_ExpandBitsToV256", "Iop_ExpandBitsToV512", "Iop_ExpandBitsToInt"],
+            SimIROp._op_evex_expand_bits,
+        ),
+        (
+            [
+                f"Iop_Cmp{w}{s}x{c}"
+                for w, counts in ((8, (16, 32, 64)), (16, (8, 16, 32)), (32, (4, 8, 16)), (64, (2, 4, 8)))
+                for c in counts
+                for s in ("S", "U")
+            ],
+            SimIROp._op_evex_mask_cmp,
+        ),
+        (
+            [
+                f"Iop_{t}{w}x{c}"
+                for t in ("Test", "TestN")
+                for w, counts in ((8, (16, 32, 64)), (16, (8, 16, 32)), (32, (4, 8, 16)), (64, (2, 4, 8)))
+                for c in counts
+            ],
+            SimIROp._op_evex_mask_test,
+        ),
+        (["Iop_Ternlog32x16", "Iop_Ternlog64x8"], SimIROp._op_evex_ternlog),
+        (
+            [
+                f"Iop_Perm{w}x{c}"
+                for w, counts in ((8, (32, 64)), (16, (8, 16, 32)), (32, (16,)), (64, (4, 8)))
+                for c in counts
+            ],
+            SimIROp._op_evex_perm,
+        ),
+    ]
+    for names, impl in families:
+        for name in names:
+            setattr(SimIROp, f"_op_{name}", impl)
+
+    # the eight 64-bit slices of a ZMM register
+    for _i in range(8):
+
+        def _slice(args, _i=_i):
+            return args[0][(_i + 1) * 64 - 1 : _i * 64]
+
+        setattr(SimIROp, f"_op_Iop_V512to64_{_i}", staticmethod(_slice))
+
+
+_bind_evex_handlers()
 
 
 def vexop_to_simop(op, extended=True, fp=True):

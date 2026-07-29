@@ -90,6 +90,11 @@ def amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _, hasF16C=None, hasRDRAND=None
 
 
 amd64g_dirtyhelper_CPUID_avx2 = amd64g_dirtyhelper_CPUID_avx_and_cx16
+# Report the same conservative CPU for the AVX-512 machines. Doing so keeps
+# libc ifunc resolvers off their AVX-512 paths, which is what we want by
+# default: those paths are only worth taking if we can execute them well.
+amd64g_dirtyhelper_CPUID_avx512_KNL = amd64g_dirtyhelper_CPUID_baseline
+amd64g_dirtyhelper_CPUID_avx512_SKX = amd64g_dirtyhelper_CPUID_baseline
 
 
 def amd64g_create_mxcsr(_, sseround):

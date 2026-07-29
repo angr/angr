@@ -63,7 +63,77 @@ const EXPLICIT_OPS: &[&str] = &[
     "Iop_V256to64_3",
     "Iop_V256toV128_0",
     "Iop_V256toV128_1",
+    // AVX-512 (EVEX). Mirrors _bind_evex_handlers() in irop.py.
+    "Iop_V256HLtoV512",
+    "Iop_V512to64_0",
+    "Iop_V512to64_1",
+    "Iop_V512to64_2",
+    "Iop_V512to64_3",
+    "Iop_V512to64_4",
+    "Iop_V512to64_5",
+    "Iop_V512to64_6",
+    "Iop_V512to64_7",
+    "Iop_V512toV256_0",
+    "Iop_V512toV256_1",
+    "Iop_ExpandBitsToInt",
+    "Iop_ExpandBitsToV128",
+    "Iop_ExpandBitsToV256",
+    "Iop_ExpandBitsToV512",
+    "Iop_Ternlog32x16",
+    "Iop_Ternlog64x8",
 ];
+
+/// AVX-512 ops that parse but whose generic implementation would be wrong.
+/// Mirrors UNSUPPORTED_EVEX_OPS in irop.py.
+const UNSUPPORTED_EVEX_OPS: &[&str] = &[
+    "Iop_Cmp32Fx4",
+    "Iop_Cmp32Fx8",
+    "Iop_Cmp32Fx16",
+    "Iop_Cmp64Fx2",
+    "Iop_Cmp64Fx4",
+    "Iop_Cmp64Fx8",
+    "Iop_PermI8x16",
+    "Iop_PermI8x32",
+    "Iop_PermI8x64",
+    "Iop_PermI16x8",
+    "Iop_PermI16x16",
+    "Iop_PermI16x32",
+    "Iop_PermI32x4",
+    "Iop_PermI32x8",
+    "Iop_PermI32x16",
+    "Iop_PermI64x2",
+    "Iop_PermI64x4",
+    "Iop_PermI64x8",
+];
+
+/// AVX-512 op families claimed by an explicit handler under every concrete
+/// name in the family (mask compares, mask tests, full-vector permutes).
+fn is_explicit_evex_family(name: &str) -> bool {
+    let body = match name.strip_prefix("Iop_") {
+        Some(b) => b,
+        None => return false,
+    };
+    for prefix in ["Cmp", "TestN", "Test", "Perm"] {
+        if let Some(rest) = body.strip_prefix(prefix) {
+            // <width>[S|U]x<count>, with no float/other markers
+            let (w, c) = match rest.split_once('x') {
+                Some(v) => v,
+                None => continue,
+            };
+            let w = w
+                .strip_suffix('S')
+                .or_else(|| w.strip_suffix('U'))
+                .unwrap_or(w);
+            if prefix == "Cmp" && !rest.contains('S') && !rest.contains('U') {
+                continue; // Cmp needs an explicit signedness; CmpNEZ etc. are generic
+            }
+            if w.parse::<u32>().is_ok() && c.parse::<u32>().is_ok() {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 /// Generic names with a `_op_generic_<name>` handler.
 const GENERIC_OPS: &[&str] = &[
@@ -315,7 +385,10 @@ fn build(name: &str, output_size_bits: u32, a: &Attrs) -> Result<SimOpInfo, ()> 
 /// "supported"). `assert False` paths are treated as unsupported rather than
 /// crashing (unreachable for real ops).
 fn has_calculate(name: &str, a: &Attrs, float: bool, info: &SimOpInfo) -> bool {
-    if EXPLICIT_OPS.contains(&name) {
+    if UNSUPPORTED_EVEX_OPS.contains(&name) {
+        return false;
+    }
+    if EXPLICIT_OPS.contains(&name) || is_explicit_evex_family(name) {
         return true;
     }
 
@@ -323,9 +396,9 @@ fn has_calculate(name: &str, a: &Attrs, float: bool, info: &SimOpInfo) -> bool {
 
     // generic_name is None and conversion present -> widening/narrowing/etc.
     if generic.is_none() && a.conversion.is_some() {
+        let from_side = a.from_side.as_deref();
         let from_size = a.from_size.unwrap_or(0);
         let to_size = a.to_size.unwrap_or(0);
-        let from_side = a.from_side.as_deref();
         if float && a.from_type.as_deref() == Some("I") {
             return true;
         }
@@ -337,6 +410,11 @@ fn has_calculate(name: &str, a: &Attrs, float: bool, info: &SimOpInfo) -> bool {
         }
         if from_side == Some("HL") {
             return true;
+        }
+        // A conversion whose name parses without both sizes cannot be
+        // classified (mirrors the guard in SimIROp.__init__).
+        if a.from_size.is_none() || a.to_size.is_none() {
+            return false;
         }
         if from_size > to_size && from_side == Some("HI") {
             return true;
@@ -437,6 +515,11 @@ fn explicit_attrs(name: &str) -> Option<Attrs> {
             mk("unpack", 64, None, None)
         }
         "Iop_V256toV128_0" | "Iop_V256toV128_1" => mk("unpack", 128, None, None),
+        "Iop_V512to64_0" | "Iop_V512to64_1" | "Iop_V512to64_2" | "Iop_V512to64_3"
+        | "Iop_V512to64_4" | "Iop_V512to64_5" | "Iop_V512to64_6" | "Iop_V512to64_7" => {
+            mk("unpack", 64, None, None)
+        }
+        "Iop_V512toV256_0" | "Iop_V512toV256_1" => mk("unpack", 256, None, None),
         "Iop_SliceV128" => mk("slice", 128, None, None),
         "Iop_Reverse32sIn64_x2" => mk("reverse", 128, None, None),
         "Iop_InterleaveHI8x8" => mk("InterleaveHI", 64, Some(8), Some(8)),
