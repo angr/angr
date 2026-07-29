@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os.path
+import re
 import unittest
 from collections import defaultdict
 
@@ -12,27 +13,19 @@ from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.s_liveness import SLivenessAnalysis
-from tests.common import bin_location, load_project_with_scoped_cfg
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestDephicationInterference(unittest.TestCase):
     """
-    SSA destruction merges every virtual variable in a phi congruence class into a single variable, and performs no
-    interference test of its own -- it is correct only when handed conventional SSA. Establishing that is
-    GraphDephicationVVarMapping's job.
+    The original implementation of Dephication did not properly check for all phi variables in a congruence class.
+    Instead, it only went the operands of each phi statement and checked for interference among them.
 
-    A congruence class is the transitive closure over phi statements, so two vvars that never appear together in one
-    phi statement can still end up in the same class through a chain of them. Testing interference only among the
-    operands of a single phi therefore misses those pairs, and merging two simultaneously live values into one
-    variable silently changes what the decompiled code means.
-
-    gettok() (9base awk, lex.c:108, gcc 4.9.2 -O2) is a small function where two vvars reach one congruence class
-    through separate phi statements while being live at the same time.
+    As such, two vvars that never appear together in one phi statement can still end up in the same phi congruence
+    class through a chain, but my original implementation missed these.
     """
-
-    GETTOK_ADDR = 0x403010
 
     @staticmethod
     def _naive_congruence_classes(graph) -> dict[int, list[int]]:
@@ -63,8 +56,8 @@ class TestDephicationInterference(unittest.TestCase):
 
     def test_congruence_classes_are_conventional(self):
         bin_path = os.path.join(test_location, "x86_64", "ALLSTAR_9base_awk")
-        proj, cfg = load_project_with_scoped_cfg(bin_path, self.GETTOK_ADDR, run_ccc=False)
-        func = cfg.functions[self.GETTOK_ADDR]
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x403010, run_ccc=False)  # gettok
+        func = cfg.functions[0x403010]
 
         interfering: list[tuple[int, int]] = []
         original = Clinic._collect_dephi_vvar_mapping_and_rewrite_blocks
@@ -93,11 +86,27 @@ class TestDephicationInterference(unittest.TestCase):
         finally:
             Clinic._collect_dephi_vvar_mapping_and_rewrite_blocks = original
 
-        assert dec.codegen is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         assert not interfering, (
             "simultaneously live vvars share a phi congruence class, so SSA destruction will merge them into one "
             f"variable: {interfering}"
         )
+
+    def test_congruence_classes_causing_incorrect_branch_conditions(self):
+        bin_path = os.path.join(test_location, "x86_64", "cat")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x402FA0, run_ccc=False)  # gettok
+        func = cfg.functions[0x402FA0]
+        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # check for incorrect branch conditions, which was a result of the bug in the original implementation of
+        # Dephication.
+        for m in re.finditer(r"!(v\d+) & (v\d+)", dec.codegen.text):
+            vvar1, vvar2 = m.group(1), m.group(2)
+            if vvar1 == vvar2:
+                assert False, f"Found an always-false branch condition (!{vvar1} & {vvar2}) in the decompiled code."
 
 
 if __name__ == "__main__":
