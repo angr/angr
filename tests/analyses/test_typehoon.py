@@ -20,6 +20,7 @@ from angr.analyses.typehoon.typeconsts import (
     BottomType,
     Float32,
     Float64,
+    Function,
     Int1,
     Int8,
     Int32,
@@ -213,6 +214,31 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(t0_solution.basetype.fields[0], Pointer64)
         assert t0_solution.basetype.fields[0].basetype is t0_solution.basetype
         assert isinstance(t0_solution.basetype.fields[4], Int32)
+
+    def test_type_inference_function_without_output(self):
+        func_f = TypeVariable(name="F")
+        arg = TypeVariable(name="arg")
+        type_constraints = {
+            func_f: {
+                Subtype(DerivedTypeVariable(func_f, FuncIn(0)), arg),
+                Subtype(arg, Int32()),
+            }
+        }
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
+
+        func_solution = typehoon.solution[func_f]
+        assert isinstance(func_solution, Pointer64)
+        assert isinstance(func_solution.basetype, Function)
+        assert len(func_solution.basetype.params) == 1
+        assert func_solution.basetype.outputs == []
+
+    def test_recursive_function_type_repr(self):
+        function_type = Function([], [])
+        pointer_type = Pointer64(function_type)
+        function_type.params = [pointer_type]
+
+        assert "..." in repr(pointer_type)
 
     def test_type_inference_transitive(self):
         # a <: b <: c ==> a <: c

@@ -130,6 +130,13 @@ class TypeTranslator:
             internal = self._tc2simtype(tc.basetype)
         return sim_type.SimTypePointer(internal, label=tc.name).with_arch(self.arch)
 
+    def _translate_Function(self, tc):
+        args = [self._tc2simtype(param) for param in tc.params]
+        returnty = (
+            self._tc2simtype(tc.outputs[0]) if tc.outputs else sim_type.SimTypeBottom(label="void").with_arch(self.arch)
+        )
+        return sim_type.SimTypeFunction(args, returnty, label=tc.name).with_arch(self.arch)
+
     def _translate_Array(self, tc: typeconsts.Array) -> sim_type.SimTypeArray:
         elem_type = self._tc2simtype(tc.element)
         return sim_type.SimTypeArray(elem_type, length=tc.count, label=tc.name).with_arch(self.arch)
@@ -398,6 +405,11 @@ class TypeTranslator:
             return typeconsts.Pointer64(base, name=st.label)
         raise TypeError(f"Unsupported pointer size {self.arch.bits}")
 
+    def _translate_SimTypeFunction(self, st: sim_type.SimTypeFunction) -> typeconsts.Function:
+        params = [self._simtype2tc(arg) for arg in st.args]
+        outputs = [] if st.returnty is None else [self._simtype2tc(st.returnty)]
+        return typeconsts.Function(params, outputs, name=st.label)
+
     def _translate_SimTypeFloat(self, st: sim_type.SimTypeFloat) -> typeconsts.Float32:
         return typeconsts.Float32(name=st.label)
 
@@ -422,6 +434,7 @@ class TypeTranslator:
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
     typeconsts.Pointer32: TypeTranslator._translate_Pointer32,
+    typeconsts.Function: TypeTranslator._translate_Function,
     typeconsts.Array: TypeTranslator._translate_Array,
     typeconsts.Struct: TypeTranslator._translate_Struct,
     typeconsts.Enum: TypeTranslator._translate_Enum,
@@ -449,6 +462,7 @@ TypeConstHandlers = {
 
 SimTypeHandlers = {
     sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
+    sim_type.SimTypeFunction: TypeTranslator._translate_SimTypeFunction,
     sim_type.SimTypeNum: TypeTranslator._translate_SimTypeNum,
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeWideChar: TypeTranslator._translate_SimTypeWideChar,

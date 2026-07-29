@@ -523,8 +523,12 @@ class Function(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
-        param_str = ", ".join(repr(param) for param in self.params)
-        outputs_str = ", ".join(repr(output) for output in self.outputs)
+        param_str = ", ".join(
+            param.__repr__(memo=memo) if isinstance(param, TypeConstant) else repr(param) for param in self.params
+        )
+        outputs_str = ", ".join(
+            output.__repr__(memo=memo) if isinstance(output, TypeConstant) else repr(output) for output in self.outputs
+        )
         return f"func({param_str}) -> {outputs_str}"
 
     def __eq__(self, other):

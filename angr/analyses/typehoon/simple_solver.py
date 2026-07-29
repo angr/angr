@@ -2102,6 +2102,8 @@ class SimpleSolver:
             input_args = []
             output_values = []
             for vals, out in [(func_inputs, input_args), (func_outputs, output_values)]:
+                if not vals:
+                    continue
                 for idx in range(max(vals) + 1):
                     if idx in vals:
                         sol = self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=vals[idx])

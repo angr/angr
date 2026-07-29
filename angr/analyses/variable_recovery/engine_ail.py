@@ -164,6 +164,26 @@ class SimEngineVRAIL(
             self._stmt(stmt)
         return self._expr(expr.expr)
 
+    def _add_indirect_call_argument_constraints(self, target, args: list[RichR]):
+        target_expr = self._expr(target)
+        target_typevar = target_expr.typevar
+        if not isinstance(target_typevar, typevars.TypeVariable):
+            return None
+
+        for arg_idx, arg in enumerate(args):
+            if arg.typevar is None:
+                continue
+            input_typevar = self.tv_manager.new_dtv(target_typevar, label=typevars.FuncIn(arg_idx))
+            self.state.add_type_constraint(typevars.Subtype(input_typevar, arg.typevar))
+
+        return target_typevar
+
+    def _add_indirect_call_return_constraint(self, target_typevar, return_typevar) -> None:
+        if target_typevar is None or return_typevar is None:
+            return
+        output_typevar = self.tv_manager.new_dtv(target_typevar, label=typevars.FuncOut(0))
+        self.state.add_type_constraint(typevars.Subtype(return_typevar, output_typevar))
+
     def _handle_expr_Call(self, expr):
         target = expr.target
         args = []
@@ -175,16 +195,13 @@ class SimEngineVRAIL(
                 args.append(richr)
 
         ret_expr_bits = expr.bits
+        indirect_target_typevar = None
 
         if isinstance(target, ailment.Expr.Expression) and not isinstance(
             target, (ailment.Expr.Const, ailment.Expr.DirtyExpression)
         ):
             # this is a dynamically calculated call target
-            target_expr = self._expr(target)
-            funcaddr_typevar = target_expr.typevar
-            if isinstance(funcaddr_typevar, typevars.TypeVariable):
-                load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
-                self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
+            indirect_target_typevar = self._add_indirect_call_argument_constraints(target, args)
         elif isinstance(target, str):
             # special handling for some intrinsics
             match target:
@@ -265,6 +282,8 @@ class SimEngineVRAIL(
         if ret_ty is None:
             ret_ty = self.tv_manager.new_tv()
 
+        self._add_indirect_call_return_constraint(indirect_target_typevar, ret_ty)
+
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
     def _handle_stmt_SideEffectStatement(self, stmt):
@@ -291,15 +310,12 @@ class SimEngineVRAIL(
             # the return expression is not used, so we treat this call as not returning anything
             create_variable = False
 
+        indirect_target_typevar = None
         if isinstance(target, ailment.Expr.Expression) and not isinstance(
             target, (ailment.Expr.Const, ailment.Expr.DirtyExpression)
         ):
             # this is a dynamically calculated call target
-            target_expr = self._expr(target)
-            funcaddr_typevar = target_expr.typevar
-            if isinstance(funcaddr_typevar, typevars.TypeVariable):
-                load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
-                self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
+            indirect_target_typevar = self._add_indirect_call_argument_constraints(target, args)
 
         # discover the prototype
         prototype: SimTypeFunction | None = None
@@ -336,6 +352,9 @@ class SimEngineVRAIL(
 
         if ret_ty is None:
             ret_ty = self.tv_manager.new_tv()
+
+        if ret_expr is not None:
+            self._add_indirect_call_return_constraint(indirect_target_typevar, ret_ty)
 
         # TODO: Expose it as an option
         return_value_use_full_width_reg = True

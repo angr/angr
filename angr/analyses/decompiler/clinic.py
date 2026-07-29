@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 import capstone
 import networkx
+from cle import SymbolType
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
@@ -1251,6 +1252,7 @@ class Clinic(Analysis, Serializable):
                 not is_indirect_call_thunk
                 and target_func.calling_convention is not None
                 and target_func.prototype is not None
+                and not (target_func.is_plt and target_func.is_prototype_guessed)
             ):
                 continue
 
@@ -1281,8 +1283,9 @@ class Clinic(Analysis, Serializable):
                 cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
-                    # Only set prototype if not already defined (preserve user-defined prototypes)
-                    if target_func.prototype is None:
+                    # A low-confidence PLT prototype is a snapshot of its target's prototype. Refresh it after the
+                    # target has gained better decompiler-derived types, while preserving signatures and user types.
+                    if target_func.prototype is None or target_func.is_prototype_guessed:
                         target_func.prototype = cc.prototype
                         target_func.prototype_libname = cc.prototype_libname
                         target_func.prototype_source = (
@@ -2870,10 +2873,26 @@ class Clinic(Analysis, Serializable):
             else:
                 # global variable?
                 global_vars = global_variables.get_global_variables(expr.value_int)
-                if not global_vars and self.project.loader.find_object_containing(expr.value_int):
+                symbol = None
+                linked_function = False
+                if self.project.loader.find_object_containing(expr.value_int):
                     # detect if there is a related symbol
                     symbol = self.project.loader.find_symbol(expr.value)
-                    if symbol is not None:
+                    if symbol is not None and symbol.type == SymbolType.TYPE_FUNCTION:
+                        referenced_function = self.kb.functions.function(
+                            addr=symbol.rebased_addr, name=symbol.name, create=True
+                        )
+                        assert referenced_function is not None
+                        if referenced_function.prototype is None:
+                            referenced_function.find_declaration(ignore_binary_name=True)
+                        referenced_type = SimTypePointer(
+                            referenced_function.prototype
+                            if referenced_function.prototype is not None
+                            else SimTypeBottom(label="void")
+                        ).with_arch(self.project.arch)
+                        self._set_reference_values(expr, {referenced_type: referenced_function})
+                        linked_function = True
+                    elif not global_vars and symbol is not None:
                         # Create a new global variable if there isn't one already
                         global_vars = global_variables.get_global_variables(symbol.rebased_addr)
                         if not global_vars:
@@ -2881,10 +2900,10 @@ class Clinic(Analysis, Serializable):
                             global_var.renamed = True
                             global_variables.add_variable("global", global_var.addr, global_var)
                             global_vars = {global_var}
-                if global_vars:
+                if not linked_function and global_vars:
                     global_var = next(iter(global_vars))
                     self._set_reference_variable(expr, global_var, 0)
-                else:
+                elif not linked_function:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
                     if len(variables) >= 1:

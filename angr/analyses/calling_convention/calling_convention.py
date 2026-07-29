@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 
 import capstone
 import networkx
-from pyvex.expr import RdTmp
-from pyvex.stmt import Put
+from pyvex.expr import Get, RdTmp
+from pyvex.stmt import Put, WrTmp
 
 from angr import ailment
 from angr.analyses.analysis import Analysis, register_analysis
@@ -71,6 +71,7 @@ class CallSiteFact:
 
     def __init__(self, return_value_used):
         self.return_value_used: bool = return_value_used
+        self.return_value_forwarded: bool = False
         self.args = []
 
 
@@ -436,9 +437,9 @@ class CallingConventionAnalysis(Analysis):
                         # - the prototype of the SimProcedure is not guessed
                         return cc, hooker.prototype, hooker.library_name, False
                 if real_func.prototype is not None:
-                    return cc, real_func.prototype, real_func.prototype_libname, False
+                    return cc, real_func.prototype, real_func.prototype_libname, real_func.is_prototype_guessed
             else:
-                return cc, real_func.prototype, real_func.prototype_libname, False
+                return cc, real_func.prototype, real_func.prototype_libname, real_func.is_prototype_guessed
 
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
@@ -581,6 +582,12 @@ class CallingConventionAnalysis(Analysis):
         return_site_block = next(iter(subgraph.successors(caller_block)), None)
         if return_site_block is not None:
             observation_points.append(("node", return_site_block.addr, OP_AFTER))
+        subgraph_addrs = {node.addr for node in subgraph}
+        observation_points.extend(
+            ("node", ret_site.addr, OP_AFTER)
+            for ret_site in func.ret_sites
+            if ret_site.addr in subgraph_addrs and ("node", ret_site.addr, OP_AFTER) not in observation_points
+        )
 
         rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
             func,
@@ -588,7 +595,7 @@ class CallingConventionAnalysis(Analysis):
             observation_points=observation_points,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
+        return self._collect_callsite_fact(func, caller_block, call_insn_addr, rda.model)
 
     def _extract_and_analyze_callsites(
         self,
@@ -718,6 +725,7 @@ class CallingConventionAnalysis(Analysis):
 
     def _collect_callsite_fact(
         self,
+        caller: Function,
         caller_block,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
@@ -732,13 +740,18 @@ class CallingConventionAnalysis(Analysis):
         )
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(cc, caller_block.addr, rda, fact)
+            self._analyze_callsite_return_value_uses(cc, caller, caller_block.addr, rda, fact)
             self._analyze_callsite_arguments(cc, caller_block, call_insn_addr, rda, fact)
 
         return fact
 
     def _analyze_callsite_return_value_uses(
-        self, cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
+        self,
+        cc: SimCC,
+        caller: Function,
+        caller_block_addr: int,
+        rda: ReachingDefinitionsModel,
+        fact: CallSiteFact,
     ) -> None:
         all_defs: set[Definition] = {
             def_
@@ -748,6 +761,18 @@ class CallingConventionAnalysis(Analysis):
                 or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
             )
         }
+        callsite_result = rda.observed_results.get(("node", caller_block_addr, OP_AFTER), None)
+        if callsite_result is not None:
+            # Definitions without explicit uses are absent from Uses. Include the live definitions immediately after
+            # the call so an untouched ABI return value can still be recognized at the caller's return site.
+            all_defs.update(
+                def_
+                for def_ in get_all_definitions(callsite_result.registers)
+                if (
+                    (def_.codeloc.block_addr == caller_block_addr and def_.codeloc.stmt_idx == DEFAULT_STATEMENT)
+                    or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
+                )
+            )
         all_uses: Uses = rda.all_uses
 
         # determine if the return value is used
@@ -771,7 +796,21 @@ class CallingConventionAnalysis(Analysis):
                     # the return value is used!
                     fact.return_value_used = True
                 else:
+                    # A wrapper can return a callee's value without ever reading the ABI return register in VEX:
+                    #
+                    #     call callee
+                    #     ret
+                    #
+                    # Record forwarding when the call's definition is still the reaching definition at one of the
+                    # caller's return sites. This preserves a locally proven callee return without using ambiguous
+                    # `call; ret` wrappers to upgrade a locally proven void function.
                     fact.return_value_used = False
+                    fact.return_value_forwarded = any(
+                        return_def
+                        in get_all_definitions(rda.observed_results[("node", ret_site.addr, OP_AFTER)].registers)
+                        for ret_site in caller.ret_sites
+                        if ("node", ret_site.addr, OP_AFTER) in rda.observed_results
+                    )
 
     def _analyze_callsite_arguments(
         self,
@@ -792,6 +831,7 @@ class CallingConventionAnalysis(Analysis):
         defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
         all_reg_defs: set[Definition] = get_all_definitions(state.registers)
         all_stack_defs: set[Definition] = get_all_definitions(state.stack)
+        indirect_target_reg_offsets = self._indirect_call_target_register_offsets(caller_block, call_insn_addr)
         for d in all_reg_defs:
             if (
                 isinstance(d.atom, Register)
@@ -833,7 +873,7 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?
-                if reg_offset in defined_reg_offsets:
+                if reg_offset in defined_reg_offsets and reg_offset not in indirect_target_reg_offsets:
                     temp_args.append(arg_loc)
                 else:
                     # no more arguments
@@ -854,6 +894,72 @@ class CallingConventionAnalysis(Analysis):
         else:
             fact.args = temp_args
 
+    def _indirect_call_target_register_offsets(self, caller_block, call_insn_addr: int) -> set[int]:
+        """
+        Find registers that only appear initialized at a call site because they hold the indirect call target.
+
+        A register can be both an ABI argument register and the machine operand of an indirect call. Treating the
+        target use as evidence for an additional argument produces a spurious trailing argument whose value is the
+        callback itself.
+        """
+        try:
+            block = self.project.factory.block(caller_block.addr, size=caller_block.size)
+            irsb = block.vex
+        except SimTranslationError:
+            return set()
+
+        if irsb.jumpkind != "Ijk_Call":
+            return set()
+
+        try:
+            capstone_insns = block.capstone.insns
+        except (AttributeError, capstone.CsError):
+            capstone_insns = ()
+
+        for insn in capstone_insns:
+            if insn.address != call_insn_addr or not insn.insn.operands:
+                continue
+            target_operand = insn.insn.operands[0]
+            if target_operand.type == capstone.CS_OP_REG:
+                target_reg_name = insn.insn.reg_name(target_operand.reg)
+                try:
+                    return {self.project.arch.get_register_offset(target_reg_name)}
+                except ValueError:
+                    break
+
+        if isinstance(irsb.next, Get):
+            return {irsb.next.offset}
+        if not isinstance(irsb.next, RdTmp):
+            return set()
+
+        target_tmps = {irsb.next.tmp}
+        changed = True
+        while changed:
+            changed = False
+            for stmt in reversed(irsb.statements):
+                if (
+                    isinstance(stmt, WrTmp)
+                    and stmt.tmp in target_tmps
+                    and isinstance(stmt.data, RdTmp)
+                    and stmt.data.tmp not in target_tmps
+                ):
+                    target_tmps.add(stmt.data.tmp)
+                    changed = True
+
+        target_reg_offsets = {
+            stmt.offset
+            for stmt in irsb.statements
+            if isinstance(stmt, Put) and isinstance(stmt.data, RdTmp) and stmt.data.tmp in target_tmps
+        }
+        if target_reg_offsets:
+            return target_reg_offsets
+
+        return {
+            stmt.data.offset
+            for stmt in irsb.statements
+            if isinstance(stmt, WrTmp) and stmt.tmp in target_tmps and isinstance(stmt.data, Get)
+        }
+
     def _adjust_prototype(
         self,
         proto: SimTypeFunction,
@@ -862,14 +968,15 @@ class CallingConventionAnalysis(Analysis):
     ) -> SimTypeFunction:
         # is the return value used anywhere?
         if facts:
-            if all(fact.return_value_used is False for fact in facts):
+            if all(not fact.return_value_used and not fact.return_value_forwarded for fact in facts):
                 proto.returnty = SimTypeBottom(label="void")
-            else:
-                if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
-                    returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
-                        self.project.arch.bits, SimTypeInt
-                    )(signed=True)
-                    proto.returnty = returnty.with_arch(self.project.arch)
+            elif any(fact.return_value_used for fact in facts) and (
+                proto.returnty is None or isinstance(proto.returnty, SimTypeBottom)
+            ):
+                returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
+                    self.project.arch.bits, SimTypeInt
+                )(signed=True)
+                proto.returnty = returnty.with_arch(self.project.arch)
 
         if (
             update_arguments == UpdateArgumentsOption.AlwaysUpdate
