@@ -1053,7 +1053,7 @@ class Clinic(Analysis, Serializable):
 
         # Bind the excised variable-length arrays to named array variables before the dead-code passes run,
         # so the leftover address arithmetic and page anchors get cleaned up.
-        self._bind_vla(self._ail_graph, variable_kb)
+        self._bind_vla(self._ail_graph)
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
@@ -4222,7 +4222,7 @@ class Clinic(Analysis, Serializable):
                 if e.varid in defs and e.varid not in seen:
                     seen.add(e.varid)
                     stack.append((defs[e.varid], e.varid))
-            elif isinstance(e, ailment.Expr.Convert) or isinstance(e, ailment.Expr.UnaryOp):
+            elif isinstance(e, (ailment.Expr.Convert, ailment.Expr.UnaryOp)):
                 stack.append((e.operand, owner))
             elif isinstance(e, ailment.Expr.BinaryOp):
                 for operand in e.operands:
@@ -4347,7 +4347,7 @@ class Clinic(Analysis, Serializable):
         # regardless of the intervening simplifications.
         self._vla_allocas.append((frozenset(buffer_ids), size_load))
 
-    def _bind_vla(self, ail_graph, variable_kb) -> None:
+    def _bind_vla(self, ail_graph) -> None:
         """
         Turn each excised alloca (recorded by :meth:`_excise_vla`) into a named variable-length array.
 
@@ -4359,7 +4359,7 @@ class Clinic(Analysis, Serializable):
         if not self._vla_allocas:
             return
 
-        varman = variable_kb.variables[self.function.addr]
+        varman = self.kb.dec_variables[self.function.addr]
         reg_base = 0x100000
 
         for buffer_ids, size_load in self._vla_allocas:
