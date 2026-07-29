@@ -116,9 +116,12 @@ class SimConstantVariable(SimVariable):
 
     __slots__ = ["value"]
 
-    def __init__(self, size: int, ident=None, value=None, region=None):
+    def __init__(self, size: int, *, value: int | float, region: int | None = None, ident=None):
         super().__init__(ident=ident, region=region, size=size)
-        self.value = value
+        is_negative = value < 0
+        abs_value = -value if is_negative else value
+        abs_value = abs_value & ((1 << (size * 8)) - 1) if isinstance(abs_value, int) else abs_value
+        self.value = -abs_value if is_negative else abs_value
 
     def __repr__(self):
         return f"<{self.region}|const {self.value}>"
@@ -148,7 +151,7 @@ class SimConstantVariable(SimVariable):
 
     @property
     def key(self) -> tuple[str | int | None, ...]:
-        return ("const", self.value, self.size, self.ident)
+        return "const", self.value, self.size, self.ident
 
     @classmethod
     def _get_cmsg(cls):
@@ -158,17 +161,21 @@ class SimConstantVariable(SimVariable):
         obj = self._get_cmsg()
         self._set_base(obj)
         obj.size = self.size
+        abs_value = self.value if self.value >= 0 else -self.value
         if self.bits > 64:
             assert isinstance(self.value, int)
             # TODO: Handle float
-            obj.long_value = int.to_bytes(self.value, byteorder="little")
+            num_bytes = (self.bits + 7) // 8
+            obj.long_value = self.value.to_bytes(num_bytes, byteorder="little")
         else:
-            obj.value = self.value
+            obj.value = abs_value
+        obj.is_negative = self.value is not None and self.value < 0
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
         value = int.from_bytes(cmsg.long_value, byteorder="little") if cmsg.size > 64 else cmsg.value
+        value = -value if cmsg.is_negative else value
         obj = cls(cmsg.size, value=value)
         obj._from_base(cmsg)
         return obj

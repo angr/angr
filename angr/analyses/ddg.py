@@ -1156,9 +1156,11 @@ class DDG(Analysis):
         if not action.reg_deps and not action.tmp_deps:
             # moving a constant into the register
             # try to parse out the constant from statement
-            const_variable = SimConstantVariable(size=1)
             if statement is not None and isinstance(statement.data, pyvex.IRExpr.Const):
                 const_variable = SimConstantVariable(value=statement.data.con.value, size=statement.data.con.size)
+            else:
+                # use a default value of 0 if we cannot find the constant
+                const_variable = SimConstantVariable(1, value=0)
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
@@ -1229,7 +1231,7 @@ class DDG(Analysis):
         if not action.tmp_deps and not self._variables_per_statement and not ast:
             # read in a constant
             # try to parse out the constant from statement
-            const_variable = SimConstantVariable(size=1)
+            const_variable = SimConstantVariable(size=1, value=0)  # default value if we can't find the constant
             if statement is not None:
                 if isinstance(statement, pyvex.IRStmt.Dirty):
                     l.warning("Dirty statements are not supported in DDG for now.")
