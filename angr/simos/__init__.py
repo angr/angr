@@ -15,6 +15,7 @@ from .simos import SimOS
 from .snimmuc_nxp import SimSnimmucNxp
 from .userland import SimUserland
 from .windows import SimWindows
+from .windows16 import SimWindows16
 from .xbox import SimXbox
 
 os_mapping = defaultdict(lambda: SimOS)
@@ -30,6 +31,7 @@ for _k, v in _DESCR_EI_OSABI.items():
 
 register_simos("linux", SimLinux)
 register_simos("windows", SimWindows)
+register_simos("windows16", SimWindows16)
 register_simos("cgc", SimCGC)
 register_simos("javavm", SimJavaVM)
 register_simos("snimmuc_nxp", SimSnimmucNxp)
@@ -44,5 +46,6 @@ __all__ = (
     "SimSnimmucNxp",
     "SimUserland",
     "SimWindows",
+    "SimWindows16",
     "os_mapping",
 )

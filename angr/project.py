@@ -246,7 +246,12 @@ class Project:
         elif isinstance(simos, str):
             self.simos = os_mapping[simos](self)
         elif simos is None:
-            self.simos = os_mapping[self.loader.main_object.os](self)
+            main_object = self.loader.main_object
+            ne_backend = getattr(cle.backends, "NE", None)
+            simos_name = (
+                "windows16" if ne_backend is not None and isinstance(main_object, ne_backend) else main_object.os
+            )
+            self.simos = os_mapping[simos_name](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
