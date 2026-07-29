@@ -520,12 +520,14 @@ class Block:
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_bytes(cls, data: bytes) -> Block: ...
-    def likes(self, other: Block) -> bool: ...
-    """
-    Check structural equality of two Blocks ignoring `idx` and `tags` on statements and expressions.
-    """
+    def likes(self, other: Block) -> bool:
+        """
+        Check structural equality of two Blocks ignoring `idx` and `tags` on statements and expressions.
+        """
 
     def deep_copy(self, manager: Manager) -> Block: ...
+    def pp(self) -> None:
+        """Pretty-print the block as a string."""
 
 # ---------------------------------------------------------------------------
 # Manager + VEX -> AIL converter
