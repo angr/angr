@@ -477,3 +477,8 @@ def x86g_dirtyhelper_XGETBV(state, reg):
 
 amd64g_dirtyhelper_RDMSR = x86g_dirtyhelper_RDMSR
 amd64g_dirtyhelper_XGETBV = x86g_dirtyhelper_XGETBV
+
+
+def arm64g_dirtyhelper_MRS_DCZID_EL0(state):  # pylint:disable=unused-argument
+    # DCZID_EL0 = 0x4: DC ZVA permitted with a 64-byte block size
+    return claripy.BVV(0x4, 64), []
