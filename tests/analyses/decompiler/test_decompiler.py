@@ -4770,15 +4770,27 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         start_pos = lines.index("{")
-        assert lines[start_pos + 1 :][:4] == [
-            "if (!a1)",
-            "a1 = a0;",
-            "g_1234 = a1;",
-            "return 4660;",
-        ] or lines[start_pos + 1 :][:2] == [
-            "*((int *)&g_1234) = (a1 ? a1 : a0);",
-            "return 4660;",
-        ]
+        assert (
+            lines[start_pos + 1 :][:4]
+            == [
+                "if (!a1)",
+                "a1 = a0;",
+                "g_1234 = a1;",
+                "return 4660;",
+            ]
+            or lines[start_pos + 1 :][:4]
+            == [
+                "if (a1)",
+                "a0 = a1;",
+                "g_1234 = a0;",
+                "return 4660;",
+            ]
+            or lines[start_pos + 1 :][:2]
+            == [
+                "*((int *)&g_1234) = (a1 ? a1 : a0);",
+                "return 4660;",
+            ]
+        )
 
     def test_decompiling_rust_binary_rust_probestack(self, decompiler_options=None):
         bin_path = os.path.join(
