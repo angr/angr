@@ -578,6 +578,10 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "Dereference": self._handle_unop_Dereference,
             "Clz": self._handle_unop_Clz,
             "Ctz": self._handle_unop_Ctz,
+            # libVEX 3.27+ renamed the scalar Clz/Ctz ops to ClzNat/CtzNat (result at zero is defined for the
+            # Nat variants; the approximation used here is the same)
+            "ClzNat": self._handle_unop_Clz,
+            "CtzNat": self._handle_unop_Ctz,
             "GetMSBs": self._handle_unop_GetMSBs,
             "unpack": self._handle_unop_unpack,
             "Sqrt": self._handle_unop_Sqrt,
