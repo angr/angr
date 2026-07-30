@@ -619,3 +619,67 @@ class TestOutlinedResultIdentity(TestCase):
             with self.subTest(func=func_name):
                 text = self._decompile_full([self._abs_load_pattern("KsudField", addr, size)], func_name)
                 assert "KsudField(" in text, text
+
+
+class TestPITE(TestCase):
+    # ITERegionConverter (AFTER_GLOBAL_SIMPLIFICATION) folds a two-armed value
+    # select into `x = c ? a : b` before the KnownPatternOutliner
+    # (BEFORE_VARIABLE_RECOVERY) runs, so such idioms reach the matcher as an ITE
+    # expression and a PGraphPat for them can never fire.
+
+    STL2_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl2")
+
+    def test_anchor_key_is_ite(self):
+        from angr.analyses.decompiler.known_patterns import PITE
+        from angr.analyses.decompiler.known_patterns.dsl import PConst, PVVar, pattern_anchor_key
+
+        assert pattern_anchor_key(PITE(PVVar("c"), PConst(1), PConst(2))) == ("ITE", None)
+
+    def test_pchoice_keeps_a_shared_anchor_key(self):
+        # a PChoice is usually a polarity alternation of one shape; when every
+        # alternative discriminates the same way, pruning must be preserved
+        from angr.analyses.decompiler.known_patterns import PChoice
+        from angr.analyses.decompiler.known_patterns.dsl import PBinOp, PConst, PLoad, PVVar, pattern_anchor_key
+
+        same = PChoice(
+            PBinOp("CmpEQ", (PVVar("a"), PConst(0))),
+            PBinOp("CmpEQ", (PVVar("a"), PConst(1))),
+        )
+        assert pattern_anchor_key(same) == ("BinaryOp", "CmpEQ")
+        mixed = PChoice(PBinOp("CmpEQ", (PVVar("a"), PConst(0))), PLoad(PVVar("a")))
+        assert pattern_anchor_key(mixed) is None
+
+    def test_pite_matches_a_converted_select(self):
+        from angr.analyses.decompiler.known_patterns import (
+            PITE,
+            KnownPattern,
+            KnownPatternFinder,
+            PatternParam,
+            PBinOp,
+            PConst,
+            PLoad,
+            PVVar,
+        )
+
+        # the libstdc++ SSO capacity select: _M_p == &_M_local_buf ? 15 : _M_allocated_capacity
+        local_buf = PBinOp("Add", (PVVar("s"), PConst(16)))
+        pat = KnownPattern(
+            name="sso_capacity",
+            display_name="sso_capacity",
+            call_name="sso_capacity",
+            pattern=PITE(
+                PBinOp("CmpEQ", (PLoad(PVVar("s"), size=8), local_buf)),
+                PConst(15),
+                PLoad(local_buf, size=8),
+            ),
+            params=(PatternParam("s"),),
+            returnty="unsigned long long",
+        )
+        proj = angr.Project(self.STL2_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="str_capacity")
+        assert func is not None
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=[pat])
+        assert [m.pattern.name for m in finder.matches] == ["sso_capacity"]
