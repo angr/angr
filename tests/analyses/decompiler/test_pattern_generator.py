@@ -91,7 +91,7 @@ class TestPatternGeneratorStmtSeq(TestCase):
         assert len(finder.matches) == 1
         # the generated pattern outlines end-to-end
         result = finder.outline(finder.matches[0])
-        del dec._variable_kb.variables[func.addr]
+        del proj.kb.dec_variables[func.addr]
         func.prototype_source = PrototypeSource.GUESSED
         dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
             func,
