@@ -729,3 +729,30 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBswapPeephole(TestCase):
+    # Not a KnownPattern -- the bswap peephole -- but calibrated on the same
+    # fixture. gcc recognizes the hand-rolled shift/mask spellings too, so the
+    # builtin and manual wrappers compile to identical code.
+
+    def test_bswap32_and_bswap64(self):
+        # bswap_64 lowers to a 3-level SWAR tree (byte/word/dword exchanges),
+        # not the flat 4-way Or the bswap_32 matcher flattens for, so it used to
+        # render as an 8-line mask tree.
+        proj = angr.Project(LIBM_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        for func_name, expected in (
+            ("i_bswap32", "__builtin_bswap32("),
+            ("i_bswap32_manual", "__builtin_bswap32("),
+            ("i_bswap64", "__builtin_bswap64("),
+            ("i_bswap64_manual", "__builtin_bswap64("),
+        ):
+            with self.subTest(func=func_name):
+                func = cfg.functions.function(name=func_name)
+                assert func is not None
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+                text = dec.codegen.text
+                assert expected in text, f"{func_name}: {text}"
+                assert "0xff00ff00ff00ff00" not in text, f"{func_name}: SWAR mask tree survived"
