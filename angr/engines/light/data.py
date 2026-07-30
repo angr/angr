@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.utils.constants import is_alignment_mask
 
 

@@ -756,7 +756,7 @@ class DDG(Analysis):
                             matched = True
                     except (SimUnsatError, SimSolverModeError, ZeroDivisionError):
                         # ignore
-                        matched = matched
+                        pass
                 if not matched:
                     break
 
@@ -1017,7 +1017,7 @@ class DDG(Analysis):
             self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype="mem_addr")
             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
             prev_defs = self._def_lookup(reg_variable)
-            for loc, _ in prev_defs.items():
+            for loc in prev_defs:
                 v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                 self._data_graph_add_edge(v, prog_var, type="mem_addr")
 
@@ -1039,7 +1039,7 @@ class DDG(Analysis):
                 self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype="mem_data")
                 reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
                 prev_defs = self._def_lookup(reg_variable)
-                for loc, _ in prev_defs.items():
+                for loc in prev_defs:
                     v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                     self._data_graph_add_edge(v, prog_var, type="mem_data")
 
@@ -1156,9 +1156,11 @@ class DDG(Analysis):
         if not action.reg_deps and not action.tmp_deps:
             # moving a constant into the register
             # try to parse out the constant from statement
-            const_variable = SimConstantVariable(size=1)
             if statement is not None and isinstance(statement.data, pyvex.IRExpr.Const):
                 const_variable = SimConstantVariable(value=statement.data.con.value, size=statement.data.con.size)
+            else:
+                # use a default value of 0 if we cannot find the constant
+                const_variable = SimConstantVariable(1, value=0)
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
@@ -1229,7 +1231,7 @@ class DDG(Analysis):
         if not action.tmp_deps and not self._variables_per_statement and not ast:
             # read in a constant
             # try to parse out the constant from statement
-            const_variable = SimConstantVariable(size=1)
+            const_variable = SimConstantVariable(size=1, value=0)  # default value if we can't find the constant
             if statement is not None:
                 if isinstance(statement, pyvex.IRStmt.Dirty):
                     l.warning("Dirty statements are not supported in DDG for now.")
@@ -1497,7 +1499,7 @@ class DDG(Analysis):
         # Group all dependencies first
 
         block_addr_to_func = {}
-        for _, func in self.kb.functions.items():
+        for func in self.kb.functions.values():
             for block in func.blocks:
                 block_addr_to_func[block.addr] = func
 

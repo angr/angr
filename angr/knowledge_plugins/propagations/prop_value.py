@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 import claripy
 
-import angr.ailment as ailment
+from angr import ailment
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation

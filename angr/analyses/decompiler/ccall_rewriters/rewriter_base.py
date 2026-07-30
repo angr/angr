@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import angr.ailment as ailment
+from angr import ailment
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager

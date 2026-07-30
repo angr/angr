@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from angr.rustylib.ailment import ExpressionKind
+
 from . import expression, statement
 from .block import Block
 from .block_walker import AILBlockRewriter, AILBlockViewer, AILBlockWalker
@@ -69,6 +71,7 @@ __all__ = [
     "Const",
     "Expr",
     "Expression",
+    "ExpressionKind",
     "IRSBConverter",
     "Manager",
     "NoOp",

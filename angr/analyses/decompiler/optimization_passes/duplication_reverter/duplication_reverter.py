@@ -7,7 +7,7 @@ from itertools import combinations
 
 import networkx as nx
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.block import Block
 from angr.ailment.expression import Const, Convert, Expression, Register, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return
@@ -337,7 +337,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         for node in graph.nodes:
             nodes_by_addr[node.addr].append(node)
 
-        for _, nodes in nodes_by_addr.items():
+        for nodes in nodes_by_addr.values():
             if len(nodes) == 1:
                 continue
 
@@ -681,9 +681,9 @@ class DuplicationReverter(StructuringOptimizationPass):
         # conditions yet. This means the graph is still missing the divergence of the two graphs.
         try:
             graph_lcs = longest_ail_graph_subseq(blocks, graph)
-        except SAILRSemanticError as e:
+        except SAILRSemanticError:
             self.candidate_blacklist.add(tuple(blocks))
-            raise e
+            raise
 
         ail_merge_graph = AILMergeGraph(original_graph=graph)
         # some blocks in originals may update during this time (if-statements can change)

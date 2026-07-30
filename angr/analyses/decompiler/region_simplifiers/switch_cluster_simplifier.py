@@ -5,7 +5,7 @@ import enum
 from collections import OrderedDict, defaultdict
 from typing import TYPE_CHECKING, Any
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import UnaryOp
 from angr.ailment.expression import negate
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
@@ -281,8 +281,7 @@ def simplify_switch_clusters(
     :return:                None
     """
 
-    for variable in var2switches:
-        switch_regions = var2switches[variable]
+    for variable, switch_regions in var2switches.items():
         if len(switch_regions) <= 1:
             # nothing to simplify or merge if there is only one switch region
             continue

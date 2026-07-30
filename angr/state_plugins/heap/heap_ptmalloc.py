@@ -455,8 +455,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
                 fwd.set_bck_chunk(chunk)
             chunk.set_bck_chunk(bck)
             chunk.set_fwd_chunk(fwd)
-            if chunk < self.free_head_chunk:
-                self.free_head_chunk = chunk
+            self.free_head_chunk = min(self.free_head_chunk, chunk)
         elif not p_in_use and not n_in_use:
             # If both the adjacent chunks are free, merging between all three will be needed
             p_ptr = chunk.prev_chunk()  # The previous chunk will be the base of the overall new chunk
@@ -480,8 +479,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
                 fwd = n_ptr.fwd_chunk()
 
                 # In case the freed chunk preceded the free head
-                if base < self.free_head_chunk:
-                    self.free_head_chunk = base
+                self.free_head_chunk = min(self.free_head_chunk, base)
 
                 # In case the following chunk was the last free chunk, we can't use its links due to the merge
                 if bck == fwd and bck == n_ptr:

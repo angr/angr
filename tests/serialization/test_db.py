@@ -687,7 +687,7 @@ class TestDb(unittest.TestCase):
 
                 # find the CConstant whose value is 8
                 target_consts = []
-                for _, elem in dec.codegen.map_pos_to_node.items():
+                for elem in dec.codegen.map_pos_to_node.values():
                     if isinstance(elem.obj, CConstant) and elem.obj.value == 8:
                         target_consts.append(elem.obj)
 

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.expression import (
     Array,
     BasePointerOffset,

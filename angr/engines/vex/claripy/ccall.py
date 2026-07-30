@@ -1765,7 +1765,7 @@ ARM64G_CC_OP_SBC32 = 7  # /* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = 
 ARM64G_CC_OP_SBC64 = 8  # /* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = oldC (in LSB) */
 ARM64G_CC_OP_LOGIC32 = 9  # /* DEP1 = result, DEP2 = 0, DEP3 = 0 */
 ARM64G_CC_OP_LOGIC64 = 10  # /* DEP1 = result, DEP2 = 0, DEP3 = 0 */
-ARM64G_CC_OP_NUMBER = 11  #
+ARM64G_CC_OP_NUMBER = 11
 
 ARM64CondEQ = 0  # /* equal                         : Z=1 */
 ARM64CondNE = 1  # /* not equal                     : Z=0 */
@@ -1902,11 +1902,11 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_ADC32, ARM64G_CC_OP_ADC64):
         res = cc_dep1 + cc_dep2 + cc_dep3
         flag = claripy.If(
-            cc_dep2 != 0, boolean_extend(claripy.ULE, res, cc_dep1, 64), boolean_extend(claripy.ULT, res, cc_dep1, 64)
+            cc_dep3 != 0, boolean_extend(claripy.ULE, res, cc_dep1, 64), boolean_extend(claripy.ULT, res, cc_dep1, 64)
         )
     elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
         flag = claripy.If(
-            cc_dep2 != 0,
+            cc_dep3 != 0,
             boolean_extend(claripy.UGE, cc_dep1, cc_dep2, 64),
             boolean_extend(claripy.UGT, cc_dep1, cc_dep2, 64),
         )

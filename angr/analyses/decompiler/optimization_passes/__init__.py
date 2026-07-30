@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from archinfo import Arch
 
-import angr.analyses.decompiler as decompiler
+from angr.analyses import decompiler
 
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter

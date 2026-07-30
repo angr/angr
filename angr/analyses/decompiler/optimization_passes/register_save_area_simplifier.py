@@ -8,7 +8,7 @@ from itertools import chain
 
 import archinfo
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation

@@ -5,7 +5,7 @@ from typing import Any
 
 import networkx
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement

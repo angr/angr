@@ -166,7 +166,7 @@ def BP_IPDB(state: SimState) -> None:  # pylint: disable=unused-argument
 def BP_IPYTHON(state: SimState) -> None:  # pylint: disable=unused-argument
     import IPython
 
-    shell = IPython.terminal.embed.InteractiveShellEmbed()
+    shell = IPython.terminal.embed.InteractiveShellEmbed()  # noqa: T100
     shell.mainloop(
         display_banner="This is an ipython shell for you to happily debug your state!\n"
         + "The state can be accessed through the variable 'state'. You can\n"

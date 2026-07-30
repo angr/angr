@@ -6,7 +6,7 @@ import networkx
 
 from angr.ailment import Address, Block
 from angr.ailment.expression import Phi, VirtualVariable
-from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffectStatement
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
@@ -23,6 +23,9 @@ class SLivenessModel:
     def __init__(self):
         self.live_ins: dict[Address, set[int]] = {}
         self.live_outs: dict[Address, set[int]] = {}
+        # `block_end_vvars` stores for each Block the set of vvars that are used in the last statement of the Block if
+        # the statement is a jump or a conditional jump.
+        self.block_end_vvars: dict[Address, set[int]] = {}
 
 
 class SLivenessAnalysis(Analysis):
@@ -113,7 +116,7 @@ class SLivenessAnalysis(Analysis):
                 stmts = block.statements
 
             live_in_by_pred = {}
-            for stmt in reversed(stmts):
+            for i, stmt in enumerate(reversed(stmts)):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     live.discard(stmt.dst.varid)
@@ -149,6 +152,11 @@ class SLivenessAnalysis(Analysis):
                     vvar_use_collector.reset()
                     vvar_use_collector.walk_statement(stmt)
                     live |= vvar_use_collector.vvars
+
+                    if i == 0 and isinstance(stmt, (Jump, ConditionalJump, SideEffectStatement)):
+                        # this is the last statement in the block and it is a jump or a conditional jump; we record the
+                        # vvars used in this statement for later use
+                        self.model.block_end_vvars[block_key] = vvar_use_collector.vvars.copy()
 
             if live_ins[block_key] != live:
                 live_ins[block_key] = live

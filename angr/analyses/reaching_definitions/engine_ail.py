@@ -11,7 +11,7 @@ import claripy
 from archinfo.types import RegisterOffset
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.calling_conventions import SimRegArg, SimTypeBottom, default_cc
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset

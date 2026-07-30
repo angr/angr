@@ -73,7 +73,7 @@ class SimEngineRDVEX(
             )
         except SimEngineError as e:
             if fail_fast is True:
-                raise e
+                raise
             l.error(e)
         return self.state
 

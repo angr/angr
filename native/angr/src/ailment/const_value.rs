@@ -93,10 +93,21 @@ impl ConstValue {
     }
 }
 
-/// Not derived only because of the ``f64`` payload, which is hashed by
-/// bit pattern (consistent with the derived ``PartialEq``: values that
-/// compare equal have equal bits, and ``NaN`` never compares equal so
-/// its hash is irrelevant).
+/// Not derived only because of the ``f64`` payload, which needs its bit
+/// pattern canonicalized before hashing.
+///
+/// The relevant equality is **not** the derived ``PartialEq`` on this
+/// enum but ``AilExpression::cmp_ail``'s ``const_values_eq``, which is
+/// what backs ``Const.__eq__``. Two float values compare equal there
+/// while having different bits:
+///
+/// * any two ``NaN``s -- ``const_values_eq`` deliberately treats
+///   ``NaN == NaN`` (IEEE says otherwise), because fixed-point loops in
+///   ``BlockSimplifier`` / ``DivSimplifier`` never converge without it;
+/// * ``-0.0`` and ``+0.0`` -- IEEE itself calls these equal.
+///
+/// Hashing raw ``to_bits()`` therefore broke ``a == b => hash(a) ==
+/// hash(b)`` for both, so each is folded to a single representative.
 impl Hash for ConstValue {
     fn hash<H: Hasher>(&self, h: &mut H) {
         match self {
@@ -106,7 +117,15 @@ impl Hash for ConstValue {
             }
             Self::Float(v) => {
                 1u8.hash(h);
-                v.to_bits().hash(h);
+                let bits = if v.is_nan() {
+                    f64::NAN.to_bits()
+                } else if *v == 0.0 {
+                    // Catches -0.0; +0.0 already hashes to this.
+                    0f64.to_bits()
+                } else {
+                    v.to_bits()
+                };
+                bits.hash(h);
             }
             Self::BigInt(b) => {
                 2u8.hash(h);

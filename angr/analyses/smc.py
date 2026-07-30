@@ -99,7 +99,7 @@ class SelfModifyingCodeAnalysis(Analysis):
     result: bool
     regions: list[tuple[int, int]]
 
-    def __init__(self, subject: None | int | str | Function, max_bytes: int = 0, state: SimState | None = None):
+    def __init__(self, subject: int | str | Function | None, max_bytes: int = 0, state: SimState | None = None):
         """
         :param subject: Subject of analysis
         :param max_bytes: Maximum number of bytes from subject address. 0 for no limit (default).
@@ -118,7 +118,7 @@ class SelfModifyingCodeAnalysis(Analysis):
         elif isinstance(subject, int):
             addr = subject
         else:
-            raise ValueError("Not a supported subject")
+            raise TypeError("Not a supported subject")
 
         if state is None:
             init_state = self.project.factory.call_state(addr)

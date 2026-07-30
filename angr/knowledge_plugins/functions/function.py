@@ -893,7 +893,7 @@ class Function(Serializable):
         return self.addr - self.binary.mapped_base
 
     @property
-    def symbol(self) -> None | Symbol:
+    def symbol(self) -> Symbol | None:
         """
         :return: the function's Symbol, if any
         """
@@ -1611,7 +1611,7 @@ class Function(Serializable):
         """
         Draw the graph and save it to a PNG file.
         """
-        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel,consider-using-from-import
+        from matplotlib import pyplot  # pylint: disable=import-error,import-outside-toplevel,consider-using-from-import
         from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error,import-outside-toplevel
 
         tmp_graph = networkx.classes.digraph.DiGraph()

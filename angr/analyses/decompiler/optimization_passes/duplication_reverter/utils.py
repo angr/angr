@@ -4,7 +4,7 @@ import logging
 
 import networkx as nx
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import Const
 from angr.ailment.block import Block
 from angr.ailment.statement import ConditionalJump, Jump, Statement

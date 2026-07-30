@@ -130,7 +130,7 @@ def dfs_back_edges[T](
     if visit_all_nodes:
         while len(visited) < len(graph):
             # If we need to visit all nodes, we can start from unvisited nodes
-            node = sorted(set(graph) - visited, key=GraphUtils.sort_node)[0]
+            node = min(set(graph) - visited, key=GraphUtils.sort_node)
             yield from dfs_back_edges(graph, node, visited=visited)
 
 
@@ -359,7 +359,7 @@ class ContainerNode[T]:
     def obj(self) -> T:
         return self._obj
 
-    def __eq__(self, other: Any):
+    def __eq__(self, other: object):
         if isinstance(other, ContainerNode):
             return self._obj is other._obj
         return False
@@ -431,7 +431,7 @@ class Dominators[T]:
         assert self._semi is not None
 
         bucket: dict[int, set[ContainerNode]] = defaultdict(set)
-        dom: list[None | ContainerNode] = [None] * (len(vertices))
+        dom: list[ContainerNode | None] = [None] * (len(vertices))
         self._ancestor = [None] * (len(vertices) + 1)  # type: ignore
 
         for i in range(len(vertices) - 1, 0, -1):
@@ -1006,7 +1006,7 @@ class GraphUtils:
 
         if loop_head is None:
             # pick the first one
-            loop_head = sorted(scc, key=GraphUtils.sort_node)[0]
+            loop_head = min(scc, key=GraphUtils.sort_node)
 
         subgraph: networkx.DiGraph = graph.subgraph(scc).copy()  # type: ignore
         for src, _ in list(subgraph.in_edges(loop_head)):

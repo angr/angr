@@ -72,14 +72,6 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         # collect phi assignments
         phi_to_srcvarid = self._collect_phi_assignments()
 
-        # initialize phi_congruence_class
-        phi_congruence_class: dict[int, set[int]] = {}
-        for phi_varid in phi_to_srcvarid:
-            phi_congruence_class[phi_varid] = {phi_varid}
-        for src_and_varids in phi_to_srcvarid.values():
-            for _, varid in src_and_varids:
-                phi_congruence_class[varid] = {varid}
-
         # compute liveness
         liveness = self.project.analyses.SLiveness(
             self._function, func_graph=self._graph, entry=self._entry, arg_vvars=self._arg_vvars
@@ -89,13 +81,73 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         live_outs = liveness.model.live_outs
         interference = liveness.interference_graph()
 
-        unresolved_neighbor_map = defaultdict(set)
+        # A phi congruence class is the transitive closure over phi statements. This means two vvars that never appear
+        # together in a single phi statement can still land in the same phi congruence class through a chain of phi
+        # statements.
+        #
+        # The following code maintains phi congruence classes in a union-find structure.
+        # Each congruence class records its members and the set of vvars interfering with any of its members.
+        parent: dict[int, int] = {}
+        members: dict[int, set[int]] = {}
+        interferes_with: dict[int, set[int]] = {}
 
-        # check for interferences
-        candidate_vvar_set_to_phiid: defaultdict[frozenset[int], set[int]] = defaultdict(set)
-        for phi_id, src_and_varids in phi_to_srcvarid.items():
+        def _make(v: int) -> None:
+            if v not in parent:
+                parent[v] = v
+                members[v] = {v}
+                nbrs = set(interference[v]) if interference.has_node(v) else set()
+                nbrs.discard(v)  # a self-loop carries no information for coalescing
+                interferes_with[v] = nbrs
+
+        def _find(v: int) -> int:
+            _make(v)
+            root = v
+            while parent[root] != root:
+                root = parent[root]
+            while parent[v] != root:
+                parent[v], v = root, parent[v]
+            return root
+
+        def _classes_interfere(v0: int, v1: int) -> bool:
+            r0, r1 = _find(v0), _find(v1)
+            if r0 == r1:
+                return False
+            if len(members[r0]) > len(members[r1]):
+                r0, r1 = r1, r0
+            return not interferes_with[r1].isdisjoint(members[r0])
+
+        def _union(v0: int, v1: int) -> None:
+            r0, r1 = _find(v0), _find(v1)
+            if r0 == r1:
+                return
+            if len(members[r0]) < len(members[r1]):
+                r0, r1 = r1, r0
+            parent[r1] = r0
+            members[r0] |= members[r1]
+            interferes_with[r0] |= interferes_with[r1]
+            del members[r1]
+            del interferes_with[r1]
+
+        def _note_interference(v0: int, v1: int) -> None:
+            if v0 == v1:
+                return
+            interference.add_edge(v0, v1)
+            interferes_with[_find(v0)].add(v1)
+            interferes_with[_find(v1)].add(v0)
+
+        def _loc_key(loc: tuple[int, int | None]) -> tuple[int, int]:
+            return loc[0], -1 if loc[1] is None else loc[1]
+
+        # process phi statements in a deterministic order
+        phi_ids = sorted(
+            phi_to_srcvarid,
+            key=lambda vid: (_loc_key(self._vvar_defloc[vid][0]), self._vvar_defloc[vid][1], vid),
+        )
+
+        for phi_id in phi_ids:
+            src_and_varids = sorted(phi_to_srcvarid[phi_id], key=lambda t: (_loc_key(t[0]), t[1]))
             candidate_vvar_set: set[int] = set()
-            src_and_varids = list(src_and_varids)
+            unresolved_neighbor_map: defaultdict[int, set[int]] = defaultdict(set)
 
             for i in range(-1, len(src_and_varids)):
                 for j in range(i + 1, len(src_and_varids)):
@@ -109,9 +161,18 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     if var1 == var2:
                         continue
 
-                    if interference.has_edge(var1, var2):
-                        intersection_1 = phi_congruence_class[var1].intersection(live_outs[src1])
-                        intersection_2 = phi_congruence_class[var2].intersection(live_outs[src2])
+                    if _classes_interfere(var1, var2):
+                        # the intersection considers both liveouts and the vvars used in the last statement of the
+                        # block if it is a jump or a conditional jump because we cannot insert a vvar copy statement
+                        # after the jump. this is a special case that is not covered in Sreedhar et al.'s paper. It is
+                        # documented in "Revisiting Out-of-SSA Translation for Correctness, Code Quality, and
+                        # Efficiency" (Section II.A) by Boissinot et. al.
+                        intersection_1 = members[_find(var1)].intersection(
+                            live_outs[src2] | liveness.model.block_end_vvars.get(src2, set())
+                        )
+                        intersection_2 = members[_find(var2)].intersection(
+                            live_outs[src1] | liveness.model.block_end_vvars.get(src1, set())
+                        )
                         if intersection_1 and not intersection_2:
                             # case 1
                             candidate_vvar_set.add(var1)
@@ -129,7 +190,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
             # process unresolved_neighbor_map in a decreasing order of the number of neighbors
             while unresolved_neighbor_map:
-                varid, neighbors = max(unresolved_neighbor_map.items(), key=lambda x: len(x[1]))
+                varid, neighbors = max(unresolved_neighbor_map.items(), key=lambda x: (len(x[1]), x[0]))
                 del unresolved_neighbor_map[varid]
 
                 candidate_vvar_set.add(varid)
@@ -140,19 +201,16 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         if not unresolved_neighbor_map[neighbor]:
                             del unresolved_neighbor_map[neighbor]
 
-            if candidate_vvar_set:
-                candidate_vvar_set_to_phiid[frozenset(candidate_vvar_set)].add(phi_id)
-
-        for vvar_set, phi_ids in candidate_vvar_set_to_phiid.items():
             # insert copies of variables as needed
-            for varid in vvar_set:
-                insertion_type, new_vvar_ids = self._insert_vvar_copy(varid, phi_ids)
+            for varid in sorted(candidate_vvar_set):
+                insertion_type, new_vvar_ids = self._insert_vvar_copy(varid, {phi_id})
 
                 if insertion_type == 0:
-                    for src, old_vvar_id, new_vvar_id in new_vvar_ids:
+                    for src, old_vvar_id, new_vvar_id in sorted(
+                        new_vvar_ids, key=lambda t: (_loc_key(t[0]), t[1], t[2])
+                    ):
                         self.copied_vvar_ids.add(new_vvar_id)
-
-                        phi_congruence_class[new_vvar_id] = {new_vvar_id}
+                        _make(new_vvar_id)
                         live_outs[src].add(new_vvar_id)
 
                         src_block = self._blocks[(src[0], src[1])]
@@ -165,47 +223,44 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
                         # update interference graph
                         for vvar_id in live_outs[src]:
-                            interference.add_edge(new_vvar_id, vvar_id)
+                            _note_interference(new_vvar_id, vvar_id)
 
-                else:  # insertion_type == 1, i.e. the set has only one element
-                    for phi_block_loc, old_phi_varid, new_phi_varid in new_vvar_ids:
+                else:  # insertion_type == 1, i.e. the copy replaces the phi destination
+                    for phi_block_loc, old_phi_varid, new_phi_varid in sorted(
+                        new_vvar_ids, key=lambda t: (_loc_key(t[0]), t[1], t[2])
+                    ):
                         self.copied_vvar_ids.add(new_phi_varid)
-
-                        phi_congruence_class[new_phi_varid] = {new_phi_varid}
+                        _make(new_phi_varid)
 
                         live_ins[phi_block_loc].discard(old_phi_varid)
                         live_ins[phi_block_loc].add(new_phi_varid)
 
                         # update interference graph
                         for vvar_id in live_ins[phi_block_loc]:
-                            interference.add_edge(new_phi_varid, vvar_id)
+                            _note_interference(new_phi_varid, vvar_id)
 
-        # update phi_congruence_class
-        for phi_id in phi_to_srcvarid:
+            # merge the congruence classes of the phi destination and its (possibly rewritten) sources
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
             phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             # phi_stmt is the newly created phi statement with variables replaced
             phi_stmt = phi_block.statements[phidef_stmt_idx]
-            phi_src_vvar_ids = {src_vvar.varid for _, src_vvar in phi_stmt.src.src_and_vvars if src_vvar is not None}
-            new_class = phi_congruence_class[phi_stmt.dst.varid]
-            for src_vvar_id in phi_src_vvar_ids:
-                new_class |= phi_congruence_class[src_vvar_id]
-                phi_congruence_class[src_vvar_id] = new_class
+            for _, src_vvar in phi_stmt.src.src_and_vvars:
+                if src_vvar is not None:
+                    _union(phi_stmt.dst.varid, src_vvar.varid)
 
         # append statements that were recorded for prepending
         for block, stmts in self._stmts_to_prepend.items():
             for stmt in stmts:
                 self._prepend_stmt(block, stmt)
 
-        # remove congruence classes with only one element
-        for phi_varid in list(phi_congruence_class):
-            if len(phi_congruence_class[phi_varid]) == 1:
-                del phi_congruence_class[phi_varid]
-
         mapping: dict[int, int] = {}
-        for phi_varid, congruence_class in phi_congruence_class.items():
-            for varid in congruence_class:
-                mapping[varid] = phi_varid
+        for class_members in members.values():
+            if len(class_members) <= 1:
+                # congruence classes with only one element require no remapping
+                continue
+            rep = min(class_members)
+            for varid in class_members:
+                mapping[varid] = rep
 
         return mapping
 

@@ -1,7 +1,7 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import claripy
 import pyvex
@@ -19,9 +19,6 @@ from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValu
 
 from .engine_base import RichR, SimEngineVRBase
 from .irsb_scanner import VEXIRSBScanner
-
-if TYPE_CHECKING:
-    pass
 
 binop_handler = SimEngineNostmtVEX[
     "VariableRecoveryFastState", RichR[claripy.ast.BV | claripy.ast.FP], None

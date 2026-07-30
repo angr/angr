@@ -177,6 +177,22 @@ class TestPeepholeOptimizations(unittest.TestCase):
                 )
                 assert opt.optimize(expr) is None
 
+    def test_eager_eval_var_mul_a_mul_b(self):
+        bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
+        proj = angr.Project(bin_path)
+        _ = proj.analyses.CFGFast(normalize=True, regions=[(0x410FC0, 0x410FC0 + 1000)])
+        f = proj.kb.functions[0x410FC0]
+        d = proj.analyses.Decompiler(f, fail_fast=True)
+        assert d.codegen is not None and d.codegen.text is not None
+
+        # a * 2 * 5 ==> a * 10
+        # we should see `a * 10`` or `a % 10` in the output
+        if "* 2" in d.codegen.text or "* 5" in d.codegen.text:
+            raise AssertionError(
+                "The decompiler output should not contain `* 2` or `* 5` after peephole optimization, but it does."
+            )
+        assert "* 10" in d.codegen.text or "% 10" in d.codegen.text
+
     def test_cmp_masked_shift(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
         manager = Manager()

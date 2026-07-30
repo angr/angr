@@ -392,7 +392,7 @@ class DataTransformationEmbedder(Analysis):
         _l.debug("Running loop analysis on outlined function...")
         loop_analysis = self.project.analyses.LoopAnalysis(dec_outlined.codegen.cfunc)
 
-        for _loop_key, loop_meta in loop_analysis.result.items():
+        for loop_meta in loop_analysis.result.values():
             if loop_meta.get("fixed_iterations", False) and loop_meta.get("max_iterations", None) > 1:
                 loop_blocks = {nodes_dict[(loop_block_addr, None)] for loop_block_addr in loop_meta["block_addrs"]}
                 succs = set()

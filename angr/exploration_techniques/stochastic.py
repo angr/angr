@@ -44,10 +44,10 @@ class StochasticSearch(ExplorationTechnique):
                 assert len(states) >= 2
                 total_weight = sum(self.affinity[s.addr] for s in states)
                 selected = self._random.uniform(0, total_weight)
-                for i, state in enumerate(states):
+                for _, state in enumerate(states):
                     weight = self.affinity[state.addr]
                     if selected < weight:
-                        return states[i]
+                        return state
                     selected -= weight
                 return states[len(states) - 1]
 

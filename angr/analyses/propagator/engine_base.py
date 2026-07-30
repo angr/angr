@@ -54,7 +54,7 @@ class SimEnginePropagatorBaseMixin[StateType, DataType_co, BlockType: BlockProto
             result_state = super().process(state, block=block, **kwargs)
         except SimEngineError as ex:
             if kwargs.pop("fail_fast", is_testing) is True:
-                raise ex
+                raise
             l.error(ex, exc_info=True)
             result_state = state
 

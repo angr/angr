@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.calling_conventions import DEFAULT_CC, SimRegArg, default_cc
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
