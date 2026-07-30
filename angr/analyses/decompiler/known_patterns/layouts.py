@@ -40,6 +40,14 @@ def string_size_offset(ctx: PatternContext) -> int:
 _VECTOR_BEGIN, _VECTOR_END, _VECTOR_CAP = 0, 1, 2
 
 
+def string_capacity_offset(ctx: PatternContext) -> int:
+    """libstdc++: offset of the ``{ _M_local_buf[16] | _M_allocated_capacity }``
+    union, immediately after _M_p and _M_string_length. Only libstdc++ needs it:
+    the MSVC STL keeps _Myres in a plain field and its ``capacity()`` is a bare
+    load, so no pattern here asks for the MSVC offset."""
+    return ctx.word(2)
+
+
 def vector_begin_offset(ctx: PatternContext) -> int:
     return ctx.word(_VECTOR_BEGIN)
 

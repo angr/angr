@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from .containing_record import CONTAINING_RECORD_PATTERN
 from .context import PatternContext
 from .dsl import (
+    PITE,
     PAny,
     PAssign,
     PBinOp,
@@ -61,6 +62,7 @@ from .std_vector_size import (
     make_std_vector_size_exactdiv_template,
     make_std_vector_size_template,
 )
+from .stl_accessors2 import ALL_STL2_TEMPLATES
 from .stl_containers import STD_VECTOR_INT_CAPACITY, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
 from .templates import KnownPatternTemplate, make_template
 from .vector_math import ALL_VECTOR_MATH_TEMPLATES
@@ -96,6 +98,8 @@ for _t in STD_VECTOR_STRUCT_SIZE_TEMPLATES:
 register_pattern_template(STD_VECTOR_INT_EMPTY)
 register_pattern_template(STD_VECTOR_INT_CAPACITY)
 register_pattern_template(STD_VECTOR_INT_INDEX)
+for _t in ALL_STL2_TEMPLATES:
+    register_pattern_template(_t)
 register_pattern_template(STD_SWAP)
 # C macros / kernel / library idioms
 register_pattern_template(CONTAINING_RECORD_PATTERN)
@@ -157,6 +161,7 @@ __all__ = [
     "ALL_LINKED_LIST_TEMPLATES",
     "ALL_POSIX_MACRO_TEMPLATES",
     "ALL_PROTOBUF_TEMPLATES",
+    "ALL_STL2_TEMPLATES",
     "ALL_STL_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
     "ALL_WDK_TEMPLATES",
@@ -171,6 +176,7 @@ __all__ = [
     "LIST_DEL",
     "LIST_DEL_INIT",
     "MAJOR",
+    "PITE",
     "REMOVE_ENTRY_LIST",
     "STD_STRING_CSTR",
     "STD_STRING_EMPTY",

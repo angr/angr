@@ -15,6 +15,7 @@ from angr.analyses.decompiler.known_patterns import (
     ALL_LINKED_LIST_TEMPLATES,
     ALL_POSIX_MACRO_TEMPLATES,
     ALL_PROTOBUF_TEMPLATES,
+    ALL_STL2_TEMPLATES,
     ALL_STL_TEMPLATES,
     ALL_VECTOR_MATH_TEMPLATES,
     ALL_WDK_TEMPLATES,
@@ -751,6 +752,68 @@ class TestVectorExactDivSize(TestCase):
                 assert "std::string" not in text, text
 
 
+class TestStlAccessors2(TestCase):
+    # libstdc++ round two: the SSO capacity select, string back/front, vector back.
+
+    def _full(self, func_name):
+        proj = angr.Project(STL2_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name=func_name)
+        assert func is not None, func_name
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_string_capacity_is_outlined_during_decompilation(self):
+        # the two-armed SSO select survives to the matcher as an ITE (see PITE),
+        # so this is the real end-to-end check that a converted select outlines
+        assert "std::string::capacity(" in self._full("str_capacity")
+
+    def test_string_capacity_tail_duplicated_does_not_match(self):
+        # when gcc copies the join into both arms there is no merge and no single
+        # region exit, so there is nothing to outline; it must stay raw
+        text = self._full("str_capacity_dup")
+        assert "std::string::capacity(" not in text, text
+
+    def test_string_back(self):
+        assert "std::string::back(" in self._full("str_back")
+
+    def test_opt_in_accessors(self):
+        # string::front is operator[] with i == 0 folded away, and vector::back is
+        # a bare end-pointer dereference: both too generic for default-on
+        proj, _, func, dec = _decompile(STL2_BIN, "str_front")
+        finder = _find(proj, func, dec, ALL_STL2_TEMPLATES)
+        assert "std_string_front" in [m.pattern.name for m in finder.matches]
+        assert "std::string::front(" not in self._full("str_front")
+
+        for func_name, pattern_name in (
+            ("vec_back_s", "std_vector_short_back"),
+            ("vec_back", "std_vector_int_back"),
+            ("vec_back_ll", "std_vector_long_long_back"),
+        ):
+            with self.subTest(func=func_name):
+                proj, _, func, dec = _decompile(STL2_BIN, func_name)
+                finder = _find(proj, func, dec, ALL_STL2_TEMPLATES)
+                assert pattern_name in [m.pattern.name for m in finder.matches]
+
+    def test_bare_one_word_loads_are_not_patterns(self):
+        # c_str/data/begin/get all compile to the identical `mov (%rdi),%rax`;
+        # naming any of them would rewrite ~1 in 37 AIL statements of a C++ binary
+        from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
+
+        for call_name in (
+            "std::vector<int>::data",
+            "std::unique_ptr::get",
+            "std::shared_ptr::get",
+        ):
+            assert call_name not in TEMPLATE_BY_CALL_NAME
+        for func_name in ("str_cstr", "vec_data", "uptr_get"):
+            with self.subTest(func=func_name):
+                text = self._full(func_name)
+                assert "::data(" not in text and "::get(" not in text, text
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -829,6 +892,13 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
                 ("f_isnan", "isnan("),
                 ("f_isinf_bits", "isinf("),
             ],
+        )
+
+    def test_stl_accessors2(self):
+        _assert_outlines_during(
+            self,
+            STL2_BIN,
+            [("str_capacity", "std::string::capacity("), ("str_back", "std::string::back(")],
         )
 
     def test_containing_record(self):
