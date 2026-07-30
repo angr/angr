@@ -116,7 +116,7 @@ class SimConstantVariable(SimVariable):
 
     __slots__ = ["value"]
 
-    def __init__(self, size: int, *, value: int | float, region: int | None = None, ident=None):
+    def __init__(self, size: int, *, value: float, region: int | None = None, ident=None):
         super().__init__(ident=ident, region=region, size=size)
         is_negative = value < 0
         abs_value = -value if is_negative else value
