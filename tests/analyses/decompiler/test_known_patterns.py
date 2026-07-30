@@ -463,3 +463,78 @@ class TestKnownPatternPipeline(TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLargestMatchWins(TestCase):
+    # Two statement-set matches anchored at the same statement both sit at the
+    # expression root, so len(expr_path) cannot separate them. The finder breaks
+    # that tie by footprint size, so a superset pattern beats the subset it
+    # contains regardless of the order the patterns were registered in.
+
+    @staticmethod
+    def _unlink_stmts():
+        from angr.analyses.decompiler.known_patterns.dsl import PAssign, PBinOp, PConst, PLoad, PStore, PVVar
+
+        def field(cap, off):
+            addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
+            return PLoad(addr, size=8)
+
+        def addr(cap, off):
+            return PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
+
+        return (
+            PAssign(PVVar("prev"), field("entry", 8)),
+            PAssign(PVVar("next"), field("entry", 0)),
+            PStore(addr("prev", 0), PVVar("next"), size=8),
+            PStore(addr("next", 8), PVVar("prev"), size=8),
+        ), addr
+
+    @classmethod
+    def _subset_and_superset(cls):
+        """A 4-statement list unlink, and the 6-statement unlink+re-init that
+        strictly contains it (the list_del_init shape)."""
+        from angr.analyses.decompiler.known_patterns import KnownPattern, PatternParam
+        from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq, PStore, PVVar
+
+        unlink, addr = cls._unlink_stmts()
+        subset = KnownPattern(
+            name="unlink_only",
+            display_name="unlink_only",
+            call_name="unlink_only",
+            pattern=PStmtSeq(unlink, ordered=False),
+            params=(PatternParam("entry"),),
+        )
+        superset = KnownPattern(
+            name="unlink_and_init",
+            display_name="unlink_and_init",
+            call_name="unlink_and_init",
+            pattern=PStmtSeq(
+                (
+                    *unlink,
+                    PStore(addr("entry", 0), PVVar("entry"), size=8),
+                    PStore(addr("entry", 8), PVVar("entry"), size=8),
+                ),
+                ordered=False,
+            ),
+            params=(PatternParam("entry"),),
+        )
+        return subset, superset
+
+    def test_superset_wins_in_either_registration_order(self):
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_kernel_macros")
+        subset, superset = self._subset_and_superset()
+        for order_name, patterns in (
+            ("subset first", [subset, superset]),
+            ("superset first", [superset, subset]),
+        ):
+            with self.subTest(order=order_name):
+                proj = angr.Project(bin_path, auto_load_libs=False)
+                cfg = proj.analyses.CFGFast(normalize=True)
+                proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+                func = cfg.functions.function(name="k_list_del_init")
+                assert func is not None
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+                finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=patterns)
+                assert [m.pattern.name for m in finder.matches] == ["unlink_and_init"], (
+                    f"{order_name}: {[m.pattern.name for m in finder.matches]}"
+                )
