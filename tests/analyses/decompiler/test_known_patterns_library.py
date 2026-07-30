@@ -11,6 +11,7 @@ from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_KERNEL_ERR_TEMPLATES,
+    ALL_LIBM_TEMPLATES,
     ALL_LINKED_LIST_TEMPLATES,
     ALL_POSIX_MACRO_TEMPLATES,
     ALL_PROTOBUF_TEMPLATES,
@@ -33,6 +34,7 @@ MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_pat
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 GLIBC_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_glibc_macros")
 KERNEL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_kernel_macros")
+LIBM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
 _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
@@ -558,6 +560,61 @@ class TestKernelErrPatterns(TestCase):
                 assert not finder.matches
 
 
+class TestLibmBitPatterns(TestCase):
+    # fabs / -x / copysign / isnan / isinf are compiler intrinsics: on x86-64 SSE
+    # each is a single andpd/xorpd/andnpd/ucomisd against a sign-mask constant,
+    # which angr's constant_derefs peephole folds into a plain integer bit op.
+
+    _CASES = [
+        ("f_fabs", "libm_fabs", "fabs"),
+        ("f_fabs_bits", "libm_fabs", "fabs"),
+        ("f_fabsf", "libm_fabsf", "fabsf"),
+        ("f_neg", "libm_fneg", "fneg"),
+        ("f_negf", "libm_fnegf", "fnegf"),
+        ("f_copysign", "libm_copysign", "copysign"),
+        ("f_copysignf", "libm_copysignf", "copysignf"),
+        ("f_isnan", "libm_isnan", "isnan"),
+        ("f_isnan_bits", "libm_isnan", "isnan"),
+        ("f_isnanf", "libm_isnanf", "isnanf"),
+        ("f_isinf_bits", "libm_isinf", "isinf"),
+    ]
+
+    def test_libm_bit_idioms(self):
+        for func_name, pattern_name, call_name in self._CASES:
+            with self.subTest(func=func_name):
+                proj, cfg, func, dec = _decompile(LIBM_BIN, func_name)
+                finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
+                names = [m.pattern.name for m in finder.matches]
+                assert names == [pattern_name], f"{func_name}: {names}"
+                assert call_name + "(" in _outline_text(proj, cfg, func, dec, finder)
+
+    def test_float_widths_survive_a_guessed_prototype(self):
+        # the float patterns must not pin the mask/Conv widths: with a recovered
+        # (guessed) prototype a float argument arrives through the 64-bit xmm
+        # register, so fabsf is `x & 0x7fffffff<64>` rather than <32>.
+        for func_name, pattern_name in (
+            ("f_fabsf", "libm_fabsf"),
+            ("f_negf", "libm_fnegf"),
+            ("f_copysignf", "libm_copysignf"),
+        ):
+            with self.subTest(func=func_name):
+                proj, _, func, dec = _decompile(LIBM_BIN, func_name)
+                finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
+                assert [m.pattern.name for m in finder.matches] == [pattern_name]
+
+    def test_computed_argument_does_not_match(self):
+        # a call argument must bind a virtual variable, so fabs(a - b) must not
+        # produce a match that could never be outlined
+        proj, _, func, dec = _decompile(LIBM_BIN, "f_near")
+        finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
+        assert not finder.matches
+
+    def test_isnan_wins_over_isunordered_on_a_self_compare(self):
+        proj, _, func, dec = _decompile(LIBM_BIN, "f_isnan")
+        finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
+        assert [m.pattern.name for m in finder.matches] == ["libm_isnan"]
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -623,6 +680,19 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
             self,
             KERNEL_BIN,
             [("k_is_err", "IS_ERR("), ("k_is_err_or_null", "IS_ERR_OR_NULL(")],
+        )
+
+    def test_libm_bits(self):
+        _assert_outlines_during(
+            self,
+            LIBM_BIN,
+            [
+                ("f_fabs", "fabs("),
+                ("f_neg", "fneg("),
+                ("f_copysign", "copysign("),
+                ("f_isnan", "isnan("),
+                ("f_isinf_bits", "isinf("),
+            ],
         )
 
     def test_containing_record(self):
