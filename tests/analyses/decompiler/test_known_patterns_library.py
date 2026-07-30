@@ -17,6 +17,7 @@ from angr.analyses.decompiler.known_patterns import (
     ALL_PROTOBUF_TEMPLATES,
     ALL_STL_TEMPLATES,
     ALL_VECTOR_MATH_TEMPLATES,
+    ALL_WDK_TEMPLATES,
     STD_STRING_CSTR,
     KnownPatternFinder,
 )
@@ -35,6 +36,8 @@ CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_pattern
 GLIBC_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_glibc_macros")
 KERNEL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_kernel_macros")
 LIBM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
+KSUD_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_ksud.exe")
+KSUD_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_wdk_ksud.exe")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
 _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
@@ -613,6 +616,101 @@ class TestLibmBitPatterns(TestCase):
         proj, _, func, dec = _decompile(LIBM_BIN, "f_isnan")
         finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
         assert [m.pattern.name for m in finder.matches] == ["libm_isnan"]
+
+
+class TestWdkSharedDataPatterns(TestCase):
+    # KUSER_SHARED_DATA is mapped at the fixed address 0x7FFE0000 in every Windows
+    # process, so a field read is a bare load from an absolute constant. The address
+    # is its own guard, which is why these are default-on nullary accessors.
+
+    _CASES = [
+        ("ksud_tick_count_low", "SharedUserData_TickCountLow"),
+        ("ksud_interrupt_time", "SharedUserData_InterruptTime"),
+        ("ksud_nt_major_version", "SharedUserData_NtMajorVersion"),
+        ("ksud_kd_debugger_enabled", "SharedUserData_KdDebuggerEnabled"),
+        ("ksud_image_number_low", "SharedUserData_ImageNumberLow"),
+        ("ksud_cookie", "SharedUserData_Cookie"),
+    ]
+
+    def _full(self, bin_path, func_name):
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name=func_name)
+        assert func is not None, func_name
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_shared_user_data_fields(self):
+        for func_name, call_name in self._CASES:
+            with self.subTest(func=func_name):
+                assert call_name + "()" in self._full(KSUD_BIN, func_name)
+
+    def test_nullary_accessor_takes_no_arguments(self):
+        # a Load(Const) region has no live-in vvars, so the synthesized call is
+        # nullary; this is the only pattern family with params=()
+        text = self._full(KSUD_BIN, "ksud_tick_count_low")
+        assert "SharedUserData_TickCountLow()" in text, text
+
+    def test_kernel_mode_base_address(self):
+        # kernel-mode code reaches the same page through KI_USER_SHARED_DATA
+        assert "SharedUserData_NtMajorVersion()" in self._full(KSUD_BIN, "ksud_km_nt_major_version")
+
+    def test_x86_uses_the_same_user_mode_address(self):
+        # KUSER_SHARED_DATA sits at 0x7FFE0000 on x86 too, so one template covers
+        # both. (32-bit mingw prefixes cdecl symbols with an underscore.)
+        assert "SharedUserData_TickCountLow()" in self._full(KSUD_X86_BIN, "_ksud_tick_count_low")
+
+    def test_uncovered_offset_stays_raw(self):
+        # negative control: offset 0x30 (NtSystemRoot) has no pattern
+        text = self._full(KSUD_BIN, "ksud_nt_system_root_first_wchar")
+        assert "SharedUserData_" not in text, text
+
+    def test_systemcall_is_opt_in(self):
+        # SystemCall moved from 0x300 to 0x308 in Windows 8, so neither offset can
+        # be named with confidence without knowing the target's version
+        from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
+
+        for call_name in ("SharedUserData_SystemCall_pre_win8", "SharedUserData_SystemCall_win8"):
+            assert TEMPLATE_BY_CALL_NAME[call_name].enabled_by_default is False
+
+    def test_ntstatus_severity_predicates(self):
+        for func_name, macro in (
+            ("ntstatus_information", "NT_INFORMATION"),
+            ("ntstatus_warning", "NT_WARNING"),
+            ("ntstatus_error", "NT_ERROR"),
+        ):
+            with self.subTest(macro=macro):
+                assert macro + "(" in self._full(KSUD_BIN, func_name)
+
+    def test_ntstatus_in_branch_position(self):
+        assert "NT_ERROR(" in self._full(KSUD_BIN, "ntstatus_error_if")
+
+    def test_nt_success_is_not_a_pattern(self):
+        # NT_SUCCESS(s) is a bare `(NTSTATUS)s >= 0` sign test; naming it would
+        # rename every sign comparison in the program
+        from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
+
+        assert "NT_SUCCESS" not in TEMPLATE_BY_CALL_NAME
+
+    def test_no_false_positives_on_a_non_ksud_windows_binary(self):
+        proj = angr.Project(WDK_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        total = 0
+        for func in list(cfg.functions.values()):
+            if func.is_plt or func.is_simprocedure or func.is_alignment:
+                continue
+            try:
+                dec = proj.analyses[Decompiler](func, cfg=cfg.model)
+                if dec.ail_graph is None:
+                    continue
+                finder = proj.analyses[KnownPatternFinder](func, dec.ail_graph, patterns=ALL_WDK_TEMPLATES)
+                total += len(finder.matches)
+            except Exception:  # pylint:disable=broad-except
+                continue
+        assert total == 0, f"{total} spurious KUSER_SHARED_DATA/NTSTATUS matches"
 
 
 class TestPatternsOutlineDuringDecompilation(TestCase):

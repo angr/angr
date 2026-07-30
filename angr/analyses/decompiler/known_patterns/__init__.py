@@ -61,6 +61,7 @@ from .std_vector_size import (
 from .stl_containers import STD_VECTOR_INT_CAPACITY, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
 from .templates import KnownPatternTemplate, make_template
 from .vector_math import ALL_VECTOR_MATH_TEMPLATES
+from .wdk_shared_data import ALL_WDK_TEMPLATES
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -102,6 +103,8 @@ for _t in ALL_POSIX_MACRO_TEMPLATES:
 for _t in ALL_KERNEL_ERR_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_LIBM_TEMPLATES:
+    register_pattern_template(_t)
+for _t in ALL_WDK_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_VECTOR_MATH_TEMPLATES:
     register_pattern_template(_t)
@@ -151,6 +154,7 @@ __all__ = [
     "ALL_PROTOBUF_TEMPLATES",
     "ALL_STL_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
+    "ALL_WDK_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",
     "HLIST_DEL",
     "INITIALIZE_LIST_HEAD",
