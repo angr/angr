@@ -10,6 +10,7 @@ import angr
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
+    ALL_KERNEL_ERR_TEMPLATES,
     ALL_LINKED_LIST_TEMPLATES,
     ALL_POSIX_MACRO_TEMPLATES,
     ALL_PROTOBUF_TEMPLATES,
@@ -494,6 +495,69 @@ class TestKernelListPatterns(TestCase):
         self._check(KERNEL_BIN, "k_hlist_del_plain", "hlist_del", "hlist_del")
 
 
+class TestKernelErrPatterns(TestCase):
+    # <linux/err.h>: IS_ERR(p) is (unsigned long)p >= (unsigned long)-MAX_ERRNO.
+
+    def _check(self, func_name, pattern_name, call_name):
+        proj, cfg, func, dec = _decompile(KERNEL_BIN, func_name)
+        finder = _find(proj, func, dec, ALL_KERNEL_ERR_TEMPLATES)
+        names = [m.pattern.name for m in finder.matches]
+        assert pattern_name in names, f"{func_name}: {names}"
+        match = next(m for m in finder.matches if m.pattern.name == pattern_name)
+        result = finder.outline(match)
+        del dec.kb.dec_variables.function_managers[func.addr]
+        func.prototype_source = PrototypeSource.GUESSED
+        dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            clinic_graph=result.graph,
+            clinic_start_stage=ClinicStage.POST_CALLSITES,
+            clinic_arg_vvars=dec.clinic.arg_vvars,
+            cfg=cfg.model,
+        )
+        assert call_name + "(" in dec_outer.codegen.text
+
+    def test_is_err_value_form(self):
+        self._check("k_is_err", "is_err", "IS_ERR")
+
+    def test_is_err_branch_form(self):
+        # gcc emits the operand-swapped comparison when the test becomes a branch
+        # condition; the pattern must cover that shape too
+        self._check("k_is_err_branch", "is_err", "IS_ERR")
+
+    def test_is_err_or_null(self):
+        self._check("k_is_err_or_null", "is_err_or_null", "IS_ERR_OR_NULL")
+
+    def test_is_err_or_null_beats_is_err(self):
+        # IS_ERR_OR_NULL strictly contains IS_ERR; the nested-expression
+        # largest-match rule must prefer the outer one
+        proj, _, func, dec = _decompile(KERNEL_BIN, "k_is_err_or_null")
+        finder = _find(proj, func, dec, ALL_KERNEL_ERR_TEMPLATES)
+        assert [m.pattern.name for m in finder.matches] == ["is_err_or_null"]
+
+    def test_is_err_requires_an_unsigned_compare(self):
+        from angr.analyses.decompiler.known_patterns import PatternContext, patterns_for
+
+        proj = angr.Project(KERNEL_BIN, auto_load_libs=False)
+        ctx = PatternContext.from_project(proj)
+        pat = next(p for p in patterns_for(ctx, ALL_KERNEL_ERR_TEMPLATES) if p.name == "is_err")
+
+        class _FakeCmp:
+            signed = True
+
+        assert pat.where({"err_cmp": _FakeCmp()}) is False
+        _FakeCmp.signed = False
+        assert pat.where({"err_cmp": _FakeCmp()}) is True
+
+    def test_ptr_err_leaves_no_residue(self):
+        # PTR_ERR/ERR_PTR are pure casts: nothing to match, and nothing must be
+        # invented for them
+        for func_name in ("k_ptr_err", "k_err_ptr"):
+            with self.subTest(func=func_name):
+                proj, _, func, dec = _decompile(KERNEL_BIN, func_name)
+                finder = _find(proj, func, dec, ALL_KERNEL_ERR_TEMPLATES)
+                assert not finder.matches
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -552,6 +616,13 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
                 ("st_termsig", "WTERMSIG("),
                 ("dev_major", "major("),
             ],
+        )
+
+    def test_kernel_err(self):
+        _assert_outlines_during(
+            self,
+            KERNEL_BIN,
+            [("k_is_err", "IS_ERR("), ("k_is_err_or_null", "IS_ERR_OR_NULL(")],
         )
 
     def test_containing_record(self):

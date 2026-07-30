@@ -33,6 +33,7 @@ from .dsl import (
 )
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .generator import PatternGenerationError, PatternGenerator
+from .kernel_err import ALL_KERNEL_ERR_TEMPLATES, IS_ERR, IS_ERR_OR_NULL
 from .linked_list import (
     ALL_LINKED_LIST_TEMPLATES,
     HLIST_DEL,
@@ -97,6 +98,8 @@ for _t in ALL_PROTOBUF_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_POSIX_MACRO_TEMPLATES:
     register_pattern_template(_t)
+for _t in ALL_KERNEL_ERR_TEMPLATES:
+    register_pattern_template(_t)
 for _t in ALL_VECTOR_MATH_TEMPLATES:
     register_pattern_template(_t)
 
@@ -137,6 +140,7 @@ ALL_STL_TEMPLATES = [
 
 
 __all__ = [
+    "ALL_KERNEL_ERR_TEMPLATES",
     "ALL_KNOWN_PATTERN_TEMPLATES",
     "ALL_LINKED_LIST_TEMPLATES",
     "ALL_POSIX_MACRO_TEMPLATES",
@@ -148,6 +152,8 @@ __all__ = [
     "INITIALIZE_LIST_HEAD",
     "INSERT_HEAD_LIST",
     "INSERT_TAIL_LIST",
+    "IS_ERR",
+    "IS_ERR_OR_NULL",
     "IS_LIST_EMPTY",
     "LIST_DEL",
     "LIST_DEL_INIT",
